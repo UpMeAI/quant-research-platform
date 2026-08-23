@@ -1,0 +1,12 @@
+{
+  "name": "quant-research-platform",
+  "version": "0.1.0",
+  "description": "多市场量化策略研究平台 —— 策略研究 / 回测 / 策略赛马 / 分市场发布(A 股 MVP)",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "test": "node --test 'tests/*.test.js'",
+    "mvp:ashare": "node apps/research-cli/run_ashare_mvp.js",
+    "seed:ashare": "node apps/research-cli/seed_sample_data.js --market CN_A"
+  }
+}

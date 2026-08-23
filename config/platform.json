@@ -1,0 +1,18 @@
+{
+  "platform": "QUANT_RESEARCH_PLATFORM_V1",
+  "originSystem": "UpMeAI/Ashare-V5 services/phase2 (Research Strategy Evolution System)",
+  "invariants": {
+    "real_order": 0,
+    "brokerConnectionEnabled": false,
+    "autoPromotion": false,
+    "appendOnlyLedgers": true,
+    "pitNoLookahead": true,
+    "resultLockPerExperiment": true,
+    "publicationRequiresFounderApproval": true,
+    "effectiveFromMustBeFuture": true
+  },
+  "markets": {
+    "enabled": ["CN_A"],
+    "planned": ["US", "CRYPTO"]
+  }
+}
