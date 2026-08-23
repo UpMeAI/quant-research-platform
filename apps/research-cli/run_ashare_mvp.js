@@ -104,11 +104,14 @@ function main() {
     dataset_snapshot_ref: snap.snapshot_id,
     universe: { skip: 0, stride: 1, cap: 50 },
     regime_scope: 'ALL', holding_period: { fwd_days: 3 },
-    sample: { is_end: oosStart, oos_start: oosStart, adjudication_segment: 'OOS' },
+    sample: {
+      is_end: oosStart, oos_start: oosStart, adjudication_segment: 'OOS',
+      wfo: { train_days: 40, test_days: 20, step_days: 20, folds: 2 },
+    },
     costs: { cost_per_side: 0.001 },
     execution_model: { champion_variant: CHAMPION_VARIANT, challenger_variant: challengerVariant },
     multiple_test_policy: 'SINGLE_PREREGISTERED_COMPARISON',
-    parameter_grid: [{ qHi: 0.8, qLo: 0.2 }],
+    parameter_grid: [{ qHi: 0.8, qLo: 0.1 }, { qHi: 0.85, qLo: 0.1 }, { qHi: 0.75, qLo: 0.1 }],
     seed: 20260823, min_forward_evidence: 20,
   });
   console.log(`  ${exp.experiment_id}(freeze_hash=${exp.freeze_hash},oos_start=${oosStart})`);
@@ -120,7 +123,21 @@ function main() {
   console.log(`  Champion  (OOS): good_precision=${p.champion.good_precision?.toFixed(4)} good=${p.champion.good_count} bad_precision=${p.champion.bad_precision?.toFixed(4)}`);
   console.log(`  Challenger(OOS): good_precision=${p.challenger.good_precision?.toFixed(4)} good=${p.challenger.good_count} bad_precision=${p.challenger.bad_precision?.toFixed(4)}`);
 
-  step(8, 'Stage Race(受控变量 + 预注册裁决)');
+  step('7b', 'OOS / WFO / Costs / Robustness(§16.3 步骤 4)');
+  const wfo = experiments.runWalkForward(exp.experiment_id);
+  console.log(`  WFO:${wfo.evaluated_fold_count}/${wfo.fold_count} fold 可评测,challenger 胜出比例=${wfo.challenger_win_fraction}`);
+  for (const f of wfo.folds) {
+    console.log(`    fold${f.fold} train ${f.train_from}..${f.train_to} → test ${f.test_from}..${f.test_to}` +
+      (f.status === 'EVALUATED' ? ` | 选参 ${JSON.stringify(f.selected_params)} | test champ=${f.test_champion?.toFixed(4)} chal=${f.test_challenger?.toFixed(4)}` : ` | ${f.status}`));
+  }
+  console.log(`  选参稳定性:${wfo.stabilityCn}`);
+  const rob = experiments.runRobustness(exp.experiment_id);
+  console.log(`  Robustness:${rob.decidable_trial_count} 次可判扰动,challenger 仍占优比例=${rob.challenger_better_fraction}`);
+  for (const [dim, d] of Object.entries(rob.dimensions)) {
+    console.log(`    ${dim}: ${d.status}${d.trials ? `(${d.trials.filter((t) => t.challenger_better).length}/${d.trials.length} 占优)` : ` —— ${d.reasonCn || ''}`}`);
+  }
+
+  step(8, 'Stage Race(受控变量 + 预注册裁决 + Regime 分解)');
   const race = races.openRace({ race_type: 'STAGE_RACE', experiment_ref: exp.experiment_id });
   races.submitPairedSamples(race.race_id, artifact.paired_rows_oos);
   const metricsOf = (side) => ({
@@ -136,6 +153,13 @@ function main() {
   const verdict = closed.result.conclusion;
   console.log(`  verdict=${verdict} primary(${closed.result.primary_metric}): champion=${closed.result.champion_value?.toFixed(4)} challenger=${closed.result.challenger_value?.toFixed(4)}`);
   for (const g of closed.result.guardrail_result) console.log(`  guardrail ${g.id}: ${g.breached ? '违约' : '通过'}`);
+  const rb = closed.result.regime_breakdown;
+  if (rb?.status === 'EVALUATED') {
+    console.log(`  Regime 分解(${rb.regime_model};challenger 占优 Regime 比例=${rb.stability}):`);
+    for (const [reg, cell] of Object.entries(rb.by_regime)) {
+      console.log(`    ${reg.padEnd(10)} n=${String(cell.sample_count).padStart(4)} champ_gp=${cell.champion.good_precision ?? '-'} chal_gp=${cell.challenger.good_precision ?? '-'}`);
+    }
+  } else console.log(`  Regime 分解:${rb?.status}`);
 
   if (verdict !== 'CHALLENGER_WINS') {
     // 负结果/守擂是合法出口:归档,不进发布(样本数据下也可能发生 —— 诚实终止)
@@ -184,9 +208,15 @@ function main() {
   });
   console.log(`  ${act.activation_id}(status=${act.activation_status},effective_from=${act.effective_from})`);
 
-  step(12, 'Runtime Pull + Verify Hash + ACK(pull-based §12.2)');
-  const pulled = runtimeStub.pullAndAck();
-  for (const r of pulled.results) console.log(`  ${r.activation_id} → ${r.action}`);
+  step(12, 'Runtime Pull + Verify Hash + ACK(pull-based §12.2,生效日门控)');
+  const beforeEffective = runtimeStub.pullAndAck({ today: new Date().toISOString().slice(0, 10) });
+  console.log(`  生效日前(今日)拉取:pending=${beforeEffective.pulled},未到生效日=${beforeEffective.scheduled_not_yet_effective.length} → 批准 ≠ 生效`);
+  const pulled = runtimeStub.pullAndAck({ today: effectiveFrom }); // 模拟自然到达 effective_from 当日
+  console.log(`  生效日(${effectiveFrom})拉取:pending=${pulled.pulled}`);
+  for (const r of pulled.results) {
+    console.log(`  ${r.activation_id} → ${r.action}`);
+    if (r.migration) console.log(`  迁移裁定:${r.migration.schema} status=${r.migration.status || '-'} replan=${r.migration.replan_required_count}(${r.migration.reasonCn})`);
+  }
   const finalAct = controlPlane.activationHead(act.activation_id);
   const finalBundle = registry.bundleHead(chalBundle.record.bundle_id, chalBundle.record.bundle_version);
 

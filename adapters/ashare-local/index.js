@@ -28,7 +28,7 @@ const manifest = Object.freeze({
   cost_model_version: `COST_PER_SIDE_${market.defaultCostPerSide}`,
   execution_model_version: 'SIGNAL_LAYER_CLOSE_ENTRY_FWD_EXIT_V1',
   backtest_entrypoint: 'run_backtest',
-  shadow_entrypoint: 'run_shadow_observation',
+  shadow_entrypoint: 'run_shadow',
   runtime_binding_endpoint: 'ashare-paper-runtime(pull-based;MVP 内置 stub)',
   health_status: 'HEALTHY',
   compatibility_range: { platform: '>=0.1.0' },
@@ -73,10 +73,13 @@ function run_backtest(spec, opts = {}) {
 
   const champ = { ...champVariant, key: champVariant.key || 'CHAMPION' };
   const chal = { ...chalVariant, key: chalVariant.key || 'CHALLENGER' };
-  const rows = engine.evaluateVariants(byInst, [champ, chal]);
+  // 评测窗口(WFO fold / 鲁棒性子样本用;量能基线仍用窗口前完整历史 → PIT 不破)
+  const winFrom = spec.sample?.window_from || null;
+  const winTo = spec.sample?.window_to || null;
+  const rows = engine.evaluateVariants(byInst, [champ, chal], { dateFrom: winFrom, dateTo: winTo });
   if (!rows.length) throw new Error('BACKTEST_NO_EVALUABLE_ROWS(数据长度不足量能预热窗口)');
-  const cCurve = engine.backtestCurve(byInst, rows, champ.key, { costPerSide });
-  const hCurve = engine.backtestCurve(byInst, rows, chal.key, { costPerSide });
+  const cCurve = engine.backtestCurve(byInst, rows, champ.key, { costPerSide, dateFrom: winFrom, dateTo: winTo });
+  const hCurve = engine.backtestCurve(byInst, rows, chal.key, { costPerSide, dateFrom: winFrom, dateTo: winTo });
   const benchBars = pit.loadInstrumentBars(market.benchmark);
   const bench = engine.benchmarkCurve(benchBars, cCurve.dates);
 
@@ -123,21 +126,28 @@ function run_backtest(spec, opts = {}) {
       champion_output: r.patterns[champ.key], challenger_output: r.patterns[chal.key],
     })),
     oos_start: oosStart,
+    window: { from: winFrom, to: winTo },
+    // 可评测区间(量能预热 + 前向窗口之后的真实可判日);WFO/鲁棒性按此切分,避免落进预热期
+    evaluable_range: { from: rows[0].d, to: rows[rows.length - 1].d, row_count: rows.length },
     noteCn: '信号层净值对比(GOOD 收盘进/持有期收盘出/等权/显式双边成本);非完整组合模拟',
     ranAt: opts.now || now(),
   };
   artifact.result_hash = hash({
     spec_freeze: spec.freeze_hash || null, universe: universeDeclared,
+    window: artifact.window, costPerSide,
     nav: artifact.nav, precision: artifact.precision,
   });
   return artifact;
 }
 
 /**
- * run_shadow_observation(shadowSpec, evalDate) —— 同 PIT、同 cutoff 对 Champion/Challenger
- * 各判一次当日 GOOD 信号集(§11 Shadow Contract);只产观察输出,不触碰任何 Runtime 状态。
+ * run_shadow(shadowSpec, evalDate) -> ShadowArtifact(§14.1)—— 同 PIT、同 cutoff 对
+ * Champion/Challenger 各判一次当日 GOOD 信号集(§11 Shadow Contract);
+ * 只产观察输出,不触碰任何 Runtime 状态。
+ * 若前向窗口已完整(数据覆盖到 evalDate+FWD_DAYS),同时给出双方已实现前向收益,
+ * 供 Virtual Ledger 累计虚拟 PnL(§17 Shadow 页要求 virtual PnL)。
  */
-function run_shadow_observation(shadowSpec, evalDate) {
+function run_shadow(shadowSpec, evalDate) {
   const em = shadowSpec.execution_model || {};
   const champ = { ...(em.champion_variant || CHAMPION_VARIANT), key: 'CHAMPION' };
   const chal = { ...em.challenger_variant, key: 'CHALLENGER' };
@@ -148,6 +158,7 @@ function run_shadow_observation(shadowSpec, evalDate) {
   const cut = new Map();
   for (const [inst, series] of byInst) cut.set(inst, series.filter((b) => b.d <= evalDate));
   const signals = { CHAMPION: [], CHALLENGER: [] };
+  const fwdOf = new Map(); // inst -> 已实现前向收益(仅当前向窗口已完整)
   for (const [inst, series] of cut) {
     const i = series.length - 1;
     if (i < 80 || series[i].d !== evalDate) continue;
@@ -156,16 +167,67 @@ function run_shadow_observation(shadowSpec, evalDate) {
       if (r.patterns[champ.key] === 'GOOD') signals.CHAMPION.push(inst);
       if (r.patterns[chal.key] === 'GOOD') signals.CHALLENGER.push(inst);
     }
+    // 前向收益只在真实数据已覆盖 evalDate+FWD_DAYS 时给出(否则 null —— 不用占位 bar 冒充)
+    const full = byInst.get(inst) || [];
+    const at = full.findIndex((b) => b.d === evalDate);
+    if (at >= 0 && at + FWD_DAYS < full.length) {
+      fwdOf.set(inst, (full[at + FWD_DAYS].close - full[at].close) / full[at].close);
+    }
   }
+  const realized = (list) => {
+    const vals = list.map((id) => fwdOf.get(id)).filter((v) => Number.isFinite(v));
+    if (!list.length) return { signal_count: 0, forward_return: 0, forward_complete: true };  // 空仓 = 现金,收益 0
+    if (vals.length !== list.length) return { signal_count: list.length, forward_return: null, forward_complete: false };
+    const cost = market.defaultCostPerSide * 2;
+    return { signal_count: list.length, forward_return: Number((vals.reduce((s, v) => s + v, 0) / vals.length - cost).toFixed(6)), forward_complete: true };
+  };
   return {
+    schema: 'SHADOW_ARTIFACT_V1',
     key: evalDate,
     business_date: evalDate,
     champion_output: signals.CHAMPION.sort(),
     challenger_output: signals.CHALLENGER.sort(),
+    champion_forward: realized(signals.CHAMPION),
+    challenger_forward: realized(signals.CHALLENGER),
+    forward_windowCn: `等权持有 ${FWD_DAYS} 个交易日、扣双边成本;窗口未走完则 forward_return=null`,
     input_refs: [`pit:${market.market_id}:${pit.barsChecksum()}`],
     data_quality: 'OK',
   };
 }
+
+/**
+ * regime_labels(spec) -> { [date]: REGIME }(可选能力,供 Race regime_breakdown §10)。
+ * 口径:BENCHMARK_TREND_VOL_PROXY_V1 —— 由基准指数 20/60 日均线关系与 20 日已实现波动
+ * 派生的**代理**状态,显式标注为代理,不冒充 A 股原生五态市场状态路由器
+ * (生产 adapter 应绑定 Ashare-V5 native_market_state_router 的权威状态)。
+ */
+function regime_labels() {
+  const bars = pit.loadInstrumentBars(market.benchmark);
+  const labels = {};
+  for (let i = 60; i < bars.length; i++) {
+    const closes = bars.slice(i - 60, i + 1).map((b) => b.close);
+    const ma20 = closes.slice(-20).reduce((s, v) => s + v, 0) / 20;
+    const ma60 = closes.reduce((s, v) => s + v, 0) / closes.length;
+    const rets = [];
+    for (let k = closes.length - 20; k < closes.length; k++) rets.push((closes[k] - closes[k - 1]) / closes[k - 1]);
+    const mean = rets.reduce((s, v) => s + v, 0) / rets.length;
+    const vol = Math.sqrt(rets.reduce((s, v) => s + (v - mean) ** 2, 0) / rets.length);
+    const last = closes[closes.length - 1];
+    let label;
+    if (vol > 0.02) label = 'HIGH_VOL';
+    else if (ma20 > ma60 && last > ma20) label = 'UPTREND';
+    else if (ma20 < ma60 && last < ma20) label = 'DOWNTREND';
+    else label = 'RANGE';
+    labels[bars[i].d] = label;
+  }
+  return { regime_model: 'BENCHMARK_TREND_VOL_PROXY_V1', labels, proxyCn: '基准指数派生的代理状态,非市场原生权威 Regime' };
+}
+
+// ── §13.1 只读回读面(经内置 Paper Runtime stub;生产由 Ashare-V5 Runtime 提供)────
+function runtime_active_release() { return require('./paper_runtime_stub').activeRelease(); }
+function runtime_positions_readonly() { return require('./paper_runtime_stub').positionsReadonly(); }
+function runtime_performance_summary() { return require('./paper_runtime_stub').performanceSummary(); }
+function runtime_health() { return require('./paper_runtime_stub').health(); }
 
 // evaluateVariants 需要 i < len - FWD_DAYS 才评测;Shadow 判「当日」信号无前向收益可言,
 // 用当日收盘价补齐 FWD_DAYS 个占位 bar(仅让当日可评测;fwd 值不用于 Shadow 结论)。
@@ -204,35 +266,66 @@ function runtime_capabilities() {
 /** normalize_result(nativeBacktestArtifact) -> CanonicalRaceMetrics(七轴,§10.1)。 */
 function normalize_result(a) {
   const s = a.summary;
+  const p = a.precision_oos || a.precision;
   return {
     absolute: {
       cumRet: s.challenger.cumRet, nav_end: a.nav.challenger[a.nav.challenger.length - 1],
-      tradeCount: s.challenger.tradeCount,
-      champion_cumRet: s.champion.cumRet,
+      cagr: s.challenger.cagr, tradeCount: s.challenger.tradeCount,
+      max_dd_recovery_days: s.challenger.max_dd_recovery_days,
+      champion_cumRet: s.champion.cumRet, champion_cagr: s.champion.cagr,
+      basisCn: s.challenger.basisCn,
     },
-    risk: { maxDrawdown: s.challenger.maxDrawdown, champion_maxDrawdown: s.champion.maxDrawdown },
-    relative: { benchmarkExcess: Number((s.challenger.cumRet - s.benchmark.cumRet).toFixed(6)) },
+    risk: {
+      maxDrawdown: s.challenger.maxDrawdown, annualized_vol: s.challenger.annualized_vol,
+      calmar: s.challenger.calmar, sortino_like: s.challenger.sortino_like, sharpe_like: s.challenger.sharpe_like,
+      champion_maxDrawdown: s.champion.maxDrawdown, champion_calmar: s.champion.calmar,
+      cvar_status: 'NOT_IMPLEMENTED_MVP',   // 信号层等权口径下无逐笔分布,CVaR 待组合层(§21 P4)
+    },
+    relative: {
+      benchmarkExcess: Number((s.challenger.cumRet - s.benchmark.cumRet).toFixed(6)),
+      champion_benchmarkExcess: Number((s.champion.cumRet - s.benchmark.cumRet).toFixed(6)),
+      benchmark_cumRet: s.benchmark.cumRet, benchmark: a.benchmark,
+      information_ratio_status: 'NOT_IMPLEMENTED_MVP',      // 需逐日基准对齐序列,MVP 未做
+      downside_capture_status: 'NOT_IMPLEMENTED_MVP',
+    },
     trading_quality: {
-      good_precision: a.precision.challenger.good_precision,
-      bad_precision: a.precision.challenger.bad_precision,
-      good_count: a.precision.challenger.good_count,
-      bad_count: a.precision.challenger.bad_count,
+      good_precision: p.challenger.good_precision, bad_precision: p.challenger.bad_precision,
+      good_count: p.challenger.good_count, bad_count: p.challenger.bad_count,
+      payoff_ratio: p.challenger.payoff_ratio, expectancy: p.challenger.expectancy,
+      avg_win: p.challenger.avg_win, avg_loss: p.challenger.avg_loss,
+      mae_avg_on_good: p.challenger.mae_avg_on_good, mfe_avg_on_good: p.challenger.mfe_avg_on_good,
+      signal_turnover_per_day: s.challenger.signal_turnover_per_day,
+      exposure_ratio: s.challenger.exposure_ratio,
       costPerSide: s.challenger.costPerSide,
-      champion_good_precision: a.precision.champion.good_precision,
-      champion_bad_precision: a.precision.champion.bad_precision,
-      champion_good_count: a.precision.champion.good_count,
+      champion_good_precision: p.champion.good_precision,
+      champion_bad_precision: p.champion.bad_precision,
+      champion_good_count: p.champion.good_count,
+      champion_payoff_ratio: p.champion.payoff_ratio,
     },
     robustness: {
       is_cumRet: s.is.challenger.cumRet, oos_cumRet: s.oos.challenger.cumRet,
       champion_is_cumRet: s.is.champion.cumRet, champion_oos_cumRet: s.oos.champion.cumRet,
+      is_oos_decay: s.is.challenger.cumRet != null && s.oos.challenger.cumRet != null
+        ? Number((s.oos.challenger.cumRet - s.is.challenger.cumRet).toFixed(6)) : null,
+      wfo_ref: 'services/experiment-orchestrator/wfo(逐 fold 报告独立入台账)',
+      parameter_sensitivity_ref: 'services/experiment-orchestrator/robustness(参数扰动维度)',
     },
-    operational: { deterministic: true, result_hash: a.result_hash },
-    capacity: {},
+    operational: {
+      deterministic: true, result_hash: a.result_hash,
+      evaluable_range: a.evaluable_range || null,
+      replayable: true, idempotent_backtest: true,
+    },
+    capacity: {
+      status: 'NOT_IMPLEMENTED_P4',   // 容量/流动性/冲击模型属 §21 P4,MVP 显式不做(不留空对象假装已覆盖)
+      reasonCn: '容量模型(流动性、资金区间、冲击假设)属 P4 Strategy Factory,MVP 不估算',
+    },
   };
 }
 
 module.exports = {
-  manifest, snapshot, run_backtest, run_shadow_observation,
+  manifest, snapshot, run_backtest, run_shadow,
   validate_release, runtime_capabilities, normalize_result,
+  regime_labels,
+  runtime_active_release, runtime_positions_readonly, runtime_performance_summary, runtime_health,
   ADAPTER_VERSION,
 };

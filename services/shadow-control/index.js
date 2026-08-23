@@ -24,10 +24,18 @@ const SHADOW_LEDGER = () => path.join(DIR(), 'shadow_runs.jsonl');
 const DISAGREEMENT_LEDGER = () => path.join(DIR(), 'shadow_observations.jsonl');
 const VIRTUAL_LEDGER = () => path.join(DIR(), 'virtual_ledger.jsonl');
 
-const STOP_CONDITIONS = Object.freeze([
-  'LOOKAHEAD_OR_DATA_CONTAMINATION', 'GUARDRAIL_DETERIORATION', 'OPERATIONAL_ERROR_OR_DUPLICATE',
-  'OVERFIT_SINGLE_SUBSAMPLE', 'MECHANISM_CONTRADICTED',
-]);
+/**
+ * 停止条件(§11)——「Operational failure 与 Economic failure 分开归因」:
+ * 每个条件显式带 failure_class,禁止把运行故障与经济证伪混为一谈。
+ */
+const STOP_CONDITION_CLASS = Object.freeze({
+  LOOKAHEAD_OR_DATA_CONTAMINATION: 'OPERATIONAL',
+  OPERATIONAL_ERROR_OR_DUPLICATE: 'OPERATIONAL',
+  GUARDRAIL_DETERIORATION: 'ECONOMIC',
+  OVERFIT_SINGLE_SUBSAMPLE: 'ECONOMIC',
+  MECHANISM_CONTRADICTED: 'ECONOMIC',
+});
+const STOP_CONDITIONS = Object.freeze(Object.keys(STOP_CONDITION_CLASS));
 const DEFAULT_MIN_FORWARD_SAMPLE = 20; // 实验未预注册时的保守默认
 
 function openShadowRun(o = {}) {
@@ -46,10 +54,14 @@ function openShadowRun(o = {}) {
     challenger_release_ref: o.challenger_ref,
     race_ref: o.race_ref,
     virtual_ledger_ref: `VL-${shadowId}`,
+    market_event_stream_ref: o.market_event_stream_ref || `PIT:${v.spec.market}:${v.spec.dataset_snapshot_ref}`,
     min_forward_evidence: Number(v.spec.min_forward_evidence ?? DEFAULT_MIN_FORWARD_SAMPLE),
     pit_contractCn: '同 PIT snapshot/候选/成本/bar cutoff;影子零 Active 影响(不触碰 TradePlan/Position/Paper 账本)',
     status: 'RUNNING',
     halted_reason: null,
+    halted_failure_class: null,
+    start_at: now(),
+    end_at: null,
     openedAt: now(),
   };
   return append(SHADOW_LEDGER(), rec);
@@ -69,7 +81,7 @@ function observeViaAdapter(shadowId, evalDate) {
   if (!head) throw new Error('SHADOW_NOT_FOUND');
   const v = experiments.verifyFreeze(head.experiment_ref);
   if (!v.ok) throw new Error(`SHADOW_OBSERVE_REJECTED:${v.reason}`);
-  const obs = getAdapter(head.market).run_shadow_observation(v.spec, evalDate);
+  const obs = getAdapter(head.market).run_shadow(v.spec, evalDate);
   return recordObservation(shadowId, obs);
 }
 
@@ -95,13 +107,16 @@ function recordObservation(shadowId, obs = {}) {
     input_refs: obs.input_refs || [],
     versions: { champion: head.champion_release_ref, challenger: head.challenger_release_ref },
     data_quality: obs.data_quality || 'UNKNOWN',
+    champion_forward: obs.champion_forward || null,
+    challenger_forward: obs.challenger_forward || null,
     outcome: obs.outcome || null,
     idempotent_skip: dup,
     recordedAt: now(),
   };
   if (dup) return rec; // 幂等:不重复入账
   append(DISAGREEMENT_LEDGER(), rec);
-  // Virtual Ledger:Challenger 侧输出独立记账(只虚拟,不碰 Runtime)
+  // Virtual Ledger:Challenger 侧输出独立记账(只虚拟,不碰 Runtime);
+  // 前向收益由 adapter 在窗口走完后给出,未完成为 null —— 不用未实现收益冒充已实现。
   append(VIRTUAL_LEDGER(), {
     schema: 'SHADOW_VIRTUAL_LEDGER_V1',
     virtual_ledger_ref: head.virtual_ledger_ref,
@@ -109,9 +124,60 @@ function recordObservation(shadowId, obs = {}) {
     business_date: obs.business_date,
     challenger_signals: obs.challenger_output,
     champion_signals: obs.champion_output,
+    challenger_forward: obs.challenger_forward || null,
+    champion_forward: obs.champion_forward || null,
     recordedAt: now(),
   });
   return rec;
+}
+
+/**
+ * Forward metrics(§8 ShadowRun.forward_metrics / §17 Shadow 页 virtual PnL):
+ * 用 Virtual Ledger 中**已完成前向窗口**的观察累计虚拟净值;窗口未完成的观察不计入,
+ * 并显式给出 incomplete_count(不足即只描述,§11)。
+ */
+function forwardMetrics(shadowId) {
+  const rows = virtualLedger(shadowId);
+  const byDate = new Map();
+  for (const r of rows) byDate.set(r.business_date, r); // 同日以最后一条为准
+  const ordered = [...byDate.values()].sort((a, b) => (a.business_date < b.business_date ? -1 : 1));
+  let champNav = 1; let chalNav = 1;
+  let complete = 0; let incomplete = 0;
+  for (const r of ordered) {
+    const cf = r.champion_forward; const hf = r.challenger_forward;
+    if (!cf?.forward_complete || !hf?.forward_complete) { incomplete++; continue; }
+    champNav *= 1 + (cf.forward_return || 0);
+    chalNav *= 1 + (hf.forward_return || 0);
+    complete++;
+  }
+  return {
+    shadow_id: shadowId,
+    complete_observation_count: complete,
+    incomplete_observation_count: incomplete,
+    champion_virtual_nav: complete ? Number(champNav.toFixed(6)) : null,
+    challenger_virtual_nav: complete ? Number(chalNav.toFixed(6)) : null,
+    virtual_excess: complete ? Number((chalNav - champNav).toFixed(6)) : null,
+    basisCn: `虚拟净值 = 每个观察日等权持有 GOOD 信号至前向窗口末、扣双边成本;仅计入窗口已走完的 ${complete} 个观察`,
+    claimCn: complete ? '虚拟账本仅供对比观察,不构成任何真实成交或经济有效性主张' : '尚无已完成前向窗口的观察 —— 无虚拟 PnL 可报',
+  };
+}
+
+/** Operational health(§8 ShadowRun.operational_health / §19.1)。 */
+function operationalHealth(shadowId) {
+  const obs = listObservations(shadowId);
+  const head = shadowHead(shadowId);
+  const badQuality = obs.filter((r) => r.data_quality && r.data_quality !== 'OK').length;
+  const unclassified = obs.filter((r) => !r.agree && (r.reason_codes || []).includes('UNCLASSIFIED_DISAGREEMENT')).length;
+  return {
+    shadow_id: shadowId,
+    status: head?.status || 'UNKNOWN',
+    observation_count: obs.length,
+    data_quality_issue_count: badQuality,
+    unclassified_disagreement_count: unclassified,
+    halted_reason: head?.halted_reason || null,
+    halted_failure_class: head?.halted_failure_class || null,
+    healthy: (head?.status === 'RUNNING') && badQuality === 0,
+  };
 }
 
 /** 给已有观察补充后续 outcome(append 修正,不改历史行)。 */
@@ -126,7 +192,13 @@ function haltShadowRun(shadowId, stopCondition, detailCn) {
   if (!STOP_CONDITIONS.includes(stopCondition)) throw new Error(`BAD_STOP_CONDITION:${stopCondition}`);
   const head = shadowHead(shadowId);
   if (!head) throw new Error('SHADOW_NOT_FOUND');
-  return append(SHADOW_LEDGER(), { ...head, status: 'HALTED', halted_reason: stopCondition, halted_detailCn: detailCn || null, haltedAt: now() });
+  return append(SHADOW_LEDGER(), {
+    ...head, status: 'HALTED',
+    halted_reason: stopCondition,
+    halted_failure_class: STOP_CONDITION_CLASS[stopCondition],   // Operational 与 Economic 分开归因(§11)
+    halted_detailCn: detailCn || null,
+    end_at: now(), haltedAt: now(),
+  });
 }
 
 /**
@@ -163,8 +235,9 @@ function virtualLedger(shadowId) {
 }
 
 module.exports = {
-  STOP_CONDITIONS, DEFAULT_MIN_FORWARD_SAMPLE,
+  STOP_CONDITIONS, STOP_CONDITION_CLASS, DEFAULT_MIN_FORWARD_SAMPLE,
   openShadowRun, shadowHead, observeViaAdapter, recordObservation, recordOutcome,
-  haltShadowRun, sufficiency, listShadowRuns, listObservations, virtualLedger,
+  haltShadowRun, sufficiency, forwardMetrics, operationalHealth,
+  listShadowRuns, listObservations, virtualLedger,
   SHADOW_LEDGER, DISAGREEMENT_LEDGER, VIRTUAL_LEDGER,
 };

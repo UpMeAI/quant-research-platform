@@ -9,6 +9,7 @@ const controlPlane = require('../services/strategy-control-plane');
 const binding = require('../services/strategy-control-plane/runtime_binding');
 const stub = require('../adapters/ashare-local/paper_runtime_stub');
 const { RUNTIME_ID } = require('../adapters/ashare-local/market_facts');
+const migration = require('../services/strategy-control-plane/migration');
 const { setupExperiment } = require('./_fixture');
 
 const TOMORROW = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
@@ -83,21 +84,21 @@ test('发布流水线:兼容前禁 Release;Founder 唯一批准;激活参数 fai
 
   // hash 不匹配的 ACK → ACK_REJECTED,绝不 ACTIVE
   const actBad = controlPlane.requestActivation(release.release_id, { target_runtime_id: RUNTIME_ID, effective_from: TOMORROW });
-  const badAck = binding.runtimeAck(actBad.activation_id, { runtime_id: RUNTIME_ID, verified_release_hash: 'deadbeefdeadbeef' });
+  const badAck = binding.runtimeAck(actBad.activation_id, { runtime_id: RUNTIME_ID, today: TOMORROW, verified_release_hash: 'deadbeefdeadbeef' });
   assert.equal(badAck.ok, false);
   assert.equal(controlPlane.activationHead(actBad.activation_id).activation_status, 'ACK_REJECTED');
 
   // Bundle 未到 SHADOW 态时 ACK 显式失败(状态机守门,不静默)
   const actEarly = controlPlane.requestActivation(release.release_id, { target_runtime_id: RUNTIME_ID, effective_from: TOMORROW });
   assert.throws(() => binding.runtimeAck(actEarly.activation_id, {
-    runtime_id: RUNTIME_ID, verified_release_hash: release.release_hash,
+    runtime_id: RUNTIME_ID, today: TOMORROW, verified_release_hash: release.release_hash,
   }), /BUNDLE_ACTIVATE_FAILED/);
 
-  // 正常路径:Bundle 走到 SHADOW 后,stub 拉取 + 验哈希 + ACK → ACTIVE
+  // 正常路径:Bundle 走到 SHADOW 后,到生效日拉取 + 验哈希 + ACK → ACTIVE
   registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'CHALLENGER', {});
   registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'SHADOW', {});
   const actOk = controlPlane.requestActivation(release.release_id, { target_runtime_id: RUNTIME_ID, effective_from: TOMORROW });
-  const pulled = stub.pullAndAck();
+  const pulled = stub.pullAndAck({ today: TOMORROW });
   const mine = pulled.results.find((r) => r.activation_id === actOk.activation_id);
   assert.equal(mine.action, 'ACK_ACTIVE');
   assert.equal(controlPlane.activationHead(actOk.activation_id).activation_status, 'ACTIVE');
@@ -123,13 +124,93 @@ test('Runtime Binding:runtime 身份不匹配拒绝;NACK 显式拒绝', () => {
   controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
   const act = controlPlane.requestActivation(release.release_id, { target_runtime_id: RUNTIME_ID, effective_from: TOMORROW });
 
-  assert.equal(binding.runtimePendingActivations('RT-OTHER').length, 0);
-  assert.ok(binding.runtimePendingActivations(RUNTIME_ID).some((a) => a.activation_id === act.activation_id));
-  assert.throws(() => binding.runtimeAck(act.activation_id, { runtime_id: 'RT-OTHER', verified_release_hash: release.release_hash }), /ACK_RUNTIME_MISMATCH/);
+  assert.equal(binding.runtimePendingActivations('RT-OTHER', { today: TOMORROW }).length, 0);
+  assert.ok(binding.runtimePendingActivations(RUNTIME_ID, { today: TOMORROW }).some((a) => a.activation_id === act.activation_id));
+  assert.throws(() => binding.runtimeAck(act.activation_id, { runtime_id: 'RT-OTHER', today: TOMORROW, verified_release_hash: release.release_hash }), /ACK_RUNTIME_MISMATCH/);
 
   const nack = binding.runtimeNack(act.activation_id, { runtime_id: RUNTIME_ID, reasonCn: '健康检查失败' });
   assert.equal(nack.ok, true);
   assert.equal(controlPlane.activationHead(act.activation_id).activation_status, 'RUNTIME_REJECTED');
   // NACK 后不可再 ACK
-  assert.throws(() => binding.runtimeAck(act.activation_id, { runtime_id: RUNTIME_ID, verified_release_hash: release.release_hash }), /ACTIVATION_NOT_PENDING/);
+  assert.throws(() => binding.runtimeAck(act.activation_id, { runtime_id: RUNTIME_ID, today: TOMORROW, verified_release_hash: release.release_hash }), /ACTIVATION_NOT_PENDING/);
+});
+
+test('生效日门控:未到 effective_from 不可拉取、不可 ACK;到期后正常加载(§16.3-10/§22)', () => {
+  const fx = promotable();
+  const cand = candidateOf(fx);
+  controlPlane.runCompatibilityCheck(cand.candidate_id);
+  const release = controlPlane.createRelease(cand.candidate_id);
+  controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
+  registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'CHALLENGER', {});
+  registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'SHADOW', {});
+  const act = controlPlane.requestActivation(release.release_id, { target_runtime_id: RUNTIME_ID, effective_from: TOMORROW });
+
+  // 生效日前:不在 pending 拉取集,只在 scheduled 可见
+  const today = new Date().toISOString().slice(0, 10);
+  assert.equal(binding.runtimePendingActivations(RUNTIME_ID, { today }).some((a) => a.activation_id === act.activation_id), false);
+  assert.ok(binding.runtimeScheduledActivations(RUNTIME_ID, { today }).some((a) => a.activation_id === act.activation_id));
+  // 即使绕过 pull 直接 ACK 也 fail-closed
+  assert.throws(() => binding.runtimeAck(act.activation_id, {
+    runtime_id: RUNTIME_ID, today, verified_release_hash: release.release_hash,
+  }), /ACTIVATION_NOT_YET_EFFECTIVE/);
+  assert.equal(controlPlane.activationHead(act.activation_id).activation_status, 'PENDING_RUNTIME_PULL');
+  // stub 在生效日前拉取:零 pending
+  assert.equal(stub.pullAndAck({ today }).pulled, 0);
+
+  // 到生效日:可拉取并 ACTIVE
+  const r = binding.runtimeAck(act.activation_id, { runtime_id: RUNTIME_ID, today: TOMORROW, verified_release_hash: release.release_hash });
+  assert.equal(r.ok, true);
+  assert.equal(controlPlane.activationHead(act.activation_id).activation_status, 'ACTIVE');
+});
+
+test('No Silent Migration:生效即产迁移裁定;拿不到持仓真相必须 UNAVAILABLE 而非默认无需 replan', () => {
+  const fx = promotable();
+  const cand = candidateOf(fx);
+  controlPlane.runCompatibilityCheck(cand.candidate_id);
+  const release = controlPlane.createRelease(cand.candidate_id);
+  controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
+  registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'CHALLENGER', {});
+  registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'SHADOW', {});
+  const act = controlPlane.requestActivation(release.release_id, { target_runtime_id: RUNTIME_ID, effective_from: TOMORROW });
+  const r = binding.runtimeAck(act.activation_id, { runtime_id: RUNTIME_ID, today: TOMORROW, verified_release_hash: release.release_hash });
+
+  // stub 无持仓真相 → 诚实 UNAVAILABLE,replan 计数为 null(不是 0)
+  assert.equal(r.migration.schema, 'MIGRATION_ASSESSMENT_V1');
+  assert.equal(r.migration.status, 'UNAVAILABLE');
+  assert.equal(r.migration.replan_required_count, null);
+  assert.equal(r.migration.migration_policy, 'NEW_TRADEPLANS_ONLY_REPLAN_REQUIRED_FOR_EXISTING');
+  assert.ok(migration.listMigrationRecords(act.activation_id).length >= 1);
+});
+
+test('No Silent Migration:有持仓真相时逐仓产 REPLAN_REQUIRED,零自动迁移', () => {
+  const adapter = require('../adapters/ashare-local');
+  const original = adapter.runtime_positions_readonly;
+  adapter.runtime_positions_readonly = () => ({
+    status: 'OK',
+    positions: [
+      { position_id: 'POS-1', instrument_id: '600001.SH', originating_release_ref: 'REL-OLD', quantity: 100 },
+      { position_id: 'POS-2', instrument_id: '600002.SH', originating_release_ref: 'REL-OLD', quantity: 200 },
+    ],
+  });
+  try {
+    const fx = promotable();
+    const cand = candidateOf(fx);
+    controlPlane.runCompatibilityCheck(cand.candidate_id);
+    const release = controlPlane.createRelease(cand.candidate_id);
+    controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
+    registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'CHALLENGER', {});
+    registry.transitionBundle(fx.chalBundle.bundle_id, fx.chalBundle.bundle_version, 'SHADOW', {});
+    const act = controlPlane.requestActivation(release.release_id, { target_runtime_id: RUNTIME_ID, effective_from: TOMORROW });
+    const r = binding.runtimeAck(act.activation_id, { runtime_id: RUNTIME_ID, today: TOMORROW, verified_release_hash: release.release_hash });
+
+    assert.equal(r.migration.status, 'ASSESSED');
+    assert.equal(r.migration.replan_required_count, 2);
+    const replans = migration.listReplanRequired(act.activation_id);
+    assert.equal(replans.length, 2);
+    for (const rp of replans) {
+      assert.equal(rp.auto_migrated, false);                       // 绝不自动迁移
+      assert.equal(rp.required_action, 'RESEARCH_OR_FOUNDER_DECISION');
+      assert.equal(rp.originating_release_ref, 'REL-OLD');         // 仍绑定原始 release
+    }
+  } finally { adapter.runtime_positions_readonly = original; }
 });

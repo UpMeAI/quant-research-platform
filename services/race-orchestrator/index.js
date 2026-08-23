@@ -13,9 +13,11 @@
  */
 const path = require('path');
 const { dataDir, hash, now, uid, append, read } = require('../../packages/ledger');
+const { getAdapter } = require('../../adapters/registry');
 const experiments = require('../../services/experiment-orchestrator');
 
 const RACES_LEDGER = () => path.join(dataDir('research'), 'races.jsonl');
+const PAIRED_SAMPLES_LEDGER = () => path.join(dataDir('research'), 'paired_samples.jsonl');
 
 const RACE_TYPES = Object.freeze(['STAGE_RACE', 'MODULE_RACE', 'BUNDLE_INTEGRATION_VALIDATION', 'PORTFOLIO_RACE']);
 
@@ -66,13 +68,78 @@ function submitPairedSamples(raceId, samples = []) {
       if (s[k] === undefined || s[k] === null) throw new Error(`PAIRED_SAMPLE_MISSING:${k}`);
     }
   }
+  // paired sample 逐条落台账(§8 RaceResult.paired_sample_ref 可回溯;regime 分解与审计都读它)
+  const sampleHash = hash(samples);
+  append(PAIRED_SAMPLES_LEDGER(), {
+    schema: 'PAIRED_SAMPLE_SET_V1',
+    race_id: raceId, experiment_ref: head.experiment_ref,
+    paired_sample_hash: sampleHash, sample_count: samples.length,
+    samples, recordedAt: now(),
+  });
   return append(RACES_LEDGER(), {
     ...head,
     status: 'SAMPLED',
     paired_sample_count: samples.length,
-    paired_sample_hash: hash(samples),
+    paired_sample_hash: sampleHash,
     sampledAt: now(),
   });
+}
+
+/** 取某 Race 的 paired sample 原始行(审计/regime 分解用)。 */
+function pairedSamples(raceId) {
+  const rows = read(PAIRED_SAMPLES_LEDGER()).filter((r) => r.race_id === raceId);
+  return rows.length ? rows[rows.length - 1].samples : [];
+}
+
+/**
+ * Regime 分解(§10 / §21 P2 准出):按 adapter 提供的日期→Regime 标注,
+ * 把 paired sample 拆到各 Regime 下分别统计双方信号精度与样本量。
+ * adapter 未提供 regime_labels → 显式 UNSUPPORTED,不臆造 Regime。
+ */
+function computeRegimeBreakdown(marketId, samples) {
+  const adapter = getAdapter(marketId);
+  if (typeof adapter.regime_labels !== 'function') {
+    return { status: 'UNSUPPORTED', reasonCn: `市场 ${marketId} 的 adapter 未提供 regime_labels —— 不臆造 Regime 分解` };
+  }
+  const { labels, regime_model, proxyCn } = adapter.regime_labels();
+  const buckets = new Map();
+  let unlabeled = 0;
+  for (const s of samples) {
+    const regime = labels[s.d];
+    if (!regime) { unlabeled++; continue; }
+    if (!buckets.has(regime)) buckets.set(regime, []);
+    buckets.get(regime).push(s);
+  }
+  const stat = (rows, side) => {
+    const good = rows.filter((r) => r[side] === 'GOOD');
+    const bad = rows.filter((r) => r[side] === 'BAD');
+    return {
+      good_count: good.length, bad_count: bad.length,
+      good_precision: good.length ? Number((good.filter((r) => r.fwd > 0).length / good.length).toFixed(6)) : null,
+      bad_precision: bad.length ? Number((bad.filter((r) => r.fwd < 0).length / bad.length).toFixed(6)) : null,
+    };
+  };
+  const by_regime = {};
+  for (const [regime, rows] of [...buckets.entries()].sort()) {
+    const champion = stat(rows, 'champion_output');
+    const challenger = stat(rows, 'challenger_output');
+    by_regime[regime] = {
+      sample_count: rows.length, champion, challenger,
+      challenger_better_good_precision:
+        champion.good_precision != null && challenger.good_precision != null
+          ? challenger.good_precision > champion.good_precision : null,
+    };
+  }
+  const decided = Object.values(by_regime).filter((r) => r.challenger_better_good_precision != null);
+  return {
+    status: 'EVALUATED', regime_model, proxyCn,
+    by_regime,
+    regime_count: Object.keys(by_regime).length,
+    unlabeled_sample_count: unlabeled,
+    stability: decided.length
+      ? Number((decided.filter((r) => r.challenger_better_good_precision).length / decided.length).toFixed(4)) : null,
+    stabilityCn: '在多少比例的 Regime 下 challenger 的 GOOD 精度仍占优(仅事实,不含阈值裁定)',
+  };
 }
 
 // ── 预注册裁决器 ─────────────────────────────────────────────────────────────
@@ -121,6 +188,8 @@ function closeRace(raceId, { championMetrics, challengerMetrics, canonical, regi
   const v = experiments.verifyFreeze(head.experiment_ref);
   if (!v.ok) throw new Error(`RACE_CLOSE_REJECTED:${v.reason}`);
   const adj = adjudicate(v.spec, { championMetrics, challengerMetrics });
+  // Regime 分解:显式传入优先,否则由 paired sample + adapter regime 标注自动计算
+  const breakdown = regime_breakdown || computeRegimeBreakdown(head.market, pairedSamples(raceId));
   // result lock 在 experiment 台账发生(单结果锁)
   experiments.recordResult(head.experiment_ref, {
     verdict: adj.verdict,
@@ -128,7 +197,7 @@ function closeRace(raceId, { championMetrics, challengerMetrics, canonical, regi
     champion_value: adj.champion_value,
     challenger_value: adj.challenger_value,
     guardrail_breaches: adj.guardrail_breaches,
-    regime_breakdown,
+    regime_breakdown: breakdown,
     sample_evidence_ref: head.paired_sample_hash,
   });
   const result = {
@@ -142,7 +211,7 @@ function closeRace(raceId, { championMetrics, challengerMetrics, canonical, regi
     challenger_value: adj.challenger_value,
     guardrail_result: adj.guardrail_result,
     canonical_metrics: canonical || null,   // 七轴 CanonicalRaceMetrics(adapter.normalize_result)
-    regime_breakdown,
+    regime_breakdown: breakdown,
     reason_codes,
   };
   result.result_hash = hash(result);
@@ -159,4 +228,8 @@ function listRaces() {
   return [...m.values()];
 }
 
-module.exports = { RACE_TYPES, openRace, submitPairedSamples, adjudicate, closeRace, raceHead, listRaces, RACES_LEDGER };
+module.exports = {
+  RACE_TYPES, openRace, submitPairedSamples, adjudicate, closeRace,
+  pairedSamples, computeRegimeBreakdown, raceHead, listRaces,
+  RACES_LEDGER, PAIRED_SAMPLES_LEDGER,
+};

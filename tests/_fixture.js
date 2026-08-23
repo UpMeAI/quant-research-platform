@@ -67,9 +67,13 @@ function setupExperiment(overrides = {}) {
     changed_component: 'TIMING.volume_threshold_rule',
     dataset_snapshot_ref: snap.snapshot_id,
     universe: { skip: 0, stride: 1, cap: 8 },
-    sample: { is_end: oosStart, oos_start: oosStart, adjudication_segment: 'OOS' },
+    sample: {
+      is_end: oosStart, oos_start: oosStart, adjudication_segment: 'OOS',
+      wfo: { train_days: 40, test_days: 20, step_days: 20, folds: 2 },
+    },
     costs: { cost_per_side: 0.001 },
     execution_model: { champion_variant: CHAMPION_VARIANT, challenger_variant: CHALLENGER_VARIANT },
+    parameter_grid: [{ qHi: 0.8, qLo: 0.1 }, { qHi: 0.85, qLo: 0.1 }],
     seed: 20260823, min_forward_evidence: overrides.min_forward_evidence ?? 5,
     ...overrides.spec,
   });

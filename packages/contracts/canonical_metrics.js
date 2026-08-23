@@ -4,14 +4,18 @@
  * adapter.normalize_result 必须产出本形状;Race Board 只消费 canonical,不读市场原生结构。
  */
 const AXES = Object.freeze({
-  absolute: ['cumRet', 'nav_end', 'tradeCount'],
-  risk: ['maxDrawdown'],
-  relative: ['benchmarkExcess'],
-  trading_quality: ['good_precision', 'bad_precision', 'good_count', 'bad_count', 'costPerSide'],
-  robustness: ['is_cumRet', 'oos_cumRet'],
-  operational: ['deterministic', 'result_hash'],
-  capacity: [],   // MVP 声明轴存在;容量模型属 P4(§21)
+  absolute: ['cumRet', 'cagr', 'nav_end', 'tradeCount', 'max_dd_recovery_days'],
+  risk: ['maxDrawdown', 'annualized_vol', 'calmar', 'sortino_like'],
+  relative: ['benchmarkExcess', 'benchmark_cumRet'],
+  trading_quality: ['good_precision', 'bad_precision', 'payoff_ratio', 'expectancy',
+    'mae_avg_on_good', 'mfe_avg_on_good', 'signal_turnover_per_day', 'costPerSide'],
+  robustness: ['is_cumRet', 'oos_cumRet', 'is_oos_decay'],
+  operational: ['deterministic', 'result_hash', 'replayable'],
+  capacity: ['status'],   // MVP 只声明状态(NOT_IMPLEMENTED_P4);容量模型属 §21 P4
 });
+
+/** 未实现的指标必须用显式状态串标注,禁止用 null/空对象冒充「已覆盖」。 */
+const NOT_IMPLEMENTED_MARKERS = Object.freeze(['NOT_IMPLEMENTED_MVP', 'NOT_IMPLEMENTED_P4', 'UNSUPPORTED']);
 
 /** 宽松校验:七轴对象齐全即可;缺数值字段标 null 不抛(样本不足只描述)。 */
 function validateCanonicalMetrics(m) {
@@ -21,4 +25,4 @@ function validateCanonicalMetrics(m) {
   return { ok: problems.length === 0, problems };
 }
 
-module.exports = { AXES, validateCanonicalMetrics };
+module.exports = { AXES, NOT_IMPLEMENTED_MARKERS, validateCanonicalMetrics };

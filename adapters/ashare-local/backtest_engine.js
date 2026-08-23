@@ -7,7 +7,9 @@
  *   - 单边成本 costPerSide(市场事实默认 0.1%)进出各计一次,均摊在持有期;
  *   - 无持仓日收益 0(现金);
  *   - PIT:逐 (标的, 日) 评测只用 ≤ 当日的 bar(量能基线/分位均如此);
- *   - 这是**信号层收益对比**,不是完整组合模拟(仓位/风控/Gate 归 Bundle 层与 Runtime)。
+ *   - 这是**信号层收益对比**,不是完整组合模拟(仓位/风控/Gate 归 Bundle 层与 Runtime);
+ *   - 窗口({dateFrom,dateTo})只限制**评测/计价区间**,量能基线与分位仍用窗口前的完整历史
+ *     —— WFO 与鲁棒性子样本因此保持 PIT 正确(不泄露窗口外未来数据)。
  */
 const { FWD_DAYS, classifyPattern, variantJudge } = require('./strategy_vpq');
 const market = require('./market_facts');
@@ -36,21 +38,41 @@ function evaluateVariants(byInst, variants, { dateFrom = null, dateTo = null } =
       const sorted = [...trailing].sort((a, b) => a - b);
       const patterns = {};
       for (const v of variants) patterns[v.key] = classifyPattern(series, i, variantJudge(v, ratio, sorted));
-      rows.push({ inst, d, i, fwd: (series[i + FWD_DAYS].close - series[i].close) / series[i].close, patterns });
+      // MAE/MFE:持有期内相对入场价的最大不利/有利偏移(§10.1 Trading Quality)
+      const entry = series[i].close;
+      let mae = 0; let mfe = 0;
+      for (let k = 1; k <= FWD_DAYS; k++) {
+        const rel = (series[i + k].close - entry) / entry;
+        if (rel < mae) mae = rel;
+        if (rel > mfe) mfe = rel;
+      }
+      rows.push({ inst, d, i, fwd: (series[i + FWD_DAYS].close - entry) / entry, mae, mfe, patterns });
     }
   }
   return rows;
 }
 
-/** GOOD/BAD 信号精度(与 Race 同口径)。 */
+/** GOOD/BAD 信号精度 + 盈亏结构(§10.1 Trading Quality 轴:Win/Loss、Payoff、MAE/MFE)。 */
 function precision(rows, variantKey) {
   const good = rows.filter((r) => r.patterns[variantKey] === 'GOOD');
   const bad = rows.filter((r) => r.patterns[variantKey] === 'BAD');
+  const wins = good.filter((r) => r.fwd > 0).map((r) => r.fwd);
+  const losses = good.filter((r) => r.fwd < 0).map((r) => Math.abs(r.fwd));
+  const avg = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null);
+  const avgWin = avg(wins); const avgLoss = avg(losses);
+  const maeAvg = avg(good.map((r) => r.mae).filter(Number.isFinite));
+  const mfeAvg = avg(good.map((r) => r.mfe).filter(Number.isFinite));
   return {
     good_count: good.length, bad_count: bad.length,
-    good_precision: good.length ? good.filter((r) => r.fwd > 0).length / good.length : null,
+    good_precision: good.length ? wins.length / good.length : null,
     bad_precision: bad.length ? bad.filter((r) => r.fwd < 0).length / bad.length : null,
-    avg_fwd_on_good: good.length ? good.reduce((s, r) => s + r.fwd, 0) / good.length : null,
+    avg_fwd_on_good: avg(good.map((r) => r.fwd)),
+    avg_win: avgWin != null ? Number(avgWin.toFixed(6)) : null,
+    avg_loss: avgLoss != null ? Number(avgLoss.toFixed(6)) : null,
+    payoff_ratio: avgWin != null && avgLoss ? Number((avgWin / avgLoss).toFixed(4)) : null,
+    expectancy: good.length ? Number(avg(good.map((r) => r.fwd)).toFixed(6)) : null,
+    mae_avg_on_good: maeAvg != null ? Number(maeAvg.toFixed(6)) : null,   // 最大不利偏移(持有期内)
+    mfe_avg_on_good: mfeAvg != null ? Number(mfeAvg.toFixed(6)) : null,   // 最大有利偏移
   };
 }
 
@@ -58,8 +80,9 @@ function precision(rows, variantKey) {
  * 信号层净值回测:GOOD 收盘进,FWD_DAYS 收盘出,等权,双边成本。
  * @returns { dates[], nav[], summary { cumRet, maxDrawdown, tradeCount, costPerSide } }
  */
-function backtestCurve(byInst, rows, variantKey, { costPerSide = market.defaultCostPerSide } = {}) {
-  const allDates = [...new Set([...byInst.values()].flatMap((s) => s.map((b) => b.d)))].sort();
+function backtestCurve(byInst, rows, variantKey, { costPerSide = market.defaultCostPerSide, dateFrom = null, dateTo = null } = {}) {
+  const allDates = [...new Set([...byInst.values()].flatMap((s) => s.map((b) => b.d)))].sort()
+    .filter((d) => (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo));
   const active = new Map(); // date -> [{inst, holdDay, entryIdx}]
   let tradeCount = 0;
   for (const r of rows) {
@@ -72,9 +95,11 @@ function backtestCurve(byInst, rows, variantKey, { costPerSide = market.defaultC
       active.get(dd).push({ inst: r.inst, holdDay: k, entryIdx: r.i });
     }
   }
-  const dates = []; const nav = [];
+  const dates = []; const nav = []; const dailyRets = [];
   let cur = 1;
   let peak = 1; let maxDD = 0;
+  let ddStart = null; let recoveryDays = null; let worstDDStart = null;
+  let exposedDays = 0; let positionDaySum = 0;
   const roundTripCost = costPerSide * 2;
   for (const d of allDates) {
     const pos = active.get(d) || [];
@@ -89,13 +114,42 @@ function backtestCurve(byInst, rows, variantKey, { costPerSide = market.defaultC
         sum += r - roundTripCost / FWD_DAYS;
       }
       dayRet = sum / pos.length;
+      exposedDays++; positionDaySum += pos.length;
     }
     cur *= 1 + dayRet;
-    peak = Math.max(peak, cur);
-    maxDD = Math.min(maxDD, cur / peak - 1);
+    dailyRets.push(dayRet);
+    if (cur >= peak) { peak = cur; if (ddStart != null) { recoveryDays = dates.length - ddStart; ddStart = null; } }
+    else if (ddStart == null) ddStart = dates.length;
+    const dd = cur / peak - 1;
+    if (dd < maxDD) { maxDD = dd; worstDDStart = ddStart; }
     dates.push(d); nav.push(Number(cur.toFixed(6)));
   }
-  return { dates, nav, summary: { cumRet: Number((cur - 1).toFixed(6)), maxDrawdown: Number(maxDD.toFixed(6)), tradeCount, costPerSide } };
+  // 年化口径:252 交易日(信号层等权净值;非完整组合模拟,勿当基金业绩读)
+  const n = dailyRets.length;
+  const mean = n ? dailyRets.reduce((s, v) => s + v, 0) / n : 0;
+  const vol = n > 1 ? Math.sqrt(dailyRets.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)) * Math.sqrt(252) : null;
+  const downside = dailyRets.filter((v) => v < 0);
+  const downVol = downside.length > 1
+    ? Math.sqrt(downside.reduce((s, v) => s + v ** 2, 0) / downside.length) * Math.sqrt(252) : null;
+  const cagr = n ? Math.pow(cur, 252 / n) - 1 : null;
+  const r6 = (x) => (x == null || !Number.isFinite(x) ? null : Number(x.toFixed(6)));
+  return {
+    dates, nav,
+    summary: {
+      cumRet: r6(cur - 1), maxDrawdown: r6(maxDD), tradeCount, costPerSide,
+      cagr: r6(cagr),
+      annualized_vol: r6(vol),
+      sharpe_like: vol ? r6(cagr / vol) : null,          // 无风险利率取 0,显式命名 like
+      sortino_like: downVol ? r6(cagr / downVol) : null,
+      calmar: maxDD ? r6(cagr / Math.abs(maxDD)) : null,
+      max_dd_recovery_days: recoveryDays,
+      exposure_ratio: n ? r6(exposedDays / n) : null,     // 有持仓天数占比(其余为现金)
+      avg_positions_when_exposed: exposedDays ? r6(positionDaySum / exposedDays) : null,
+      signal_turnover_per_day: n ? r6(tradeCount / n) : null,
+      basisCn: '信号层等权净值;年化按 252 交易日;无风险利率取 0(故为 *_like)',
+      worst_dd_start_index: worstDDStart,
+    },
+  };
 }
 
 /** 宽基基准净值(市场事实 benchmark),对齐给定 dates。bars 由调用方从 PIT 仓库取。 */

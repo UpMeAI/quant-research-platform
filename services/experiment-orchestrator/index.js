@@ -205,8 +205,14 @@ function listExperiments() {
   return [...m.values()];
 }
 
+// ── L3 验证扩展(WFO / Robustness;市场无关编排,经 adapter 逐窗口回测)────────
+const wfo = require('./wfo');
+const robustness = require('./robustness');
 module.exports = {
   FREEZE_FIELDS,
+  runWalkForward: wfo.runWalkForward, wfoReportFor: wfo.wfoReportFor, WFO_LEDGER: wfo.WFO_LEDGER,
+  runRobustness: robustness.runRobustness, robustnessReportFor: robustness.robustnessReportFor,
+  ROBUSTNESS_LEDGER: robustness.ROBUSTNESS_LEDGER,
   registerHypothesis, hypothesisHead, listHypotheses,
   captureDatasetSnapshot, snapshotHead,
   preregisterExperiment, experimentHead, verifyFreeze, invalidateExperiment,

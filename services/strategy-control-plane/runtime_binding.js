@@ -10,7 +10,10 @@
  *   - ACK 成功 → Activation ACTIVE + Registry Bundle 携 activationRef 进 ACTIVE
  *     (Bundle→ACTIVE 的唯一合法入口,见 packages/domain-model checkTransition);
  *   - Runtime 侧健康检查失败可回 NACK(runtimeNack),Activation 标 RUNTIME_REJECTED,
- *     等待 Operator/Founder 处置(不自动重试,不静默)。
+ *     等待 Operator/Founder 处置(不自动重试,不静默);
+ *   - **生效日门控**(§16.3 步骤 10 / §22 Paper Publish):Runtime 只能在 effective_from
+ *     当日或之后拉取并加载 Release;未到生效日的 Activation 只在 scheduled 列表可见,
+ *     不进入 pending 拉取集,且 runtimeAck 直接 fail-closed —— 「已批准」≠「已生效」。
  */
 const path = require('path');
 const { dataDir, hash, now, uid, append, read } = require('../../packages/ledger');
@@ -19,8 +22,9 @@ const controlPlane = require('./index');
 
 const ACK_LEDGER = () => path.join(dataDir('control-plane'), 'runtime_acks.jsonl');
 
-/** Runtime 拉取:列出指定 runtime 名下待拉取的 Activation(head 状态为准)。 */
-function runtimePendingActivations(runtimeId) {
+function _today(o = {}) { return o.today || new Date().toISOString().slice(0, 10); }
+
+function _awaitingPull(runtimeId) {
   if (!runtimeId) throw new Error('RUNTIME_ID_REQUIRED');
   const m = new Map();
   for (const r of controlPlane.listActivations()) {
@@ -29,6 +33,21 @@ function runtimePendingActivations(runtimeId) {
   return [...m.values()].filter(
     (a) => a.target_runtime_id === runtimeId && a.activation_status === 'PENDING_RUNTIME_PULL'
   );
+}
+
+/**
+ * Runtime 拉取:列出**已到生效日**且待拉取的 Activation(head 状态为准)。
+ * effective_from 晚于当前业务日的不在此列 —— 见 runtimeScheduledActivations。
+ */
+function runtimePendingActivations(runtimeId, o = {}) {
+  const today = _today(o);
+  return _awaitingPull(runtimeId).filter((a) => String(a.effective_from) <= today);
+}
+
+/** 已批准但未到生效日的 Activation(只读可见,不可拉取;供 Runtime Status 与研究台展示)。 */
+function runtimeScheduledActivations(runtimeId, o = {}) {
+  const today = _today(o);
+  return _awaitingPull(runtimeId).filter((a) => String(a.effective_from) > today);
 }
 
 function _bundleOf(ref) {
@@ -48,6 +67,9 @@ function runtimeAck(activationId, o = {}) {
   if (!o.runtime_id) throw new Error('ACK_MISSING_RUNTIME_ID');
   if (o.runtime_id !== act.target_runtime_id) throw new Error(`ACK_RUNTIME_MISMATCH:${o.runtime_id}!=${act.target_runtime_id}`);
   if (!o.verified_release_hash) throw new Error('ACK_MISSING_VERIFIED_RELEASE_HASH');
+  // 生效日门控(fail-closed):未到 effective_from 不允许加载,批准 ≠ 生效
+  const today = _today(o);
+  if (String(act.effective_from) > today) throw new Error(`ACTIVATION_NOT_YET_EFFECTIVE:${act.effective_from}>${today}`);
 
   const release = controlPlane.releaseHead(act.release_id);
   if (!release) throw new Error('ACTIVATION_RELEASE_NOT_FOUND');
@@ -97,7 +119,9 @@ function runtimeAck(activationId, o = {}) {
       throw new Error(`BUNDLE_ACTIVATE_FAILED:${bundleTransition.reason}`);
     }
   }
-  return { ok: true, activation: activated, ack, bundleTransition };
+  // No Silent Migration:生效即对既有持仓做迁移裁定(只产 REPLAN_REQUIRED,绝不自动迁移)
+  const migration = require('./migration').assessMigration(activated, release);
+  return { ok: true, activation: activated, ack, bundleTransition, migration };
 }
 
 /** Runtime NACK:健康检查/本地校验失败时显式拒绝(不自动重试,等人工处置)。 */
@@ -123,4 +147,7 @@ function listAcks(activationId = null) {
   return read(ACK_LEDGER()).filter((r) => !activationId || r.activation_ref === activationId);
 }
 
-module.exports = { runtimePendingActivations, runtimeAck, runtimeNack, listAcks, ACK_LEDGER };
+module.exports = {
+  runtimePendingActivations, runtimeScheduledActivations,
+  runtimeAck, runtimeNack, listAcks, ACK_LEDGER,
+};

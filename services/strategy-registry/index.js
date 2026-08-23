@@ -42,11 +42,29 @@ function registerFamily(f = {}) {
     registeredAt: now(),
   });
 }
+/**
+ * Family 的 active/retired 版本(§8 StrategyFamily.active_versions / retired_versions):
+ * 由 Bundle 台账**派生**,不另存一份可漂移的冗余状态(单一真相)。
+ */
+function familyVersions(familyId) {
+  const moduleIds = new Set(listModules().filter((m) => m.family_id === familyId).map((m) => m.module_id));
+  const owned = listBundles().filter((b) => (b.module_refs || []).some((ref) => moduleIds.has(String(ref).split('#v')[0])));
+  const refOf = (b) => `${b.bundle_id}#v${b.bundle_version}`;
+  return {
+    active_versions: owned.filter((b) => b.status === 'ACTIVE').map(refOf),
+    retired_versions: owned.filter((b) => b.status === 'RETIRED').map(refOf),
+    in_research_versions: owned.filter((b) => ['RESEARCH', 'CHALLENGER', 'SHADOW', 'CANARY'].includes(b.status)).map(refOf),
+  };
+}
 function familyHead(familyId) {
   const rows = read(FAMILIES_LEDGER()).filter((r) => r.family_id === familyId);
-  return rows.length ? rows[rows.length - 1] : null;
+  if (!rows.length) return null;
+  return { ...rows[rows.length - 1], ...familyVersions(familyId) };
 }
-function listFamilies() { return [...heads(read(FAMILIES_LEDGER()), 'family_id').values()]; }
+function listFamilies() {
+  return [...heads(read(FAMILIES_LEDGER()), 'family_id').values()]
+    .map((f) => ({ ...f, ...familyVersions(f.family_id) }));
+}
 
 // ── StrategyModuleVersion(§8;内容哈希冻结,再登记 = 新版本) ────────────────
 function registerModule(m = {}) {
@@ -168,7 +186,7 @@ function registerChampionBundle({ market, bundle_id, module_refs, market_adapter
 }
 
 module.exports = {
-  registerFamily, familyHead, listFamilies,
+  registerFamily, familyHead, listFamilies, familyVersions,
   registerModule, moduleHead, transitionModule, listModules,
   registerBundle, bundleHead, transitionBundle, listBundles,
   registerChampionBundle,
