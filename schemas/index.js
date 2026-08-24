@@ -137,7 +137,16 @@ const SCHEMAS = Object.freeze({
     _doc: '§12.2 Runtime 回执(hash 校验结果必须显式)',
     ack_id: 's', activation_ref: 's', runtime_id: 's', environment: 's',
     verified_release_hash: 's', expected_release_hash: 's', hash_verified: 'b',
-    health_check: 'o?', ackedAt: 's',
+    health_check: 'o?', health_verified: 'b', health_problems: 'a', ackedAt: 's',
+  },
+  RUNTIME_NACK_V1: {
+    _doc: '§12.2 Runtime 显式拒绝(健康/本地校验失败;不自动重试,等人工处置)',
+    ack_id: 's', activation_ref: 's', runtime_id: 's', reasonCn: 's', nackedAt: 's',
+  },
+  SHADOW_ARTIFACT_V1: {
+    _doc: '§14.1 adapter.run_shadow 产物 —— 同 PIT cutoff 的双边观察(入账前由平台归一)',
+    key: 's', business_date: 's', champion_output: '*', challenger_output: '*',
+    input_refs: 'a', data_quality: 's',
   },
   ROLLBACK_RECORD_V1: {
     _doc: '§12.3 Operational rollback(直接切回 last-known-good)',

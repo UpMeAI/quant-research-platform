@@ -25,9 +25,9 @@ function _metric(a, side, m) {
   return seg && seg[m] != null ? seg[m] : null;
 }
 
-function _trial(adapter, spec, label, patch) {
+async function _trial(adapter, spec, label, patch) {
   try {
-    const a = adapter.run_backtest({ ...spec, ...patch, sample: { ...spec.sample, ...(patch.sample || {}) } });
+    const a = await adapter.run_backtest({ ...spec, ...patch, sample: { ...spec.sample, ...(patch.sample || {}) } });
     const champion = _metric(a, 'champion', spec.primary_metric);
     const challenger = _metric(a, 'challenger', spec.primary_metric);
     return {
@@ -54,7 +54,7 @@ function _dispersion(trials) {
 }
 
 /** 执行五维鲁棒性检验(OOS 窗口内)。 */
-function runRobustness(experimentId) {
+async function runRobustness(experimentId) {
   const experiments = require('./index'); // 延迟 require:避免与主模块循环加载
   const v = experiments.verifyFreeze(experimentId);
   if (!v.ok) throw new Error(`ROBUSTNESS_REJECTED:${v.reason}`);
@@ -63,9 +63,15 @@ function runRobustness(experimentId) {
   const oosStart = spec.sample?.oos_start;
   if (!oosStart) throw new Error('ROBUSTNESS_MISSING_OOS_START');
   const baseSpec = { ...spec, sample: { ...spec.sample, window_from: oosStart, window_to: null } };
-  const baseline = adapter.run_backtest(baseSpec);
+  const baseline = await adapter.run_backtest(baseSpec);
   const dates = baseline.dates;
   const dims = {};
+  // 串行 await(适配器可同步可异步);顺序固定 → 报告决定论
+  const trials = async (specs) => {
+    const out = [];
+    for (const [label, patch] of specs) out.push(await _trial(adapter, baseSpec, label, patch));
+    return out;
+  };
 
   // 1) 参数扰动:预注册网格内逐点(禁网格外新参数)
   const grid = Array.isArray(spec.parameter_grid) ? spec.parameter_grid : [];
@@ -73,9 +79,9 @@ function runRobustness(experimentId) {
   dims.parameter_perturbation = grid.length
     ? {
       status: 'EVALUATED',
-      trials: grid.map((g) => _trial(adapter, baseSpec, `params:${JSON.stringify(g)}`, {
+      trials: await trials(grid.map((g) => [`params:${JSON.stringify(g)}`, {
         execution_model: { ...spec.execution_model, challenger_variant: { ...baseVariant, ...g, key: 'CHALLENGER' } },
-      })),
+      }])),
     }
     : { status: 'NOT_APPLICABLE', reasonCn: '实验未预注册 parameter_grid —— 无合法扰动空间(不得运行后追加)' };
   if (dims.parameter_perturbation.trials) dims.parameter_perturbation.dispersion = _dispersion(dims.parameter_perturbation.trials);
@@ -83,31 +89,31 @@ function runRobustness(experimentId) {
   // 2) 子样本(宇宙):按 stride 切成互不重叠的两个半宇宙
   dims.subsample_universe = {
     status: 'EVALUATED',
-    trials: [
-      _trial(adapter, baseSpec, 'universe:odd', { universe: { ...spec.universe, skip: 0, stride: 2 } }),
-      _trial(adapter, baseSpec, 'universe:even', { universe: { ...spec.universe, skip: 1, stride: 2 } }),
-    ],
+    trials: await trials([
+      ['universe:odd', { universe: { ...spec.universe, skip: 0, stride: 2 } }],
+      ['universe:even', { universe: { ...spec.universe, skip: 1, stride: 2 } }],
+    ]),
   };
 
   // 3) 时间相位:OOS 段前后半 + 起点平移
   const mid = dates[Math.floor(dates.length / 2)];
   dims.time_phase = {
     status: 'EVALUATED',
-    trials: [
-      _trial(adapter, baseSpec, `time:first_half(${oosStart}..${mid})`, { sample: { window_from: oosStart, window_to: mid } }),
-      _trial(adapter, baseSpec, `time:second_half(${mid}..)`, { sample: { window_from: mid, window_to: null } }),
-      _trial(adapter, baseSpec, 'time:shift+5d', { sample: { window_from: dates[Math.min(5, dates.length - 1)], window_to: null } }),
-    ],
+    trials: await trials([
+      [`time:first_half(${oosStart}..${mid})`, { sample: { window_from: oosStart, window_to: mid } }],
+      [`time:second_half(${mid}..)`, { sample: { window_from: mid, window_to: null } }],
+      ['time:shift+5d', { sample: { window_from: dates[Math.min(5, dates.length - 1)], window_to: null } }],
+    ]),
   };
 
   // 4) 执行压力:成本 ×2 / ×3(边际是否被成本吃掉)
   const c0 = Number(spec.costs?.cost_per_side ?? 0.001);
   dims.execution_stress = {
     status: 'EVALUATED',
-    trials: [
-      _trial(adapter, baseSpec, `cost x2 (${c0 * 2})`, { costs: { ...spec.costs, cost_per_side: c0 * 2 } }),
-      _trial(adapter, baseSpec, `cost x3 (${c0 * 3})`, { costs: { ...spec.costs, cost_per_side: c0 * 3 } }),
-    ],
+    trials: await trials([
+      [`cost x2 (${c0 * 2})`, { costs: { ...spec.costs, cost_per_side: c0 * 2 } }],
+      [`cost x3 (${c0 * 3})`, { costs: { ...spec.costs, cost_per_side: c0 * 3 } }],
+    ]),
   };
 
   // 5) 数据源:快照声明的来源数 < 2 → 无法做跨源对比,诚实标 NOT_APPLICABLE

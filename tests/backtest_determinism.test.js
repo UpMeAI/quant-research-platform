@@ -5,10 +5,10 @@ const assert = require('node:assert/strict');
 const experiments = require('../services/experiment-orchestrator');
 const { setupExperiment } = require('./_fixture');
 
-test('回测决定论:同实验重跑 result_hash 相同且命中重放', () => {
-  const { exp } = setupExperiment();
-  const a1 = experiments.runBacktest(exp.experiment_id);
-  const a2 = experiments.runBacktest(exp.experiment_id);
+test('回测决定论:同实验重跑 result_hash 相同且命中重放', async () => {
+  const { exp } = await setupExperiment();
+  const a1 = await experiments.runBacktest(exp.experiment_id);
+  const a2 = await experiments.runBacktest(exp.experiment_id);
   assert.equal(a1.result_hash, a2.result_hash);
   assert.equal(a2.replayHit, true);
   assert.ok(a1.paired_rows_oos.length > 0);
@@ -18,14 +18,14 @@ test('回测决定论:同实验重跑 result_hash 相同且命中重放', () => 
   }
 });
 
-test('回测 PIT 前提:缺预注册 oos_start 拒绝', () => {
-  const { exp } = setupExperiment({ spec: { sample: { is_end: null, oos_start: null } } });
-  assert.throws(() => experiments.runBacktest(exp.experiment_id), /BACKTEST_MISSING_PREREGISTERED_OOS_START/);
+test('回测 PIT 前提:缺预注册 oos_start 拒绝', async () => {
+  const { exp } = await setupExperiment({ spec: { sample: { is_end: null, oos_start: null } } });
+  await assert.rejects(async () => experiments.runBacktest(exp.experiment_id), /BACKTEST_MISSING_PREREGISTERED_OOS_START/);
 });
 
-test('DatasetSnapshot 决定论:同数据同 as_of → 同 snapshot_id / lineage_hash', () => {
-  const s1 = experiments.captureDatasetSnapshot('CN_A');
-  const s2 = experiments.captureDatasetSnapshot('CN_A');
+test('DatasetSnapshot 决定论:同数据同 as_of → 同 snapshot_id / lineage_hash', async () => {
+  const s1 = await experiments.captureDatasetSnapshot('CN_A');
+  const s2 = await experiments.captureDatasetSnapshot('CN_A');
   assert.equal(s1.snapshot_id, s2.snapshot_id);
   assert.equal(s1.lineage_hash, s2.lineage_hash);
 });

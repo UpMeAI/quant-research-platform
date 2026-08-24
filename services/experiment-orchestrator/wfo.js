@@ -52,7 +52,7 @@ function _metric(artifact, side, metricName) {
  * 执行 WFO。要求 spec.sample.wfo = { train_days, test_days, step_days?, folds? }
  * 且 spec.parameter_grid 非空(选参空间必须预注册)。
  */
-function runWalkForward(experimentId) {
+async function runWalkForward(experimentId) {
   const experiments = require('./index'); // 延迟 require:避免与主模块循环加载
   const v = experiments.verifyFreeze(experimentId);
   if (!v.ok) throw new Error(`WFO_REJECTED:${v.reason}`);
@@ -63,7 +63,7 @@ function runWalkForward(experimentId) {
   if (!Array.isArray(grid) || !grid.length) throw new Error('WFO_MISSING_PARAMETER_GRID'); // 禁运行后追加参数
 
   const adapter = getAdapter(spec.market);
-  const baseline = adapter.run_backtest({ ...spec, sample: { ...spec.sample, window_from: null, window_to: null } });
+  const baseline = await adapter.run_backtest({ ...spec, sample: { ...spec.sample, window_from: null, window_to: null } });
   // 只在**可评测区间**内切 fold(预热期/前向窗口尾部不参与,否则 fold 内无可判样本)
   const ev = baseline.evaluable_range;
   const dates = ev ? baseline.dates.filter((d) => d >= ev.from && d <= ev.to) : baseline.dates;
@@ -74,25 +74,27 @@ function runWalkForward(experimentId) {
   const foldResults = [];
   for (const f of folds) {
     // 1) train 段:预注册网格内选参(primary metric 最优)
-    const trials = grid.map((g) => {
+    // 逐点串行 await:保持决定论(并发不改变结果,但串行让失败点与顺序可复现)
+    const trials = [];
+    for (const g of grid) {
       const variant = { ...base, ...g, key: 'CHALLENGER' };
       try {
-        const a = adapter.run_backtest({
+        const a = await adapter.run_backtest({
           ...spec,
           execution_model: { ...spec.execution_model, challenger_variant: variant },
           sample: { ...spec.sample, window_from: f.train_from, window_to: f.train_to, oos_start: f.train_from },
         });
-        return { params: g, train_score: _metric(a, 'challenger', spec.primary_metric) };
+        trials.push({ params: g, train_score: _metric(a, 'challenger', spec.primary_metric) });
       } catch (e) {
-        return { params: g, train_score: null, error: String(e.message || e) }; // 窗口内无可判样本 = 该点不可选,不静默当 0
+        trials.push({ params: g, train_score: null, error: String(e.message || e) }); // 窗口内无可判样本 = 该点不可选,不静默当 0
       }
-    });
+    }
     const ranked = trials.filter((t) => t.train_score != null).sort((a, b) => b.train_score - a.train_score);
     if (!ranked.length) { foldResults.push({ ...f, status: 'NO_TRAINABLE_SAMPLE' }); continue; }
     const selected = ranked[0];
 
     // 2) test 段:用选中的参数,与 Champion 同窗口受控对比
-    const t = adapter.run_backtest({
+    const t = await adapter.run_backtest({
       ...spec,
       execution_model: { ...spec.execution_model, challenger_variant: { ...base, ...selected.params, key: 'CHALLENGER' } },
       sample: { ...spec.sample, window_from: f.test_from, window_to: f.test_to, oos_start: f.test_from },

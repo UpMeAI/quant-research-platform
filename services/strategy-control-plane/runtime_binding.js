@@ -24,13 +24,21 @@ const ACK_LEDGER = () => path.join(dataDir('control-plane'), 'runtime_acks.jsonl
 
 function _today(o = {}) { return o.today || new Date().toISOString().slice(0, 10); }
 
-function _awaitingPull(runtimeId) {
-  if (!runtimeId) throw new Error('RUNTIME_ID_REQUIRED');
+function _activationHeads() {
   const m = new Map();
   for (const r of controlPlane.listActivations()) {
     if (r.schema === 'ACTIVATION_RECORD_V1' && r.activation_id) m.set(r.activation_id, r);
   }
-  return [...m.values()].filter(
+  return [...m.values()];
+}
+
+function _activeActivations(runtimeId) {
+  return _activationHeads().filter((a) => a.target_runtime_id === runtimeId && a.activation_status === 'ACTIVE');
+}
+
+function _awaitingPull(runtimeId) {
+  if (!runtimeId) throw new Error('RUNTIME_ID_REQUIRED');
+  return _activationHeads().filter(
     (a) => a.target_runtime_id === runtimeId && a.activation_status === 'PENDING_RUNTIME_PULL'
   );
 }
@@ -50,6 +58,20 @@ function runtimeScheduledActivations(runtimeId, o = {}) {
   return _awaitingPull(runtimeId).filter((a) => String(a.effective_from) > today);
 }
 
+/**
+ * Runtime 健康检查裁定(§12 流程图 ACK 与 Health Check 是两个串联关口)。
+ * 缺 health_check = 不可判 → 拒绝(fail-closed,§18:数据缺失则不激活);
+ * 同时在此关口复核永久安全不变量:real_order 必须为 0、broker_connection 必须为 false。
+ */
+function evaluateHealthCheck(hc) {
+  const problems = [];
+  if (!hc || typeof hc !== 'object') return { ok: false, problems: ['HEALTH_CHECK_MISSING'] };
+  if (hc.status !== 'HEALTHY') problems.push(`HEALTH_STATUS_NOT_HEALTHY:${hc.status ?? 'undefined'}`);
+  if (hc.real_order !== undefined && Number(hc.real_order) !== 0) problems.push(`SAFETY_INVARIANT_REAL_ORDER:${hc.real_order}`);
+  if (hc.broker_connection !== undefined && hc.broker_connection !== false) problems.push('SAFETY_INVARIANT_BROKER_CONNECTION_ENABLED');
+  return { ok: problems.length === 0, problems };
+}
+
 function _bundleOf(ref) {
   const [bundleId, ver] = String(ref).split('#v');
   return { bundleId, version: ver ? Number(ver) : null, head: registry.bundleHead(bundleId, ver ? Number(ver) : null) };
@@ -60,7 +82,7 @@ function _bundleOf(ref) {
  * verified_release_hash 必须与 Release 台账一致(fail-closed);
  * 成功 → Activation ACTIVE + Bundle→ACTIVE(activationRef 绑定)。
  */
-function runtimeAck(activationId, o = {}) {
+async function runtimeAck(activationId, o = {}) {
   const act = controlPlane.activationHead(activationId);
   if (!act) throw new Error('ACTIVATION_NOT_FOUND');
   if (act.activation_status !== 'PENDING_RUNTIME_PULL') throw new Error(`ACTIVATION_NOT_PENDING:${act.activation_status}`);
@@ -75,6 +97,7 @@ function runtimeAck(activationId, o = {}) {
   if (!release) throw new Error('ACTIVATION_RELEASE_NOT_FOUND');
 
   const hashOk = o.verified_release_hash === release.release_hash && release.release_hash === act.release_hash;
+  const healthVerdict = evaluateHealthCheck(o.health_check);
   const ack = {
     schema: 'RUNTIME_ACK_V1',
     ack_id: `ACK-${hash({ a: activationId, t: uid() })}`,
@@ -85,6 +108,8 @@ function runtimeAck(activationId, o = {}) {
     expected_release_hash: release.release_hash,
     hash_verified: hashOk,
     health_check: o.health_check || null,
+    health_verified: healthVerdict.ok,
+    health_problems: healthVerdict.problems,
     ackedAt: now(),
   };
   append(ACK_LEDGER(), ack);
@@ -99,6 +124,26 @@ function runtimeAck(activationId, o = {}) {
     return { ok: false, reason: 'RELEASE_HASH_MISMATCH', ack };
   }
 
+  if (!healthVerdict.ok) {
+    // Fail Closed(§12 流程图「Runtime ACK + Health Check → ACTIVE」):
+    // 健康检查缺失/不健康/违反永久安全不变量的 ACK 绝不激活。
+    append(controlPlane.ACTIVATIONS_LEDGER(), {
+      ...act, activation_status: 'ACK_REJECTED',
+      runtime_ack: ack.ack_id,
+      reject_reasonCn: `Runtime 健康检查未通过:${healthVerdict.problems.join(';')}`,
+    });
+    return { ok: false, reason: 'HEALTH_CHECK_FAILED', problems: healthVerdict.problems, ack };
+  }
+
+  // 同一 Runtime 只能有一个 ACTIVE Activation:新版本生效即把前任标 SUPERSEDED。
+  // 否则台账里会并存多个 ACTIVE,"当前生效版本 / last-known-good" 变得不可判(§3 Champion 唯一)。
+  for (const prev of _activeActivations(act.target_runtime_id)) {
+    if (prev.activation_id === activationId) continue;
+    append(controlPlane.ACTIVATIONS_LEDGER(), {
+      ...prev, activation_status: 'SUPERSEDED',
+      superseded_by: activationId, supersededAt: now(),
+    });
+  }
   const activated = append(controlPlane.ACTIVATIONS_LEDGER(), {
     ...act, activation_status: 'ACTIVE', runtime_ack: ack.ack_id, activatedAt: now(),
   });
@@ -120,7 +165,7 @@ function runtimeAck(activationId, o = {}) {
     }
   }
   // No Silent Migration:生效即对既有持仓做迁移裁定(只产 REPLAN_REQUIRED,绝不自动迁移)
-  const migration = require('./migration').assessMigration(activated, release);
+  const migration = await require('./migration').assessMigration(activated, release);
   return { ok: true, activation: activated, ack, bundleTransition, migration };
 }
 
@@ -149,5 +194,5 @@ function listAcks(activationId = null) {
 
 module.exports = {
   runtimePendingActivations, runtimeScheduledActivations,
-  runtimeAck, runtimeNack, listAcks, ACK_LEDGER,
+  runtimeAck, runtimeNack, evaluateHealthCheck, listAcks, ACK_LEDGER,
 };

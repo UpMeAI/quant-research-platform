@@ -27,7 +27,7 @@ const MARKET = 'CN_A';
 const RUN_TAG = new Date().toISOString().replace(/[:.]/g, '-'); // 每次运行独立实验(冻结/ResultLock 不可复用)
 const step = (n, t) => console.log(`\n── Step ${n}: ${t} ${'─'.repeat(Math.max(4, 58 - t.length))}`);
 
-function main() {
+async function main() {
   const adapter = getAdapter(MARKET);
 
   step(1, '数据就绪(PIT 仓库)');
@@ -40,7 +40,7 @@ function main() {
   step(2, 'Champion 注册(记录现状,非经济变更 §16.1)');
   const champModule = registry.registerModule({
     module_id: 'MOD-CN_A-VPQ-TIMING-FIXED', market: MARKET, module_type: 'TIMING',
-    code_ref: 'adapters/ashare-local/strategy_vpq.js#FIXED', parameters: CHAMPION_VARIANT, status: 'ACTIVE',
+    code_ref: 'adapters/ashare-local/strategy_vpq.js#FIXED', parameters: CHAMPION_VARIANT,
   });
   if (!champModule.ok) throw new Error(`champion module: ${champModule.reason}`);
   registry.registerFamily({
@@ -89,7 +89,7 @@ function main() {
   console.log(`  ${hyp.hypothesis_id}`);
 
   step(5, 'DatasetSnapshot(经 adapter,可重放)');
-  const snap = experiments.captureDatasetSnapshot(MARKET);
+  const snap = await experiments.captureDatasetSnapshot(MARKET);
   console.log(`  ${snap.snapshot_id}(bars checksum=${snap.checksums.bars},${snap.coverage.dateFrom}..${snap.coverage.dateTo})`);
 
   step(6, 'ExperimentSpec 预注册 + 冻结');
@@ -117,21 +117,21 @@ function main() {
   console.log(`  ${exp.experiment_id}(freeze_hash=${exp.freeze_hash},oos_start=${oosStart})`);
 
   step(7, '回测(经 Market Adapter,决定论)');
-  const artifact = experiments.runBacktest(exp.experiment_id);
+  const artifact = await experiments.runBacktest(exp.experiment_id);
   const p = artifact.precision_oos; // 裁决口径 = 预注册的 OOS 段
   console.log(`  result_hash=${artifact.result_hash} paired_oos=${artifact.paired_rows_oos.length}`);
   console.log(`  Champion  (OOS): good_precision=${p.champion.good_precision?.toFixed(4)} good=${p.champion.good_count} bad_precision=${p.champion.bad_precision?.toFixed(4)}`);
   console.log(`  Challenger(OOS): good_precision=${p.challenger.good_precision?.toFixed(4)} good=${p.challenger.good_count} bad_precision=${p.challenger.bad_precision?.toFixed(4)}`);
 
   step('7b', 'OOS / WFO / Costs / Robustness(§16.3 步骤 4)');
-  const wfo = experiments.runWalkForward(exp.experiment_id);
+  const wfo = await experiments.runWalkForward(exp.experiment_id);
   console.log(`  WFO:${wfo.evaluated_fold_count}/${wfo.fold_count} fold 可评测,challenger 胜出比例=${wfo.challenger_win_fraction}`);
   for (const f of wfo.folds) {
     console.log(`    fold${f.fold} train ${f.train_from}..${f.train_to} → test ${f.test_from}..${f.test_to}` +
       (f.status === 'EVALUATED' ? ` | 选参 ${JSON.stringify(f.selected_params)} | test champ=${f.test_champion?.toFixed(4)} chal=${f.test_challenger?.toFixed(4)}` : ` | ${f.status}`));
   }
   console.log(`  选参稳定性:${wfo.stabilityCn}`);
-  const rob = experiments.runRobustness(exp.experiment_id);
+  const rob = await experiments.runRobustness(exp.experiment_id);
   console.log(`  Robustness:${rob.decidable_trial_count} 次可判扰动,challenger 仍占优比例=${rob.challenger_better_fraction}`);
   for (const [dim, d] of Object.entries(rob.dimensions)) {
     console.log(`    ${dim}: ${d.status}${d.trials ? `(${d.trials.filter((t) => t.challenger_better).length}/${d.trials.length} 占优)` : ` —— ${d.reasonCn || ''}`}`);
@@ -145,7 +145,7 @@ function main() {
     good_count: p[side].good_count, bad_count: p[side].bad_count,
     oos_cumRet: artifact.summary.oos[side].cumRet,
   });
-  const closed = races.closeRace(race.race_id, {
+  const closed = await races.closeRace(race.race_id, {
     championMetrics: metricsOf('champion'),
     challengerMetrics: metricsOf('challenger'),
     canonical: adapter.normalize_result(artifact),
@@ -182,7 +182,7 @@ function main() {
   const evalDates = artifact.dates.slice(-shd.min_forward_evidence);
   let disagreements = 0;
   for (const d of evalDates) {
-    const obs = shadow.observeViaAdapter(shd.shadow_id, d);
+    const obs = await shadow.observeViaAdapter(shd.shadow_id, d);
     if (!obs.agree) disagreements++;
   }
   const suff = shadow.sufficiency(shd.shadow_id);
@@ -195,7 +195,7 @@ function main() {
     shadow_forward_refs: [shd.shadow_id],
     rollback_ref: champRef,
   });
-  const compat = controlPlane.runCompatibilityCheck(cand.candidate_id);
+  const compat = await controlPlane.runCompatibilityCheck(cand.candidate_id);
   if (!compat.compatibility.compatible) throw new Error(`兼容性失败:${compat.compatibility.reasons.join(';')}`);
   const release = controlPlane.createRelease(cand.candidate_id);
   console.log(`  ${cand.candidate_id} → compatibility PASS → ${release.release_id}(release_hash=${release.release_hash})`);
@@ -203,15 +203,15 @@ function main() {
   step(11, 'Founder Review → Activation(PAPER,未来生效)');
   controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER', decisionCn: 'MVP 演示批准(PAPER only)' });
   const effectiveFrom = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-  const act = controlPlane.requestActivation(release.release_id, {
+  const act = await controlPlane.requestActivation(release.release_id, {
     target_runtime_id: RUNTIME_ID, environment: 'PAPER', effective_from: effectiveFrom,
   });
   console.log(`  ${act.activation_id}(status=${act.activation_status},effective_from=${act.effective_from})`);
 
   step(12, 'Runtime Pull + Verify Hash + ACK(pull-based §12.2,生效日门控)');
-  const beforeEffective = runtimeStub.pullAndAck({ today: new Date().toISOString().slice(0, 10) });
+  const beforeEffective = await runtimeStub.pullAndAck({ today: new Date().toISOString().slice(0, 10) });
   console.log(`  生效日前(今日)拉取:pending=${beforeEffective.pulled},未到生效日=${beforeEffective.scheduled_not_yet_effective.length} → 批准 ≠ 生效`);
-  const pulled = runtimeStub.pullAndAck({ today: effectiveFrom }); // 模拟自然到达 effective_from 当日
+  const pulled = await runtimeStub.pullAndAck({ today: effectiveFrom }); // 模拟自然到达 effective_from 当日
   console.log(`  生效日(${effectiveFrom})拉取:pending=${pulled.pulled}`);
   for (const r of pulled.results) {
     console.log(`  ${r.activation_id} → ${r.action}`);
@@ -225,10 +225,11 @@ function main() {
   console.log(`  Release       ${release.release_id}(immutable,hash=${release.release_hash})`);
   console.log(`  Activation    ${finalAct.activation_id} → ${finalAct.activation_status}(runtime=${finalAct.target_runtime_id},env=${finalAct.environment})`);
   console.log(`  Bundle        ${chalRef} → ${finalBundle.status}(activationRef=${finalBundle.activationRef})`);
-  console.log(`  回滚锚        previous_release_ref=${finalAct.previous_release_ref}`);
+  console.log(`  回滚锚        previous_release_ref=${finalAct.previous_release_ref ?? 'null(首次激活:平台此前未对该 Runtime 发过 Release —— 回滚将报 NO_PREVIOUS_RELEASE_TO_RESTORE,不伪装成功)'}`);
+  console.log(`                rollback_bundle_ref=${finalAct.rollback_bundle_ref}(候选声明的 bundle 级锚点,仅审计)`);
   console.log('  不变量        real_order=0 · broker=false · PAPER only · Founder 唯一批准 · append-only 台账');
   if (finalAct.activation_status !== 'ACTIVE') throw new Error(`MVP 未闭环:activation=${finalAct.activation_status}`);
   console.log('\n✅ 12 步闭环完成(数据为 SAMPLE_SYNTHETIC,结论不构成经济有效性声明)');
 }
 
-main();
+main().catch((e) => { console.error(`\n❌ MVP 闭环失败:${e.message}`); process.exitCode = 1; });

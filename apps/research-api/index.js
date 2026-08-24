@@ -35,7 +35,7 @@ const views = {
   }),
 
   /** §17 Experiments:冻结的 Champion/Challenger、样本、成本、changed/fixed components。 */
-  experiments: () => ({
+  experiments: async () => ({
     hypotheses: experiments.listHypotheses(),
     experiments: experiments.listExperiments().map((e) => ({
       ...e,
@@ -80,8 +80,8 @@ const views = {
   }),
 
   /** §17 Runtime Status(§13.1 只读回读面)。 */
-  'runtime-status': () => ({
-    runtimes: listAdapters().map((m) => runtimeStatus.runtimeStatus(m.market_id)),
+  'runtime-status': async () => ({
+    runtimes: await Promise.all(listAdapters().map((m) => runtimeStatus.runtimeStatus(m.market_id))),
   }),
 };
 
@@ -96,15 +96,15 @@ function founderOk(req) {
 
 const actions = {
   /** §12.1 一键发布的第一步:Founder 审批(仅 APPROVE_PAPER / REJECT)。 */
-  review: (body) => {
+  review: async (body) => {
     const r = controlPlane.reviewCandidate(body.candidate_id, body.decision, {
       reviewer: 'FOUNDER', decisionCn: body.decisionCn, approvedByUserId: body.approvedByUserId,
     });
     return { review_status: r.review_status, candidate_id: r.candidate_id };
   },
   /** §12.1 第二步:创建 Activation(仍需 Runtime 到生效日拉取并验哈希才 ACTIVE)。 */
-  activate: (body) => {
-    const a = controlPlane.requestActivation(body.release_id, {
+  activate: async (body) => {
+    const a = await controlPlane.requestActivation(body.release_id, {
       target_runtime_id: body.target_runtime_id, environment: body.environment || 'PAPER',
       effective_from: body.effective_from, approvedByUserId: body.approvedByUserId,
     });
@@ -133,8 +133,12 @@ function handle(req, res) {
   if (req.method === 'GET' && p.startsWith('/api/')) {
     const view = p.slice(5);
     if (!views[view]) return send(res, 404, { error: 'UNKNOWN_VIEW', available: Object.keys(views) });
-    try { return send(res, 200, views[view]()); }
-    catch (e) { return send(res, 500, { error: String(e.message || e) }); }
+    // 视图可同步可异步(适配器 IO):统一 resolve,绝不把 Promise 序列化成 {}
+    Promise.resolve()
+      .then(() => views[view]())
+      .then((v) => send(res, 200, v))
+      .catch((e) => send(res, 500, { error: String(e.message || e) }));
+    return undefined;
   }
 
   if (req.method === 'POST' && p.startsWith('/api/')) {
@@ -145,8 +149,10 @@ function handle(req, res) {
     let raw = '';
     req.on('data', (c) => { raw += c; if (raw.length > 1e6) req.destroy(); });
     req.on('end', () => {
-      try { return send(res, 200, actions[action](JSON.parse(raw || '{}'))); }
-      catch (e) { return send(res, 400, { error: String(e.message || e) }); }
+      Promise.resolve()
+        .then(() => actions[action](JSON.parse(raw || '{}')))
+        .then((v) => send(res, 200, v))
+        .catch((e) => send(res, 400, { error: String(e.message || e) }));
     });
     return undefined;
   }

@@ -21,7 +21,7 @@ function setupBundles() {
   const adapter = getAdapter('CN_A');
   const cm = registry.registerModule({
     module_id: 'MOD-T-FIXED', market: 'CN_A', module_type: 'TIMING',
-    code_ref: 'adapters/ashare-local/strategy_vpq.js#FIXED', parameters: CHAMPION_VARIANT, status: 'ACTIVE',
+    code_ref: 'adapters/ashare-local/strategy_vpq.js#FIXED', parameters: CHAMPION_VARIANT,
   });
   const champ = registry.registerChampionBundle({
     market: 'CN_A', bundle_id: 'BND-T-CHAMPION',
@@ -46,7 +46,7 @@ function setupBundles() {
 }
 
 /** 完整预注册实验(冻结),返回 {expId, ...bundles, oosStart}。 */
-function setupExperiment(overrides = {}) {
+async function setupExperiment(overrides = {}) {
   const b = setupBundles();
   const hyp = experiments.registerHypothesis({
     research_question: 'Q80/Q10 分位判据 vs 固定阈值', expected_mechanism: '按标的自身量能分布自适应',
@@ -57,7 +57,7 @@ function setupExperiment(overrides = {}) {
       { id: 'G2', rule: 'AT_LEAST_FRACTION_OF_CHAMPION', metric: 'good_count', value: 0.5 },
     ],
   });
-  const snap = experiments.captureDatasetSnapshot('CN_A');
+  const snap = await experiments.captureDatasetSnapshot('CN_A');
   const anyBars = pit.loadUniverseBars({ cap: 1 }).byInst.values().next().value;
   const oosStart = anyBars[Math.floor(anyBars.length * 0.7)].d;
   const exp = experiments.preregisterExperiment({

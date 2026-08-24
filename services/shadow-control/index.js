@@ -76,12 +76,12 @@ function shadowHead(shadowId) {
  * 由 adapter 在同一 PIT cutoff 下生成一次 Champion/Challenger 双边观察并入账。
  * agree=true 也入账(前向样本数要真实累计);Challenger 输出同步写 Virtual Ledger。
  */
-function observeViaAdapter(shadowId, evalDate) {
+async function observeViaAdapter(shadowId, evalDate) {
   const head = shadowHead(shadowId);
   if (!head) throw new Error('SHADOW_NOT_FOUND');
   const v = experiments.verifyFreeze(head.experiment_ref);
   if (!v.ok) throw new Error(`SHADOW_OBSERVE_REJECTED:${v.reason}`);
-  const obs = getAdapter(head.market).run_shadow(v.spec, evalDate);
+  const obs = await getAdapter(head.market).run_shadow(v.spec, evalDate);
   return recordObservation(shadowId, obs);
 }
 

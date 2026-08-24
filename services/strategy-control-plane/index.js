@@ -74,13 +74,13 @@ function candidateHead(candidateId) {
 }
 
 /** Compatibility Check:构造 release 草案交 Market Adapter 校验(fail-closed)。 */
-function runCompatibilityCheck(candidateId) {
+async function runCompatibilityCheck(candidateId) {
   const head = candidateHead(candidateId);
   if (!head) throw new Error('CANDIDATE_NOT_FOUND');
   if (head.review_status !== 'PENDING_COMPATIBILITY') throw new Error(`CANDIDATE_NOT_PENDING_COMPATIBILITY:${head.review_status}`);
   const adapter = getAdapter(head.market);
   const draft = _releaseDraft(head, adapter);
-  const compat = adapter.validate_release(draft);
+  const compat = await adapter.validate_release(draft);
   const rec = append(PROMOTIONS_LEDGER(), {
     ...head,
     compatibility_result: compat,
@@ -160,7 +160,7 @@ function reviewCandidate(candidateId, decision, o = {}) {
  * 生成待 Runtime 拉取的 Activation。此时状态 = PENDING_RUNTIME_PULL;
  * 平台**不** push Runtime;Runtime 经 runtime_binding 拉取、验 hash、回 ACK 后才 ACTIVE。
  */
-function requestActivation(releaseId, o = {}) {
+async function requestActivation(releaseId, o = {}) {
   const release = releaseHead(releaseId);
   if (!release) throw new Error('RELEASE_NOT_FOUND');
   const cand = candidateHead(release.candidate_ref);
@@ -172,7 +172,7 @@ function requestActivation(releaseId, o = {}) {
   const today = o.today || new Date().toISOString().slice(0, 10);
   if (!(o.effective_from > today)) throw new Error(`EFFECTIVE_FROM_MUST_BE_FUTURE:${o.effective_from}<=${today}`);
   // capability fail-closed:目标 runtime 必须声明支持该环境
-  const caps = getAdapter(release.market).runtime_capabilities();
+  const caps = await getAdapter(release.market).runtime_capabilities();
   if (caps.runtime_id !== o.target_runtime_id) throw new Error(`RUNTIME_UNKNOWN:${o.target_runtime_id}`);
   if (!caps.environments_supported.includes(environment)) throw new Error(`RUNTIME_ENVIRONMENT_UNSUPPORTED:${environment}`);
 
@@ -186,7 +186,12 @@ function requestActivation(releaseId, o = {}) {
     environment,
     effective_from: o.effective_from,
     canary_scope: o.canary_scope || null,
-    previous_release_ref: cand.rollback_ref,
+    // 回滚锚:previous_release_ref 必须是**真实 Release id**(该 Runtime 当前 ACTIVE 的那个),
+    // 否则 rollback 会拿着 bundle ref 当 release 用,切不回去(审计发现的缺陷)。
+    // 首次激活时无前任 → null,回滚时显式报 NO_PREVIOUS_RELEASE_TO_RESTORE,不静默留空。
+    previous_release_ref: activeReleaseIdFor(o.target_runtime_id),
+    rollback_bundle_ref: cand.rollback_ref,   // 候选声明的 bundle 级锚点(审计用,不作切回目标)
+    activation_kind: 'PROMOTION',
     approved_by: 'FOUNDER',
     approved_by_user_id: o.approvedByUserId || null,
     migration_policyCn: '已有 Position 绑定原始 release;要变只产 REPLAN_REQUIRED,不静默迁移',
@@ -204,7 +209,32 @@ function activationHead(activationId) {
   return rows.length ? rows[rows.length - 1] : null;
 }
 
+/** 某 Runtime 当前 ACTIVE 的 Release(= last-known-good;回滚锚点的唯一真相)。 */
+function activeReleaseIdFor(runtimeId) {
+  const heads = new Map();
+  for (const r of read(ACTIVATIONS_LEDGER())) {
+    if (r.schema === 'ACTIVATION_RECORD_V1' && r.target_runtime_id === runtimeId) heads.set(r.activation_id, r);
+  }
+  const active = [...heads.values()].filter((a) => a.activation_status === 'ACTIVE');
+  return active.length ? active[active.length - 1].release_id : null;
+}
+
 // ── Rollback(§12.3 两类语义) ──────────────────────────────────────────────
+/** 已为某 activation 登记过研究复核触发?(ECONOMIC 回滚的前置条件) */
+function hasReviewTrigger(activationRef) {
+  return read(ACTIVATIONS_LEDGER()).some(
+    (r) => r.schema === 'ROLLBACK_REVIEW_TRIGGER_V1' && r.activation_ref === activationRef,
+  );
+}
+
+/**
+ * §12.3 Rollback —— 关键修复:回滚**不是只写一条台账**。
+ * "切回 last-known-good release" 必须真的经 §12.2 pull 协议回到 Runtime:
+ * 本函数为 previous_release_ref 生成一条 ROLLBACK_RESTORE Activation
+ * (即刻生效、PENDING_RUNTIME_PULL),Runtime 拉取并验 hash + 健康检查后才真正恢复。
+ * 无前任 Release 可切回时 fail-closed 报 NO_PREVIOUS_RELEASE_TO_RESTORE,
+ * 绝不"回滚成功但 Runtime 无生效版本"(审计实测到的旧行为)。
+ */
 function rollback(o = {}) {
   if (!ROLLBACK_TYPES.includes(o.type)) throw new Error(`BAD_ROLLBACK_TYPE:${o.type}`);
   if (!o.activation_ref) throw new Error('ROLLBACK_MISSING_ACTIVATION_REF');
@@ -221,13 +251,58 @@ function rollback(o = {}) {
       triggeredAt: now(),
     });
   }
-  // OPERATIONAL(或 Founder 批准的 ECONOMIC):切回 previous_release_ref;前向生效,不改历史
+  // Founder 批准的 ECONOMIC 回滚必须**先**有研究复核记录(§12.3:经济回滚经 Research Review)
+  if (o.type === 'ECONOMIC' && !hasReviewTrigger(o.activation_ref)) {
+    throw new Error('ECONOMIC_ROLLBACK_REQUIRES_PRIOR_RESEARCH_REVIEW');
+  }
+
+  const restoredId = act.previous_release_ref;
+  const restored = restoredId ? releaseHead(restoredId) : null;
+  if (restoredId && !restored) throw new Error(`ROLLBACK_TARGET_NOT_A_RELEASE:${restoredId}`); // fail-closed
+
+  const rollbackId = `RBK-${hash({ a: o.activation_ref, t: uid() })}`;
+  const today = o.today || new Date().toISOString().slice(0, 10);
+
+  // 切回目标存在 → 生成 ROLLBACK_RESTORE Activation,交 Runtime 拉取生效
+  let restoreActivation = null;
+  if (restored) {
+    restoreActivation = append(ACTIVATIONS_LEDGER(), {
+      schema: 'ACTIVATION_RECORD_V1',
+      activation_id: `ACT-${hash({ r: restored.release_id, rb: rollbackId })}`,
+      target_runtime_id: act.target_runtime_id,
+      release_id: restored.release_id,
+      release_hash: restored.release_hash,
+      market: act.market,
+      environment: act.environment,
+      // 回滚是运行动作而非新经济变更:即刻生效(仍只影响其后新 TradePlan)
+      effective_from: today,
+      canary_scope: null,
+      previous_release_ref: act.release_id,          // 从哪个版本切回来的
+      rollback_bundle_ref: act.rollback_bundle_ref || null,
+      activation_kind: 'ROLLBACK_RESTORE',
+      rollback_ref: rollbackId,
+      approved_by: o.type === 'OPERATIONAL' ? (o.approved_by || 'OPERATOR') : 'FOUNDER',
+      approved_by_user_id: o.approvedByUserId || null,
+      migration_policyCn: '恢复既有已批准 Release;既有持仓仍绑原始 release,不静默迁移',
+      runtime_ack: null,
+      activation_status: 'PENDING_RUNTIME_PULL',
+      rollback_status: null,
+      activatedAt: null,
+      requestedAt: now(),
+    });
+  }
+
   const rec = append(ACTIVATIONS_LEDGER(), {
     schema: 'ROLLBACK_RECORD_V1',
-    rollback_id: `RBK-${hash({ a: o.activation_ref, t: uid() })}`,
+    rollback_id: rollbackId,
     activation_ref: o.activation_ref,
     type: o.type,
-    restored_release_ref: act.previous_release_ref,
+    restored_release_ref: restoredId || null,
+    restore_activation_ref: restoreActivation ? restoreActivation.activation_id : null,
+    restore_status: restored ? 'PENDING_RUNTIME_PULL' : 'NO_PREVIOUS_RELEASE_TO_RESTORE',
+    restore_statusCn: restored
+      ? '已生成回滚恢复 Activation;Runtime 拉取并验 hash + 健康检查后才真正切回'
+      : '该 Runtime 此前无生效 Release —— 只停用当前版本,无 last-known-good 可切回(需人工处置)',
     approved_by: o.type === 'OPERATIONAL' ? (o.approved_by || 'OPERATOR') : 'FOUNDER',
     approved_by_user_id: o.approvedByUserId || null,
     reasonCn: o.reasonCn || null,
@@ -235,9 +310,11 @@ function rollback(o = {}) {
     rolledBackAt: now(),
   });
   append(ACTIVATIONS_LEDGER(), { ...act, activation_status: 'ROLLED_BACK', rollback_status: rec.rollback_id });
+
   // 安全规则:绝不 retire 正要恢复的那个 release 对应 bundle
   const release = releaseHead(act.release_id);
-  if (release && String(release.immutable_bundle_ref) !== String(act.previous_release_ref)) {
+  const restoredBundleRef = restored ? String(restored.immutable_bundle_ref) : null;
+  if (release && String(release.immutable_bundle_ref) !== restoredBundleRef) {
     const bh = _bundleOf(release.immutable_bundle_ref);
     if (['ACTIVE', 'CANARY'].includes(bh.status)) {
       const t = registry.transitionBundle(bh.bundle_id, bh.bundle_version, 'RETIRED', { reason: `rollback:${rec.rollback_id}` });
@@ -263,7 +340,7 @@ module.exports = {
   ROLLBACK_TYPES, MIGRATION_POLICY,
   createPromotionCandidate, candidateHead, runCompatibilityCheck,
   createRelease, releaseHead, reviewCandidate,
-  requestActivation, activationHead, rollback,
+  requestActivation, activationHead, activeReleaseIdFor, rollback, hasReviewTrigger,
   listCandidates, listReleases, listActivations,
   PROMOTIONS_LEDGER, RELEASES_LEDGER, ACTIVATIONS_LEDGER,
 };

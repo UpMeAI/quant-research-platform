@@ -66,8 +66,13 @@ function hypothesisHead(id) {
 function listHypotheses() { return read(HYPOTHESES_LEDGER()); }
 
 // ── DatasetSnapshot(§8;经 adapter 生成,平台入账) ───────────────────────────
-function captureDatasetSnapshot(marketId, request = {}) {
-  const snap = getAdapter(marketId).snapshot(request);
+/**
+ * 适配器可以是同步(平台内置演示适配器)或异步(生产适配器走 PG/REST/CLI,§25 传输层);
+ * 平台一律 await —— 同步返回值 await 后不变,异步返回 Promise 被解开,
+ * 绝不把 Promise 当结果写进台账(审计发现的静默污染路径)。
+ */
+async function captureDatasetSnapshot(marketId, request = {}) {
+  const snap = await getAdapter(marketId).snapshot(request);
   append(SNAPSHOTS_LEDGER(), snap);
   return snap;
 }
@@ -135,12 +140,12 @@ function invalidateExperiment(experimentId, reasonCn) {
  * 回测编排:校验冻结 → 经 Market Adapter 执行 → 产物入台账。
  * 同 (experiment, result_hash) 幂等:已有产物直接返回(决定论重放命中)。
  */
-function runBacktest(experimentId) {
+async function runBacktest(experimentId) {
   const v = verifyFreeze(experimentId);
   if (!v.ok) throw new Error(`BACKTEST_REJECTED:${v.reason}`);
   const spec = { ...v.spec };
   const adapter = getAdapter(spec.market);
-  const artifact = adapter.run_backtest(spec);
+  const artifact = await adapter.run_backtest(spec);
   const existing = read(ARTIFACTS_LEDGER()).find((r) => r.experiment_ref === experimentId && r.result_hash === artifact.result_hash);
   if (existing) return { ...existing, replayHit: true };
   append(ARTIFACTS_LEDGER(), { ...artifact, experiment_ref: experimentId });

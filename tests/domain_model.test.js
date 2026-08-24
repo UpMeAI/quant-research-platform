@@ -46,3 +46,36 @@ test('Registry:transitionBundle 拒绝无 activationRef 的 SHADOW→ACTIVE', ()
   assert.equal(r.ok, false);
   assert.equal(r.reason, 'ACTIVE_REQUIRES_ACTIVATION_RECORD');
 });
+
+test('注册即绕过守卫的洞已封:新 Bundle/Module 不得以 ACTIVE 入册(§12/§18)', () => {
+  const bad = registry.registerBundle({
+    bundle_id: 'BND-BYPASS-ACTIVE', market: 'CN_A', module_refs: ['MOD-X#v1'], status: 'ACTIVE',
+  });
+  assert.equal(bad.ok, false);
+  assert.match(bad.reason, /ILLEGAL_INITIAL_BUNDLE_STATUS/);
+
+  for (const s of ['CHALLENGER', 'SHADOW', 'CANARY']) {
+    assert.equal(registry.registerBundle({
+      bundle_id: `BND-BYPASS-${s}`, market: 'CN_A', module_refs: ['MOD-X#v1'], status: s,
+    }).ok, false, `${s} 不应可作为初始状态`);
+  }
+  // RESEARCH 正常
+  assert.equal(registry.registerBundle({
+    bundle_id: 'BND-OK', market: 'CN_A', module_refs: ['MOD-X#v1'], status: 'RESEARCH',
+  }).ok, true);
+
+  // 模块同理
+  const badMod = registry.registerModule({
+    module_id: 'MOD-BYPASS', market: 'CN_A', module_type: 'TIMING', code_ref: 'x', status: 'ACTIVE',
+  });
+  assert.equal(badMod.ok, false);
+  assert.match(badMod.reason, /ILLEGAL_INITIAL_MODULE_STATUS/);
+
+  // §16.1 Champion 导入是唯一豁免,且必须留下导入标记(与新发布可区分)
+  const champ = registry.registerChampionBundle({
+    market: 'CN_A', bundle_id: 'BND-CHAMP-IMPORT', module_refs: ['MOD-X#v1'],
+  });
+  assert.equal(champ.ok, true);
+  assert.equal(champ.record.status, 'ACTIVE');
+  assert.equal(champ.record.activationRef, 'CHAMPION_IMPORT_EXISTING_RUNTIME_STATE');
+});

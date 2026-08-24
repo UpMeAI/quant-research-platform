@@ -7,38 +7,70 @@
  * 绝不用平台自己的台账冒充 Runtime 真相(§13:Runtime 才拥有执行真相)。
  */
 const { getAdapter } = require('../../adapters/registry');
+const { RUNTIME_INTERFACE } = require('../../packages/contracts/runtime_contract');
 const binding = require('../strategy-control-plane/runtime_binding');
 
-function _readonly(marketId, fnName) {
+async function _readonly(marketId, fnName) {
   const adapter = getAdapter(marketId);
   if (typeof adapter[fnName] !== 'function') {
     return { status: 'UNSUPPORTED', reason: `ADAPTER_LACKS_${fnName.toUpperCase()}`, reasonCn: `该市场 adapter 未实现 ${fnName};平台不臆造 Runtime 真相` };
   }
-  try { return adapter[fnName](); }
+  try { return await adapter[fnName](); }
   catch (e) { return { status: 'ERROR', reason: String(e.message || e) }; }
 }
 
-function capabilities(marketId) { return getAdapter(marketId).runtime_capabilities(); }
-function activeRelease(marketId) { return _readonly(marketId, 'runtime_active_release'); }
-function positionsReadonly(marketId) { return _readonly(marketId, 'runtime_positions_readonly'); }
-function performanceSummary(marketId) { return _readonly(marketId, 'runtime_performance_summary'); }
-function health(marketId) { return _readonly(marketId, 'runtime_health'); }
+async function capabilities(marketId) { return getAdapter(marketId).runtime_capabilities(); }
+async function activeRelease(marketId) { return _readonly(marketId, 'runtime_active_release'); }
+async function positionsReadonly(marketId) { return _readonly(marketId, 'runtime_positions_readonly'); }
+async function performanceSummary(marketId) { return _readonly(marketId, 'runtime_performance_summary'); }
+async function health(marketId) { return _readonly(marketId, 'runtime_health'); }
+
+/**
+ * §13.1 Runtime 最小接口覆盖度:把合同里的八个语义端点逐项映射到本平台的落点,
+ * 未落地的显式 NOT_IMPLEMENTED —— RUNTIME_INTERFACE 不再是无人引用的死常量。
+ */
+function interfaceCoverage(marketId) {
+  const adapter = getAdapter(marketId);
+  const has = (fn) => typeof adapter[fn] === 'function';
+  const map = {
+    capabilities: has('runtime_capabilities') ? 'ADAPTER:runtime_capabilities' : null,
+    active_release: has('runtime_active_release') ? 'ADAPTER:runtime_active_release' : null,
+    validate_release: has('validate_release') ? 'ADAPTER:validate_release' : null,
+    activate_release: 'PULL_BASED:runtime_binding.runtimePendingActivations+runtimeAck(§12.2)',
+    rollback: 'CONTROL_PLANE:rollback → ROLLBACK_RESTORE Activation(由 Runtime 拉取生效)',
+    health: has('runtime_health') ? 'ADAPTER:runtime_health' : null,
+    performance_summary: has('runtime_performance_summary') ? 'ADAPTER:runtime_performance_summary' : null,
+    positions_readonly: has('runtime_positions_readonly') ? 'ADAPTER:runtime_positions_readonly' : null,
+  };
+  const coverage = {};
+  for (const name of RUNTIME_INTERFACE) coverage[name] = map[name] || 'NOT_IMPLEMENTED';
+  return {
+    contract: 'RUNTIME_INTERFACE_V1(§13.1)',
+    coverage,
+    implemented_count: Object.values(coverage).filter((v) => v !== 'NOT_IMPLEMENTED').length,
+    total: RUNTIME_INTERFACE.length,
+  };
+}
 
 /** §17 Runtime Status 页的单次聚合读取(含平台侧待拉取/未到生效日队列)。 */
-function runtimeStatus(marketId, o = {}) {
-  const caps = capabilities(marketId);
+async function runtimeStatus(marketId, o = {}) {
+  const caps = await capabilities(marketId);
   return {
     market: marketId,
     runtime_id: caps.runtime_id,
     capabilities: caps,
-    active_release: activeRelease(marketId),
-    health: health(marketId),
-    performance_summary: performanceSummary(marketId),
-    positions: positionsReadonly(marketId),
+    interface_coverage: interfaceCoverage(marketId),
+    active_release: await activeRelease(marketId),
+    health: await health(marketId),
+    performance_summary: await performanceSummary(marketId),
+    positions: await positionsReadonly(marketId),
     pending_pull: binding.runtimePendingActivations(caps.runtime_id, o),
     scheduled_not_yet_effective: binding.runtimeScheduledActivations(caps.runtime_id, o),
     readOnlyCn: '平台只读;激活由 Runtime 主动拉取并验证 hash 后生效(§12.2)',
   };
 }
 
-module.exports = { capabilities, activeRelease, positionsReadonly, performanceSummary, health, runtimeStatus };
+module.exports = {
+  capabilities, activeRelease, positionsReadonly, performanceSummary, health,
+  interfaceCoverage, runtimeStatus,
+};

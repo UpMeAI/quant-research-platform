@@ -18,14 +18,14 @@ test('WFO fold 切分:train/test 不重叠且滚动前进', () => {
   for (let i = 1; i < folds.length; i++) assert.ok(folds[i].train_from > folds[i - 1].train_from); // 前进
 });
 
-test('WFO:只在预注册网格内选参,test 段结果才计入结论;缺配置/缺网格 fail-closed', () => {
-  const noCfg = setupExperiment({ spec: { sample: { oos_start: '2026-06-01', is_end: '2026-06-01' } } });
-  assert.throws(() => experiments.runWalkForward(noCfg.exp.experiment_id), /WFO_MISSING_PREREGISTERED_CONFIG/);
-  const noGrid = setupExperiment({ spec: { parameter_grid: [] } });
-  assert.throws(() => experiments.runWalkForward(noGrid.exp.experiment_id), /WFO_MISSING_PARAMETER_GRID/);
+test('WFO:只在预注册网格内选参,test 段结果才计入结论;缺配置/缺网格 fail-closed', async () => {
+  const noCfg = await setupExperiment({ spec: { sample: { oos_start: '2026-06-01', is_end: '2026-06-01' } } });
+  await assert.rejects(async () => experiments.runWalkForward(noCfg.exp.experiment_id), /WFO_MISSING_PREREGISTERED_CONFIG/);
+  const noGrid = await setupExperiment({ spec: { parameter_grid: [] } });
+  await assert.rejects(async () => experiments.runWalkForward(noGrid.exp.experiment_id), /WFO_MISSING_PARAMETER_GRID/);
 
-  const { exp } = setupExperiment();
-  const rep = experiments.runWalkForward(exp.experiment_id);
+  const { exp } = await setupExperiment();
+  const rep = await experiments.runWalkForward(exp.experiment_id);
   assert.equal(rep.schema, 'WFO_REPORT_V1');
   assert.ok(rep.fold_count >= 1);
   const gridKeys = rep.parameter_grid.map((g) => JSON.stringify(g));
@@ -38,9 +38,9 @@ test('WFO:只在预注册网格内选参,test 段结果才计入结论;缺配置
   assert.equal(experiments.wfoReportFor(exp.experiment_id).report_hash, rep.report_hash);
 });
 
-test('Robustness:五维齐全,不可执行维度诚实标注,不发明阈值', () => {
-  const { exp } = setupExperiment();
-  const rep = experiments.runRobustness(exp.experiment_id);
+test('Robustness:五维齐全,不可执行维度诚实标注,不发明阈值', async () => {
+  const { exp } = await setupExperiment();
+  const rep = await experiments.runRobustness(exp.experiment_id);
   assert.equal(rep.schema, 'ROBUSTNESS_REPORT_V1');
   for (const dim of ['parameter_perturbation', 'subsample_universe', 'time_phase', 'execution_stress', 'data_source']) {
     assert.ok(rep.dimensions[dim], `缺维度 ${dim}`);
@@ -54,9 +54,9 @@ test('Robustness:五维齐全,不可执行维度诚实标注,不发明阈值', (
   assert.ok(!('verdict' in rep));   // 不发明稳健/不稳健裁定
 });
 
-test('Regime 分解:paired sample 落台账并按 adapter 标注拆解', () => {
-  const { exp } = setupExperiment();
-  const artifact = experiments.runBacktest(exp.experiment_id);
+test('Regime 分解:paired sample 落台账并按 adapter 标注拆解', async () => {
+  const { exp } = await setupExperiment();
+  const artifact = await experiments.runBacktest(exp.experiment_id);
   const race = races.openRace({ race_type: 'STAGE_RACE', experiment_ref: exp.experiment_id });
   races.submitPairedSamples(race.race_id, artifact.paired_rows_oos);
   assert.equal(races.pairedSamples(race.race_id).length, artifact.paired_rows_oos.length); // 原始样本可回溯
@@ -66,7 +66,7 @@ test('Regime 分解:paired sample 落台账并按 adapter 标注拆解', () => {
     bad_precision: artifact.precision_oos[side].bad_precision,
     good_count: artifact.precision_oos[side].good_count,
   });
-  const closed = races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') });
+  const closed = await races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') });
   const rb = closed.result.regime_breakdown;
   assert.equal(rb.status, 'EVALUATED');
   assert.ok(rb.regime_count >= 1);
@@ -77,12 +77,12 @@ test('Regime 分解:paired sample 落台账并按 adapter 标注拆解', () => {
   }
 });
 
-test('Regime 分解:adapter 未提供标注时显式 UNSUPPORTED(不臆造)', () => {
+test('Regime 分解:adapter 未提供标注时显式 UNSUPPORTED(不臆造)', async () => {
   const adapter = require('../adapters/ashare-local');
   const original = adapter.regime_labels;
   delete adapter.regime_labels;
   try {
-    const r = races.computeRegimeBreakdown('CN_A', [{ key: 'k', d: '2026-06-01', champion_output: 'GOOD', challenger_output: 'GOOD', fwd: 0.01 }]);
+    const r = await races.computeRegimeBreakdown('CN_A', [{ key: 'k', d: '2026-06-01', champion_output: 'GOOD', challenger_output: 'GOOD', fwd: 0.01 }]);
     assert.equal(r.status, 'UNSUPPORTED');
   } finally { adapter.regime_labels = original; }
 });

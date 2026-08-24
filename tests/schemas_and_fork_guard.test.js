@@ -7,9 +7,9 @@ const path = require('path');
 const { SCHEMAS, validateRecord, validateLedger } = require('../schemas');
 const { dataDir } = require('../packages/ledger');
 
-test('Schema 合同:全部台账记录符合 §8 域对象声明', () => {
+test('Schema 合同:全部台账记录符合 §8 域对象声明', async () => {
   // 先跑一条最小闭环产生真实台账
-  require('./_fixture').setupExperiment();
+  await require('./_fixture').setupExperiment();
   const root = path.dirname(dataDir('x'));
   const files = [];
   const walk = (d) => {

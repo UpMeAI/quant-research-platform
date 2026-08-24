@@ -55,17 +55,17 @@ test('守卫 fail-closed:指标缺失=违约;未知规则抛错', () => {
   ), /UNKNOWN_GUARDRAIL_RULE/);
 });
 
-test('Race 控制变量:缺边 paired sample 拒绝;PORTFOLIO_RACE 不在 MVP', () => {
-  const { exp } = setupExperiment();
+test('Race 控制变量:缺边 paired sample 拒绝;PORTFOLIO_RACE 不在 MVP', async () => {
+  const { exp } = await setupExperiment();
   assert.throws(() => races.openRace({ race_type: 'PORTFOLIO_RACE', experiment_ref: exp.experiment_id }), /PORTFOLIO_RACE_NOT_IN_MVP/);
   const race = races.openRace({ race_type: 'STAGE_RACE', experiment_ref: exp.experiment_id });
   assert.throws(() => races.submitPairedSamples(race.race_id, []), /EMPTY_PAIRED_SAMPLES/);
   assert.throws(() => races.submitPairedSamples(race.race_id, [{ key: 'k', champion_output: 'GOOD' }]), /PAIRED_SAMPLE_MISSING:challenger_output/);
 });
 
-test('closeRace:预注册裁决 + Result Lock 写回实验;二次关闭拒绝', () => {
-  const { exp } = setupExperiment();
-  const artifact = experiments.runBacktest(exp.experiment_id);
+test('closeRace:预注册裁决 + Result Lock 写回实验;二次关闭拒绝', async () => {
+  const { exp } = await setupExperiment();
+  const artifact = await experiments.runBacktest(exp.experiment_id);
   const race = races.openRace({ race_type: 'STAGE_RACE', experiment_ref: exp.experiment_id });
   races.submitPairedSamples(race.race_id, artifact.paired_rows_oos);
   const m = (side) => ({
@@ -73,9 +73,9 @@ test('closeRace:预注册裁决 + Result Lock 写回实验;二次关闭拒绝', 
     bad_precision: artifact.precision_oos[side].bad_precision,
     good_count: artifact.precision_oos[side].good_count,
   });
-  const closed = races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') });
+  const closed = await races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') });
   assert.ok(['CHALLENGER_WINS', 'CHAMPION_HOLDS', 'NEGATIVE_RESULT', 'INCONCLUSIVE'].includes(closed.result.conclusion));
   assert.ok(closed.result.result_hash);
   assert.equal(experiments.experimentHead(exp.experiment_id).status, 'RESULT_LOCKED');
-  assert.throws(() => races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') }), /RACE_NOT_SAMPLED/);
+  await assert.rejects(async () => races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') }), /RACE_NOT_SAMPLED/);
 });

@@ -73,6 +73,15 @@ function registerModule(m = {}) {
   if (!m.code_ref) return { ok: false, reason: 'CODE_REF_REQUIRED' };
   if (!m.market) return { ok: false, reason: 'MARKET_REQUIRED' };
   if (!hasAdapter(m.market)) return { ok: false, reason: `MARKET_NOT_REGISTERED:${m.market}` };
+  // 同 Bundle:新模块版本只能以 DRAFT/PREREGISTERED 入册,ACTIVE 等下游态必须走状态机
+  if (m.status && !['DRAFT', 'PREREGISTERED'].includes(m.status)) {
+    return {
+      ok: false,
+      reason: `ILLEGAL_INITIAL_MODULE_STATUS:${m.status}`,
+      reasonCn: '新模块版本只能以 DRAFT/PREREGISTERED 注册;演进阶梯必须逐级 transitionModule(ACTIVE 需 activationRef)',
+      allowed_initial: ['DRAFT', 'PREREGISTERED'],
+    };
+  }
   const rows = read(MODULES_LEDGER()).filter((r) => r.module_id === m.module_id);
   const version = rows.length ? Math.max(...rows.map((r) => r.version)) + 1 : 1;
   const content = {
@@ -122,11 +131,30 @@ function listModules() {
 }
 
 // ── StrategyBundleManifest(§8;6 态) ──────────────────────────────────────
+/**
+ * 新 Bundle 的**合法初始状态**只有 RESEARCH(§12:进 ACTIVE 唯一入口是 Control Plane Activation)。
+ * 审计发现:checkTransition 的 ACTIVE_REQUIRES_ACTIVATION_RECORD 只守迁移不守注册,
+ * 于是 registerBundle({status:'ACTIVE'}) 能凭空造出生效版本,绕开 Race/Shadow/Founder/Release 全链。
+ * 唯一例外是 §16.1 Champion 导入(记录 Runtime 现状,非经济变更),
+ * 必须走 registerChampionBundle 并携带 championImport 内部标记 —— 外部调用方拿不到。
+ */
+const CHAMPION_IMPORT = Symbol('CHAMPION_IMPORT_EXISTING_RUNTIME_STATE');
+const LEGAL_INITIAL_STATUS = 'RESEARCH';
+
 function registerBundle(b = {}) {
   if (!b.bundle_id) return { ok: false, reason: 'BUNDLE_ID_REQUIRED' };
   if (!b.market) return { ok: false, reason: 'MARKET_REQUIRED' };
   if (!hasAdapter(b.market)) return { ok: false, reason: `MARKET_NOT_REGISTERED:${b.market}` };
   if (!Array.isArray(b.module_refs) || !b.module_refs.length) return { ok: false, reason: 'MODULE_REFS_REQUIRED' };
+  const isChampionImport = b[CHAMPION_IMPORT] === true;
+  if (b.status && b.status !== LEGAL_INITIAL_STATUS && !isChampionImport) {
+    return {
+      ok: false,
+      reason: `ILLEGAL_INITIAL_BUNDLE_STATUS:${b.status}`,
+      reasonCn: `新 Bundle 只能以 ${LEGAL_INITIAL_STATUS} 注册;进入 ${b.status} 必须走状态机(ACTIVE 更须由 Activation 携 activationRef 驱动,§12/§18)`,
+      allowed_initial: [LEGAL_INITIAL_STATUS],
+    };
+  }
   const rows = read(BUNDLES_LEDGER()).filter((r) => r.bundle_id === b.bundle_id);
   const version = rows.length ? Math.max(...rows.map((r) => r.bundle_version)) + 1 : 1;
   const composition = { market: b.market, module_refs: b.module_refs, market_adapter_version: b.market_adapter_version || null, risk_constitution_ref: b.risk_constitution_ref || null };
@@ -135,6 +163,7 @@ function registerBundle(b = {}) {
     bundle_id: b.bundle_id, bundle_version: version, bundle_hash: hash(composition),
     ...composition,
     status: b.status && BUNDLE_STATUSES.includes(b.status) ? b.status : 'RESEARCH',
+    activationRef: isChampionImport ? 'CHAMPION_IMPORT_EXISTING_RUNTIME_STATE' : null,
     effective_from: b.effective_from || null,
     rollback_bundle_ref: b.rollback_bundle_ref || null,
     approved_by: b.approved_by || null,
@@ -182,6 +211,7 @@ function registerChampionBundle({ market, bundle_id, module_refs, market_adapter
     approved_by: 'FOUNDER',
     noteCn: noteCn || 'Champion 注册 = 记录 Runtime 现状(非经济变更);此后全部 Race 以其为对照组',
     registeredBy: 'CHAMPION_IMPORT',
+    [CHAMPION_IMPORT]: true,   // §16.1 唯一豁免:导入现状,不是新发布
   });
 }
 

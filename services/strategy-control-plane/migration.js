@@ -21,7 +21,7 @@ const MIGRATION_LEDGER = () => path.join(dataDir('control-plane'), 'migration_as
  * @param {object} activation ACTIVATION_RECORD_V1(已 ACTIVE)
  * @param {object} release    对应 STRATEGY_RELEASE_V1
  */
-function assessMigration(activation, release) {
+async function assessMigration(activation, release) {
   const adapter = getAdapter(activation.market);
   const base = {
     activation_ref: activation.activation_id,
@@ -42,7 +42,7 @@ function assessMigration(activation, release) {
     });
   }
 
-  const res = adapter.runtime_positions_readonly() || {};
+  const res = (await adapter.runtime_positions_readonly()) || {};
   if (res.status !== 'OK' || !Array.isArray(res.positions)) {
     return append(MIGRATION_LEDGER(), {
       schema: 'MIGRATION_ASSESSMENT_V1', ...base,

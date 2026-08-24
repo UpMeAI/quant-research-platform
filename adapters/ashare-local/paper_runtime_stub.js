@@ -19,7 +19,7 @@ const { RUNTIME_ID } = require('./market_facts');
  *   3. 校验通过 → ACK(附 health_check);不通过 → NACK。
  * @param {string} today 模拟的业务日(默认真实今日);未到生效日的 Activation 不会被拉到。
  */
-function pullAndAck({ runtimeId = RUNTIME_ID, today = null, tamperHash = null } = {}) {
+async function pullAndAck({ runtimeId = RUNTIME_ID, today = null, tamperHash = null, health = null } = {}) {
   const opts = today ? { today } : {};
   const pending = binding.runtimePendingActivations(runtimeId, opts);
   const scheduled = binding.runtimeScheduledActivations(runtimeId, opts);
@@ -29,16 +29,23 @@ function pullAndAck({ runtimeId = RUNTIME_ID, today = null, tamperHash = null } 
       results.push({ activation_id: act.activation_id, action: 'NACK', ...binding.runtimeNack(act.activation_id, { runtime_id: runtimeId, reasonCn: `stub 仅支持 PAPER,收到 ${act.environment}` }) });
       continue;
     }
+    /* eslint-disable no-await-in-loop */
     // 真实 Runtime 在此处会用本地拉到的 release 副本重算内容哈希;
     // stub 直接读取台账 release_hash 模拟「校验一致」;tamperHash 用于测试 fail-closed 路径。
     const release = controlPlane.releaseHead(act.release_id);
     const verified = tamperHash || (release ? release.release_hash : 'MISSING_RELEASE');
-    const r = binding.runtimeAck(act.activation_id, {
+    const r = await binding.runtimeAck(act.activation_id, {
       runtime_id: runtimeId, ...opts,
       verified_release_hash: verified,
-      health_check: { status: 'HEALTHY', checks: ['config_loaded', 'hash_verified', 'paper_ledger_isolated'], real_order: 0 },
+      // §12「Runtime ACK + Health Check」:健康自检结果如实上报,由平台侧 fail-closed 裁定
+      health_check: health || {
+        status: 'HEALTHY',
+        checks: ['config_loaded', 'hash_verified', 'paper_ledger_isolated'],
+        real_order: 0, broker_connection: false,
+      },
     });
     results.push({ activation_id: act.activation_id, action: r.ok ? 'ACK_ACTIVE' : 'ACK_REJECTED', ...r });
+    /* eslint-enable no-await-in-loop */
   }
   return {
     runtime_id: runtimeId,

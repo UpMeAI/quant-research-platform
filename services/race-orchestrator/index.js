@@ -96,12 +96,12 @@ function pairedSamples(raceId) {
  * 把 paired sample 拆到各 Regime 下分别统计双方信号精度与样本量。
  * adapter 未提供 regime_labels → 显式 UNSUPPORTED,不臆造 Regime。
  */
-function computeRegimeBreakdown(marketId, samples) {
+async function computeRegimeBreakdown(marketId, samples) {
   const adapter = getAdapter(marketId);
   if (typeof adapter.regime_labels !== 'function') {
     return { status: 'UNSUPPORTED', reasonCn: `市场 ${marketId} 的 adapter 未提供 regime_labels —— 不臆造 Regime 分解` };
   }
-  const { labels, regime_model, proxyCn } = adapter.regime_labels();
+  const { labels, regime_model, proxyCn } = await adapter.regime_labels();
   const buckets = new Map();
   let unlabeled = 0;
   for (const s of samples) {
@@ -181,7 +181,7 @@ function adjudicate(spec, { championMetrics, challengerMetrics }) {
  * 关闭 Race 并出 RaceResult(§8):verdict 由预注册裁决器给出;
  * 结果同步 result-lock 写回实验;Winner/Loser/Negative 都是合法出口。
  */
-function closeRace(raceId, { championMetrics, challengerMetrics, canonical, regime_breakdown = null, reason_codes = [] } = {}) {
+async function closeRace(raceId, { championMetrics, challengerMetrics, canonical, regime_breakdown = null, reason_codes = [] } = {}) {
   const head = raceHead(raceId);
   if (!head) throw new Error('RACE_NOT_FOUND');
   if (head.status !== 'SAMPLED') throw new Error(`RACE_NOT_SAMPLED:${head.status}`);
@@ -189,7 +189,7 @@ function closeRace(raceId, { championMetrics, challengerMetrics, canonical, regi
   if (!v.ok) throw new Error(`RACE_CLOSE_REJECTED:${v.reason}`);
   const adj = adjudicate(v.spec, { championMetrics, challengerMetrics });
   // Regime 分解:显式传入优先,否则由 paired sample + adapter regime 标注自动计算
-  const breakdown = regime_breakdown || computeRegimeBreakdown(head.market, pairedSamples(raceId));
+  const breakdown = regime_breakdown || await computeRegimeBreakdown(head.market, pairedSamples(raceId));
   // result lock 在 experiment 台账发生(单结果锁)
   experiments.recordResult(head.experiment_ref, {
     verdict: adj.verdict,
