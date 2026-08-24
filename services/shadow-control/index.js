@@ -38,6 +38,34 @@ const STOP_CONDITION_CLASS = Object.freeze({
 const STOP_CONDITIONS = Object.freeze(Object.keys(STOP_CONDITION_CLASS));
 const DEFAULT_MIN_FORWARD_SAMPLE = 20; // 实验未预注册时的保守默认
 
+/**
+ * §11 末条:「Forward minimum evidence 由 ExperimentSpec 按 holding period / regime 预注册,
+ * 不全局一刀切」。冻结域里的 min_forward_evidence 因此接受两种形态:
+ *   - number                      —— 全局最低样本(简单实验)
+ *   - { default, by_regime:{..} } —— 分 Regime 分别预注册(每个声明的 Regime 各自达标才算足量)
+ * holding period 由实验自己的 holding_period 决定"一个前向样本有多长",
+ * 平台**不发明**任何换算阈值,只忠实执行预注册值(§9 判据属预注册)。
+ */
+function normalizeMinForwardEvidence(raw, holdingPeriod = null) {
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const byRegime = raw.by_regime && typeof raw.by_regime === 'object' ? { ...raw.by_regime } : null;
+    return {
+      default: Number(raw.default ?? DEFAULT_MIN_FORWARD_SAMPLE),
+      by_regime: byRegime,
+      holding_period: holdingPeriod,
+      basisCn: byRegime
+        ? '分 Regime 预注册:总量达 default 且每个声明 Regime 各自达标才 CLAIM_ELIGIBLE'
+        : '全局预注册最低样本',
+    };
+  }
+  return {
+    default: Number(raw ?? DEFAULT_MIN_FORWARD_SAMPLE),
+    by_regime: null,
+    holding_period: holdingPeriod,
+    basisCn: '全局预注册最低样本',
+  };
+}
+
 function openShadowRun(o = {}) {
   for (const k of ['champion_ref', 'challenger_ref', 'race_ref', 'experiment_ref']) {
     if (!o[k]) throw new Error(`SHADOW_MISSING_FIELD:${k}`);
@@ -45,6 +73,7 @@ function openShadowRun(o = {}) {
   const v = experiments.verifyFreeze(o.experiment_ref);
   if (!v.ok) throw new Error(`SHADOW_REJECTED_EXPERIMENT:${v.reason}`);
   const shadowId = o.shadow_id || `SHD-${hash({ c: o.challenger_ref, t: uid() })}`;
+  const minEvidence = normalizeMinForwardEvidence(v.spec.min_forward_evidence, v.spec.holding_period || null);
   const rec = {
     schema: 'SHADOW_RUN_V1',
     shadow_id: shadowId,
@@ -55,7 +84,8 @@ function openShadowRun(o = {}) {
     race_ref: o.race_ref,
     virtual_ledger_ref: `VL-${shadowId}`,
     market_event_stream_ref: o.market_event_stream_ref || `PIT:${v.spec.market}:${v.spec.dataset_snapshot_ref}`,
-    min_forward_evidence: Number(v.spec.min_forward_evidence ?? DEFAULT_MIN_FORWARD_SAMPLE),
+    min_forward_evidence: minEvidence,                    // §11:可按 Regime 分别预注册
+    min_forward_evidence_default: minEvidence.default,    // 总量门槛(便于台账直读)
     pit_contractCn: '同 PIT snapshot/候选/成本/bar cutoff;影子零 Active 影响(不触碰 TradePlan/Position/Paper 账本)',
     status: 'RUNNING',
     halted_reason: null,
@@ -202,21 +232,79 @@ function haltShadowRun(shadowId, stopCondition, detailCn) {
 }
 
 /**
- * 样本充分性(阈值 = 该实验预注册 min_forward_evidence):
+ * 样本充分性(阈值 = 该实验预注册 min_forward_evidence,§11):
  * 不足 → DESCRIBE_ONLY(禁止宣称有效);足量 → CLAIM_ELIGIBLE。
+ *
+ * 分 Regime 预注册时:总量达 default **且**每个声明 Regime 各自达标才算足量;
+ * 若 adapter 无 regime_labels 而实验声明了 by_regime → 无法核验 = DESCRIBE_ONLY(fail-closed),
+ * 绝不因为"总数够了"就放行(§18 数据缺失不得当作通过)。
  */
-function sufficiency(shadowId) {
+async function sufficiency(shadowId) {
   const head = shadowHead(shadowId);
-  const minRequired = head ? head.min_forward_evidence : DEFAULT_MIN_FORWARD_SAMPLE;
+  const min = normalizeMinForwardEvidence(
+    head ? head.min_forward_evidence : undefined,
+    head ? head.min_forward_evidence?.holding_period ?? null : null,
+  );
   const m = new Map();
   for (const r of read(DISAGREEMENT_LEDGER()).filter((r) => r.shadow_id === shadowId)) m.set(r.key, r);
-  const n = m.size;
-  const disagreements = [...m.values()].filter((r) => !r.agree).length;
+  const rows = [...m.values()];
+  const n = rows.length;
+  const disagreements = rows.filter((r) => !r.agree).length;
+
+  const base = {
+    shadow_id: shadowId,
+    forward_sample_count: n,
+    disagreement_count: disagreements,
+    min_required: min.default,
+    min_forward_evidence: min,
+    holding_period: min.holding_period,
+  };
+
+  if (!min.by_regime) {
+    const ok = n >= min.default;
+    return {
+      ...base, by_regime: null,
+      claim_status: ok ? 'CLAIM_ELIGIBLE' : 'DESCRIBE_ONLY',
+      claimCn: ok ? '样本足量,可进入有效性主张评审' : `样本 ${n}/${min.default} 不足 —— 只能描述,不得宣称策略有效`,
+    };
+  }
+
+  // 分 Regime 核验:需要 adapter 的 Regime 标注
+  const adapter = getAdapter(head.market);
+  if (typeof adapter.regime_labels !== 'function') {
+    return {
+      ...base, by_regime: 'UNVERIFIABLE',
+      claim_status: 'DESCRIBE_ONLY',
+      claimCn: `实验按 Regime 预注册了最低样本,但市场 ${head.market} 的 adapter 无 regime_labels —— 无法核验,不得宣称有效`,
+    };
+  }
+  const { labels, regime_model } = await adapter.regime_labels();
+  const counts = {};
+  let unlabeled = 0;
+  for (const r of rows) {
+    const reg = labels[r.business_date];
+    if (!reg) { unlabeled++; continue; }
+    counts[reg] = (counts[reg] || 0) + 1;
+  }
+  const detail = {};
+  let allMet = n >= min.default;
+  for (const [reg, required] of Object.entries(min.by_regime)) {
+    const got = counts[reg] || 0;
+    const met = got >= Number(required);
+    detail[reg] = { required: Number(required), observed: got, met };
+    if (!met) allMet = false;
+  }
+  const shortfall = Object.entries(detail).filter(([, d]) => !d.met).map(([r, d]) => `${r} ${d.observed}/${d.required}`);
   return {
-    shadow_id: shadowId, forward_sample_count: n, disagreement_count: disagreements,
-    min_required: minRequired,
-    claim_status: n >= minRequired ? 'CLAIM_ELIGIBLE' : 'DESCRIBE_ONLY',
-    claimCn: n >= minRequired ? '样本足量,可进入有效性主张评审' : `样本 ${n}/${minRequired} 不足 —— 只能描述,不得宣称策略有效`,
+    ...base,
+    regime_model,
+    by_regime: detail,
+    observed_by_regime: counts,
+    unlabeled_sample_count: unlabeled,
+    claim_status: allMet ? 'CLAIM_ELIGIBLE' : 'DESCRIBE_ONLY',
+    claimCn: allMet
+      ? '总量与各声明 Regime 均达预注册最低样本,可进入有效性主张评审'
+      : `未达预注册最低样本(总量 ${n}/${min.default}${shortfall.length ? `;Regime 缺口:${shortfall.join('、')}` : ''})—— 只能描述`,
   };
 }
 
@@ -235,7 +323,7 @@ function virtualLedger(shadowId) {
 }
 
 module.exports = {
-  STOP_CONDITIONS, STOP_CONDITION_CLASS, DEFAULT_MIN_FORWARD_SAMPLE,
+  STOP_CONDITIONS, STOP_CONDITION_CLASS, DEFAULT_MIN_FORWARD_SAMPLE, normalizeMinForwardEvidence,
   openShadowRun, shadowHead, observeViaAdapter, recordObservation, recordOutcome,
   haltShadowRun, sufficiency, forwardMetrics, operationalHealth,
   listShadowRuns, listObservations, virtualLedger,

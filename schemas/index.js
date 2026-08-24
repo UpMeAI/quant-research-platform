@@ -54,7 +54,8 @@ const SCHEMAS = Object.freeze({
     universe: 'o', regime_scope: '*', holding_period: 'o?', sample: 'o', costs: 'o',
     execution_model: 'o', primary_metric: 's', secondary_metrics: 'a?', guardrails: 'a',
     failure_condition: 's', multiple_test_policy: 's?', parameter_grid: 'a?', seed: 'n?',
-    min_forward_evidence: 'n?', freeze_hash: 's', status: 's',
+    // §11:数字 = 全局最低样本;对象 { default, by_regime } = 按 Regime 分别预注册
+    min_forward_evidence: '*', freeze_hash: 's', status: 's',
     result_lock_policy: 's', preregistered_at: 's',
   },
   BACKTEST_ARTIFACT_V1: {
@@ -96,7 +97,7 @@ const SCHEMAS = Object.freeze({
     _doc: '§8 ShadowRun —— 同 PIT 影子 + Virtual Ledger + 前向最低样本',
     shadow_id: 's', market: 's', experiment_ref: 's', champion_release_ref: 's',
     challenger_release_ref: 's', race_ref: 's', virtual_ledger_ref: 's',
-    market_event_stream_ref: 's', min_forward_evidence: 'n', status: 's',
+    market_event_stream_ref: 's', min_forward_evidence: '*', min_forward_evidence_default: 'n', status: 's',
     halted_reason: 's?', halted_failure_class: 's?', start_at: 's', end_at: 's?', openedAt: 's',
   },
   SHADOW_OBSERVATION_V1: {

@@ -34,14 +34,19 @@ for (const f of files) {
   for (const [i, r] of rows.entries()) {
     total++;
     if (!r.schema) { bad++; console.error(`${path.relative(root, f)}#${i}: 缺 schema 字段`); continue; }
-    if (!SCHEMAS[r.schema]) { unknown.set(r.schema, (unknown.get(r.schema) || 0) + 1); continue; }
+    // 未登记 schema = 无合同对象混进了域台账 —— 计为不符合(此前只打印不判失败,是合同漂移的逃逸口)
+    if (!SCHEMAS[r.schema]) {
+      bad++; unknown.set(r.schema, (unknown.get(r.schema) || 0) + 1);
+      console.error(`${path.relative(root, f)}#${i}: 未登记 schema「${r.schema}」—— 域台账只接受 §8 已声明对象`);
+      continue;
+    }
     const v = validateRecord(r);
     if (!v.ok) { bad++; console.error(`${path.relative(root, f)}#${i} [${r.schema}] ${v.problems.join(', ')}`); }
   }
 }
 console.log(`校验 ${files.length} 个台账文件 / ${total} 条记录:不符合 ${bad} 条`);
 if (unknown.size) {
-  console.log('未登记 Schema(非域对象台账,如市场日线):');
+  console.log('未登记 Schema(必须在 schemas/index.js 登记后才允许入账):');
   for (const [k, n] of unknown) console.log(`  ${k} × ${n}`);
 }
 process.exit(bad ? 1 : 0);

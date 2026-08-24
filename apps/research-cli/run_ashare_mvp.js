@@ -185,11 +185,11 @@ async function main() {
     const obs = await shadow.observeViaAdapter(shd.shadow_id, d);
     if (!obs.agree) disagreements++;
   }
-  const suff = shadow.sufficiency(shd.shadow_id);
+  const suff = await shadow.sufficiency(shd.shadow_id);
   console.log(`  ${shd.shadow_id}: ${suff.forward_sample_count}/${suff.min_required} 个前向样本(分歧 ${disagreements})→ ${suff.claim_status}`);
 
   step(10, 'PromotionCandidate → Compatibility → Immutable Release');
-  const cand = controlPlane.createPromotionCandidate({
+  const cand = await controlPlane.createPromotionCandidate({
     release_candidate_ref: chalRef, market: MARKET, experiment_ref: exp.experiment_id,
     research_evidence_refs: [artifact.result_hash, closed.result.result_hash],
     shadow_forward_refs: [shd.shadow_id],

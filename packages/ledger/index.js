@@ -26,7 +26,29 @@ function now() { return new Date().toISOString(); }
 let _seq = 0;
 function uid() { return `${Date.now().toString(36)}-${(_seq++).toString(36)}`; }
 
+/**
+ * 入账即校验(§18 Contract / Fail Closed)。
+ *
+ * 审计发现:此前只有离线 `schemas/validate.js` 事后扫描,写入路径本身零校验 ——
+ * 适配器返回畸形对象(甚至 Promise)会被静默写进台账。现在:
+ *   - 带 schema 且**已登记** → 必须通过字段/类型校验,否则抛错,绝不落盘;
+ *   - 带 schema 但**未登记** → 抛错(未登记域对象不得混入台账);
+ *   - 不带 schema → 视为适配器自有的市场原始数据(如日线 bar),放行。
+ * schemas 只依赖纯常量,不回依赖 ledger —— 无循环 require。
+ */
+function _assertContract(rec) {
+  if (!rec || typeof rec !== 'object' || Array.isArray(rec)) throw new Error('LEDGER_RECORD_NOT_OBJECT');
+  if (typeof rec.then === 'function') throw new Error('LEDGER_RECORD_IS_PROMISE(适配器返回值必须先 await)');
+  if (!rec.schema) return;
+  // 延迟 require:schemas 目录属平台合同层,ledger 是其下游
+  const { SCHEMAS, validateRecord } = require('../../schemas');
+  if (!SCHEMAS[rec.schema]) throw new Error(`LEDGER_UNKNOWN_SCHEMA:${rec.schema}`);
+  const v = validateRecord(rec, rec.schema);
+  if (!v.ok) throw new Error(`LEDGER_SCHEMA_VIOLATION:${rec.schema}:${v.problems.join(',')}`);
+}
+
 function append(file, rec) {
+  _assertContract(rec);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, `${JSON.stringify(rec)}\n`);
   return rec;
@@ -46,4 +68,4 @@ function heads(rows, idKey) {
   return m;
 }
 
-module.exports = { ROOT, dataDir, hash, now, uid, append, read, heads };
+module.exports = { ROOT, dataDir, hash, now, uid, append, read, heads, _assertContract };

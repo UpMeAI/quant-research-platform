@@ -92,3 +92,20 @@ test('反分叉守卫:平台 VPQ 判定与 Ashare-V5 源逻辑逐条一致', (t)
     assert.equal(local.quantile(sorted, q), src.quantile(sorted, q), `quantile(${q}) 漂移`);
   }
 });
+
+test('入账即校验:Promise / 未登记 schema / 字段违约一律拒绝落盘(§18 Fail Closed)', () => {
+  const { _assertContract } = require('../packages/ledger');
+
+  // 审计实测过的静默污染路径:适配器返回 Promise 被当结果入账
+  assert.throws(() => _assertContract(Promise.resolve({ schema: 'DATASET_SNAPSHOT_V1' })), /LEDGER_RECORD_IS_PROMISE/);
+  assert.throws(() => _assertContract(null), /LEDGER_RECORD_NOT_OBJECT/);
+
+  // 未登记 schema 不得混入域台账
+  assert.throws(() => _assertContract({ schema: 'MADE_UP_V9', x: 1 }), /LEDGER_UNKNOWN_SCHEMA/);
+
+  // 已登记但缺字段
+  assert.throws(() => _assertContract({ schema: 'RUNTIME_ACK_V1', ack_id: 'a' }), /LEDGER_SCHEMA_VIOLATION/);
+
+  // 适配器自有市场原始数据(无 schema)照常放行
+  assert.doesNotThrow(() => _assertContract({ instrument_id: '600000.SH', d: '2026-01-05', close: 10, vol: 1 }));
+});

@@ -18,6 +18,7 @@ const experiments = require('../../services/experiment-orchestrator');
 const races = require('../../services/race-orchestrator');
 const shadow = require('../../services/shadow-control');
 const controlPlane = require('../../services/strategy-control-plane');
+const binding = require('../../services/strategy-control-plane/runtime_binding');
 const migration = require('../../services/strategy-control-plane/migration');
 const runtimeStatus = require('../../services/runtime-status');
 const { listAdapters } = require('../../adapters/registry');
@@ -61,13 +62,13 @@ const views = {
   }),
 
   /** §17 Shadow:disagreement、virtual PnL、sample coverage、operational health。 */
-  shadow: () => ({
-    runs: shadow.listShadowRuns().map((s) => ({
+  shadow: async () => ({
+    runs: await Promise.all(shadow.listShadowRuns().map(async (s) => ({
       ...s,
-      sufficiency: shadow.sufficiency(s.shadow_id),
+      sufficiency: await shadow.sufficiency(s.shadow_id),
       forward_metrics: shadow.forwardMetrics(s.shadow_id),
       observations: shadow.listObservations(s.shadow_id).slice(-50),
-    })),
+    }))),
   }),
 
   /** §17 Promotion:compatibility、risk impact、unresolved gaps、Founder Review。 */
@@ -93,6 +94,51 @@ function founderOk(req) {
   if (got !== expected) return { ok: false, reason: 'FOUNDER_TOKEN_INVALID', reasonCn: 'Founder 令牌不匹配' };
   return { ok: true };
 }
+
+/**
+ * Runtime 令牌(§18 Least Privilege:与 Founder 令牌分离)。
+ * Runtime 只能拉取自己名下的 Activation 与回 ACK/NACK,**不能**审批或创建 Activation。
+ */
+function runtimeOk(req) {
+  const expected = process.env.QRP_RUNTIME_TOKEN;
+  if (!expected) return { ok: false, reason: 'RUNTIME_TOKEN_NOT_CONFIGURED', reasonCn: '未配置 QRP_RUNTIME_TOKEN —— Runtime 拉取/回执一律拒绝(fail-closed)' };
+  if (req.headers['x-runtime-token'] !== expected) return { ok: false, reason: 'RUNTIME_TOKEN_INVALID', reasonCn: 'Runtime 令牌不匹配' };
+  return { ok: true };
+}
+
+/**
+ * §12.2 Pull-based 激活的**跨仓传输面**(审计缺口:此前只有进程内函数,
+ * 远端 Market Runtime 根本拉不到 Activation)。语义即 §13.1 的对偶:
+ * Runtime 主动 GET 待生效项 → GET Release 内容自行重算 hash → POST ack/nack。
+ * 平台永不 push、永不持有 broker 凭证。
+ */
+const runtimeRoutes = {
+  'pending-activations': (q) => ({
+    runtime_id: q.get('runtime_id'),
+    business_date: q.get('today') || new Date().toISOString().slice(0, 10),
+    activations: binding.runtimePendingActivations(q.get('runtime_id'), q.get('today') ? { today: q.get('today') } : {}),
+  }),
+  'scheduled-activations': (q) => ({
+    runtime_id: q.get('runtime_id'),
+    scheduled: binding.runtimeScheduledActivations(q.get('runtime_id'), q.get('today') ? { today: q.get('today') } : {}),
+    noteCn: '已批准但未到 effective_from —— 不可加载(批准 ≠ 生效)',
+  }),
+  release: (q) => {
+    const rel = controlPlane.releaseHead(q.get('release_id'));
+    if (!rel) return { error: 'RELEASE_NOT_FOUND' };
+    return { release: rel, integrity: controlPlane.verifyReleaseIntegrity(rel.release_id) };
+  },
+};
+
+const runtimeActions = {
+  ack: (body) => binding.runtimeAck(body.activation_id, {
+    runtime_id: body.runtime_id, today: body.today,
+    verified_release_hash: body.verified_release_hash, health_check: body.health_check,
+  }),
+  nack: (body) => binding.runtimeNack(body.activation_id, {
+    runtime_id: body.runtime_id, reasonCn: body.reasonCn,
+  }),
+};
 
 const actions = {
   /** §12.1 一键发布的第一步:Founder 审批(仅 APPROVE_PAPER / REJECT)。 */
@@ -128,6 +174,32 @@ function handle(req, res) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       return res.end(html);
     } catch { return send(res, 500, { error: 'RESEARCH_WEB_NOT_FOUND' }); }
+  }
+
+  // ── Runtime 面(§12.2 跨仓 pull;独立令牌)────────────────────────────────
+  if (p.startsWith('/api/runtime/')) {
+    const name = p.slice('/api/runtime/'.length);
+    const gate = runtimeOk(req);
+    if (!gate.ok) return send(res, 403, { error: gate.reason, reasonCn: gate.reasonCn });
+    if (req.method === 'GET' && runtimeRoutes[name]) {
+      try { return send(res, 200, runtimeRoutes[name](url.searchParams)); }
+      catch (e) { return send(res, 400, { error: String(e.message || e) }); }
+    }
+    if (req.method === 'POST' && runtimeActions[name]) {
+      let raw = '';
+      req.on('data', (c) => { raw += c; if (raw.length > 1e6) req.destroy(); });
+      req.on('end', () => {
+        Promise.resolve()
+          .then(() => runtimeActions[name](JSON.parse(raw || '{}')))
+          .then((v) => send(res, 200, v))
+          .catch((e) => send(res, 400, { error: String(e.message || e) }));
+      });
+      return undefined;
+    }
+    return send(res, 404, {
+      error: 'UNKNOWN_RUNTIME_ROUTE',
+      get: Object.keys(runtimeRoutes), post: Object.keys(runtimeActions),
+    });
   }
 
   if (req.method === 'GET' && p.startsWith('/api/')) {
@@ -169,7 +241,10 @@ if (require.main === module) {
     console.log(process.env.QRP_FOUNDER_TOKEN
       ? 'Founder 审批/激活:已配置令牌(仍需 X-Founder-Token 头)'
       : '⚠ 未配置 QRP_FOUNDER_TOKEN —— 审批与激活将一律 403(fail-closed)');
+    console.log(process.env.QRP_RUNTIME_TOKEN
+      ? `Runtime 拉取面:已配置令牌 · ${['GET /api/runtime/pending-activations', 'GET /api/runtime/release', 'POST /api/runtime/ack'].join(' · ')}`
+      : '⚠ 未配置 QRP_RUNTIME_TOKEN —— Runtime 拉取/回执将一律 403(fail-closed)');
   });
 }
 
-module.exports = { createServer, views, actions, founderOk };
+module.exports = { createServer, views, actions, runtimeRoutes, runtimeActions, founderOk, runtimeOk };

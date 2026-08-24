@@ -35,7 +35,7 @@ const ROLLBACK_TYPES = Object.freeze(['OPERATIONAL', 'ECONOMIC']);
 const MIGRATION_POLICY = 'NEW_TRADEPLANS_ONLY_REPLAN_REQUIRED_FOR_EXISTING'; // 冻结,不接受覆盖
 
 // ── PromotionCandidate(§8;Research Gates 在创建时硬校验) ────────────────────
-function createPromotionCandidate(c = {}) {
+async function createPromotionCandidate(c = {}) {
   for (const k of ['release_candidate_ref', 'market', 'experiment_ref', 'research_evidence_refs', 'shadow_forward_refs', 'rollback_ref']) {
     if (!c[k] || (Array.isArray(c[k]) && !c[k].length)) throw new Error(`PROMOTION_MISSING_FIELD:${k}`);
   }
@@ -45,7 +45,7 @@ function createPromotionCandidate(c = {}) {
   if (exp.result.verdict !== 'CHALLENGER_WINS') throw new Error(`PROMOTION_VERDICT_NOT_WINNER:${exp.result.verdict}`);
   // Shadow Gate:影子前向样本必须达到该实验预注册的最低数(DESCRIBE_ONLY 不能作为升级证据)
   for (const sid of c.shadow_forward_refs) {
-    const s = shadow.sufficiency(sid);
+    const s = await shadow.sufficiency(sid);
     if (s.claim_status !== 'CLAIM_ELIGIBLE') throw new Error(`PROMOTION_SHADOW_INSUFFICIENT:${sid}:${s.forward_sample_count}/${s.min_required}`);
   }
   const rec = {
@@ -136,6 +136,24 @@ function createRelease(candidateId) {
 function releaseHead(releaseId) {
   const rows = read(RELEASES_LEDGER()).filter((r) => r.release_id === releaseId);
   return rows.length ? rows[rows.length - 1] : null; // release 不可变:后行只允许附注,内容域不变
+}
+
+/**
+ * Release 不可变性再校验:按内容重算 release_hash,与登记值比对。
+ * 台账是 append-only,但"追加一行改内容"在物理上是可能的 —— 读取侧必须能自证,
+ * 而不是只信 append-only 约定(§18 Immutable Release)。
+ */
+function verifyReleaseIntegrity(releaseId) {
+  const r = releaseHead(releaseId);
+  if (!r) return { ok: false, reason: 'RELEASE_NOT_FOUND' };
+  // createRelease 计哈希时 release_hash 尚未写入 → 重算必须剔除该字段本身,并把 created_at 归零
+  const expected = hash({
+    ...Object.fromEntries(Object.entries(r).filter(([k]) => k !== 'release_hash')),
+    created_at: null,
+  });
+  return r.release_hash === expected
+    ? { ok: true, release_hash: r.release_hash }
+    : { ok: false, reason: 'RELEASE_CONTENT_TAMPERED', declared: r.release_hash, recomputed: expected };
 }
 
 // ── Founder Review(No Automatic Promotion;唯一批准人) ─────────────────────
@@ -339,7 +357,7 @@ function listActivations() { return read(ACTIVATIONS_LEDGER()); }
 module.exports = {
   ROLLBACK_TYPES, MIGRATION_POLICY,
   createPromotionCandidate, candidateHead, runCompatibilityCheck,
-  createRelease, releaseHead, reviewCandidate,
+  createRelease, releaseHead, verifyReleaseIntegrity, reviewCandidate,
   requestActivation, activationHead, activeReleaseIdFor, rollback, hasReviewTrigger,
   listCandidates, listReleases, listActivations,
   PROMOTIONS_LEDGER, RELEASES_LEDGER, ACTIVATIONS_LEDGER,

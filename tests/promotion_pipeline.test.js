@@ -27,7 +27,7 @@ async function promotable(verdict = 'CHALLENGER_WINS') {
   return { ...fx, shadowId: run.shadow_id };
 }
 
-function candidateOf(fx) {
+async function candidateOf(fx) {
   return controlPlane.createPromotionCandidate({
     release_candidate_ref: fx.chalRef, market: 'CN_A', experiment_ref: fx.exp.experiment_id,
     research_evidence_refs: ['ev1'], shadow_forward_refs: [fx.shadowId], rollback_ref: fx.champRef,
@@ -36,24 +36,24 @@ function candidateOf(fx) {
 
 test('Promotion Gates:未锁结果 / 非胜者 / 影子样本不足 → 拒绝', async () => {
   const fx0 = await setupExperiment({ min_forward_evidence: 2 });
-  assert.throws(() => controlPlane.createPromotionCandidate({
+  await assert.rejects(async () => controlPlane.createPromotionCandidate({
     release_candidate_ref: fx0.chalRef, market: 'CN_A', experiment_ref: fx0.exp.experiment_id,
     research_evidence_refs: ['e'], shadow_forward_refs: ['SHD-x'], rollback_ref: fx0.champRef,
   }), /PROMOTION_EXPERIMENT_NOT_LOCKED/);
 
   const fxHold = await promotable('CHAMPION_HOLDS');
-  assert.throws(() => candidateOf(fxHold), /PROMOTION_VERDICT_NOT_WINNER/);
+  await assert.rejects(async () => candidateOf(fxHold), /PROMOTION_VERDICT_NOT_WINNER/);
 
   const fxWin = await promotable();
   const insufficient = shadow.openShadowRun({
     champion_ref: fxWin.champRef, challenger_ref: fxWin.chalRef, race_ref: 'R', experiment_ref: fxWin.exp.experiment_id,
   });
-  assert.throws(() => candidateOf({ ...fxWin, shadowId: insufficient.shadow_id }), /PROMOTION_SHADOW_INSUFFICIENT/);
+  await assert.rejects(async () => candidateOf({ ...fxWin, shadowId: insufficient.shadow_id }), /PROMOTION_SHADOW_INSUFFICIENT/);
 });
 
 test('发布流水线:兼容前禁 Release;Founder 唯一批准;激活参数 fail-closed;Pull+ACK 闭环', async () => {
   const fx = await promotable();
-  const cand = candidateOf(fx);
+  const cand = await candidateOf(fx);
 
   // 兼容性检查前不能出 Release
   assert.throws(() => controlPlane.createRelease(cand.candidate_id), /RELEASE_REQUIRES_COMPATIBILITY_PASS/);
@@ -125,7 +125,7 @@ test('发布流水线:兼容前禁 Release;Founder 唯一批准;激活参数 fai
 test('Rollback 闭环:切回必须经 Runtime 拉取 + 验哈希 + 健康检查才真正恢复(§12.3/§13.1)', async () => {
   // v1 上线 → ACTIVE
   const fx1 = await promotable();
-  const c1 = candidateOf(fx1);
+  const c1 = await candidateOf(fx1);
   await controlPlane.runCompatibilityCheck(c1.candidate_id);
   const rel1 = controlPlane.createRelease(c1.candidate_id);
   controlPlane.reviewCandidate(c1.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
@@ -140,7 +140,7 @@ test('Rollback 闭环:切回必须经 Runtime 拉取 + 验哈希 + 健康检查�
 
   // v2 上线 → previous_release_ref 必须指向 v1 这个真实 Release
   const fx2 = await promotable();
-  const c2 = candidateOf(fx2);
+  const c2 = await candidateOf(fx2);
   await controlPlane.runCompatibilityCheck(c2.candidate_id);
   const rel2 = controlPlane.createRelease(c2.candidate_id);
   controlPlane.reviewCandidate(c2.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
@@ -187,7 +187,7 @@ test('Rollback 闭环:切回必须经 Runtime 拉取 + 验哈希 + 健康检查�
 
 test('Rollback fail-closed:无前任 Release 不得伪装成功;ECONOMIC 需先有研究复核', async () => {
   const fx = await promotable();
-  const cand = candidateOf(fx);
+  const cand = await candidateOf(fx);
   await controlPlane.runCompatibilityCheck(cand.candidate_id);
   const release = controlPlane.createRelease(cand.candidate_id);
   controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
@@ -209,7 +209,7 @@ test('Rollback fail-closed:无前任 Release 不得伪装成功;ECONOMIC 需先�
 
 test('Runtime Binding:runtime 身份不匹配拒绝;NACK 显式拒绝', async () => {
   const fx = await promotable();
-  const cand = candidateOf(fx);
+  const cand = await candidateOf(fx);
   await controlPlane.runCompatibilityCheck(cand.candidate_id);
   const release = controlPlane.createRelease(cand.candidate_id);
   controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
@@ -228,7 +228,7 @@ test('Runtime Binding:runtime 身份不匹配拒绝;NACK 显式拒绝', async ()
 
 test('生效日门控:未到 effective_from 不可拉取、不可 ACK;到期后正常加载(§16.3-10/§22)', async () => {
   const fx = await promotable();
-  const cand = candidateOf(fx);
+  const cand = await candidateOf(fx);
   await controlPlane.runCompatibilityCheck(cand.candidate_id);
   const release = controlPlane.createRelease(cand.candidate_id);
   controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
@@ -257,7 +257,7 @@ test('生效日门控:未到 effective_from 不可拉取、不可 ACK;到期后�
 
 test('No Silent Migration:生效即产迁移裁定;拿不到持仓真相必须 UNAVAILABLE 而非默认无需 replan', async () => {
   const fx = await promotable();
-  const cand = candidateOf(fx);
+  const cand = await candidateOf(fx);
   await controlPlane.runCompatibilityCheck(cand.candidate_id);
   const release = controlPlane.createRelease(cand.candidate_id);
   controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
@@ -286,7 +286,7 @@ test('No Silent Migration:有持仓真相时逐仓产 REPLAN_REQUIRED,零自动�
   });
   try {
     const fx = await promotable();
-    const cand = candidateOf(fx);
+    const cand = await candidateOf(fx);
     await controlPlane.runCompatibilityCheck(cand.candidate_id);
     const release = controlPlane.createRelease(cand.candidate_id);
     controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
@@ -310,7 +310,7 @@ test('No Silent Migration:有持仓真相时逐仓产 REPLAN_REQUIRED,零自动�
 test('ACK 健康检查 fail-closed:缺失/不健康/违反安全不变量一律不激活(§12/§18)', async () => {
   const mk = async () => {
     const fx = await promotable();
-    const cand = candidateOf(fx);
+    const cand = await candidateOf(fx);
     await controlPlane.runCompatibilityCheck(cand.candidate_id);
     const release = controlPlane.createRelease(cand.candidate_id);
     controlPlane.reviewCandidate(cand.candidate_id, 'APPROVE_PAPER', { reviewer: 'FOUNDER' });
