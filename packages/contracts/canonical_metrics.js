@@ -1,6 +1,6 @@
 'use strict';
 /**
- * CanonicalRaceMetrics —— 各市场原生回测结果统一归一后的赛马指标形状(§10.1 Race Board 七轴)。
+ * CanonicalRaceMetrics —— 各市场原生回测结果统一归一后的赛马指标形状(§10.1 Race Board 八轴)。
  * adapter.normalize_result 必须产出本形状;Race Board 只消费 canonical,不读市场原生结构。
  */
 const AXES = Object.freeze({
@@ -20,7 +20,7 @@ const AXES = Object.freeze({
 /** 未实现的指标必须用显式状态串标注,禁止用 null/空对象冒充「已覆盖」。 */
 const NOT_IMPLEMENTED_MARKERS = Object.freeze(['NOT_IMPLEMENTED_MVP', 'NOT_IMPLEMENTED_P4', 'UNSUPPORTED']);
 
-/** 宽松校验:七轴对象齐全即可;缺数值字段标 null 不抛(样本不足只描述)。 */
+/** 宽松校验:八轴对象齐全即可;缺数值字段标 null 不抛(样本不足只描述)。 */
 function validateCanonicalMetrics(m) {
   const problems = [];
   if (!m || typeof m !== 'object') return { ok: false, problems: ['METRICS_NOT_OBJECT'] };
