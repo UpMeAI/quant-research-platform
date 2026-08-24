@@ -23,23 +23,33 @@ UpMeAI/Ashare-V5 `services/phase2` 领域抽取(Domain Extraction),按新设计�
 | Race 受控变量 + 预注册机械裁决 | `race-orchestrator` paired samples / adjudicate |
 | Shadow 零 Runtime 影响 + Virtual Ledger + 前向最低样本(按实验预注册) | `shadow-control` |
 | Release 不可变(内容哈希);hash 不匹配 fail-closed | `strategy-control-plane` + `runtime_binding` |
-| Pull-based 激活:Runtime 拉取 → 验哈希 → ACK → ACTIVE | `runtime_binding` / `paper_runtime_stub` |
+| Pull-based 激活:Runtime 拉取 → 验哈希 → **健康检查** → ACK → ACTIVE | `runtime_binding`(跨仓走 `/api/runtime/*`) |
+| ACK 必过健康检查:缺失/不健康/`real_order≠0`/`broker=true` → `ACK_REJECTED` | `runtime_binding.evaluateHealthCheck` |
+| 回滚真的切回:生成 ROLLBACK_RESTORE Activation,仍需 Runtime 拉取验哈希 | `rollback` → `runtime_binding` |
+| 同一 Runtime 只允许一个 ACTIVE Activation(前任标 SUPERSEDED) | `runtime_binding` |
+| 入账即校验:Promise / 未登记 schema / 字段违约拒绝落盘 | `packages/ledger.append` |
 | effective_from 必须未来,**且生效日之前拉取不到、ACK 被拒** | `requestActivation` / `runtimePendingActivations` / `runtimeAck` |
 | No Silent Migration:在途持仓绑旧 Release → `REPLAN_REQUIRED` | `strategy-control-plane/migration` |
-| 回滚两类:OPERATIONAL 直接切回,ECONOMIC 只触发研究复核 | `rollback` |
+| 回滚两类:OPERATIONAL 直接切回,ECONOMIC 先研究复核后才允许 Founder 执行 | `rollback` |
 | 台账全部 append-only(JSONL),负结果归档为资产 | `packages/ledger` / `archiveNegativeResult` |
 
 ## 快速开始(A 股 MVP,零依赖,Node ≥ 18)
 
 ```bash
-npm test                 # 34 项治理/流水线测试(含跨仓反分叉守卫)
+npm test                 # 45 项治理/流水线测试(含跨仓反分叉守卫与真实 HTTP 传输面)
 npm run mvp:ashare       # §16.3 十二步端到端闭环(样本数据,自动种子)
 node schemas/validate.js # 台账 × §8 域对象 Schema 一致性(退出码 0 = 无漂移)
-npm run web              # §17 六入口研究工作台(默认 http://localhost:4319)
+npm run web              # §17 六入口研究工作台(默认 http://localhost:4310,QRP_PORT 可覆盖)
 ```
 
-Founder 审批与激活是**写操作**,`apps/research-api` 默认 fail-closed:
-未设 `QRP_FOUNDER_TOKEN` 时 `review` / `activate` 一律 403,只读六页照常可看。
+两类令牌相互独立(§18 Least Privilege),都 fail-closed(未配置即一律 403):
+
+| 令牌 | 头 | 能做什么 |
+|---|---|---|
+| `QRP_FOUNDER_TOKEN` | `X-Founder-Token` | `POST /api/review`(批准/否决)· `POST /api/activate`(创建 Activation) |
+| `QRP_RUNTIME_TOKEN` | `X-Runtime-Token` | `GET /api/runtime/pending-activations` · `…/scheduled-activations` · `…/release` · `POST /api/runtime/ack` · `…/nack` |
+
+只读六页无需任何令牌。Runtime 令牌**不能**审批,Founder 令牌**不能**代替 Runtime 回 ACK。
 
 MVP 数据为 `SAMPLE_SYNTHETIC`(确定性合成,诚实标注)——演示平台治理与全链路,
 **不构成任何经济有效性声明**。真实 A 股数据经 Ashare-V5 `research-adapter/`(同一 §14.1 合同)接入。
@@ -53,8 +63,11 @@ schemas/             §8 域对象 JSON Schema + validate.js(台账合同校验�
 services/            strategy-registry · experiment-orchestrator(+ wfo · robustness)
                      race-orchestrator(paired samples · regime breakdown)
                      shadow-control · strategy-control-plane(+ runtime_binding · migration)
-                     runtime-status(§13.1 只读回读聚合)
-adapters/            registry(合同校验注册表)· ashare-local(CN_A 内置演示适配器)
+                     factor-lab(§9.1 FactorDefinition + IC/RankIC/衰减)
+                     runtime-status(§13.1 只读回读 + 接口覆盖度)
+                     observability(§19 运行观测与衰减监控)
+adapters/            registry(合同校验注册表)· ashare-local(CN_A 内置演示适配器,demo_only)
+                     clients/http_market_adapter_client(§5.2 远程市场适配器客户端)
 apps/research-web/   §17 六入口工作台(单页,零依赖)
 apps/research-api/   只读投影 + Founder token 门控的 review/activate
 apps/research-cli/   run_ashare_mvp.js · seed_sample_data.js
@@ -74,6 +87,12 @@ var/ledger/          运行时台账(gitignore;QRP_DATA_DIR 可覆盖)
 
 未实现的指标(容量、IR、CVaR 等)在 CanonicalRaceMetrics 里以
 `NOT_IMPLEMENTED_MVP` / `NOT_IMPLEMENTED_P4` / `UNSUPPORTED` 显式标注,不留空对象假装覆盖。
+
+## 适配器可同步可异步
+
+生产适配器要读 PG / 走 REST / 起 CLI job,必然返回 Promise;平台核心一律 `await`
+适配器返回值(同步实现语义不变)。跨仓形态用 `adapters/clients/http_market_adapter_client`
+把 §14.1 六函数翻译成远程调用,启动即校验合同,未声明的可选能力不挂载。
 
 ## 与 Ashare-V5 的边界
 

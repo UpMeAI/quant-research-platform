@@ -14,6 +14,7 @@
 const path = require('path');
 const { dataDir, hash, now, uid, append, read } = require('../../packages/ledger');
 const { getAdapter } = require('../../adapters/registry');
+const { validateCanonicalMetrics } = require('../../packages/contracts/canonical_metrics');
 const experiments = require('../../services/experiment-orchestrator');
 
 const RACES_LEDGER = () => path.join(dataDir('research'), 'races.jsonl');
@@ -187,6 +188,10 @@ async function closeRace(raceId, { championMetrics, challengerMetrics, canonical
   if (head.status !== 'SAMPLED') throw new Error(`RACE_NOT_SAMPLED:${head.status}`);
   const v = experiments.verifyFreeze(head.experiment_ref);
   if (!v.ok) throw new Error(`RACE_CLOSE_REJECTED:${v.reason}`);
+  // §10.1 Race Board 七轴 + §8 RaceResult:canonical 是必填,不允许空着结案。
+  // (此前 canonical 可省 → RaceResult 里 canonical_metrics=null,Race Board 无内容却仍算结论。)
+  const cm = validateCanonicalMetrics(canonical);
+  if (!cm.ok) throw new Error(`RACE_CLOSE_REQUIRES_CANONICAL_METRICS:${cm.problems.join(',')}`);
   const adj = adjudicate(v.spec, { championMetrics, challengerMetrics });
   // Regime 分解:显式传入优先,否则由 paired sample + adapter regime 标注自动计算
   const breakdown = regime_breakdown || await computeRegimeBreakdown(head.market, pairedSamples(raceId));
@@ -210,7 +215,8 @@ async function closeRace(raceId, { championMetrics, challengerMetrics, canonical
     champion_value: adj.champion_value,
     challenger_value: adj.challenger_value,
     guardrail_result: adj.guardrail_result,
-    canonical_metrics: canonical || null,   // 七轴 CanonicalRaceMetrics(adapter.normalize_result)
+    canonical_metrics: canonical,           // 七轴 CanonicalRaceMetrics(adapter.normalize_result,必填)
+    cost_breakdown: canonical.cost_breakdown || null,   // §8 RaceResult.cost_breakdown 显式独立字段
     regime_breakdown: breakdown,
     reason_codes,
   };

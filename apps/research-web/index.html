@@ -13,6 +13,8 @@
   .sub{color:var(--dim);font-size:12px}
   nav{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
   nav button{background:transparent;border:1px solid var(--line);color:var(--dim);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px}
+  button.act{background:#1b2430;border:1px solid #2f6feb;color:#e6edf3;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-right:8px}
+  button.act[disabled]{opacity:.45;cursor:not-allowed;border-color:#263140}
   nav button[aria-current="true"]{background:var(--panel);color:var(--fg);border-color:var(--acc)}
   main{padding:16px 20px;max-width:1400px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:12px}
@@ -38,6 +40,7 @@
   <h1>Quant Research Platform</h1>
   <span class="sub">多市场量化策略研发与控制平台 · 研究台(只读;审批与激活需 Founder 令牌)</span>
   <span class="sub" id="stamp"></span>
+  <span class="sub">Founder 令牌 <input id="founder-token" type="password" placeholder="X-Founder-Token(仅本页内存,不落盘)" style="background:#0e131a;border:1px solid #263140;color:#e6edf3;border-radius:6px;padding:4px 8px;font-size:12px;width:220px"></span>
 </header>
 <nav id="nav"></nav>
 <main id="view"><div class="empty">加载中…</div></main>
@@ -54,6 +57,9 @@ const tag = (t,cls='') => `<span class="tag ${cls}">${esc(t)}</span>`;
 const statusCls = (s) => ({ACTIVE:'ok',CHALLENGER_WINS:'ok',HEALTHY:'ok',CLAIM_ELIGIBLE:'ok',APPROVED_PAPER:'ok',
   PENDING_RUNTIME_PULL:'warn',DESCRIBE_ONLY:'warn',PENDING_FOUNDER_REVIEW:'warn',UNAVAILABLE:'warn',UNSUPPORTED:'warn',
   NEGATIVE_RESULT:'bad',ACK_REJECTED:'bad',RUNTIME_REJECTED:'bad',COMPATIBILITY_FAILED:'bad',ROLLED_BACK:'bad'}[s]||'');
+const mfe = (v) => (v==null?'—':(typeof v==='object'
+  ? esc(`总量 ${v.default}` + (v.by_regime&&Object.keys(v.by_regime).length?` · 分 Regime ${JSON.stringify(v.by_regime)}`:''))
+  : esc(v)));
 const json = (o,label='原始对象') => `<details><summary>${label}</summary><pre>${esc(JSON.stringify(o,null,2))}</pre></details>`;
 
 const render = {
@@ -78,7 +84,8 @@ const render = {
         <span class="kv"><b>freeze_hash</b>${esc(e.freeze_hash)}</span>
         <span class="kv"><b>OOS 起点</b>${esc(e.sample&&e.sample.oos_start)}</span>
         <span class="kv"><b>成本/边</b>${esc(e.costs&&e.costs.cost_per_side)}</span>
-        <span class="kv"><b>最低前向样本</b>${esc(e.min_forward_evidence)}</span>
+        <span class="kv"><b>最低前向样本</b>${mfe(e.min_forward_evidence)}</span>
+        <span class="kv"><b>Survivorship</b>${esc((e.universe&&e.universe.survivorship_policy)||'未声明')}</span>
       </div>
       ${e.backtest?`<div class="row" style="margin-top:8px">
         <span class="kv"><b>OOS good_precision</b>champ ${num(e.backtest.precision_oos&&e.backtest.precision_oos.champion.good_precision)} → chal ${num(e.backtest.precision_oos&&e.backtest.precision_oos.challenger.good_precision)}</span>
@@ -97,7 +104,14 @@ const render = {
       ${json(e)}
     </div>`).join('') || empty('尚无实验')}
     ${table('负结果台账(资产,不丢弃)', ['negative_result_id','假设','失败原因','归档时间'],
-      d.negative_results.map(n=>[n.negative_result_id,n.hypothesis_ref,n.failure_reason,n.archived_at]))}`,
+      d.negative_results.map(n=>[n.negative_result_id,n.hypothesis_ref,n.failure_reason,n.archived_at]))}
+    ${table('因子定义(§9.1 Factor Lab —— 只提供统计信息,无生产动作权)',
+      ['factor_id','版本','方向','horizons','最近 IC 均值','动作权'],
+      d.factors.map(f=>{
+        const ev = (f.evaluations||[]).slice(-1)[0];
+        const ic = ev ? Object.values(ev.by_horizon).map(c=>`${c.horizon_days}d:${num(c.ic_mean,4)}`).join(' · ') : '未评估';
+        return [f.factor_id,'v'+f.version,f.direction,(f.horizons||[]).join('/'),ic,tag(f.production_action_authority,'warn')];
+      }))}`,
 
   races: (d) => d.races.map(r=>{
     const res = r.result;
@@ -151,6 +165,7 @@ const render = {
       </div>
       <div class="row"><span class="kv"><b>兼容性</b>${c.compatibility_result?(c.compatibility_result.compatible?tag('通过','ok'):tag('失败:'+c.compatibility_result.reasons.join(';'),'bad')):tag('未检查','warn')}</span></div>
       ${c.unresolved_gaps&&c.unresolved_gaps.length?`<div class="row">${c.unresolved_gaps.map(g=>tag(g,'warn')).join(' ')}</div>`:''}
+      ${founderActions(c, d)}
     </div>`).join('') || empty('尚无发布候选')}
     ${table('不可变 Release', ['release_id','bundle','release_hash','adapter','目标环境','创建时间'],
       d.releases.map(r=>[r.release_id,r.immutable_bundle_ref,r.release_hash,r.adapter_version,r.target_runtime_class,r.created_at]))}
@@ -185,6 +200,51 @@ const render = {
     </div>`).join('') || empty('尚无 Runtime'),
 };
 
+/**
+ * §12.1「一键发布」的产品语义:按钮只对**已通过全部 Gate** 的候选可用;
+ * 点击不复制代码、不重启进程 —— 只创建不可变 Release 的受控 Activation,
+ * 仍要 Runtime 到生效日主动拉取 + 验哈希 + 健康检查才 ACTIVE(§12.2)。
+ * 写操作一律带 Founder 令牌;未填令牌时按钮禁用(fail-closed,§18)。
+ */
+function founderActions(c, d){
+  const rel = d.releases.find(r=>r.candidate_ref===c.candidate_id) || null;
+  const gatePassed = !!(c.compatibility_result && c.compatibility_result.compatible);
+  if(c.review_status==='PENDING_FOUNDER_REVIEW'){
+    return `<div class="row" style="margin-top:10px">
+      <button class="act" data-action="review" data-candidate="${esc(c.candidate_id)}" ${gatePassed?'':'disabled'}>批准发布到 PAPER(Founder)</button>
+      <button class="act" data-action="reject" data-candidate="${esc(c.candidate_id)}">否决</button>
+      <span class="note">${gatePassed?'全部 Gate 已通过':'兼容性未通过 —— 按钮不可用'}</span>
+    </div>`;
+  }
+  if(c.review_status==='APPROVED_PAPER' && rel){
+    const已激活 = d.activations.some(a=>a.release_id===rel.release_id);
+    return `<div class="row" style="margin-top:10px">
+      <button class="act" data-action="activate" data-release="${esc(rel.release_id)}" ${已激活?'disabled':''}>创建 Activation(PAPER,次日生效)</button>
+      <span class="note">${已激活?'已创建 Activation':'创建后仍需 Runtime 到生效日拉取并验哈希才 ACTIVE'}</span>
+    </div>`;
+  }
+  return '';
+}
+
+async function runAction(btn){
+  const token = document.getElementById('founder-token').value.trim();
+  if(!token){ alert('请先填入 Founder 令牌(X-Founder-Token)'); return; }
+  const a = btn.dataset.action;
+  const body = a==='activate'
+    ? { release_id: btn.dataset.release, environment:'PAPER',
+        target_runtime_id: (window.__runtimeIds&&window.__runtimeIds[0])||'',
+        effective_from: new Date(Date.now()+86400000).toISOString().slice(0,10) }
+    : { candidate_id: btn.dataset.candidate, decision: a==='review'?'APPROVE_PAPER':'REJECT' };
+  const path = a==='activate' ? '/api/activate' : '/api/review';
+  btn.disabled = true;
+  try{
+    const r = await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Founder-Token':token},body:JSON.stringify(body)});
+    const j = await r.json();
+    if(!r.ok){ alert(`失败(${r.status}):${j.reasonCn||j.error}`); btn.disabled=false; return; }
+    await load();
+  }catch(e){ alert(String(e)); btn.disabled=false; }
+}
+
 function card(title, html){ return `<div class="card"><h3>${esc(title)}</h3>${html}</div>`; }
 function empty(t){ return `<div class="card"><div class="empty">${esc(t)}</div></div>`; }
 function dedupe(rows,key){ const m=new Map(); for(const r of rows) m.set(r[key],r); return [...m.values()]; }
@@ -210,14 +270,21 @@ async function load(){
     const r = await fetch('/api/'+current);
     const d = await r.json();
     view.innerHTML = render[current](d);
+    for(const b of view.querySelectorAll('button.act')) b.onclick = () => runAction(b);
     document.getElementById('stamp').textContent = '读取于 ' + new Date().toLocaleString('zh-CN');
   }catch(e){ view.innerHTML = `<div class="card"><div class="empty">读取失败:${esc(e.message)}</div></div>`; }
 }
 // 直接访问 #tab、浏览器前进/后退都要正确切换(同文档导航不会重载脚本)
 window.addEventListener('hashchange', () => {
   const next = location.hash.slice(1) || 'strategies';
-  if (next !== current && render[next]) { current = next; paint(); load(); }
+  if (next !== current && render[next]) { current = next; fetch('/api/runtime-status').then(r=>r.json())
+  .then(d=>{ window.__runtimeIds = (d.runtimes||[]).map(r=>r.runtime_id); })
+  .catch(()=>{ window.__runtimeIds = []; });
+paint(); load(); }
 });
+fetch('/api/runtime-status').then(r=>r.json())
+  .then(d=>{ window.__runtimeIds = (d.runtimes||[]).map(r=>r.runtime_id); })
+  .catch(()=>{ window.__runtimeIds = []; });
 paint(); load();
 </script>
 </body>

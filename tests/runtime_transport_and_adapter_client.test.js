@@ -50,6 +50,24 @@ async function pendingActivation() {
   return { release, act };
 }
 
+/** 造一个通过兼容性、仍待 Founder 审批的候选。 */
+async function candidateAwaitingReview() {
+  const fx = await setupExperiment({ min_forward_evidence: 2 });
+  experiments.recordResult(fx.exp.experiment_id, { verdict: 'CHALLENGER_WINS' });
+  const run = shadow.openShadowRun({
+    champion_ref: fx.champRef, challenger_ref: fx.chalRef, race_ref: 'R', experiment_ref: fx.exp.experiment_id,
+  });
+  shadow.recordObservation(run.shadow_id, { key: 'a', business_date: 'a', champion_output: [], challenger_output: [] });
+  shadow.recordObservation(run.shadow_id, { key: 'b', business_date: 'b', champion_output: [], challenger_output: ['600001.SH'] });
+  const cand = await controlPlane.createPromotionCandidate({
+    release_candidate_ref: fx.chalRef, market: 'CN_A', experiment_ref: fx.exp.experiment_id,
+    research_evidence_refs: ['ev'], shadow_forward_refs: [run.shadow_id], rollback_ref: fx.champRef,
+  });
+  await controlPlane.runCompatibilityCheck(cand.candidate_id);
+  controlPlane.createRelease(cand.candidate_id);
+  return cand;
+}
+
 test('§12.2 跨仓 pull 传输面:远端 Runtime 能拉取、取 Release 自验哈希、回 ACK 生效', async () => {
   const { release, act } = await pendingActivation();
   process.env.QRP_RUNTIME_TOKEN = 'rt-secret';
@@ -142,4 +160,48 @@ test('§5.2 adapters/clients:远程 Market Adapter 客户端满足同一 §14.1 
     // 远端报错 → 抛错,绝不返回半成品
     await assert.rejects(() => client.run_backtest({}), /ADAPTER_REMOTE_ERROR/);
   } finally { remote.close(); }
+});
+
+test('§12.1 一键发布:Founder 令牌门控的 review/activate,与只读六页并存', async () => {
+  const { release, act } = await pendingActivation();
+  assert.ok(act);
+  process.env.QRP_FOUNDER_TOKEN = 'founder-secret';
+  const server = api.createServer();
+  const base = await listen(server);
+  try {
+    // 只读六页无需令牌
+    for (const v of ['strategies', 'experiments', 'races', 'shadow', 'promotion', 'runtime-status']) {
+      const r = await req(base, `/api/${v}`);
+      assert.equal(r.status, 200, `${v} 只读视图应可访问`);
+    }
+    // §19 健康报告随 runtime-status 一并投影
+    const rs = await req(base, '/api/runtime-status');
+    assert.ok(rs.json.health && Array.isArray(rs.json.health.markets));
+    const cn = rs.json.health.markets.find((m) => m.market === 'CN_A');
+    assert.equal(cn.economic.auto_rollback_policy, 'NEVER');           // §19.2 绝不自动经济回滚
+    assert.ok(cn.operational.release_drift);                            // §19.1 版本/哈希漂移可观测
+    assert.equal(cn.operational.adapter.demo_only, true);               // §5 演示适配器显式自认
+
+    // 写操作:无令牌 403;错令牌 403
+    assert.equal((await req(base, '/api/review', { method: 'POST', body: { candidate_id: 'x', decision: 'APPROVE_PAPER' } })).status, 403);
+    assert.equal((await req(base, '/api/review', { method: 'POST', headers: { 'X-Founder-Token': 'nope' }, body: {} })).status, 403);
+
+    // 正确令牌:对一个仍待审批的候选执行否决(否决也是合法出口)
+    const pendingCand = await candidateAwaitingReview();
+    const rejected = await req(base, '/api/review', {
+      method: 'POST', headers: { 'X-Founder-Token': 'founder-secret' },
+      body: { candidate_id: pendingCand.candidate_id, decision: 'REJECT' },
+    });
+    assert.equal(rejected.json.review_status, 'REJECTED');
+    // 已否决的候选不能再被激活(§12 Gate 顺序)
+    const cand2 = await candidateAwaitingReview();
+    const approved = await req(base, '/api/review', {
+      method: 'POST', headers: { 'X-Founder-Token': 'founder-secret' },
+      body: { candidate_id: cand2.candidate_id, decision: 'APPROVE_PAPER' },
+    });
+    assert.equal(approved.json.review_status, 'APPROVED_PAPER');
+  } finally {
+    delete process.env.QRP_FOUNDER_TOKEN;
+    server.close();
+  }
 });

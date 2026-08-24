@@ -19,7 +19,21 @@ async function _readonly(marketId, fnName) {
   catch (e) { return { status: 'ERROR', reason: String(e.message || e) }; }
 }
 
-async function capabilities(marketId) { return getAdapter(marketId).runtime_capabilities(); }
+/**
+ * capabilities 也可能是远程调用(§25 传输层)。一个市场适配器不可达
+ * **不得**让整个 Runtime Status 页 500 —— 该市场标 UNREACHABLE,其余市场照常可读(§19.1)。
+ */
+async function capabilities(marketId) {
+  try { return await getAdapter(marketId).runtime_capabilities(); }
+  catch (e) {
+    return {
+      runtime_id: null, market_id: marketId, status: 'UNREACHABLE',
+      reason: String(e.message || e),
+      reasonCn: '市场适配器不可达 —— 平台不臆造 Runtime 能力,也不因单市场故障中断其他市场只读',
+      environments_supported: [], broker_connection: false, real_order: 0,
+    };
+  }
+}
 async function activeRelease(marketId) { return _readonly(marketId, 'runtime_active_release'); }
 async function positionsReadonly(marketId) { return _readonly(marketId, 'runtime_positions_readonly'); }
 async function performanceSummary(marketId) { return _readonly(marketId, 'runtime_performance_summary'); }
@@ -64,9 +78,13 @@ async function runtimeStatus(marketId, o = {}) {
     health: await health(marketId),
     performance_summary: await performanceSummary(marketId),
     positions: await positionsReadonly(marketId),
-    pending_pull: binding.runtimePendingActivations(caps.runtime_id, o),
-    scheduled_not_yet_effective: binding.runtimeScheduledActivations(caps.runtime_id, o),
-    readOnlyCn: '平台只读;激活由 Runtime 主动拉取并验证 hash 后生效(§12.2)',
+    // runtime_id 不可知时无法查激活队列 —— 给空队列 + 明确原因,不假装"没有待拉取项"
+    pending_pull: caps.runtime_id ? binding.runtimePendingActivations(caps.runtime_id, o) : [],
+    scheduled_not_yet_effective: caps.runtime_id ? binding.runtimeScheduledActivations(caps.runtime_id, o) : [],
+    queue_status: caps.runtime_id ? 'READ' : 'UNKNOWN_RUNTIME_UNREACHABLE',
+    readOnlyCn: caps.status === 'UNREACHABLE'
+      ? caps.reasonCn
+      : '平台只读;激活由 Runtime 主动拉取并验证 hash 后生效(§12.2)',
   };
 }
 

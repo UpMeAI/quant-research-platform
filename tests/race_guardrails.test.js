@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const races = require('../services/race-orchestrator');
 const experiments = require('../services/experiment-orchestrator');
+const localAdapter = require('../adapters/ashare-local');
 const { setupExperiment } = require('./_fixture');
 
 const SPEC = {
@@ -73,9 +74,9 @@ test('closeRace:预注册裁决 + Result Lock 写回实验;二次关闭拒绝', 
     bad_precision: artifact.precision_oos[side].bad_precision,
     good_count: artifact.precision_oos[side].good_count,
   });
-  const closed = await races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') });
+  const closed = await races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger'), canonical: localAdapter.normalize_result(artifact) });
   assert.ok(['CHALLENGER_WINS', 'CHAMPION_HOLDS', 'NEGATIVE_RESULT', 'INCONCLUSIVE'].includes(closed.result.conclusion));
   assert.ok(closed.result.result_hash);
   assert.equal(experiments.experimentHead(exp.experiment_id).status, 'RESULT_LOCKED');
-  await assert.rejects(async () => races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') }), /RACE_NOT_SAMPLED/);
+  await assert.rejects(async () => races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger'), canonical: localAdapter.normalize_result(artifact) }), /RACE_NOT_SAMPLED/);
 });

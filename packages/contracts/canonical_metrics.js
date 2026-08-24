@@ -12,6 +12,9 @@ const AXES = Object.freeze({
   robustness: ['is_cumRet', 'oos_cumRet', 'is_oos_decay'],
   operational: ['deterministic', 'result_hash', 'replayable'],
   capacity: ['status'],   // MVP 只声明状态(NOT_IMPLEMENTED_P4);容量模型属 §21 P4
+  // §8 RaceResult.cost_breakdown / §9 Costs:成本必须逐项交代(合并 or 未建模),
+  // 不允许用一个总费率冒充"手续费/滑点/冲击/funding/FX/流动性"全覆盖。
+  cost_breakdown: ['model', 'components'],
 });
 
 /** 未实现的指标必须用显式状态串标注,禁止用 null/空对象冒充「已覆盖」。 */

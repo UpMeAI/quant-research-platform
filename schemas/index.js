@@ -52,7 +52,7 @@ const SCHEMAS = Object.freeze({
     experiment_id: 's', hypothesis_ref: 's', market: 's', champion_ref: 's', challenger_ref: 's',
     changed_component: 's', fixed_components: 'a?', dataset_snapshot_ref: 's',
     universe: 'o', regime_scope: '*', holding_period: 'o?', sample: 'o', costs: 'o',
-    execution_model: 'o', primary_metric: 's', secondary_metrics: 'a?', guardrails: 'a',
+    execution_model: 'o', signal_action_contract: 'o', drawdown_policy: 'o', primary_metric: 's', secondary_metrics: 'a?', guardrails: 'a',
     failure_condition: 's', multiple_test_policy: 's?', parameter_grid: 'a?', seed: 'n?',
     // §11:数字 = 全局最低样本;对象 { default, by_regime } = 按 Regime 分别预注册
     min_forward_evidence: '*', freeze_hash: 's', status: 's',
@@ -90,7 +90,7 @@ const SCHEMAS = Object.freeze({
     _doc: '§8 RaceResult —— 结论 + 七轴 canonical + regime 分解 + result_hash',
     race_id: 's', experiment_ref: 's', paired_sample_ref: 's', conclusion: 's',
     primary_metric: 's', champion_value: 'n?', challenger_value: 'n?',
-    guardrail_result: 'a', canonical_metrics: 'o?', regime_breakdown: 'o?',
+    guardrail_result: 'a', canonical_metrics: 'o', cost_breakdown: 'o?', regime_breakdown: 'o?',
     reason_codes: 'a', result_hash: 's',
   },
   SHADOW_RUN_V1: {
@@ -167,6 +167,18 @@ const SCHEMAS = Object.freeze({
     _doc: '§16.3-11 既有持仓需显式重做计划(绝不自动迁移)',
     replan_id: 's', activation_ref: 's', position_ref: 's', originating_release_ref: 's?',
     new_release_ref: 's', required_action: 's', auto_migrated: 'b', assessedAt: 's',
+  },
+  FACTOR_DEFINITION_V1: {
+    _doc: '§9.1 FactorDefinition —— 因子定义(只提供统计信息,无生产动作权)',
+    factor_id: 's', market: 's', version: 'n', definition: 'o', economic_rationale: 's',
+    direction: 's', horizons: 'a', universe_ref: 's?', data_requirements: '*',
+    factor_hash: 's', production_action_authority: 's', owner: 's', registeredAt: 's',
+  },
+  FACTOR_EVALUATION_V1: {
+    _doc: '§9.1 Factor 层基础指标 —— IC / Rank IC / 衰减 / 覆盖(不含通过阈值)',
+    factor_ref: 's', factor_hash: 's', market: 's', dataset_snapshot_ref: 's?',
+    horizons: 'a', by_horizon: 'o', sample_count: 'n', coverage: 'o', decay: 'o',
+    stability: '*', correlation_to_refs: '*', evaluation_hash: 's', evaluatedAt: 's',
   },
   NEGATIVE_RESULT_V1: {
     _doc: '§8 NegativeResult —— 负结果是资产,归档不丢弃',

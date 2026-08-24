@@ -32,6 +32,13 @@ const manifest = Object.freeze({
   runtime_binding_endpoint: 'ashare-paper-runtime(pull-based;MVP 内置 stub)',
   health_status: 'HEALTHY',
   compatibility_range: { platform: '>=0.1.0' },
+  optional_capabilities: ['regime_labels', 'evaluate_factor',
+    'runtime_active_release', 'runtime_positions_readonly', 'runtime_performance_summary', 'runtime_health'],
+  // §5 边界的**显式自认**:本适配器把 A 股 VPQ 判定/回测/PIT 复制进了平台仓,
+  // 与「A 股策略代码留在 A 股仓库」相悖 —— 保留是为了无 PG 环境的演示与确定性测试,
+  // 由 tests/schemas_and_fork_guard 反分叉守卫逐条比对源仓逻辑。生产必须用 Ashare-V5 research-adapter。
+  demo_only: true,
+  demo_onlyCn: '平台内置演示适配器(样本/合成数据);生产 A 股能力由 Ashare-V5 research-adapter 经同一合同提供',
 });
 
 /** DatasetSnapshot(§8):as_of + known_at 策略 + 校验和 + 覆盖,可重放。 */
@@ -223,6 +230,134 @@ function regime_labels() {
   return { regime_model: 'BENCHMARK_TREND_VOL_PROXY_V1', labels, proxyCn: '基准指数派生的代理状态,非市场原生权威 Regime' };
 }
 
+/**
+ * evaluate_factor(FactorDefinition, opts)(可选能力,供 §9.1 Factor Lab)。
+ *
+ * 只做 §9.1 的「Factor 层」:横截面 IC / Rank IC / 逐 horizon 衰减 / 覆盖 / 时间稳定性。
+ * 不做建仓、不算成本、不产任何动作 —— 那是 Strategy 层的事。
+ * 支持的内置因子表达式(definition.expr)有限且显式;未知表达式 fail-closed。
+ */
+function evaluate_factor(def, opts = {}) {
+  const expr = def.definition && def.definition.expr;
+  const EXPRS = {
+    // 反转:过去 N 日累计收益的负值
+    REVERSAL_N: (s, i, p) => (i - p.n < 0 ? null : -((s[i].close - s[i - p.n].close) / s[i - p.n].close)),
+    // 量能比:当日量 / 过去 N 日均量
+    VOL_RATIO_N: (s, i, p) => {
+      if (i - p.n < 0) return null;
+      const avg = s.slice(i - p.n, i).reduce((a, b) => a + b.vol, 0) / p.n;
+      return avg > 0 ? s[i].vol / avg : null;
+    },
+  };
+  const fn = EXPRS[expr];
+  if (!fn) throw new Error(`FACTOR_EXPR_UNSUPPORTED:${expr}(本适配器仅支持 ${Object.keys(EXPRS).join('/')})`);
+  const params = def.definition.params || {};
+  const uni = opts.universe || {};
+  const { byInst } = pit.loadUniverseBars({
+    skip: Number(uni.skip ?? 0), stride: Number(uni.stride ?? 1), cap: Math.min(Number(uni.cap ?? 300), 600),
+  });
+  const sign = def.direction === 'LOWER_IS_BETTER' ? -1 : 1;
+
+  // 逐交易日构造横截面 (factor, forward_return),再算该日 Pearson / Spearman IC
+  const perHorizon = {};
+  for (const h of def.horizons) {
+    const dailyIC = []; const dailyRankIC = [];
+    let pairs = 0; let attempted = 0;
+    const dates = new Set();
+    for (const [, series] of byInst) for (const b of series) dates.add(b.d);
+    const sortedDates = [...dates].sort();
+    const idxOf = new Map();
+    for (const [inst, series] of byInst) idxOf.set(inst, new Map(series.map((b, i) => [b.d, i])));
+
+    for (const d of sortedDates) {
+      const xs = []; const ys = [];
+      for (const [inst, series] of byInst) {
+        const i = idxOf.get(inst).get(d);
+        if (i === undefined) continue;
+        attempted++;
+        const f = fn(series, i, params);
+        if (f == null || !Number.isFinite(f)) continue;
+        if (i + h >= series.length) continue;                 // 前向窗口未走完 → 不计(不用占位冒充)
+        const fwd = (series[i + h].close - series[i].close) / series[i].close;
+        xs.push(sign * f); ys.push(fwd); pairs++;
+      }
+      if (xs.length >= 5) {                                   // 横截面太窄的日子无法形成 IC
+        const ic = _pearson(xs, ys);
+        const ric = _pearson(_ranks(xs), _ranks(ys));
+        if (ic != null) dailyIC.push(ic);
+        if (ric != null) dailyRankIC.push(ric);
+      }
+    }
+    const mean = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null);
+    const std = (a) => {
+      if (a.length < 2) return null;
+      const m = mean(a);
+      return Math.sqrt(a.reduce((s, v) => s + (v - m) ** 2, 0) / (a.length - 1));
+    };
+    const icMean = mean(dailyIC); const icStd = std(dailyIC);
+    perHorizon[h] = {
+      horizon_days: h,
+      ic_mean: icMean == null ? null : Number(icMean.toFixed(6)),
+      rank_ic_mean: mean(dailyRankIC) == null ? null : Number(mean(dailyRankIC).toFixed(6)),
+      ic_std: icStd == null ? null : Number(icStd.toFixed(6)),
+      // ICIR = IC 均值 / IC 标准差(只报比值,不判"是否显著")
+      icir: icMean != null && icStd ? Number((icMean / icStd).toFixed(6)) : null,
+      ic_positive_fraction: dailyIC.length ? Number((dailyIC.filter((v) => v > 0).length / dailyIC.length).toFixed(4)) : null,
+      cross_section_day_count: dailyIC.length,
+      pair_count: pairs,
+      coverage_ratio: attempted ? Number((pairs / attempted).toFixed(4)) : null,
+    };
+  }
+
+  const hs = def.horizons.slice().sort((a, b) => a - b);
+  const first = perHorizon[hs[0]]?.ic_mean;
+  const last = perHorizon[hs[hs.length - 1]]?.ic_mean;
+  return {
+    by_horizon: perHorizon,
+    sample_count: Object.values(perHorizon).reduce((s, v) => s + v.pair_count, 0),
+    coverage: {
+      instrument_count: byInst.size,
+      bars_checksum: pit.barsChecksum(),
+      basisCn: '仅计入因子可算且前向窗口已走完的 (标的,日) 对',
+    },
+    decay: {
+      horizons: hs,
+      ic_by_horizon: hs.map((h) => perHorizon[h].ic_mean),
+      first_to_last_delta: first != null && last != null ? Number((last - first).toFixed(6)) : null,
+      basisCn: '逐 horizon 的 IC 均值序列;是否算"快速衰减"由实验预注册判据裁定,本适配器不设阈值',
+    },
+    stability: {
+      ic_positive_fraction_by_horizon: Object.fromEntries(hs.map((h) => [h, perHorizon[h].ic_positive_fraction])),
+      basisCn: '各 horizon 下 IC 为正的交易日占比(时间稳定性的机械口径)',
+    },
+    correlation_to_refs: { status: 'NOT_IMPLEMENTED_MVP', reasonCn: '因子间相关性需要因子库规模,属 §21 P4 Factor Lab' },
+  };
+}
+
+function _pearson(x, y) {
+  const n = x.length;
+  if (n < 2) return null;
+  const mx = x.reduce((s, v) => s + v, 0) / n;
+  const my = y.reduce((s, v) => s + v, 0) / n;
+  let num = 0; let dx = 0; let dy = 0;
+  for (let i = 0; i < n; i++) { num += (x[i] - mx) * (y[i] - my); dx += (x[i] - mx) ** 2; dy += (y[i] - my) ** 2; }
+  return dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : null;
+}
+/** 平均秩(并列取均值),供 Spearman/Rank IC。 */
+function _ranks(a) {
+  const idx = a.map((v, i) => [v, i]).sort((p, q) => p[0] - q[0]);
+  const r = new Array(a.length);
+  let i = 0;
+  while (i < idx.length) {
+    let j = i;
+    while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++;
+    const avg = (i + j) / 2 + 1;
+    for (let k = i; k <= j; k++) r[idx[k][1]] = avg;
+    i = j + 1;
+  }
+  return r;
+}
+
 // ── §13.1 只读回读面(经内置 Paper Runtime stub;生产由 Ashare-V5 Runtime 提供)────
 function runtime_active_release() { return require('./paper_runtime_stub').activeRelease(); }
 function runtime_positions_readonly() { return require('./paper_runtime_stub').positionsReadonly(); }
@@ -319,13 +454,32 @@ function normalize_result(a) {
       status: 'NOT_IMPLEMENTED_P4',   // 容量/流动性/冲击模型属 §21 P4,MVP 显式不做(不留空对象假装已覆盖)
       reasonCn: '容量模型(流动性、资金区间、冲击假设)属 P4 Strategy Factory,MVP 不估算',
     },
+    // §8 RaceResult.cost_breakdown —— §9 要求成本按 手续费/滑点/冲击/funding/FX/流动性 冻结。
+    // 本适配器的成本模型是「单边合并费率」,因此逐项显式声明是「已合并」还是「未建模」,
+    // 不用一个 costPerSide 假装覆盖了全部成本维度。
+    cost_breakdown: {
+      model: manifest.cost_model_version,
+      cost_per_side: s.challenger.costPerSide,
+      round_trip_cost: Number((s.challenger.costPerSide * 2).toFixed(6)),
+      components: {
+        commission: 'AGGREGATED_INTO_COST_PER_SIDE',
+        stamp_duty: 'AGGREGATED_INTO_COST_PER_SIDE',
+        slippage: 'AGGREGATED_INTO_COST_PER_SIDE',
+        market_impact: 'NOT_MODELLED_MVP',
+        funding: 'NOT_APPLICABLE_CN_A_LONG_ONLY',
+        fx: 'NOT_APPLICABLE_CN_A',
+        liquidity_constraint: 'NOT_MODELLED_MVP',
+      },
+      stress_tested_at: ['x2', 'x3'],   // 鲁棒性 execution_stress 维度覆盖的倍率
+      basisCn: '单边合并费率;冲击与流动性约束未建模 —— 边际收益不得按"已完整计成本"解读',
+    },
   };
 }
 
 module.exports = {
   manifest, snapshot, run_backtest, run_shadow,
   validate_release, runtime_capabilities, normalize_result,
-  regime_labels,
+  regime_labels, evaluate_factor,
   runtime_active_release, runtime_positions_readonly, runtime_performance_summary, runtime_health,
   ADAPTER_VERSION,
 };

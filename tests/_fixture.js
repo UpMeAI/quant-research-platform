@@ -66,10 +66,26 @@ async function setupExperiment(overrides = {}) {
     champion_ref: b.champRef, challenger_ref: b.chalRef,
     changed_component: 'TIMING.volume_threshold_rule',
     dataset_snapshot_ref: snap.snapshot_id,
-    universe: { skip: 0, stride: 1, cap: 8 },
+    universe: {
+      skip: 0, stride: 1, cap: 8,
+      membership_basis: 'SAMPLE_SYNTHETIC_FIXED_LIST(合成样本固定名单)',
+      filter_rules: ['instrument_id 通过 CN_A 分类校验', '量能预热窗口内数据完整'],
+      survivorship_policy: 'NO_DELISTING_IN_SAMPLE(合成数据无退市;真实源接入时必须改为 PIT 历史成分)',
+    },
     sample: {
       is_end: oosStart, oos_start: oosStart, adjudication_segment: 'OOS',
       wfo: { train_days: 40, test_days: 20, step_days: 20, folds: 2 },
+    },
+    signal_action_contract: {
+      signal_definition: 'VPQ pattern ∈ {GOOD,BAD,NEUTRAL};仅 volUp/volDry 判据为受控变量',
+      bar_completion: '日线收盘 bar 完成后判定,当日不可回看未来 bar(PIT)',
+      action_semantics: 'GOOD = 当日收盘等权建仓,持有 holding_period.fwd_days 个交易日后收盘平仓',
+    },
+    drawdown_policy: {
+      max_drawdown: 'MEASURED_FROM_SIGNAL_LAYER_NAV',
+      cvar: 'NOT_MODELLED_MVP(信号层等权口径无逐笔分布;属 P4 组合层)',
+      recovery_time: 'MEASURED_AS_max_dd_recovery_days',
+      tail_loss: 'NOT_MODELLED_MVP',
     },
     costs: { cost_per_side: 0.001 },
     execution_model: { champion_variant: CHAMPION_VARIANT, challenger_variant: CHALLENGER_VARIANT },

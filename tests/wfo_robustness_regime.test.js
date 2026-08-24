@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const experiments = require('../services/experiment-orchestrator');
 const races = require('../services/race-orchestrator');
 const { planFolds } = require('../services/experiment-orchestrator/wfo');
+const localAdapter = require('../adapters/ashare-local');
 const { setupExperiment } = require('./_fixture');
 
 test('WFO fold 切分:train/test 不重叠且滚动前进', () => {
@@ -66,7 +67,7 @@ test('Regime 分解:paired sample 落台账并按 adapter 标注拆解', async (
     bad_precision: artifact.precision_oos[side].bad_precision,
     good_count: artifact.precision_oos[side].good_count,
   });
-  const closed = await races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger') });
+  const closed = await races.closeRace(race.race_id, { championMetrics: m('champion'), challengerMetrics: m('challenger'), canonical: localAdapter.normalize_result(artifact) });
   const rb = closed.result.regime_breakdown;
   assert.equal(rb.status, 'EVALUATED');
   assert.ok(rb.regime_count >= 1);
@@ -85,4 +86,53 @@ test('Regime 分解:adapter 未提供标注时显式 UNSUPPORTED(不臆造)', as
     const r = await races.computeRegimeBreakdown('CN_A', [{ key: 'k', d: '2026-06-01', champion_output: 'GOOD', challenger_output: 'GOOD', fwd: 0.01 }]);
     assert.equal(r.status, 'UNSUPPORTED');
   } finally { adapter.regime_labels = original; }
+});
+
+test('§9.1 Factor Lab:FactorDefinition 可注册并产出 IC/RankIC/衰减;因子层无生产动作权', async () => {
+  const factors = require('../services/factor-lab');
+  require('./_fixture').seedData();
+
+  assert.throws(() => factors.registerFactor({ factor_id: 'F', market: 'CN_A', definition: {}, economic_rationale: 'x', direction: 'UP', horizons: [1] }), /FACTOR_BAD_DIRECTION/);
+  assert.throws(() => factors.registerFactor({ factor_id: 'F', market: 'CN_A', definition: {}, economic_rationale: 'x', direction: 'HIGHER_IS_BETTER', horizons: [] }), /FACTOR_MISSING_FIELD:horizons/);
+
+  const f = factors.registerFactor({
+    factor_id: 'FAC-CN_A-REVERSAL5', market: 'CN_A',
+    definition: { expr: 'REVERSAL_N', params: { n: 5 } },
+    economic_rationale: '短期超跌反弹:过去 5 日跌幅越大,后续短窗口反弹概率越高',
+    direction: 'HIGHER_IS_BETTER', horizons: [1, 3, 5],
+  });
+  assert.equal(f.version, 1);
+  assert.equal(f.production_action_authority, 'NONE');  // §9.1:因子不直接产生生产动作
+
+  const ev = await factors.evaluateFactor('FAC-CN_A-REVERSAL5', { universe: { cap: 8 } });
+  assert.equal(ev.schema, 'FACTOR_EVALUATION_V1');
+  for (const h of [1, 3, 5]) {
+    const cell = ev.by_horizon[h];
+    assert.equal(cell.horizon_days, h);
+    assert.ok(cell.pair_count > 0, `horizon ${h} 应有可评样本`);
+    assert.ok(cell.ic_mean === null || (cell.ic_mean >= -1 && cell.ic_mean <= 1));
+    assert.ok(cell.rank_ic_mean === null || (cell.rank_ic_mean >= -1 && cell.rank_ic_mean <= 1));
+  }
+  assert.deepEqual(ev.decay.horizons, [1, 3, 5]);
+  assert.equal(ev.correlation_to_refs.status, 'NOT_IMPLEMENTED_MVP'); // 不留空对象假装覆盖
+
+  // 未实现 evaluate_factor 的市场 → 显式 UNSUPPORTED,不臆造 IC
+  const local = require('../adapters/ashare-local');
+  const { registerAdapter } = require('../adapters/registry');
+  const noFactor = { ...local, manifest: { ...local.manifest, market_id: 'CN_A_NOFACTOR' } };
+  delete noFactor.evaluate_factor;
+  registerAdapter(noFactor);
+  factors.registerFactor({
+    factor_id: 'FAC-NOFACTOR', market: 'CN_A_NOFACTOR',
+    definition: { expr: 'REVERSAL_N', params: { n: 5 } }, economic_rationale: 'x',
+    direction: 'HIGHER_IS_BETTER', horizons: [1],
+  });
+  assert.equal((await factors.evaluateFactor('FAC-NOFACTOR')).status, 'UNSUPPORTED');
+
+  // 未支持的因子表达式 fail-closed
+  factors.registerFactor({
+    factor_id: 'FAC-BAD', market: 'CN_A', definition: { expr: 'MAGIC_ALPHA' },
+    economic_rationale: 'x', direction: 'HIGHER_IS_BETTER', horizons: [1],
+  });
+  await assert.rejects(() => factors.evaluateFactor('FAC-BAD'), /FACTOR_EXPR_UNSUPPORTED/);
 });

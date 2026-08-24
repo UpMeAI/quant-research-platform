@@ -31,10 +31,39 @@ const FREEZE_FIELDS = Object.freeze([
   'changed_component', 'fixed_components',
   'dataset_snapshot_ref', 'universe', 'regime_scope', 'holding_period',
   'sample', 'costs', 'execution_model',
+  'signal_action_contract',  // §9「Signal / Action」:信号定义、bar 完成条件、动作语义
+  'drawdown_policy',         // §9「Drawdown」:MaxDD / CVaR / 恢复时间 / tail loss 口径
   'primary_metric', 'secondary_metrics', 'guardrails', 'failure_condition',
   'multiple_test_policy', 'parameter_grid', 'seed',
   'min_forward_evidence',   // §11:Forward minimum evidence 按实验预注册,不全局一刀切
 ]);
+
+/**
+ * §9 研究协议冻结表的**完整性硬校验**。
+ * 审计发现:此前冻结域缺 Signal/Action 与 Drawdown 两行,Universe 也只有采样参数、
+ * 没有历史成分/过滤规则/Survivorship 声明 —— 于是"冻结了"并不等于"§9 冻结表齐全"。
+ * 这里只要求**显式声明**,不规定取值:写 NOT_MODELLED / NO_DELISTING_IN_SAMPLE 都合法,
+ * 但不允许省略(缺失事实必须诚实写出,§18)。
+ */
+function assertProtocolCompleteness(spec) {
+  const missing = [];
+  const sac = spec.signal_action_contract;
+  if (!sac || typeof sac !== 'object') missing.push('signal_action_contract');
+  else for (const k of ['signal_definition', 'bar_completion', 'action_semantics']) {
+    if (!sac[k]) missing.push(`signal_action_contract.${k}`);
+  }
+  const dd = spec.drawdown_policy;
+  if (!dd || typeof dd !== 'object') missing.push('drawdown_policy');
+  else for (const k of ['max_drawdown', 'cvar', 'recovery_time', 'tail_loss']) {
+    if (!dd[k]) missing.push(`drawdown_policy.${k}`);
+  }
+  const uni = spec.universe;
+  if (!uni || typeof uni !== 'object') missing.push('universe');
+  else for (const k of ['membership_basis', 'filter_rules', 'survivorship_policy']) {
+    if (!uni[k]) missing.push(`universe.${k}`);
+  }
+  if (missing.length) throw new Error(`EXPERIMENT_PROTOCOL_INCOMPLETE(§9):${missing.join(',')}`);
+}
 
 // ── ResearchHypothesis(§8/§9:机制、预期改善、失败条件缺一不可) ─────────────
 function registerHypothesis(h = {}) {
@@ -99,6 +128,7 @@ function preregisterExperiment(spec = {}) {
     failure_condition: spec.failure_condition || hyp.failure_condition,
   };
   if (!Array.isArray(full.guardrails) || !full.guardrails.length) throw new Error('EXPERIMENT_MISSING_FIELD:guardrails');
+  assertProtocolCompleteness(full);   // §9 冻结表十行齐全才允许预注册
   const { frozen, freeze_hash } = freeze(FREEZE_FIELDS, full);
   const rec = {
     schema: 'EXPERIMENT_SPEC_V1',
@@ -214,7 +244,7 @@ function listExperiments() {
 const wfo = require('./wfo');
 const robustness = require('./robustness');
 module.exports = {
-  FREEZE_FIELDS,
+  FREEZE_FIELDS, assertProtocolCompleteness,
   runWalkForward: wfo.runWalkForward, wfoReportFor: wfo.wfoReportFor, WFO_LEDGER: wfo.WFO_LEDGER,
   runRobustness: robustness.runRobustness, robustnessReportFor: robustness.robustnessReportFor,
   ROBUSTNESS_LEDGER: robustness.ROBUSTNESS_LEDGER,

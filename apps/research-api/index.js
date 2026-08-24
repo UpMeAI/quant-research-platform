@@ -21,6 +21,8 @@ const controlPlane = require('../../services/strategy-control-plane');
 const binding = require('../../services/strategy-control-plane/runtime_binding');
 const migration = require('../../services/strategy-control-plane/migration');
 const runtimeStatus = require('../../services/runtime-status');
+const observability = require('../../services/observability');
+const factors = require('../../services/factor-lab');
 const { listAdapters } = require('../../adapters/registry');
 
 const WEB_DIR = path.join(__dirname, '..', 'research-web');
@@ -48,6 +50,8 @@ const views = {
       freeze_verified: experiments.verifyFreeze(e.experiment_id).ok,
     })),
     negative_results: experiments.listNegativeResults(),
+    // §9.1 Factor Lab:因子定义与基础指标(因子层无生产动作权,只作研究输入)
+    factors: factors.listFactors().map((f) => ({ ...f, evaluations: factors.evaluationsFor(f.factor_id).slice(-3) })),
   }),
 
   /** §17 Races + §10.1 Race Board:结论优先,曲线次之。 */
@@ -83,6 +87,7 @@ const views = {
   /** §17 Runtime Status(§13.1 只读回读面)。 */
   'runtime-status': async () => ({
     runtimes: await Promise.all(listAdapters().map((m) => runtimeStatus.runtimeStatus(m.market_id))),
+    health: await observability.healthReport(),   // §19 运行观测与衰减监控
   }),
 };
 

@@ -7,13 +7,15 @@
 | L0 治理与身份 | 全局 ID/哈希/状态机/审计 | `packages/domain-model` · `packages/ledger` |
 | L1 策略资产 | Family / ModuleVersion / BundleManifest | `services/strategy-registry` |
 | L2 研究工作流 | Hypothesis / ExperimentSpec(冻结) | `services/experiment-orchestrator` |
+| L2 因子 | FactorDefinition / IC / RankIC / 衰减(§9.1) | `services/factor-lab` + adapter 可选 `evaluate_factor` |
 | L3 数据与回测 | DatasetSnapshot / Backtest / WFO / 鲁棒性 | 同上(`wfo.js` · `robustness.js`)+ `adapters/*` `run_backtest` |
 | L4 赛马 | Stage/Module/Bundle Race + RaceResult | `services/race-orchestrator`(paired samples · regime breakdown) |
 | L5 影子 | Shadow Run / Virtual Ledger / 前向证据 | `services/shadow-control` |
 | L6 控制面 | PromotionCandidate / Release / Activation / Rollback | `services/strategy-control-plane` |
-| L7 市场适配 | MarketAdapter Contract(§14.1) | `packages/contracts` + `adapters/registry` + `adapters/ashare-local` |
+| L7 市场适配 | MarketAdapter Contract(§14.1) | `packages/contracts` + `adapters/registry` + `adapters/ashare-local`(演示)+ `adapters/clients`(远程,§5.2) |
 | L8 市场 Runtime(外部) | 各市场仓库(A 股 = Ashare-V5) | 本仓仅 `paper_runtime_stub`(演示 pull 协议)+ `services/runtime-status`(§13.1 只读回读) |
-| 产品面 | §17 六入口研究工作台 | `apps/research-web` + `apps/research-api` |
+| 观测 | §19 运行观测与衰减监控 | `services/observability`(随 runtime-status 视图投影) |
+| 产品面 | §17 六入口研究工作台 + §12.1 一键发布按钮 | `apps/research-web` + `apps/research-api` |
 
 ## 关键流程
 
@@ -54,8 +56,34 @@ Hypothesis(机制/预期/失败条件/primary_metric/guardrails)
 
 ### 回滚(§12.3)
 
-- OPERATIONAL:直接切回 `previous_release_ref`(前向生效,不改历史),当前 bundle RETIRED;
-- ECONOMIC:无 Founder 批准只登记 `ROLLBACK_REVIEW_TRIGGER`(研究复核),不按短期 PnL 自动回滚。
+回滚**不是只写一条台账** —— 必须真的经 §12.2 pull 协议回到 Runtime:
+
+```
+rollback(OPERATIONAL)
+  → 当前 Activation 标 ROLLED_BACK,当前 bundle RETIRED
+  → 为 previous_release_ref(真实 Release id,非 bundle ref)生成
+    ROLLBACK_RESTORE Activation(即刻生效、PENDING_RUNTIME_PULL)
+  → Runtime 拉取 → 验 release_hash → 健康检查 → ACK → 真正切回 last-known-good
+  → 切回目标不是合法 Release      → fail-closed(ROLLBACK_TARGET_NOT_A_RELEASE)
+  → 该 Runtime 此前无生效 Release → restore_status=NO_PREVIOUS_RELEASE_TO_RESTORE(不伪装成功)
+```
+
+- ECONOMIC:无 Founder 批准只登记 `ROLLBACK_REVIEW_TRIGGER`(研究复核);
+  Founder 执行经济回滚**必须先有**该复核记录,否则 `ECONOMIC_ROLLBACK_REQUIRES_PRIOR_RESEARCH_REVIEW`。
+
+### 跨仓传输面(§12.2 / §5.2 / §25)
+
+- Runtime → 平台(pull):`/api/runtime/{pending-activations,scheduled-activations,release,ack,nack}`,
+  独立 `QRP_RUNTIME_TOKEN`;平台永不 push、永不持有 broker 凭证;
+- 平台 → 市场适配器:`adapters/clients/http_market_adapter_client` 实现同一 §14.1 合同,
+  合同函数可同步可异步,平台一律 `await`。
+
+### 观测(§19)
+
+- `operationalHealth`:数据新鲜度 · 平台/Runtime 生效版本与 hash drift · 被拒激活 ·
+  Shadow 事件滞后与样本缺口 · 未决迁移裁定;只报确定性事实与年龄,不发明阈值;
+- `economicHealth`:Runtime 绩效真相拿不到即 `UNAVAILABLE`,**不以影子虚拟账本冒充**;
+  `auto_rollback_policy = NEVER` —— ACTIVE→DEGRADED 只触发 Research Review。
 
 ## MarketAdapter 合同(§14.1)
 
