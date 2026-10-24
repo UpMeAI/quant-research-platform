@@ -54,6 +54,8 @@ npm run web              # §17 六入口研究工作台(默认 http://localhost
 MVP 数据为 `SAMPLE_SYNTHETIC`(确定性合成,诚实标注)——演示平台治理与全链路,
 **不构成任何经济有效性声明**。真实 A 股数据经 Ashare-V5 `research-adapter/`(同一 §14.1 合同)接入。
 
+完整架构设计见 [`docs/SYSTEM_ARCHITECTURE_DESIGN_2026-10-23.md`](docs/SYSTEM_ARCHITECTURE_DESIGN_2026-10-23.md)。
+
 ## 目录(设计 §5.2 拓扑)
 
 ```
