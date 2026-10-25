@@ -227,8 +227,8 @@ const SCHEMAS = Object.freeze({
     production_effect: 's', locked_by: 's', lock_hash: 's', locked_at: 's',
   },
   COMPARISON_EVALUATION_LOCK_V1: {
-    _doc: 'K3 —— 外部封存的候选对比结果锁（CANDIDATE_COMPARISON_V1，Q1）：文件 sha256、所引用的 Q0 基线锁、输入序列与引擎 blob 摘要；每 case 每题只锁一次，改锁须引用缺陷',
-    result_id: 's', case_ref: 's', strategy_ref: 's', question_ref: 's', eval_class: 's', verdict_state: 's', t3_state: 's',
+    _doc: 'K3 —— 外部封存的候选对比结果锁（CANDIDATE_COMPARISON_V1，按题目 Q1／Q2…；t3_state 只有带镜像状态的题目才有）：文件 sha256、所引用的 Q0 基线锁、输入序列与引擎 blob 摘要；每 case 每题只锁一次，改锁须引用缺陷',
+    result_id: 's', case_ref: 's', strategy_ref: 's', question_ref: 's', eval_class: 's', verdict_state: 's', t3_state: 's?',
     baseline_result_id: 's', oos_reuse: 'b', file_ref: 's', file_sha256: 's', file_size: 'n', inputs_digest: 's', engine_digest: 's',
     k2_ref: 's', profile_ref: 's', supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?',
     production_effect: 's', locked_by: 's', lock_hash: 's', locked_at: 's',

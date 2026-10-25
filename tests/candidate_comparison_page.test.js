@@ -197,9 +197,9 @@ test('读模型：comparison 与 diagnosis_list 来自注入的投影；没有�
   const { baseline, comparison } = projections();
   const model = await modelOf(baseline, comparison);
   const detail = model.views['strategy-detail'];
-  assert.equal(detail.comparison.state, 'LOCKED_VERIFIED');
-  assert.equal(detail.comparison.verdict_state, 'SUPPORTED');
-  assert.match(detail.comparison.source_label, /页面不重算/);
+  assert.equal(detail.comparisons[0].state, 'LOCKED_VERIFIED');
+  assert.equal(detail.comparisons[0].verdict_state, 'SUPPORTED');
+  assert.match(detail.comparisons[0].source_label, /页面不重算/);
   const item = detail.diagnosis_list.items.find((entry) => entry.experiment && entry.experiment.id === 'Q1');
   assert.equal(item.experiment.status, '已完成：有支持证据（见研究与对比）');
   assert.deepEqual(item.link, { label: '查看研究与对比', section: 'research', strategy_ref: STRATEGY });
@@ -208,6 +208,6 @@ test('读模型：comparison 与 diagnosis_list 来自注入的投影；没有�
   fs.rmSync(q1.LEDGER(), { force: true });
   q1.clearCache();
   const real = await workspace.readModel({ strategyRef: STRATEGY, baseline });
-  assert.equal(real.views['strategy-detail'].comparison.state, 'NOT_IMPORTED');
-  assert.equal(real.views['strategy-detail'].comparison.reason, '研究会话尚未交付封存的对比结果');
+  assert.equal(real.views['strategy-detail'].comparisons[0].state, 'NOT_IMPORTED');
+  assert.equal(real.views['strategy-detail'].comparisons[0].reason, '研究会话尚未交付封存的对比结果');
 });
