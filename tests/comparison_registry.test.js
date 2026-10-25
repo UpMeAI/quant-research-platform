@@ -39,10 +39,10 @@ const setCriteria = (doc, name, value) => { doc.comparison.criteria[name] = valu
 
 // ── 登记项本身 ──────────────────────────────────────────────────────────────────
 
-test('登记项：按题目 id 登记，队列顺序 Q1、Q2；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
-  assert.deepEqual(cc.ORDER, ['Q1', 'Q2']);
-  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2']);
-  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 2, 'schema 唯一');
+test('登记项：按题目 id 登记，队列顺序 Q1、Q2、Q3；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
+  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3']);
+  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2', 'Q3']);
+  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 3, 'schema 唯一');
   for (const entry of Object.values(cc.QUESTIONS)) {
     assert.equal(sha256File(entry.k2.ref), entry.k2.sha256, `${entry.question_ref} 的 K2 sha256 要等于冻结文件的实际 sha256`);
     assert.ok(fs.existsSync(path.join(ROOT, entry.profile_ref)), `${entry.question_ref} 的导入规格文件存在：${entry.profile_ref}`);
@@ -119,6 +119,28 @@ test('真实的 Q1 封存文件：同一个 result_id、同一份锁字段、同
   // 也走自动判断：不指定题目，按 identity.schema 找到 Q1
   assert.equal(cc.readSealed(q1File).entry, Q1);
   assert.equal(cc.readSealed(q1File, { question: 'Q1' }).entry, Q1);
+});
+
+test('真实的 Q2 封存文件：同一个 result_id、同一份锁字段、同一份投影（对照 Q3 登记项加入之前导出的金标）', () => {
+  const q0File = path.join(ROOT, 'var/evidence/us-v5-m2-q0-current-2026-10-25/US_V5_M2_Q0_RESULT_V1.json');
+  const q2File = path.join(ROOT, 'var/evidence/us-v5-m2-q2-2026-10-25/US_V5_M2_Q2_RESULT_V1.json');
+  for (const ledger of [q0.LEDGER(), cc.LEDGER()]) fs.rmSync(ledger, { force: true });
+  q0.importBaselineEvaluation(q0File, { registeredBy: AUTHORITY });
+  const lock = cc.importCandidateComparison(q2File, { registeredBy: AUTHORITY });
+  const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'golden', 'q2_real_projection.json'), 'utf8'));
+  assert.equal(lock.result_id, 'Q2-02796a4366aa0263');
+  assert.equal(lock.result_id, golden.result_id);
+  assert.deepEqual(Object.keys(lock).sort(), golden.lock_keys);
+  assert.equal(lock.question_ref, 'Q2');
+  assert.equal(lock.verdict_state, 'INSUFFICIENT');
+  assert.equal(lock.t3_state, null);
+  assert.equal(lock.profile_ref, 'docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md');
+  assert.equal(cc.importCandidateComparison(q2File, { registeredBy: AUTHORITY }).replayHit, true);
+  const projection = cc.buildProjection(lock, { question: 'Q2' });
+  const normalized = { ...projection, source: { ...projection.source, file_ref: '<path>', locked_at: '<t>', locked_by: '<who>' } };
+  assert.deepEqual(normalized, golden.projection, 'Q2 的投影必须与改造前逐字段相同');
+  assert.equal(projection.extra_cards, undefined, 'Q2 没有额外卡片');
+  assert.equal(cc.readSealed(q2File).entry, Q2);
 });
 
 // ── Q2 的登记项 ─────────────────────────────────────────────────────────────────

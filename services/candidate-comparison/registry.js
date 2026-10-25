@@ -7,8 +7,9 @@
  */
 const { Q1 } = require('./questions/q1');
 const { Q2 } = require('./questions/q2');
+const { Q3 } = require('./questions/q3');
 
-const QUESTIONS = Object.freeze({ Q1, Q2 });
+const QUESTIONS = Object.freeze({ Q1, Q2, Q3 });
 /** 队列顺序：页面上每个已锁定的题目一张卡，按这个顺序排。 */
 const ORDER = Object.freeze(Object.values(QUESTIONS).sort((a, b) => a.queue_order - b.queue_order).map((entry) => entry.question_ref));
 const DEFAULT_QUESTION = 'Q1'; // 改造前唯一的一题；没有别的提示时错误码与空状态都按它

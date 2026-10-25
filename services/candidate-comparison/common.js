@@ -257,6 +257,36 @@ function armSummaries(entry, doc) {
   });
 }
 
+/**
+ * 只报不判的参照臂（登记项 `reference_arms`，例如 Q3 的 15 只 1× 多头等权买入持有）：
+ * 位置在顶层 `reference_arms.<键>` 或 `arms.<键>`；页面上的名字和说明用登记项的固定写法，不取文件里的标签。
+ * 读不出来只让这一行写原因，不让账户块整块失败。
+ */
+const referenceArmOf = (spec, doc) => (isObject(doc.reference_arms) && isObject(doc.reference_arms[spec.key]) ? doc.reference_arms[spec.key]
+  : (isObject(doc.arms) && isObject(doc.arms[spec.key]) ? doc.arms[spec.key] : null));
+
+function referenceRows(entry, doc) {
+  return entry.reference_arms.map((spec) => {
+    const row = { key: spec.key, label: spec.label_zh, note_zh: spec.note_zh, report_only: true };
+    try {
+      const arm = referenceArmOf(spec, doc);
+      need(isObject(arm), 'MISSING', `reference_arms.${spec.key}`);
+      const summary = arm.summary;
+      need(isObject(summary), 'MISSING', `reference_arms.${spec.key}.summary`);
+      const end = field(summary, 'end_capital', `reference_arms.${spec.key}.summary.end_capital`);
+      if (isObject(arm.equity) && Array.isArray(arm.equity.values) && arm.equity.values.length) {
+        need(Math.abs(end - arm.equity.values[arm.equity.values.length - 1]) <= 1e-6 * Math.max(1, Math.abs(end)), 'INVALID', `reference_arms.${spec.key}.summary.end_capital 与权益序列末点不一致`);
+      }
+      return {
+        ...row, end_capital: end, cagr: field(summary, 'cagr', `reference_arms.${spec.key}.summary.cagr`),
+        max_drawdown: field(summary, 'max_drawdown', `reference_arms.${spec.key}.summary.max_drawdown`),
+        longest_underwater_sessions: field(summary, 'longest_underwater_sessions', `reference_arms.${spec.key}.summary.longest_underwater_sessions`),
+        recovered: field(summary, 'recovered', `reference_arms.${spec.key}.summary.recovered`, 'bool'),
+      };
+    } catch (error) { return { ...row, unavailable_zh: reasonText(error) }; }
+  });
+}
+
 function accountBlock(entry, doc) {
   const arms = armSummaries(entry, doc); // 四个臂都校验过；对比卡只列原版与候选（D3.2），基准在回测结论卡
   const base = arms[0];
@@ -268,6 +298,7 @@ function accountBlock(entry, doc) {
       max_drawdown_pp: (cand.max_drawdown - base.max_drawdown) * 100,
       longest_underwater_sessions: cand.longest_underwater_sessions - base.longest_underwater_sessions,
     },
+    ...(entry.reference_arms ? { reference_arms: referenceRows(entry, doc) } : {}),
   };
 }
 
@@ -308,5 +339,5 @@ module.exports = {
   BASE_KEYS, SUMMARY_KEYS, ARM_NUMBERS, ADOPTION_STRESS, E, pick, bound, firstFinite, fmtR, fmtPct, fmtUsd, edgeLabel,
   resolveReasons, plainNumbers, pct1, rText, forwardSentence,
   flagOf, criteriaOf, baselineIdOf, forwardRows, forwardReason, forwardBlock, candidateArmMissing, incompleteStressScenarios,
-  stressBlock, armSummaries, accountBlock, linesOf,
+  stressBlock, armSummaries, accountBlock, referenceArmOf, linesOf,
 };

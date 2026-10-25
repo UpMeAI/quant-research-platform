@@ -26,6 +26,7 @@ const { createServer } = require('../apps/research-api');
 const fx0 = require('./_q0_fixture');
 const fx1 = require('./_q1_fixture');
 const fx2 = require('./_q2_fixture');
+const fx3 = require('./_q3_fixture');
 
 const STRATEGY = q0.STRATEGY_REF;
 const CHROME = [process.env.QRP_TEST_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
@@ -107,6 +108,20 @@ function seed() {
     doc.verdict.fail_label = `数据充分度：${LONG}`;
   });
   q1.importCandidateComparison(sealed(q2Doc, 'Q2.json'), { registeredBy: AUTHORITY });
+  // Q3 的主卡与随机对照卡：问题、候选、样本外理由、前向原因、选择点定义、种子规则、分位数名字里都放长代码
+  const q3Doc = fx3.result(q0Doc, q0Lock.file_sha256, q0Lock.result_id, (doc) => {
+    doc.comparison.question_zh = `问题：${LONG}`;
+    doc.comparison.candidate_label_zh = `候选：${LONG}`;
+    doc.oos_reuse_detail = { reason_zh: `理由：${LONG}`, same_rule_zh: `同一规则：${LONG}` };
+    doc.forward.reason_zh = `前向：${LONG}`;
+    for (const target of [doc.random_control, doc.random_control.random_instrument]) {
+      target.choice_points.definition_zh = `定义：${LONG}`;
+      target.seeds.rule = `规则：${LONG}`;
+      target.distribution.g = { ...target.distribution.g, [LONG]: 0.01 };
+    }
+    doc.verdict.fail_label = `数据充分度：${LONG}`;
+  });
+  q1.importCandidateComparison(sealed(q3Doc, 'Q3.json'), { registeredBy: AUTHORITY });
 }
 
 /** 必须异步起浏览器：服务就在本进程里，同步等待会让浏览器永远拿不到页面。 */
@@ -146,7 +161,7 @@ test('手机宽度 360 与 390 px：七页路由（含策略详情各章）都�
       assert.equal(rows.length, ROUTES.length);
       for (const row of rows) {
         assert.ok(row.rendered && row.text > 200, `${row.route} @${width} 没有渲染出页面`);
-        if (row.route.startsWith('#strategy-detail')) assert.equal(row.cards, 2, `${row.route} @${width} 应有 Q1、Q2 两张对比卡`);
+        if (row.route.startsWith('#strategy-detail')) assert.equal(row.cards, 4, `${row.route} @${width} 应有 Q1、Q2、Q3 三张对比卡加一张随机对照卡`);
         assert.ok(row.scrollWidth <= row.clientWidth, `${row.route} @${width}px：整页横向宽度 ${row.scrollWidth} > ${row.clientWidth}`);
         assert.equal(row.clientWidth, width);
       }
