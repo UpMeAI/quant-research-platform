@@ -14,6 +14,7 @@ beforeEach(() => { fs.rmSync(k3.LEDGER(), { force: true }); k3.clearCache(); });
 
 const imp = (file, extra = {}) => k3.importBaselineEvaluation(file, { registeredBy: AUTHORITY, allowNonActual: true, ...extra });
 const reader = () => k3.createProjectionReader({ build: (lock) => k3.buildProjection(lock, { allowNonActual: true }) });
+const STRESS_NUMBERS = ['max_loss_usd', 'longest_underwater_sessions', 'recovered', 'end_capital'];
 const mutate = (fn) => write(result((doc) => { fn(doc); return doc; }));
 
 test('尚未导入：整卡是「尚未回测」和原因，不是证据不足，也不用 0 补位', () => {
@@ -51,6 +52,12 @@ test('导入：封存校验、结果锁、输入与引擎摘要；同一文件�
   assert.deepEqual(account.arms.map((arm) => arm.label), ['本策略', 'SPY 买入持有', '现金']);
   const stress = projection.blocks.find((block) => block.key === 'stress').data;
   assert.equal(stress.rows.find((row) => row.simulated).note, '模拟序列，不是可交易历史');
+  assert.deepEqual(stress.headline, { scenario: 'REPLAY_2020_02_19_2020_04_30', label: '区间重放：2020-02-19 至 2020-04-30', max_loss_usd: 900 });
+  assert.deepEqual(stress.counts, { executed: 2, simulated: 1, missing: 1 });
+  const missing = stress.rows.find((row) => row.missing);
+  assert.equal(missing.missing_reason, '2007–2009 行业 ETF 日线在 Mac 与 HK 均无，按 Owner 规则不重新拉取');
+  assert.equal(missing.simulated, false);
+  assert.ok(STRESS_NUMBERS.every((key) => missing[key] === null));
   const kelly = projection.blocks.find((block) => block.key === 'kelly').data;
   assert.equal(kelly.supported, true);
   assert.equal(kelly.floor_usd, 1800);
@@ -182,4 +189,31 @@ test('投影缓存：文件指纹或锁变化立即重建，未变时成功结�
   assert.equal(builds, 3);
   clock += 1000; r.read();
   assert.equal(builds, 4);
+});
+
+test('F1 缺场景的压力行：不让文件失败，不进「最大损失」，不计为已执行；有数字、缺原因、simulated 为真则该块无效', () => {
+  const lock = imp(write());
+  assert.equal(lock.verdict_state, 'INSUFFICIENT');
+  const stress = (patch) => {
+    fs.rmSync(k3.LEDGER(), { force: true });
+    imp(mutate((doc) => patch(doc.stress.rows)));
+    return k3.buildProjection(k3.headLock(k3.CASE_REF), { allowNonActual: true }).blocks.find((block) => block.key === 'stress');
+  };
+  // 缺场景行带了数字：数字不能用 0 或估计值补位
+  const withNumber = stress((rows) => { rows[3].max_loss_usd = 0; });
+  assert.equal(withNumber.state, 'NOT_BACKTESTED');
+  assert.match(withNumber.reason, /缺场景行的数字必须是 null/);
+  assert.match(stress((rows) => { delete rows[3].missing_reason; }).reason, /missing_reason/);
+  assert.match(stress((rows) => { rows[3].simulated = true; }).reason, /缺场景行须 simulated:false/);
+  // 只剩模拟与缺场景：最大损失写「尚无」，不拿模拟序列顶替
+  const none = stress((rows) => { rows.splice(0, 2); });
+  assert.equal(none.state, 'AVAILABLE');
+  assert.equal(none.data.headline, null);
+  assert.deepEqual(none.data.counts, { executed: 0, simulated: 1, missing: 1 });
+  // 最大损失取已执行行里最大的一行，模拟行再大也不进主数字
+  const biggest = stress((rows) => { rows[0].max_loss_usd = 1500; });
+  assert.equal(biggest.data.headline.scenario, 'FEES_15BPS');
+  assert.equal(biggest.data.headline.max_loss_usd, 1500);
+  // 非缺场景的熊市行仍要求标模拟；缺场景行不要求
+  assert.throws(() => imp(mutate((doc) => { doc.stress.rows[2].simulated = false; })), /Q0_STRESS_SIMULATED_NOT_FLAGGED/);
 });

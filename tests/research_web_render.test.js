@@ -116,6 +116,14 @@ test('有封存结果时：结论、主数字及区间、六块数字全部来�
     '模拟序列，不是可交易历史', '极端熊市', '按区间下沿计算的半凯利比例', '研究计算，不是仓位建议；现行仓位规则不变',
     '按半凯利定仓', '按现行固定 60 美元风险', '按月分块 bootstrap 95%']) assert.ok(card.includes(text), text);
   assert.match(card, /跌破 [^<]*1,800[^<]*的概率/);
+  const stress = html.slice(html.indexOf('data-block="stress"'), html.indexOf('data-block="kelly"'));
+  assert.match(stress, /最大损失：<strong>[^<]*900[^<]*<\/strong>（场景：区间重放：2020-02-19 至 2020-04-30）/);
+  assert.match(stress, /缺场景：2007–2009 行业 ETF 日线在 Mac 与 HK 均无，按 Owner 规则不重新拉取/);
+  assert.match(stress, /已执行 2 个，模拟 1 个，缺场景 1 个/);
+  assert.match(stress, /规则边界情景：只含 SPY \/ QQQ 合成载体/);
+  assert.equal((stress.match(/class="missing-scenario"/g) || []).length, 1);
+  const missingRow = /<tr class="missing-scenario">[\s\S]*?<\/tr>/.exec(stress)[0];
+  assert.doesNotMatch(missingRow, /US\$|个 session|已恢复|未恢复/, '缺场景行不显示任何数字或恢复状态');
   assert.match(html, /待验证，不是结论/);
   assert.match(html, /对应实验：<\/strong>Q1 · T3/);
   assert.match(html, /不立题：<\/strong>相位是执行条件/);
