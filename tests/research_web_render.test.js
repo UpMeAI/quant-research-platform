@@ -112,14 +112,14 @@ test('有封存结果时：结论、主数字及区间、六块数字全部来�
   assert.match(html, /最大的限制：/);
   const card = html.slice(html.indexOf('class="backtest'), html.indexOf('id="diagnosis-title"'));
   assert.doesNotMatch(card, /尚未回测：/);
-  for (const text of ['开发期 A', '样本外', '本策略', 'SPY 买入持有', '现金', '生产相位', '相位 +60 分钟', '公式推算，不是回测',
+  for (const text of ['开发期 A', '样本外', '本策略', 'SPY 买入持有', '现金', '生产相位', '相位 ±60 分钟', '落在同一组时刻', '公式推算，不是回测',
     '模拟序列，不是可交易历史', '极端熊市', '按区间下沿计算的半凯利比例', '研究计算，不是仓位建议；现行仓位规则不变',
     '按半凯利定仓', '按现行固定 60 美元风险', '按月分块 bootstrap 95%']) assert.ok(card.includes(text), text);
   assert.match(card, /跌破 [^<]*1,800[^<]*的概率/);
   const stress = html.slice(html.indexOf('data-block="stress"'), html.indexOf('data-block="kelly"'));
   assert.match(stress, /最大损失：<strong>[^<]*900[^<]*<\/strong>（场景：区间重放：2020-02-19 至 2020-04-30）/);
   assert.match(stress, /缺场景：2007–2009 行业 ETF 日线在 Mac 与 HK 均无，按 Owner 规则不重新拉取/);
-  assert.match(stress, /已执行 2 个，模拟 1 个，缺场景 1 个/);
+  assert.match(stress, /已执行 2 个，模拟或补充 1 个，缺场景 1 个，无效输入 0 个/);
   assert.match(stress, /规则边界情景：只含 SPY \/ QQQ 合成载体/);
   assert.equal((stress.match(/class="missing-scenario"/g) || []).length, 1);
   const missingRow = /<tr class="missing-scenario">[\s\S]*?<\/tr>/.exec(stress)[0];
@@ -130,6 +130,27 @@ test('有封存结果时：结论、主数字及区间、六块数字全部来�
   assert.equal((html.match(/data-block=/g) || []).length, 6);
   const main = mainContent(html);
   for (const pattern of FORBIDDEN) assert.doesNotMatch(main, pattern, String(pattern));
+});
+
+test('压力块：缺场景、无效输入各一行写原因，补充行标模拟，压力结论与研究会话原文可见，最大损失不含它们', async () => {
+  const html = await renderPage(await model(fixtureProjection((doc) => {
+    doc.stress = { rows: [
+      { scenario: 'PHASE', label: '扫描相位 ±60 分钟', max_loss_usd: 1083.5614, longest_underwater_sessions: 589, recovered: false, end_capital: 2374, simulated: false },
+      { scenario: 'W2020', label: '区间重放 2020', status: 'INVALID_INPUT', simulated: false, max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, reason: '没有载体通过流动性底线' },
+      { scenario: 'BEAR_2008', label: '极端熊市 2008：缺场景', status: 'MISSING_SCENARIO', simulated: true, max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, reason: '行业 ETF 日线均无' },
+      { scenario: 'BEAR_SUPPLEMENT', label: '规则边界情景（补充）', status: 'SUPPLEMENTARY_NOT_IN_CONCLUSION', simulated: true, in_headline: false, max_loss_usd: 2000, longest_underwater_sessions: 100, recovered: false, end_capital: 900 },
+    ], conclusion: 'incomplete' };
+    return doc;
+  })));
+  const stress = html.slice(html.indexOf('data-block="stress"'), html.indexOf('data-block="kelly"'));
+  assert.match(stress, /最大损失：<strong>[^<]*1,084[^<]*<\/strong>（场景：扫描相位 ±60 分钟）/);
+  assert.match(stress, /无效输入：没有载体通过流动性底线/);
+  assert.match(stress, /缺场景：行业 ETF 日线均无/);
+  assert.equal((stress.match(/class="missing-scenario"/g) || []).length, 2);
+  assert.match(stress, /已执行 1 个，模拟或补充 1 个，缺场景 1 个，无效输入 1 个/);
+  assert.match(stress, /压力结论：<\/strong>压力评价不完整：缺场景 1 个、无效输入 1 个/);
+  assert.match(stress, /研究会话的原文/);
+  assert.doesNotMatch(stress, /最大损失：<strong>[^<]*2,000/);
 });
 
 test('半凯利为 0 时写「不支持按凯利加仓」；缺一块只让该块写原因，其他块照常', async () => {
