@@ -125,7 +125,7 @@ test('主数字：账户对比、受影响交易改善（主 S／次 B）、判�
   assert.match(main, /34 笔/);
   assert.match(main, /\+0\.31 R/);
   assert.match(main, /98\.33% 区间（主判据）/);
-  assert.match(main, /账户年化对数增长差<\/dt><dd>2\.10%/);
+  assert.match(main, /候选相对原版的年化对数增长差<\/dt><dd>2\.10%/);
   for (const key of ['G1', 'P1', 'P2', 'P3', 'P4', 'F1', 'F2', 'F3']) assert.ok(main.includes(`<strong>${key} · `), key);
   assert.equal((main.match(/>成立</g) || []).length, 5);
   assert.equal((main.match(/>未触发</g) || []).length, 3);
@@ -160,7 +160,11 @@ test('有结论后：问题清单里 Q1 一条写「已完成：结论」并链�
   const q0Card = (html) => html.slice(html.indexOf('<section class="backtest" aria-labelledby="backtest-title">'), html.indexOf('id="diagnosis-title"'));
   assert.equal(q0Card(withQ1), q0Card(without));
   assert.deepEqual([...withQ1.matchAll(/data-block="(\w+)"/g)].map((m) => m[1]), ['period', 'account', 'winrate', 'stress', 'kelly', 'verdict']);
-  assert.equal(withQ1.slice(0, withQ1.indexOf('id="detail-research"')).replace(diagnosis, ''), without.slice(0, without.indexOf('id="detail-research"')).replace(without.slice(without.indexOf('id="diagnosis-title"'), without.indexOf('id="detail-health"')), ''));
+  // A4 D4：页头的研究问题标签随锁定状态改写（有锁定写「Q1 已锁定」，没有才写「暂无研究问题」）；除此之外页头与前几节逐字相同
+  const head = (html, list) => html.slice(0, html.indexOf('id="detail-research"')).replace(list, '').replace(/<span class="pill [a-z]*">(?:研究问题：[^<]*|已接入，暂无研究问题)<\/span>/, '<span PILL>');
+  assert.match(withQ1, /<span class="pill info">研究问题：Q1 已锁定；(?:Q\d、)*Q\d 进行中[^<]*尚未回到 Desk<\/span>|<span class="pill info">研究问题：Q1 已锁定；尚未回到 Desk<\/span>/);
+  assert.match(without, /已接入，暂无研究问题/);
+  assert.equal(head(withQ1, diagnosis), head(without, without.slice(without.indexOf('id="diagnosis-title"'), without.indexOf('id="detail-health"'))));
 });
 
 test('文件校验失败：整节写「尚未完成：结果文件校验失败」，不显示任何数字；问题清单不写「已完成」', async () => {
@@ -199,7 +203,8 @@ test('读模型：comparison 与 diagnosis_list 来自注入的投影；没有�
   const detail = model.views['strategy-detail'];
   assert.equal(detail.comparisons[0].state, 'LOCKED_VERIFIED');
   assert.equal(detail.comparisons[0].verdict_state, 'SUPPORTED');
-  assert.match(detail.comparisons[0].source_label, /页面不重算/);
+  assert.equal(detail.comparisons[0].source_label, undefined, 'A4 D3.4：来源说明由研究区开头统一写一次');
+  assert.match(detail.research.source_label, /页面不重算/);
   const item = detail.diagnosis_list.items.find((entry) => entry.experiment && entry.experiment.id === 'Q1');
   assert.equal(item.experiment.status, '已完成：有支持证据（见研究与对比）');
   assert.deepEqual(item.link, { label: '查看研究与对比', section: 'research', strategy_ref: STRATEGY });

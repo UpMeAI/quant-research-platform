@@ -131,10 +131,10 @@ test('Q2 卡的主内容：优势结论写「完整账户的对数增长更好�
 test('Q2 卡的内容：g 的 95% 区间、次指标对 +0.10 R（不参与判定）、路由与单股 2×、两臂敞口表、判据三条', async () => {
   const { baseline, cards } = projections();
   const q2 = mainContent(cardOf(researchSection(await renderPage(await modelOf(baseline, cards))), '候选对比：1× 载体对原版（收益来自信号还是杠杆）'));
-  assert.match(q2, /<dt>账户年化对数增长差（主判据）<\/dt><dd>2\.10%（95% 区间 0\.40% 至 3\.90%）<\/dd>/);
+  assert.match(q2, /<dt>候选相对原版的年化对数增长差（主判据）<\/dt><dd>2\.10%（95% 区间 0\.40% 至 3\.90%）<\/dd>/);
   assert.match(q2, /年化对数增长差按共同日标记配对，按月分块 bootstrap；单变体，不做多重比较校正/);
   assert.doesNotMatch(q2, /98\.33%|Bonferroni（|最低改善量/);
-  assert.match(q2, /候选臂自身的每笔净 R（字面口径）/);
+  assert.match(q2, /每笔扣费后净 R 均值（门槛 \+0\.10 R，候选臂自身）/);
   assert.match(q2, /两臂同一信号都开仓的逐笔配对 ΔR（描述）/);
   assert.match(q2, /95% 区间跨过 \+0\.10 R/);
   assert.match(q2, /次指标不参与判定，只报告/);
@@ -226,7 +226,8 @@ test('读模型：comparisons 是按队列排的卡片列表；单个投影也�
   const model = await modelOf(baseline, cards);
   const list = model.views['strategy-detail'].comparisons;
   assert.deepEqual(list.map((card) => [card.question_ref, card.state, card.verdict_state]), [['Q1', 'LOCKED_VERIFIED', 'SUPPORTED'], ['Q2', 'LOCKED_VERIFIED', 'SUPPORTED']]);
-  assert.ok(list.every((card) => /页面不重算/.test(card.source_label)));
+  assert.ok(list.every((card) => card.source_label === undefined), 'A4 D3.4：「页面不重算」只在研究区开头写一次，卡片不再各带一份');
+  assert.match(model.views['strategy-detail'].research.source_label, /页面不重算/);
   assert.equal(model.views['strategy-detail'].comparison, undefined);
   const single = await modelOf(baseline, cards[1]);
   assert.deepEqual(single.views['strategy-detail'].comparisons.map((card) => card.question_ref), ['Q2']);

@@ -105,7 +105,16 @@ test('真实的 Q1 封存文件：同一个 result_id、同一份锁字段、同
   const { title_zh: title, ...rest } = projection;
   assert.equal(title, '候选对比：T3 对原版');
   const normalized = { ...rest, source: { ...rest.source, file_ref: '<path>', locked_at: '<t>', locked_by: '<who>' } };
-  assert.deepEqual(normalized, golden.projection, '改造后的 Q1 投影必须与改造前逐字段相同（只多了 title_zh）');
+  // UX 修订 4 只改呈现：投影里新增 A4 字段（判定依据、前向人话、与参照相同、基准提示），账户块只留原版与候选两臂；
+  // 其余每个数字、标签、状态、结果编号都必须与改造前导出的金标逐字段相同。
+  const A4_ADDED = new Set(['benchmark_note_zh', 'same_as_reference', 'basis', 'unknown_reason_codes', 'plain_zh']);
+  const stripA4 = (value) => (Array.isArray(value) ? value.map(stripA4)
+    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => !A4_ADDED.has(key)).map(([key, item]) => [key, stripA4(item)])) : value);
+  const goldenProjection = JSON.parse(JSON.stringify(golden.projection));
+  const goldenAccount = goldenProjection.blocks.find((item) => item.key === 'account').data;
+  assert.deepEqual(goldenAccount.arms.map((arm) => arm.key), ['BASELINE', 'CANDIDATE_T3', 'SPY_BUY_HOLD', 'CASH'], '金标是改造前导出的，四臂俱在');
+  goldenAccount.arms = goldenAccount.arms.slice(0, 2);
+  assert.deepEqual(stripA4(normalized), goldenProjection, 'A4 之后的 Q1 投影，去掉新增的呈现字段与基准两臂，必须与改造前逐字段相同（只多了 title_zh）');
   assert.ok(projection.blocks.every((item) => item.state === 'AVAILABLE'));
   // 也走自动判断：不指定题目，按 identity.schema 找到 Q1
   assert.equal(cc.readSealed(q1File).entry, Q1);
@@ -152,7 +161,7 @@ test('Q2 的页面投影：九块按固定顺序；优势结论写「完整账�
   assert.equal(projection.completeness.adoption_met, false);
 
   const account = block(projection, 'account').data;
-  assert.deepEqual(account.arms.map((arm) => [arm.key, arm.label]), [['BASELINE', '原版（当前 D）'], ['CANDIDATE_1X', '候选 1× 载体'], ['SPY_BUY_HOLD', 'SPY 买入持有'], ['CASH', '现金']]);
+  assert.deepEqual(account.arms.map((arm) => [arm.key, arm.label]), [['BASELINE', '原版（当前 D）'], ['CANDIDATE_1X', '候选 1× 载体']]);
   assert.ok(account.arms.every((arm) => arm.deferred_sessions === null));
   const question = block(projection, 'question').data;
   assert.deepEqual(question.populations, []);

@@ -290,6 +290,47 @@ function linkComparison(diagnosis, comparisons, strategyRef) {
   };
 }
 
+/**
+ * D4（UX 修订 4）：研究区的状态必须和已锁定的对比结果一致。
+ * 「研究问题：Q1、Q2 已锁定；Q3、Q4 进行中（来源：Q0 诊断，协调会话立题）；尚未回到 Desk」——
+ * 已锁定的取自对比结果的锁；其余取自 Q0 诊断清单里已立题的实验（QRP 只知道「已立题、未锁定」，写作「进行中」）。
+ * 没有任何已锁定的对比结果时返回 null，页面保持原来的写法。
+ */
+function researchSummary(comparisons, diagnosis, returnedToDesk) {
+  const locked = comparisons.filter((card) => card.state === 'LOCKED_VERIFIED').map((card) => card.question_ref);
+  const broken = comparisons.filter((card) => card.state === 'INVALID' || card.state === 'MISSING').map((card) => card.question_ref);
+  if (!locked.length && !broken.length) return null;
+  const proposed = [...new Set((diagnosis && diagnosis.state === 'AVAILABLE' ? diagnosis.items : [])
+    .map((item) => item.experiment && item.experiment.id).filter(Boolean))].sort();
+  const have = new Set([...locked, ...broken]);
+  const running = proposed.filter((id) => !have.has(id));
+  const parts = [];
+  if (locked.length) parts.push(`${locked.join('、')} 已锁定`);
+  if (broken.length) parts.push(`${broken.join('、')} 已有封存结果但校验未通过`);
+  if (running.length) parts.push(`${running.join('、')} 进行中（来源：Q0 诊断，协调会话立题）`);
+  parts.push(returnedToDesk ? `已有 ${returnedToDesk} 项回到 Desk` : '尚未回到 Desk');
+  return `研究问题：${parts.join('；')}`;
+}
+
+/** HK 前向影子的行已经被某个锁定结果读入时，状态写「已在 Q1 结果中读入 N 行（只报不判）」，不写「尚未导入」。 */
+function annotateHkItems(items, comparisons) {
+  return items.map((item) => {
+    if (!item.forward_stream) return item;
+    const readers = comparisons.filter((card) => card.state === 'LOCKED_VERIFIED').map((card) => {
+      const block = (card.blocks || []).find((entry) => entry.key === 'forward');
+      const rows = block && block.state === 'AVAILABLE' ? block.data.rows.filter((row) => row.stream === item.forward_stream) : [];
+      return rows.length ? { question: card.question_ref, rows: rows.length } : null;
+    }).filter(Boolean);
+    if (!readers.length) return item;
+    return { ...item, state_label: readers.map((reader) => `已在 ${reader.question} 结果中读入 ${reader.rows} 行（只报不判）`).join('；'), read_into: readers };
+  });
+}
+const notImported = (items) => items.filter((item) => item.import_state === 'RUNNING_ON_HK_NOT_IMPORTED' && !item.read_into).length;
+const readIn = (items) => items.filter((item) => item.read_into).length;
+const hkSentence = (items, suffix = '') => `HK 上已在跑 ${items.length} 条前向影子（${[
+  readIn(items) ? `${readIn(items)} 条已在对比结果中读入，只报不判` : null, notImported(items) ? `${notImported(items)} 条尚未导入${suffix}` : null,
+].filter(Boolean).join('；') || '状态见下'}）`;
+
 async function readModel({
   caseRef = null, strategyRef = null, diagnostic: suppliedDiagnostic, baseline: suppliedBaseline, comparison: suppliedComparison,
 } = {}) {
@@ -362,6 +403,9 @@ async function readModel({
   })));
   const selectedLinks = primary?.links || [];
   const selectedLockedLinks = selectedLinks.filter((item) => item.has_locked_result);
+  const researchText = researchSummary(comparisonProjections, baselineProjection.diagnosis, selectedLockedLinks.length);
+  // 页头标签、概览卡片和研究区开头读同一个对象：有已锁定的对比结果就写实际状态，不再写「暂无研究问题」
+  if (researchText && selectedStrategy) selectedStrategy.research = { ...selectedStrategy.research, code: 'RESULT_LOCKED', label: researchText };
   const lockedLinks = globalLinks.filter((item) => item.has_locked_result);
   const linkedExperimentIds = new Set((selectedCurrentCase?.links || []).map((link) => link.experiment_ref).filter(Boolean));
   const selectedForward = shadowRuns.filter((item) => linkedExperimentIds.has(item.experiment_ref));
@@ -371,6 +415,7 @@ async function readModel({
   const hkGlobal = directory.strategies
     .flatMap((strategy) => hkForward.forStrategy(strategy.strategy_ref, { shadowRuns }).items.map((item) => ({ ...item, strategy_name: strategy.name })))
     .filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index);
+  const hkGlobalView = annotateHkItems(hkGlobal, comparisonProjections);
 
   const marketCoverage = MARKET_CATALOG.map((market) => {
     const marketStrategies = directory.strategies.filter((item) => market.aliases.includes(item.market_ref));
@@ -446,7 +491,7 @@ async function readModel({
 
   const hkForwardForSelected = selectedStrategyRef
     ? hkForward.forStrategy(selectedStrategyRef, { shadowRuns }) : { state: 'AVAILABLE', items: [], verified_at: null };
-  const hkItems = hkForwardForSelected.items;
+  const hkItems = annotateHkItems(hkForwardForSelected.items, comparisonProjections);
   const strategyDetail = {
     question: '这项 Desk 策略现在如何运行、证据是否完整、Research 与复盘走到哪里？',
     state: selectedStrategy ? selectedStrategy.lifecycle.code : 'UNKNOWN_STRATEGY',
@@ -466,13 +511,11 @@ async function readModel({
     },
     backtest: {
       state: baselineProjection.state, reason: baselineProjection.reason || null,
-      source_label: '数据来自 QRP 导入并锁定的封存回测结果，页面不重算',
       blocks: baselineProjection.blocks, source: baselineProjection.source,
     },
     diagnosis_list: linkComparison(baselineProjection.diagnosis, comparisonProjections, selectedStrategyRef),
     comparisons: comparisonProjections.map((projection) => ({
       question: '原版和候选放在同一账户里比，候选有没有更好？',
-      source_label: '数据来自 QRP 导入并锁定的封存对比结果，页面不重算',
       ...projection,
     })),
     recent_run: {
@@ -481,10 +524,15 @@ async function readModel({
       summary: selectedHealth ? selectedHealth.summary : null,
     },
     research: {
-      state: selectedLinks.length ? 'HAS_RESEARCH_QUESTION' : (primary ? 'EMPTY' : noCase.state),
-      answer: selectedLinks.length
-        ? `已关联 ${selectedLinks.length} 个 Desk 研究问题。`
-        : primary ? '已接入 Research，但 Desk 尚未登记真实研究问题。' : noCase.summary,
+      state: selectedLinks.length ? 'HAS_RESEARCH_QUESTION' : (researchText ? 'HAS_LOCKED_RESULT' : (primary ? 'EMPTY' : noCase.state)),
+      answer: researchText
+        ? `${researchText}${selectedLinks.length ? `；另已关联 ${selectedLinks.length} 个 Desk 研究问题` : ''}。`
+        : selectedLinks.length
+          ? `已关联 ${selectedLinks.length} 个 Desk 研究问题。`
+          : primary ? '已接入 Research，但 Desk 尚未登记真实研究问题。' : noCase.summary,
+      has_sealed_result: Boolean(baselineProjection.state === 'LOCKED_VERIFIED' || comparisonProjections.some((card) => card.state === 'LOCKED_VERIFIED')),
+      has_comparison: comparisonProjections.some((card) => card.state !== 'NOT_IMPORTED' && card.state !== 'NOT_CONNECTED'),
+      source_label: '数据来自 QRP 导入并锁定的封存结果，页面不重算',
       items: selectedLinks,
       next_step: primary ? '在原 Desk 复盘队列形成明确问题后，冻结原版、样本、时点与成本口径。' : '先按原队列接入真实问题。',
     },
@@ -493,7 +541,7 @@ async function readModel({
       hk_state: hkItems.length ? 'HAS_HK_RUNNING' : (hkForwardForSelected.state === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'EMPTY'), hk_items: hkItems, hk_verified_at: hkForwardForSelected.verified_at,
       answer: forwardItems.length || hkItems.length
         ? [forwardItems.length ? `QRP 已导入 ${forwardItems.length} 条关联的前向观察` : null,
-          hkItems.length ? `HK 上已在跑 ${hkItems.length} 条前向影子（${hkItems.filter((item) => item.import_state === 'RUNNING_ON_HK_NOT_IMPORTED').length} 条尚未导入）` : null]
+          hkItems.length ? hkSentence(hkItems) : null]
           .filter(Boolean).join('；') + '。'
         : '尚无属于这项策略的前向观察。',
     },
@@ -563,12 +611,12 @@ async function readModel({
       },
       shadow: {
         question: NAVIGATION.find((item) => item.route === 'shadow').question,
-        hk_items: hkGlobal,
+        hk_items: hkGlobalView,
         state: globalForward.length ? 'HAS_FORWARD_RUN' : 'EMPTY', // 只表示 QRP 已导入的前向观察；HK 上在跑的见 hk_items
         hk_state: hkGlobal.length ? 'HAS_HK_RUNNING' : 'EMPTY',
         answer: [
           globalForward.length ? `QRP 已导入 ${globalForward.length} 条与 Desk 锁定结果关联的前向观察` : null,
-          hkGlobal.length ? `HK 上已在跑 ${hkGlobal.length} 条前向影子（${hkGlobal.filter((item) => item.import_state === 'RUNNING_ON_HK_NOT_IMPORTED').length} 条尚未导入 QRP）` : null,
+          hkGlobalView.length ? hkSentence(hkGlobalView, ' QRP') : null,
         ].filter(Boolean).join('；').concat(globalForward.length || hkGlobal.length ? '。' : '当前没有与 Desk 锁定结果关联的前向观察。'),
         items: globalForward.map((item) => ({
           state_label: item.status === 'RUNNING' ? '观察中' : '观察已停止',
