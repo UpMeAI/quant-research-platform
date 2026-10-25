@@ -53,7 +53,7 @@ test('导入：封存校验、结果锁、输入与引擎摘要；同一文件�
   const stress = projection.blocks.find((block) => block.key === 'stress').data;
   assert.equal(stress.rows.find((row) => row.simulated).note, '模拟序列，不是可交易历史');
   assert.deepEqual(stress.headline, { scenario: 'REPLAY_2020_02_19_2020_04_30', label: '区间重放：2020-02-19 至 2020-04-30', max_loss_usd: 900 });
-  assert.deepEqual(stress.counts, { executed: 2, simulated: 1, missing: 1 });
+  assert.deepEqual(stress.counts, { executed: 2, simulated: 1, missing: 1, invalid_input: 0 });
   const missing = stress.rows.find((row) => row.missing);
   assert.equal(missing.missing_reason, '2007–2009 行业 ETF 日线在 Mac 与 HK 均无，按 Owner 规则不重新拉取');
   assert.equal(missing.simulated, false);
@@ -202,18 +202,110 @@ test('F1 缺场景的压力行：不让文件失败，不进「最大损失」�
   // 缺场景行带了数字：数字不能用 0 或估计值补位
   const withNumber = stress((rows) => { rows[3].max_loss_usd = 0; });
   assert.equal(withNumber.state, 'NOT_BACKTESTED');
-  assert.match(withNumber.reason, /缺场景行的数字必须是 null/);
-  assert.match(stress((rows) => { delete rows[3].missing_reason; }).reason, /missing_reason/);
-  assert.match(stress((rows) => { rows[3].simulated = true; }).reason, /缺场景行须 simulated:false/);
+  assert.match(withNumber.reason, /缺场景／无效输入行的数字必须是 null/);
+  assert.match(stress((rows) => { delete rows[3].missing_reason; }).reason, /stress\.rows\[3\]\.reason/);
+  // 没有序列的行 simulated 写什么都不算模拟序列（研究会话的文件把缺场景行写成 simulated:true），页面按缺场景显示
+  const tolerated = stress((rows) => { rows[3].simulated = true; });
+  assert.equal(tolerated.state, 'AVAILABLE');
+  assert.equal(tolerated.data.rows.find((row) => row.missing).simulated, false);
   // 只剩模拟与缺场景：最大损失写「尚无」，不拿模拟序列顶替
   const none = stress((rows) => { rows.splice(0, 2); });
   assert.equal(none.state, 'AVAILABLE');
   assert.equal(none.data.headline, null);
-  assert.deepEqual(none.data.counts, { executed: 0, simulated: 1, missing: 1 });
+  assert.deepEqual(none.data.counts, { executed: 0, simulated: 1, missing: 1, invalid_input: 0 });
   // 最大损失取已执行行里最大的一行，模拟行再大也不进主数字
   const biggest = stress((rows) => { rows[0].max_loss_usd = 1500; });
   assert.equal(biggest.data.headline.scenario, 'FEES_15BPS');
   assert.equal(biggest.data.headline.max_loss_usd, 1500);
   // 非缺场景的熊市行仍要求标模拟；缺场景行不要求
   assert.throws(() => imp(mutate((doc) => { doc.stress.rows[2].simulated = false; })), /Q0_STRESS_SIMULATED_NOT_FLAGGED/);
+});
+
+// 研究会话实际封存的压力行形状（status / reason / in_headline），见 US_V5_M2_Q0_RESULT_V1 的 stress.rows。
+const researchStress = () => [
+  { scenario: 'BASELINE', label: '当前 D 参照', max_loss_usd: 480, longest_underwater_sessions: 194, recovered: false, end_capital: 4330, simulated: false },
+  { scenario: 'SCAN_PHASE_PLUS_60MIN', label: '扫描相位 ±60 分钟', max_loss_usd: 1083.5614, longest_underwater_sessions: 589, recovered: false, end_capital: 2374, simulated: false },
+  { scenario: 'WINDOW_2020_02_19_04_30', label: '区间重放 2020-02-19 → 04-30', status: 'INVALID_INPUT', simulated: false, max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, max_drawdown: null, reason: 'no carrier passes the floors before 2020-05-29' },
+  { scenario: 'EXTREME_BEAR_2008', label: '极端熊市 2008-09 → 2009-03：缺场景', status: 'MISSING_SCENARIO', simulated: true, max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, reason: 'SMH, XLK daily 2007–2009 are in neither store' },
+  { scenario: 'EXTREME_BEAR_2008_SPY_QQQ_SYNTH_SUPPLEMENT', label: '规则边界情景（补充）', status: 'SUPPLEMENTARY_NOT_IN_CONCLUSION', simulated: true, in_headline: false, max_loss_usd: 2000, longest_underwater_sessions: 100, recovered: false, end_capital: 900 },
+];
+const withResearchStress = (patch = () => {}) => mutate((doc) => {
+  doc.stress = { rows: researchStress(), conclusion: 'The 2008 extreme bear is a missing scenario and the 2020 window is an invalid input, so the stress evaluation is incomplete' };
+  patch(doc);
+});
+const stressOf = (file) => {
+  fs.rmSync(k3.LEDGER(), { force: true });
+  imp(file);
+  return k3.buildProjection(k3.headLock(k3.CASE_REF), { allowNonActual: true }).blocks.find((block) => block.key === 'stress');
+};
+
+test('研究会话文件的压力行：缺场景和无效输入各写原因，补充行和模拟行不进最大损失，整块不变空', () => {
+  const stress = stressOf(withResearchStress());
+  assert.equal(stress.state, 'AVAILABLE', stress.reason);
+  const byScenario = Object.fromEntries(stress.data.rows.map((row) => [row.scenario, row]));
+  assert.equal(byScenario.EXTREME_BEAR_2008.kind, 'MISSING');
+  assert.equal(byScenario.EXTREME_BEAR_2008.kind_label, '缺场景');
+  assert.equal(byScenario.EXTREME_BEAR_2008.simulated, false, '没有序列的行不算模拟序列');
+  assert.equal(byScenario.WINDOW_2020_02_19_04_30.kind, 'INVALID_INPUT');
+  assert.equal(byScenario.WINDOW_2020_02_19_04_30.kind_label, '无效输入');
+  assert.match(byScenario.WINDOW_2020_02_19_04_30.reason, /no carrier passes the floors/);
+  assert.equal(byScenario.EXTREME_BEAR_2008_SPY_QQQ_SYNTH_SUPPLEMENT.kind, 'SUPPLEMENTARY');
+  assert.equal(byScenario.EXTREME_BEAR_2008_SPY_QQQ_SYNTH_SUPPLEMENT.in_headline, false);
+  assert.deepEqual(stress.data.headline, { scenario: 'SCAN_PHASE_PLUS_60MIN', label: '扫描相位 ±60 分钟', max_loss_usd: 1083.5614 });
+  assert.deepEqual(stress.data.counts, { executed: 2, simulated: 1, missing: 1, invalid_input: 1 });
+  assert.equal(stress.data.evaluation.complete, false);
+  assert.match(stress.data.evaluation.text, /缺场景 1 个、无效输入 1 个/);
+  assert.match(stress.data.evaluation.original, /stress evaluation is incomplete/);
+});
+
+test('压力行的状态不自洽时只让压力块无效：未知状态、补充行没标 in_headline:false、无效输入缺原因、带数字', () => {
+  assert.match(stressOf(withResearchStress((doc) => { doc.stress.rows[0].status = 'WEIRD'; })).reason, /status=WEIRD 不认识/);
+  assert.match(stressOf(withResearchStress((doc) => { doc.stress.rows[4].in_headline = true; })).reason, /补充行必须 simulated:true 且 in_headline:false/);
+  assert.throws(() => imp(withResearchStress((doc) => { doc.stress.rows[4].simulated = false; })), /Q0_STRESS_SIMULATED_NOT_FLAGGED/); // 熊市补充行没标模拟：整文件拒绝
+  assert.match(stressOf(withResearchStress((doc) => { delete doc.stress.rows[2].reason; })).reason, /stress\.rows\[2\]\.reason/);
+  assert.match(stressOf(withResearchStress((doc) => { doc.stress.rows[3].end_capital = 0; })).reason, /数字必须是 null/);
+  // 有「中文原因」时优先显示中文
+  const zh = stressOf(withResearchStress((doc) => { doc.stress.rows[3].reason_zh = '2007–2009 行业 ETF 日线在 Mac 与 HK 均无'; }));
+  assert.equal(zh.data.rows.find((row) => row.scenario === 'EXTREME_BEAR_2008').reason, '2007–2009 行业 ETF 日线在 Mac 与 HK 均无');
+  // 没有缺场景和无效输入时压力评价完整，不写「不完整」
+  const complete = stressOf(withResearchStress((doc) => { doc.stress.rows.splice(2, 2); delete doc.stress.conclusion; }));
+  assert.equal(complete.data.evaluation.complete, true);
+  assert.equal(complete.data.evaluation.text, null);
+});
+
+test('120 分钟扫描下 −60 与 +60 是同一组时刻：只有 +60 一行时合并显示并说明；两行都在时照常分开', () => {
+  const merged = (file) => { fs.rmSync(k3.LEDGER(), { force: true }); imp(file); return k3.buildProjection(k3.headLock(k3.CASE_REF), { allowNonActual: true }).blocks.find((block) => block.key === 'winrate').data; };
+  const only = merged(write());
+  assert.equal(only.notes.length, 1);
+  assert.match(only.notes[0], /提前 60 分钟与推后 60 分钟落在同一组时刻/);
+  assert.ok(only.rows.filter((row) => row.phase === 'PLUS_60MIN').every((row) => row.phase_label === '相位 ±60 分钟'));
+  const both = merged(mutate((doc) => { doc.stats.rows.push({ ...doc.stats.rows[3], phase: 'MINUS_60MIN' }); }));
+  assert.deepEqual(both.notes, []);
+  assert.deepEqual([...new Set(both.rows.map((row) => row.phase_label))], ['生产相位', '相位 +60 分钟', '相位 −60 分钟']);
+});
+
+test('近似引擎：结论的最大限制和周期块用文件自带的中文说明，不显示英文代码', () => {
+  imp(write(result((doc) => {
+    doc.verdict.engine_approximation = { flag: true, missing: ['KLINE_TIMING_V1', 'SCAN_SCHEDULE'] };
+    doc.verdict.label = '研究引擎近似的当前 D（缺：K 线择时 v1、扫描时刻）';
+    doc.verdict.reason_codes = ['ENGINE_APPROXIMATION', 'CI_G_STRADDLES_ZERO', 'STRESS_SCENARIO_MISSING'];
+    return doc;
+  })));
+  const projection = k3.buildProjection(k3.headLock(k3.CASE_REF), { allowNonActual: true });
+  assert.equal(projection.conclusion.biggest_limit, '使用的是研究引擎近似的当前 D（缺：K 线择时 v1、扫描时刻），结论最高只能是证据不足。');
+  assert.equal(projection.blocks[0].data.engine.label, '研究引擎近似的当前 D（缺：K 线择时 v1、扫描时刻）');
+  assert.deepEqual(projection.blocks.find((block) => block.key === 'verdict').data.reasons.map((reason) => reason.text),
+    ['研究引擎只是当前 D 的近似', '年化对数增长区间跨过 0', '压力场景有缺（缺场景按不足处理）']);
+});
+
+const REAL = '/Users/kaylame/KaylaProject/research-data/us_v5_m2_q0_a1/result/US_V5_M2_Q0_RESULT_V1.json';
+test('研究会话实际封存的 Q0 文件：六块全部可读、问题清单可读（本机有该文件时才跑，只读，不导入）', { skip: !fs.existsSync(REAL) }, () => {
+  const sealed = k3.readSealed(REAL);
+  const projection = k3.project(sealed, { result_id: `Q0-${sealed.sha256.slice(0, 16)}`, locked_at: 'test', locked_by: 'test', inputs_digest: 'x', engine_digest: 'x' });
+  assert.deepEqual(projection.blocks.map((block) => `${block.key}:${block.state}`),
+    ['period:AVAILABLE', 'account:AVAILABLE', 'winrate:AVAILABLE', 'stress:AVAILABLE', 'kelly:AVAILABLE', 'verdict:AVAILABLE']);
+  assert.equal(projection.diagnosis.state, 'AVAILABLE');
+  const stress = projection.blocks.find((block) => block.key === 'stress').data;
+  assert.ok(stress.rows.some((row) => row.kind === 'MISSING') && stress.rows.some((row) => row.kind === 'INVALID_INPUT'));
+  assert.ok(stress.headline && !stress.rows.find((row) => row.scenario === stress.headline.scenario).simulated);
 });

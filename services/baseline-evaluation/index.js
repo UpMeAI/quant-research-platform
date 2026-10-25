@@ -54,6 +54,8 @@ const REASON_WORDS = Object.freeze({
   SAMPLE_LT_30: '成熟交易少于 30 笔',
   CI_STRADDLES_DELTA: '区间跨过判定门槛',
   COVERAGE_INSUFFICIENT: '历史覆盖不足',
+  CI_G_STRADDLES_ZERO: '年化对数增长区间跨过 0',
+  STRESS_SCENARIO_MISSING: '压力场景有缺（缺场景按不足处理）',
 });
 const NON_ACTUAL_PATH = /(^|[\\/._-])(fixture|demo|mock|synthetic)([\\/._-]|$)/i;
 
@@ -121,6 +123,10 @@ function approximationFromGates(doc) {
   return missing;
 }
 
+/** F1 的 missing:true，或研究会话文件里的 status = MISSING_SCENARIO / INVALID_INPUT：这一行没有跑出任何序列。 */
+const NO_SERIES_STATUS = Object.freeze({ MISSING_SCENARIO: 'MISSING', INVALID_INPUT: 'INVALID_INPUT' });
+const hasNoSeries = (row) => row.missing === true || Object.prototype.hasOwnProperty.call(NO_SERIES_STATUS, row.status);
+
 function validateWhole(doc) {
   const repro = doc.reproducibility;
   need(isObject(repro) && typeof repro.command === 'string' && repro.command && Array.isArray(repro.runs)
@@ -156,7 +162,7 @@ function validateWhole(doc) {
   const stressRows = isObject(doc.stress) && Array.isArray(doc.stress.rows) ? doc.stress.rows : [];
   for (const row of stressRows) {
     // 缺场景行（F1）没有跑出任何序列，不存在「把模拟当真实」的风险，名称里带「熊市」也不要求 simulated:true。
-    if (isObject(row) && row.missing !== true && /bear|熊|synthetic|模拟/i.test(`${row.scenario || ''}${row.label || ''}`)) {
+    if (isObject(row) && !hasNoSeries(row) && /bear|熊|synthetic|模拟/i.test(`${row.scenario || ''}${row.label || ''}`)) {
       need(row.simulated === true, 'Q0_STRESS_SIMULATED_NOT_FLAGGED', row.scenario);
     }
   }
@@ -194,7 +200,11 @@ function periodBlock(doc, gapped) {
     })),
     census: census.map((row) => ({ year: field(row, 'year'), tradable_carriers: field(row, 'tradable_carriers') })),
     engine: verdict.engine_approximation.flag
-      ? { label: `研究引擎近似${missing.length ? `（缺：${missing.join('；')}）` : ''}`, approximation: true, missing }
+      ? {
+        label: typeof verdict.label === 'string' && verdict.label.trim() ? verdict.label.trim()
+          : `研究引擎近似${missing.length ? `（缺：${missing.join('；')}）` : ''}`,
+        approximation: true, missing,
+      }
       : { label: '当前 D（引擎对齐关卡 A0 通过，规则清单无缺口）', approximation: false, missing: [] },
   };
 }
@@ -233,7 +243,11 @@ function winrateBlock(doc) {
   const table = doc.formula_table;
   need(isObject(table) && table.kind === 'FORMULA_NOT_BACKTEST' && Array.isArray(table.cells) && table.cells.length,
     'INVALID', 'formula_table 必须标 FORMULA_NOT_BACKTEST');
+  const hasPlus = rows.some((row) => row && row.phase === 'PLUS_60MIN');
+  const hasMinus = rows.some((row) => row && row.phase === 'MINUS_60MIN');
+  const merged = hasPlus && !hasMinus; // 120 分钟扫描下 −60 与 +60 是同一组时刻，研究会话只列一行
   return {
+    notes: merged ? ['相位 ±60 分钟：扫描间隔 120 分钟时，提前 60 分钟与推后 60 分钟落在同一组时刻，所以只列一行。'] : [],
     rows: rows.map((row) => {
       const win = field(row, 'win_rate', 'stats.win_rate');
       need(win >= 0 && win <= 1, 'INVALID', 'stats.win_rate 不在 0–1');
@@ -241,7 +255,7 @@ function winrateBlock(doc) {
       return {
         segment: field(row, 'segment', 'stats.segment', 'string'), segment_label: SEGMENT_LABELS[row.segment] || row.segment,
         cost_bps: field(row, 'cost_bps', 'stats.cost_bps'), phase: field(row, 'phase', 'stats.phase', 'string'),
-        phase_label: PHASE_LABELS[row.phase] || row.phase, n: row.n, win_rate: win,
+        phase_label: merged && row.phase === 'PLUS_60MIN' ? '相位 ±60 分钟' : (PHASE_LABELS[row.phase] || row.phase), n: row.n, win_rate: win,
         payoff: row.payoff === null ? null : field(row, 'payoff', 'stats.payoff'),
         mean_R: field(row, 'mean_R', 'stats.mean_R'), mean_R_ci: ci(row.mean_R_ci, 'stats.mean_R_ci'),
       };
@@ -257,45 +271,76 @@ function winrateBlock(doc) {
 }
 
 const STRESS_NUMBERS = ['max_loss_usd', 'longest_underwater_sessions', 'recovered', 'end_capital'];
+const KNOWN_STRESS_STATUS = Object.freeze(['MISSING_SCENARIO', 'INVALID_INPUT', 'SUPPLEMENTARY_NOT_IN_CONCLUSION']);
 
 /**
- * F1：缺场景的行（`missing: true` + `missing_reason`，数字都是 null，`simulated: false`）不让文件失败，
- * 页面写「缺场景：原因」，不算已执行的压力。「最大损失」主数字只取既非模拟、也非缺场景的行里
- * `max_loss_usd` 最大的一行，并写明是哪个场景；没有这样的行就写「尚无」。
+ * 压力行有四类：
+ *   - 已执行：有数字，`simulated:false`，可进「最大损失」主数字（除非行自己写了 `in_headline:false`）；
+ *   - 模拟／补充：有数字，`simulated:true`；`status:SUPPLEMENTARY_NOT_IN_CONCLUSION` 的补充行必须同时 `in_headline:false`，永不进主数字；
+ *   - 缺场景：`missing:true`（F1）或 `status:MISSING_SCENARIO`，没有序列，数字全为 null；
+ *   - 无效输入：`status:INVALID_INPUT`（例如 2020 年窗口里没有载体通过流动性底线），同样全为 null。
+ * 缺场景和无效输入页面写「缺场景：原因」「无效输入：原因」，不让整块变空，也不计为已执行的压力。
+ * 原因取 `reason_zh`（若有）、`reason`、`missing_reason`；缺原因、带了数字都只让压力块无效。
  */
 function stressBlock(doc) {
-  const rows = doc.stress && doc.stress.rows;
+  const stress = doc.stress;
+  const rows = stress && stress.rows;
   need(Array.isArray(rows) && rows.length, 'MISSING', 'stress.rows');
   const mapped = rows.map((row, index) => {
     const where = `stress.rows[${index}]`;
     need(isObject(row), 'INVALID', where);
     const scenario = field(row, 'scenario', `${where}.scenario`, 'string');
     const label = typeof row.label === 'string' && row.label ? row.label : scenario;
-    if (row.missing === true) {
-      need(typeof row.missing_reason === 'string' && row.missing_reason.trim(), 'MISSING', `${where}.missing_reason`);
-      need(row.simulated === false, 'INVALID', `${where} 缺场景行须 simulated:false`);
-      need(STRESS_NUMBERS.every((key) => row[key] === null), 'INVALID', `${where} 缺场景行的数字必须是 null，不能用 0 或估计值补位`);
+    need(row.status === undefined || KNOWN_STRESS_STATUS.includes(row.status), 'INVALID', `${where}.status=${row.status} 不认识`);
+    if (hasNoSeries(row)) {
+      const reason = [row.reason_zh, row.missing_reason_zh, row.reason, row.missing_reason].find((item) => typeof item === 'string' && item.trim());
+      need(reason, 'MISSING', `${where}.reason`);
+      need(STRESS_NUMBERS.every((key) => row[key] === null), 'INVALID', `${where} 缺场景／无效输入行的数字必须是 null，不能用 0 或估计值补位`);
+      const kind = row.status === 'INVALID_INPUT' ? 'INVALID_INPUT' : 'MISSING';
       return {
-        scenario, label, missing: true, missing_reason: row.missing_reason.trim(), simulated: false,
+        scenario, label, kind, missing: kind === 'MISSING', invalid_input: kind === 'INVALID_INPUT',
+        kind_label: kind === 'INVALID_INPUT' ? '无效输入' : '缺场景', reason: reason.trim(), missing_reason: reason.trim(),
+        simulated: false, in_headline: false,
         max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, note: null,
       };
     }
     need(row.missing === undefined || row.missing === false, 'INVALID', `${where}.missing`);
+    const simulated = field(row, 'simulated', 'stress.simulated', 'bool');
+    const supplementary = row.status === 'SUPPLEMENTARY_NOT_IN_CONCLUSION';
+    if (supplementary) {
+      need(simulated === true && row.in_headline === false, 'INVALID', `${where} 补充行必须 simulated:true 且 in_headline:false`);
+    }
+    need(row.in_headline === undefined || typeof row.in_headline === 'boolean', 'INVALID', `${where}.in_headline`);
     return {
-      scenario, label, missing: false, missing_reason: null,
+      scenario, label, kind: supplementary ? 'SUPPLEMENTARY' : (simulated ? 'SIMULATED' : 'EXECUTED'),
+      missing: false, invalid_input: false, kind_label: null, reason: null, missing_reason: null,
       max_loss_usd: field(row, 'max_loss_usd', 'stress.max_loss_usd'),
       longest_underwater_sessions: field(row, 'longest_underwater_sessions', 'stress.longest_underwater_sessions'),
       recovered: field(row, 'recovered', 'stress.recovered', 'bool'), end_capital: field(row, 'end_capital', 'stress.end_capital'),
-      simulated: field(row, 'simulated', 'stress.simulated', 'bool'),
-      note: row.simulated ? '模拟序列，不是可交易历史' : null,
+      simulated, in_headline: !simulated && row.in_headline !== false,
+      note: simulated ? '模拟序列，不是可交易历史' : null,
     };
   });
-  const executed = mapped.filter((row) => !row.missing && !row.simulated);
-  const worst = executed.reduce((best, row) => (!best || row.max_loss_usd > best.max_loss_usd ? row : best), null);
+  const candidates = mapped.filter((row) => row.in_headline);
+  const worst = candidates.reduce((best, row) => (!best || row.max_loss_usd > best.max_loss_usd ? row : best), null);
+  const counts = {
+    executed: mapped.filter((row) => row.kind === 'EXECUTED').length,
+    simulated: mapped.filter((row) => row.simulated).length,
+    missing: mapped.filter((row) => row.kind === 'MISSING').length,
+    invalid_input: mapped.filter((row) => row.kind === 'INVALID_INPUT').length,
+  };
+  const incomplete = counts.missing + counts.invalid_input > 0;
   return {
     rows: mapped,
     headline: worst ? { scenario: worst.scenario, label: worst.label, max_loss_usd: worst.max_loss_usd } : null,
-    counts: { executed: executed.length, simulated: mapped.filter((row) => row.simulated).length, missing: mapped.filter((row) => row.missing).length },
+    counts,
+    evaluation: {
+      complete: !incomplete,
+      text: incomplete
+        ? `压力评价不完整：缺场景 ${counts.missing} 个、无效输入 ${counts.invalid_input} 个；缺场景按「不足」处理（AC8），模拟和补充行不参与压力结论。`
+        : null,
+      original: typeof stress.conclusion === 'string' && stress.conclusion.trim() ? stress.conclusion.trim() : null,
+    },
   };
 }
 
@@ -335,6 +380,7 @@ function verdictBlock(doc, gapped) {
     L_g: v.L_g === undefined ? null : v.L_g, U_g: v.U_g === undefined ? null : v.U_g,
     n_trades: v.n_trades === undefined ? null : v.n_trades, comparators: v.comparators.map((name) => (name === 'CASH' ? '现金' : 'SPY 买入持有')),
     ci_method: '按月分块 bootstrap 95%', reasons,
+    engine_label: typeof v.label === 'string' && v.label.trim() ? v.label.trim() : null,
     engine_approximation: v.engine_approximation.flag, engine_missing: [...new Set([...(v.engine_approximation.missing || []), ...gapped])],
   };
 }
@@ -395,7 +441,7 @@ function conclusionOf(verdictBlock_, doc) {
   const v = verdictBlock_.data;
   const labels = { SUPPORTED: '有支持证据', NOT_PASSED: '未通过', INSUFFICIENT: '证据不足' };
   let limit;
-  if (v.engine_approximation) limit = `使用的是研究引擎近似的当前 D（缺：${v.engine_missing.join('；') || '未列出'}），结论最高只能是证据不足。`;
+  if (v.engine_approximation) limit = `使用的是${v.engine_label || `研究引擎近似的当前 D（缺：${v.engine_missing.join('；') || '未列出'}）`}，结论最高只能是证据不足。`;
   else if (Number.isInteger(v.n_trades) && v.n_trades < MIN_TRADES) limit = `样本外只有 ${v.n_trades} 笔成熟交易，少于 ${MIN_TRADES} 笔。`;
   else if (v.reasons.length) limit = `${v.reasons[0].text}。`;
   else limit = '本结论只对已回测的区间和费用口径成立，不外推到之后的市场。';
