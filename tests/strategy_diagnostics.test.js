@@ -154,12 +154,13 @@ test('ceilCent 对整分金额不因二进制浮点噪声多进一分，真正�
   assert.throws(() => diagnostics.ceilCent(NaN), /US_V5_M1_COST_NOT_FINITE/);
 });
 
-test('诊断缓存只在 TTL 内有效：输入包事后漂移会在到期后重新校验，失败也不永久粘住', () => {
+test('诊断缓存：指纹变化立即重验；成功结果 10 分钟内复用，失败只缓存 15 秒，不永久粘住', () => {
   let clock = 1000;
   let calls = 0;
   let mode = 'OK';
+  let stamp = 'a';
   const reader = diagnostics.createDiagnosticReader({
-    ttlMs: 30000, now: () => clock,
+    ttlMs: 600000, failureTtlMs: 15000, now: () => clock, fingerprint: () => stamp,
     build: () => {
       calls += 1;
       if (mode === 'DRIFT') throw Object.assign(new Error('US_V5_M1_INPUT_PACKAGE_SHA256_MISMATCH'), { code: 'US_V5_M1_INPUT_PACKAGE_SHA256_MISMATCH' });
@@ -167,25 +168,40 @@ test('诊断缓存只在 TTL 内有效：输入包事后漂移会在到期后重
     },
   });
   assert.equal(reader.read().state, 'VERIFIED');
-  clock += 29000;
+  clock += 599000;
   mode = 'DRIFT';
   assert.equal(reader.read().state, 'VERIFIED');
   assert.equal(calls, 1);
-  clock += 1000;
+  stamp = 'b'; // 输入文件的大小或 mtime 变了：不等 TTL
   const drifted = reader.read();
   assert.equal(drifted.state, 'INVALID');
   assert.equal(drifted.reason_code, 'US_V5_M1_INPUT_PACKAGE_SHA256_MISMATCH');
   assert.equal(calls, 2);
+  clock += 14000;
   mode = 'OK';
-  clock += 30000;
+  assert.equal(reader.read().state, 'INVALID');
+  assert.equal(calls, 2);
+  clock += 1000;
   assert.equal(reader.read().state, 'VERIFIED');
   assert.equal(calls, 3);
-  assert.equal(reader.read({ root: '/nowhere' }).state, 'VERIFIED');
+  clock += 600000; // 指纹没变，但成功结果到期：兜底重验（抓保留 size+mtime 的原地改写）
+  mode = 'DRIFT';
+  assert.equal(reader.read().state, 'INVALID');
   assert.equal(calls, 4);
+  mode = 'OK';
+  assert.equal(reader.read({ root: '/nowhere' }).state, 'VERIFIED');
+  assert.equal(calls, 5);
   reader.clear();
   reader.read();
-  assert.equal(calls, 5);
-  assert.equal(diagnostics.DIAGNOSTIC_CACHE_TTL_MS, 30000);
+  assert.equal(calls, 6);
+  assert.equal(diagnostics.DIAGNOSTIC_CACHE_TTL_MS, 600000);
+  assert.equal(diagnostics.DIAGNOSTIC_FAILURE_TTL_MS, 15000);
+});
+
+test('stat 指纹稳定（同一输入连续两次相同）且是 sha256', () => {
+  const first = diagnostics.statFingerprint();
+  assert.match(first, /^[0-9a-f]{64}$/);
+  assert.equal(diagnostics.statFingerprint(), first);
 });
 
 test('窗口内未追踪的成交事件和缺 mode 的仓位都让诊断失败关闭', () => {

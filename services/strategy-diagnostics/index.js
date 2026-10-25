@@ -211,17 +211,28 @@ function verifyHandoverSeries(records, handover) {
   };
 }
 
-function readScanRecords(root, manifest) {
+/**
+ * 逐文件、逐条校验并只保留后续对账需要的最小部分（91 MB 解压后的 JSON 全部解析并常驻会让进程峰值 RSS 到 ~380 MB）：
+ * 起始时间、当时的模块版本、前身 PAPER 仓位，以及开仓信号所在的那一条完整记录。
+ */
+function readScanRecords(root, manifest, keepScanId = null) {
   const dir = path.join(root, 'producer', 'decision-inputs', 'us-v5');
   const files = fs.readdirSync(dir).filter((name) => name.endsWith('.jsonl.gz')).sort();
   const records = [];
+  let kept = null;
+  const predecessorBookId = manifest.handover.predecessor.book_id;
   for (const name of files) {
     const text = zlib.gunzipSync(fs.readFileSync(path.join(dir, name))).toString('utf8').trim();
     if (!text) continue;
     for (const line of text.split('\n')) {
       const record = JSON.parse(line);
       verifyScanRecord(record, manifest.book_id, manifest.handover);
-      records.push(record);
+      if (keepScanId && record.scanId === keepScanId) kept = record;
+      records.push({
+        startedAt: record.startedAt, code: record.code,
+        openPositions: (Array.isArray(record.openPositions) ? record.openPositions : [])
+          .filter((item) => item.mode === 'paper' && item.metadata && item.metadata.bookId === predecessorBookId),
+      });
     }
   }
   assert(records.length === manifest.native_replay.scan_records, 'US_V5_M1_SCAN_COUNT_MISMATCH', {
@@ -232,7 +243,7 @@ function readScanRecords(root, manifest) {
     expected: manifest.window.sessions, actual: sessions.size,
   });
   const handover = verifyHandoverSeries(records, manifest.handover);
-  return { files, records, sessions: [...sessions].sort(), handover };
+  return { files, records, sessions: [...sessions].sort(), handover, kept };
 }
 
 function documentAt(root, relative) {
@@ -289,7 +300,6 @@ function buildDiagnostic({ root, manifest } = {}) {
   const packageRoot = root || path.join(REPO_ROOT, evidenceManifest.input_package.relative_root);
   assert(evidenceManifest.acceptance_ref === ACCEPTANCE_REF, 'US_V5_M1_ACCEPTANCE_REF_MISMATCH');
   const packageSeal = verifyInputPackage(packageRoot, evidenceManifest.input_package);
-  const scans = readScanRecords(packageRoot, evidenceManifest);
 
   const initial = ledgerAt(packageRoot, evidenceManifest.window.start);
   const afterEntry = ledgerAt(packageRoot, '2026-10-09');
@@ -321,7 +331,8 @@ function buildDiagnostic({ root, manifest } = {}) {
 
   const expectedSignal = openEvent.decision && openEvent.decision.signalId;
   const signalScanId = expectedSignal && expectedSignal.split(':').slice(1, 3).join(':');
-  const signalRecord = scans.records.find((record) => record.scanId === signalScanId);
+  const scans = readScanRecords(packageRoot, evidenceManifest, signalScanId);
+  const signalRecord = scans.kept;
   assert(signalRecord, 'US_V5_M1_SIGNAL_SCAN_NOT_FOUND', { signal_id: expectedSignal || null });
   const signalInput = (signalRecord.symbols || []).find((item) => item.symbol === openEvent.instrument.id);
   const signalAttempt = signalInput && (signalInput.attempts || [])
@@ -595,26 +606,47 @@ function missingDiagnostic(error) {
   };
 }
 
-// 常驻服务（launchd）里，输入包在启动后被改动或删除，页面不能永远显示第一次校验的 VERIFIED；
-// 失败也不能永久粘住。缓存只保留 TTL，到期重新做完整的封印、hash 与对账校验。
-const DIAGNOSTIC_CACHE_TTL_MS = 30000;
+// 常驻服务（launchd）里，输入包在启动后被改动或删除，页面不能永远显示第一次校验的 VERIFIED；失败也不能永久粘住。
+// 一次完整校验约 3–4 秒、峰值 RSS 约 300 MB（解压 91 MB 扫描记录），所以不按固定短周期重做：
+// 先看输入文件的 stat 指纹（路径、大小、mtime，毫秒级），指纹变了立即重验；指纹没变时，成功结果最多缓存 10 分钟
+// （兜底：保留 size+mtime 的原地改写也会在到期后被 hash 抓到），失败结果只缓存 15 秒，恢复后很快转为 VERIFIED。
+const DIAGNOSTIC_CACHE_TTL_MS = 10 * 60 * 1000;
+const DIAGNOSTIC_FAILURE_TTL_MS = 15 * 1000;
 
-function createDiagnosticReader({ build = buildDiagnostic, now = Date.now, ttlMs = DIAGNOSTIC_CACHE_TTL_MS } = {}) {
+function statFingerprint() {
+  try {
+    const evidenceManifest = readJson(MANIFEST_FILE);
+    const root = path.join(REPO_ROOT, evidenceManifest.input_package.relative_root);
+    const stat = (file) => { const item = fs.statSync(file); return `${path.relative(REPO_ROOT, file)}:${item.size}:${item.mtimeMs}`; };
+    const rows = [stat(MANIFEST_FILE), stat(path.join(REPO_ROOT, ACCEPTANCE_REF))];
+    if (fs.existsSync(root)) rows.push(...walkFiles(root).sort(comparePackagePaths).map(stat));
+    return sha256(rows.join('\n'));
+  } catch (error) {
+    return `UNREADABLE:${error.code || error.message}`;
+  }
+}
+
+function createDiagnosticReader({
+  build = buildDiagnostic, now = Date.now, ttlMs = DIAGNOSTIC_CACHE_TTL_MS,
+  failureTtlMs = DIAGNOSTIC_FAILURE_TTL_MS, fingerprint = () => '',
+} = {}) {
   let cached = null;
   return {
     read(options = {}) {
       const useCache = Object.keys(options).length === 0;
-      if (useCache && cached && now() - cached.at < ttlMs) return cached.result;
+      const stamp = useCache ? fingerprint() : null;
+      if (useCache && cached && cached.stamp === stamp
+        && now() - cached.at < (cached.result.state === 'VERIFIED' ? ttlMs : failureTtlMs)) return cached.result;
       let result;
       try { result = build(options); } catch (error) { result = missingDiagnostic(error); }
-      if (useCache) cached = { at: now(), result };
+      if (useCache) cached = { at: now(), result, stamp };
       return result;
     },
     clear() { cached = null; },
   };
 }
 
-const defaultReader = createDiagnosticReader();
+const defaultReader = createDiagnosticReader({ fingerprint: statFingerprint });
 const readDiagnostic = (options = {}) => defaultReader.read(options);
 const clearCache = () => defaultReader.clear();
 /** 不经缓存的现场校验，供里程碑记录等一次性闸使用。 */
@@ -622,7 +654,7 @@ const readFreshDiagnostic = () => { defaultReader.clear(); return defaultReader.
 
 module.exports = {
   ACCEPTANCE_REF, ACCEPTANCE_SHA256, MANIFEST_REF, MANIFEST_SHA256, TOLERANCE_USD, TOLERANCE_SHARES,
-  DIAGNOSTIC_CACHE_TTL_MS,
+  DIAGNOSTIC_CACHE_TTL_MS, DIAGNOSTIC_FAILURE_TTL_MS, statFingerprint,
   sha256, closeEnough, ceilCent, comparePackagePaths, packageDigest, verifyInputPackage,
   verifyScanRecord, calculateCosts, buildDiagnostic, readDiagnostic, readFreshDiagnostic,
   createDiagnosticReader, clearCache,

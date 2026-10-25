@@ -18,7 +18,7 @@ TAF 0，成本 1.2840500065，净额 3.7359369935，与页面和回执逐位相�
 
 | 编号 | 位置（2e3bbae） | 问题 | 修复 |
 |---|---|---|---|
-| B1 | `services/strategy-diagnostics/index.js:573-582` | 默认诊断结果在进程内永久缓存。常驻服务启动后输入包被改动或删除，页面仍显示 `VERIFIED`；第一次读取失败也会一直粘在 `INVALID/MISSING`，直到重启。 | 30 秒 TTL 读取器 `createDiagnosticReader`，到期重新做封印、hash 与对账；`readFreshDiagnostic()` 供一次性闸用。 |
+| B1 | `services/strategy-diagnostics/index.js:573-582` | 默认诊断结果在进程内永久缓存。常驻服务启动后输入包被改动或删除，页面仍显示 `VERIFIED`；第一次读取失败也会一直粘在 `INVALID/MISSING`，直到重启。 | `createDiagnosticReader`：输入文件的 stat 指纹（路径、大小、mtime）一变立即重验；指纹不变时成功结果最多缓存 10 分钟（兜底抓保留 size+mtime 的原地改写），失败结果只缓存 15 秒。一次完整校验约 3.6 秒、峰值 RSS 约 330 MB，所以不用固定的短周期。`readFreshDiagnostic()` 供一次性闸用。 |
 | B2 | `…/index.js:50-54` `ceilCent` | `Math.ceil((v - EPSILON) * 100)` 对恰好整分的金额多进一分：0–2000 美元里 9164/200000 个整分值错（2.2 → 2.21）。当前案所有费用 < 0.10 美元，不受影响，所以没被测试发现；二十个 session 重导出后成交更大就会出错。 | 先取 12 位有效数字再向上取整。整分值全对，真正超过整分的值（3.0000000021 分）仍进一分。 |
 | B3 | `apps/research-api/index.js:123-125` | 无 token 时只靠绑定 127.0.0.1 保护，没有 Host 校验。同机浏览器被 DNS rebinding 欺骗后，任何网页都能读 `/api/workspace`。改成常驻 launchd 服务后暴露窗口变长。 | 无 token 时 Host 头必须是 `127.0.0.1` / `localhost` / `[::1]`，否则 403 `RESEARCH_HOST_NOT_LOOPBACK`；有 token 时不依赖 Host。 |
 | B4 | `services/runtime-research-loop/index.js:246-251` | M1 PASS 闸只检查“已登记的非空文件按类型挂齐”。首案诊断是 `INVALID/MISSING` 时，M1 PASS 仍能记录。 | 有 canonical 诊断生产者的 case（`RRC-US-V5-3000-V8-1-M0`），M1 PASS 必须现场 `readFreshDiagnostic().state === 'VERIFIED'`，否则 `PRODUCT_MILESTONE_M1_DIAGNOSTIC_NOT_VERIFIED`。其他 case 行为不变。 |
@@ -51,3 +51,5 @@ TAF 0，成本 1.2840500065，净额 3.7359369935，与页面和回执逐位相�
 | A5 | PR 内 `var/evidence/…` 64 个文件 | 仓库是 PUBLIC，包里有完整策略配置（风险单位、闸、持有天数、1h bars）和纸面账户路径。控制器记录了 Owner 同意提交；本审查不重开。`var/ledger/` 的提议（见 `CYCLE_RESEARCH_DESK_V8_1_VAR_LEDGER_VERSIONING_PROPOSAL_2026-10-25.md`）因此默认保持私有。 | Owner 已决定 |
 | A6 | `runtime-research-loop/index.js:29` | `PRODUCT_SPEC_REF` 指向 `~/Downloads/…` 的绝对路径；规格 sha 已固定，路径只在 Owner 的 Mac 上有效。 | 无 |
 | A7 | 页面内容 | 研究者期望策略页显示当前 US_V5 回测结论（区间、胜率盈亏比、压力最大亏损、半凯利复利）。当前页只有 12 个 session 的原版诊断，这些属于 M2，页面没有也不应伪造。 | Owner / M2 |
+| A8 | `strategy-diagnostics/index.js:538`；`research-web/index.html` 第 56、75 行；修订 2 A2.2、A2.6 第 6 条；smartflow `scripts/lib/us-review-decomposition.js:259`（`NO_REAL_ACCOUNT_LEDGER_ALL_US_BOOKS_ARE_PAPER`） | 「全部账户均为 PAPER；真实账户臂 A 不适用」「无真实账户臂」把 PAPER 当成缺口。Owner 10-25：所有“真实环境”都指用真实行情的纸面交易，PAPER 账本就是真实账户。要改的是措辞和原生分解的臂定义，不是数据。**按协调者指示本轮不改页面**，等产品修订一起处理；冻结修订的文字不改写，用新修订更正。 | 产品修订（协调者）；原生臂 A 的定义由 smartflow 决定 |
+| A9 | `strategy-diagnostics/index.js`（`readScanRecords`） | 一次完整校验解压 92 MB 扫描记录，峰值 RSS 约 330 MB 且 macOS 不回收（常驻后约 350 MB）。已改为逐条校验并只保留需要的字段（原先 380–440 MB），频率由 B1 的指纹缓存压低。若内存成为迁移 VPS 的触发条件，可把校验放进一次性子进程。 | V8.1 工程 |

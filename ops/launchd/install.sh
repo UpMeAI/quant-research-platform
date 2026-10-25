@@ -14,8 +14,13 @@ DOMAIN="gui/$(id -u)"
 die() { echo "ERROR: $*" >&2; exit 1; }
 listener_pid() { lsof -nP -iTCP:"$PORT" -sTCP:LISTEN -t 2>/dev/null | head -1 || true; }
 
+service_pid() { launchctl print "$DOMAIN/$LABEL" 2>/dev/null | awk '/^[[:space:]]*pid =/{print $3; exit}'; }
+
 status() {
   launchctl print "$DOMAIN/$LABEL" 2>/dev/null | grep -E "state =|pid =|last exit" || echo "$LABEL: not loaded"
+  pid=$(service_pid || true)
+  if [ -n "${pid:-}" ]; then ps -o rss=,etime= -p "$pid" | awk '{printf "RSS %.0f MB, up %s\n", $1/1024, $2}'; fi
+  du -sk "$ROOT/var/evidence" "$ROOT/var/ledger" "$ROOT/var/log" 2>/dev/null | awk '{printf "disk %s: %.1f MB\n", $2, $1/1024}' || true
   curl -fsS -o /dev/null -w "GET /api/workspace -> %{http_code}\n" "http://127.0.0.1:$PORT/api/workspace?strategy_ref=US_V5_ETF_3000USD" || true
   curl -sS -o /dev/null -w "POST /api/workspace -> %{http_code} (expect 405)\n" -X POST "http://127.0.0.1:$PORT/api/workspace" || true
 }
@@ -59,6 +64,26 @@ install() {
   done
   [ "$code" = "200" ] || die "服务 20 秒内没有返回 200（看 var/log/research-web.err.log）"
   status
+  write_receipt
+}
+
+# 安装回执：一次一个新文件，内容不再变化；可作为 DELIVERY_RELEASE 类型的产品证据登记（登记与晋级由协调者做）。
+write_receipt() {
+  mkdir -p "$ROOT/var/release"
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  file="$ROOT/var/release/research-web-install-$stamp.json"
+  "$NODE" -e '
+    const [label, head, plist, port, pid, file, ws, post] = process.argv.slice(1);
+    const crypto = require("crypto"), fs = require("fs");
+    fs.writeFileSync(file, JSON.stringify({
+      schema: "RESEARCH_WEB_INSTALL_RECEIPT_V1", label, installed_at: new Date().toISOString(), git_head: head,
+      plist_sha256: crypto.createHash("sha256").update(fs.readFileSync(plist)).digest("hex"),
+      listen: `127.0.0.1:${port}`, pid: Number(pid), node: process.version,
+      probes: { "GET /api/workspace": Number(ws), "POST /api/workspace": Number(post) }, production_effect: "NONE",
+    }, null, 2) + "\n");' "$LABEL" "$(git -C "$ROOT" rev-parse HEAD)" "$DEST" "$PORT" "$(service_pid)" "$file" \
+    "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/api/workspace?strategy_ref=US_V5_ETF_3000USD")" \
+    "$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:$PORT/api/workspace")"
+  echo "install receipt: $file"
 }
 
 case "${1:-install}" in
