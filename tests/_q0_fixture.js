@@ -65,7 +65,12 @@ function result(overrides = {}) {
       rows: [
         { scenario: 'FEES_15BPS', label: '费用 15 bps 双边', max_loss_usd: 600, longest_underwater_sessions: 35, recovered: true, end_capital: 8000, simulated: false },
         { scenario: 'REPLAY_2020_02_19_2020_04_30', label: '区间重放：2020-02-19 至 2020-04-30', max_loss_usd: 900, longest_underwater_sessions: 40, recovered: true, end_capital: 3100, simulated: false },
-        { scenario: 'EXTREME_BEAR_SYNTHETIC_3X', label: '极端熊市（母序列合成 3× 载体）', max_loss_usd: 2400, longest_underwater_sessions: 160, recovered: false, end_capital: 600, simulated: true },
+        { scenario: 'EXTREME_BEAR_2008_BOUNDARY_SYNTHETIC', label: '规则边界情景：只含 SPY / QQQ 合成载体，不是本策略标的池；模拟序列，不是可交易历史', max_loss_usd: 2400, longest_underwater_sessions: 160, recovered: false, end_capital: 600, simulated: true },
+        {
+          scenario: 'EXTREME_BEAR_2008', label: '极端熊市 2008', missing: true, simulated: false,
+          missing_reason: '2007–2009 行业 ETF 日线在 Mac 与 HK 均无，按 Owner 规则不重新拉取',
+          max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null,
+        },
       ],
     },
     half_kelly: {

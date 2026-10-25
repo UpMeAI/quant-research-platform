@@ -155,7 +155,8 @@ function validateWhole(doc) {
 
   const stressRows = isObject(doc.stress) && Array.isArray(doc.stress.rows) ? doc.stress.rows : [];
   for (const row of stressRows) {
-    if (isObject(row) && /bear|熊|synthetic|模拟/i.test(`${row.scenario || ''}${row.label || ''}`)) {
+    // 缺场景行（F1）没有跑出任何序列，不存在「把模拟当真实」的风险，名称里带「熊市」也不要求 simulated:true。
+    if (isObject(row) && row.missing !== true && /bear|熊|synthetic|模拟/i.test(`${row.scenario || ''}${row.label || ''}`)) {
       need(row.simulated === true, 'Q0_STRESS_SIMULATED_NOT_FLAGGED', row.scenario);
     }
   }
@@ -255,18 +256,46 @@ function winrateBlock(doc) {
   };
 }
 
+const STRESS_NUMBERS = ['max_loss_usd', 'longest_underwater_sessions', 'recovered', 'end_capital'];
+
+/**
+ * F1：缺场景的行（`missing: true` + `missing_reason`，数字都是 null，`simulated: false`）不让文件失败，
+ * 页面写「缺场景：原因」，不算已执行的压力。「最大损失」主数字只取既非模拟、也非缺场景的行里
+ * `max_loss_usd` 最大的一行，并写明是哪个场景；没有这样的行就写「尚无」。
+ */
 function stressBlock(doc) {
   const rows = doc.stress && doc.stress.rows;
   need(Array.isArray(rows) && rows.length, 'MISSING', 'stress.rows');
-  return {
-    rows: rows.map((row) => ({
-      scenario: field(row, 'scenario', 'stress.scenario', 'string'), label: typeof row.label === 'string' && row.label ? row.label : row.scenario,
+  const mapped = rows.map((row, index) => {
+    const where = `stress.rows[${index}]`;
+    need(isObject(row), 'INVALID', where);
+    const scenario = field(row, 'scenario', `${where}.scenario`, 'string');
+    const label = typeof row.label === 'string' && row.label ? row.label : scenario;
+    if (row.missing === true) {
+      need(typeof row.missing_reason === 'string' && row.missing_reason.trim(), 'MISSING', `${where}.missing_reason`);
+      need(row.simulated === false, 'INVALID', `${where} 缺场景行须 simulated:false`);
+      need(STRESS_NUMBERS.every((key) => row[key] === null), 'INVALID', `${where} 缺场景行的数字必须是 null，不能用 0 或估计值补位`);
+      return {
+        scenario, label, missing: true, missing_reason: row.missing_reason.trim(), simulated: false,
+        max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, note: null,
+      };
+    }
+    need(row.missing === undefined || row.missing === false, 'INVALID', `${where}.missing`);
+    return {
+      scenario, label, missing: false, missing_reason: null,
       max_loss_usd: field(row, 'max_loss_usd', 'stress.max_loss_usd'),
       longest_underwater_sessions: field(row, 'longest_underwater_sessions', 'stress.longest_underwater_sessions'),
       recovered: field(row, 'recovered', 'stress.recovered', 'bool'), end_capital: field(row, 'end_capital', 'stress.end_capital'),
       simulated: field(row, 'simulated', 'stress.simulated', 'bool'),
       note: row.simulated ? '模拟序列，不是可交易历史' : null,
-    })),
+    };
+  });
+  const executed = mapped.filter((row) => !row.missing && !row.simulated);
+  const worst = executed.reduce((best, row) => (!best || row.max_loss_usd > best.max_loss_usd ? row : best), null);
+  return {
+    rows: mapped,
+    headline: worst ? { scenario: worst.scenario, label: worst.label, max_loss_usd: worst.max_loss_usd } : null,
+    counts: { executed: executed.length, simulated: mapped.filter((row) => row.simulated).length, missing: mapped.filter((row) => row.missing).length },
   };
 }
 
