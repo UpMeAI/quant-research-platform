@@ -59,4 +59,18 @@ function q1Basis({ state, flags, L_D, U_D, L_g, U_g, population, delta_star, del
   };
 }
 
-module.exports = { placeOf, pairedBasis, q1Basis, FROZEN };
+/**
+ * 随机选择对照（Q3a／Q3a2）：G1（OOS 选择点够不够）先判；够了看基线账户 g 胜过的种子比例对 0.75／0.50 两条线。
+ * 比例在门槛上的位置只读文件里的比例（相等算一半），不重算。
+ */
+function randomBasis({ state, g1, oos, required, share, support_at, fail_at }) {
+  const shareText = `基线账户 g 胜过 ${(share * 100).toFixed(1)}% 的随机种子（相等算一半）`;
+  const pctText = (value) => `${(value * 100).toFixed(0)}%`;
+  if (!g1) return { title: '判定依据', main: [`G1 不成立：OOS 选择点 ${oos} 个，低于门槛 ${required} 个`], also: [`${shareText}，只作描述，不判`], frozen_zh: FROZEN };
+  const g1Note = `G1 成立（OOS 选择点 ${oos} 个，门槛 ${required} 个）`;
+  if (state === 'SUPPORTED') return { title: '判定依据', main: [`${shareText}，不低于门槛 ${pctText(support_at)}；${g1Note}`], also: [], frozen_zh: FROZEN };
+  if (state === 'NOT_PASSED') return { title: '判定依据', main: [`${shareText}，不高于门槛 ${pctText(fail_at)}；${g1Note}`], also: [], frozen_zh: FROZEN };
+  return { title: '判定依据', main: [`${shareText}，介于门槛 ${pctText(fail_at)} 与 ${pctText(support_at)} 之间，既不够支持也不够否定；${g1Note}`], also: [], frozen_zh: FROZEN };
+}
+
+module.exports = { placeOf, pairedBasis, q1Basis, randomBasis, FROZEN };

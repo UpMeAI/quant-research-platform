@@ -37,12 +37,25 @@ const project2 = (fn) => cc.buildProjection(imp(write2(fn)), { allowNonActual: t
 const block = (projection, key) => projection.blocks.find((item) => item.key === key);
 const setCriteria = (doc, name, value) => { doc.comparison.criteria[name] = value; };
 
+// UX 修订 4 只改呈现：投影里新增 A4 字段（判定依据、前向人话、与参照相同、基准提示），账户块只留原版与候选两臂；
+// 其余每个数字、标签、状态、结果编号都必须与改造前导出的金标逐字段相同。金标本身不动。
+const A4_ADDED = new Set(['benchmark_note_zh', 'same_as_reference', 'basis', 'unknown_reason_codes', 'plain_zh']);
+const stripA4 = (value) => (Array.isArray(value) ? value.map(stripA4)
+  : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => !A4_ADDED.has(key)).map(([key, item]) => [key, stripA4(item)])) : value);
+function goldenAfterA4(goldenProjection, armKeys) {
+  const copy = JSON.parse(JSON.stringify(goldenProjection));
+  const account = copy.blocks.find((item) => item.key === 'account').data;
+  assert.deepEqual(account.arms.map((arm) => arm.key), armKeys, '金标是改造前导出的，四臂俱在');
+  account.arms = account.arms.slice(0, 2);
+  return copy;
+}
+
 // ── 登记项本身 ──────────────────────────────────────────────────────────────────
 
-test('登记项：按题目 id 登记，队列顺序 Q1、Q2；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
-  assert.deepEqual(cc.ORDER, ['Q1', 'Q2']);
-  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2']);
-  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 2, 'schema 唯一');
+test('登记项：按题目 id 登记，队列顺序 Q1、Q2、Q3；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
+  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3']);
+  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2', 'Q3']);
+  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 3, 'schema 唯一');
   for (const entry of Object.values(cc.QUESTIONS)) {
     assert.equal(sha256File(entry.k2.ref), entry.k2.sha256, `${entry.question_ref} 的 K2 sha256 要等于冻结文件的实际 sha256`);
     assert.ok(fs.existsSync(path.join(ROOT, entry.profile_ref)), `${entry.question_ref} 的导入规格文件存在：${entry.profile_ref}`);
@@ -82,6 +95,23 @@ test('登记项的内容：Q1 = 改造前写死的值；Q2 = K2 裁定 4–6', (
   assert.equal(Q2.edge_labels.SUPPORTED, '完整账户的对数增长更好（不等于信号 alpha 更大）');
 });
 
+// ── 队列状态：从锁、登记项与计划推出，不写死文案 ───────────────────────────────────────────────
+
+test('队列状态：K2 已冻结且没有封存结果＝进行中；K2 未冻结按计划写排队（等谁）或待立题；封存结果的三种状态；计划里没有的题不动', () => {
+  const queue = cc.registry.queueState;
+  const card = (question, state) => ({ question_ref: question, state });
+  assert.deepEqual(cc.registry.PLAN, { Q1: [], Q2: [], Q3: ['Q1'], Q4: ['Q3'] });
+  assert.deepEqual(queue('Q1', []), { question: 'Q1', phase: 'RUNNING', waiting_on: [] });
+  assert.equal(queue('Q3', []).phase, 'RUNNING', 'Q3 的 K2 已冻结：不论 Q1 有没有锁，都是进行中，不再写「排队：Q1 之后」');
+  assert.equal(queue('Q3', [card('Q1', 'LOCKED_VERIFIED')]).phase, 'RUNNING');
+  assert.deepEqual(queue('Q4', [card('Q1', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] });
+  assert.deepEqual(queue('Q4', [card('Q3', 'NOT_IMPORTED')]), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] }, '没有导入的空卡不算锁定');
+  assert.deepEqual(queue('Q4', [card('Q3', 'INVALID')]), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] }, '校验失败的不算锁定');
+  assert.deepEqual(queue('Q4', [card('Q3', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'READY_FOR_K2', waiting_on: [] });
+  assert.deepEqual([queue('Q2', [card('Q2', 'LOCKED_VERIFIED')]).phase, queue('Q2', [card('Q2', 'INVALID')]).phase, queue('Q2', [card('Q2', 'MISSING')]).phase], ['LOCKED', 'INVALID', 'MISSING']);
+  assert.equal(queue('Q9', []), null);
+});
+
 // ── Q1 的登记项逐项复现今天的行为 ────────────────────────────────────────────────
 
 test('真实的 Q1 封存文件：同一个 result_id、同一份锁字段、同一份投影（对照改造前导出的金标）', () => {
@@ -105,20 +135,35 @@ test('真实的 Q1 封存文件：同一个 result_id、同一份锁字段、同
   const { title_zh: title, ...rest } = projection;
   assert.equal(title, '候选对比：T3 对原版');
   const normalized = { ...rest, source: { ...rest.source, file_ref: '<path>', locked_at: '<t>', locked_by: '<who>' } };
-  // UX 修订 4 只改呈现：投影里新增 A4 字段（判定依据、前向人话、与参照相同、基准提示），账户块只留原版与候选两臂；
-  // 其余每个数字、标签、状态、结果编号都必须与改造前导出的金标逐字段相同。
-  const A4_ADDED = new Set(['benchmark_note_zh', 'same_as_reference', 'basis', 'unknown_reason_codes', 'plain_zh']);
-  const stripA4 = (value) => (Array.isArray(value) ? value.map(stripA4)
-    : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => !A4_ADDED.has(key)).map(([key, item]) => [key, stripA4(item)])) : value);
-  const goldenProjection = JSON.parse(JSON.stringify(golden.projection));
-  const goldenAccount = goldenProjection.blocks.find((item) => item.key === 'account').data;
-  assert.deepEqual(goldenAccount.arms.map((arm) => arm.key), ['BASELINE', 'CANDIDATE_T3', 'SPY_BUY_HOLD', 'CASH'], '金标是改造前导出的，四臂俱在');
-  goldenAccount.arms = goldenAccount.arms.slice(0, 2);
+  // UX 修订 4 只改呈现（见 goldenAfterA4）：去掉新增的呈现字段与基准两臂后，必须与改造前导出的金标逐字段相同。
+  const goldenProjection = goldenAfterA4(golden.projection, ['BASELINE', 'CANDIDATE_T3', 'SPY_BUY_HOLD', 'CASH']);
   assert.deepEqual(stripA4(normalized), goldenProjection, 'A4 之后的 Q1 投影，去掉新增的呈现字段与基准两臂，必须与改造前逐字段相同（只多了 title_zh）');
   assert.ok(projection.blocks.every((item) => item.state === 'AVAILABLE'));
   // 也走自动判断：不指定题目，按 identity.schema 找到 Q1
   assert.equal(cc.readSealed(q1File).entry, Q1);
   assert.equal(cc.readSealed(q1File, { question: 'Q1' }).entry, Q1);
+});
+
+test('真实的 Q2 封存文件：同一个 result_id、同一份锁字段、同一份投影（对照 Q3 登记项加入之前导出的金标）', () => {
+  const q0File = path.join(ROOT, 'var/evidence/us-v5-m2-q0-current-2026-10-25/US_V5_M2_Q0_RESULT_V1.json');
+  const q2File = path.join(ROOT, 'var/evidence/us-v5-m2-q2-2026-10-25/US_V5_M2_Q2_RESULT_V1.json');
+  for (const ledger of [q0.LEDGER(), cc.LEDGER()]) fs.rmSync(ledger, { force: true });
+  q0.importBaselineEvaluation(q0File, { registeredBy: AUTHORITY });
+  const lock = cc.importCandidateComparison(q2File, { registeredBy: AUTHORITY });
+  const golden = JSON.parse(fs.readFileSync(path.join(__dirname, 'golden', 'q2_real_projection.json'), 'utf8'));
+  assert.equal(lock.result_id, 'Q2-02796a4366aa0263');
+  assert.equal(lock.result_id, golden.result_id);
+  assert.deepEqual(Object.keys(lock).sort(), golden.lock_keys);
+  assert.equal(lock.question_ref, 'Q2');
+  assert.equal(lock.verdict_state, 'INSUFFICIENT');
+  assert.equal(lock.t3_state, null);
+  assert.equal(lock.profile_ref, 'docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md');
+  assert.equal(cc.importCandidateComparison(q2File, { registeredBy: AUTHORITY }).replayHit, true);
+  const projection = cc.buildProjection(lock, { question: 'Q2' });
+  const normalized = { ...projection, source: { ...projection.source, file_ref: '<path>', locked_at: '<t>', locked_by: '<who>' } };
+  assert.deepEqual(stripA4(normalized), goldenAfterA4(golden.projection, ['BASELINE', 'CANDIDATE_1X', 'SPY_BUY_HOLD', 'CASH']), 'A4 之后的 Q2 投影，去掉新增的呈现字段与基准两臂，必须与改造前逐字段相同');
+  assert.equal(projection.extra_cards, undefined, 'Q2 没有额外卡片');
+  assert.equal(cc.readSealed(q2File).entry, Q2);
 });
 
 // ── Q2 的登记项 ─────────────────────────────────────────────────────────────────

@@ -81,7 +81,7 @@ test('尚未交付：「研究与对比」写「尚未完成：研究会话尚�
   assert.match(section, /<p class="not-backtested">尚未完成：研究会话尚未交付封存的对比结果<\/p>/);
   assert.equal((section.match(/data-cmp-block/g) || []).length, 0);
   const diagnosis = html.slice(html.indexOf('id="diagnosis-title"'), html.indexOf('id="detail-health"'));
-  assert.match(diagnosis, /对应实验：<\/strong>Q1 · .*（K2 已冻结，等研究会话交付封存的对比结果（见研究与对比））/);
+  assert.match(diagnosis, /对应实验：<\/strong>Q1 · .*（进行中：K2 已冻结，等研究会话交付封存的对比结果（见研究与对比））/);
   assert.match(diagnosis, /<a class="diagnosis-link" href="#strategy-detail\?strategy=US_V5_ETF_3000USD&section=research">查看研究与对比 →<\/a>/);
   assert.doesNotMatch(diagnosis, /排队：Q0 锁定之后开始/, '过期的排队文案不再出现');
 });

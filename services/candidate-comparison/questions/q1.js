@@ -220,7 +220,6 @@ const Q1 = Object.freeze({
   title_zh: '候选对比：T3 对原版',
   k2: Object.freeze({ ref: K2_REF, sha256: K2_SHA256 }),
   profile_ref: 'docs/contracts/US_V5_M2_Q1_RESULT_V1_IMPORT_PROFILE.md',
-  pending_status_zh: 'K2 已冻结，等研究会话交付封存的对比结果（见研究与对比）',
   top_level: Object.freeze(['identity', 'inputs', 'gates', 'arms', 'stats', 'stress', 'half_kelly',
     'formula_table', 'verdict', 'diagnosis_items', 'reproducibility', 'comparison', 'oos_reuse']),
   candidate: Object.freeze({ key: 'CANDIDATE_T3', keys: Object.freeze(['CANDIDATE_T3', 'T3']), label_zh: '候选 T3', deferred_sessions: true }),

@@ -1,0 +1,1005 @@
+{
+ "result_id": "Q2-02796a4366aa0263",
+ "lock_keys": [
+  "baseline_result_id",
+  "case_ref",
+  "defect_ref",
+  "engine_digest",
+  "eval_class",
+  "file_ref",
+  "file_sha256",
+  "file_size",
+  "inputs_digest",
+  "k2_ref",
+  "lock_hash",
+  "locked_at",
+  "locked_by",
+  "oos_reuse",
+  "production_effect",
+  "profile_ref",
+  "question_ref",
+  "result_id",
+  "schema",
+  "strategy_ref",
+  "supersede_reason",
+  "supersedes_ref",
+  "t3_state",
+  "verdict_state"
+ ],
+ "projection": {
+  "state": "LOCKED_VERIFIED",
+  "reason": null,
+  "class": "CANDIDATE_COMPARISON_V1",
+  "question_ref": "Q2",
+  "title_zh": "候选对比：1× 载体对原版（收益来自信号还是杠杆）",
+  "result_id": "Q2-02796a4366aa0263",
+  "verdict_state": "INSUFFICIENT",
+  "verdict_label": "证据不足",
+  "blocks": [
+   {
+    "key": "question",
+    "title": "这个对比在问什么",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "question": "同样的信号与同样的风险定仓，把杠杆载体换成同一敞口的 1× 载体，完整账户的对数增长是更好还是更差？",
+     "candidate": "候选 1×：通过地板的最低 |杠杆| 载体（TECL→XLK、SOXL→SMH、LABU→XBI、CURE→XLV、DUSL→XLI、SPXU→SH、SQQQ→PSQ），TIME 时钟跟随原路由；单股 2× 不变",
+     "populations": [],
+     "oos_reuse": {
+      "flag": false,
+      "label": "样本外没有被复用：2023–2026 没有用于选择载体杠杆",
+      "detail_zh": "2023–2026 没有用于选择载体杠杆：「选最高杠杆」是 AMENDMENT_4 A4.8 第 1 条的实施读法（Owner 09-28 签），AMENDMENT_6 确认，没有找到在这段数据上比较杠杆的回测选择；同一窗口被其他 US_V5 研究读过（计划 §3 已披露）",
+      "independent": []
+     },
+     "baseline_result_id": "Q0-2604282b935f85d3"
+    }
+   },
+   {
+    "key": "account",
+    "title": "账户结果：原版与候选",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "arms": [
+      {
+       "key": "BASELINE",
+       "label": "原版（当前 D）",
+       "end_capital": 3417.9316,
+       "cagr": 0.034977,
+       "max_drawdown": 0.191206,
+       "longest_underwater_sessions": 486,
+       "recovered": false,
+       "sessions": 956,
+       "start": "2023-01-03",
+       "end_date": "2026-10-23",
+       "deferred_sessions": null
+      },
+      {
+       "key": "CANDIDATE_1X",
+       "label": "候选 1× 载体",
+       "end_capital": 3356.1144,
+       "cagr": 0.03001,
+       "max_drawdown": 0.165311,
+       "longest_underwater_sessions": 486,
+       "recovered": false,
+       "sessions": 956,
+       "start": "2023-01-03",
+       "end_date": "2026-10-23",
+       "deferred_sessions": null
+      },
+      {
+       "key": "SPY_BUY_HOLD",
+       "label": "SPY 买入持有",
+       "end_capital": 6248.0811,
+       "cagr": 0.213358,
+       "max_drawdown": 0.187552,
+       "longest_underwater_sessions": 87,
+       "recovered": false,
+       "sessions": 956,
+       "start": "2023-01-03",
+       "end_date": "2026-10-23",
+       "deferred_sessions": null
+      },
+      {
+       "key": "CASH",
+       "label": "现金",
+       "end_capital": 3000,
+       "cagr": 0,
+       "max_drawdown": 0,
+       "longest_underwater_sessions": 0,
+       "recovered": true,
+       "sessions": 956,
+       "start": "2023-01-03",
+       "end_date": "2026-10-23",
+       "deferred_sessions": null
+      }
+     ],
+     "start": "2023-01-03",
+     "end": "2026-10-23",
+     "diff_vs_baseline": {
+      "end_capital": -61.81719999999996,
+      "cagr": -0.004967000000000003,
+      "max_drawdown_pp": -2.5894999999999975,
+      "longest_underwater_sessions": 0
+     }
+    }
+   },
+   {
+    "key": "effect",
+    "title": "账户对数增长与每笔净 R",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "layout": "paired_g",
+     "g": {
+      "value": -0.004811,
+      "ci_95": {
+       "lo": -0.031715,
+       "hi": 0.019688
+      }
+     },
+     "delta_R": 0.1,
+     "note_zh": "年化对数增长差按共同日标记配对，按月分块 bootstrap；单变体，不做多重比较校正",
+     "secondary": {
+      "literal": {
+       "n": 106,
+       "mean_R": -0.0512,
+       "ci_95": {
+        "lo": -0.3177,
+        "hi": 0.2501
+       },
+       "position_zh": "95% 区间跨过 +0.10 R"
+      },
+      "paired": {
+       "n_paired": 105,
+       "mean_dR": -0.024561,
+       "ci_95": {
+        "lo": -0.071332,
+        "hi": 0.004529
+       },
+       "n_baseline_only": 6,
+       "n_candidate_only": 1,
+       "position_zh": "95% 区间整体在 +0.10 R 之下"
+      },
+      "not_in_verdict_zh": "次指标不参与判定，只报告"
+     },
+     "routing": {
+      "changed_entries": 26,
+      "fallback_to_next": 0,
+      "single_stock_2x": {
+       "treatment_zh": "没有 1× 载体，母股票 K 线不在任何封存处；两臂都保持 2× 载体（裁定 1）",
+       "n": 25
+      },
+      "by_class": [
+       {
+        "class": "LEVERAGED_SECTOR",
+        "n": 23
+       },
+       {
+        "class": "INVERSE_INDEX",
+        "n": 3
+       }
+      ],
+      "by_route": [
+       {
+        "route": "LABU→XBI",
+        "n": 10
+       },
+       {
+        "route": "SOXL→SMH",
+        "n": 9
+       },
+       {
+        "route": "TECL→XLK",
+        "n": 4
+       },
+       {
+        "route": "SQQQ→PSQ",
+        "n": 1
+       },
+       {
+        "route": "SPXU→SH",
+        "n": 2
+       }
+      ]
+     }
+    }
+   },
+   {
+    "key": "exposure",
+    "title": "敞口变化披露（两臂）",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "baseline": {
+      "avg_notional_usd": 1785.7653,
+      "time_in_market_ratio": 0.411088,
+      "notional_cap_rejections": 54,
+      "notional_cap_reductions": 62,
+      "avg_actual_risk_usd": 35.4251
+     },
+     "candidate": {
+      "avg_notional_usd": 2181.0003,
+      "time_in_market_ratio": 0.411088,
+      "notional_cap_rejections": 63,
+      "notional_cap_reductions": 76,
+      "avg_actual_risk_usd": 33.4382
+     },
+     "diff": {
+      "avg_notional_usd": 395.2350000000001,
+      "time_in_market_ratio": 0,
+      "notional_cap_rejections": 9,
+      "notional_cap_reductions": 14,
+      "avg_actual_risk_usd": -1.9868999999999986
+     },
+     "note_zh": "同样 60 美元的风险单元下，1× 载体的名义金额更大，名义上限更常约束；这是改动本身的后果，照报"
+    }
+   },
+   {
+    "key": "criteria",
+    "title": "判据逐条",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "rows": [
+      {
+       "key": "G1",
+       "title": "样本够不够",
+       "kind": "met",
+       "flag": false,
+       "state_label": "不成立",
+       "tone": "bad",
+       "text": "样本要够：两臂样本外成熟交易各 ≥ 30 笔，被改换载体的入场 ≥ 30 笔。原版 111 笔；候选 106 笔；被改换载体的入场 26 笔。"
+      },
+      {
+       "key": "P_G",
+       "title": "账户年化对数增长差",
+       "kind": "met",
+       "flag": false,
+       "state_label": "不成立",
+       "tone": "bad",
+       "text": "候选相对原版的年化对数增长差，95% 区间的下沿要大于 0。下沿 -3.17%。"
+      },
+      {
+       "key": "F3",
+       "title": "账户层面的上沿不高于 0",
+       "kind": "triggered",
+       "flag": false,
+       "state_label": "未触发",
+       "tone": "ok",
+       "text": "否决：账户年化对数增长差的 95% 区间上沿不高于 0。上沿 1.97%。"
+      }
+     ]
+    }
+   },
+   {
+    "key": "stress",
+    "title": "压力：两臂逐行对比",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "rows": [
+      {
+       "scenario": "BASELINE",
+       "label": "当前 D 参照（生产时间表，5 bps + 监管费）",
+       "role": "REFERENCE",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 712.5452,
+        "longest_underwater_sessions": 486,
+        "recovered": false,
+        "end_capital": 3417.9316
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 610.9044,
+        "longest_underwater_sessions": 486,
+        "recovered": false,
+        "end_capital": 3356.1144
+       },
+       "diff": {
+        "max_loss_usd": -101.6408,
+        "end_capital": -61.8172,
+        "longest_underwater_sessions": 0
+       },
+       "candidate_missing": false,
+       "note": null
+      },
+      {
+       "scenario": "COST_15BPS",
+       "label": "费用 15 bps / 边",
+       "role": "STRESS",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 970.4688,
+        "longest_underwater_sessions": 528,
+        "recovered": false,
+        "end_capital": 2478.9134
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 911.6984,
+        "longest_underwater_sessions": 528,
+        "recovered": false,
+        "end_capital": 2536.2151
+       },
+       "diff": {
+        "max_loss_usd": -58.7704,
+        "end_capital": 57.3017,
+        "longest_underwater_sessions": 0
+       },
+       "candidate_missing": false,
+       "note": null
+      },
+      {
+       "scenario": "COST_SLIPPAGE_X2",
+       "label": "滑点 ×2（10 bps / 边）",
+       "role": "STRESS",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 784.5622,
+        "longest_underwater_sessions": 496,
+        "recovered": false,
+        "end_capital": 2997.4513
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 689.8247,
+        "longest_underwater_sessions": 496,
+        "recovered": false,
+        "end_capital": 3031.8532
+       },
+       "diff": {
+        "max_loss_usd": -94.7375,
+        "end_capital": 34.4019,
+        "longest_underwater_sessions": 0
+       },
+       "candidate_missing": false,
+       "note": null
+      },
+      {
+       "scenario": "SCAN_PHASE_PLUS_60MIN",
+       "label": "扫描相位 ±60 分钟（11:04 / 13:04 / 15:04 ET）",
+       "role": "STRESS",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 645.2475,
+        "longest_underwater_sessions": 595,
+        "recovered": false,
+        "end_capital": 3132.5213
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 783.2641,
+        "longest_underwater_sessions": 656,
+        "recovered": false,
+        "end_capital": 2920.6615
+       },
+       "diff": {
+        "max_loss_usd": 138.0166,
+        "end_capital": -211.8598,
+        "longest_underwater_sessions": 61
+       },
+       "candidate_missing": false,
+       "note": null
+      },
+      {
+       "scenario": "WINDOW_2020_02_19_04_30",
+       "label": "区间重放 2020-02-19 → 04-30（新账本）",
+       "role": "STRESS",
+       "kind": "INVALID_INPUT",
+       "kind_label": "无效输入",
+       "reason": "封存缓存从 2019-06-03 起，地板要信号序列 250 根日线，2020-05-29 前没有可交易载体，区间重放 0 笔（AC8 记为缺场景）",
+       "simulated": false,
+       "baseline": null,
+       "candidate": null,
+       "diff": null,
+       "candidate_missing": false
+      },
+      {
+       "scenario": "WINDOW_2022_01_03_10_31",
+       "label": "区间重放 2022-01-03 → 10-31（新账本）",
+       "role": "STRESS",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 364.9819,
+        "longest_underwater_sessions": 208,
+        "recovered": false,
+        "end_capital": 2654.7429
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 490.7438,
+        "longest_underwater_sessions": 180,
+        "recovered": false,
+        "end_capital": 2584.1063
+       },
+       "diff": {
+        "max_loss_usd": 125.7619,
+        "end_capital": -70.6366,
+        "longest_underwater_sessions": -28
+       },
+       "candidate_missing": false,
+       "note": null
+      },
+      {
+       "scenario": "EXTREME_DOWNTURN_2008",
+       "label": "2008-09 → 2009-03 极端下跌：缺场景",
+       "role": "STRESS",
+       "kind": "MISSING",
+       "kind_label": "缺场景",
+       "reason": "2007–2009 行业 ETF 日线在 Mac 与 HK 均无，按 Owner 规则不重新拉取",
+       "simulated": false,
+       "baseline": null,
+       "candidate": null,
+       "diff": null,
+       "candidate_missing": false
+      },
+      {
+       "scenario": "EXTREME_BEAR_2008_SPY_QQQ_SYNTH_SUPPLEMENT",
+       "label": "规则边界情景：只含 SPY / QQQ 合成载体，不是本策略标的池；模拟序列，不是可交易历史",
+       "role": "SUPPLEMENTARY",
+       "kind": "SUPPLEMENTARY",
+       "kind_label": null,
+       "reason": null,
+       "simulated": true,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 709.3299,
+        "longest_underwater_sessions": 146,
+        "recovered": false,
+        "end_capital": 2290.6701
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 464.3334,
+        "longest_underwater_sessions": 146,
+        "recovered": false,
+        "end_capital": 2535.6666
+       },
+       "diff": {
+        "max_loss_usd": -244.9965,
+        "end_capital": 244.9965,
+        "longest_underwater_sessions": 0
+       },
+       "candidate_missing": false,
+       "note": "模拟序列，不是可交易历史"
+      },
+      {
+       "scenario": "RISK_NO_24H_COOLDOWN",
+       "label": "风控维度：去掉 24 h 冷却（只报不判）",
+       "role": "RISK_DIMENSION",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 527.8931,
+        "longest_underwater_sessions": 304,
+        "recovered": false,
+        "end_capital": 4038.1435
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 365.0219,
+        "longest_underwater_sessions": 307,
+        "recovered": false,
+        "end_capital": 3822.0842
+       },
+       "diff": {
+        "max_loss_usd": -162.8712,
+        "end_capital": -216.0593,
+        "longest_underwater_sessions": 3
+       },
+       "candidate_missing": false,
+       "note": null
+      },
+      {
+       "scenario": "RISK_MAX_POSITIONS_5",
+       "label": "风控维度：同时持仓 3 → 5（只报不判）",
+       "role": "RISK_DIMENSION",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 712.5452,
+        "longest_underwater_sessions": 486,
+        "recovered": false,
+        "end_capital": 3417.9316
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 610.9044,
+        "longest_underwater_sessions": 486,
+        "recovered": false,
+        "end_capital": 3356.1144
+       },
+       "diff": {
+        "max_loss_usd": -101.6408,
+        "end_capital": -61.8172,
+        "longest_underwater_sessions": 0
+       },
+       "candidate_missing": false,
+       "note": null
+      },
+      {
+       "scenario": "RISK_UNIT_90",
+       "label": "风控维度：单元风险 60 → 90（只报不判）",
+       "role": "RISK_DIMENSION",
+       "kind": "EXECUTED",
+       "kind_label": null,
+       "reason": null,
+       "simulated": false,
+       "baseline": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 771.309,
+        "longest_underwater_sessions": 486,
+        "recovered": false,
+        "end_capital": 3321.5934
+       },
+       "candidate": {
+        "missing": false,
+        "reason": null,
+        "max_loss_usd": 649.746,
+        "longest_underwater_sessions": 486,
+        "recovered": false,
+        "end_capital": 3319.9718
+       },
+       "diff": {
+        "max_loss_usd": -121.563,
+        "end_capital": -1.6216,
+        "longest_underwater_sessions": 0
+       },
+       "candidate_missing": false,
+       "note": null
+      }
+     ],
+     "counts": {
+      "executed": 4,
+      "simulated": 1,
+      "missing": 1,
+      "invalid_input": 1,
+      "candidate_missing": 0,
+      "reference": 1,
+      "risk_dimension": 3
+     }
+    }
+   },
+   {
+    "key": "attribution",
+    "title": "Q2a 归因：收益从哪来（原版 OOS 账本）",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "columns": [
+      {
+       "key": "PARENT_SIGNAL",
+       "label": "母序列信号"
+      },
+      {
+       "key": "LEVERAGE_AND_PATH",
+       "label": "杠杆与路径"
+      },
+      {
+       "key": "SINGLE_STOCK_2X_INSEPARABLE",
+       "label": "单股 2×（不可分）"
+      },
+      {
+       "key": "COST_SLIPPAGE",
+       "label": "费用（含在成交价里的 5 bps／边）"
+      },
+      {
+       "key": "REGULATORY_FEE",
+       "label": "监管费（逐笔未进位）"
+      }
+     ],
+     "oos": {
+      "window": [
+       "2023-01-03",
+       "2026-10-23"
+      ],
+      "rows": [
+       {
+        "class": "INDEX",
+        "label": "指数",
+        "n_trades": 9,
+        "usd": {
+         "PARENT_SIGNAL": -179.53148116487745,
+         "LEVERAGE_AND_PATH": 0.05648116487739685,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -21.18696249999786,
+         "REGULATORY_FEE": -0.4347755335825
+        },
+        "r": {
+         "PARENT_SIGNAL": -0.909673,
+         "LEVERAGE_AND_PATH": 0.000286,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.107353,
+         "REGULATORY_FEE": -0.002203
+        }
+       },
+       {
+        "class": "SECTOR",
+        "label": "行业",
+        "n_trades": 49,
+        "usd": {
+         "PARENT_SIGNAL": 668.3958266224274,
+         "LEVERAGE_AND_PATH": 0.08697337757458445,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -128.14442859998633,
+         "REGULATORY_FEE": -2.6565392716990006
+        },
+        "r": {
+         "PARENT_SIGNAL": 0.512789,
+         "LEVERAGE_AND_PATH": 0.000067,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.098312,
+         "REGULATORY_FEE": -0.002038
+        }
+       },
+       {
+        "class": "LEVERAGED_SECTOR",
+        "label": "3× 行业",
+        "n_trades": 24,
+        "usd": {
+         "PARENT_SIGNAL": 154.26357771805536,
+         "LEVERAGE_AND_PATH": 90.75572228194444,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -23.15998464999798,
+         "REGULATORY_FEE": -0.48253557288870996
+        },
+        "r": {
+         "PARENT_SIGNAL": 0.128237,
+         "LEVERAGE_AND_PATH": 0.075444,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.019253,
+         "REGULATORY_FEE": -0.000401
+        }
+       },
+       {
+        "class": "SINGLE_STOCK_LEVERAGED",
+        "label": "单股 2×",
+        "n_trades": 27,
+        "usd": {
+         "PARENT_SIGNAL": null,
+         "LEVERAGE_AND_PATH": null,
+         "SINGLE_STOCK_2X_INSEPARABLE": -187.56739999999968,
+         "COST_SLIPPAGE": -23.0562874999974,
+         "REGULATORY_FEE": -0.47947506449086
+        },
+        "r": {
+         "PARENT_SIGNAL": null,
+         "LEVERAGE_AND_PATH": null,
+         "SINGLE_STOCK_2X_INSEPARABLE": -0.170695,
+         "COST_SLIPPAGE": -0.020982,
+         "REGULATORY_FEE": -0.000436
+        }
+       },
+       {
+        "class": "INVERSE_INDEX",
+        "label": "反向",
+        "n_trades": 3,
+        "usd": {
+         "PARENT_SIGNAL": 54.96492612946501,
+         "LEVERAGE_AND_PATH": 23.245073870535094,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -4.670434999999557,
+         "REGULATORY_FEE": -0.09736401573799999
+        },
+        "r": {
+         "PARENT_SIGNAL": 0.333109,
+         "LEVERAGE_AND_PATH": 0.140874,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.028305,
+         "REGULATORY_FEE": -0.00059
+        }
+       }
+      ],
+      "total": {
+       "n_trades": 112,
+       "usd": {
+        "PARENT_SIGNAL": 698.0928493050703,
+        "LEVERAGE_AND_PATH": 114.14425069493153,
+        "SINGLE_STOCK_2X_INSEPARABLE": -187.56739999999968,
+        "COST_SLIPPAGE": -200.21809824997905,
+        "REGULATORY_FEE": -4.1506894583990706
+       },
+       "r": {
+        "PARENT_SIGNAL": 0.175948,
+        "LEVERAGE_AND_PATH": 0.028769,
+        "SINGLE_STOCK_2X_INSEPARABLE": -0.047275,
+        "COST_SLIPPAGE": -0.050463,
+        "REGULATORY_FEE": -0.001046
+       }
+      },
+      "account_pnl": 417.93160175002185,
+      "sum_components": 417.93160175002316,
+      "residual": -1.3073986337985843e-12,
+      "reg_daily_rounding": -2.369310541600921
+     },
+     "is": {
+      "window": [
+       "2020-01-02",
+       "2022-12-30"
+      ],
+      "rows": [
+       {
+        "class": "INDEX",
+        "label": "指数",
+        "n_trades": 2,
+        "usd": {
+         "PARENT_SIGNAL": -30.75742335665918,
+         "LEVERAGE_AND_PATH": 0.027423356659276976,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -5.368474999999307,
+         "REGULATORY_FEE": -0.110302928967
+        },
+        "r": {
+         "PARENT_SIGNAL": -0.536199,
+         "LEVERAGE_AND_PATH": 0.000478,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.09359,
+         "REGULATORY_FEE": -0.001923
+        }
+       },
+       {
+        "class": "SECTOR",
+        "label": "行业",
+        "n_trades": 37,
+        "usd": {
+         "PARENT_SIGNAL": 259.57114707153016,
+         "LEVERAGE_AND_PATH": -1.78914707153121,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -99.0281914999881,
+         "REGULATORY_FEE": -2.05482058155025
+        },
+        "r": {
+         "PARENT_SIGNAL": 0.192506,
+         "LEVERAGE_AND_PATH": -0.001327,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.073442,
+         "REGULATORY_FEE": -0.001524
+        }
+       },
+       {
+        "class": "LEVERAGED_SECTOR",
+        "label": "3× 行业",
+        "n_trades": 4,
+        "usd": {
+         "PARENT_SIGNAL": 277.9803771507288,
+         "LEVERAGE_AND_PATH": -21.04037715072881,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -4.6569499999994335,
+         "REGULATORY_FEE": -0.09930436217399999
+        },
+        "r": {
+         "PARENT_SIGNAL": 1.163515,
+         "LEVERAGE_AND_PATH": -0.088067,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.019492,
+         "REGULATORY_FEE": -0.000416
+        }
+       },
+       {
+        "class": "SINGLE_STOCK_LEVERAGED",
+        "label": "单股 2×",
+        "n_trades": 0,
+        "usd": {
+         "PARENT_SIGNAL": null,
+         "LEVERAGE_AND_PATH": null,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": 0,
+         "REGULATORY_FEE": 0
+        },
+        "r": {
+         "PARENT_SIGNAL": null,
+         "LEVERAGE_AND_PATH": null,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": null,
+         "REGULATORY_FEE": null
+        }
+       },
+       {
+        "class": "INVERSE_INDEX",
+        "label": "反向",
+        "n_trades": 6,
+        "usd": {
+         "PARENT_SIGNAL": 93.24655126012239,
+         "LEVERAGE_AND_PATH": -2.7565512601225404,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -5.668274999999426,
+         "REGULATORY_FEE": -0.11773566274399999
+        },
+        "r": {
+         "PARENT_SIGNAL": 0.3091,
+         "LEVERAGE_AND_PATH": -0.009138,
+         "SINGLE_STOCK_2X_INSEPARABLE": null,
+         "COST_SLIPPAGE": -0.01879,
+         "REGULATORY_FEE": -0.00039
+        }
+       }
+      ],
+      "total": {
+       "n_trades": 49,
+       "usd": {
+        "PARENT_SIGNAL": 600.0406521257225,
+        "LEVERAGE_AND_PATH": -25.55865212572328,
+        "SINGLE_STOCK_2X_INSEPARABLE": 0,
+        "COST_SLIPPAGE": -114.72189149998626,
+        "REGULATORY_FEE": -2.38216353543525
+       },
+       "r": {
+        "PARENT_SIGNAL": 0.308294,
+        "LEVERAGE_AND_PATH": -0.013132,
+        "SINGLE_STOCK_2X_INSEPARABLE": 0,
+        "COST_SLIPPAGE": -0.058943,
+        "REGULATORY_FEE": -0.001224
+       }
+      },
+      "account_pnl": 456.19010850001223,
+      "sum_components": 456.190108500013,
+      "residual": -7.958078640513122e-13,
+      "reg_daily_rounding": -1.1878364645647448
+     },
+     "fill_limits": null,
+     "definitions": [
+      "母序列信号 = 该笔初始风险 USD × R_母；R_母 = 母序列在同一入场 / 出场时点的收益 ÷ 信号自身的止损距离（(entryRef − sl) / entryRef）",
+      "杠杆与路径 = 载体中间价毛利 − 母序列信号；其中「路径与跟踪」= 中间价毛利 − 理想 L× 收益，「价位映射」= 理想 L× 收益 − 母序列信号（止损映射、取整与成交价基准）",
+      "不可分 = 单股 2× 的整笔中间价毛利（信号算在 2× 载体上，母股票没有 K 线）",
+      "费用 = 含在成交价里的 5 bps / 边（中间价毛利 − 实际成交盈亏）；佣金 0，没有另外的费用",
+      "监管费 = 逐笔未进位的 stand-alone 监管费；账户行另列「按日进位差」",
+      "母序列出场价：bar 内触发 = 载体出场那根 bar 的母序列收盘价；跳空 = 那根 bar 的开盘价；TIME = 同一扫描时点的母序列最新收盘；持仓替换 = 同一扫描时点报价；数据结束 = 最后一根 bar 收盘价",
+      "对账：五栏合计加上监管费按日进位差（单独一行，不在任何一栏里）等于原版臂 OOS 账户期末 − 期初"
+     ],
+     "note_zh": "归因对的是原版臂的净盈亏：各栏之和加上监管费按日进位差，等于账户期末减期初，残差 0；这是描述，不出结论"
+    }
+   },
+   {
+    "key": "verdict",
+    "title": "三态结论与采用条件",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "layout": "paired_g",
+     "class": "CANDIDATE_COMPARISON_V1",
+     "state": "INSUFFICIENT",
+     "label": "证据不足",
+     "delta_g": 0,
+     "delta_R": 0.1,
+     "g_95": {
+      "lo": -0.031715,
+      "hi": 0.019688
+     },
+     "fail_label": null,
+     "reasons": [
+      {
+       "code": "G1_NOT_MET",
+       "text": "样本不够（G1 不满足）"
+      },
+      {
+       "code": "CI_G_STRADDLES_ZERO",
+       "text": "账户年化对数增长差的区间跨过 0"
+      },
+      {
+       "code": "STRESS_SCENARIO_MISSING",
+       "text": "压力场景有缺（缺场景按不足处理）"
+      }
+     ],
+     "method_zh": "只按账户层面配对的年化对数增长差判定：95% 区间下沿大于 0 为有支持证据，上沿不高于 0 为未通过，其余为证据不足；单变体，不做多重比较校正。每笔净 R 对 +0.10 R 只报告，不参与判定。",
+     "caveat_zh": "「有支持证据」在这里的意思是完整账户的对数增长更好，不等于信号 alpha 更大（低暴露、小回撤不自动称 alpha）。",
+     "completeness": {
+      "complete": false,
+      "adoption_met": false,
+      "lines": [
+       {
+        "kind": "edge",
+        "tone": "",
+        "text": "优势结论：证据不足"
+       },
+       {
+        "kind": "stress",
+        "tone": "warn",
+        "text": "压力评价不完整：缺场景 1 个、无效输入 1 个（2008-09 → 2009-03 极端下跌：缺场景；区间重放 2020-02-19 → 04-30（新账本）：无效输入）"
+       },
+       {
+        "kind": "adoption",
+        "tone": "bad",
+        "text": "采用条件：未满足（必要压力缺失，§6.7）"
+       }
+      ]
+     }
+    }
+   },
+   {
+    "key": "forward",
+    "title": "前向观察",
+    "state": "AVAILABLE",
+    "reason": null,
+    "data": {
+     "label": "前向，只报不判，不并入结论",
+     "reason_zh": "HK 没有 1× 路由的前向影子，本题没有前向证据",
+     "rows": []
+    }
+   }
+  ],
+  "completeness": {
+   "complete": false,
+   "adoption_met": false,
+   "lines": [
+    {
+     "kind": "edge",
+     "tone": "",
+     "text": "优势结论：证据不足"
+    },
+    {
+     "kind": "stress",
+     "tone": "warn",
+     "text": "压力评价不完整：缺场景 1 个、无效输入 1 个（2008-09 → 2009-03 极端下跌：缺场景；区间重放 2020-02-19 → 04-30（新账本）：无效输入）"
+    },
+    {
+     "kind": "adoption",
+     "tone": "bad",
+     "text": "采用条件：未满足（必要压力缺失，§6.7）"
+    }
+   ]
+  },
+  "baseline": {
+   "result_id": "Q0-2604282b935f85d3",
+   "current": true
+  },
+  "source": {
+   "result_id": "Q2-02796a4366aa0263",
+   "file_ref": "<path>",
+   "file_sha256": "02796a4366aa02639b53c7300f3bcead003693345577bd71358753550a586412",
+   "size": 687688,
+   "locked_at": "<t>",
+   "locked_by": "<who>",
+   "k2_ref": "docs/contracts/US_V5_M2_Q2_SIGNAL_VS_LEVERAGE_K2_V1.md",
+   "profile_ref": "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md",
+   "baseline_result_id": "Q0-2604282b935f85d3",
+   "inputs_digest": "3361ced6e5eb02a0f77dea1a61421b399420d6fdb45cad10358b640c2877e18e",
+   "engine_digest": "c57acc194cfa9ed2ae3893d6011f03443c9727002abcf959576899b6617393bf"
+  },
+  "production_effect": "NONE"
+ }
+}

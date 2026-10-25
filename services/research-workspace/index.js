@@ -261,39 +261,55 @@ function technicalSampleSummary({ adapters, families, modules, bundles, hypothes
 }
 
 /**
- * 待验证问题清单里对应某个已登记对比题（Q1、Q2……）的那一条：有对比结果时写结论并链到「研究与对比」，
- * 没有就按登记项的等待文案写（登记项没写就不动）。只改对应那几条的 status 与 link，其余原样；清单读不出来时不动。
+ * 一道题现在处在哪一步，写成人话。状态从锁、登记项（K2 是否已冻结）和研究计划的先后关系推出
+ * （candidate-comparison/registry.js 的 queueState），不写死「排队：Q1 之后」这类文案；计划里没有的题返回 null。
+ */
+function queueText(state) {
+  if (!state) return null;
+  return {
+    RUNNING: '进行中：K2 已冻结，等研究会话交付封存的对比结果（见研究与对比）',
+    QUEUED: `排队：${state.waiting_on.join('、')} 锁定之后开始`,
+    READY_FOR_K2: '待立题：前置题已锁定，等 K2 冻结后开始',
+  }[state.phase] || null;
+}
+
+/**
+ * 待验证问题清单里对应某个实验题（Q1、Q2……）的那一条：有封存结果时写结论并链到「研究与对比」，
+ * 没有就按队列状态写（已冻结 K2 = 进行中；否则排队或待立题，写明在等谁）。只改对应那几条的 status 与 link，其余原样；
+ * 清单读不出来或这项策略没有候选对比时不动。
  */
 function linkComparison(diagnosis, comparisons, strategyRef) {
   if (!diagnosis || diagnosis.state !== 'AVAILABLE') return diagnosis;
+  if (comparisons.length && comparisons.every((projection) => projection.state === 'NOT_CONNECTED')) return diagnosis;
   const link = { label: '查看研究与对比', section: 'research', strategy_ref: strategyRef };
   const byQuestion = new Map(comparisons.map((projection) => [projection.question_ref, projection]));
   const statusOf = (question) => {
+    const state = candidateComparison.registry.queueState(question, comparisons);
+    if (!state) return null;
     const projection = byQuestion.get(question);
-    const state = projection ? projection.state : 'NOT_IMPORTED';
     const STATUS = {
-      LOCKED_VERIFIED: () => `已完成：${projection.verdict_label}（见研究与对比）`,
+      LOCKED: () => `已完成：${projection.verdict_label}（见研究与对比）`,
       INVALID: () => '已有封存的对比结果，但校验未通过（见研究与对比）',
       MISSING: () => '已有封存的对比结果，但文件或旁证缺失（见研究与对比）',
-      NOT_IMPORTED: () => candidateComparison.registry.get(question).pending_status_zh,
     };
-    return STATUS[state] ? STATUS[state]() : null;
+    return STATUS[state.phase] ? STATUS[state.phase]() : queueText(state);
   };
   return {
     ...diagnosis,
     items: diagnosis.items.map((item) => {
       const question = item.experiment && item.experiment.id;
-      if (!question || !candidateComparison.registry.get(question)) return item;
+      if (!question) return item;
       const status = statusOf(question);
-      return status ? { ...item, experiment: { ...item.experiment, status }, link } : item;
+      if (!status) return item;
+      return { ...item, experiment: { ...item.experiment, status }, ...(byQuestion.has(question) ? { link } : {}) };
     }),
   };
 }
 
 /**
  * D4（UX 修订 4）：研究区的状态必须和已锁定的对比结果一致。
- * 「研究问题：Q1、Q2 已锁定；Q3、Q4 进行中（来源：Q0 诊断，协调会话立题）；尚未回到 Desk」——
- * 已锁定的取自对比结果的锁；其余取自 Q0 诊断清单里已立题的实验（QRP 只知道「已立题、未锁定」，写作「进行中」）。
+ * 「研究问题：Q1、Q2 已锁定；Q3 进行中；Q4 排队，等 Q3 锁定（来源：Q0 诊断，协调会话立题）；尚未回到 Desk」——
+ * 已锁定的取自对比结果的锁；其余取自 Q0 诊断清单里已立题的实验，再按登记项（K2 已冻结＝进行中）与研究计划的先后关系（排队，等谁）推出。
  * 没有任何已锁定的对比结果时返回 null，页面保持原来的写法。
  */
 function researchSummary(comparisons, diagnosis, returnedToDesk) {
@@ -303,11 +319,18 @@ function researchSummary(comparisons, diagnosis, returnedToDesk) {
   const proposed = [...new Set((diagnosis && diagnosis.state === 'AVAILABLE' ? diagnosis.items : [])
     .map((item) => item.experiment && item.experiment.id).filter(Boolean))].sort();
   const have = new Set([...locked, ...broken]);
-  const running = proposed.filter((id) => !have.has(id));
+  const pending = proposed.filter((id) => !have.has(id)).map((id) => candidateComparison.registry.queueState(id, comparisons) || { question: id, phase: 'RUNNING', waiting_on: [] });
+  const running = pending.filter((state) => state.phase === 'RUNNING').map((state) => state.question);
+  // 已冻结 K2 的写「进行中」；还没冻结的按计划写排队（等谁）或待立题，不一律写「进行中」
+  const unlocked = [];
+  if (running.length) unlocked.push(`${running.join('、')} 进行中`);
+  for (const state of pending.filter((item) => item.phase === 'QUEUED')) unlocked.push(`${state.question} 排队，等 ${state.waiting_on.join('、')} 锁定`);
+  for (const state of pending.filter((item) => item.phase === 'READY_FOR_K2')) unlocked.push(`${state.question} 待立题，前置题已锁定，等 K2 冻结`);
+  if (unlocked.length) unlocked[unlocked.length - 1] += '（来源：Q0 诊断，协调会话立题）';
   const parts = [];
   if (locked.length) parts.push(`${locked.join('、')} 已锁定`);
   if (broken.length) parts.push(`${broken.join('、')} 已有封存结果但校验未通过`);
-  if (running.length) parts.push(`${running.join('、')} 进行中（来源：Q0 诊断，协调会话立题）`);
+  parts.push(...unlocked);
   parts.push(returnedToDesk ? `已有 ${returnedToDesk} 项回到 Desk` : '尚未回到 Desk');
   return `研究问题：${parts.join('；')}`;
 }

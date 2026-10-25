@@ -66,6 +66,8 @@ function readSealed(file, options = {}) {
     throw rename(error, hinted || sniffEntry(file) || DEFAULT_ENTRY);
   }
   const entry = hinted || registry.bySchema(sealed.doc.identity && sealed.doc.identity.schema) || DEFAULT_ENTRY;
+  // 显式指定了题目而文件是别的题目的：先报 schema 不符，不要报一串别的题目的顶层字段缺失
+  if (hinted && sealed.doc.identity && sealed.doc.identity.schema !== hinted.schema) fail(E(hinted, 'RESULT_SCHEMA_UNSUPPORTED'), sealed.doc.identity.schema);
   const missing = entry.top_level.filter((key) => sealed.doc[key] === undefined || sealed.doc[key] === null);
   need(!missing.length, E(entry, 'RESULT_TOP_LEVEL_MISSING'), missing.join(','));
   return { ...sealed, entry };
@@ -118,6 +120,8 @@ function validateWhole(entry, doc) {
   } else {
     need(doc.oos_reuse === false, E(entry, 'OOS_REUSE_MUST_BE_FALSE'));
     need(!codes.includes(oos.reason_code), E(entry, 'OOS_REUSE_CONTRADICTS_CODE'));
+    // Q3b：没有复用来选择，但同一规则已在同一窗口评价过——不当新样本外，必须带这个原因码（K2 裁定 4）
+    if (oos.required_code) need(codes.includes(oos.required_code), E(entry, 'OOS_PREVIOUS_EVALUATION_NOT_DECLARED'), oos.required_code);
   }
   if (oos.detail_required) need(detailPresent(doc.oos_reuse_detail), E(entry, 'OOS_REUSE_DETAIL_MISSING'));
 
@@ -161,6 +165,15 @@ function buildBlocks(entry, doc) {
 
 // ── 投影 ────────────────────────────────────────────────────────────────────────
 
+/** 主卡之后的独立卡片（登记项的 `extra_cards`，如 Q3 的随机选择对照）：自己的结论，各自失败只坏自己。 */
+function buildExtraCards(entry, doc) {
+  return entry.extra_cards.map((spec) => {
+    try { return { key: spec.key, title_zh: spec.title_zh, state: 'AVAILABLE', reason: null, data: spec.build(entry, doc) }; } catch (error) {
+      return { key: spec.key, title_zh: spec.title_zh, state: 'NOT_COMPLETED', reason: reasonText(error), data: null };
+    }
+  });
+}
+
 function project(sealed, lock) {
   const { doc, entry } = sealed;
   validateWhole(entry, doc);
@@ -172,6 +185,7 @@ function project(sealed, lock) {
   return {
     state: 'LOCKED_VERIFIED', reason: null, class: EVAL_CLASS, question_ref: lock.question_ref, title_zh: entry.title_zh, result_id: lock.result_id,
     verdict_state: doc.verdict.state, verdict_label: edgeLabel(entry, doc.verdict.state), blocks, completeness,
+    ...(entry.extra_cards ? { extra_cards: buildExtraCards(entry, doc) } : {}),
     baseline: { result_id: lock.baseline_result_id, current: Boolean(head && head.result_id === lock.baseline_result_id) },
     source: {
       result_id: lock.result_id, file_ref: sealed.file, file_sha256: sealed.sha256, size: sealed.size, locked_at: lock.locked_at,
