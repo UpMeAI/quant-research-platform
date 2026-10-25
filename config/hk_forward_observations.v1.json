@@ -6,6 +6,7 @@
   "items": [
     {
       "id": "US_V5_T3_TIME_STOP_TWIN",
+      "forward_stream": "B",
       "label": "US_V5 T3：处于趋势时推迟 5 日 TIME stop（交易孪生）",
       "applies_to": ["US_V5_ETF_3000USD", "US_V5_ETF_6000USD"],
       "started_on": "2026-10-05",
@@ -16,6 +17,7 @@
     },
     {
       "id": "US_V5_T3_TIME_STOP_SIGNAL_LEVEL",
+      "forward_stream": "S",
       "label": "US_V5 T3 信号层影子（S-stream）",
       "applies_to": ["US_V5_ETF_3000USD", "US_V5_ETF_6000USD"],
       "started_on": "2026-10-05",

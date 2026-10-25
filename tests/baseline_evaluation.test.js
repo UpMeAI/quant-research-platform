@@ -301,7 +301,7 @@ test('近似引擎：结论的最大限制和周期块用文件自带的中文�
   assert.equal(projection.conclusion.biggest_limit, '使用的是研究引擎近似的当前 D（缺：K 线择时 v1、扫描时刻），结论最高只能是证据不足。');
   assert.equal(projection.blocks[0].data.engine.label, '研究引擎近似的当前 D（缺：K 线择时 v1、扫描时刻）');
   assert.deepEqual(projection.blocks.find((block) => block.key === 'verdict').data.reasons.map((reason) => reason.text),
-    ['研究引擎只是当前 D 的近似', '年化对数增长区间跨过 0', '压力场景有缺（缺场景按不足处理）']);
+    ['研究引擎只是当前 D 的近似', '相对比较对象的年化对数增长差，95% 区间跨过 0（这一条本身不足以判定）', '压力场景有缺（缺场景按不足处理）']);
 });
 
 // 协调者封存进仓库的真实 Q0 文件（锁 Q0-24fb86c3609f7ef3 的那份）：随仓库走，任何机器都能跑，只读，不导入。
@@ -391,7 +391,8 @@ test('G3：压力缺场景或无效输入时 SUPPORTED 照常导入，但文件�
   assert.equal(c.edge_line, '优势结论：有支持证据');
   assert.equal(c.stress_line, '压力评价不完整：缺场景 1 个、无效输入 1 个（2008 极端下跌：缺场景；区间重放 2020：无效输入）');
   assert.equal(c.adoption_line, '采用条件：未满足（必要压力缺失，§6.7）');
-  assert.deepEqual(projection.blocks.find((block) => block.key === 'verdict').data.completeness, c);
+  // UX 修订 4 D3.1：三行只在顶部结论区块写一次，回测结论卡第 6 块不再重复
+  assert.equal(projection.blocks.find((block) => block.key === 'verdict').data.completeness, undefined);
   // 压力表完整：不出现压力与采用两行
   fs.rmSync(k3.LEDGER(), { force: true });
   imp(supported(() => {}, []));

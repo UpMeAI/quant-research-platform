@@ -41,6 +41,7 @@ function forStrategy(strategyRef, { shadowRuns = [], file = CONFIG } = {}) {
         import_state: brokenRef ? 'IMPORT_REF_INVALID' : (imported ? 'IMPORTED' : 'RUNNING_ON_HK_NOT_IMPORTED'),
         state_label: brokenRef ? '导入引用无效：QRP 里找不到这条前向观察'
           : imported ? '已导入 QRP，状态读 QRP 台账' : '已在 HK 运行，尚未导入',
+        forward_stream: item.forward_stream || null, // 对应对比结果 forward 行的 stream（B／S），页面据此写「已在 Q1 结果中读入 N 行」
         qrp_shadow_ref: item.qrp_shadow_ref || null, output_ref: item.output_ref, acceptance_ref: item.acceptance_ref || null,
       };
     }),

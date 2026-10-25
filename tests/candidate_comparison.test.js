@@ -72,7 +72,8 @@ test('导入：封存校验、结果锁、引用 Q0 基线锁；同一文件重�
 test('不重算：页面数字原样来自文件；账户差只是两个已报数字的差，P1–P4／F1–F3 的真假读文件、不重判', () => {
   const projection = project();
   const account = block(projection, 'account').data;
-  assert.deepEqual(account.arms.map((arm) => arm.key), ['BASELINE', 'CANDIDATE_T3', 'SPY_BUY_HOLD', 'CASH']);
+  assert.deepEqual(account.arms.map((arm) => arm.key), ['BASELINE', 'CANDIDATE_T3'], 'A4 D3.2：对比卡账户表只列原版和候选，SPY 与现金只在回测结论卡');
+  assert.equal(account.benchmark_note_zh, '基准见回测结论卡');
   const [base, cand] = account.arms;
   assert.equal(base.end_capital, Q0.doc.arms.D.summary.end_capital);
   assert.equal(cand.deferred_sessions, 37);

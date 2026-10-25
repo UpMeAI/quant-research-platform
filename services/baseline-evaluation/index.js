@@ -52,12 +52,47 @@ const REASON_WORDS = Object.freeze({
   ENGINE_APPROXIMATION: '研究引擎只是当前 D 的近似',
   A0_NOT_PASSED: '引擎对齐关卡 A0 未通过',
   SAMPLE_LT_30: '成熟交易少于 30 笔',
-  CI_STRADDLES_DELTA: '区间跨过判定门槛',
+  CI_STRADDLES_DELTA: '每笔净 R 的 95% 区间跨过门槛 +0.10 R（这一条本身不足以判定）',
   COVERAGE_INSUFFICIENT: '历史覆盖不足',
-  CI_G_STRADDLES_ZERO: '年化对数增长区间跨过 0',
+  CI_G_STRADDLES_ZERO: '相对比较对象的年化对数增长差，95% 区间跨过 0（这一条本身不足以判定）',
+  U_G_AT_OR_BELOW_ZERO: '相对比较对象的年化对数增长差，95% 区间上沿不高于门槛 0',
+  U_R_AT_OR_BELOW_DELTA: '每笔净 R 的 95% 区间上沿不高于门槛 +0.10 R',
+  G1_NOT_MET: '样本不够（G1 不满足）',
   STRESS_SCENARIO_MISSING: '压力场景有缺（缺场景按不足处理）',
 });
 const NON_ACTUAL_PATH = /(^|[\\/._-])(fixture|demo|mock|synthetic)([\\/._-]|$)/i;
+
+// ── 页面文字的小工具（只改写法，不改数字）────────────────────────────────────────────
+
+const signOf = (value) => (value < 0 ? '−' : '');
+/** 百分比，一位小数，负号用「−」：−30.7%。 */
+const pct1 = (value) => `${signOf(value)}${(Math.abs(value) * 100).toFixed(1)}%`;
+/** R 值，两位小数，带正负号：+0.27 R、−0.02 R。 */
+const rText = (value) => `${value < 0 ? '−' : '+'}${Math.abs(value).toFixed(2)} R`;
+
+/**
+ * 把原因码分成「已登记的（有中文说明）」和「未登记的」：页面主内容只写中文说明，不写原样的英文码；
+ * 未登记的码放进折叠的技术详情，主内容只写个数。`wordMaps` 靠前的优先。
+ */
+function resolveReasons(codes, ...wordMaps) {
+  const known = [];
+  const unknown = [];
+  for (const code of Array.isArray(codes) ? codes : []) {
+    const text = wordMaps.map((map) => map && map[code]).find(Boolean);
+    if (text) known.push({ code, text }); else unknown.push(String(code));
+  }
+  return { known, unknown };
+}
+
+/**
+ * 诊断清单等自由文本里的数字：四位以上小数写成两位，USD 写成「美元」。只改写法，不改数；
+ * 时间戳（三位毫秒）、版本号、代码里的数字不动。
+ */
+function plainNumbers(text) {
+  return String(text)
+    .replace(/(?<![\d.])(-?\d+)\.(\d{4,})(?!\d)/g, (_, whole, fraction) => Number(`${whole}.${fraction}`).toFixed(2))
+    .replace(/(\d[\d,]*(?:\.\d+)?)\s*USD(?![A-Za-z])/g, '$1 美元');
+}
 
 const LEDGER = () => path.join(dataDir('research'), 'baseline_evaluations.jsonl');
 const sha256 = (value) => crypto.createHash('sha256').update(value).digest('hex');
@@ -413,15 +448,52 @@ function kellyBlock(doc) {
   };
 }
 
+/** 判据在门槛上的位置：上沿不高于门槛／下沿高于门槛／区间跨过门槛。 */
+const positionOf = (lo, hi, threshold) => (hi <= threshold ? 'AT_OR_BELOW' : (lo > threshold ? 'ABOVE' : 'STRADDLES'));
+
+/**
+ * 判据逐条（V1 §5.1）：每笔扣费后净 R 均值对门槛 +0.10 R；账户年化对数增长差对门槛 0——
+ * 这条差是相对 SPY 买入持有的（真实文件里它与压力表基线行的 g_vs_spy 是同一组数；文件可用 `verdict.g_comparator` 另行声明）；
+ * 相对现金的差（`vs_cash`）并列照报，不参与判定规则。页面不重算：点估计和区间都是文件里的数。
+ */
+function criteriaRows(v) {
+  const comparator = v.g_comparator === 'CASH' ? '现金' : 'SPY 买入持有';
+  const rows = [];
+  if (finite(v.L_R) && finite(v.U_R)) {
+    rows.push({
+      key: 'R', label: `每笔扣费后净 R 均值（门槛 +${DELTA_R.toFixed(2)} R）`, short: '每笔扣费后净 R 均值', unit: 'R',
+      point: finite(v.mean_R) ? v.mean_R : null, ci: { lo: v.L_R, hi: v.U_R }, threshold: DELTA_R, position: positionOf(v.L_R, v.U_R, DELTA_R),
+      fired: v.U_R <= DELTA_R, decisive: true,
+    });
+  }
+  if (finite(v.L_g) && finite(v.U_g)) {
+    rows.push({
+      key: 'G', label: `相对 ${comparator}的年化对数增长差（95% 区间，门槛 ${DELTA_G}）`, short: `相对 ${comparator}的账户年化对数增长差`, unit: 'pct',
+      point: finite(v.g) ? v.g : null, ci: { lo: v.L_g, hi: v.U_g }, threshold: DELTA_G, position: positionOf(v.L_g, v.U_g, DELTA_G),
+      fired: v.U_g <= DELTA_G, decisive: true,
+    });
+  }
+  const cash = v.vs_cash;
+  if (isObject(cash) && finite(cash.L) && finite(cash.U) && v.g_comparator !== 'CASH') {
+    rows.push({
+      key: 'G_CASH', label: `相对现金的年化对数增长差（95% 区间，门槛 ${DELTA_G}）`, short: '相对现金的账户年化对数增长差', unit: 'pct',
+      point: finite(cash.g) ? cash.g : null, ci: { lo: cash.L, hi: cash.U }, threshold: DELTA_G, position: positionOf(cash.L, cash.U, DELTA_G),
+      fired: false, decisive: false,
+    });
+  }
+  return rows;
+}
+
 function verdictBlock(doc, gapped) {
   const v = doc.verdict;
-  const reasons = (Array.isArray(v.reason_codes) ? v.reason_codes : []).map((code) => ({ code, text: REASON_WORDS[code] || `原因码 ${code}` }));
+  const resolved = resolveReasons(v.reason_codes, REASON_WORDS);
   return {
     class: v.class, state: v.state, delta_R: DELTA_R, delta_g: DELTA_G,
     L_R: v.L_R === undefined ? null : v.L_R, U_R: v.U_R === undefined ? null : v.U_R,
     L_g: v.L_g === undefined ? null : v.L_g, U_g: v.U_g === undefined ? null : v.U_g,
+    mean_R: finite(v.mean_R) ? v.mean_R : null, g: finite(v.g) ? v.g : null,
     n_trades: v.n_trades === undefined ? null : v.n_trades, comparators: v.comparators.map((name) => (name === 'CASH' ? '现金' : 'SPY 买入持有')),
-    ci_method: '按月分块 bootstrap 95%', reasons,
+    ci_method: '按月分块 bootstrap 95%', criteria: criteriaRows(v), reasons: resolved.known, unknown_reason_codes: resolved.unknown,
     engine_label: typeof v.label === 'string' && v.label.trim() ? v.label.trim() : null,
     engine_approximation: v.engine_approximation.flag, engine_missing: [...new Set([...(v.engine_approximation.missing || []), ...gapped])],
   };
@@ -460,11 +532,12 @@ function diagnosisList(doc) {
         const facts = Array.isArray(factList) ? factList.map((fact) => (typeof fact === 'string' ? fact : fact && fact.text)).filter(Boolean) : [];
         need(facts.length, 'MISSING', `diagnosis_items[${index}].facts`);
         const experiment = item.proposed_experiment || null;
-        const reason = preferZh(item, 'no_topic_reason') || null;
+        const rawReason = preferZh(item, 'no_topic_reason') || null;
+        const reason = rawReason ? plainNumbers(rawReason) : null;
         need(Boolean(experiment) !== Boolean(reason), 'INVALID', `diagnosis_items[${index}] 须二选一：proposed_experiment 或 no_topic_reason`);
         const queue = experiment ? EXPERIMENTS[experiment] || { title: experiment, status: '实验状态未登记' } : null;
         return {
-          id: item.id || `D${index + 1}`, source, source_label: SOURCE_LABELS[source], facts,
+          id: item.id || `D${index + 1}`, source, source_label: SOURCE_LABELS[source], facts: facts.map(plainNumbers),
           experiment: experiment ? { id: experiment, title: queue.title, status: queue.status } : null, no_topic_reason: reason,
           state_label: '待验证，不是结论',
         };
@@ -501,25 +574,88 @@ function completenessOf(stressBlock_, verdictState) {
   };
 }
 
-/** C1：三态结论 + 一个主数字及其区间 + 一个最大的限制。尚未回测时写「尚未回测」和原因，不写「证据不足」。 */
+/** 判据行的一句话：指标、区间、在门槛上的位置。 */
+function criterionLine(row) {
+  const place = {
+    AT_OR_BELOW: row.ci.hi < row.threshold ? '上沿低于门槛' : '上沿不高于门槛', ABOVE: '下沿高于门槛', STRADDLES: '区间跨过门槛',
+  }[row.position];
+  const fmt = row.unit === 'R' ? rText : pct1;
+  const threshold = row.unit === 'R' ? `+${row.threshold.toFixed(2)} R` : String(row.threshold);
+  const point = row.unit === 'R' && row.point !== null ? `${rText(row.point)}，` : '';
+  return `${row.short} ${point}95% 区间 ${fmt(row.ci.lo)} 至 ${fmt(row.ci.hi)}，${place} ${threshold}`;
+}
+
+/**
+ * D1（UX 修订 4）：结论依据。写明触发本结论的那条判据——指标、比较对象、区间、门槛，门槛在看到结果前已冻结：
+ *   NOT_PASSED   触发的那条（上沿不高于门槛），另一条判据的数字并列在后面；
+ *   INSUFFICIENT 不足的原因：引擎近似、样本笔数对门槛笔数、或区间跨门槛（区间对门槛）；
+ *   SUPPORTED    下沿高于门槛的那两条。
+ * 只读文件里的数字和位置，不重算；与结论自洽（导入时已拒绝越过算术证据的标签）。
+ */
+function basisOf(v) {
+  const rows = v.criteria;
+  const decisive = rows.filter((row) => row.decisive);
+  const rest = (picked) => rows.filter((row) => !picked.includes(row));
+  let main = [];
+  let also = [];
+  if (v.state === 'NOT_PASSED') {
+    const fired = decisive.filter((row) => row.fired);
+    main = fired.map(criterionLine);
+    also = rest(fired).map(criterionLine);
+  } else if (v.state === 'SUPPORTED') {
+    main = decisive.filter((row) => row.position === 'ABOVE').map(criterionLine);
+    also = rest(decisive.filter((row) => row.position === 'ABOVE')).map(criterionLine);
+  } else {
+    if (v.engine_approximation) main.push(`使用的是${v.engine_label || `研究引擎近似的当前 D（缺：${v.engine_missing.join('；') || '未列出'}）`}，结论最高只能是证据不足`);
+    if (Number.isInteger(v.n_trades) && v.n_trades < MIN_TRADES) main.push(`样本外成熟交易 ${v.n_trades} 笔，少于门槛 ${MIN_TRADES} 笔`);
+    const straddling = decisive.filter((row) => row.position === 'STRADDLES');
+    main.push(...straddling.map(criterionLine));
+    also = rest(straddling).map(criterionLine);
+  }
+  return { title: '判定依据', main, also, frozen_zh: '门槛在看到结果前已冻结' };
+}
+
+/**
+ * 限制：结论与限制不得相互矛盾。NOT_PASSED 时这一行叫「其他限制」，只列与结论不冲突的限制
+ * （压力评价不完整、近似引擎、样本少），不再写「区间跨过门槛」这类「证据不足」的理由。
+ */
+function limitOf(v, completeness) {
+  if (v.state === 'NOT_PASSED') {
+    const parts = [];
+    if (completeness && !completeness.complete) {
+      parts.push(`压力评价不完整：缺场景 ${completeness.missing.length} 个、无效输入 ${completeness.invalid_input.length} 个`);
+    }
+    if (v.engine_approximation) parts.push(`使用的是${v.engine_label || `研究引擎近似的当前 D（缺：${v.engine_missing.join('；') || '未列出'}）`}`);
+    if (Number.isInteger(v.n_trades) && v.n_trades < MIN_TRADES) parts.push(`样本外只有 ${v.n_trades} 笔成熟交易，少于 ${MIN_TRADES} 笔`);
+    return { label: '其他限制', text: `${parts.length ? parts.join('；') : '本结论只对已回测的区间和费用口径成立，不外推到之后的市场'}。` };
+  }
+  if (v.engine_approximation) return { label: '最大的限制', text: `使用的是${v.engine_label || `研究引擎近似的当前 D（缺：${v.engine_missing.join('；') || '未列出'}）`}，结论最高只能是证据不足。` };
+  if (Number.isInteger(v.n_trades) && v.n_trades < MIN_TRADES) return { label: '最大的限制', text: `样本外只有 ${v.n_trades} 笔成熟交易，少于 ${MIN_TRADES} 笔。` };
+  // 区间跨门槛的说法取自判据行本身（与「判定依据」同一份数字），不取通用原因码的措辞：原因码不分是哪一条判据
+  const straddling = (v.criteria || []).filter((row) => row.decisive && row.position === 'STRADDLES');
+  if (straddling.length) return { label: '最大的限制', text: `${straddling.map((row) => row.short).join('、')}的 95% 区间跨过判定门槛，现有样本不足以判定。` };
+  if (v.reasons.length) return { label: '最大的限制', text: `${v.reasons[0].text}。` };
+  return { label: '最大的限制', text: '本结论只对已回测的区间和费用口径成立，不外推到之后的市场。' };
+}
+
+/** C1：三态结论 + 一个主数字及其区间 + 判定依据 + 限制。尚未回测时写「尚未回测」和原因，不写「证据不足」。 */
 function conclusionOf(verdictBlock_, doc, completeness = null) {
   if (!verdictBlock_ || verdictBlock_.state !== 'AVAILABLE') {
     return {
       state: 'NOT_BACKTESTED', label: '尚未回测', reason: verdictBlock_ ? verdictBlock_.reason : '没有封存结果',
-      main_number: null, biggest_limit: '没有完整回测结果前，页面不给策略优劣结论。',
+      main_number: null, biggest_limit: '没有完整回测结果前，页面不给策略优劣结论。', limit_label: '最大的限制', basis: null,
     };
   }
   const v = verdictBlock_.data;
   const labels = { SUPPORTED: '有支持证据', NOT_PASSED: '未通过', INSUFFICIENT: '证据不足' };
-  let limit;
-  if (v.engine_approximation) limit = `使用的是${v.engine_label || `研究引擎近似的当前 D（缺：${v.engine_missing.join('；') || '未列出'}）`}，结论最高只能是证据不足。`;
-  else if (Number.isInteger(v.n_trades) && v.n_trades < MIN_TRADES) limit = `样本外只有 ${v.n_trades} 笔成熟交易，少于 ${MIN_TRADES} 笔。`;
-  else if (v.reasons.length) limit = `${v.reasons[0].text}。`;
-  else limit = '本结论只对已回测的区间和费用口径成立，不外推到之后的市场。';
+  const limit = limitOf(v, completeness);
   const oos = (doc.stats.rows || []).find((row) => row.segment === 'OOS' && row.cost_bps === 5 && row.phase === 'PRODUCTION');
   const main = oos && Array.isArray(oos.mean_R_ci) && oos.mean_R_ci.length === 2
-    ? { label: '样本外每笔扣费后净 R 均值（5 bps，生产相位）', value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
-  return { state: v.state, label: labels[v.state], reason: null, main_number: main, biggest_limit: limit, completeness };
+    ? { label: '样本外每笔扣费后净 R 均值（5 bps，生产相位；门槛 +0.10 R）', value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
+  return {
+    state: v.state, label: labels[v.state], reason: null, main_number: main, basis: basisOf(v),
+    limit_label: limit.label, biggest_limit: limit.text, completeness,
+  };
 }
 
 // ── 投影 ────────────────────────────────────────────────────────────────────────
@@ -530,7 +666,6 @@ function project(sealed, lock) {
   const blocks = buildBlocks(doc, gapped);
   const verdict = blocks.find((block) => block.key === 'verdict');
   const completeness = completenessOf(blocks.find((block) => block.key === 'stress'), doc.verdict.state);
-  if (verdict.state === 'AVAILABLE') verdict.data.completeness = completeness;
   return {
     state: 'LOCKED_VERIFIED', result_id: lock.result_id, class: EVAL_CLASS, verdict_state: doc.verdict.state,
     conclusion: conclusionOf(verdict, doc, completeness), blocks, diagnosis: diagnosisList(doc),
@@ -657,7 +792,7 @@ const clearCache = () => defaultReader.clear();
 const internals = {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, HAS_CHINESE, STRESS_NUMBERS, KNOWN_STRESS_STATUS, NON_ACTUAL_PATH,
-  REASON_WORDS, EDGE_LABELS, SOURCE_LABELS, EXPERIMENTS, SEGMENT_LABELS,
+  REASON_WORDS, EDGE_LABELS, SOURCE_LABELS, EXPERIMENTS, SEGMENT_LABELS, resolveReasons, plainNumbers, pct1, rText,
 };
 
 module.exports = {

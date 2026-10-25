@@ -10,6 +10,7 @@ const baseline = require('../baseline-evaluation');
 const {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, STRESS_NUMBERS, KNOWN_STRESS_STATUS, REASON_WORDS, EDGE_LABELS,
+  resolveReasons, plainNumbers, pct1, rText,
 } = baseline.internals;
 
 const BASE_KEYS = Object.freeze(['BASELINE', 'D']);
@@ -77,6 +78,25 @@ const forwardReason = (doc) => {
   return candidates.find((item) => typeof item === 'string' && item.trim()) || null;
 };
 
+/** 时间戳写成「月-日」：2026-10-07T17:03:07.000Z → 10-07。 */
+const shortDate = (text) => String(text).replace(/\d{4}-(\d{2}-\d{2})T[\d:.]+Z?/g, '$1');
+
+/**
+ * 前向行的一句人话（D3.9）：「MSFU 10-09 入场，T3 推迟过时间止损，ΔR −1.07」。
+ * 行里有入场标的、入场时间、ΔR 和是否受影响时按这个格式写；否则用行自己的中文说明，时间戳缩成月-日、小数缩成两位。
+ * key、type、哈希等技术字段不进这一句，收在折叠里。
+ */
+function forwardSentence(row) {
+  if (typeof row.carrier === 'string' && row.carrier && typeof row.entry_time === 'string' && finite(row.delta_R) && typeof row.affected === 'boolean') {
+    const rule = typeof row.rule === 'string' && row.rule ? `${row.rule} ` : '';
+    const delta = row.delta_R === 0 ? '0' : `${row.delta_R < 0 ? '−' : '+'}${Math.abs(row.delta_R).toFixed(2)}`;
+    return `${row.carrier} ${shortDate(row.entry_time)} 入场，${rule}${row.affected ? '推迟过时间止损' : '没有推迟时间止损（不受影响）'}，ΔR ${delta}`;
+  }
+  const text = preferZh(row, 'text');
+  // 研究会话原文里括号中的英文原因码（如「（PREFIX_BROKEN）」）不进主内容这一句；原文整段仍在折叠的技术详情里
+  return typeof text === 'string' && text.trim() ? plainNumbers(shortDate(text.trim())).replace(/（[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+）/g, '') : null;
+}
+
 function forwardBlock(doc) {
   const raw = forwardRows(doc);
   const SKIP = ['stream', 'file', 'file_sha256', 'sha256', 'line', 'text', 'text_zh', 'in_verdict'];
@@ -98,7 +118,7 @@ function forwardBlock(doc) {
       return {
         stream, stream_label: stream === 'B' ? 'B 流：生产账本交易的孪生' : (stream === 'S' ? 'S 流：信号级影子' : `${stream} 流`), file: row.file || null,
         file_sha256: hash, line: Number.isInteger(row.line) ? row.line : index + 1,
-        text: typeof text === 'string' && text.trim() ? text.trim() : null, facts, in_verdict: false,
+        text: typeof text === 'string' && text.trim() ? text.trim() : null, plain_zh: forwardSentence(row), facts, in_verdict: false,
       };
     }),
   };
@@ -186,6 +206,13 @@ function stressBlock(entry, doc) {
       note: simulated ? '模拟序列，不是可交易历史' : null,
     };
   });
+  // 风控维度行（只报不判）与参照行两臂数字完全相同的（例如同时持仓 3 → 5），页面合并标注「与参照相同」
+  const reference = mapped.find((row) => row.role === 'REFERENCE' && row.baseline && row.candidate && !row.candidate_missing);
+  const sameCell = (left, right) => ARM_NUMBERS.every((key) => left[key] === right[key]);
+  for (const row of mapped) {
+    if (reference && row.role === 'RISK_DIMENSION' && row.baseline && row.candidate && !row.candidate_missing
+      && sameCell(row.baseline, reference.baseline) && sameCell(row.candidate, reference.candidate)) row.same_as_reference = true;
+  }
   const stressRoleRows = mapped.filter((row) => row.role === 'STRESS');
   const counts = {
     executed: stressRoleRows.filter((row) => row.kind === 'EXECUTED' && !row.candidate_missing).length,
@@ -231,11 +258,11 @@ function armSummaries(entry, doc) {
 }
 
 function accountBlock(entry, doc) {
-  const arms = armSummaries(entry, doc);
+  const arms = armSummaries(entry, doc); // 四个臂都校验过；对比卡只列原版与候选（D3.2），基准在回测结论卡
   const base = arms[0];
   const cand = arms[1];
   return {
-    arms, start: base.start, end: base.end_date,
+    arms: arms.slice(0, 2), benchmark_note_zh: '基准见回测结论卡', start: base.start, end: base.end_date,
     diff_vs_baseline: {
       end_capital: cand.end_capital - base.end_capital, cagr: cand.cagr - base.cagr,
       max_drawdown_pp: (cand.max_drawdown - base.max_drawdown) * 100,
@@ -279,6 +306,7 @@ module.exports = {
   baseline, K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, STRESS_NUMBERS, KNOWN_STRESS_STATUS, REASON_WORDS, EDGE_LABELS,
   BASE_KEYS, SUMMARY_KEYS, ARM_NUMBERS, ADOPTION_STRESS, E, pick, bound, firstFinite, fmtR, fmtPct, fmtUsd, edgeLabel,
+  resolveReasons, plainNumbers, pct1, rText, forwardSentence,
   flagOf, criteriaOf, baselineIdOf, forwardRows, forwardReason, forwardBlock, candidateArmMissing, incompleteStressScenarios,
   stressBlock, armSummaries, accountBlock, linesOf,
 };

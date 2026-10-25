@@ -14,8 +14,9 @@
  */
 const {
   fail, need, field, ci, finite, isObject, preferZh, E, bound, firstFinite, fmtPct, criteriaOf, baselineIdOf, REASON_WORDS,
-  pick, BASE_KEYS, edgeLabel,
+  pick, BASE_KEYS, edgeLabel, resolveReasons,
 } = require('../common');
+const { pairedBasis } = require('./basis');
 
 const DELTA_G = 0;
 const DELTA_R = 0.10;
@@ -37,6 +38,7 @@ const REASON_WORDS_Q2 = Object.freeze({
   CI_G_STRADDLES_ZERO: '账户年化对数增长差的区间跨过 0',
   U_G_AT_OR_BELOW_ZERO: '账户年化对数增长差的上沿不高于 0（F3）',
   STRESS_SCENARIO_MISSING: '压力场景有缺（缺场景按不足处理）',
+  G_UPPER_AT_OR_BELOW_ZERO_SAMPLE_INSUFFICIENT: 'G1 不成立，而账户年化对数增长差的上沿不高于 0：照报上沿，作待验证的事实，不是经济上的反证（Q2 K2 勘误 1）',
 });
 
 const COMPONENT_LABELS = Object.freeze({
@@ -343,14 +345,14 @@ function builders(entry, doc) {
 
     verdict() {
       const v = doc.verdict;
-      const reasons = (Array.isArray(v.reason_codes) ? v.reason_codes : [])
-        .map((code) => ({ code, text: entry.reason_words[code] || REASON_WORDS[code] || `原因码 ${code}` }));
+      const resolved = resolveReasons(v.reason_codes, entry.reason_words, REASON_WORDS);
       const { L_g, U_g } = boundsOf(doc);
       return {
         layout: 'paired_g',
         class: v.class, state: v.state, label: edgeLabel(entry, v.state), delta_g: DELTA_G, delta_R: DELTA_R,
+        basis: pairedBasis({ state: v.state, flags: criteriaOf(entry, doc), L_g, U_g, delta_g: DELTA_G, min_trades: MIN_TRADES, changed_label: '被改换载体的入场' }),
         g_95: finite(L_g) && finite(U_g) ? { lo: L_g, hi: U_g } : null, fail_label: typeof preferZh(v, 'fail_label') === 'string' ? preferZh(v, 'fail_label') : null,
-        reasons,
+        reasons: resolved.known, unknown_reason_codes: resolved.unknown,
         method_zh: '只按账户层面配对的年化对数增长差判定：95% 区间下沿大于 0 为有支持证据，上沿不高于 0 为未通过，其余为证据不足；单变体，不做多重比较校正。每笔净 R 对 +0.10 R 只报告，不参与判定。',
         caveat_zh: '「有支持证据」在这里的意思是完整账户的对数增长更好，不等于信号 alpha 更大（低暴露、小回撤不自动称 alpha）。',
       };

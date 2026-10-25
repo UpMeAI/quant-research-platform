@@ -107,14 +107,14 @@ test('前向观察：HK 上已在跑的影子写「已在 HK 运行，尚未导�
 test('有封存结果时：结论、主数字及区间、六块数字全部来自投影；模拟场景和公式推算被明确标注', async () => {
   const html = await renderPage(await model(fixtureProjection()));
   assert.match(html, /<h2 id="conclusion-title">证据不足<\/h2>/);
-  assert.match(html, /样本外每笔扣费后净 R 均值（5 bps，生产相位）：\+0\.22 R/);
+  assert.match(html, /样本外每笔扣费后净 R 均值（5 bps，生产相位；门槛 \+0\.10 R）：\+0\.22 R/);
   assert.match(html, /95% 区间 \+0\.12 R 至 \+0\.31 R/);
   assert.match(html, /最大的限制：/);
   const card = html.slice(html.indexOf('class="backtest'), html.indexOf('id="diagnosis-title"'));
   assert.doesNotMatch(card, /尚未回测：/);
   for (const text of ['开发期 A', '样本外', '本策略', 'SPY 买入持有', '现金', '生产相位', '相位 ±60 分钟', '落在同一组时刻', '公式推算，不是回测',
     '模拟序列，不是可交易历史', '极端熊市', '按区间下沿计算的半凯利比例', '研究计算，不是仓位建议；现行仓位规则不变',
-    '按半凯利定仓', '按现行固定 60 美元风险', '按月分块 bootstrap 95%']) assert.ok(card.includes(text), text);
+    '按半凯利定仓', '按现行固定 60 美元风险', '95% 区间（按月分块 bootstrap）', '相对 SPY 买入持有的年化对数增长差']) assert.ok(card.includes(text), text);
   assert.match(card, /跌破 [^<]*1,800[^<]*的概率/);
   const stress = html.slice(html.indexOf('data-block="stress"'), html.indexOf('data-block="kelly"'));
   assert.match(stress, /最大损失：<strong>[^<]*900[^<]*<\/strong>（场景：区间重放：2020-02-19 至 2020-04-30）/);
@@ -208,7 +208,7 @@ test('UX 修订 3 C4：页面任何位置都不把「没有真实账户臂」「
   assert.match(built.product_status_note, /M0\/M1/);
 });
 
-test('G3：优势结论是「有支持证据」而压力缺场景时，结论区块和第 6 块都分开写三行，且都在主内容里（不折叠）', async () => {
+test('G3（A4 D3.1 修订）：优势结论是「有支持证据」而压力缺场景时，三行只在顶部结论区块写一次且不折叠；第 6 块只写判据与数字', async () => {
   const html = await renderPage(await model(fixtureProjection((doc) => {
     doc.verdict.state = 'SUPPORTED'; doc.verdict.L_R = 0.12; doc.verdict.L_g = 0.01; doc.verdict.reason_codes = ['STRESS_SCENARIO_MISSING']; return doc;
   })));
@@ -216,11 +216,14 @@ test('G3：优势结论是「有支持证据」而压力缺场景时，结论区
   const main = mainContent(html);
   const lines = ['优势结论：有支持证据', '压力评价不完整：缺场景 1 个、无效输入 0 个（极端熊市 2008：缺场景）', '采用条件：未满足（必要压力缺失，§6.7）'];
   for (const line of lines) {
-    assert.equal(main.split(line).length - 1, 2, `${line} 在结论区块和第 6 块各出现一次，且不在折叠里`);
+    assert.equal(main.split(line).length - 1, 1, `${line} 在主内容里恰好出现一次（顶部结论区块），第 6 块不再重复`);
   }
+  assert.equal((main.match(/class="completeness"/g) || []).length, 1, '三行结论块在 Q0 卡只有顶部这一份');
   const conclusion = html.slice(html.indexOf('class="conclusion'), html.indexOf('class="section-nav'));
   assert.ok(lines.every((line) => conclusion.includes(line)));
   assert.ok(conclusion.indexOf(lines[0]) < conclusion.indexOf(lines[1]) && conclusion.indexOf(lines[1]) < conclusion.indexOf(lines[2]));
   const verdictBlock = html.slice(html.indexOf('data-block="verdict"'), html.indexOf('id="diagnosis-title"'));
-  assert.ok(verdictBlock.indexOf(lines[0]) > -1 && verdictBlock.indexOf(lines[0]) < verdictBlock.indexOf('比较对象'));
+  assert.ok(lines.every((line) => !verdictBlock.includes(line)), '第 6 块不含三行');
+  assert.match(verdictBlock, /比较对象/);
+  assert.match(verdictBlock, /判定门槛/);
 });

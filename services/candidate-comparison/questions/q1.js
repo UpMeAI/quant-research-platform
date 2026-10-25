@@ -8,8 +8,9 @@
  */
 const {
   need, field, ci, finite, isObject, preferZh, E, bound, firstFinite, fmtR, fmtPct, fmtUsd, criteriaOf, baselineIdOf, REASON_WORDS,
-  armSummaries, stressBlock, edgeLabel,
+  armSummaries, stressBlock, edgeLabel, resolveReasons,
 } = require('../common');
+const { q1Basis } = require('./basis');
 
 const DELTA_STAR = 0.15; // K2 判据，冻结，看见结果后不改
 const DELTA_G = 0;
@@ -193,16 +194,19 @@ function builders(entry, doc) {
 
     verdict() {
       const v = doc.verdict;
-      const reasons = (Array.isArray(v.reason_codes) ? v.reason_codes : [])
-        .map((code) => ({ code, text: entry.reason_words[code] || REASON_WORDS[code] || `原因码 ${code}` }));
+      const resolved = resolveReasons(v.reason_codes, entry.reason_words, REASON_WORDS);
       const range = (lo, hi) => (finite(lo) && finite(hi) ? { lo, hi } : null);
       const { L_D, U_D, L_g, U_g } = boundsOf(doc);
       const { S } = populationsOf(doc.comparison);
       return {
         class: v.class, state: v.state, label: edgeLabel(entry, v.state), t3_state: v.t3_state, delta_star: DELTA_STAR, delta_g: DELTA_G,
+        basis: q1Basis({
+          state: v.state, flags: criteriaOf(entry, doc), L_D, U_D, L_g, U_g, population: isObject(S) ? S : null,
+          delta_star: DELTA_STAR, delta_g: DELTA_G, min_affected: MIN_AFFECTED, min_blocks: MIN_BLOCKS,
+        }),
         D_98_33: range(L_D, U_D), g_98_33: range(L_g, U_g), n_aff: isObject(S) && Number.isInteger(S.n_aff) ? S.n_aff : null,
         blocks: isObject(S) && Number.isInteger(firstFinite(S.blocks, S.n_blocks)) ? firstFinite(S.blocks, S.n_blocks) : null, fail_label: typeof preferZh(v, 'fail_label') === 'string' ? preferZh(v, 'fail_label') : null,
-        reasons, bonferroni: '98.33%（Bonferroni）',
+        reasons: resolved.known, unknown_reason_codes: resolved.unknown, bonferroni: '98.33%（Bonferroni）',
       };
     },
   };
