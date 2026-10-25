@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW",
+  "market": "US",
+  "sessionDate": "2026-10-23",
+  "generatedAt": "2026-10-24T20:00:00.000Z",
+  "currency": "USD",
+  "window": {
+    "start": "2026-10-08",
+    "end": "2026-10-23",
+    "sessions": 12,
+    "basis": "LEDGER_SNAPSHOTS_DELIVERED"
+  },
+  "ruleRefs": {
+    "benchmark": "REVIEW_BENCHMARK_AND_FROZEN_STRATEGY@v2-binance-spot-named",
+    "triage": "REVIEW_TRIAGE_RULES@v1"
+  },
+  "frozenStrategy": {
+    "state": "READY",
+    "digest": "92903edaa643bf60aa9a3225280c9eb26ad6fe0212520b1ae7c0bd5d497a1f2c",
+    "reasonCode": null
+  },
+  "alphaSource": "COMPANY",
+  "arms": {
+    "A": {
+      "ledgerId": null,
+      "state": "NOT_APPLICABLE",
+      "startValue": null,
+      "endValue": null,
+      "netFlows": null,
+      "cumulativePnl": null,
+      "sessionsCovered": null,
+      "reasonCode": "NO_REAL_ACCOUNT_LEDGER_ALL_US_BOOKS_ARE_PAPER"
+    },
+    "B": {
+      "benchmarkId": "B_US_SP500",
+      "instrument": "SPY",
+      "returnKind": "PRICE_RETURN",
+      "state": "READY",
+      "startValue": 3000,
+      "endValue": 2945.77,
+      "netFlows": 0,
+      "cumulativePnl": -54.23,
+      "sessionsCovered": 12,
+      "reasonCode": null
+    },
+    "S": {
+      "ledgerId": "US_V5_ETF_3000USD",
+      "state": "READY",
+      "startValue": 3000,
+      "endValue": 3005.02,
+      "netFlows": 0,
+      "cumulativePnl": 5.02,
+      "sessionsCovered": 12,
+      "reasonCode": null
+    },
+    "D": {
+      "ledgerId": "US_V5_ETF_3000USD",
+      "state": "READY",
+      "startValue": 3000,
+      "endValue": 3006.09,
+      "netFlows": 0,
+      "cumulativePnl": 6.09,
+      "sessionsCovered": 12,
+      "reasonCode": null
+    }
+  },
+  "contrasts": {
+    "A_minus_B": {
+      "state": "NOT_APPLICABLE",
+      "value": null,
+      "reasonCode": "NO_REAL_ACCOUNT_LEDGER_ALL_US_BOOKS_ARE_PAPER"
+    },
+    "S_minus_B": {
+      "state": "READY",
+      "value": 59.25,
+      "reasonCode": null
+    },
+    "D_minus_S": {
+      "state": "READY",
+      "value": 1.07,
+      "reasonCode": null
+    },
+    "A_minus_D": {
+      "state": "NOT_APPLICABLE",
+      "value": null,
+      "reasonCode": "NO_REAL_ACCOUNT_LEDGER_ALL_US_BOOKS_ARE_PAPER"
+    }
+  },
+  "identity": {
+    "state": "UNKNOWN",
+    "residual": null
+  },
+  "decisionQuality": {
+    "planAdherence": {
+      "state": "FOLLOWED",
+      "basis": "ABS(D_minus_S)/CAPITAL=0.0004"
+    },
+    "outcomeSign": "POSITIVE",
+    "label": "GOOD_DECISION",
+    "reasonCode": "PAPER_BOOK_S_STANDS_FOR_A"
+  },
+  "diagnosis": {
+    "recordId": "review-diagnosis:c919b771b6868184b0d13f850f606478",
+    "class": "EVIDENCE_INSUFFICIENT",
+    "reasonCodes": [
+      "WINDOW_SESSIONS_12_BELOW_MINIMUM_20",
+      "A_ARM_NOT_APPLICABLE:NO_REAL_ACCOUNT_LEDGER_ALL_US_BOOKS_ARE_PAPER"
+    ],
+    "persistence": {
+      "frozenVersion": "92903edaa643bf60aa9a3225280c9eb26ad6fe0212520b1ae7c0bd5d497a1f2c",
+      "regimesObserved": 2,
+      "forwardSessions": 12
+    },
+    "citable": false
+  },
+  "notCausal": true,
+  "hash": "ed5e4e99444df40cb255ddb4618f61bf863509394225d30abcdba3bd73dd4cd7"
+}

@@ -186,6 +186,63 @@ const SCHEMAS = Object.freeze({
     strategy_family: 's?', invalidated_assumption: '*', failed_regimes: '*',
     reuse_condition: '*', evidence_refs: 'a', archived_at: 's',
   },
+  RUNTIME_RESEARCH_CASE_V1: {
+    _doc: '运行态／研究态闭环 case —— 当前 D 与冻结研究基线分离，研究零生产影响',
+    case_id: 's', strategy_ref: 's', market: 's', runtime_lane: 'o', baseline_ref: 's',
+    cycle_context: 'o', data_quality: 'o', isolation: 'o', status: 's',
+    production_effect: 's', acceptance_ref: 's', case_hash: 's', opened_at: 's',
+  },
+  RUNTIME_RESEARCH_LINK_V1: {
+    _doc: 'Desk 复盘问题与 QRP 冻结实验／锁定结果的不可变回链',
+    link_id: 's', case_ref: 's', desk_candidate_ref: 's', desk_evidence_ref: 's', desk_evidence_hash: 's',
+    research_question_ref: 's', experiment_ref: 's?', experiment_freeze_hash: 's?',
+    result_ref: 's?', result_hash: 's?', conclusion: 's', adoption_state: 's',
+    production_effect: 's', link_hash: 's', recorded_at: 's',
+  },
+  PRODUCT_MILESTONE_EVIDENCE_V1: {
+    _doc: 'V8.1 §12.2 产品阶段证据 —— 真实用户任务与交付环境；不由工程状态推断',
+    evidence_id: 's', case_ref: 's', stage: 's', decision: 's', evidence_mode: 's',
+    delivery_environment: 's', actual_entrypoint: 's', new_capability: 's', supported_scope: 's',
+    user_operation: 's', user_result: 's', exception_behavior: 's',
+    user_evidence_refs: 'a', technical_evidence_refs: 'a', preparation_evidence_refs: 'a', runtime_evidence_refs: 'a',
+    exception_evidence_refs: 'a', stress_evidence_refs: 'a', round_trip_evidence_refs: 'a',
+    comparison_evidence_refs: 'a', result_ref: 's?', desk_outcome_ref: 's?', desk_outcome_evidence_ref: 's?',
+    release_evidence_ref: 's?',
+    upstream_evidence_ref: 's?',
+    revokes_ref: 's?', defect_ref: 's?', revocation_reason: 's?',
+    production_effect: 's', acceptance_ref: 's', acceptance_amendment_refs: 'a',
+    recorded_by: 's', stage_hash: 's', recorded_at: 's',
+  },
+  PRODUCT_EVIDENCE_ATTESTATION_V1: {
+    _doc: '产品里程碑实际证据登记 —— 本地不可变文件的现场 SHA-256、case 与证据类型绑定',
+    evidence_id: 's', case_ref: 's', kind: 's', source_ref: 's', source_hash: 's', source_size: 'n',
+    object_ref: 's', observed_at: 's', verification_method: 's', production_effect: 's',
+    acceptance_ref: 's', registered_by: 's', record_hash: 's', recorded_at: 's',
+  },
+  STRATEGY_BASELINE_V1: {
+    _doc: '自审计 strategy_baseline —— 冻结预期基线，只记录不重算策略结论',
+    baseline_id: 's', strategy_ref: 's', market: 's', runtime_mode: 's', version_ref: 's',
+    source_ref: 's', source_hash: 's', expected_baseline: 'o', acceptance_ref: 's',
+    status: 's', record_hash: 's', frozen_at: 's',
+  },
+  DIVERGENCE_LOG_V1: {
+    _doc: '自审计 divergence_log —— 研究／回放／运行差异及处置状态',
+    divergence_id: 's', baseline_ref: 's', source_run_ref: 's', target_run_ref: 's',
+    field_path: 's', source_value: '*', target_value: '*', difference_state: 's',
+    cause_state: 's', status: 's', evidence_refs: 'a', record_hash: 's', detected_at: 's',
+  },
+  INCIDENT_CATALOG_V1: {
+    _doc: '自审计 incident_catalog —— 可复用的故障事实、恢复和复发保护',
+    incident_id: 's', category: 's', scope: 's', symptom: 's', root_cause: 's?',
+    detection: 's', recovery_state: 's', recurrence_guard: 's?', evidence_refs: 'a',
+    status: 's', record_hash: 's', opened_at: 's',
+  },
+  ANOMALY_WATCHLIST_V1: {
+    _doc: '自审计 anomaly_watchlist —— 尚未定性的异常，不冒充事故或策略结论',
+    anomaly_id: 's', signal: 's', first_seen: 's', evidence_refs: 'a', owner: 's',
+    next_checkpoint: 's?', status: 's', resolution_ref: 's?', resolved_at: 's?',
+    record_hash: 's', recorded_at: 's',
+  },
 });
 
 const TYPE_CHECK = {

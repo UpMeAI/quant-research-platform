@@ -18,6 +18,7 @@ const YESTERDAY = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
 /** 夹具:实验锁定指定 verdict + 影子样本达标,返回可进发布的引用。 */
 async function promotable(verdict = 'CHALLENGER_WINS') {
   const fx = await setupExperiment({ min_forward_evidence: 2 });
+  await experiments.runBacktest(fx.exp.experiment_id);
   experiments.recordResult(fx.exp.experiment_id, { verdict });
   const run = shadow.openShadowRun({
     champion_ref: fx.champRef, challenger_ref: fx.chalRef, race_ref: 'RACE-T', experiment_ref: fx.exp.experiment_id,

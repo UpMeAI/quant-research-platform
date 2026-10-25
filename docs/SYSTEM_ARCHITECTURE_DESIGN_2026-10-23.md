@@ -57,10 +57,10 @@ Quant Research Platform 是一个**多市场策略研究与策略控制平台**�
 |---|---|---|
 | A 股本地研究闭环 | 已实现，可确定性演示 | `adapters/ashare-local`、`npm run mvp:ashare`；默认数据为 `SAMPLE_SYNTHETIC` |
 | 研究治理 | 已实现 | 预注册、冻结、单结果锁、Race、Shadow、Promotion、Release、Activation |
-| 研究台 | 已实现本地零依赖版本 | 六个只读页面；Founder 审批和激活使用静态令牌 |
+| 研究台 | 已实现本地零依赖版本 | 七个只读入口（含运行/研究闭环）；Research 不暴露审批或激活 |
 | Runtime 拉取协议 | 已实现协议与本地 stub | HTTP 拉取、hash 校验、健康检查、ACK/NACK；stub 不产生真实订单 |
 | 生产 A 股适配器 | 本仓仅有合同与文档引用 | 本仓启动时默认仍注册本地演示适配器，未验证仓外服务在线 |
-| 美股、加密适配器 | 只有注册入口与客户端 | `remote_markets.js` 已定义配置，但 API 启动流程没有调用注册函数 |
+| 美股、加密适配器 | US 工程实现完成；CRYPTO 未实现 | US 只读原生 bundle Adapter 已通过合同测试但无真实 bundle/部署证据；API 启动前注册已配置槽位 |
 | 生产存储 | 未实现 | 当前为本地 append-only JSONL，无数据库、对象存储、并发写锁或备份流程 |
 | 作业编排 | 未实现为常驻调度系统 | CLI 串行演示；无队列、调度器、worker 或运行租约 |
 | 用户、组织、RBAC | 未实现 | 只有两个全局共享令牌，不是用户级身份系统 |
@@ -353,7 +353,7 @@ flowchart TD
 - 默认超时 120 秒；
 - manifest 自报 `market_id` 必须与配置槽位一致，否则拒绝注册。
 
-当前配置槽位：`CN_A`、`US_EQUITY`、`CRYPTO`。代码已能创建远程客户端，但当前 `research-api` 启动路径不会调用 `registerConfiguredRemoteMarkets()`。生产启动器必须在开放服务前完成注册并在任一已配置市场连接或合同失败时 fail closed。
+当前配置槽位：`CN_A`、`US_EQUITY`、`CRYPTO`。`research-api` 已在开放 HTTP 服务前调用 `registerConfiguredRemoteMarkets()`：未配置的槽位明确跳过；任一已配置市场连接、市场身份或合同失败时启动失败。Smartflow 已提供 `US_EQUITY` 的只读原生回放 bundle Adapter，但本地没有真实运行 bundle 或部署环境变量，不能据此声称已在线注册；`CRYPTO` 仍未实现。
 
 ### 10.3 统一指标
 
@@ -469,13 +469,11 @@ Activation 只表示“已批准、等待 Runtime 加载”，不等于生效：
 | `GET /api/shadow` | Shadow、样本充分度、虚拟指标和近期观察 |
 | `GET /api/promotion` | Candidate、Release、Activation、Rollback、Migration |
 | `GET /api/runtime-status` | Runtime 只读状态和运行/经济健康 |
+| `GET /api/runtime-research-loop` | 当前 D、冻结基线、研究结果与 Desk 引用 |
+| `GET /api/workspace` | Desk 市场/策略优先的人类可读 canonical 工作台投影；内部 ID 仅作技术披露 |
 
-Founder 写接口：
-
-| 方法与路径 | 权限 | 作用 |
-|---|---|---|
-| `POST /api/review` | `X-Founder-Token` | `APPROVE_PAPER` 或 `REJECT` |
-| `POST /api/activate` | `X-Founder-Token` | 创建未来生效的 Paper Activation |
+Research 普通写接口：无。`POST /api/review`、`POST /api/activate` 及其他普通
+`/api/*` POST 返回 `405 RESEARCH_API_READ_ONLY`；采用决定回到 Desk/Owner 原流程。
 
 Runtime 接口：
 
@@ -489,7 +487,9 @@ Runtime 接口：
 
 ### 14.2 当前产品界面
 
-`apps/research-web/index.html` 是一个零依赖单页研究台，包含策略、实验、赛马、影子、发布和运行状态六个入口。它是研发与审计工具，不是多租户商业产品。
+`apps/research-web/index.html` 是一个零依赖单页研究台，包含系统总览、当前策略体检、研究问题、方案对比、
+前向观察、采用与复盘、数据与运行状态七个只读任务入口。页面只消费 `services/research-workspace` 生成的
+Desk-first 投影；未接入、未知、缺失和数值零分开表达，内部 ID 与未关联工程样例默认折叠。它不是多租户商业产品。
 
 生产版 UI 应继续只消费 API 投影，并补齐：
 
@@ -607,7 +607,7 @@ JSONL 不适合并发写、多实例、精确事务、索引查询或灾备。�
 | `incident_catalog` | 形成可复用故障目录 | 影响范围、根因、检测、恢复、复发保护 |
 | `anomaly_watchlist` | 跟踪尚未定性的异常 | signal、first_seen、证据、owner、下一检查点 |
 
-需要明确：这四张表在当前仓库中**尚未实现**。它们不能仅因本文提出就被视为已投产。
+当前仓库已用 append-only JSONL 实现四类元对象（`services/self-audit/`），并提供 PostgreSQL 迁移合同 `docs/contracts/QRP_SELF_AUDIT_SCHEMA_V1.sql`。PostgreSQL 表、触发器和定时巡检**尚未部署**；JSONL 实现通过合同测试不等于生产存储或纵向观察已投产。
 
 核心 SLI 建议包括：快照新鲜度、适配器成功率、作业排队时间、结果重放一致率、冻结校验失败数、Release hash 漂移数、ACK 延迟、Shadow 数据质量错误数、迁移未决数和审计写入成功率。
 
@@ -754,7 +754,7 @@ QRP_DATA_DIR=$(mktemp -d) npm run mvp:ashare
 ### P2：三市场研究能力
 
 1. 接通 Ashare 生产 Adapter 并验证 PIT 与 Runtime 只读事实；
-2. 在 smartflow 分别实现 US_EQUITY 和 CRYPTO Adapter；
+2. 将 smartflow 已实现的 US_EQUITY Adapter 接到真实冻结 bundle 并完成运行验收；实现 CRYPTO Adapter；
 3. 为各市场冻结交易日历、成本、执行和 Universe 合同；
 4. 完成跨市场 canonical metrics 的语义对账；
 5. 引入真实 Paper 前向观察，保持市场间相互隔离。
@@ -812,16 +812,16 @@ QRP_DATA_DIR=$(mktemp -d) npm run mvp:ashare
 
 本平台最有价值的部分是研究治理和发布边界：它已经把“研究结果”与“策略生效”分开，并用冻结实验、单结果锁、前向证据、人工审批、Runtime 自验和不静默迁移形成了完整控制链。
 
-当前主要风险不在研究状态机，而在生产基础设施和事实接入：默认仍是单进程、本地 JSONL、合成数据和演示 Runtime；远程三市场注册尚未进入正式启动路径，身份与部署能力也未生产化。下一阶段应先使真实市场数据、权威 Runtime 状态和持久存储进入同一可验证链路，再扩大策略和市场范围。
+当前主要风险不在研究状态机，而在生产基础设施和事实接入：默认仍是单进程、本地 JSONL、合成数据和演示 Runtime；远程注册已进入启动路径，US Adapter 也已有工程实现，但真实 US bundle、权威 Runtime 状态、CRYPTO Adapter 和持久存储仍未进入同一可验证链路。当前已签 US_V5 成本模型还明确把监管费标为 `NOT_MODELLED`，因此真实 bundle 会在 seal 时 fail closed，不能进入 backtest 或 Result Lock。下一阶段须先取得可验证的完整费用来源并完成实际 US_V5 回放与 Desk RESULT，再扩大策略和市场范围。
 
 ## 27. 本次核验证据
 
-在基线提交上执行：
+在本次工作树上执行：
 
-- `npm test`：50 项，49 通过、0 失败、1 跳过；跳过项为工作树中没有 Ashare-V5 源仓时无法执行的跨仓 VPQ 反分叉比较，不能记作通过；
+- `npm test`：60 项，59 通过、0 失败、1 跳过；跳过项为工作树中没有 Ashare-V5 源仓时无法执行的跨仓 VPQ 反分叉比较，不能记作通过；
 - 独立临时 `QRP_DATA_DIR` 运行 `npm run mvp:ashare`：12 步闭环到 `ACK_ACTIVE`；输入明确为 `SAMPLE_SYNTHETIC`；
 - 对该临时闭环产物运行 `node schemas/validate.js`：19 个台账文件、369 条记录、0 条不符合；
-- 使用该临时数据启动 Research API：六个只读入口均返回 200；未配置令牌时 Founder 写入口和 Runtime 拉取入口均返回 403；
+- Research API 七个只读入口均返回 200；Research review/activate 即使提供旧 Founder token 也返回 405；未配置 Runtime token 时 pull/ack 面返回 403；
 - 文档完整性检查：15 个必需章节全部存在，`git diff --check` 通过。
 
 这些证据证明本仓 MVP 的确定性研究治理闭环可运行，不证明仓外生产 Adapter、真实数据、真实 Paper Runtime 或任何策略经济有效性已经上线。

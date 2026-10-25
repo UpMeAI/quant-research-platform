@@ -2,7 +2,8 @@
 
 > 适用对象:要把一个新市场接入本平台的**市场仓库**实现者。
 > 参照实现:`UpMeAI/Ashare-V5` → `research-adapter/`(CN_A,已上线并端到端验证)。
-> 待实现:`wendy926/smartflow` → US_EQUITY、CRYPTO。
+> 已实现但待真实 bundle／部署验收:`wendy926/smartflow` → US_EQUITY（只读原生回放 bundle）。
+> 待实现:`wendy926/smartflow` → CRYPTO。
 
 ## 0. 为什么适配器写在市场仓库,而不是平台仓库
 

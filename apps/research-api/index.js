@@ -1,15 +1,15 @@
 'use strict';
 /**
  * Research API(§5.2 apps/research-api · §17 研究台信息架构)——
- * 零依赖 HTTP 服务,为研究台六个 MVP 入口提供**只读**投影 + 两个受治理写操作。
+ * 零依赖 HTTP 服务,为研究台提供**只读**投影。
  *
  * 治理(§18 Least Privilege / No Automatic Promotion):
- *   - 除「Founder 审批」与「请求激活」外全部只读;
- *   - 这两个写操作必须携带 Founder 令牌(环境变量 QRP_FOUNDER_TOKEN);
- *     未配置令牌 = 一律 403(fail-closed,绝不因为「本地开发」放行);
- *   - 平台不下单、不碰 broker、不写 Runtime 状态 —— 激活仍走 Runtime 主动拉取(§12.2)。
+ *   - Research 面不暴露审批、发布或激活；研究只止于锁定报告和 Desk 回链;
+ *   - Runtime 独立传输面保留 pull / ack / nack，它不是研究用户的生产写入口;
+ *   - 平台不下单、不碰 broker、不写市场仓的 Runtime/参数/交易账本。
  */
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -23,7 +23,10 @@ const migration = require('../../services/strategy-control-plane/migration');
 const runtimeStatus = require('../../services/runtime-status');
 const observability = require('../../services/observability');
 const factors = require('../../services/factor-lab');
+const runtimeResearchLoop = require('../../services/runtime-research-loop');
+const researchWorkspace = require('../../services/research-workspace');
 const { listAdapters } = require('../../adapters/registry');
+const { registerConfiguredRemoteMarkets } = require('../../adapters/clients/remote_markets');
 
 const WEB_DIR = path.join(__dirname, '..', 'research-web');
 
@@ -89,16 +92,16 @@ const views = {
     runtimes: await Promise.all(listAdapters().map((m) => runtimeStatus.runtimeStatus(m.market_id))),
     health: await observability.healthReport(),   // §19 运行观测与衰减监控
   }),
-};
 
-// ── 受治理写操作(Founder 令牌;fail-closed)────────────────────────────────
-function founderOk(req) {
-  const expected = process.env.QRP_FOUNDER_TOKEN;
-  if (!expected) return { ok: false, reason: 'FOUNDER_TOKEN_NOT_CONFIGURED', reasonCn: '未配置 QRP_FOUNDER_TOKEN —— 审批与激活一律拒绝(fail-closed)' };
-  const got = req.headers['x-founder-token'];
-  if (got !== expected) return { ok: false, reason: 'FOUNDER_TOKEN_INVALID', reasonCn: 'Founder 令牌不匹配' };
-  return { ok: true };
-}
+  /** V8 M3:运行态、研究态与 Desk 复盘回链。只读引用，不复制三方业务真相。 */
+  'runtime-research-loop': () => runtimeResearchLoop.readModel(),
+
+  /** 人类可读 Research 工作台：Desk 市场/策略优先，内部 ID 只作技术披露。 */
+  workspace: (q) => researchWorkspace.readModel({
+    caseRef: q && q.get('case_ref'),
+    strategyRef: q && q.get('strategy_ref'),
+  }),
+};
 
 /**
  * Runtime 令牌(§18 Least Privilege:与 Founder 令牌分离)。
@@ -109,6 +112,27 @@ function runtimeOk(req) {
   if (!expected) return { ok: false, reason: 'RUNTIME_TOKEN_NOT_CONFIGURED', reasonCn: '未配置 QRP_RUNTIME_TOKEN —— Runtime 拉取/回执一律拒绝(fail-closed)' };
   if (req.headers['x-runtime-token'] !== expected) return { ok: false, reason: 'RUNTIME_TOKEN_INVALID', reasonCn: 'Runtime 令牌不匹配' };
   return { ok: true };
+}
+
+function tokenMatches(actual, expected) {
+  if (typeof actual !== 'string' || typeof expected !== 'string') return false;
+  const left = Buffer.from(actual); const right = Buffer.from(expected);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+}
+
+function researchOk(req, opts = {}) {
+  const expected = opts.researchToken !== undefined ? opts.researchToken : process.env.QRP_RESEARCH_TOKEN;
+  if (!expected) return { ok: true, scope: 'LOOPBACK_ONLY' };
+  if (!tokenMatches(req.headers['x-research-token'], expected)) return { ok: false, reason: 'RESEARCH_TOKEN_INVALID' };
+  return { ok: true, scope: 'TOKEN_PROTECTED' };
+}
+
+function bindConfiguration(env = process.env) {
+  const host = env.QRP_HOST || '127.0.0.1';
+  const researchToken = env.QRP_RESEARCH_TOKEN || null;
+  const loopback = ['127.0.0.1', '::1', 'localhost'].includes(host.toLowerCase());
+  if (!loopback && !researchToken) throw new Error('RESEARCH_ACCESS_TOKEN_REQUIRED_FOR_NON_LOOPBACK');
+  return { host, researchToken, loopback };
 }
 
 /**
@@ -145,33 +169,20 @@ const runtimeActions = {
   }),
 };
 
-const actions = {
-  /** §12.1 一键发布的第一步:Founder 审批(仅 APPROVE_PAPER / REJECT)。 */
-  review: async (body) => {
-    const r = controlPlane.reviewCandidate(body.candidate_id, body.decision, {
-      reviewer: 'FOUNDER', decisionCn: body.decisionCn, approvedByUserId: body.approvedByUserId,
-    });
-    return { review_status: r.review_status, candidate_id: r.candidate_id };
-  },
-  /** §12.1 第二步:创建 Activation(仍需 Runtime 到生效日拉取并验哈希才 ACTIVE)。 */
-  activate: async (body) => {
-    const a = await controlPlane.requestActivation(body.release_id, {
-      target_runtime_id: body.target_runtime_id, environment: body.environment || 'PAPER',
-      effective_from: body.effective_from, approvedByUserId: body.approvedByUserId,
-    });
-    return { activation_id: a.activation_id, activation_status: a.activation_status, effective_from: a.effective_from };
-  },
-};
-
 function send(res, code, obj) {
   const body = JSON.stringify(obj, null, 2);
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   res.end(body);
 }
 
-function handle(req, res) {
+function handle(req, res, opts = {}) {
   const url = new URL(req.url, 'http://localhost');
   const p = url.pathname;
+
+  if (!p.startsWith('/api/runtime/') && (p === '/' || p === '/index.html' || p.startsWith('/api/'))) {
+    const gate = researchOk(req, opts);
+    if (!gate.ok) return send(res, 403, { error: gate.reason });
+  }
 
   if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
     try {
@@ -212,44 +223,56 @@ function handle(req, res) {
     if (!views[view]) return send(res, 404, { error: 'UNKNOWN_VIEW', available: Object.keys(views) });
     // 视图可同步可异步(适配器 IO):统一 resolve,绝不把 Promise 序列化成 {}
     Promise.resolve()
-      .then(() => views[view]())
+      .then(() => views[view](url.searchParams))
       .then((v) => send(res, 200, v))
       .catch((e) => send(res, 500, { error: String(e.message || e) }));
     return undefined;
   }
 
   if (req.method === 'POST' && p.startsWith('/api/')) {
-    const action = p.slice(5);
-    if (!actions[action]) return send(res, 404, { error: 'UNKNOWN_ACTION', available: Object.keys(actions) });
-    const gate = founderOk(req);
-    if (!gate.ok) return send(res, 403, { error: gate.reason, reasonCn: gate.reasonCn });
-    let raw = '';
-    req.on('data', (c) => { raw += c; if (raw.length > 1e6) req.destroy(); });
-    req.on('end', () => {
-      Promise.resolve()
-        .then(() => actions[action](JSON.parse(raw || '{}')))
-        .then((v) => send(res, 200, v))
-        .catch((e) => send(res, 400, { error: String(e.message || e) }));
+    return send(res, 405, {
+      error: 'RESEARCH_API_READ_ONLY',
+      reasonCn: 'Research 入口止于报告和复盘回链；审批、发布、激活继续由原采用流程负责',
     });
-    return undefined;
   }
   return send(res, 404, { error: 'NOT_FOUND' });
 }
 
-function createServer() { return http.createServer(handle); }
+function createServer(opts = {}) { return http.createServer((req, res) => handle(req, res, opts)); }
+
+/**
+ * 启动前注册部署中明确配置的市场 Adapter。未配置会显式 skipped；一旦配置却
+ * 不可达/错市场/合同不齐，Promise 失败，HTTP 服务不会先启动后偷偷降级。
+ */
+async function bootstrapAdapters(opts = {}) {
+  const register = opts.registerConfiguredRemoteMarkets || registerConfiguredRemoteMarkets;
+  return register(opts.remoteOptions || {});
+}
 
 if (require.main === module) {
   const port = Number(process.env.QRP_PORT || 4310);
-  createServer().listen(port, () => {
-    console.log(`Research API + Web: http://localhost:${port}`);
-    console.log(`只读视图:${Object.keys(views).map((v) => `/api/${v}`).join(' · ')}`);
-    console.log(process.env.QRP_FOUNDER_TOKEN
-      ? 'Founder 审批/激活:已配置令牌(仍需 X-Founder-Token 头)'
-      : '⚠ 未配置 QRP_FOUNDER_TOKEN —— 审批与激活将一律 403(fail-closed)');
-    console.log(process.env.QRP_RUNTIME_TOKEN
-      ? `Runtime 拉取面:已配置令牌 · ${['GET /api/runtime/pending-activations', 'GET /api/runtime/release', 'POST /api/runtime/ack'].join(' · ')}`
-      : '⚠ 未配置 QRP_RUNTIME_TOKEN —— Runtime 拉取/回执将一律 403(fail-closed)');
-  });
+  let bind;
+  try { bind = bindConfiguration(); } catch (error) {
+    console.error(JSON.stringify({ error: 'RESEARCH_API_BIND_REJECTED', detail: String(error.message || error) }));
+    process.exitCode = 1;
+  }
+  if (bind) bootstrapAdapters()
+    .then((adapterRegistration) => {
+      createServer({ researchToken: bind.researchToken }).listen(port, bind.host, () => {
+        console.log(`Research API + Web: http://${bind.host}:${port}`);
+        console.log(`Research 读取面:${bind.loopback ? 'LOOPBACK_ONLY' : 'TOKEN_PROTECTED'}`);
+        console.log(`只读视图:${Object.keys(views).map((v) => `/api/${v}`).join(' · ')}`);
+        console.log(`远程 Adapter:registered=${adapterRegistration.registered.join(',') || 'none'} skipped=${adapterRegistration.skipped.join(',') || 'none'}`);
+        console.log('Research 写入口:DISABLED(报告止步；采用沿用原 Desk/Owner 流程)');
+        console.log(process.env.QRP_RUNTIME_TOKEN
+          ? `Runtime 拉取面:已配置令牌 · ${['GET /api/runtime/pending-activations', 'GET /api/runtime/release', 'POST /api/runtime/ack'].join(' · ')}`
+          : '⚠ 未配置 QRP_RUNTIME_TOKEN —— Runtime 拉取/回执将一律 403(fail-closed)');
+      });
+    })
+    .catch((error) => {
+      console.error(JSON.stringify({ error: 'RESEARCH_API_BOOTSTRAP_FAILED', detail: String(error.message || error) }));
+      process.exitCode = 1;
+    });
 }
 
-module.exports = { createServer, views, actions, runtimeRoutes, runtimeActions, founderOk, runtimeOk };
+module.exports = { createServer, bootstrapAdapters, views, runtimeRoutes, runtimeActions, runtimeOk, researchOk, bindConfiguration };

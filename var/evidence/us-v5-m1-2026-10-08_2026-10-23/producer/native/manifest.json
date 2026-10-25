@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "market": "US",
+  "producer": "SMARTFLOW_US",
+  "exportedAt": "2026-10-24T20:00:00.000Z",
+  "dataAsOf": "2026-10-23",
+  "schema": "US_BARS_MANIFEST_V1",
+  "source": "yahoo-chart-v8:1d:unadjusted",
+  "sourceNote": "Yahoo chart v8 daily bars, UNADJUSTED OHLCV (indicators.quote[0]); a split or vendor revision changes history and will show up as a sha256 change.",
+  "format": "ndjson",
+  "rowSchema": [
+    "sessionDate",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume"
+  ],
+  "sessionDateTimezone": "America/New_York",
+  "priceDecimals": 6,
+  "range": {
+    "from": "2026-10-08",
+    "to": "2026-10-23"
+  },
+  "symbolCount": 1,
+  "series": [
+    {
+      "seriesId": "SPY",
+      "kind": "ETF",
+      "file": "SPY.ndjson",
+      "source": "yahoo-chart-v8:1d:unadjusted",
+      "firstSessionDate": "2026-10-08",
+      "lastSessionDate": "2026-10-23",
+      "rowCount": 12,
+      "fieldStates": {
+        "open": "PRESENT",
+        "high": "PRESENT",
+        "low": "PRESENT",
+        "close": "PRESENT",
+        "volume": "PRESENT"
+      },
+      "bytes": 1403,
+      "sha256": "2b552f73ac4baf58083c4802792577a8aec52c1318b2dc61d2e0322a8aaeb1fd"
+    }
+  ]
+}

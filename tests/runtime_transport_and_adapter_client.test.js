@@ -28,9 +28,24 @@ async function req(base, path, { method = 'GET', headers = {}, body } = {}) {
   return { status: res.status, json: await res.json().catch(() => null) };
 }
 
+test('Research 读取面默认仅 loopback；非 loopback 缺 token 启动配置拒绝', async () => {
+  assert.deepEqual(api.bindConfiguration({}), { host: '127.0.0.1', researchToken: null, loopback: true });
+  assert.throws(() => api.bindConfiguration({ QRP_HOST: '0.0.0.0' }), /RESEARCH_ACCESS_TOKEN_REQUIRED_FOR_NON_LOOPBACK/);
+  assert.deepEqual(api.bindConfiguration({ QRP_HOST: '0.0.0.0', QRP_RESEARCH_TOKEN: 'read-secret' }), {
+    host: '0.0.0.0', researchToken: 'read-secret', loopback: false,
+  });
+  const server = api.createServer({ researchToken: 'read-secret' });
+  const base = await listen(server);
+  try {
+    assert.equal((await req(base, '/api/strategies')).status, 403);
+    assert.equal((await req(base, '/api/strategies', { headers: { 'X-Research-Token': 'read-secret' } })).status, 200);
+  } finally { server.close(); }
+});
+
 /** 造一个已批准、待生效的 Activation。 */
 async function pendingActivation() {
   const fx = await setupExperiment({ min_forward_evidence: 2 });
+  await experiments.runBacktest(fx.exp.experiment_id);
   experiments.recordResult(fx.exp.experiment_id, { verdict: 'CHALLENGER_WINS' });
   const run = shadow.openShadowRun({
     champion_ref: fx.champRef, challenger_ref: fx.chalRef, race_ref: 'R', experiment_ref: fx.exp.experiment_id,
@@ -53,6 +68,7 @@ async function pendingActivation() {
 /** 造一个通过兼容性、仍待 Founder 审批的候选。 */
 async function candidateAwaitingReview() {
   const fx = await setupExperiment({ min_forward_evidence: 2 });
+  await experiments.runBacktest(fx.exp.experiment_id);
   experiments.recordResult(fx.exp.experiment_id, { verdict: 'CHALLENGER_WINS' });
   const run = shadow.openShadowRun({
     champion_ref: fx.champRef, challenger_ref: fx.chalRef, race_ref: 'R', experiment_ref: fx.exp.experiment_id,
@@ -162,18 +178,22 @@ test('§5.2 adapters/clients:远程 Market Adapter 客户端满足同一 §14.1 
   } finally { remote.close(); }
 });
 
-test('§12.1 一键发布:Founder 令牌门控的 review/activate,与只读六页并存', async () => {
-  const { release, act } = await pendingActivation();
-  assert.ok(act);
-  process.env.QRP_FOUNDER_TOKEN = 'founder-secret';
+test('Research API 只读:运行/研究闭环可读，Founder review/activate 不再从研究入口暴露', async () => {
   const server = api.createServer();
   const base = await listen(server);
   try {
-    // 只读六页无需令牌
-    for (const v of ['strategies', 'experiments', 'races', 'shadow', 'promotion', 'runtime-status']) {
+    for (const v of ['strategies', 'experiments', 'races', 'shadow', 'promotion', 'runtime-status', 'runtime-research-loop', 'workspace']) {
       const r = await req(base, `/api/${v}`);
       assert.equal(r.status, 200, `${v} 只读视图应可访问`);
     }
+    const selectedWorkspace = await req(base, '/api/workspace?strategy_ref=C17_V2_4000USDT');
+    assert.equal(selectedWorkspace.status, 200);
+    assert.equal(selectedWorkspace.json.context.selected_strategy_ref, 'C17_V2_4000USDT');
+    assert.equal(selectedWorkspace.json.views['strategy-detail'].case_role, 'NOT_CONNECTED');
+    const unknownWorkspace = await req(base, '/api/workspace?strategy_ref=NOT_A_DESK_STRATEGY');
+    assert.equal(unknownWorkspace.status, 200);
+    assert.equal(unknownWorkspace.json.context.selected, null);
+    assert.equal(unknownWorkspace.json.views['strategy-detail'].state, 'UNKNOWN_STRATEGY');
     // §19 健康报告随 runtime-status 一并投影
     const rs = await req(base, '/api/runtime-status');
     assert.ok(rs.json.health && Array.isArray(rs.json.health.markets));
@@ -182,26 +202,27 @@ test('§12.1 一键发布:Founder 令牌门控的 review/activate,与只读六�
     assert.ok(cn.operational.release_drift);                            // §19.1 版本/哈希漂移可观测
     assert.equal(cn.operational.adapter.demo_only, true);               // §5 演示适配器显式自认
 
-    // 写操作:无令牌 403;错令牌 403
-    assert.equal((await req(base, '/api/review', { method: 'POST', body: { candidate_id: 'x', decision: 'APPROVE_PAPER' } })).status, 403);
-    assert.equal((await req(base, '/api/review', { method: 'POST', headers: { 'X-Founder-Token': 'nope' }, body: {} })).status, 403);
-
-    // 正确令牌:对一个仍待审批的候选执行否决(否决也是合法出口)
-    const pendingCand = await candidateAwaitingReview();
-    const rejected = await req(base, '/api/review', {
-      method: 'POST', headers: { 'X-Founder-Token': 'founder-secret' },
-      body: { candidate_id: pendingCand.candidate_id, decision: 'REJECT' },
-    });
-    assert.equal(rejected.json.review_status, 'REJECTED');
-    // 已否决的候选不能再被激活(§12 Gate 顺序)
-    const cand2 = await candidateAwaitingReview();
-    const approved = await req(base, '/api/review', {
-      method: 'POST', headers: { 'X-Founder-Token': 'founder-secret' },
-      body: { candidate_id: cand2.candidate_id, decision: 'APPROVE_PAPER' },
-    });
-    assert.equal(approved.json.review_status, 'APPROVED_PAPER');
+    process.env.QRP_FOUNDER_TOKEN = 'even-if-present';
+    const review = await req(base, '/api/review', { method: 'POST', headers: { 'X-Founder-Token': 'even-if-present' }, body: {} });
+    const activate = await req(base, '/api/activate', { method: 'POST', headers: { 'X-Founder-Token': 'even-if-present' }, body: {} });
+    const workspaceWrite = await req(base, '/api/workspace', { method: 'POST', body: {} });
+    assert.equal(review.status, 405);
+    assert.equal(activate.status, 405);
+    assert.equal(workspaceWrite.status, 405);
+    assert.equal(workspaceWrite.json.error, 'RESEARCH_API_READ_ONLY');
+    assert.equal(review.json.error, 'RESEARCH_API_READ_ONLY');
   } finally {
     delete process.env.QRP_FOUNDER_TOKEN;
     server.close();
   }
+});
+
+test('Research API 启动前注册远程 Adapter；注册失败时不吞错', async () => {
+  const ok = await api.bootstrapAdapters({
+    registerConfiguredRemoteMarkets: async () => ({ registered: ['US_EQUITY'], skipped: ['CN_A', 'CRYPTO'] }),
+  });
+  assert.deepEqual(ok.registered, ['US_EQUITY']);
+  await assert.rejects(() => api.bootstrapAdapters({
+    registerConfiguredRemoteMarkets: async () => { throw new Error('REMOTE_DOWN'); },
+  }), /REMOTE_DOWN/);
 });

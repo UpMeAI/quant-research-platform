@@ -31,8 +31,11 @@ test('冻结完整性:篡改台账首行冻结域 → verifyFreeze 拒绝', asyn
 
 test('Result Lock:结果只登记一次;INVALIDATED 实验拒绝回测;已锁结果不可作废', async () => {
   const { exp } = await setupExperiment();
+  const artifact = await experiments.runBacktest(exp.experiment_id);
   experiments.recordResult(exp.experiment_id, { verdict: 'CHAMPION_HOLDS' });
+  assert.equal(experiments.experimentHead(exp.experiment_id).result.sample_evidence_ref, artifact.result_hash);
   assert.throws(() => experiments.recordResult(exp.experiment_id, { verdict: 'CHALLENGER_WINS' }), /ALREADY_LOCKED/);
+  await assert.rejects(() => experiments.runBacktest(exp.experiment_id), /RESULT_ALREADY_LOCKED/);
   assert.throws(() => experiments.invalidateExperiment(exp.experiment_id), /CANNOT_INVALIDATE_LOCKED_RESULT/);
 
   const { exp: exp2 } = await setupExperiment();
@@ -43,6 +46,19 @@ test('Result Lock:结果只登记一次;INVALIDATED 实验拒绝回测;已锁结
 test('Result Lock:verdict 必须在枚举内', async () => {
   const { exp } = await setupExperiment();
   assert.throws(() => experiments.recordResult(exp.experiment_id, { verdict: 'MAYBE' }), /RESULT_MISSING_VERDICT/);
+});
+
+test('Result Lock:只能绑定已完成回测的唯一产物 hash', async () => {
+  const { exp } = await setupExperiment();
+  assert.throws(() => experiments.recordResult(exp.experiment_id, { verdict: 'INCONCLUSIVE' }), /BACKTEST_NOT_COMPLETED/);
+  const artifact = await experiments.runBacktest(exp.experiment_id);
+  assert.throws(() => experiments.recordResult(exp.experiment_id, {
+    verdict: 'INCONCLUSIVE', sample_evidence_ref: 'f'.repeat(64),
+  }), /SAMPLE_EVIDENCE_MISMATCH/);
+  const locked = experiments.recordResult(exp.experiment_id, {
+    verdict: 'INCONCLUSIVE', sample_evidence_ref: artifact.result_hash,
+  });
+  assert.equal(locked.result_artifact_hash, artifact.result_hash);
 });
 
 test('NegativeResult 归档需要 hypothesis_ref + failure_reason', () => {

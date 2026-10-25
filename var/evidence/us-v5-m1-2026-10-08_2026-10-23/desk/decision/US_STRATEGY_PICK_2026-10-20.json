@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_US",
+  "producerVersion": "export-us-strategy-pick@9d1d75485281",
+  "market": "US",
+  "sessionDate": "2026-10-20",
+  "generatedAt": "2026-10-20T20:50:12.861Z",
+  "ruleRef": "US_STRATEGY_PICK@smartflow:9d1d75485281",
+  "etfStrategy": {
+    "ledgerId": "US_V5_ETF_3000USD",
+    "state": "READY",
+    "reasonCodes": [],
+    "scan": {
+      "recordContract": "US_V5_SCAN_RECORD_V2",
+      "recordHash": "e9e102330c1fe93dd00f84c857e37be410154089a47061cfb2ee55cd88223cf6",
+      "scannedAt": "2026-10-20T19:36:01.944Z",
+      "scansInSession": 4
+    },
+    "universe": {
+      "ref": "US_ETF_UNIVERSE_V1",
+      "version": 3,
+      "rows": 45,
+      "series": 29,
+      "carriers": 45,
+      "signalOnly": 0
+    },
+    "regime": {
+      "state": "NORMAL",
+      "binding": 2,
+      "readAt": "2026-10-20T13:36:02.913Z",
+      "inputs": [
+        {
+          "input": "SPY_BELOW_EMA",
+          "firing": false,
+          "state": "MEASURED"
+        },
+        {
+          "input": "VIX_HIGH",
+          "firing": false,
+          "state": "MEASURED"
+        },
+        {
+          "input": "TNX_SPIKE",
+          "firing": false,
+          "state": "MEASURED"
+        }
+      ],
+      "reasonCodes": []
+    },
+    "funnel": [
+      {
+        "gate": "SIGNAL",
+        "entered": 29,
+        "passed": 0,
+        "rejected": 29
+      },
+      {
+        "gate": "SLOT",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "FILL_PATH",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "BOOK_HALT",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "EARNINGS",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "FED_PHASE",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "KILL_SWITCH",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "REGIME",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "CARRIER_ROUTE",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "CLASS_CAP",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "PORTFOLIO_RISK",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "PER_ETF_CAP",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "KLINE",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "SIZING",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      }
+    ],
+    "signals": [],
+    "actionable": [],
+    "sessionOpens": [],
+    "sessionSignals": []
+  },
+  "coreDecision": {
+    "ledgerId": "US_CORE_9000USD_3X_GATEOBS",
+    "state": "DECIDED",
+    "reasonCodes": [],
+    "decidedAt": "2026-10-20T20:35:00.459Z",
+    "macroState": "NORMAL",
+    "carryRiskGate": {
+      "mode": "OBSERVE_ONLY",
+      "active": true,
+      "state": "S3",
+      "effect": "DISPLAY_ONLY",
+      "observedAt": "2026-10-20T20:34:07.223Z",
+      "reasonCodes": [
+        "CARRY_RISK:S3",
+        "CARRY_RISK_GATE_MODE:OBSERVE_ONLY",
+        "CARRY_RISK_GATE:DISPLAY_ONLY"
+      ]
+    },
+    "sleeves": [
+      {
+        "sleeve": "SPY",
+        "benchmark": "SPY",
+        "carriers": {
+          "bench": "SPY",
+          "lev": "UPRO"
+        },
+        "leverage": 3,
+        "close": 769.049988,
+        "sma200": 725.866799,
+        "sma50": 768.286595,
+        "closeVsSma200": "ABOVE",
+        "sma50VsSma200": "ABOVE",
+        "tier": "TIER_3X",
+        "held": "TIER_3X",
+        "lotChange": {
+          "change": "NONE",
+          "from": "TIER_3X",
+          "to": "TIER_3X",
+          "fillsAt": null,
+          "reasonCodes": []
+        },
+        "reasonCodes": [
+          "CLOSE_ABOVE_SMA200",
+          "SMA50_ABOVE_SMA200"
+        ]
+      },
+      {
+        "sleeve": "QQQ",
+        "benchmark": "QQQ",
+        "carriers": {
+          "bench": "QQQ",
+          "lev": "TQQQ"
+        },
+        "leverage": 3,
+        "close": 717.630005,
+        "sma200": 675.95205,
+        "sma50": 726.6152,
+        "closeVsSma200": "ABOVE",
+        "sma50VsSma200": "ABOVE",
+        "tier": "TIER_3X",
+        "held": "TIER_3X",
+        "lotChange": {
+          "change": "NONE",
+          "from": "TIER_3X",
+          "to": "TIER_3X",
+          "fillsAt": null,
+          "reasonCodes": []
+        },
+        "reasonCodes": [
+          "CLOSE_ABOVE_SMA200",
+          "SMA50_ABOVE_SMA200"
+        ]
+      }
+    ]
+  },
+  "consequence": "STRATEGY_RECORD_ONLY_NEVER_AN_ORDER",
+  "researchOnly": true,
+  "allowedNow": false,
+  "realOrder": 0,
+  "brokerWrite": false,
+  "hash": "df625d3ac44d2ef73133498b674d2bd30b601943b56b59f02489e82bb78db5fd"
+}
