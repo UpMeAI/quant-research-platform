@@ -22,6 +22,7 @@ const runtimeStatus = require('../runtime-status');
 const deskStrategyDirectory = require('../desk-strategy-directory');
 const strategyDiagnostics = require('../strategy-diagnostics');
 const baselineEvaluation = require('../baseline-evaluation');
+const candidateComparison = require('../candidate-comparison');
 const hkForward = require('../hk-forward-observations');
 const { listAdapters } = require('../../adapters/registry');
 
@@ -259,7 +260,32 @@ function technicalSampleSummary({ adapters, families, modules, bundles, hypothes
   };
 }
 
-async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppliedDiagnostic, baseline: suppliedBaseline } = {}) {
+/**
+ * 待验证问题清单里对应 Q1 的那一条：有对比结果时写结论并链到「研究与对比」，没有就写等待交付。
+ * 只改 Q1 一条的 status 与 link，其余原样；清单读不出来时不动。
+ */
+function linkComparison(diagnosis, comparison, strategyRef) {
+  if (!diagnosis || diagnosis.state !== 'AVAILABLE') return diagnosis;
+  const link = { label: '查看研究与对比', section: 'research', strategy_ref: strategyRef };
+  const state = comparison ? comparison.state : 'NOT_IMPORTED';
+  const STATUS = {
+    LOCKED_VERIFIED: () => `已完成：${comparison.verdict_label}（见研究与对比）`,
+    INVALID: () => '已有封存的对比结果，但校验未通过（见研究与对比）',
+    MISSING: () => '已有封存的对比结果，但文件或旁证缺失（见研究与对比）',
+    NOT_IMPORTED: () => 'K2 已冻结，等研究会话交付封存的对比结果（见研究与对比）',
+  };
+  if (!STATUS[state]) return diagnosis;
+  const status = STATUS[state]();
+  return {
+    ...diagnosis,
+    items: diagnosis.items.map((item) => (item.experiment && item.experiment.id === candidateComparison.QUESTION_REF
+      ? { ...item, experiment: { ...item.experiment, status }, link } : item)),
+  };
+}
+
+async function readModel({
+  caseRef = null, strategyRef = null, diagnostic: suppliedDiagnostic, baseline: suppliedBaseline, comparison: suppliedComparison,
+} = {}) {
   const loop = runtimeResearchLoop.readModel();
   const casesById = new Map(loop.cases.map((item) => [item.case_id, item]));
   const requestedCase = caseRef ? casesById.get(caseRef) : null;
@@ -301,6 +327,11 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
     : (selectedCurrentCase?.case_id === baselineEvaluation.CASE_REF ? baselineEvaluation.readProjection()
       : baselineEvaluation.emptyProjection('NOT_CONNECTED', selectedCurrentCase
         ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
+
+  // Q1：候选对比同样只来自导入并锁定的封存结果；没有交付、文件校验失败都是「尚未完成」。
+  const comparisonProjection = suppliedComparison !== undefined ? suppliedComparison
+    : (selectedCurrentCase?.case_id === candidateComparison.CASE_REF ? candidateComparison.readProjection()
+      : candidateComparison.emptyProjection('NOT_CONNECTED', '这项策略没有候选对比'));
 
   const adapters = listAdapters();
   const families = registry.listFamilies();
@@ -429,7 +460,12 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
       source_label: '数据来自 QRP 导入并锁定的封存回测结果，页面不重算',
       blocks: baselineProjection.blocks, source: baselineProjection.source,
     },
-    diagnosis_list: baselineProjection.diagnosis,
+    diagnosis_list: linkComparison(baselineProjection.diagnosis, comparisonProjection, selectedStrategyRef),
+    comparison: {
+      question: '原版和候选放在同一账户里比，候选有没有更好？',
+      source_label: '数据来自 QRP 导入并锁定的封存对比结果，页面不重算',
+      ...comparisonProjection,
+    },
     recent_run: {
       title: '最近实际运行（纸面交易，真实行情）',
       account_label: '账户：纸面交易（真实行情），即本策略的真实账户',
