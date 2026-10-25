@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  QRP Research 页面（V8.1 受控交付环境）：Mac 127.0.0.1:4311，从 QRP 主检出（main）直接运行。
+  只读：不设 QRP_RUNTIME_TOKEN（Runtime pull/ack 一律 403）、不设 QRP_RESEARCH_TOKEN（仅 loopback + 本机 Host 头）、
+  不设 QRP_ADAPTER_*（不连任何远程市场）、不设 QRP_DATA_DIR（台账读 var/ledger，只由记录命令写，Web 不写）。
+  QRP_PRODUCT_MILESTONE_AUTHORITY 只用于页面显示“完成权威已配置”；Web 没有任何路径能调用里程碑记录函数。
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.upmeai.qrp-research-web</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/Users/kaylame/KaylaProject/quant-research-platform/apps/research-api/index.js</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/kaylame/KaylaProject/quant-research-platform</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/kaylame</string>
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+    <key>QRP_HOST</key>
+    <string>127.0.0.1</string>
+    <key>QRP_PORT</key>
+    <string>4311</string>
+    <key>QRP_DESK_ROOT</key>
+    <string>/Users/kaylame/KaylaProject/portfolio-desk</string>
+    <key>QRP_PRODUCT_MILESTONE_AUTHORITY</key>
+    <string>V8_1_COORDINATOR</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/Users/kaylame/KaylaProject/quant-research-platform/var/log/research-web.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/kaylame/KaylaProject/quant-research-platform/var/log/research-web.err.log</string>
+</dict>
+</plist>
