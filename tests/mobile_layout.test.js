@@ -25,6 +25,7 @@ const q1 = require('../services/candidate-comparison');
 const { createServer } = require('../apps/research-api');
 const fx0 = require('./_q0_fixture');
 const fx1 = require('./_q1_fixture');
+const fx2 = require('./_q2_fixture');
 
 const STRATEGY = q0.STRATEGY_REF;
 const CHROME = [process.env.QRP_TEST_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
@@ -49,7 +50,7 @@ const routes = ${JSON.stringify(ROUTES)};
     await new Promise((resolve) => setTimeout(resolve, 1500));
     const doc = frame.contentDocument;
     const root = doc.documentElement;
-    results.push({ route, width, scrollWidth: root.scrollWidth, clientWidth: root.clientWidth, rendered: Boolean(doc.querySelector('#workspace .answer-panel, #workspace .detail-top')), text: doc.getElementById('workspace').innerText.length });
+    results.push({ route, width, scrollWidth: root.scrollWidth, clientWidth: root.clientWidth, rendered: Boolean(doc.querySelector('#workspace .answer-panel, #workspace .detail-top')), text: doc.getElementById('workspace').innerText.length, cards: doc.querySelectorAll('section.comparison').length });
     frame.remove();
   }
   document.getElementById('out').textContent = JSON.stringify(results);
@@ -92,6 +93,20 @@ function seed() {
     doc.forward[0].text_zh = `前向：${LONG}`;
   });
   q1.importCandidateComparison(sealed(q1Doc, 'Q1.json'), { registeredBy: AUTHORITY });
+  // Q2 的卡：问题、候选、样本外理由、路由、前向原因、归因的定义与说明、类别与栏的名字里都放长代码
+  const q2Doc = fx2.result(q0Doc, q0Lock.file_sha256, q0Lock.result_id, (doc) => {
+    doc.comparison.question_zh = `问题：${LONG}`;
+    doc.comparison.candidate_label_zh = `候选：${LONG}`;
+    doc.comparison.routing.single_stock_2x.treatment_zh = `处理：${LONG}`;
+    doc.oos_reuse_detail = { reason_zh: `理由：${LONG}`, other_studies_zh: `其他研究：${LONG}` };
+    doc.forward.reason_zh = `前向：${LONG}`;
+    doc.attribution.definitions_zh = [`定义：${LONG}`];
+    doc.attribution.fill_limits.note_zh = `说明：${LONG}`;
+    doc.attribution.columns[0].label_zh = `母序列信号${LONG}`;
+    doc.attribution.oos.by_class[0].label_zh = `指数${LONG}`;
+    doc.verdict.fail_label = `数据充分度：${LONG}`;
+  });
+  q1.importCandidateComparison(sealed(q2Doc, 'Q2.json'), { registeredBy: AUTHORITY });
 }
 
 /** 必须异步起浏览器：服务就在本进程里，同步等待会让浏览器永远拿不到页面。 */
@@ -131,6 +146,7 @@ test('手机宽度 360 与 390 px：七页路由（含策略详情各章）都�
       assert.equal(rows.length, ROUTES.length);
       for (const row of rows) {
         assert.ok(row.rendered && row.text > 200, `${row.route} @${width} 没有渲染出页面`);
+        if (row.route.startsWith('#strategy-detail')) assert.equal(row.cards, 2, `${row.route} @${width} 应有 Q1、Q2 两张对比卡`);
         assert.ok(row.scrollWidth <= row.clientWidth, `${row.route} @${width}px：整页横向宽度 ${row.scrollWidth} > ${row.clientWidth}`);
         assert.equal(row.clientWidth, width);
       }

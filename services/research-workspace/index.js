@@ -261,25 +261,32 @@ function technicalSampleSummary({ adapters, families, modules, bundles, hypothes
 }
 
 /**
- * 待验证问题清单里对应 Q1 的那一条：有对比结果时写结论并链到「研究与对比」，没有就写等待交付。
- * 只改 Q1 一条的 status 与 link，其余原样；清单读不出来时不动。
+ * 待验证问题清单里对应某个已登记对比题（Q1、Q2……）的那一条：有对比结果时写结论并链到「研究与对比」，
+ * 没有就按登记项的等待文案写（登记项没写就不动）。只改对应那几条的 status 与 link，其余原样；清单读不出来时不动。
  */
-function linkComparison(diagnosis, comparison, strategyRef) {
+function linkComparison(diagnosis, comparisons, strategyRef) {
   if (!diagnosis || diagnosis.state !== 'AVAILABLE') return diagnosis;
   const link = { label: '查看研究与对比', section: 'research', strategy_ref: strategyRef };
-  const state = comparison ? comparison.state : 'NOT_IMPORTED';
-  const STATUS = {
-    LOCKED_VERIFIED: () => `已完成：${comparison.verdict_label}（见研究与对比）`,
-    INVALID: () => '已有封存的对比结果，但校验未通过（见研究与对比）',
-    MISSING: () => '已有封存的对比结果，但文件或旁证缺失（见研究与对比）',
-    NOT_IMPORTED: () => 'K2 已冻结，等研究会话交付封存的对比结果（见研究与对比）',
+  const byQuestion = new Map(comparisons.map((projection) => [projection.question_ref, projection]));
+  const statusOf = (question) => {
+    const projection = byQuestion.get(question);
+    const state = projection ? projection.state : 'NOT_IMPORTED';
+    const STATUS = {
+      LOCKED_VERIFIED: () => `已完成：${projection.verdict_label}（见研究与对比）`,
+      INVALID: () => '已有封存的对比结果，但校验未通过（见研究与对比）',
+      MISSING: () => '已有封存的对比结果，但文件或旁证缺失（见研究与对比）',
+      NOT_IMPORTED: () => candidateComparison.registry.get(question).pending_status_zh,
+    };
+    return STATUS[state] ? STATUS[state]() : null;
   };
-  if (!STATUS[state]) return diagnosis;
-  const status = STATUS[state]();
   return {
     ...diagnosis,
-    items: diagnosis.items.map((item) => (item.experiment && item.experiment.id === candidateComparison.QUESTION_REF
-      ? { ...item, experiment: { ...item.experiment, status }, link } : item)),
+    items: diagnosis.items.map((item) => {
+      const question = item.experiment && item.experiment.id;
+      if (!question || !candidateComparison.registry.get(question)) return item;
+      const status = statusOf(question);
+      return status ? { ...item, experiment: { ...item.experiment, status }, link } : item;
+    }),
   };
 }
 
@@ -328,10 +335,12 @@ async function readModel({
       : baselineEvaluation.emptyProjection('NOT_CONNECTED', selectedCurrentCase
         ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
 
-  // Q1：候选对比同样只来自导入并锁定的封存结果；没有交付、文件校验失败都是「尚未完成」。
-  const comparisonProjection = suppliedComparison !== undefined ? suppliedComparison
-    : (selectedCurrentCase?.case_id === candidateComparison.CASE_REF ? candidateComparison.readProjection()
-      : candidateComparison.emptyProjection('NOT_CONNECTED', '这项策略没有候选对比'));
+  // 候选对比（Q1、Q2……）同样只来自导入并锁定的封存结果；每个已锁定的题目一张卡，没有交付、文件校验失败都是「尚未完成」。
+  const comparisonProjections = (() => {
+    if (suppliedComparison !== undefined) return Array.isArray(suppliedComparison) ? suppliedComparison : [suppliedComparison];
+    return selectedCurrentCase?.case_id === candidateComparison.CASE_REF ? candidateComparison.readProjections()
+      : [candidateComparison.emptyProjection('NOT_CONNECTED', '这项策略没有候选对比')];
+  })();
 
   const adapters = listAdapters();
   const families = registry.listFamilies();
@@ -460,12 +469,12 @@ async function readModel({
       source_label: '数据来自 QRP 导入并锁定的封存回测结果，页面不重算',
       blocks: baselineProjection.blocks, source: baselineProjection.source,
     },
-    diagnosis_list: linkComparison(baselineProjection.diagnosis, comparisonProjection, selectedStrategyRef),
-    comparison: {
+    diagnosis_list: linkComparison(baselineProjection.diagnosis, comparisonProjections, selectedStrategyRef),
+    comparisons: comparisonProjections.map((projection) => ({
       question: '原版和候选放在同一账户里比，候选有没有更好？',
       source_label: '数据来自 QRP 导入并锁定的封存对比结果，页面不重算',
-      ...comparisonProjection,
-    },
+      ...projection,
+    })),
     recent_run: {
       title: '最近实际运行（纸面交易，真实行情）',
       account_label: '账户：纸面交易（真实行情），即本策略的真实账户',
