@@ -37,6 +37,8 @@ const project3 = (fn) => cc.buildProjection(imp(write3(fn)), { allowNonActual: t
 const block = (projection, key) => projection.blocks.find((item) => item.key === key);
 const part = (projection, key) => projection.extra_cards[0].data.parts.find((item) => item.key === key);
 const reset = () => fs.rmSync(cc.LEDGER(), { force: true });
+/** 同一份 Q0 基线下每个 Q3 结果只能锁一次：同一个测试里要再导入，先清掉 Q3 台账。 */
+const fresh = (fn) => { reset(); cc.clearCache(); return project3(fn); };
 const setCriteria = (doc, name, value) => { doc.comparison.criteria[name] = value; };
 const withPart = (doc, key, patch) => {
   const target = key === 'Q3A' ? doc.random_control : doc.random_control.random_instrument;
@@ -197,7 +199,8 @@ test('Q3 运行门：K2 点名的九道门都在且 PASSED；Q1 的孪生门与 
 
 test('参照臂 EQUAL_WEIGHT_1X_BUY_HOLD：只报不判；页面标「价格收益，不含分红」；缺了拒绝；也认放在 arms 里；读不出来只坏那一行', () => {
   const account = block(project3(), 'account').data;
-  assert.deepEqual(account.arms.map((arm) => arm.key), ['BASELINE', 'CANDIDATE_SECTOR_RS', 'SPY_BUY_HOLD', 'CASH'], '参照臂不在四个比较臂里');
+  assert.deepEqual(account.arms.map((arm) => arm.key), ['BASELINE', 'CANDIDATE_SECTOR_RS'], '参照臂不在比较臂里（A4：SPY 与现金只在回测结论卡）');
+  assert.equal(account.benchmark_note_zh, '基准见回测结论卡');
   assert.equal(account.reference_arms.length, 1);
   const [reference] = account.reference_arms;
   assert.deepEqual([reference.key, reference.label, reference.note_zh, reference.report_only], ['EQUAL_WEIGHT_1X_BUY_HOLD', '等权买入持有（15 只 1× 多头）', '价格收益，不含分红', true]);
@@ -232,8 +235,9 @@ test('随机对照卡：Q3a 只有 7 个选择点，G1 不成立，明说证据�
   assert.equal(q3a.state, 'AVAILABLE');
   assert.equal(q3a.verdict_state, 'INSUFFICIENT');
   assert.equal(q3a.state_label, '证据不足（G1 不成立）');
-  assert.equal(q3a.plain_zh, 'G1 不成立：OOS 选择点只有 7 个，要求 ≥ 30 个，所以结论是证据不足；200 个种子的运行只作描述，不判。');
-  assert.deepEqual(q3a.g1, { met: false, oos: 7, is: 2, required: 30, definition_zh: '同一扫描时点至少一笔开仓，同时另有一个通过全部信号级闸门的同时点候选被容量规则拒绝' });
+  assert.equal(q3a.plain_zh, '选择点太少：OOS 7 个，200 个种子的运行只作描述，不判');
+  assert.deepEqual(q3a.basis, { title: '判定依据', main: ['G1 不成立：OOS 选择点 7 个，低于门槛 30 个'], also: ['基线账户 g 胜过 62.0% 的随机种子（相等算一半），只作描述，不判'], frozen_zh: '门槛在看到结果前已冻结' });
+  assert.deepEqual(q3a.g1, { met: false, oos: 7, is: 2, is_reason_zh: null, required: 30, definition_zh: '同一扫描时点至少一笔开仓，同时另有一个通过全部信号级闸门的同时点候选被容量规则拒绝' });
   assert.deepEqual([q3a.seeds.n, q3a.seeds.first, q3a.seeds.last], [200, 20261025, 20261224]);
   assert.deepEqual(q3a.reasons.map((item) => item.text), ['选择点太少（G1 不成立）']);
 
@@ -241,7 +245,9 @@ test('随机对照卡：Q3a 只有 7 个选择点，G1 不成立，明说证据�
   assert.equal(q3a2.verdict_state, 'SUPPORTED');
   assert.equal(q3a2.state_label, '有支持证据');
   assert.equal(q3a2.tone, 'VALID');
-  assert.equal(q3a2.plain_zh, '基线账户 g 胜过 81.0% 的随机种子（相等算一半）。≥ 75% 有支持证据，≤ 50% 未通过，其余证据不足。');
+  assert.equal(q3a2.plain_zh, '基线账户 g 胜过 81.0% 的随机种子（相等算一半）');
+  assert.deepEqual(q3a2.basis.main, ['基线账户 g 胜过 81.0% 的随机种子（相等算一半），不低于门槛 75%；G1 成立（OOS 选择点 112 个，门槛 30 个）']);
+  assert.deepEqual(q3a2.g1, { met: true, oos: 112, is: null, is_reason_zh: 'Q3a2 只跑样本外（K2 裁定 1），开发期不跑', required: 30, definition_zh: '同一扫描时点至少一笔开仓，同时另有一个通过全部信号级闸门的同时点候选被容量规则拒绝' }, 'Q3a2 只跑 OOS：is 为 null 带原因，G1 只数 OOS');
   assert.deepEqual([q3a2.seeds.n, q3a2.seeds.last], [1000, 20262024]);
   assert.equal(q3a2.statistic.share_beaten_g, 0.81);
   assert.equal(q3a2.baseline.g, -0.016);
@@ -282,6 +288,38 @@ test('随机对照的三态：≥ 0.75 才可 SUPPORTED，≤ 0.50 才可 NOT_PA
   reset();
   // INSUFFICIENT 随时允许（过线也可以保守地判证据不足）
   assert.equal(part(project3(set((p) => { p.verdict.state = 'INSUFFICIENT'; })), 'Q3A2').verdict_state, 'INSUFFICIENT');
+});
+
+test('Q3a2 只跑样本外（K2 裁定 1）：is 为 null 且带 is_reason_zh 时接受，G1 只数 OOS 选择点；null 不带原因、Q3a 的 null、非整数仍拒绝；整数照旧接受', () => {
+  // 默认夹具的 Q3a2 就是 is:null + is_reason_zh（见 _q3_fixture.js）
+  const q3a2 = part(fresh(), 'Q3A2');
+  assert.equal(q3a2.g1.is, null);
+  assert.equal(q3a2.g1.is_reason_zh, 'Q3a2 只跑样本外（K2 裁定 1），开发期不跑');
+  assert.equal(q3a2.g1.met, true);
+  // G1 只数 OOS：开发期没有数，OOS 不够就是不成立
+  const few = part(fresh((doc) => withPart(doc, 'Q3A2', (p) => { p.choice_points.oos = 12; p.verdict.state = 'INSUFFICIENT'; p.verdict.reason_codes = ['G1_NOT_MET']; })), 'Q3A2');
+  assert.deepEqual([few.g1.met, few.g1.oos, few.g1.is], [false, 12, null]);
+  assert.match(few.basis.main[0], /^G1 不成立：OOS 选择点 12 个，低于门槛 30 个$/);
+  // 原因也可以用不带 _zh 的键
+  assert.equal(part(fresh((doc) => withPart(doc, 'Q3A2', (p) => { delete p.choice_points.is_reason_zh; p.choice_points.is_reason = 'OOS only'; })), 'Q3A2').g1.is_reason_zh, 'OOS only');
+  // null 必须带原因；原因不能是空串；只有 Q3a2 可以没有开发期选择点
+  refuses3((doc) => withPart(doc, 'Q3A2', (p) => { delete p.choice_points.is_reason_zh; }), 'Q3_RANDOM_CONTROL_CHOICE_POINTS_INVALID');
+  refuses3((doc) => withPart(doc, 'Q3A2', (p) => { p.choice_points.is_reason_zh = '  '; }), 'Q3_RANDOM_CONTROL_CHOICE_POINTS_INVALID');
+  refuses3((doc) => withPart(doc, 'Q3A', (p) => { p.choice_points.is = null; p.choice_points.is_reason_zh = '不跑'; }), 'Q3_RANDOM_CONTROL_CHOICE_POINTS_INVALID');
+  refuses3((doc) => withPart(doc, 'Q3A2', (p) => { p.choice_points.is = 'many'; }), 'Q3_RANDOM_CONTROL_CHOICE_POINTS_INVALID');
+  refuses3((doc) => withPart(doc, 'Q3A2', (p) => { p.choice_points.is = -1; }), 'Q3_RANDOM_CONTROL_CHOICE_POINTS_INVALID');
+  // 整数照旧接受（其他结果文件或以后的版本）
+  assert.equal(part(fresh((doc) => withPart(doc, 'Q3A2', (p) => { p.choice_points.is = 40; delete p.choice_points.is_reason_zh; })), 'Q3A2').g1.is, 40);
+});
+
+test('随机对照的判定依据（A4 D1）：G1 不成立写笔数对门槛；成立时写比例对 75%／50% 线；原因码未登记的折叠，不在主内容写原码', () => {
+  const dist = (share, state, codes = []) => part(fresh((doc) => withPart(doc, 'Q3A2', (p) => { p.baseline.share_beaten_g = share; p.verdict.state = state; p.verdict.reason_codes = codes; })), 'Q3A2');
+  assert.match(dist(0.75, 'SUPPORTED').basis.main[0], /不低于门槛 75%；G1 成立（OOS 选择点 112 个，门槛 30 个）$/);
+  assert.match(dist(0.50, 'NOT_PASSED').basis.main[0], /不高于门槛 50%；G1 成立/);
+  assert.match(dist(0.62, 'INSUFFICIENT').basis.main[0], /介于门槛 50% 与 75% 之间，既不够支持也不够否定；G1 成立/);
+  const unknown = dist(0.62, 'INSUFFICIENT', ['G1_NOT_MET_X', 'DESCRIPTIVE_ONLY', 'SOME_NEW_CODE']);
+  assert.deepEqual(unknown.reasons.map((item) => item.text), ['种子运行只作描述，不判']);
+  assert.deepEqual(unknown.unknown_reason_codes, ['G1_NOT_MET_X', 'SOME_NEW_CODE']);
 });
 
 test('随机对照的结构：两部分都必填；类别、种子起点、选择点、统计量、分布缺或被改都拒绝；G1 布尔与选择点不符拒绝', () => {

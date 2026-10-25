@@ -7,7 +7,7 @@
  *   - Q3b（主卡）：优势结论 SUPPORTED（配对 g，95%，G1 成立），压力有缺；oos_reuse:false 且带 OOS_PREVIOUSLY_EVALUATED_SAME_RULE；
  *     敞口披露两臂，候选臂另有行业 RS 的拒绝数与重排时点数；没有归因块；
  *   - random_control：Q3a（候选顺序随机，OOS 选择点 7 个 → G1 不成立 → 证据不足，只跑 200 个种子作描述）与
- *     Q3a2（随机标的，选择点 = 每笔开仓，≥ 30，1,000 个种子，胜过 81% → 有支持证据），各自的结论、与 Q3b 无关；
+ *     Q3a2（随机标的，选择点 = 每笔开仓，≥ 30，只跑 OOS：is 为 null 并带 is_reason_zh，1,000 个种子，胜过 81% → 有支持证据），各自的结论、与 Q3b 无关；
  *   - 参照臂 reference_arms.EQUAL_WEIGHT_1X_BUY_HOLD（价格收益，不含分红）。
  */
 const fx1 = require('./_q1_fixture');
@@ -19,11 +19,12 @@ const QUANTILES_G = { p05: -0.052, p25: -0.021, p50: 0.003, p75: 0.028, p95: 0.0
 const QUANTILES_R = { p05: -0.21, p25: -0.09, p50: 0.02, p75: 0.13, p95: 0.27 };
 
 /** 随机对照的一部分：oos／is 是选择点数，n 是种子数，share 是基线 g 胜过的种子比例。 */
-function part({ oos, is, n, state, share, codes = [], rule = 'G1' }) {
+function part({ oos, is, n, state, share, codes = [], rule = 'G1', isReason }) {
   return {
     seeds: { rule: 'seed_i = 20261025 + i，i = 0…n−1，运行前固定', n, first: 20261025, last: 20261025 + n - 1 },
     choice_points: {
       definition_zh: '同一扫描时点至少一笔开仓，同时另有一个通过全部信号级闸门的同时点候选被容量规则拒绝', oos, is, rows: [],
+      ...(isReason ? { is_reason_zh: isReason } : {}),
     },
     distribution: { g: { ...QUANTILES_G }, net_R: { ...QUANTILES_R } },
     baseline: { g: -0.016, net_R: -0.0162, share_beaten_g: share, share_beaten_net_R: 0.5, percentile_g: share * 100 },
@@ -85,7 +86,8 @@ function result(q0Doc, q0Sha, q0ResultId, overrides = {}) {
     doc.forward = { rows: [], reason_zh: 'A23 未开启，HK 没有排序层前向' };
     doc.random_control = {
       ...part({ oos: 7, is: 2, n: 200, state: 'INSUFFICIENT', share: 0.62, codes: ['G1_NOT_MET'] }),
-      random_instrument: part({ oos: 112, is: 40, n: 1000, state: 'SUPPORTED', share: 0.81 }),
+      // Q3a2 只跑样本外（Q3 K2 裁定 1）：is 为 null，带 is_reason_zh；G1 只数 OOS 选择点
+      random_instrument: part({ oos: 112, is: null, n: 1000, state: 'SUPPORTED', share: 0.81, isReason: 'Q3a2 只跑样本外（K2 裁定 1），开发期不跑' }),
     };
     doc.reproducibility = { command: 'node run-q3.js --seed 20261025', runs: [{ sha256: hex('q3-run') }, { sha256: hex('q3-run') }], identical: true };
   };

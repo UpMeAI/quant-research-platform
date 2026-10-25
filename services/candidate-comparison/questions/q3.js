@@ -36,7 +36,7 @@ const RANDOM_CONTROL = Object.freeze({
       title_zh: 'Q3a：同一扫描候选的处理顺序随机化', question_zh: '当前 D 在同一时点候选之间的选择（实际是文件顺序）好过随机吗？',
     }),
     Object.freeze({
-      key: 'Q3A2', get: (doc) => (isObject(doc.random_control) ? doc.random_control.random_instrument : undefined),
+      key: 'Q3A2', is_optional: true, get: (doc) => (isObject(doc.random_control) ? doc.random_control.random_instrument : undefined),
       title_zh: 'Q3a2：随机标的对照', question_zh: '当前 D 的信号与闸门挑出的标的，好过在同一时刻随机挑一个可交易标的吗？',
     }),
   ]),
@@ -71,7 +71,6 @@ const Q3 = Object.freeze({
   title_zh: '候选对比：行业 RS 排序层对原版（选对象了吗）',
   k2: Object.freeze({ ref: K2_REF, sha256: K2_SHA256 }),
   profile_ref: 'docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_1.md',
-  pending_status_zh: null,
   top_level: Object.freeze(['identity', 'inputs', 'gates', 'arms', 'stats', 'stress', 'half_kelly',
     'formula_table', 'verdict', 'diagnosis_items', 'reproducibility', 'comparison', 'oos_reuse', 'random_control']),
   candidate: Object.freeze({ key: 'CANDIDATE_SECTOR_RS', keys: Object.freeze(['CANDIDATE_SECTOR_RS', 'SECTOR_RS']), label_zh: '候选 行业 RS 排序', deferred_sessions: false }),
@@ -86,7 +85,7 @@ const Q3 = Object.freeze({
     required: true,
     extra_counts: Object.freeze({ baseline: Object.freeze([]), candidate: Object.freeze(['sector_rs_refusals', 'reorder_instants']) }),
     extra_rows: Object.freeze([
-      Object.freeze({ key: 'sector_rs_refusals', label_zh: '行业 RS 拒绝数（SECTOR_RS_NOT_TOP_N）', unit_zh: '次' }),
+      Object.freeze({ key: 'sector_rs_refusals', label_zh: '行业 RS 拒绝数（不在前 4 的行业信号）', unit_zh: '次' }),
       Object.freeze({ key: 'reorder_instants', label_zh: '名次重排的时点数', unit_zh: '个' }),
     ]),
   }),

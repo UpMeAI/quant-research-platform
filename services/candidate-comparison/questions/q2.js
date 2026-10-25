@@ -162,7 +162,6 @@ const Q2 = Object.freeze({
   title_zh: '候选对比：1× 载体对原版（收益来自信号还是杠杆）',
   k2: Object.freeze({ ref: K2_REF, sha256: K2_SHA256 }),
   profile_ref: 'docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md',
-  pending_status_zh: null,
   top_level: Object.freeze(['identity', 'inputs', 'gates', 'arms', 'stats', 'stress', 'half_kelly',
     'formula_table', 'verdict', 'diagnosis_items', 'reproducibility', 'comparison', 'oos_reuse', 'attribution']),
   candidate: Object.freeze({ key: 'CANDIDATE_1X', keys: Object.freeze(['CANDIDATE_1X', '1X']), label_zh: '候选 1× 载体', deferred_sessions: false }),

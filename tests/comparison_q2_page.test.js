@@ -191,8 +191,9 @@ test('待验证问题清单：Q2 锁定后那一条写「已完成：…」并�
   const pending = projections({ q2: false });
   const pendingHtml = await renderPage(await modelOf(pending.baseline, pending.cards));
   const pendingDiagnosis = pendingHtml.slice(pendingHtml.indexOf('id="diagnosis-title"'), pendingHtml.indexOf('id="detail-health"'));
-  assert.match(pendingDiagnosis, /Q2 · .*（排队：可与 Q1 并行）/, 'Q2 没锁定：登记项没写等待文案，清单原样');
-  assert.equal((pendingDiagnosis.match(/class="diagnosis-link"/g) || []).length, 1, '只有 Q1 带链接');
+  assert.match(pendingDiagnosis, /Q2 · .*（进行中：K2 已冻结，等研究会话交付封存的对比结果（见研究与对比））/, 'Q2 没锁定：K2 已冻结，写进行中（从登记项推出，不是固定文案）');
+  assert.doesNotMatch(pendingDiagnosis, /排队：可与 Q1 并行/, '过期的固定文案不再出现');
+  assert.equal((pendingDiagnosis.match(/class="diagnosis-link"/g) || []).length, 1, '只有 Q1 带链接：Q2 还没有卡');
 });
 
 test('只有 Q1 锁定：只有 Q1 一张卡，不出现 Q2 的空卡；Q1 没有结果时仍是第一张「尚未完成」卡', async () => {

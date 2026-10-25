@@ -276,7 +276,8 @@ test('D5.4 / D4.1 有锁定对比结果：页头标签与研究区开头按实�
   const { baseline, cards } = realProjections();
   const model = await modelOf(baseline, cards);
   const html = await renderPage(model);
-  const sentence = '研究问题：Q1、Q2 已锁定；Q3、Q4 进行中（来源：Q0 诊断，协调会话立题）；尚未回到 Desk';
+  // 修订 4 的示例写「Q3、Q4 进行中」；实际状态是 Q3 的 K2 已冻结（进行中），Q4 在计划里排在 Q3 封存之后（排队）——按实际状态生成
+  const sentence = '研究问题：Q1、Q2 已锁定；Q3 进行中；Q4 排队，等 Q3 锁定（来源：Q0 诊断，协调会话立题）；尚未回到 Desk';
   assert.ok(html.slice(0, html.indexOf('class="conclusion')).includes(sentence), '页头标签');
   const lead = between(html, 'id="detail-research"', 'class="muted-note provenance"');
   assert.ok(lead.includes(`${sentence}。`), '研究区开头');

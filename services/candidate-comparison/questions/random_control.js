@@ -13,8 +13,9 @@
  * 不重算：比例、分位数、g 都是文件里已报的数字。
  */
 const {
-  need, finite, isObject, preferZh, E, fmtPct, baseline, reasonText, REASON_WORDS,
+  need, finite, isObject, preferZh, E, fmtPct, baseline, reasonText, REASON_WORDS, resolveReasons,
 } = require('../common');
+const { randomBasis } = require('./basis');
 
 const STATES = baseline.STATES;
 const STATE_LABELS = Object.freeze({ SUPPORTED: '有支持证据', NOT_PASSED: '未通过', INSUFFICIENT: '证据不足' });
@@ -55,8 +56,10 @@ function validatePart(entry, cfg, spec, part) {
     E(entry, 'RANDOM_CONTROL_SEEDS_CHANGED'), `${spec.key}: n=${seeds && seeds.n} first=${seeds && seeds.first} last=${seeds && seeds.last}`);
 
   const points = part.choice_points;
-  need(isObject(points) && Number.isInteger(points.oos) && points.oos >= 0 && Number.isInteger(points.is) && points.is >= 0,
-    E(entry, 'RANDOM_CONTROL_CHOICE_POINTS_INVALID'), spec.key);
+  // 开发期选择点：整数；Q3a2 只跑样本外（Q3 K2 裁定 1），此时 is 为 null 且必须带 is_reason_zh；G1 只数 OOS 选择点
+  const isOk = Number.isInteger(points && points.is) && points.is >= 0;
+  const isOosOnly = spec.is_optional === true && isObject(points) && points.is === null && typeof preferZh(points, 'is_reason') === 'string' && preferZh(points, 'is_reason').trim() !== '';
+  need(isObject(points) && Number.isInteger(points.oos) && points.oos >= 0 && (isOk || isOosOnly), E(entry, 'RANDOM_CONTROL_CHOICE_POINTS_INVALID'), `${spec.key}:is=${points && points.is}`);
   const g1 = points.oos >= cfg.min_choice_points;
   if (points.g1_met !== undefined) need(points.g1_met === g1, E(entry, 'RANDOM_CONTROL_G1_DISAGREES'), `${spec.key}: oos=${points.oos}`);
 
@@ -95,15 +98,19 @@ function buildPart(entry, cfg, spec, doc) {
     const g1 = points.oos >= cfg.min_choice_points;
     const share = base.share_beaten_g;
     const rule = preferZh(verdict, 'rule');
+    const resolved = resolveReasons(verdict.reason_codes, WORDS, REASON_WORDS);
+    // 一句结果；门槛对比放在「判定依据」里（A4 D1），这里不重复规则
     const plain = g1
-      ? `基线账户 g 胜过 ${fmtPct(share, 1)} 的随机种子（相等算一半）。≥ ${fmtPct(cfg.support_at, 0)} 有支持证据，≤ ${fmtPct(cfg.fail_at, 0)} 未通过，其余证据不足。`
-      : `G1 不成立：OOS 选择点只有 ${points.oos} 个，要求 ≥ ${cfg.min_choice_points} 个，所以结论是证据不足；${seeds.n} 个种子的运行只作描述，不判。`;
+      ? `基线账户 g 胜过 ${fmtPct(share, 1)} 的随机种子（相等算一半）`
+      : `选择点太少：OOS ${points.oos} 个，${seeds.n} 个种子的运行只作描述，不判`;
+    const isReason = points.is === null ? preferZh(points, 'is_reason').trim() : null;
     return {
       ...head, state: 'AVAILABLE', reason: null, verdict_state: verdict.state,
       state_label: g1 || verdict.state !== 'INSUFFICIENT' ? STATE_LABELS[verdict.state] : '证据不足（G1 不成立）', tone: STATE_TONES[verdict.state],
       plain_zh: plain, rule_zh: typeof rule === 'string' && rule.trim() ? rule.trim() : null,
+      basis: randomBasis({ state: verdict.state, g1, oos: points.oos, required: cfg.min_choice_points, share, support_at: cfg.support_at, fail_at: cfg.fail_at }),
       g1: {
-        met: g1, oos: points.oos, is: points.is, required: cfg.min_choice_points,
+        met: g1, oos: points.oos, is: points.is, is_reason_zh: isReason, required: cfg.min_choice_points,
         definition_zh: typeof preferZh(points, 'definition') === 'string' ? preferZh(points, 'definition') : null,
       },
       seeds: { n: seeds.n, first: seeds.first, last: seeds.last, rule_zh: typeof preferZh(seeds, 'rule') === 'string' ? preferZh(seeds, 'rule') : null },
@@ -115,8 +122,7 @@ function buildPart(entry, cfg, spec, doc) {
         share_beaten_net_R: finite(base.share_beaten_net_R) ? base.share_beaten_net_R : null, note_zh: '每笔净 R 的位置只报告，不参与判定',
       },
       distribution: { g: quantileRows(distribution.g), net_R: quantileRows(distribution.net_R) },
-      reasons: (Array.isArray(verdict.reason_codes) ? verdict.reason_codes : [])
-        .map((code) => ({ code, text: WORDS[code] || REASON_WORDS[code] || `原因码 ${code}` })),
+      reasons: resolved.known, unknown_reason_codes: resolved.unknown,
     };
   } catch (error) {
     return { ...head, state: 'NOT_COMPLETED', reason: reasonText(error) };

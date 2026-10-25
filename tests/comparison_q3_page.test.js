@@ -72,6 +72,7 @@ function projections({ q1 = true, q3 = true, mutateQ3 } = {}) {
   q0.clearCache(); cc.clearCache();
   const q0Doc = fx0.result((doc) => {
     doc.diagnosis_items.push({ id: 'DX4', source: 'SELECTION', facts: ['同一扫描时点候选之间没有排名，开仓顺序就是文件顺序'], proposed_experiment: 'Q3', no_topic_reason: null });
+    doc.diagnosis_items.push({ id: 'DX5', source: 'RISK', facts: ['被闸门拒绝的信号也武装了 24 h 冷却'], proposed_experiment: 'Q4', no_topic_reason: null });
   });
   const q0Lock = q0.importBaselineEvaluation(fx0.write(q0Doc), { registeredBy: AUTHORITY, allowNonActual: true });
   const baseline = q0.buildProjection(q0Lock, { allowNonActual: true });
@@ -114,7 +115,9 @@ test('Q3 主卡的主内容：同窗复测的标注、优势结论、三行分�
   const html = await renderPage(await modelOf(baseline, cards));
   const card = cardOf(researchSection(html), Q3_TITLE);
   const main = mainContent(card);
-  assert.match(main, /<span class="pill warn">同窗复测，不是新的样本外<\/span> RS-1 已在同一窗口（2023-01-01 → 2026-09-30）评价过同一规则；本题是在当前 D 上的复测。/);
+  assert.match(main, /<span class="pill warn">同窗复测，不是新的样本外<\/span> 排序参数在 RS-1 签署时冻结.*RS-1 已在 2023-01-01 → 2026-09-30 评价过同一规则（INSUFFICIENT，随机名次对照在第 59\.5.68 百分位）；本题是在当前 D 上的复测<\/p>/);
+  const questionBlock = main.slice(main.indexOf('data-cmp-block="question"'), main.indexOf('data-cmp-block="account"'));
+  assert.equal(questionBlock.split('本题是在当前 D 上的复测').length - 1, 1, 'A4 去重：文件已写明样本外怎么回事时，登记项的同义句不再在同一块里重复一遍');
   assert.match(main, /<span class="pill ok">优势结论：完整账户的对数增长更好（不等于信号 alpha 更大）<\/span>/);
   assert.match(main, /<li class="warn">压力评价不完整：缺场景 1 个、无效输入 1 个（/);
   assert.match(main, /<li class="bad">采用条件：未满足（必要压力缺失，§6\.7）<\/li>/);
@@ -126,13 +129,46 @@ test('Q3 主卡的主内容：同窗复测的标注、优势结论、三行分�
   assert.ok(account.indexOf('候选 − 原版') < account.indexOf('等权买入持有'), '参照行在差值行之后，不进差值');
   assert.match(account, /<td>14\.0%<\/td><td>19\.0%<\/td>/);
   // 敞口：行业 RS 的两行
-  assert.match(main, /行业 RS 拒绝数（SECTOR_RS_NOT_TOP_N）<\/td><td>—<\/td><td>31 次<\/td><td>—<\/td>/);
+  assert.match(main, /行业 RS 拒绝数（不在前 4 的行业信号）<\/td><td>—<\/td><td>31 次<\/td><td>—<\/td>/);
   assert.match(main, /名次重排的时点数<\/td><td>—<\/td><td>12 个<\/td><td>—<\/td>/);
   assert.match(main, /<strong>G1 · /);
   assert.match(main, /A23 未开启，HK 没有排序层前向/);
   assert.match(main, /改变的入场 41 笔/);
   for (const pattern of FORBIDDEN) assert.doesNotMatch(main, pattern, String(pattern));
   assert.doesNotMatch(card, /<details[^>]*\sopen(?:\s|>)/);
+});
+
+test('A4 规则用在 Q3 的卡上：判定依据、两臂账户表加参照行、主内容没有已登记的英文原因码、「页面不重算」一次、三行块 = 1 + 锁定主卡数', async () => {
+  const { baseline, cards } = projections();
+  const html = await renderPage(await modelOf(baseline, cards));
+  const section = researchSection(html);
+  const q3b = mainContent(cardOf(section, Q3_TITLE));
+  // D1.4：Q3b 的依据（SUPPORTED：区间下沿高于门槛，G1 成立，数字取自文件，门槛已冻结）
+  assert.match(q3b, /<p class="basis"><strong>判定依据：<\/strong>候选相对原版的年化对数增长差 95% 区间 0\.3% 至 3\.4%，下沿高于门槛 0；G1 成立（改变的入场 41 笔，门槛 30 笔）（门槛在看到结果前已冻结）<\/p>/);
+  // D3.2：账户表 = 原版、候选、差值 + 参照行；没有 SPY／现金行，写一句「基准见回测结论卡」
+  const account = q3b.slice(q3b.indexOf('data-cmp-block="account"'), q3b.indexOf('data-cmp-block="effect"'));
+  const rows = (account.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || [];
+  assert.equal(rows.length, 4, '原版、候选、差值、等权买入持有参照行');
+  assert.ok(rows.every((row) => !/SPY|现金/.test(row)));
+  assert.match(account, /<p class="muted-note">基准见回测结论卡<\/p>/);
+  // D1.3 / D5.2：主内容没有任何已登记的英文原因码（含随机对照卡）
+  const codes = [...new Set([...Object.keys(q0.internals.REASON_WORDS), ...Object.values(cc.QUESTIONS).flatMap((entry) => Object.keys(entry.reason_words))])];
+  const main = mainContent(html);
+  for (const code of codes) assert.ok(!main.includes(code), `主内容出现英文原因码 ${code}`);
+  // D3.4、D3.1
+  assert.equal(html.split('页面不重算').length - 1, 1);
+  assert.equal((html.match(/class="completeness"/g) || []).length, 1 + 2, '顶部 1 + Q1 主卡 + Q3b 主卡；随机对照卡是自己的结论，没有三行块');
+  const rc = cardOf(section, RC_TITLE);
+  assert.doesNotMatch(rc, /class="completeness"/);
+  assert.equal((rc.match(/class="basis"/g) || []).length, 2, '随机对照每一部分各一条判定依据');
+  // D1.3：未登记的原因码在随机对照卡里也折叠
+  const folded = await renderPage(await modelOf(baseline, [cards[0], { ...cards[1], extra_cards: cards[1].extra_cards.map((extra) => ({
+    ...extra, data: { ...extra.data, parts: extra.data.parts.map((p) => ({ ...p, unknown_reason_codes: ['SOME_NEW_RANDOM_CODE'] })) },
+  })) }]));
+  const foldedRc = cardOf(researchSection(folded), RC_TITLE);
+  assert.doesNotMatch(mainContent(foldedRc), /SOME_NEW_RANDOM_CODE/);
+  assert.match(mainContent(foldedRc), /另有 1 个技术原因码（见技术详情）/);
+  assert.match(foldedRc, /<details><summary>技术详情：未登记的原因码<\/summary>[\s\S]*?<code>SOME_NEW_RANDOM_CODE<\/code>/);
 });
 
 test('随机对照卡是单独一张：Q3a 明说 G1 不成立、证据不足；Q3a2 有支持证据；没有 Q3b 的三行文字，Q3b 卡里也没有随机对照的结论', async () => {
@@ -144,15 +180,20 @@ test('随机对照卡是单独一张：Q3a 明说 G1 不成立、证据不足；
   const q3a = rc.slice(rc.indexOf('data-rc-part="Q3A"'), rc.indexOf('data-rc-part="Q3A2"'));
   assert.match(q3a, /Q3a：同一扫描候选的处理顺序随机化/);
   assert.match(q3a, /<span class="pill warn">结论：证据不足（G1 不成立）<\/span>/);
-  assert.match(q3a, /<strong>G1 不成立：OOS 选择点只有 7 个，要求 ≥ 30 个，所以结论是证据不足；200 个种子的运行只作描述，不判。<\/strong>/);
-  assert.match(q3a, /OOS 7 个（G1 不成立），开发期 2 个/);
+  assert.match(q3a, /<strong>选择点太少：OOS 7 个，200 个种子的运行只作描述，不判<\/strong>/);
+  assert.match(q3a, /判定依据：<\/strong>G1 不成立：OOS 选择点 7 个，低于门槛 30 个（门槛在看到结果前已冻结）/);
+  assert.match(q3a, /同时：基线账户 g 胜过 62\.0% 的随机种子（相等算一半），只作描述，不判/);
+  assert.match(q3a, /OOS 7 个（G1 不成立）；开发期 2 个/);
   assert.match(q3a, /200 个（20261025 至 20261224）/);
   assert.match(q3a, /选择点太少（G1 不成立）/);
   const q3a2 = rc.slice(rc.indexOf('data-rc-part="Q3A2"'));
   assert.match(q3a2, /Q3a2：随机标的对照/);
   assert.match(q3a2, /<span class="pill ok">结论：有支持证据<\/span>/);
-  assert.match(q3a2, /基线账户 g 胜过 81\.0% 的随机种子（相等算一半）。≥ 75% 有支持证据，≤ 50% 未通过，其余证据不足。/);
-  assert.match(q3a2, /基线 g 胜过的种子比例（相等算一半）<\/dt><dd>81\.0%（百分位 81）/);
+  assert.match(q3a2, /<strong>基线账户 g 胜过 81\.0% 的随机种子（相等算一半）<\/strong>/);
+  assert.match(q3a2, /判定依据：<\/strong>基线账户 g 胜过 81\.0% 的随机种子（相等算一半），不低于门槛 75%；G1 成立（OOS 选择点 112 个，门槛 30 个）（门槛在看到结果前已冻结）/);
+  assert.match(q3a2, /OOS 112 个（G1 成立）；开发期 不跑（Q3a2 只跑样本外（K2 裁定 1），开发期不跑）/);
+  assert.match(q3a2, /基线账户 g<\/dt><dd>-1\.60%；在随机种子中的百分位 81|基线账户 g<\/dt><dd>−1\.60%；在随机种子中的百分位 81/);
+  assert.equal((rc.match(/基线 g 胜过的种子比例/g) || []).length, 0, '比例只在一句结果和判定依据里写，不再单列一行');
   assert.match(q3a2, /基线每笔净 R（只报不判）<\/dt><dd>−0\.02 R；胜过 50\.0% 的种子/);
   assert.match(q3a2, /<td>5%<\/td><td>-5\.20%<\/td>|<td>5%<\/td><td>−5\.20%<\/td>|<td>5%<\/td><td>-5\.2%<\/td>/);
   assert.match(q3a2, /1000 个（20261025 至 20262024）/);
@@ -165,7 +206,7 @@ test('随机对照卡是单独一张：Q3a 明说 G1 不成立、证据不足；
   for (const pattern of FORBIDDEN) assert.doesNotMatch(rc, pattern, String(pattern));
 });
 
-test('待验证问题清单：Q3 锁定后那一条写「已完成：…」并带链接；没锁定时原样不动', async () => {
+test('待验证问题清单：Q3 锁定后写「已完成：…」并带链接；没锁定时从登记项与计划推出状态（进行中），Q4 随之排队或待立题', async () => {
   const locked = projections();
   const html = await renderPage(await modelOf(locked.baseline, locked.cards));
   const diagnosis = html.slice(html.indexOf('id="diagnosis-title"'), html.indexOf('id="detail-health"'));
@@ -173,8 +214,13 @@ test('待验证问题清单：Q3 锁定后那一条写「已完成：…」并�
   const pending = projections({ q3: false });
   const pendingHtml = await renderPage(await modelOf(pending.baseline, pending.cards));
   const pendingDiagnosis = pendingHtml.slice(pendingHtml.indexOf('id="diagnosis-title"'), pendingHtml.indexOf('id="detail-health"'));
-  assert.match(pendingDiagnosis, /Q3 · .*（排队：Q1 之后）/);
-  assert.equal((pendingDiagnosis.match(/class="diagnosis-link"/g) || []).length, 1, '只有 Q1 带链接');
+  assert.match(pendingDiagnosis, /Q3 · .*（进行中：K2 已冻结，等研究会话交付封存的对比结果（见研究与对比））/, 'Q3 的 K2 已冻结、还没有封存结果：进行中');
+  assert.doesNotMatch(pendingDiagnosis, /排队：Q1 之后/, '过期的固定文案不再出现');
+  assert.match(pendingDiagnosis, /Q4 · .*（排队：Q3 锁定之后开始）/, 'Q4 在计划里排在 Q3 封存之后；Q3 没锁定就写排队，等谁');
+  assert.equal((pendingDiagnosis.match(/class="diagnosis-link"/g) || []).length, 1, '只有 Q1 带链接，Q3 还没有卡');
+  assert.match(pendingHtml.slice(0, pendingHtml.indexOf('class="conclusion')), /研究问题：Q1 已锁定；Q3 进行中；Q4 排队，等 Q3 锁定（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
+  assert.match(diagnosis, /Q4 · .*（待立题：前置题已锁定，等 K2 冻结后开始）/, 'Q3 锁定之后 Q4 的前置都已锁定，等冻结 K2');
+  assert.match(html.slice(0, html.indexOf('class="conclusion')), /研究问题：Q1、Q3 已锁定；Q4 待立题，前置题已锁定，等 K2 冻结（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
 });
 
 test('只有 Q1 锁定时没有 Q3 的任何卡；Q3 校验失败时主卡写「尚未完成」且没有随机对照卡，Q1 照常', async () => {
