@@ -257,7 +257,7 @@ test('Research Web 以五个顶层任务和统一策略详情组织，并保留�
   assert.match(html, /canonical_current_strategy_ref/);
   assert.doesNotMatch(html, /\.read-only\{font-size:0/);
   for (const text of ['真实研究问题', '锁定方案对比', '用户决定与系统结论分开',
-    'Research 不能下单', '系统不能代替用户采用', '不写生产参数', 'US_V5 原版策略诊断',
+    'Research 不能下单', '系统不能代替用户采用', '不写生产参数', '最近实际运行（纸面交易，真实行情）', // UX 修订 3 C4 改名
     '现金、持仓、费用与净结果', '历史真实记录', '原生历史回放', '报告比较基准',
     '准备、验收和发布不是同一个状态']) assert.match(html, new RegExp(text));
 });

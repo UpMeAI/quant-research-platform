@@ -21,6 +21,8 @@ const migration = require('../strategy-control-plane/migration');
 const runtimeStatus = require('../runtime-status');
 const deskStrategyDirectory = require('../desk-strategy-directory');
 const strategyDiagnostics = require('../strategy-diagnostics');
+const baselineEvaluation = require('../baseline-evaluation');
+const hkForward = require('../hk-forward-observations');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
@@ -257,7 +259,7 @@ function technicalSampleSummary({ adapters, families, modules, bundles, hypothes
   };
 }
 
-async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppliedDiagnostic } = {}) {
+async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppliedDiagnostic, baseline: suppliedBaseline } = {}) {
   const loop = runtimeResearchLoop.readModel();
   const casesById = new Map(loop.cases.map((item) => [item.case_id, item]));
   const requestedCase = caseRef ? casesById.get(caseRef) : null;
@@ -294,6 +296,12 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
   });
   const readiness = diagnostic?.state === 'VERIFIED' ? 'DIAGNOSTIC_AVAILABLE' : readinessOf(selectedCurrentCase, blockers);
 
+  // K3：回测结论只来自 QRP 导入并锁定的封存结果；没有 case、没有导入、文件校验失败都是「尚未回测」。
+  const baselineProjection = suppliedBaseline !== undefined ? suppliedBaseline
+    : (selectedCurrentCase?.case_id === baselineEvaluation.CASE_REF ? baselineEvaluation.readProjection()
+      : baselineEvaluation.emptyProjection('NOT_CONNECTED', selectedCurrentCase
+        ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
+
   const adapters = listAdapters();
   const families = registry.listFamilies();
   const modules = registry.listModules();
@@ -320,6 +328,10 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
   const allExperimentIds = new Set(loop.cases.flatMap((item) => (item.links || []).map((link) => link.experiment_ref).filter(Boolean)));
   const globalForward = shadowRuns.filter((item) => allExperimentIds.has(item.experiment_ref));
 
+  const hkGlobal = directory.strategies
+    .flatMap((strategy) => hkForward.forStrategy(strategy.strategy_ref, { shadowRuns }).items.map((item) => ({ ...item, strategy_name: strategy.name })))
+    .filter((item, index, all) => all.findIndex((other) => other.id === item.id) === index);
+
   const marketCoverage = MARKET_CATALOG.map((market) => {
     const marketStrategies = directory.strategies.filter((item) => market.aliases.includes(item.market_ref));
     return {
@@ -337,8 +349,14 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
   };
   const m0ProductStage = primary?.product_stages.find((stage) => stage.stage === 'M0') || null;
   const m1ProductStage = primary?.product_stages.find((stage) => stage.stage === 'M1') || null;
+  const healthSummary = readiness === 'DIAGNOSTIC_AVAILABLE'
+    ? `${diagnostic.window.label} 的实际运行已完成原生回放、决策链核对和净账户对账。`
+    : readiness !== 'READY'
+      ? `最近实际运行的体检还不能完成：有 ${blockers.length} 项真实输入缺口。`
+      : '已具备进入完整体检的输入条件。';
   const selectedHealth = primary ? {
     state: readiness,
+    summary: healthSummary,
     answer: readiness === 'DIAGNOSTIC_AVAILABLE'
       ? `原版策略诊断已可用；${diagnostic.window.label} 的原生回放、决策链和净账户对账已验证。M1 产品状态仍为${m1ProductStage?.state_label || '尚未验证'}。`
       : readiness !== 'READY'
@@ -386,6 +404,9 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
     technical: [technicalRef(item.shadow_id, '前向观察 ID'), technicalRef(item.virtual_ledger_ref, '虚拟账本 ID')].filter(Boolean),
   }));
 
+  const hkForwardForSelected = selectedStrategyRef
+    ? hkForward.forStrategy(selectedStrategyRef, { shadowRuns }) : { state: 'AVAILABLE', items: [], verified_at: null };
+  const hkItems = hkForwardForSelected.items;
   const strategyDetail = {
     question: '这项 Desk 策略现在如何运行、证据是否完整、Research 与复盘走到哪里？',
     state: selectedStrategy ? selectedStrategy.lifecycle.code : 'UNKNOWN_STRATEGY',
@@ -398,6 +419,22 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
       actual: primary?.runtime || null,
     },
     health: selectedHealth,
+    conclusion: {
+      question: '这条策略的回测结论是什么，凭什么？',
+      ...baselineProjection.conclusion,
+      result_state: baselineProjection.state, result_reason: baselineProjection.reason || null,
+    },
+    backtest: {
+      state: baselineProjection.state, reason: baselineProjection.reason || null,
+      source_label: '数据来自 QRP 导入并锁定的封存回测结果，页面不重算',
+      blocks: baselineProjection.blocks, source: baselineProjection.source,
+    },
+    diagnosis_list: baselineProjection.diagnosis,
+    recent_run: {
+      title: '最近实际运行（纸面交易，真实行情）',
+      account_label: '账户：纸面交易（真实行情），即本策略的真实账户',
+      summary: selectedHealth ? selectedHealth.summary : null,
+    },
     research: {
       state: selectedLinks.length ? 'HAS_RESEARCH_QUESTION' : (primary ? 'EMPTY' : noCase.state),
       answer: selectedLinks.length
@@ -407,8 +444,13 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
       next_step: primary ? '在原 Desk 复盘队列形成明确问题后，冻结原版、样本、时点与成本口径。' : '先按原队列接入真实问题。',
     },
     forward: {
-      state: forwardItems.length ? 'HAS_FORWARD_RUN' : 'EMPTY', items: forwardItems,
-      answer: forwardItems.length ? `有 ${forwardItems.length} 条关联的前向观察。` : '尚无属于这项策略的前向观察。',
+      state: forwardItems.length ? 'HAS_FORWARD_RUN' : 'EMPTY', items: forwardItems, // state 只表示 QRP 已导入的前向观察
+      hk_state: hkItems.length ? 'HAS_HK_RUNNING' : (hkForwardForSelected.state === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'EMPTY'), hk_items: hkItems, hk_verified_at: hkForwardForSelected.verified_at,
+      answer: forwardItems.length || hkItems.length
+        ? [forwardItems.length ? `QRP 已导入 ${forwardItems.length} 条关联的前向观察` : null,
+          hkItems.length ? `HK 上已在跑 ${hkItems.length} 条前向影子（${hkItems.filter((item) => item.import_state === 'RUNNING_ON_HK_NOT_IMPORTED').length} 条尚未导入）` : null]
+          .filter(Boolean).join('；') + '。'
+        : '尚无属于这项策略的前向观察。',
     },
     review: {
       state: selectedLockedLinks.some((item) => item.adoption_state !== 'NOT_DECIDED') ? 'DECIDED'
@@ -476,8 +518,13 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
       },
       shadow: {
         question: NAVIGATION.find((item) => item.route === 'shadow').question,
-        state: globalForward.length ? 'HAS_FORWARD_RUN' : 'EMPTY',
-        answer: globalForward.length ? `全部策略共有 ${globalForward.length} 条真实关联的前向观察。` : '当前没有与 Desk 锁定结果关联的前向观察。',
+        hk_items: hkGlobal,
+        state: globalForward.length ? 'HAS_FORWARD_RUN' : 'EMPTY', // 只表示 QRP 已导入的前向观察；HK 上在跑的见 hk_items
+        hk_state: hkGlobal.length ? 'HAS_HK_RUNNING' : 'EMPTY',
+        answer: [
+          globalForward.length ? `QRP 已导入 ${globalForward.length} 条与 Desk 锁定结果关联的前向观察` : null,
+          hkGlobal.length ? `HK 上已在跑 ${hkGlobal.length} 条前向影子（${hkGlobal.filter((item) => item.import_state === 'RUNNING_ON_HK_NOT_IMPORTED').length} 条尚未导入 QRP）` : null,
+        ].filter(Boolean).join('；').concat(globalForward.length || hkGlobal.length ? '。' : '当前没有与 Desk 锁定结果关联的前向观察。'),
         items: globalForward.map((item) => ({
           state_label: item.status === 'RUNNING' ? '观察中' : '观察已停止',
           sample_label: `${item.sufficiency.forward_sample_count} / ${item.sufficiency.min_required} 个前向样本`,

@@ -1,0 +1,185 @@
+'use strict';
+require('./_env');
+const test = require('node:test');
+const { beforeEach } = test;
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const AUTHORITY = 'INDEPENDENT_PRODUCT_REVIEWER';
+process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTHORITY;
+
+const k3 = require('../services/baseline-evaluation');
+const { result, write } = require('./_q0_fixture');
+
+beforeEach(() => { fs.rmSync(k3.LEDGER(), { force: true }); k3.clearCache(); });
+
+const imp = (file, extra = {}) => k3.importBaselineEvaluation(file, { registeredBy: AUTHORITY, allowNonActual: true, ...extra });
+const reader = () => k3.createProjectionReader({ build: (lock) => k3.buildProjection(lock, { allowNonActual: true }) });
+const mutate = (fn) => write(result((doc) => { fn(doc); return doc; }));
+
+test('尚未导入：整卡是「尚未回测」和原因，不是证据不足，也不用 0 补位', () => {
+  const projection = k3.readProjection('NO-SUCH-CASE');
+  assert.equal(projection.state, 'NOT_IMPORTED');
+  assert.equal(projection.conclusion.state, 'NOT_BACKTESTED');
+  assert.equal(projection.conclusion.label, '尚未回测');
+  assert.equal(projection.conclusion.main_number, null);
+  assert.deepEqual(projection.blocks.map((block) => block.key), ['period', 'account', 'winrate', 'stress', 'kelly', 'verdict']);
+  assert.ok(projection.blocks.every((block) => block.state === 'NOT_BACKTESTED' && block.data === null && block.reason));
+});
+
+test('导入：封存校验、结果锁、输入与引擎摘要；同一文件重放幂等；六块按固定顺序全部可用', () => {
+  const file = write();
+  const lock = imp(file);
+  assert.equal(lock.schema, 'BASELINE_EVALUATION_LOCK_V1');
+  assert.equal(lock.eval_class, 'BASELINE_EVALUATION_V1');
+  assert.equal(lock.verdict_state, 'INSUFFICIENT');
+  assert.match(lock.result_id, /^Q0-[0-9a-f]{16}$/);
+  assert.match(lock.inputs_digest, /^[0-9a-f]{64}$/);
+  assert.match(lock.engine_digest, /^[0-9a-f]{64}$/);
+  assert.equal(lock.production_effect, 'NONE');
+  assert.equal(imp(file).replayHit, true);
+  assert.equal(k3.locks(k3.CASE_REF).length, 1);
+  assert.equal(k3.baselineFor(lock.result_id).file_sha256, lock.file_sha256);
+
+  const projection = reader().read();
+  assert.equal(projection.state, 'LOCKED_VERIFIED');
+  assert.deepEqual(projection.blocks.map((block) => block.key), ['period', 'account', 'winrate', 'stress', 'kelly', 'verdict']);
+  assert.ok(projection.blocks.every((block) => block.state === 'AVAILABLE'), JSON.stringify(projection.blocks.map((b) => b.reason)));
+  assert.equal(projection.conclusion.label, '证据不足');
+  assert.equal(projection.conclusion.main_number.value, 0.22);
+  assert.deepEqual(projection.conclusion.main_number.ci, { lo: 0.12, hi: 0.31 });
+  const account = projection.blocks.find((block) => block.key === 'account').data;
+  assert.deepEqual(account.arms.map((arm) => arm.label), ['本策略', 'SPY 买入持有', '现金']);
+  const stress = projection.blocks.find((block) => block.key === 'stress').data;
+  assert.equal(stress.rows.find((row) => row.simulated).note, '模拟序列，不是可交易历史');
+  const kelly = projection.blocks.find((block) => block.key === 'kelly').data;
+  assert.equal(kelly.supported, true);
+  assert.equal(kelly.floor_usd, 1800);
+  assert.equal(kelly.note, '研究计算，不是仓位建议；现行仓位规则不变');
+  const winrate = projection.blocks.find((block) => block.key === 'winrate').data;
+  assert.equal(winrate.formula.note, '公式推算，不是回测');
+  assert.equal(projection.diagnosis.items.length, 2);
+  assert.equal(projection.diagnosis.items[0].experiment.id, 'Q1');
+  assert.equal(projection.diagnosis.items[1].source_label, '执行');
+  assert.equal(projection.diagnosis.items[0].state_label, '待验证，不是结论');
+});
+
+test('封存文件在锁定后被改动、删除或旁证丢失：整卡失败关闭，页面不再显示任何数字', () => {
+  const file = write();
+  imp(file);
+  const fresh = () => reader().read();
+  assert.equal(fresh().state, 'LOCKED_VERIFIED');
+  fs.appendFileSync(file, ' ');
+  const drifted = fresh();
+  assert.equal(drifted.state, 'INVALID');
+  assert.match(drifted.reason, /Q0_RESULT_SHA256_MISMATCH/);
+  assert.equal(drifted.conclusion.label, '尚未回测');
+  assert.ok(drifted.blocks.every((block) => block.data === null));
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').trimEnd());
+  fs.unlinkSync(`${file}.sha256`);
+  assert.equal(fresh().state, 'MISSING');
+  fs.unlinkSync(file);
+  assert.equal(fresh().state, 'MISSING');
+});
+
+test('导入拒绝：非实际路径、缺 sha256 旁证、旁证不符、缺顶层字段、未复现', () => {
+  assert.throws(() => k3.importBaselineEvaluation(write(), { registeredBy: AUTHORITY }), /Q0_RESULT_NON_ACTUAL_SOURCE/);
+  assert.throws(() => imp(write(result(), { sidecar: false })), /Q0_RESULT_SHA256_FILE_MISSING/);
+  assert.throws(() => imp(write(result(), { tamperSidecar: true })), /Q0_RESULT_SHA256_MISMATCH/);
+  assert.throws(() => imp('relative/RESULT.json'), /Q0_RESULT_PATH_MUST_BE_ABSOLUTE/);
+  assert.throws(() => imp(mutate((doc) => { delete doc.stress; })), /Q0_RESULT_TOP_LEVEL_MISSING:stress/);
+  assert.throws(() => imp(mutate((doc) => { doc.reproducibility.runs[1].sha256 = 'f'.repeat(64); })), /Q0_RESULT_NOT_REPRODUCED/);
+  assert.throws(() => imp(mutate((doc) => { doc.reproducibility.identical = false; })), /Q0_RESULT_NOT_REPRODUCED/);
+  assert.throws(() => imp(mutate((doc) => { doc.identity.schema = 'OTHER'; })), /Q0_RESULT_SCHEMA_UNSUPPORTED/);
+  assert.throws(() => imp(mutate((doc) => { delete doc.identity.engine_files; })), /Q0_ENGINE_BLOBS_MISSING/);
+  assert.throws(() => imp(mutate((doc) => { doc.inputs.series[0].sha256 = 'x'; })), /Q0_INPUT_SERIES_INCOMPLETE/);
+  assert.equal(k3.locks(k3.CASE_REF).length, 0);
+});
+
+test('标签不能越过算术证据：δ 冻结，SUPPORTED／NOT_PASSED 须有区间支持，近似引擎不能 SUPPORTED，模拟场景必须标模拟', () => {
+  const supported = (patch) => mutate((doc) => { doc.verdict.state = 'SUPPORTED'; doc.verdict.L_R = 0.12; doc.verdict.L_g = 0.01; Object.assign(doc.verdict, patch); });
+  assert.throws(() => imp(supported({ L_R: 0.1 })), /Q0_VERDICT_SUPPORTED_WITHOUT_EVIDENCE/);
+  assert.throws(() => imp(supported({ L_g: 0 })), /Q0_VERDICT_SUPPORTED_WITHOUT_EVIDENCE/);
+  assert.throws(() => imp(supported({ n_trades: 29 })), /Q0_VERDICT_SUPPORTED_SAMPLE_TOO_SMALL/);
+  assert.throws(() => imp(supported({ engine_approximation: { flag: true, missing: ['A17'] } })), /Q0_VERDICT_SUPPORTED_ON_APPROXIMATE_ENGINE/);
+  assert.throws(() => imp(mutate((doc) => { doc.verdict.state = 'NOT_PASSED'; })), /Q0_VERDICT_NOT_PASSED_WITHOUT_EVIDENCE/);
+  assert.throws(() => imp(mutate((doc) => { doc.verdict.delta_R = 0.05; })), /Q0_VERDICT_DELTA_CHANGED/);
+  assert.throws(() => imp(mutate((doc) => { doc.verdict.delta_g = 0.01; })), /Q0_VERDICT_DELTA_CHANGED/);
+  assert.throws(() => imp(mutate((doc) => { doc.verdict.comparators = ['SPY_BUY_HOLD']; })), /Q0_VERDICT_COMPARATORS_CHANGED/);
+  assert.throws(() => imp(mutate((doc) => { doc.verdict.ci_method = 'IID_BOOTSTRAP'; })), /Q0_VERDICT_CI_METHOD_CHANGED/);
+  assert.throws(() => imp(mutate((doc) => { doc.stress.rows[2].simulated = false; })), /Q0_STRESS_SIMULATED_NOT_FLAGGED/);
+  assert.throws(() => imp(mutate((doc) => { doc.gates.A0.state = 'FAILED'; })), /Q0_ENGINE_APPROXIMATION_NOT_DECLARED/);
+  assert.throws(() => imp(mutate((doc) => { doc.gates.rules[0].status = 'NOT_IMPLEMENTED'; })), /Q0_ENGINE_APPROXIMATION_NOT_DECLARED/);
+  assert.equal(k3.locks(k3.CASE_REF).length, 0);
+  // 有算术证据的 SUPPORTED、以及保守方向的 INSUFFICIENT／近似引擎下的 NOT_PASSED 都允许
+  const ok = imp(supported({}));
+  assert.equal(ok.verdict_state, 'SUPPORTED');
+});
+
+test('一个 case 只锁一次；改锁须引用缺陷和原因，旧锁保留，Q1–Q4 引用的 result_id 不变', () => {
+  const first = imp(write());
+  const other = write(result((doc) => { doc.identity.seed = 8; return doc; }));
+  assert.throws(() => imp(other), /BASELINE_ALREADY_LOCKED/);
+  assert.throws(() => imp(other, { supersedes: first.result_id }), /BASELINE_SUPERSEDE_REQUIRES_DEFECT_AND_REASON/);
+  assert.throws(() => imp(other, { supersedes: 'Q0-wrong', defectRef: 'D', reason: 'r' }), /BASELINE_ALREADY_LOCKED/);
+  const second = imp(other, { supersedes: first.result_id, defectRef: 'DEFECT:Q0:001', reason: 'A0 对齐关卡复算有误' });
+  assert.equal(second.supersedes_ref, first.result_id);
+  assert.equal(k3.locks(k3.CASE_REF).length, 2);
+  assert.equal(k3.headLock(k3.CASE_REF).result_id, second.result_id);
+  assert.equal(k3.baselineFor(first.result_id).result_id, first.result_id);
+});
+
+test('导入只由完成权威执行：未配置、记录人不符都拒绝', () => {
+  const file = write();
+  assert.throws(() => k3.importBaselineEvaluation(file, { allowNonActual: true }), /BASELINE_LOCK_REGISTERED_BY_REQUIRED/);
+  assert.throws(() => imp(file, { registeredBy: 'IMPLEMENTER' }), /BASELINE_LOCK_REGISTERED_BY_NOT_AUTHORIZED/);
+  const saved = process.env.QRP_PRODUCT_MILESTONE_AUTHORITY;
+  delete process.env.QRP_PRODUCT_MILESTONE_AUTHORITY;
+  try { assert.throws(() => imp(file), /BASELINE_LOCK_AUTHORITY_NOT_CONFIGURED/); } finally { process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = saved; }
+});
+
+test('区块各自失败：缺一块只让该块写「尚未回测：原因」，其他块照常，不用 0 或空表补位', () => {
+  imp(write(result((doc) => { delete doc.stats.rows; delete doc.half_kelly.replay; doc.arms.D.summary.end_capital = 1; return doc; })));
+  const projection = reader().read();
+  const byKey = Object.fromEntries(projection.blocks.map((block) => [block.key, block]));
+  assert.equal(byKey.winrate.state, 'NOT_BACKTESTED');
+  assert.match(byKey.winrate.reason, /stats\.rows/);
+  assert.equal(byKey.kelly.state, 'NOT_BACKTESTED');
+  assert.match(byKey.kelly.reason, /half_kelly\.replay/);
+  assert.equal(byKey.account.state, 'NOT_BACKTESTED');
+  assert.match(byKey.account.reason, /与权益序列末点不一致/);
+  for (const key of ['period', 'stress', 'verdict']) assert.equal(byKey[key].state, 'AVAILABLE', key);
+  assert.equal(byKey.winrate.data, null);
+  assert.equal(projection.conclusion.label, '证据不足');
+});
+
+test('问题清单：来源必须是六类之一，每条二选一（立题或不立题理由），否则整张清单失败关闭', () => {
+  imp(write(result((doc) => { doc.diagnosis_items[0].proposed_experiment = null; return doc; })));
+  const projection = reader().read();
+  assert.equal(projection.diagnosis.state, 'NOT_BACKTESTED');
+  assert.match(projection.diagnosis.reason, /须二选一/);
+  assert.deepEqual(projection.diagnosis.items, []);
+  assert.deepEqual(Object.keys(k3.EXPERIMENTS), ['Q1', 'Q2', 'Q3', 'Q4']);
+});
+
+test('投影缓存：文件指纹或锁变化立即重建，未变时成功结果缓存 10 分钟，失败只缓存 15 秒', () => {
+  let clock = 0;
+  let builds = 0;
+  const lock = { lock_hash: 'a', file_ref: '/nonexistent/RESULT.json' };
+  let head = lock;
+  const r = k3.createProjectionReader({
+    now: () => clock, head: () => head,
+    build: (value) => { builds += 1; return { state: value && value.ok ? 'LOCKED_VERIFIED' : 'INVALID' }; },
+  });
+  assert.equal(r.read().state, 'INVALID');
+  clock += 14000; r.read();
+  assert.equal(builds, 1);
+  clock += 1000; r.read();
+  assert.equal(builds, 2);
+  head = { ...lock, lock_hash: 'b', ok: true };
+  assert.equal(r.read().state, 'LOCKED_VERIFIED');
+  assert.equal(builds, 3);
+  clock += 599000; r.read();
+  assert.equal(builds, 3);
+  clock += 1000; r.read();
+  assert.equal(builds, 4);
+});

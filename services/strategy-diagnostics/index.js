@@ -569,14 +569,14 @@ function buildDiagnostic({ root, manifest } = {}) {
       production_commit: evidenceManifest.source_provenance.production_commit,
       captured_at: evidenceManifest.source_provenance.captured_at,
     },
+    // UX 修订 3 C4：PAPER 是真实行情上的真实账户，不再被列为限制；产品阶段说明移到 product_status_note（页面折叠披露）。
     limitations: [
-      '窗口只有 12 个 session，低于原生诊断的 20-session 最低样本，因此研究结论为证据不足。',
-      '全部账户均为 PAPER；真实账户臂 A 不适用，不能推断实盘执行质量。',
-      '原开仓事件费用为 NOT_MEASURED；Research 以冻结模型补足净核算，但不改写历史记录。',
+      '这段实际运行只有 12 个 session，低于原生诊断要求的 20 个：它能看清策略怎么运行，不能据此评价策略好坏。',
+      '原开仓事件的费用状态是「未测量」；Research 以冻结模型补足净核算，但不改写历史记录。',
       '监管费按 stand-alone 策略簿建模，没有全账户正式账单或策略级实际费用分摊。',
       '开仓扫描时前身 PLTU 仍在收尾并占用共享线路 1/3；它影响可用限额，但未计入当前簿账户或损益。',
-      'M0/M1 正式产品状态仍由原完成权威和顺序门禁决定；本诊断不会自行置为 PASS。',
     ],
+    product_status_note: 'M0/M1 正式产品状态仍由原完成权威和顺序门禁决定；本诊断不会自行置为 PASS。',
     isolation: {
       research_can_order: false, research_can_activate: false, research_can_write_runtime: false,
       label: 'Research 只读：不使用交易凭证，不下单、不激活、不写生产参数或交易账本。',

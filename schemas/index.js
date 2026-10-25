@@ -219,6 +219,13 @@ const SCHEMAS = Object.freeze({
     object_ref: 's', observed_at: 's', verification_method: 's', production_effect: 's',
     acceptance_ref: 's', registered_by: 's', record_hash: 's', recorded_at: 's',
   },
+  BASELINE_EVALUATION_LOCK_V1: {
+    _doc: 'K3 —— 外部封存的基线评价结果锁（BASELINE_EVALUATION_V1）：文件 sha256、输入序列与引擎 blob 摘要；每 case 只锁一次，改锁须引用缺陷',
+    result_id: 's', case_ref: 's', strategy_ref: 's', eval_class: 's', verdict_state: 's',
+    file_ref: 's', file_sha256: 's', file_size: 'n', inputs_digest: 's', engine_digest: 's',
+    plan_ref: 's', amendment_ref: 's', supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?',
+    production_effect: 's', locked_by: 's', lock_hash: 's', locked_at: 's',
+  },
   STRATEGY_BASELINE_V1: {
     _doc: '自审计 strategy_baseline —— 冻结预期基线，只记录不重算策略结论',
     baseline_id: 's', strategy_ref: 's', market: 's', runtime_mode: 's', version_ref: 's',
