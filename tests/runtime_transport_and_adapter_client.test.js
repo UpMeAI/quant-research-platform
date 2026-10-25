@@ -42,6 +42,40 @@ test('Research 读取面默认仅 loopback；非 loopback 缺 token 启动配置
   } finally { server.close(); }
 });
 
+test('Research 读取面无令牌时只接受本机 Host 头（防 DNS rebinding），带令牌时不依赖 Host', async () => {
+  assert.equal(api.hostIsLoopback('127.0.0.1:4311'), true);
+  assert.equal(api.hostIsLoopback('localhost:4311'), true);
+  assert.equal(api.hostIsLoopback('LOCALHOST'), true);
+  assert.equal(api.hostIsLoopback('[::1]:4311'), true);
+  for (const bad of ['evil.example:4311', '127.0.0.1.evil.example', 'localhost.evil.example:80', '', undefined]) {
+    assert.equal(api.hostIsLoopback(bad), false, String(bad));
+  }
+  const viaHost = (base, hostHeader, urlPath, headers = {}) => new Promise((resolve, reject) => {
+    const { port } = new URL(base);
+    const request = http.request({ host: '127.0.0.1', port, path: urlPath, method: 'GET', headers: { Host: hostHeader, ...headers } }, (res) => {
+      let raw = '';
+      res.on('data', (chunk) => { raw += chunk; });
+      res.on('end', () => resolve({ status: res.statusCode, json: JSON.parse(raw || 'null') }));
+    });
+    request.on('error', reject);
+    request.end();
+  });
+  const open = api.createServer({ researchToken: null });
+  const openBase = await listen(open);
+  try {
+    assert.equal((await viaHost(openBase, `127.0.0.1:${new URL(openBase).port}`, '/api/strategies')).status, 200);
+    const rebound = await viaHost(openBase, 'rebind.evil.example:4311', '/api/strategies');
+    assert.equal(rebound.status, 403);
+    assert.equal(rebound.json.error, 'RESEARCH_HOST_NOT_LOOPBACK');
+    assert.equal((await viaHost(openBase, 'rebind.evil.example:4311', '/')).status, 403);
+  } finally { open.close(); }
+  const guarded = api.createServer({ researchToken: 'read-secret' });
+  const guardedBase = await listen(guarded);
+  try {
+    assert.equal((await viaHost(guardedBase, 'research.internal:4311', '/api/strategies', { 'X-Research-Token': 'read-secret' })).status, 200);
+  } finally { guarded.close(); }
+});
+
 /** 造一个已批准、待生效的 Activation。 */
 async function pendingActivation() {
   const fx = await setupExperiment({ min_forward_evidence: 2 });

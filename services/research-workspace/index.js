@@ -353,7 +353,12 @@ async function readModel({ caseRef = null, strategyRef = null, diagnostic: suppl
         state_label: m0ProductStage?.state === 'NOT_VERIFIED' ? '完成权威尚未登记' : m0ProductStage?.state_label },
       m1_capability: { state: 'AVAILABLE', label: 'M1 诊断能力', state_label: '本地受控环境可用' },
       m1_product: { state: m1ProductStage?.state || 'NOT_VERIFIED', label: 'M1 产品里程碑', state_label: m1ProductStage?.state_label || '尚未验证' },
-      release: { state: 'NOT_RELEASED', label: '发布状态', state_label: '未发布到新的目标环境' },
+      // 发布状态来自 M1 里程碑证据记录的交付环境，页面不另行断言。
+      release: m1ProductStage?.state === 'TARGET_DELIVERED'
+        ? { state: 'TARGET_DELIVERED', label: '发布状态', state_label: '目标环境已交付' }
+        : m1ProductStage?.state === 'CONTROLLED_VERIFIED'
+          ? { state: 'CONTROLLED_PENDING_RELEASE', label: '发布状态', state_label: '受控环境已验收，待按原授权发布' }
+          : { state: 'NOT_RELEASED', label: '发布状态', state_label: '未发布到新的目标环境' },
     } : null,
     current: {
       title: primary.strategy.full_label, role: primary.strategy.role_label,

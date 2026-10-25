@@ -50,7 +50,9 @@ function rounded(value, places = 8) {
 function ceilCent(value) {
   if (!Number.isFinite(value) || value < 0) throw diagnosticError('US_V5_M1_COST_NOT_FINITE');
   if (value === 0) return 0;
-  return Math.ceil((value - Number.EPSILON) * 100) / 100;
+  // 12 位有效数字吸收二进制浮点噪声（2.2*100 = 220.00000000000003），整分金额不会被误进一分；
+  // 真正超过整分的金额（如 3.00000000206 分）仍向上取整。
+  return Math.ceil(Number((value * 100).toPrecision(12))) / 100;
 }
 
 function walkFiles(dir) {
@@ -60,9 +62,20 @@ function walkFiles(dir) {
   });
 }
 
+/**
+ * 封印顺序：先不分大小写比 UTF-16 码元，相同再按码元比。与已封印包使用的 ICU en-US 排序结果相同，
+ * 但不依赖 Node 的 ICU／LANG（localeCompare 在 LANG=C 的 Linux 上可能退化为码元序，得到另一个 digest）。
+ */
+function comparePackagePaths(left, right) {
+  const lowerLeft = left.toLowerCase();
+  const lowerRight = right.toLowerCase();
+  if (lowerLeft !== lowerRight) return lowerLeft < lowerRight ? -1 : 1;
+  return left < right ? -1 : (left > right ? 1 : 0);
+}
+
 function packageDigest(root, prefix = '') {
   const files = walkFiles(path.join(root, prefix))
-    .sort((left, right) => path.relative(root, left).localeCompare(path.relative(root, right)));
+    .sort((left, right) => comparePackagePaths(path.relative(root, left), path.relative(root, right)));
   const hash = crypto.createHash('sha256');
   let bytes = 0;
   for (const file of files) {
@@ -144,6 +157,9 @@ function verifyScanRecord(record, expectedBookId, handover = null) {
   }
 
   const positions = Array.isArray(record.openPositions) ? record.openPositions : [];
+  // 没有 mode 的仓位既不进 paper 也不进 shadow，会绕过下面的身份与占位核对。
+  assert(positions.every((item) => item && (item.mode === 'paper' || item.mode === 'shadow')),
+    'US_V5_M1_SCAN_POSITION_MODE_UNKNOWN', { scan_id: record.scanId || null });
   const paper = positions.filter((item) => item.mode === 'paper');
   const shadow = positions.filter((item) => item.mode === 'shadow');
   for (const position of paper) {
@@ -293,6 +309,15 @@ function buildDiagnostic({ root, manifest } = {}) {
   assert(openLedger.executionMode === 'PAPER' && closeLedger.executionMode === 'PAPER', 'US_V5_M1_EXECUTION_MODE_MISMATCH');
   assert(openEvent.fees.state === 'NOT_MEASURED' && openEvent.fees.amount === null,
     'US_V5_M1_OPEN_FEE_MISSING_STATE_LOST');
+  // 本诊断只对账一个开平仓回合；窗口内任何其他成交事件都必须让诊断失败关闭，而不是被静默忽略。
+  const tradeDir = path.join(packageRoot, 'desk', 'trades');
+  const windowFills = fs.readdirSync(tradeDir).filter((name) => name.endsWith('.json')).sort()
+    .reduce((count, name) => {
+      const document = readJson(path.join(tradeDir, name));
+      validateIdentity(document, evidenceManifest, 'TRADE');
+      return count + (document.events || []).length;
+    }, 0);
+  assert(windowFills === 2, 'US_V5_M1_UNTRACED_TRADE_EVENTS', { expected: 2, actual: windowFills });
 
   const expectedSignal = openEvent.decision && openEvent.decision.signalId;
   const signalScanId = expectedSignal && expectedSignal.split(':').slice(1, 3).join(':');
@@ -447,7 +472,7 @@ function buildDiagnostic({ root, manifest } = {}) {
         funnel: pickStrategy.funnel,
         note: '该漏斗属于 19:23 的当日最后一次扫描；MSFU 开仓来自 17:23 的较早扫描，二者没有混写。',
       },
-      paper_fills: 2,
+      paper_fills: windowFills,
     },
     handover: {
       state: scans.handover.state,
@@ -570,22 +595,35 @@ function missingDiagnostic(error) {
   };
 }
 
-let defaultCache = null;
+// 常驻服务（launchd）里，输入包在启动后被改动或删除，页面不能永远显示第一次校验的 VERIFIED；
+// 失败也不能永久粘住。缓存只保留 TTL，到期重新做完整的封印、hash 与对账校验。
+const DIAGNOSTIC_CACHE_TTL_MS = 30000;
 
-function readDiagnostic(options = {}) {
-  const useDefaultCache = Object.keys(options).length === 0;
-  if (useDefaultCache && defaultCache) return defaultCache;
-  let result;
-  try { result = buildDiagnostic(options); } catch (error) { result = missingDiagnostic(error); }
-  if (useDefaultCache) defaultCache = result;
-  return result;
+function createDiagnosticReader({ build = buildDiagnostic, now = Date.now, ttlMs = DIAGNOSTIC_CACHE_TTL_MS } = {}) {
+  let cached = null;
+  return {
+    read(options = {}) {
+      const useCache = Object.keys(options).length === 0;
+      if (useCache && cached && now() - cached.at < ttlMs) return cached.result;
+      let result;
+      try { result = build(options); } catch (error) { result = missingDiagnostic(error); }
+      if (useCache) cached = { at: now(), result };
+      return result;
+    },
+    clear() { cached = null; },
+  };
 }
 
-function clearCache() { defaultCache = null; }
+const defaultReader = createDiagnosticReader();
+const readDiagnostic = (options = {}) => defaultReader.read(options);
+const clearCache = () => defaultReader.clear();
+/** 不经缓存的现场校验，供里程碑记录等一次性闸使用。 */
+const readFreshDiagnostic = () => { defaultReader.clear(); return defaultReader.read(); };
 
 module.exports = {
   ACCEPTANCE_REF, ACCEPTANCE_SHA256, MANIFEST_REF, MANIFEST_SHA256, TOLERANCE_USD, TOLERANCE_SHARES,
-  sha256, closeEnough, ceilCent, packageDigest, verifyInputPackage,
-  verifyScanRecord, calculateCosts, buildDiagnostic, readDiagnostic,
-  clearCache,
+  DIAGNOSTIC_CACHE_TTL_MS,
+  sha256, closeEnough, ceilCent, comparePackagePaths, packageDigest, verifyInputPackage,
+  verifyScanRecord, calculateCosts, buildDiagnostic, readDiagnostic, readFreshDiagnostic,
+  createDiagnosticReader, clearCache,
 };

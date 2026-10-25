@@ -141,3 +141,83 @@ test('扫描记录内容漂移、输入包漂移和来源缺失分别 fail close
   assert.match(missing.can_continue.join(' '), /不创建或启用生产账本/);
   assert.equal(missing.production_effect, 'NONE');
 });
+
+test('ceilCent 对整分金额不因二进制浮点噪声多进一分，真正超过整分的金额仍向上取整', () => {
+  for (let cents = 1; cents <= 200000; cents += 1) {
+    assert.equal(Math.round(diagnostics.ceilCent(cents / 100) * 100), cents, `exact cent ${cents / 100}`);
+  }
+  assert.equal(diagnostics.ceilCent(0), 0);
+  assert.equal(diagnostics.ceilCent(0.000087), 0.01);
+  assert.equal(diagnostics.ceilCent(0.0300000001), 0.04);
+  assert.equal(diagnostics.ceilCent(2.2000000206), 2.21);
+  assert.throws(() => diagnostics.ceilCent(-0.01), /US_V5_M1_COST_NOT_FINITE/);
+  assert.throws(() => diagnostics.ceilCent(NaN), /US_V5_M1_COST_NOT_FINITE/);
+});
+
+test('诊断缓存只在 TTL 内有效：输入包事后漂移会在到期后重新校验，失败也不永久粘住', () => {
+  let clock = 1000;
+  let calls = 0;
+  let mode = 'OK';
+  const reader = diagnostics.createDiagnosticReader({
+    ttlMs: 30000, now: () => clock,
+    build: () => {
+      calls += 1;
+      if (mode === 'DRIFT') throw Object.assign(new Error('US_V5_M1_INPUT_PACKAGE_SHA256_MISMATCH'), { code: 'US_V5_M1_INPUT_PACKAGE_SHA256_MISMATCH' });
+      return { state: 'VERIFIED' };
+    },
+  });
+  assert.equal(reader.read().state, 'VERIFIED');
+  clock += 29000;
+  mode = 'DRIFT';
+  assert.equal(reader.read().state, 'VERIFIED');
+  assert.equal(calls, 1);
+  clock += 1000;
+  const drifted = reader.read();
+  assert.equal(drifted.state, 'INVALID');
+  assert.equal(drifted.reason_code, 'US_V5_M1_INPUT_PACKAGE_SHA256_MISMATCH');
+  assert.equal(calls, 2);
+  mode = 'OK';
+  clock += 30000;
+  assert.equal(reader.read().state, 'VERIFIED');
+  assert.equal(calls, 3);
+  assert.equal(reader.read({ root: '/nowhere' }).state, 'VERIFIED');
+  assert.equal(calls, 4);
+  reader.clear();
+  reader.read();
+  assert.equal(calls, 5);
+  assert.equal(diagnostics.DIAGNOSTIC_CACHE_TTL_MS, 30000);
+});
+
+test('窗口内未追踪的成交事件和缺 mode 的仓位都让诊断失败关闭', () => {
+  const original = deliveredScan('1455286:1791566585240');
+  const unlabelled = structuredClone(original);
+  delete unlabelled.openPositions.find((item) => item.mode === 'paper').mode;
+  assert.throws(() => diagnostics.verifyScanRecord(rehash(unlabelled), MANIFEST.book_id, MANIFEST.handover),
+    /US_V5_M1_SCAN_POSITION_MODE_UNKNOWN/);
+
+  const source = path.join(__dirname, '..', MANIFEST.input_package.relative_root);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-us-v5-untraced-'));
+  fs.cpSync(source, root, { recursive: true });
+  const target = path.join(root, 'desk', 'trades', 'TRADE_LEDGER_2026-10-12.json');
+  const document = JSON.parse(fs.readFileSync(target, 'utf8'));
+  document.events = [...(document.events || []), { purpose: 'OPEN', lotId: 'UNTRACED', side: 'BUY' }];
+  fs.writeFileSync(target, `${JSON.stringify(document, null, 2)}\n`);
+  const resealed = diagnostics.packageDigest(root);
+  const groups = Object.fromEntries(Object.keys(MANIFEST.input_package.groups)
+    .map((prefix) => [prefix, diagnostics.packageDigest(root, prefix)]));
+  const manifest = { ...MANIFEST, input_package: { ...MANIFEST.input_package, ...resealed, groups } };
+  assert.throws(() => diagnostics.buildDiagnostic({ root, manifest }), /US_V5_M1_UNTRACED_TRADE_EVENTS/);
+});
+
+test('封印排序与环境无关：固定比较器复现已封印包的 ICU en-US 顺序', () => {
+  const names = ['producer/native/SPY.ndjson', 'producer/native/book-rows.json', 'producer/native/REVIEW_DECOMPOSITION_2026-10-23.json',
+    'producer/native/manifest.json', 'desk/ledger/POSITION_LEDGER_SNAPSHOT_2026-10-08.json'];
+  assert.deepEqual([...names].sort(diagnostics.comparePackagePaths), [
+    'desk/ledger/POSITION_LEDGER_SNAPSHOT_2026-10-08.json', 'producer/native/book-rows.json', 'producer/native/manifest.json',
+    'producer/native/REVIEW_DECOMPOSITION_2026-10-23.json', 'producer/native/SPY.ndjson',
+  ]);
+  assert.deepEqual([...names].sort(diagnostics.comparePackagePaths), [...names].sort(new Intl.Collator('en-US').compare));
+  assert.equal(diagnostics.comparePackagePaths('a', 'A'), 1);
+  assert.equal(diagnostics.comparePackagePaths('A', 'a'), -1);
+  assert.equal(diagnostics.comparePackagePaths('x', 'x'), 0);
+});

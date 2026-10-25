@@ -120,9 +120,19 @@ function tokenMatches(actual, expected) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
+/** Host 头主机名是否为本机。无令牌时它是 loopback 绑定之外的第二道门：同机浏览器被 DNS rebinding 欺骗时 Host 不是本机名。 */
+function hostIsLoopback(hostHeader) {
+  if (typeof hostHeader !== 'string' || !hostHeader) return false;
+  const name = (hostHeader.startsWith('[') ? hostHeader.slice(0, hostHeader.indexOf(']') + 1) : hostHeader.split(':')[0]).toLowerCase();
+  return ['127.0.0.1', 'localhost', '[::1]'].includes(name);
+}
+
 function researchOk(req, opts = {}) {
   const expected = opts.researchToken !== undefined ? opts.researchToken : process.env.QRP_RESEARCH_TOKEN;
-  if (!expected) return { ok: true, scope: 'LOOPBACK_ONLY' };
+  if (!expected) {
+    if (!hostIsLoopback(req.headers.host)) return { ok: false, reason: 'RESEARCH_HOST_NOT_LOOPBACK' };
+    return { ok: true, scope: 'LOOPBACK_ONLY' };
+  }
   if (!tokenMatches(req.headers['x-research-token'], expected)) return { ok: false, reason: 'RESEARCH_TOKEN_INVALID' };
   return { ok: true, scope: 'TOKEN_PROTECTED' };
 }
@@ -275,4 +285,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { createServer, bootstrapAdapters, views, runtimeRoutes, runtimeActions, runtimeOk, researchOk, bindConfiguration };
+module.exports = { createServer, bootstrapAdapters, views, runtimeRoutes, runtimeActions, runtimeOk, researchOk, bindConfiguration, hostIsLoopback };

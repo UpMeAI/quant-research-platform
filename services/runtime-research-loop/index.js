@@ -15,6 +15,7 @@ const path = require('path');
 const { dataDir, now, append, read } = require('../../packages/ledger');
 const experiments = require('../experiment-orchestrator');
 const selfAudit = require('../self-audit');
+const strategyDiagnostics = require('../strategy-diagnostics');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_RUNTIME_RESEARCH_LOOP_ACCEPTANCE_V1.md';
 const PRODUCT_ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_V1.md';
@@ -33,6 +34,9 @@ const CASES_LEDGER = () => path.join(DIR(), 'cases.jsonl');
 const LINKS_LEDGER = () => path.join(DIR(), 'links.jsonl');
 const MILESTONES_LEDGER = () => path.join(DIR(), 'product-milestones.jsonl');
 const PRODUCT_EVIDENCE_LEDGER = () => path.join(DIR(), 'product-evidence.jsonl');
+// 有 canonical 诊断生产者的 case：M1 PASS 除类型化证据外，还必须现场通过该诊断（封印、hash、账户对账），
+// 不能只凭已登记的非空文件把一个 INVALID／MISSING 的诊断晋级。
+const CANONICAL_M1_DIAGNOSTICS = Object.freeze({ 'RRC-US-V5-3000-V8-1-M0': strategyDiagnostics });
 const PRODUCT_STAGES = Object.freeze(['M0', 'M1', 'M2', 'M3']);
 const PRODUCT_STAGE_LABELS = Object.freeze({
   M0: '首案准备完成', M1: '现行策略体检版', M2: '方案对照版', M3: '研究与复盘闭环版',
@@ -248,6 +252,13 @@ function recordProductMilestone(input = {}) {
         ['RUNTIME_NATIVE_REPLAY', 'ACCOUNT_RECONCILIATION', 'DECISION_FUNNEL'], 'PRODUCT_MILESTONE_M1_RUNTIME_EVIDENCE_REQUIRED');
       validateProductEvidenceRefs(input.exception_evidence_refs, input.case_ref,
         ['EXCEPTION_SCENARIO'], 'PRODUCT_MILESTONE_M1_EXCEPTION_EVIDENCE_REQUIRED');
+      const diagnosticProducer = CANONICAL_M1_DIAGNOSTICS[input.case_ref];
+      if (diagnosticProducer) {
+        const diagnostic = diagnosticProducer.readFreshDiagnostic();
+        if (diagnostic.state !== 'VERIFIED') {
+          throw new Error(`PRODUCT_MILESTONE_M1_DIAGNOSTIC_NOT_VERIFIED:${diagnostic.state}:${diagnostic.reason_code || 'UNKNOWN'}`);
+        }
+      }
     }
     if (['M2', 'M3'].includes(input.stage)) {
       const link = listLinks().find((row) => row.case_ref === input.case_ref && row.result_ref === input.result_ref);
