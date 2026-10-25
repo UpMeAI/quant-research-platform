@@ -1,0 +1,166 @@
+{
+  "schema": "US_V5_M1_DIAGNOSTIC_EVIDENCE_MANIFEST_V2",
+  "evidence_id": "US-V5-M1-DIAGNOSTIC-2026-10-24",
+  "case_ref": "RRC-US-V5-3000-V8-1-M0",
+  "strategy_ref": "US_V5_ETF_3000USD",
+  "book_id": "US_V5_ETF_3000USD@2026-10-08T13:30:00.000Z",
+  "frozen_predecessor_ref": "US_V5_ETF_6000USD",
+  "frozen_predecessor_book_id": "US_V5_ETF_6000USD@2026-09-28T13:30:00.000Z",
+  "window": {
+    "start": "2026-10-08",
+    "end": "2026-10-23",
+    "sessions": 12
+  },
+  "acceptance_ref": "docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_3.md",
+  "input_package": {
+    "relative_root": "var/evidence/us-v5-m1-2026-10-08_2026-10-23",
+    "files": 64,
+    "bytes": 17492223,
+    "sha256": "8f8780075209802582dc387186a3cb5ade71d892187791f99b73a375e83280cd",
+    "groups": {
+      "desk": {
+        "files": 48,
+        "bytes": 158731,
+        "sha256": "12012aebebbe7c5729dacf805ca9afe891d67bfa9505d4bb4dc7eef92a95c8aa"
+      },
+      "producer/decision-inputs/us-v5": {
+        "files": 12,
+        "bytes": 17325914,
+        "sha256": "cccb6c204e21f7de68113af73a0865bf5e3fb1872824c947e9b9d633abb69a8e"
+      },
+      "producer/native": {
+        "files": 4,
+        "bytes": 7578,
+        "sha256": "5969c30aa5b2cf301bf1afa13cb139f1adc37a0b9c8d812c79d4c30b5a66ba67"
+      }
+    }
+  },
+  "source_provenance": {
+    "producer": "SMARTFLOW_US",
+    "production_host": "smartflow-vps",
+    "production_repository": "/home/admin/trading-system-v2/trading-system-v2/trading-system-v2",
+    "production_commit": "2382c2d14eb66c1cef5a7df35c7cdb543c507853",
+    "parameter_record_sha256": "8698f327a494648312cd8d9f31757961b6c4d1fd9f57a6d5f79ab8b7425a7349",
+    "replay_engine_sha256": {
+      "scripts/lib/us-v5-plan-replay.js": "e0144d45f9780c8a5118445c8d17eb83f2e47a3c2ddbc1e0a41500e656761353",
+      "scripts/lib/us-v5-replay.js": "2c9dd37596c9b94dd587f536daffce796255e98aae44bfc52423b698df6fb392",
+      "scripts/export-us-review-decomposition.js": "d7abd5c09e2aa2358584fac5bacfba9a35bad029a04ca7a2b00398c8109e264a",
+      "src/services/us-v5-scan-record.js": "bc7efed6023f8357b65ec2fbccb3d8c4a6ca6cec4aa6568d0b134e5b91aef1cd"
+    },
+    "handover_source_sha256": {
+      "docs/US_CRYPTO_PAPER_FULL_RUN_ACCEPTANCE_V1_AMENDMENT_17.md": "866aabd4ab1e28e35ec26055b2d7a6c876064073cb318c12861427e0c4ae7d14",
+      "src/services/us-v5-book.js": "403f84129f885e7a0936cebb512925c956a5468cf917712fdea74204469d764c",
+      "src/workers/us-v5-strategy-worker.js": "856b8b23d23f34c089ad0e5f47609b14ec71ce48f57847f611920fc03d769062",
+      "src/services/us-lot-binding.js": "49972ba69d856e308a87a6ebf32747afe55955bcac70ff0e77fd6bf5560e21bb"
+    },
+    "selected_runtime_files_clean_against_commit": true,
+    "runtime_configuration": {
+      "equity_usd": 3000,
+      "risk_unit_usd": 60,
+      "max_positions": 3,
+      "execution_mode": "paper",
+      "real_order": 0,
+      "book_start_at": "2026-10-08T13:30:00.000Z"
+    },
+    "retrieval": "read-only SSH export and isolated /tmp native replay; trading credentials removed from replay environment",
+    "captured_at": "2026-10-24T20:00:00.000Z"
+  },
+  "handover": {
+    "authority": "US_CRYPTO_PAPER_FULL_RUN_ACCEPTANCE_V1_AMENDMENT_17",
+    "current_book": {
+      "ledger_id": "US_V5_ETF_3000USD",
+      "book_id": "US_V5_ETF_3000USD@2026-10-08T13:30:00.000Z",
+      "start_at": "2026-10-08T13:30:00.000Z",
+      "book_equity_usd": 3000,
+      "risk_unit_usd": 60,
+      "paper_track_cap": 3
+    },
+    "predecessor": {
+      "ledger_id": "US_V5_ETF_6000USD",
+      "book_id": "US_V5_ETF_6000USD@2026-09-28T13:30:00.000Z",
+      "book_equity_usd": 6000,
+      "risk_unit_usd": 120,
+      "allowed_lots": ["USV5_1791392582939_qoxauy"],
+      "allowed_symbols": ["PLTU"],
+      "scan_records_with_open_lot": 5,
+      "closed_at": "2026-10-09T19:22:28.999Z",
+      "effect": "SHARED_LINE_LIMITS_ONLY",
+      "account_inclusion": false
+    },
+    "allowed_s17_values": {
+      "US_V5_ETF_6000USD.classCaps": [{"version":1,"effectiveFrom":"2026-10-05T13:30:00.000Z","valueSha256":"5a357dd8f122853f8c9bd20406484c59becd435e2d6cf9579bf5d947afe45aa0"}],
+      "US_V5_ETF_6000USD.earningsGate": [{"version":1,"effectiveFrom":"2026-10-02T13:30:00.000Z","valueSha256":"30206db44ea7b1bf1a45b832833c8d3b57403c6d41272f3ca9ee1f10451da0b8"}],
+      "US_V5_ETF_6000USD.entryGate": [{"version":1,"effectiveFrom":"2026-10-01T13:30:00.000Z","valueSha256":"6dddd375367e3be993ca29c7a389433586c706dee59ca8e7f671ae5c4604f8a1"}],
+      "US_V5_ETF_6000USD.etfUniverse": [{"version":3,"effectiveFrom":"2026-10-06T13:30:00.000Z","valueSha256":"ae6ad103d5cf6829eda6c8f4ec0c0463a4ca4a168db9b8be77d6095bbf60e3ad"}],
+      "US_V5_ETF_6000USD.holdingSwap": [{"version":1,"effectiveFrom":"2026-10-05T13:30:00.000Z","valueSha256":"49e302c61c7ef1d47c6306d234e74d2590dcbe42e77ab33ee1020ec417a3b253"}],
+      "US_V5_ETF_6000USD.klineTiming": [null,{"version":1,"effectiveFrom":"2026-10-14T00:00:00.000Z","valueSha256":"f8c147cf66135f47050d79069eb7b241f74eb4fa52a24ad62ad856f253366a0c"}],
+      "US_V5_ETF_6000USD.longIndexCarriers": [{"version":2,"effectiveFrom":"2026-10-06T13:30:00.000Z","valueSha256":"aa33fb861335acd9529337f1a653870fe9fce4131e7fa47d5027955bf61346f2"}],
+      "US_V5_ETF_6000USD.regimeBinding": [{"version":2,"effectiveFrom":"2026-10-01T13:30:00.000Z","valueSha256":"c42c355ac0e822e362462fe7086ad8a5cee420c8db3f5c4f406856cac1659f14"},{"version":3,"effectiveFrom":"2026-10-13T13:00:00.000Z","valueSha256":"d04b28afcec6dbbaaec4563826828ae5237820b88580f50cade1567e942c396f"}],
+      "US_V5_ETF_6000USD.signalBranches": [{"version":1,"effectiveFrom":"2026-10-05T13:30:00.000Z","valueSha256":"e45072c854d5b608de1740b3a79ba77581669df111b2c85795dd18419c439ecd"}],
+      "US_V5_ETF_3000USD.book": [{"version":1,"effectiveFrom":"2026-10-08T13:30:00.000Z","valueSha256":"992a7d7764097e585d26426c5133ac51ab90ae7af01fc407cb2694b52b40c948"}],
+      "US_V5_ETF_3000USD.feeModel": [{"version":1,"effectiveFrom":"2026-10-14T10:00:00.000Z","valueSha256":"5863106f6b44af9c7e129b9c0a2cfed8df62b9686c8536eb367f0e4e409ec2aa"}],
+      "US_V5_ETF_3000USD.sectorRs": [null]
+    },
+    "shared_rule_namespace": "US_V5_ETF_6000USD.",
+    "shared_universe_version": "US_V5_ETF_6000USD.etfUniverse@v3"
+  },
+  "native_replay": {
+    "document_ref": "producer/native/REVIEW_DECOMPOSITION_2026-10-23.json",
+    "document_file_sha256": "06be2fff27e2205a0d4e3a25de521c52648fd177d6f224b324ec163de9f5ffd4",
+    "document_hash": "ed5e4e99444df40cb255ddb4618f61bf863509394225d30abcdba3bd73dd4cd7",
+    "scan_records": 41,
+    "scan_contract": "US_V5_SCAN_RECORD_V2",
+    "record_hashes_verified": true,
+    "plan_state": "READY",
+    "plan_ticks": 41,
+    "parity": "MATCHED",
+    "frozen_digest": "92903edaa643bf60aa9a3225280c9eb26ad6fe0212520b1ae7c0bd5d497a1f2c",
+    "arms": {
+      "A": { "state": "NOT_APPLICABLE", "reason": "NO_REAL_ACCOUNT_LEDGER_ALL_US_BOOKS_ARE_PAPER" },
+      "B": { "state": "READY", "start_value": 3000, "end_value": 2945.77, "pnl": -54.23 },
+      "S": { "state": "READY", "start_value": 3000, "end_value": 3005.02, "pnl": 5.02 },
+      "D": { "state": "READY", "start_value": 3000, "end_value": 3006.09, "pnl": 6.09 }
+    },
+    "diagnosis": {
+      "class": "EVIDENCE_INSUFFICIENT",
+      "citable": false,
+      "reason_codes": [
+        "WINDOW_SESSIONS_12_BELOW_MINIMUM_20",
+        "A_ARM_NOT_APPLICABLE:NO_REAL_ACCOUNT_LEDGER_ALL_US_BOOKS_ARE_PAPER"
+      ]
+    }
+  },
+  "benchmark": {
+    "role": "REPORT_COMPARATOR_ONLY",
+    "instrument": "SPY",
+    "source": "yahoo-chart-v8:1d:unadjusted",
+    "known_at": "2026-10-24T20:00:00.000Z",
+    "manifest_sha256": "c2457533d632315039ce750116f2197100d9ee26c7657def73b54b2fe0c12af7",
+    "series_sha256": "2b552f73ac4baf58083c4802792577a8aec52c1318b2dc61d2e0322a8aaeb1fd",
+    "decision_input": false
+  },
+  "cost_model": {
+    "model_ref": "US_V5_M1_RESEARCH_COST_V1",
+    "strategy_bps_each_side": 5,
+    "commission_usd": 0,
+    "sec_sell_rate_per_dollar": 0.0000206,
+    "taf_sell_rate_per_share": 0,
+    "cat_rate_per_equivalent_share_each_side": 0.000003,
+    "rounding": "CEIL_EACH_FEE_TYPE_PER_DAY_PER_ACCOUNT_TO_CENT",
+    "aggregation_scope": "STANDALONE_STRATEGY_BOOK_ASSUMPTION",
+    "is_actual_broker_invoice": false,
+    "source_refs": [
+      "https://files.alpaca.markets/disclosures/library/BrokFeeSched.pdf#revised-2026-10-12",
+      "https://www.sec.gov/rules-regulations/fee-rate-advisories/2026-2",
+      "https://www.finra.org/rules-guidance/rule-filings/sr-finra-2024-019/fee-adjustment-schedule"
+    ]
+  },
+  "safety": {
+    "research_can_order": false,
+    "research_can_activate": false,
+    "research_can_write_runtime": false,
+    "production_effect": "NONE",
+    "product_milestone_state_changed": false,
+    "release_state": "NOT_RELEASED"
+  }
+}

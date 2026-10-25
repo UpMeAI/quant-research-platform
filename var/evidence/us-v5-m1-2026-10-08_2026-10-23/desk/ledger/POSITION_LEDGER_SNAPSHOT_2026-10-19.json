@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "ledgerId": "US_V5_ETF_3000USD",
+  "market": "US",
+  "strategyIdentity": "US_V5_ETF_UNIVERSE_V1 universe=config/us_etf_universe_v1.json signal=V5 on the ETF series (unlevered parent for leveraged and inverse carriers) capital=3000USD riskUnit=60USD maxPositions=3 mode=paper start=2026-10-08T13:30:00.000Z (new book version, AMENDMENT_4)",
+  "sessionDate": "2026-10-19",
+  "generatedAt": "2026-10-19T20:50:01.060Z",
+  "account": {
+    "capitalBase": 3000,
+    "cash": 3005.019987,
+    "equity": 3005.019987,
+    "drawdownFromPeak": 0.01267255,
+    "deploymentRate": 0,
+    "state": "MEASURED",
+    "reasonCodes": [
+      "US_V5_A13"
+    ]
+  },
+  "lots": [],
+  "reconciliation": {
+    "state": "NOT_APPLICABLE",
+    "items": [
+      {
+        "key": "USER_REPORTED_RECORD",
+        "state": "NOT_APPLICABLE",
+        "systemUnits": null,
+        "reportedUnits": null,
+        "reasonCode": "RECONCILIATION_NOT_APPLICABLE:PAPER_BOOK_NO_USER_REPORT"
+      }
+    ]
+  },
+  "hash": "c264c495a5bcc5f3c133a5dfc02cd5473f57e0252bcee583b12126d0c8a83518"
+}

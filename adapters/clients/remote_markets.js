@@ -8,7 +8,7 @@
  *
  * 已知市场归属(每个市场的实现仓库):
  *   CN_A       → UpMeAI/Ashare-V5   research-adapter/(REST server 已就位)
- *   US_EQUITY  → wendy926/smartflow research-adapter/(待实现)
+ *   US_EQUITY  → wendy926/smartflow trading-system-v2/research-adapter/us/(已实现;部署待配置)
  *   CRYPTO     → wendy926/smartflow research-adapter/(待实现)
  *
  * 边界(§13/§18):

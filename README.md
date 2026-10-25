@@ -1,6 +1,6 @@
 # quant-research-platform
 
-多市场量化策略研究平台 —— **策略研究 → 回测 → 策略赛马 → 分市场发布**。
+多市场量化策略研究平台 —— **运行复盘问题 → 冻结研究 → 回测/赛马 → 锁定报告 → Desk 原采用流程**。
 
 实现依据:《多市场量化策略研究与策略控制平台产品设计》(2026-08-22,权威规范);
 Phase 2 研究治理语义(预注册/冻结/Result Lock/Shadow/晋升治理)自
@@ -8,17 +8,17 @@ UpMeAI/Ashare-V5 `services/phase2` 领域抽取(Domain Extraction),按新设计�
 
 ## 定位(设计 §5)
 
-- **一个共享平台**(Research Plane + Strategy Control Plane)+ **每市场一个 Market Adapter**;
+- **一个共享研究平台**（Research Plane；既有 Strategy Control Plane 服务保留但不从 Research API 暴露）+ **每市场一个 Market Adapter**;
 - 各市场 Runtime(执行/持仓/账本/券商对接)**留在各自市场仓库**(L8 外部层)——
   A 股生产 Runtime = UpMeAI/Ashare-V5;
-- 平台产出的是**受治理的不可变 StrategyRelease 与受控 Activation**,不是复制代码。
+- Research 产品面产出的是**冻结研究报告与 Desk 回链**，不是复制代码，也不审批或激活；既有 Release/Activation 服务只保留原合同和 Runtime pull 兼容性。
 
 ## 治理铁律(设计 §18,代码级强制)
 
 | 铁律 | 强制点 |
 |---|---|
 | real_order = 0,平台零券商凭证 | `runtime_capabilities` / config/platform.json |
-| No Automatic Promotion,Founder 唯一批准人 | `reviewCandidate` 要求 `reviewer==='FOUNDER'` |
+| No Automatic Promotion，Research 无采用权 | Research API 的普通 POST 固定 405；既有 `reviewCandidate` 仍要求 `reviewer==='FOUNDER'`，但不由研究页调用 |
 | 预注册 + 冻结,Result Lock(每实验一次结果) | `experiment-orchestrator` freeze/verifyFreeze/recordResult |
 | Race 受控变量 + 预注册机械裁决 | `race-orchestrator` paired samples / adjudicate |
 | Shadow 零 Runtime 影响 + Virtual Ledger + 前向最低样本(按实验预注册) | `shadow-control` |
@@ -32,24 +32,27 @@ UpMeAI/Ashare-V5 `services/phase2` 领域抽取(Domain Extraction),按新设计�
 | No Silent Migration:在途持仓绑旧 Release → `REPLAN_REQUIRED` | `strategy-control-plane/migration` |
 | 回滚两类:OPERATIONAL 直接切回,ECONOMIC 先研究复核后才允许 Founder 执行 | `rollback` |
 | 台账全部 append-only(JSONL),负结果归档为资产 | `packages/ledger` / `archiveNegativeResult` |
+| V8.1 产品里程碑不由代码/HTTP 推断；只接受 case/类型绑定且现场验 SHA-256 的实际文件证据；撤销后下游不自动复活 | `runtime-research-loop` / `PRODUCT_EVIDENCE_ATTESTATION_V1` / `PRODUCT_MILESTONE_EVIDENCE_V1` |
 
 ## 快速开始(A 股 MVP,零依赖,Node ≥ 18)
 
 ```bash
-npm test                 # 45 项治理/流水线测试(含跨仓反分叉守卫与真实 HTTP 传输面)
+npm test                 # 治理/流水线测试(含跨仓反分叉守卫与真实 HTTP 传输面)
 npm run mvp:ashare       # §16.3 十二步端到端闭环(样本数据,自动种子)
 node schemas/validate.js # 台账 × §8 域对象 Schema 一致性(退出码 0 = 无漂移)
-npm run web              # §17 六入口研究工作台(默认 http://localhost:4310,QRP_PORT 可覆盖)
+npm run web              # 只读研究工作台(默认 127.0.0.1:4310；QRP_PORT 可覆盖)
 ```
 
-两类令牌相互独立(§18 Least Privilege),都 fail-closed(未配置即一律 403):
+Research 页面和 `/api/*` 研究视图只读，不接受 Founder token。Runtime pull 面使用独立令牌并 fail closed：
 
 | 令牌 | 头 | 能做什么 |
 |---|---|---|
-| `QRP_FOUNDER_TOKEN` | `X-Founder-Token` | `POST /api/review`(批准/否决)· `POST /api/activate`(创建 Activation) |
 | `QRP_RUNTIME_TOKEN` | `X-Runtime-Token` | `GET /api/runtime/pending-activations` · `…/scheduled-activations` · `…/release` · `POST /api/runtime/ack` · `…/nack` |
+| `QRP_RESEARCH_TOKEN` | `X-Research-Token` | 非 loopback 部署时读取 Research Web 与普通 `/api/*` GET |
 
-只读六页无需任何令牌。Runtime 令牌**不能**审批,Founder 令牌**不能**代替 Runtime 回 ACK。
+默认 `QRP_HOST=127.0.0.1`，本机只读视图可不设 token；若把 `QRP_HOST` 改成非 loopback，
+缺 `QRP_RESEARCH_TOKEN` 会在启动前失败。Runtime 令牌只访问 `/api/runtime/*`，不能审批或创建 Activation，
+也不替代 Research read token。
 
 MVP 数据为 `SAMPLE_SYNTHETIC`(确定性合成,诚实标注)——演示平台治理与全链路,
 **不构成任何经济有效性声明**。真实 A 股数据经 Ashare-V5 `research-adapter/`(同一 §14.1 合同)接入。
@@ -68,10 +71,13 @@ services/            strategy-registry · experiment-orchestrator(+ wfo · robus
                      factor-lab(§9.1 FactorDefinition + IC/RankIC/衰减)
                      runtime-status(§13.1 只读回读 + 接口覆盖度)
                      observability(§19 运行观测与衰减监控)
+                     runtime-research-loop(运行态/研究态/Desk 回链 + V8.1 产品里程碑真相)
+                     research-workspace(Desk 市场/策略优先的人类可读 canonical 投影)
+                     self-audit(四类元对象)
 adapters/            registry(合同校验注册表)· ashare-local(CN_A 内置演示适配器,demo_only)
                      clients/http_market_adapter_client(§5.2 远程市场适配器客户端)
-apps/research-web/   §17 六入口工作台(单页,零依赖)
-apps/research-api/   只读投影 + Founder token 门控的 review/activate
+apps/research-web/   只读工作台(单页,零依赖)
+apps/research-api/   只读研究投影 + 独立 Runtime pull/ack 传输面
 apps/research-cli/   run_ashare_mvp.js · seed_sample_data.js
 docs/                ARCHITECTURE.md
 var/ledger/          运行时台账(gitignore;QRP_DATA_DIR 可覆盖)

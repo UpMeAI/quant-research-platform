@@ -203,7 +203,8 @@ async function closeRace(raceId, { championMetrics, challengerMetrics, canonical
     challenger_value: adj.challenger_value,
     guardrail_breaches: adj.guardrail_breaches,
     regime_breakdown: breakdown,
-    sample_evidence_ref: head.paired_sample_hash,
+    // Result Lock 的 sample_evidence_ref 由 experiment-orchestrator 固定为
+    // backtest artifact hash；Race 的 paired sample 在下方独立保留，不能冒充产物身份。
   });
   const result = {
     schema: 'RACE_RESULT_V1',

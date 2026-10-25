@@ -1,0 +1,324 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_US",
+  "producerVersion": "export-us-strategy-pick@2382c2d14eb6",
+  "market": "US",
+  "sessionDate": "2026-10-22",
+  "generatedAt": "2026-10-22T20:50:13.698Z",
+  "ruleRef": "US_STRATEGY_PICK@smartflow:2382c2d14eb6",
+  "etfStrategy": {
+    "ledgerId": "US_V5_ETF_3000USD",
+    "state": "READY",
+    "reasonCodes": [],
+    "scan": {
+      "recordContract": "US_V5_SCAN_RECORD_V2",
+      "recordHash": "59a123065f0e1ea83eb19e199061bbfc9dd47d9a3d6aa73a92bda90d8c002eab",
+      "scannedAt": "2026-10-22T18:04:23.989Z",
+      "scansInSession": 3
+    },
+    "universe": {
+      "ref": "US_ETF_UNIVERSE_V1",
+      "version": 3,
+      "rows": 45,
+      "series": 29,
+      "carriers": 45,
+      "signalOnly": 0
+    },
+    "regime": {
+      "state": "CAUTIOUS",
+      "binding": 2,
+      "readAt": "2026-10-22T16:04:26.937Z",
+      "inputs": [
+        {
+          "input": "SPY_BELOW_EMA",
+          "firing": true,
+          "state": "MEASURED"
+        },
+        {
+          "input": "VIX_HIGH",
+          "firing": false,
+          "state": "MEASURED"
+        },
+        {
+          "input": "TNX_SPIKE",
+          "firing": false,
+          "state": "MEASURED"
+        }
+      ],
+      "reasonCodes": []
+    },
+    "funnel": [
+      {
+        "gate": "SIGNAL",
+        "entered": 29,
+        "passed": 0,
+        "rejected": 29
+      },
+      {
+        "gate": "SLOT",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "FILL_PATH",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "BOOK_HALT",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "EARNINGS",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "FED_PHASE",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "KILL_SWITCH",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "REGIME",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "CARRIER_ROUTE",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "CLASS_CAP",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "PORTFOLIO_RISK",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "PER_ETF_CAP",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "KLINE",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      },
+      {
+        "gate": "SIZING",
+        "entered": 0,
+        "passed": 0,
+        "rejected": 0
+      }
+    ],
+    "signals": [],
+    "actionable": [],
+    "sessionOpens": [],
+    "sessionSignals": [
+      {
+        "scannedAt": "2026-10-22T14:04:24.631Z",
+        "symbol": "XLV",
+        "signal": "BUY",
+        "outcome": "REFUSED",
+        "reasonCodes": [
+          "ETF_GATE_FAILED",
+          "GATE_RSI_OUTSIDE_BAND"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T14:04:24.631Z",
+        "symbol": "XLP",
+        "signal": "BUY",
+        "outcome": "REFUSED",
+        "reasonCodes": [
+          "ETF_GATE_FAILED",
+          "GATE_RSI_OUTSIDE_BAND"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T14:04:24.631Z",
+        "symbol": "SMH",
+        "signal": "SELL",
+        "outcome": "REFUSED",
+        "reasonCodes": [
+          "INVERSE_REQUIRES_RISK_OFF"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T16:04:25.881Z",
+        "symbol": "SPMO",
+        "signal": "SELL",
+        "outcome": "REFUSED",
+        "reasonCodes": [
+          "INVERSE_REQUIRES_RISK_OFF"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T16:04:25.881Z",
+        "symbol": "XLV",
+        "signal": null,
+        "outcome": "COOLDOWN",
+        "reasonCodes": [
+          "V5_SIGNAL_COOLDOWN"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T16:04:25.881Z",
+        "symbol": "XLP",
+        "signal": null,
+        "outcome": "COOLDOWN",
+        "reasonCodes": [
+          "V5_SIGNAL_COOLDOWN"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T16:04:25.881Z",
+        "symbol": "SMH",
+        "signal": null,
+        "outcome": "COOLDOWN",
+        "reasonCodes": [
+          "V5_SIGNAL_COOLDOWN"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T18:04:23.989Z",
+        "symbol": "SPMO",
+        "signal": null,
+        "outcome": "COOLDOWN",
+        "reasonCodes": [
+          "V5_SIGNAL_COOLDOWN"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T18:04:23.989Z",
+        "symbol": "XLV",
+        "signal": null,
+        "outcome": "COOLDOWN",
+        "reasonCodes": [
+          "V5_SIGNAL_COOLDOWN"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T18:04:23.989Z",
+        "symbol": "XLP",
+        "signal": null,
+        "outcome": "COOLDOWN",
+        "reasonCodes": [
+          "V5_SIGNAL_COOLDOWN"
+        ]
+      },
+      {
+        "scannedAt": "2026-10-22T18:04:23.989Z",
+        "symbol": "SMH",
+        "signal": null,
+        "outcome": "COOLDOWN",
+        "reasonCodes": [
+          "V5_SIGNAL_COOLDOWN"
+        ]
+      }
+    ]
+  },
+  "coreDecision": {
+    "ledgerId": "US_CORE_9000USD_3X_GATEOBS",
+    "state": "DECIDED",
+    "reasonCodes": [],
+    "decidedAt": "2026-10-22T20:35:00.977Z",
+    "macroState": "NORMAL",
+    "carryRiskGate": {
+      "mode": "OBSERVE_ONLY",
+      "active": true,
+      "state": "S3",
+      "effect": "DISPLAY_ONLY",
+      "observedAt": "2026-10-22T20:28:00.496Z",
+      "reasonCodes": [
+        "CARRY_RISK:S3",
+        "CARRY_RISK_GATE_MODE:OBSERVE_ONLY",
+        "CARRY_RISK_GATE:DISPLAY_ONLY"
+      ]
+    },
+    "sleeves": [
+      {
+        "sleeve": "SPY",
+        "benchmark": "SPY",
+        "carriers": {
+          "bench": "SPY",
+          "lev": "UPRO"
+        },
+        "leverage": 3,
+        "close": 763.960022,
+        "sma200": 726.6544,
+        "sma50": 768.166597,
+        "closeVsSma200": "ABOVE",
+        "sma50VsSma200": "ABOVE",
+        "tier": "TIER_3X",
+        "held": "TIER_3X",
+        "lotChange": {
+          "change": "NONE",
+          "from": "TIER_3X",
+          "to": "TIER_3X",
+          "fillsAt": null,
+          "reasonCodes": []
+        },
+        "reasonCodes": [
+          "CLOSE_ABOVE_SMA200",
+          "SMA50_ABOVE_SMA200"
+        ]
+      },
+      {
+        "sleeve": "QQQ",
+        "benchmark": "QQQ",
+        "carriers": {
+          "bench": "QQQ",
+          "lev": "TQQQ"
+        },
+        "leverage": 3,
+        "close": 704.469971,
+        "sma200": 676.89335,
+        "sma50": 726.365599,
+        "closeVsSma200": "ABOVE",
+        "sma50VsSma200": "ABOVE",
+        "tier": "TIER_3X",
+        "held": "TIER_3X",
+        "lotChange": {
+          "change": "NONE",
+          "from": "TIER_3X",
+          "to": "TIER_3X",
+          "fillsAt": null,
+          "reasonCodes": []
+        },
+        "reasonCodes": [
+          "CLOSE_ABOVE_SMA200",
+          "SMA50_ABOVE_SMA200"
+        ]
+      }
+    ]
+  },
+  "consequence": "STRATEGY_RECORD_ONLY_NEVER_AN_ORDER",
+  "researchOnly": true,
+  "allowedNow": false,
+  "realOrder": 0,
+  "brokerWrite": false,
+  "hash": "3d26e49c7db3cd9a2efc29913b249bce2e3f0c84191de4e5f7dad49aeee0b03c"
+}

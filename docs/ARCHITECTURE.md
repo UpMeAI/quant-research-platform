@@ -18,11 +18,21 @@
 | L7 市场适配 | MarketAdapter Contract(§14.1) | `packages/contracts` + `adapters/registry` + `adapters/ashare-local`(演示)+ `adapters/clients`(远程,§5.2) |
 | L8 市场 Runtime(外部) | 各市场仓库(A 股 = Ashare-V5) | 本仓仅 `paper_runtime_stub`(演示 pull 协议)+ `services/runtime-status`(§13.1 只读回读) |
 | 观测 | §19 运行观测与衰减监控 | `services/observability`(随 runtime-status 视图投影) |
-| 产品面 | §17 六入口研究工作台 + §12.1 一键发布按钮 | `apps/research-web` + `apps/research-api` |
+| 产品面 | Desk 市场/策略优先的人类可读工作台 + 运行态/研究态/Desk 回链 | `apps/research-web` + `apps/research-api` + `services/research-workspace` + `services/runtime-research-loop` |
+
+产品里程碑由 append-only `PRODUCT_MILESTONE_EVIDENCE_V1` 单独裁决。工程完成、HTTP 200、页面存在、
+实验锁定都不会自动置真；M0→M3 逐级绑定直接上游证据，撤销或重新验收上游后，下游必须重新验收。
+M4/M5 在 V8.1 本轮固定显示 `OUT_OF_SCOPE`。Research Web/API 仅消费该投影，不暴露记录入口。
+`services/research-workspace` 只翻译和编排上述 canonical 事实：七个页面共用同一真实 Desk case，
+未关联的工程/历史对象默认折叠；它不重算策略、研究结论、采用或生产状态。M1 就绪显示仅在
+canonical case 为 `M1_READY`、数据质量为 `VALID` 且必要输入均显式就绪时开放，其余状态 fail closed。
+里程碑引用必须先进入 `PRODUCT_EVIDENCE_ATTESTATION_V1`：登记时与晋级时均读取实际绝对路径文件并
+校验 SHA-256/大小，绑定 case 和证据类型；`QRP_PRODUCT_MILESTONE_AUTHORITY` 未配置或记录人不匹配时
+拒绝登记与晋级。普通 Research 服务默认不配置该完成权威。
 
 ## 关键流程
 
-### 研究 → 发布主链(§9-§12)
+### 研究主链与保留的内部控制面(§9-§12)
 
 ```
 Hypothesis(机制/预期/失败条件/primary_metric/guardrails)
@@ -32,6 +42,11 @@ Hypothesis(机制/预期/失败条件/primary_metric/guardrails)
   → Race(paired samples 双边对齐;预注册裁决器:primary + guardrails 机械推导 verdict)
   → Result Lock(每实验一次;Winner/Holds/Negative/Inconclusive 都入台账)
   → Shadow(同 PIT 双跑;Virtual Ledger;min_forward_evidence 按实验预注册;不足=DESCRIBE_ONLY)
+  → RuntimeResearchLink(锁 experiment freeze_hash + result_hash，回 Desk 原 REVIEW_LOOP_WEEK_V1)
+
+以下 Promotion/Release/Activation 是既有内部服务与 Runtime 兼容链，**不从 Research Web/API 暴露**：
+
+```
   → PromotionCandidate(gate:RESULT_LOCKED + CHALLENGER_WINS + CLAIM_ELIGIBLE)
   → Compatibility Check(adapter.validate_release,fail-closed)
   → Immutable StrategyRelease(release_hash 内容哈希)

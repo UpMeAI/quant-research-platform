@@ -173,9 +173,14 @@ function invalidateExperiment(experimentId, reasonCn) {
 async function runBacktest(experimentId) {
   const v = verifyFreeze(experimentId);
   if (!v.ok) throw new Error(`BACKTEST_REJECTED:${v.reason}`);
+  if (v.status === 'RESULT_LOCKED') throw new Error('BACKTEST_REJECTED:RESULT_ALREADY_LOCKED');
   const spec = { ...v.spec };
   const adapter = getAdapter(spec.market);
   const artifact = await adapter.run_backtest(spec);
+  const priorHead = experimentHead(experimentId);
+  if (priorHead.status === 'BACKTESTED' && priorHead.backtest_artifact_hash !== artifact.result_hash) {
+    throw new Error('BACKTEST_REJECTED:NONDETERMINISTIC_ARTIFACT');
+  }
   const existing = read(ARTIFACTS_LEDGER()).find((r) => r.experiment_ref === experimentId && r.result_hash === artifact.result_hash);
   if (existing) return { ...existing, replayHit: true };
   append(ARTIFACTS_LEDGER(), { ...artifact, experiment_ref: experimentId });
@@ -199,6 +204,19 @@ function recordResult(experimentId, result = {}) {
     throw new Error('RESULT_MISSING_VERDICT');
   }
   const head = experimentHead(experimentId);
+  if (v.status !== 'BACKTESTED' || !head || !head.backtest_artifact_hash) {
+    throw new Error('RESULT_REJECTED:BACKTEST_NOT_COMPLETED');
+  }
+  const artifact = artifactFor(experimentId);
+  if (!artifact || artifact.result_hash !== head.backtest_artifact_hash) {
+    throw new Error('RESULT_REJECTED:BACKTEST_ARTIFACT_DRIFT');
+  }
+  if (result.sample_evidence_ref && result.sample_evidence_ref !== artifact.result_hash) {
+    throw new Error('RESULT_REJECTED:SAMPLE_EVIDENCE_MISMATCH');
+  }
+  if (artifact.mechanical_adjudication && artifact.mechanical_adjudication.verdict !== result.verdict) {
+    throw new Error(`RESULT_REJECTED:MECHANICAL_ADJUDICATION_MISMATCH:${artifact.mechanical_adjudication.verdict}`);
+  }
   return append(EXPERIMENTS_LEDGER(), {
     ...head,
     status: 'RESULT_LOCKED',
@@ -209,9 +227,10 @@ function recordResult(experimentId, result = {}) {
       challenger_value: result.challenger_value ?? null,
       guardrail_breaches: result.guardrail_breaches || [],
       regime_breakdown: result.regime_breakdown || null,
-      sample_evidence_ref: result.sample_evidence_ref || null,
+      sample_evidence_ref: artifact.result_hash,
       noteCn: result.noteCn || null,
     },
+    result_artifact_hash: artifact.result_hash,
     result_locked_at: now(),
   });
 }

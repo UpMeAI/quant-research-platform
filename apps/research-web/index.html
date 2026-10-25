@@ -3,289 +3,86 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Quant Research Platform · 研究台</title>
+<title>Research 研究工作台</title>
 <style>
-  :root{--bg:#0f1115;--panel:#171a21;--line:#262b36;--fg:#e6e9ef;--dim:#9aa3b2;--ok:#3fb950;--warn:#d29922;--bad:#f85149;--acc:#58a6ff}
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.6 -apple-system,"PingFang SC","Microsoft YaHei",Segoe UI,sans-serif}
-  header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
-  h1{font-size:16px;margin:0;font-weight:650}
-  .sub{color:var(--dim);font-size:12px}
-  nav{display:flex;gap:4px;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-  nav button{background:transparent;border:1px solid var(--line);color:var(--dim);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px}
-  button.act{background:#1b2430;border:1px solid #2f6feb;color:#e6edf3;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-right:8px}
-  button.act[disabled]{opacity:.45;cursor:not-allowed;border-color:#263140}
-  nav button[aria-current="true"]{background:var(--panel);color:var(--fg);border-color:var(--acc)}
-  main{padding:16px 20px;max-width:1400px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:12px}
-  .card h3{margin:0 0 10px;font-size:14px;font-weight:600}
-  .row{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline}
-  .kv{font-size:13px}.kv b{color:var(--dim);font-weight:500;margin-right:6px}
-  .tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);color:var(--dim)}
-  .ok{color:var(--ok);border-color:var(--ok)}.warn{color:var(--warn);border-color:var(--warn)}
-  .bad{color:var(--bad);border-color:var(--bad)}.acc{color:var(--acc);border-color:var(--acc)}
-  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
-  th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
-  th{color:var(--dim);font-weight:500}
-  .verdict{font-size:20px;font-weight:700;letter-spacing:.5px}
-  details{margin-top:8px}summary{cursor:pointer;color:var(--dim);font-size:13px}
-  pre{background:#0b0d11;border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto;font-size:12px;max-height:340px}
-  .empty{color:var(--dim);font-size:13px;padding:10px 0}
-  .note{color:var(--dim);font-size:12px;margin-top:6px}
-  .wrap{overflow-x:auto}
+  :root{color-scheme:light;--page:#f4f6f8;--surface:#fff;--soft:#f8fafb;--ink:#16232c;--muted:#61717d;--line:#dce3e7;--line2:#c7d2d9;--brand:#0c6774;--brand2:#e7f4f5;--ok:#256a47;--ok2:#e9f5ee;--warn:#8a5a16;--warn2:#fff4dd;--bad:#9b3b36;--bad2:#fbeceb;--info:#315d8c;--info2:#eaf2fb;--shadow:0 1px 2px rgba(23,35,44,.04),0 8px 24px rgba(23,35,44,.04);--radius:12px}
+  *{box-sizing:border-box}html{background:var(--page);scroll-behavior:smooth}body{margin:0;background:var(--page);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif}button,select{font:inherit}a{color:inherit}button:focus-visible,select:focus-visible,summary:focus-visible,a:focus-visible{outline:3px solid #7dc5cd;outline-offset:2px}.skip{position:absolute;left:-9999px;top:8px;background:var(--ink);color:#fff;padding:8px 12px;border-radius:6px;z-index:20}.skip:focus{left:12px}
+  .app-head{background:#0e2830;color:#fff;padding:17px max(20px,calc((100vw - 1240px)/2));border-bottom:1px solid #21434b}.brand-row,.context-row,.section-head,.fact-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.brand{display:flex;align-items:center;gap:12px;min-width:0}.brand-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:9px;background:#d9f0f0;color:#0e5964;font-weight:800}.brand h1{font-size:17px;line-height:1.25;margin:0}.brand p{font-size:12px;color:#b7c9ce;margin:2px 0 0}.read-only{display:inline-flex;align-items:center;gap:7px;color:#d9ecee;border:1px solid #3c6168;border-radius:999px;padding:5px 10px;font-size:12px;white-space:nowrap}.read-only::before{content:"";width:7px;height:7px;border-radius:50%;background:#72d1b1}
+  .context-shell{background:var(--surface);border-bottom:1px solid var(--line)}.context-row{max-width:1240px;margin:auto;padding:20px;align-items:flex-end}.eyebrow{margin:0 0 4px;color:var(--brand);font-size:12px;font-weight:750;letter-spacing:.06em}.context-copy{min-width:0}.context-copy h2{font-size:23px;line-height:1.32;margin:0;letter-spacing:-.02em;overflow-wrap:anywhere}.context-copy p{color:var(--muted);margin:5px 0 0}.context-select label{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}.context-select select{max-width:390px;border:1px solid var(--line2);border-radius:8px;background:#fff;color:var(--ink);padding:8px 32px 8px 10px}
+  .tab-shell{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}nav{max-width:1240px;margin:auto;padding:9px 20px;display:flex;gap:6px;flex-wrap:wrap}nav a{text-decoration:none;color:var(--muted);padding:8px 11px;border-radius:8px;font-size:14px;font-weight:650}nav a:hover{background:var(--soft);color:var(--ink)}nav a[aria-current="page"]{background:var(--brand2);color:var(--brand)}
+  main{max-width:1240px;margin:auto;padding:24px 20px 56px}.loading,.error-state,.empty-state{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:34px 26px;text-align:center;box-shadow:var(--shadow)}.loading{color:var(--muted)}.loading::before{content:"";display:block;width:24px;height:24px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;margin:0 auto 12px;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.error-state h2,.empty-state h3{margin:0 0 6px;font-size:18px}.error-state p,.empty-state p{margin:0 auto;color:var(--muted);max-width:720px}.retry{margin-top:16px;border:0;border-radius:8px;background:var(--brand);color:#fff;padding:9px 15px;cursor:pointer;font-weight:650}
+  .answer-panel{position:relative;overflow:hidden;background:linear-gradient(135deg,#f1f9f8 0,#fff 74%);border:1px solid #cfe4e5;border-radius:14px;padding:21px 24px;margin-bottom:20px;box-shadow:var(--shadow)}.answer-panel::after{content:"";position:absolute;width:190px;height:190px;border-radius:50%;right:-86px;top:-105px;background:#d7eeed;opacity:.5}.answer-panel h2{position:relative;margin:0;font-size:19px;line-height:1.45;max-width:920px}.answer-panel .answer{position:relative;margin:9px 0 0;font-size:16px;max-width:940px}.answer-panel .next{position:relative;margin:11px 0 0;color:var(--brand);font-weight:650}
+  .status-row{display:flex;gap:7px;flex-wrap:wrap;margin:11px 0 0}.pill{display:inline-flex;align-items:center;min-height:27px;border-radius:999px;padding:3px 9px;font-size:12px;font-weight:650;border:1px solid var(--line);background:var(--soft);color:var(--muted)}.pill.ok{border-color:#badbc9;background:var(--ok2);color:var(--ok)}.pill.warn{border-color:#ebd39d;background:var(--warn2);color:var(--warn)}.pill.bad{border-color:#edc3c0;background:var(--bad2);color:var(--bad)}.pill.info{border-color:#c8daed;background:var(--info2);color:var(--info)}
+  .section{margin:26px 0}.section-head{align-items:baseline;margin-bottom:11px}.section-head h2{font-size:18px;margin:0}.section-head p{font-size:13px;color:var(--muted);margin:0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.grid.two{grid-template-columns:repeat(2,minmax(0,1fr))}.card{min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}.card h3{font-size:16px;line-height:1.45;margin:0}.card p{margin:8px 0 0;color:var(--muted)}.card.connected{border-top:3px solid var(--brand)}
+  .strategy-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.strategy-card{display:flex;min-width:0;min-height:198px;flex-direction:column;text-decoration:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);transition:border-color .15s,transform .15s,box-shadow .15s}.strategy-card:hover{border-color:#91bbc0;transform:translateY(-1px);box-shadow:0 10px 28px rgba(23,35,44,.09)}.strategy-card h3{font-size:16px;line-height:1.45;margin:11px 0 0;overflow-wrap:anywhere}.strategy-card .status-row{margin-top:auto;padding-top:14px}.strategy-card .research-line{color:var(--muted);font-size:13px;margin:10px 0 0}.strategy-card .open-label{color:var(--brand);font-weight:700;font-size:13px;margin-top:12px}.market-label{align-self:flex-start;color:var(--brand);font-size:12px;font-weight:750;letter-spacing:.05em}
+  .detail-top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:15px}.breadcrumb{display:inline-flex;color:var(--brand);text-decoration:none;font-size:13px;font-weight:650;margin-bottom:6px}.detail-top h2{font-size:26px;line-height:1.3;margin:0}.detail-top p{color:var(--muted);margin:7px 0 0}.section-nav{display:flex;gap:6px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:7px;margin-bottom:20px}.section-nav a{text-decoration:none;color:var(--muted);font-size:13px;font-weight:650;padding:7px 9px;border-radius:7px}.section-nav a:hover{background:var(--brand2);color:var(--brand)}.detail-section{scroll-margin-top:76px}.detail-section>.card,.detail-section>.grid{margin-top:10px}
+  .fact-list{list-style:none;padding:0;margin:0}.fact-list li{padding:11px 0;border-bottom:1px solid var(--line)}.fact-list li:last-child{border-bottom:0}.fact-head{align-items:baseline}.fact-head strong{font-size:14px}.fact-head span{font-size:12px;color:var(--muted)}.fact-list p{margin:4px 0 0;color:var(--muted);font-size:14px}.blocker{border-left:4px solid #c58b33}.blocker+.blocker{margin-top:10px}.blocker .impact{color:var(--ink)}.blocker .action{color:var(--brand)}
+  dl{margin:12px 0 0;display:grid;grid-template-columns:minmax(110px,.55fr) minmax(0,1fr);gap:7px 16px}dt{color:var(--muted)}dd{margin:0;overflow-wrap:anywhere}.milestones{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.milestone{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}.milestone strong{display:block;margin-bottom:5px}.milestone small{display:block;color:var(--muted);margin-top:5px}
+  details{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-top:14px}summary{cursor:pointer;list-style:none;padding:13px 15px;color:var(--muted);font-size:13px;font-weight:650}summary::-webkit-details-marker{display:none}summary::before{content:"＋";display:inline-block;width:20px;color:var(--brand)}details[open] summary::before{content:"−"}.detail-body{border-top:1px solid var(--line);padding:14px 16px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}.detail-body code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#36505e;word-break:break-all}.detail-body ul{margin:6px 0;padding-left:20px}.detail-body p{margin:5px 0}.safety-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.safety-item{background:var(--ok2);color:var(--ok);border-radius:8px;padding:12px;text-align:center;font-weight:650}
+  .diagnostic{margin-top:16px}.diagnostic-hero{background:linear-gradient(135deg,#eaf6f2,#fff);border:1px solid #bfded2;border-radius:14px;padding:20px;box-shadow:var(--shadow)}.diagnostic-hero h3{font-size:20px;margin:2px 0 0}.diagnostic-hero p{color:var(--muted);margin:7px 0 0}.source-grid,.metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.source-card,.metric{background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:13px}.source-card strong,.metric strong{display:block}.source-card small,.metric small{display:block;color:var(--muted);margin-top:4px}.metric .value{font-size:20px;line-height:1.3;font-weight:760;color:var(--ink)}.timeline{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:9px}.timeline li{position:relative;border-left:3px solid #9ccfd0;background:var(--soft);border-radius:0 9px 9px 0;padding:12px 14px}.timeline time{display:block;color:var(--muted);font-size:12px}.timeline strong{display:block;margin:2px 0}.exception-card{border-left:4px solid #c58b33}.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin-top:12px}table{width:100%;border-collapse:collapse;min-width:620px;background:var(--surface)}th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line);white-space:nowrap}th{background:var(--soft);color:var(--muted);font-size:12px}tbody tr:last-child td{border-bottom:0}.cost-list{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 16px;margin-top:12px}.cost-list span:nth-child(even){font-variant-numeric:tabular-nums;text-align:right}.limit-list{margin:9px 0 0;padding-left:20px;color:var(--muted)}.truth-note{background:var(--warn2);border:1px solid #ebd39d;border-radius:10px;padding:12px 14px;margin-top:12px;color:#6c4b1e}.positive{color:var(--ok)}.negative{color:var(--bad)}
+  @media(max-width:900px){.strategy-grid,.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.milestones{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:680px){.grid,.grid.two,.strategy-grid,.source-grid,.metric-grid{grid-template-columns:1fr}.context-row{align-items:flex-start;flex-direction:column}.context-select,.context-select select{width:100%;max-width:none}.safety-grid{grid-template-columns:1fr}.tab-shell{position:static}.detail-top{flex-direction:column}.strategy-card{min-height:0}}
+  @media(max-width:520px){.app-head{padding:14px 16px}.brand p{display:none}.read-only{font-size:11px;padding:5px 7px}.context-row{padding:17px 16px}.context-copy h2{font-size:20px}.context-copy p{font-size:13px}nav{padding:8px 12px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}nav a{text-align:left;font-size:13px;padding:8px}main{padding:18px 14px 42px}.answer-panel{padding:18px}.answer-panel h2{font-size:17px}.answer-panel .answer{font-size:15px}.card,.strategy-card{padding:16px}.milestones{grid-template-columns:1fr}dl{grid-template-columns:1fr;gap:2px}dd{margin-bottom:8px}.brand-row{align-items:center}.detail-top h2{font-size:22px}}
 </style>
 </head>
 <body>
-<header>
-  <h1>Quant Research Platform</h1>
-  <span class="sub">多市场量化策略研发与控制平台 · 研究台(只读;审批与激活需 Founder 令牌)</span>
-  <span class="sub" id="stamp"></span>
-  <span class="sub">Founder 令牌 <input id="founder-token" type="password" placeholder="X-Founder-Token(仅本页内存,不落盘)" style="background:#0e131a;border:1px solid #263140;color:#e6edf3;border-radius:6px;padding:4px 8px;font-size:12px;width:220px"></span>
-</header>
-<nav id="nav"></nav>
-<main id="view"><div class="empty">加载中…</div></main>
-
+<a class="skip" href="#workspace">跳到当前页面内容</a>
+<header class="app-head"><div class="brand-row"><div class="brand"><span class="brand-mark" aria-hidden="true">R</span><div><h1>Research 研究工作台</h1><p>Cycle × Research × Desk · 用证据理解策略，不替你做交易决定</p></div></div><span class="read-only">只读安全模式</span></div></header>
+<section class="context-shell" aria-label="当前查看范围"><div class="context-row"><div class="context-copy"><p class="eyebrow" id="context-eyebrow">当前查看范围</p><h2 id="context-title">正在读取…</h2><p id="context-subtitle">读取 Desk 策略目录与真实研究关联</p></div><div class="context-select" id="context-picker"></div></div></section>
+<div class="tab-shell"><nav id="nav" aria-label="Research 用户任务"></nav></div>
+<main id="workspace" tabindex="-1"><div class="loading" role="status">正在读取 Desk 策略目录…</div></main>
 <script>
-const TABS = [
-  ['strategies','策略'], ['experiments','实验'], ['races','赛马'],
-  ['shadow','影子/前向'], ['promotion','发布'], ['runtime-status','运行状态'],
-];
-const $ = (h) => { const d=document.createElement('div'); d.innerHTML=h; return d.firstElementChild; };
-const esc = (s) => String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-const num = (v,d=4) => (v==null||Number.isNaN(v))?'—':(typeof v==='number'?v.toFixed(d):esc(v));
-const tag = (t,cls='') => `<span class="tag ${cls}">${esc(t)}</span>`;
-const statusCls = (s) => ({ACTIVE:'ok',CHALLENGER_WINS:'ok',HEALTHY:'ok',CLAIM_ELIGIBLE:'ok',APPROVED_PAPER:'ok',
-  PENDING_RUNTIME_PULL:'warn',DESCRIBE_ONLY:'warn',PENDING_FOUNDER_REVIEW:'warn',UNAVAILABLE:'warn',UNSUPPORTED:'warn',
-  NEGATIVE_RESULT:'bad',ACK_REJECTED:'bad',RUNTIME_REJECTED:'bad',COMPATIBILITY_FAILED:'bad',ROLLED_BACK:'bad'}[s]||'');
-const mfe = (v) => (v==null?'—':(typeof v==='object'
-  ? esc(`总量 ${v.default}` + (v.by_regime&&Object.keys(v.by_regime).length?` · 分 Regime ${JSON.stringify(v.by_regime)}`:''))
-  : esc(v)));
-const json = (o,label='原始对象') => `<details><summary>${label}</summary><pre>${esc(JSON.stringify(o,null,2))}</pre></details>`;
-
-const render = {
-  strategies: (d) => `
-    ${card('已注册市场 Adapter', d.markets.map(m=>`${tag(m.market_id,'acc')} ${esc(m.adapter_version)} · ${esc(m.repo_ref)}`).join('<br>') || '—')}
-    ${table('策略族(Family)', ['family_id','市场','经济机制','目标','状态'],
-      d.families.map(f=>[f.family_id, (f.market_scope||[]).join(','), f.economic_mechanism, f.strategy_goal, tag(f.lifecycle_status)]))}
-    ${table('Bundle(Champion / Challenger / Shadow / Active / Retired)',
-      ['bundle_id','版本','市场','状态','bundle_hash','生效日','activationRef'],
-      d.bundles.map(b=>[b.bundle_id,'v'+b.bundle_version,b.market,tag(b.status,statusCls(b.status)),b.bundle_hash,b.effective_from||'—',b.activationRef||'—']))}
-    ${table('模块版本', ['module_id','版本','类型','市场','状态','parameter_hash'],
-      d.modules.map(m=>[m.module_id,'v'+m.version,m.module_type,m.market,tag(m.status,statusCls(m.status)),m.parameter_hash]))}`,
-
-  experiments: (d) => `
-    ${table('研究假设(机制 / 失败条件 / 主指标 / 守卫)', ['hypothesis_id','研究问题','预期机制','主指标','失败条件'],
-      d.hypotheses.map(h=>[h.hypothesis_id,h.research_question,h.expected_mechanism,tag(h.primary_metric,'acc'),h.failure_condition]))}
-    ${d.experiments.map(e=>`<div class="card">
-      <h3>${esc(e.experiment_id)} ${tag(e.status,statusCls(e.status))} ${e.freeze_verified?tag('冻结完好','ok'):tag('冻结校验失败','bad')}</h3>
-      <div class="row">
-        <span class="kv"><b>changed_component</b>${esc(e.changed_component)}</span>
-        <span class="kv"><b>主指标</b>${esc(e.primary_metric)}</span>
-        <span class="kv"><b>freeze_hash</b>${esc(e.freeze_hash)}</span>
-        <span class="kv"><b>OOS 起点</b>${esc(e.sample&&e.sample.oos_start)}</span>
-        <span class="kv"><b>成本/边</b>${esc(e.costs&&e.costs.cost_per_side)}</span>
-        <span class="kv"><b>最低前向样本</b>${mfe(e.min_forward_evidence)}</span>
-        <span class="kv"><b>Survivorship</b>${esc((e.universe&&e.universe.survivorship_policy)||'未声明')}</span>
-      </div>
-      ${e.backtest?`<div class="row" style="margin-top:8px">
-        <span class="kv"><b>OOS good_precision</b>champ ${num(e.backtest.precision_oos&&e.backtest.precision_oos.champion.good_precision)} → chal ${num(e.backtest.precision_oos&&e.backtest.precision_oos.challenger.good_precision)}</span>
-        <span class="kv"><b>result_hash</b>${esc(e.backtest.result_hash)}</span></div>`:'<div class="note">尚无回测产物</div>'}
-      ${e.wfo?`<div class="row" style="margin-top:8px">
-        <span class="kv"><b>WFO</b>${e.wfo.evaluated_fold_count}/${e.wfo.fold_count} fold · challenger 胜出 ${num(e.wfo.challenger_win_fraction,2)}</span>
-        <span class="kv"><b>选参稳定性</b>${esc(e.wfo.stabilityCn)}</span></div>
-        ${table('', ['fold','train','test','选中参数','test champ','test chal'],
-          e.wfo.folds.map(f=>[f.fold, f.train_from+'..'+f.train_to, f.test_from+'..'+f.test_to,
-            f.selected_params?JSON.stringify(f.selected_params):f.status, num(f.test_champion), num(f.test_challenger)]))}`
-        :'<div class="note">未运行 WFO</div>'}
-      ${e.robustness?`<div class="row" style="margin-top:8px"><span class="kv"><b>鲁棒性</b>${e.robustness.decidable_trial_count} 次可判扰动 · challenger 占优 ${num(e.robustness.challenger_better_fraction,2)}</span></div>
-        <div class="row">${Object.entries(e.robustness.dimensions).map(([k,v])=>tag(k+':'+v.status, v.status==='EVALUATED'?'ok':'warn')).join(' ')}</div>`
-        :'<div class="note">未运行鲁棒性检验</div>'}
-      ${e.result?`<div class="row" style="margin-top:8px"><span class="kv"><b>已锁结果</b>${tag(e.result.verdict,statusCls(e.result.verdict))}</span></div>`:''}
-      ${json(e)}
-    </div>`).join('') || empty('尚无实验')}
-    ${table('负结果台账(资产,不丢弃)', ['negative_result_id','假设','失败原因','归档时间'],
-      d.negative_results.map(n=>[n.negative_result_id,n.hypothesis_ref,n.failure_reason,n.archived_at]))}
-    ${table('因子定义(§9.1 Factor Lab —— 只提供统计信息,无生产动作权)',
-      ['factor_id','版本','方向','horizons','最近 IC 均值','动作权'],
-      d.factors.map(f=>{
-        const ev = (f.evaluations||[]).slice(-1)[0];
-        const ic = ev ? Object.values(ev.by_horizon).map(c=>`${c.horizon_days}d:${num(c.ic_mean,4)}`).join(' · ') : '未评估';
-        return [f.factor_id,'v'+f.version,f.direction,(f.horizons||[]).join('/'),ic,tag(f.production_action_authority,'warn')];
-      }))}`,
-
-  races: (d) => d.races.map(r=>{
-    const res = r.result;
-    return `<div class="card">
-      <h3>${esc(r.race_id)} ${tag(r.race_type)} ${tag(r.status,statusCls(r.status))}</h3>
-      ${res?`
-        <div class="row" style="margin:6px 0 10px">
-          <span class="verdict ${statusCls(res.conclusion)}">${esc(res.conclusion)}</span>
-          <span class="kv"><b>主指标 ${esc(res.primary_metric)}</b>champion ${num(res.champion_value)} → challenger ${num(res.challenger_value)}</span>
-          <span class="kv"><b>守卫</b>${res.guardrail_result.map(g=>tag(g.id+(g.breached?' 违约':' 通过'), g.breached?'bad':'ok')).join(' ')}</span>
-        </div>
-        <div class="row"><span class="kv"><b>受控变量</b>${esc(r.changed_component)} · paired sample ${r.paired_sample_count} 条</span></div>
-        ${res.regime_breakdown&&res.regime_breakdown.status==='EVALUATED'?`
-          <div class="row" style="margin-top:8px"><span class="kv"><b>Regime 稳定性</b>challenger 在 ${num(res.regime_breakdown.stability,2)} 比例的 Regime 下占优 · 口径 ${esc(res.regime_breakdown.regime_model)}</span></div>
-          ${table('', ['Regime','样本','champ GOOD 精度','chal GOOD 精度','challenger 更优'],
-            Object.entries(res.regime_breakdown.by_regime).map(([k,v])=>[k,v.sample_count,num(v.champion.good_precision),num(v.challenger.good_precision),
-              v.challenger_better_good_precision==null?'—':(v.challenger_better_good_precision?tag('是','ok'):tag('否','warn'))]))}`
-          :`<div class="note">Regime 分解:${esc(res.regime_breakdown&&res.regime_breakdown.status||'无')}</div>`}
-        ${res.canonical_metrics?json(res.canonical_metrics,'七轴 Canonical 指标'):''}
-        ${json(res,'RaceResult 全量')}`
-      :'<div class="note">尚未出结果</div>'}
-    </div>`; }).join('') || empty('尚无赛马'),
-
-  shadow: (d) => d.runs.map(s=>`<div class="card">
-      <h3>${esc(s.shadow_id)} ${tag(s.status,statusCls(s.status))} ${tag(s.sufficiency.claim_status,statusCls(s.sufficiency.claim_status))}</h3>
-      <div class="row">
-        <span class="kv"><b>前向样本</b>${s.sufficiency.forward_sample_count}/${s.sufficiency.min_required}</span>
-        <span class="kv"><b>分歧</b>${s.sufficiency.disagreement_count}</span>
-        <span class="kv"><b>Virtual Ledger</b>${esc(s.virtual_ledger_ref)}</span>
-        <span class="kv"><b>事件流</b>${esc(s.market_event_stream_ref)}</span>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <span class="kv"><b>虚拟净值</b>champion ${num(s.forward_metrics.champion_virtual_nav,6)} · challenger ${num(s.forward_metrics.challenger_virtual_nav,6)} · 超额 ${num(s.forward_metrics.virtual_excess,6)}</span>
-        <span class="kv"><b>已完成/未完成窗口</b>${s.forward_metrics.complete_observation_count}/${s.forward_metrics.incomplete_observation_count}</span>
-      </div>
-      <div class="note">${esc(s.forward_metrics.claimCn)}</div>
-      ${s.halted_reason?`<div class="row" style="margin-top:6px">${tag('已停止:'+s.halted_reason+'('+s.halted_failure_class+')','bad')}</div>`:''}
-      ${table('最近观察', ['业务日','一致','champion 输出','challenger 输出','数据质量'],
-        s.observations.slice(-12).reverse().map(o=>[o.business_date, o.agree?tag('一致','ok'):tag('分歧','warn'),
-          (o.champion_output||[]).join(' ')||'—', (o.challenger_output||[]).join(' ')||'—', o.data_quality]))}
-    </div>`).join('') || empty('尚无影子运行'),
-
-  promotion: (d) => `
-    ${d.candidates.map(c=>`<div class="card">
-      <h3>${esc(c.candidate_id)} ${tag(c.review_status,statusCls(c.review_status))}</h3>
-      <div class="row">
-        <span class="kv"><b>候选 Bundle</b>${esc(c.release_candidate_ref)}</span>
-        <span class="kv"><b>实验</b>${esc(c.experiment_ref)}</span>
-        <span class="kv"><b>回滚锚</b>${esc(c.rollback_ref)}</span>
-        <span class="kv"><b>迁移策略</b>${esc(c.migration_policy)}</span>
-      </div>
-      <div class="row"><span class="kv"><b>兼容性</b>${c.compatibility_result?(c.compatibility_result.compatible?tag('通过','ok'):tag('失败:'+c.compatibility_result.reasons.join(';'),'bad')):tag('未检查','warn')}</span></div>
-      ${c.unresolved_gaps&&c.unresolved_gaps.length?`<div class="row">${c.unresolved_gaps.map(g=>tag(g,'warn')).join(' ')}</div>`:''}
-      ${founderActions(c, d)}
-    </div>`).join('') || empty('尚无发布候选')}
-    ${table('不可变 Release', ['release_id','bundle','release_hash','adapter','目标环境','创建时间'],
-      d.releases.map(r=>[r.release_id,r.immutable_bundle_ref,r.release_hash,r.adapter_version,r.target_runtime_class,r.created_at]))}
-    ${table('Activation(Runtime 到生效日拉取并验哈希后才 ACTIVE)',
-      ['activation_id','release','runtime','环境','生效日','状态','ACK'],
-      dedupe(d.activations,'activation_id').map(a=>[a.activation_id,a.release_id,a.target_runtime_id,a.environment,a.effective_from,
-        tag(a.activation_status,statusCls(a.activation_status)),a.runtime_ack||'—']))}
-    ${table('迁移裁定 / REPLAN_REQUIRED(No Silent Migration)', ['类型','activation','持仓','原 release','状态/动作'],
-      d.migration.map(m=>[m.schema, m.activation_ref, m.position_ref||'—', m.originating_release_ref||m.previous_release_ref||'—',
-        m.schema==='REPLAN_REQUIRED_V1'?tag(m.required_action,'warn'):tag(m.status,statusCls(m.status))]))}
-    ${table('回滚记录', ['类型','activation','恢复到','批准人','时间'],
-      d.rollbacks.map(r=>[tag(r.type||r.schema), r.activation_ref, r.restored_release_ref||'—', r.approved_by||'—', r.rolledBackAt||r.triggeredAt]))}`,
-
-  'runtime-status': (d) => d.runtimes.map(r=>`<div class="card">
-      <h3>${esc(r.runtime_id)} · ${esc(r.market)} ${tag(r.health.status||r.health.reason,statusCls(r.health.status))}</h3>
-      <div class="row">
-        <span class="kv"><b>环境</b>${(r.capabilities.environments_supported||[]).join(',')}</span>
-        <span class="kv"><b>real_order</b>${tag(r.capabilities.real_order,'ok')}</span>
-        <span class="kv"><b>broker 连接</b>${tag(String(r.capabilities.broker_connection),'ok')}</span>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <span class="kv"><b>当前生效 Release</b>${esc((r.active_release&&r.active_release.active_release)||r.active_release.status||'—')}</span>
-        <span class="kv"><b>release_hash</b>${esc((r.active_release&&r.active_release.release_hash)||'—')}</span>
-      </div>
-      <div class="row">
-        <span class="kv"><b>待拉取</b>${r.pending_pull.length}</span>
-        <span class="kv"><b>已批准未生效</b>${r.scheduled_not_yet_effective.map(a=>a.activation_id+'@'+a.effective_from).join(' ')||'—'}</span>
-      </div>
-      <div class="row"><span class="kv"><b>持仓只读</b>${esc(r.positions.status)} ${r.positions.reasonCn?('· '+esc(r.positions.reasonCn)):''}</span></div>
-      <div class="row"><span class="kv"><b>绩效只读</b>${esc(r.performance_summary.status)} ${r.performance_summary.reasonCn?('· '+esc(r.performance_summary.reasonCn)):''}</span></div>
-      <div class="note">${esc(r.readOnlyCn)}</div>
-    </div>`).join('') || empty('尚无 Runtime'),
-};
-
-/**
- * §12.1「一键发布」的产品语义:按钮只对**已通过全部 Gate** 的候选可用;
- * 点击不复制代码、不重启进程 —— 只创建不可变 Release 的受控 Activation,
- * 仍要 Runtime 到生效日主动拉取 + 验哈希 + 健康检查才 ACTIVE(§12.2)。
- * 写操作一律带 Founder 令牌;未填令牌时按钮禁用(fail-closed,§18)。
- */
-function founderActions(c, d){
-  const rel = d.releases.find(r=>r.candidate_ref===c.candidate_id) || null;
-  const gatePassed = !!(c.compatibility_result && c.compatibility_result.compatible);
-  if(c.review_status==='PENDING_FOUNDER_REVIEW'){
-    return `<div class="row" style="margin-top:10px">
-      <button class="act" data-action="review" data-candidate="${esc(c.candidate_id)}" ${gatePassed?'':'disabled'}>批准发布到 PAPER(Founder)</button>
-      <button class="act" data-action="reject" data-candidate="${esc(c.candidate_id)}">否决</button>
-      <span class="note">${gatePassed?'全部 Gate 已通过':'兼容性未通过 —— 按钮不可用'}</span>
-    </div>`;
-  }
-  if(c.review_status==='APPROVED_PAPER' && rel){
-    const已激活 = d.activations.some(a=>a.release_id===rel.release_id);
-    return `<div class="row" style="margin-top:10px">
-      <button class="act" data-action="activate" data-release="${esc(rel.release_id)}" ${已激活?'disabled':''}>创建 Activation(PAPER,次日生效)</button>
-      <span class="note">${已激活?'已创建 Activation':'创建后仍需 Runtime 到生效日拉取并验哈希才 ACTIVE'}</span>
-    </div>`;
-  }
-  return '';
+'use strict';
+const TOP_ROUTES=['strategies','experiments','shadow','promotion','runtime-status'];
+const KNOWN_ROUTES=new Set([...TOP_ROUTES,'strategy-detail','runtime-research-loop','races']);
+const $=(id)=>document.getElementById(id);
+const esc=(value)=>String(value==null?'':value).replace(/[&<>"']/g,(char)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const stateTone=(state)=>({AVAILABLE:'ok',CONNECTED:'ok',ACTUAL_CASE_CONNECTED:'ok',READY:'ok',VALID:'ok',RUNNING:'ok',OPEN:'ok',HAS_RESEARCH_QUESTION:'info',HAS_LOCKED_RESULT:'info',RESULT_LOCKED:'info',RESEARCHING:'info',HAS_FORWARD_RUN:'info',DECIDED:'info',OBSERVING:'info',FROZEN_BASELINE:'info',RUN_OFF:'warn',NOT_YET_EFFECTIVE:'warn',EMPTY:'',NOT_CONNECTED:'',NO_ACTUAL_CASE:'warn',DEGRADED:'warn',STALE:'warn',UNKNOWN:'warn',MISSING:'bad',UNAVAILABLE:'bad',INVALID:'bad',BLOCKED:'bad',NOT_VERIFIED:'warn',CONTROLLED_VERIFIED:'info',TARGET_DELIVERED:'ok',OUT_OF_SCOPE:'',CLOSED:''})[state]||'';
+const pill=(label,state='')=>`<span class="pill ${stateTone(state)}">${esc(label)}</span>`;
+const tech=(items,title='技术详情')=>{const rows=(items||[]).filter(Boolean);if(!rows.length)return '';return `<details class="technical"><summary>${esc(title)}</summary><div class="detail-body"><dl>${rows.map((item)=>`<dt>${esc(item.label)}</dt><dd><code>${esc(item.value)}</code></dd>`).join('')}</dl></div></details>`;};
+const answerPanel=(view)=>`<section class="answer-panel" aria-labelledby="page-question"><p class="eyebrow">本页要回答</p><h2 id="page-question">${esc(view.question)}</h2><p class="answer">${esc(view.answer)}</p><p class="next">下一步：${esc(view.next_step)}</p></section>`;
+const emptyState=(title,copy)=>`<section class="empty-state"><h3>${esc(title)}</h3><p>${esc(copy)}</p></section>`;
+function routeInfo(){const raw=location.hash.slice(1)||'strategies';const [name,query='']=raw.split('?');return {name:KNOWN_ROUTES.has(name)?name:'strategies',params:new URLSearchParams(query)};}
+function effectiveRoute(){const name=routeInfo().name;return name==='runtime-research-loop'?'strategy-detail':name==='races'?'experiments':name;}
+function detailHref(strategyRef,section='runtime'){return `#strategy-detail?strategy=${encodeURIComponent(strategyRef)}&section=${encodeURIComponent(section)}`;}
+function renderNavigation(model){const route=effectiveRoute();const current=route==='strategy-detail'?'strategies':route;$('nav').innerHTML=model.navigation.map((item)=>`<a href="#${esc(item.route)}" aria-current="${item.route===current?'page':'false'}">${esc(item.label)}</a>`).join('');}
+function renderContext(model){const route=effectiveRoute();const detail=route==='strategy-detail';const data=route==='runtime-status';$('context-eyebrow').textContent=detail?'当前 Desk 策略':'当前查看范围';$('context-title').textContent=detail?model.context.title:(route==='strategies'?'Desk 系统策略目录':model.navigation.find((item)=>item.route===route)?.label||'Research 研究工作台');$('context-subtitle').textContent=detail?model.context.subtitle:(route==='strategies'?'运行、观察与历史分开；Research 关联不等于策略运行状态':model.safety_label);const picker=$('context-picker');if((detail||data)&&model.context.options.length){picker.innerHTML=`<label for="strategy-picker">切换 Desk 策略</label><select id="strategy-picker">${model.context.options.map((item)=>`<option value="${esc(item.strategy_ref)}" ${item.selected?'selected':''}>${esc(item.market_label)} / ${esc(item.strategy_label)}</option>`).join('')}</select>`;$('strategy-picker').addEventListener('change',(event)=>{location.hash=detail?detailHref(event.target.value,routeInfo().params.get('section')||'runtime'):`#runtime-status?strategy=${encodeURIComponent(event.target.value)}`;});}else picker.innerHTML='';}
+function strategyCard(item){return `<a class="strategy-card" href="${detailHref(item.strategy_ref)}"><span class="market-label">${esc(item.market_label)}</span><h3>${esc(item.name)}</h3><div class="status-row">${pill(item.lifecycle.label,item.lifecycle.code)}${pill(item.mode_label,item.role==='SHADOW'?'OBSERVING':'')}</div><p class="research-line">Research：${esc(item.research.label)}</p><span class="open-label">查看完整策略详情 →</span></a>`;}
+function renderOverview(model){const view=model.views.strategies;if(model.strategy_directory.state!=='AVAILABLE')return `${answerPanel(view)}<section class="error-state" role="alert"><h2>Desk 策略目录暂时不可读取</h2><p>页面没有退回内部实验或样例数据。请检查本地 Desk 只读源后重试。</p><button type="button" class="retry">重试</button></section>`;const current=model.strategy_directory.current;const history=model.strategy_directory.history;return `${answerPanel(view)}<section class="section" aria-labelledby="current-title"><div class="section-head"><h2 id="current-title">运行与观察</h2><p>${current.length} 项 · 生命周期来自 Desk</p></div><div class="strategy-grid">${current.map(strategyCard).join('')}</div></section><section class="section" aria-labelledby="history-title"><div class="section-head"><h2 id="history-title">历史与收尾</h2><p>${history.length} 项 · 与当前运行分开</p></div><div class="strategy-grid">${history.map(strategyCard).join('')}</div></section>`;}
+function sectionNav(strategyRef){const items=[['runtime','运行概览'],['health','体检与证据'],['research','研究与对比'],['forward','前向观察'],['review','复盘与采用']];return `<nav class="section-nav" aria-label="策略详情章节">${items.map(([key,label])=>`<a href="${detailHref(strategyRef,key)}">${label}</a>`).join('')}</nav>`;}
+function linkCard(item,title){return `<article class="card"><div class="fact-head"><h3>${esc(title)}</h3>${pill(item.conclusion_label,item.conclusion)}</div><dl>${item.strategy_name?`<dt>策略</dt><dd>${esc(item.strategy_name)}</dd>`:''}<dt>问题</dt><dd>${esc(item.question_label)}</dd><dt>证据冻结</dt><dd>${item.has_frozen_experiment?'已冻结':'尚未冻结'}</dd><dt>锁定结果</dt><dd>${item.has_locked_result?'已有锁定结果':'尚无锁定结果'}</dd><dt>Desk 决定</dt><dd>${esc(item.adoption_label)}</dd></dl>${tech(item.technical)}</article>`;}
+const usd=(value,digits=2)=>Number.isFinite(value)?new Intl.NumberFormat('zh-CN',{style:'currency',currency:'USD',minimumFractionDigits:digits,maximumFractionDigits:digits}).format(value):'未知';
+const fixed=(value,digits=6)=>Number.isFinite(value)?Number(value).toFixed(digits):'未知';
+function renderDiagnostic(d,productStage,deliveryTruth){if(!d||d.state!=='VERIFIED')return '';const a=d.account;const c=a.costs;const decision=d.traced_decision;const arms=d.native_replay.arms;const handover=d.handover;const stageLabel=productStage?.state_label||'尚未验证';const checkpointRows=a.checkpoints.map((row)=>`<tr><td>${esc(row.date)}</td><td>${esc(row.label)}</td><td>${usd(row.cash,6)}</td><td>${usd(row.equity,6)}</td><td>${row.units?`${fixed(row.units,0)} ${esc(row.instrument)}`:'0（空仓）'}</td></tr>`).join('');const delivery=deliveryTruth?`<section class="section"><div class="section-head"><h3>准备、验收和发布不是同一个状态</h3><p>工程证据不能代替完成权威</p></div><div class="source-grid">${Object.values(deliveryTruth).map((item)=>`<div class="source-card"><strong>${esc(item.label)}</strong><small>${esc(item.state_label)}</small></div>`).join('')}</div></section>`:'';return `<div class="diagnostic"><article class="diagnostic-hero" aria-labelledby="native-diagnostic-title"><p class="eyebrow">US_V5 原版策略诊断</p><h3 id="native-diagnostic-title">一笔真实纸面决策，已完成原生回放与净账户对账</h3><p>${esc(d.window.label)} · 当前 3000 美元簿 · 前身交接、共享规则与当前账户已分层核验。</p><div class="status-row">${pill('输入包已校验','VALID')}${pill('跨簿身份已隔离','VALID')}${pill(`原生回放 ${d.native_replay.parity}`,'VALID')}${pill('账户等式残差 0','VALID')}${pill(`M1 ${stageLabel}`,'NOT_VERIFIED')}</div><div class="truth-note"><strong>状态边界：</strong>诊断能力和受控检查已经可用，但正式 M1 仍受 M0 顺序门禁与原完成权威约束；页面不会自行写成已交付。</div></article>${delivery}<section class="section"><div class="section-head"><h3>先分清三类证据</h3><p>相互引用，不相互冒充</p></div><div class="source-grid"><div class="source-card"><strong>历史真实记录</strong><small>${esc(d.provenance.actual_records)}</small></div><div class="source-card"><strong>原生历史回放</strong><small>${esc(d.provenance.native_replay)}</small></div><div class="source-card"><strong>报告比较基准</strong><small>${esc(d.provenance.benchmark)}</small></div></div></section><section class="section"><div class="grid two"><article class="card connected"><p class="eyebrow">当时实际运行的规则</p><h3>${esc(d.rules.universe)}</h3><dl><dt>信号与载体</dt><dd>${esc(d.rules.signal_series)}</dd><dt>市场状态</dt><dd>${esc(d.rules.regime)}</dd><dt>单元风险</dt><dd>${usd(d.rules.risk_unit_usd,0)}</dd><dt>最大同时持仓</dt><dd>${esc(d.rules.max_positions)}</dd><dt>本载体最长持有</dt><dd>${esc(d.rules.max_hold_days)} 天</dd></dl></article><article class="card"><p class="eyebrow">原生回放</p><h3>${d.native_replay.ticks} 个 tick · ${esc(d.native_replay.parity)}</h3><dl><dt>Desk 毛额臂 S</dt><dd>${usd(arms.S.endValue,2)}（${usd(arms.S.cumulativePnl,2)}）</dd><dt>计划回放臂 D</dt><dd>${usd(arms.D.endValue,2)}（${usd(arms.D.cumulativePnl,2)}）</dd><dt>SPY 比较臂 B</dt><dd>${usd(arms.B.endValue,2)}（${usd(arms.B.cumulativePnl,2)}）</dd><dt>真实账户臂 A</dt><dd>不适用：本簿是 PAPER</dd></dl></article></div><article class="card"><p class="eyebrow">为什么原始记录里会出现旧 6000 美元名称</p><h3>这是已签署的收尾交接，不是把旧结果改成当前结果</h3><p>前身 PLTU 在 ${handover.scan_records_with_predecessor} 条扫描中按原身份收尾，MSFU 决策时占用共享线路 ${handover.shared_limit_at_decision.occupied}/${handover.shared_limit_at_decision.cap} 个名额；当前开仓仍按 3000 美元本金、${usd(handover.current_sizing.risk_unit,0)} 风险单位计算。</p><dl><dt>影响了什么</dt><dd>共享仓位、分类、风险桶和杠杆上限</dd><dt>没有计入什么</dt><dd>当前簿起始持仓、现金、成交和损益</dd><dt>旧名称的含义</dt><dd>共享规则版本，不是当前账本 ID</dd><dt>前身平仓</dt><dd>${esc(handover.closed_at)} 后不再出现在扫描 PAPER 仓位</dd></dl></article></section><section class="section"><div class="section-head"><h3>原生决策与成交链</h3><p>${d.decision_funnel.native_scan_records} 条原生扫描记录</p></div><ol class="timeline"><li><time>${esc(decision.open.at)}</time><strong>MSFU 纸面买入 ${fixed(decision.open.quantity,0)} 股 @ ${fixed(decision.open.price,6)}</strong><span>原因：趋势 BUY 信号；使用 ${esc(decision.open.rule_ref)}。原事件的开仓费用状态保留为 NOT_MEASURED。</span></li><li><time>${esc(decision.monitoring.at)}</time><strong>只读监控观察到 TIME_STOP</strong><span>${esc(decision.monitoring.reason)}</span></li><li><time>${esc(decision.close.at)}</time><strong>MSFU 纸面卖出 ${fixed(decision.close.quantity,0)} 股 @ ${fixed(decision.close.price,6)}</strong><span>原因：${esc(decision.close.reasons.join('、'))}；毛额实现 ${usd(decision.close.realized_gross,6)}，没有真实订单。</span></li></ol><article class="card exception-card"><p class="eyebrow">实际拒绝示例 · 不是 0 笔信号</p><h3>${esc(d.exception_example.instrument)} 未开仓</h3><p>${esc(d.exception_example.reason)} 闸门代码：${esc(d.exception_example.reason_code)}。</p></article><details><summary>查看同日漏斗与原生规则引用</summary><div class="detail-body"><p>${esc(d.decision_funnel.latest_same_day_scan.note)}</p><dl><dt>扫描次数</dt><dd>${esc(d.decision_funnel.latest_same_day_scan.scans_in_session)}</dd><dt>开仓信号</dt><dd><code>${esc(decision.signal_id)}</code></dd><dt>入场规则</dt><dd><code>${esc(d.rules.entry_rule)}</code></dd><dt>退出规则</dt><dd><code>${esc(d.rules.exit_rule)}</code></dd></dl></div></details></section><section class="section"><div class="section-head"><h3>现金、持仓、费用与净结果</h3><p>Desk 毛额与 Research 净额同时保留</p></div><div class="table-wrap"><table><thead><tr><th>日期</th><th>账户节点</th><th>现金</th><th>权益</th><th>持仓</th></tr></thead><tbody>${checkpointRows}</tbody></table></div><div class="metric-grid"><div class="metric"><small>Desk 纸面毛额损益</small><span class="value positive">${usd(a.gross.pnl,6)}</span><small>历史账本事实，不含完整费用</small></div><div class="metric"><small>Research 完整模型成本</small><span class="value negative">−${usd(c.total,6)}</span><small>双边 5 bps + stand-alone 监管费</small></div><div class="metric"><small>Research 净损益</small><span class="value positive">${usd(a.net.pnl,6)}</span><small>净权益 ${usd(a.net.end_equity,6)}</small></div></div><article class="card"><h3>费用逐项核对</h3><div class="cost-list"><span>买入侧 5 bps（原事件缺项，由模型补足）</span><span>${usd(c.signed_model.entry,6)}</span><span>卖出侧 5 bps（与 Desk 已记录金额一致）</span><span>${usd(c.signed_model.exit,6)}</span><span>SEC 卖出费</span><span>${usd(c.regulatory.sec_sell,2)}</span><span>CAT 买入 + 卖出</span><span>${usd(c.regulatory.cat_buy+c.regulatory.cat_sell,2)}</span><span>Alpaca 交易日 TAF</span><span>${usd(c.regulatory.taf_sell,2)}</span><span>佣金</span><span>${usd(c.commission.total,2)}</span><strong>合计</strong><strong>${usd(c.total,6)}</strong></div><p>${esc(c.allocation_limit)}</p><p>滑点 ${usd(decision.slippage.amount,2)} 已包含在成交价中，没有重复扣减。</p></article></section><section class="section"><div class="section-head"><h3>本次诊断能说什么，不能说什么</h3><p>${esc(d.native_replay.diagnosis.class)}</p></div><article class="card"><ul class="limit-list">${d.limitations.map((item)=>`<li>${esc(item)}</li>`).join('')}</ul><div class="status-row">${pill('结论：证据不足','DEGRADED')}${pill('生产影响：无','VALID')}${pill('下单：禁止','VALID')}</div></article></section>${tech([{label:'当前簿 ID',value:d.book_id},{label:'共享规则命名空间',value:handover.rule_namespace},{label:'前身簿 ID',value:handover.predecessor_book_id},{label:'输入包 SHA-256',value:d.technical.package_sha256},{label:'回放文档 hash',value:d.native_replay.document_hash},{label:'冻结策略 digest',value:d.native_replay.frozen_digest},{label:'生产源提交',value:d.technical.production_commit},{label:'验收修订',value:d.acceptance_ref}],'查看来源、版本与内容哈希')}</div>`;}
+function renderDetail(model){
+  const view=model.views['strategy-detail'];
+  const strategy=view.strategy;
+  if(!strategy)return `<section class="error-state" role="alert"><h2>找不到这项 Desk 策略</h2><p>该对象不在当前 Desk 权威目录中，页面不会根据 URL 伪造详情。</p><a class="breadcrumb" href="#strategies">返回策略总览</a></section>`;
+  const health=view.health;
+  const selected=model.context.selected;
+  const baselineCard=health.baseline?`<article class="card"><p class="eyebrow">旧实验冻结基线</p><h3>${esc(health.baseline.full_label)}</h3><dl><dt>角色</dt><dd>${esc(health.baseline.role_label)}</dd><dt>冻结时间</dt><dd>${esc(health.baseline.frozen_at)}</dd><dt>历史评价</dt><dd>${health.baseline.expected_state==='UNKNOWN'?'尚无可引用的完整历史评价':esc(health.baseline.expected_state)}</dd></dl></article>`:'';
+  const blockers=health.blockers.length
+    ? health.blockers.map((item)=>`<article class="card blocker"><h3>${esc(item.label)}</h3><p class="impact">影响：${esc(item.impact)}</p><p class="action">处理：${esc(item.next)}</p></article>`).join('')
+    : health.diagnostic?.state==='VERIFIED'?'':emptyState(health.state==='READY'?'输入条件已齐':'没有该策略的体检缺口清单',health.state==='READY'?'可以继续执行原生回放、账户对账和决策漏斗核对。':health.answer);
+  const diagnostic=renderDiagnostic(health.diagnostic,health.product_stage,health.delivery_truth);
+  return `<a class="breadcrumb" href="#strategies">← 返回策略总览</a><header class="detail-top"><div><p class="eyebrow">${esc(strategy.market_label)} · 策略详情</p><h2>${esc(strategy.name)}</h2><p>${esc(view.runtime.answer)}</p><div class="status-row">${pill(strategy.lifecycle.label,strategy.lifecycle.code)}${pill(strategy.mode_label,strategy.role==='SHADOW'?'OBSERVING':'')}${pill(strategy.research.label,strategy.research.code)}${health.diagnostic?.state==='VERIFIED'?pill('原版诊断可用','VALID'):''}</div></div></header>${sectionNav(strategy.strategy_ref)}<section class="section detail-section" id="detail-runtime"><div class="section-head"><h2>运行概览</h2><p>只读消费 Desk 生命周期</p></div><div class="grid two"><article class="card connected"><h3>当前身份与状态</h3><dl><dt>市场</dt><dd>${esc(strategy.market_label)}</dd><dt>运行模式</dt><dd>${esc(strategy.mode_label)}</dd><dt>生命周期</dt><dd>${esc(strategy.lifecycle.label)}</dd><dt>Research 关联</dt><dd>${esc(strategy.research.label)}</dd>${selected?`<dt>运行截至</dt><dd>${esc(selected.runtime.as_of)}</dd><dt>初始 case 登记质量</dt><dd>${esc(selected.data_quality.label)}</dd>`:''}</dl></article><article class="card"><h3>目前能知道什么</h3><p>${selected?'该策略已有真实运行／研究 case；运行事实、Research 费用覆盖与正式产品阶段仍分开记录。':'Desk 已登记这项策略，但 QRP 尚无可归属于它的真实 case，因此不显示绩效、体检或研究结论。'}</p></article></div></section><section class="section detail-section" id="detail-health"><div class="section-head"><h2>体检与证据完整性</h2><p>${esc(health.answer)}</p></div>${health.current?`<div class="grid two"><article class="card connected"><p class="eyebrow">当前运行对象</p><h3>${esc(health.current.title)}</h3><dl><dt>角色</dt><dd>${esc(health.current.role)}</dd><dt>运行方式</dt><dd>${esc(health.current.mode_label)}</dd><dt>运行截至</dt><dd>${esc(health.current.as_of)}</dd><dt>本次诊断输入</dt><dd>${esc(health.current.data_quality_label)}</dd></dl></article>${baselineCard}</div>`:''}${diagnostic}<div style="margin-top:10px">${blockers}</div></section><section class="section detail-section" id="detail-research"><div class="section-head"><h2>研究问题与方案对比</h2><p>${esc(view.research.answer)}</p></div>${view.research.items.length?view.research.items.map((item)=>linkCard(item,'研究问题与对比')).join(''):emptyState('暂无真实研究问题','这里不会用其他市场或工程样例填满页面。Desk 复盘形成明确问题后，才冻结内容并进入评价。')}</section><section class="section detail-section" id="detail-forward"><div class="section-head"><h2>前向观察</h2><p>${esc(view.forward.answer)}</p></div>${view.forward.items.length?`<div class="grid two">${view.forward.items.map((item)=>`<article class="card"><h3>${esc(item.state_label)}</h3><p>${esc(item.sample_label)}</p><div class="status-row">${pill(item.claim_label,item.claim_label.includes('达到')?'VALID':'DEGRADED')}</div>${tech(item.technical)}</article>`).join('')}</div>`:emptyState('暂无前向观察','只有锁定研究结论进入原前向流程后，才累计独立样本。')}</section><section class="section detail-section" id="detail-review"><div class="section-head"><h2>复盘与采用</h2><p>${esc(view.review.answer)}</p></div>${view.review.items.length?view.review.items.map((item)=>linkCard(item,'Desk 往返与采用')).join(''):emptyState('尚未完成 Desk 往返','没有可回到 Desk 的锁定结论；系统不会代替用户作出采用决定。')}<div class="status-row">${pill(view.review.production_effect_label,view.review.production_effect_label.includes('无')?'VALID':'DEGRADED')}</div></section>${tech(view.technical,'查看本策略技术引用')}`;
 }
-
-async function runAction(btn){
-  const token = document.getElementById('founder-token').value.trim();
-  if(!token){ alert('请先填入 Founder 令牌(X-Founder-Token)'); return; }
-  const a = btn.dataset.action;
-  const body = a==='activate'
-    ? { release_id: btn.dataset.release, environment:'PAPER',
-        target_runtime_id: (window.__runtimeIds&&window.__runtimeIds[0])||'',
-        effective_from: new Date(Date.now()+86400000).toISOString().slice(0,10) }
-    : { candidate_id: btn.dataset.candidate, decision: a==='review'?'APPROVE_PAPER':'REJECT' };
-  const path = a==='activate' ? '/api/activate' : '/api/review';
-  btn.disabled = true;
-  try{
-    const r = await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Founder-Token':token},body:JSON.stringify(body)});
-    const j = await r.json();
-    if(!r.ok){ alert(`失败(${r.status}):${j.reasonCn||j.error}`); btn.disabled=false; return; }
-    await load();
-  }catch(e){ alert(String(e)); btn.disabled=false; }
-}
-
-function card(title, html){ return `<div class="card"><h3>${esc(title)}</h3>${html}</div>`; }
-function empty(t){ return `<div class="card"><div class="empty">${esc(t)}</div></div>`; }
-function dedupe(rows,key){ const m=new Map(); for(const r of rows) m.set(r[key],r); return [...m.values()]; }
-function table(title, cols, rows){
-  if(!rows||!rows.length) return title?card(title,'<div class="empty">—</div>'):'';
-  const head = `<tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr>`;
-  const body = rows.map(r=>`<tr>${r.map(c=>`<td>${typeof c==='string'&&c.startsWith('<span')?c:esc(c)}</td>`).join('')}</tr>`).join('');
-  const t = `<div class="wrap"><table>${head}${body}</table></div>`;
-  return title?card(title,t):t;
-}
-
-let current = location.hash.slice(1) || 'strategies';
-function paint(){
-  document.getElementById('nav').replaceChildren(...TABS.map(([k,label])=>{
-    const b=document.createElement('button'); b.textContent=label; b.setAttribute('aria-current', String(k===current));
-    b.onclick=()=>{ current=k; location.hash=k; load(); paint(); }; return b;
-  }));
-}
-async function load(){
-  const view=document.getElementById('view');
-  view.innerHTML='<div class="empty">加载中…</div>';
-  try{
-    const r = await fetch('/api/'+current);
-    const d = await r.json();
-    view.innerHTML = render[current](d);
-    for(const b of view.querySelectorAll('button.act')) b.onclick = () => runAction(b);
-    document.getElementById('stamp').textContent = '读取于 ' + new Date().toLocaleString('zh-CN');
-  }catch(e){ view.innerHTML = `<div class="card"><div class="empty">读取失败:${esc(e.message)}</div></div>`; }
-}
-// 直接访问 #tab、浏览器前进/后退都要正确切换(同文档导航不会重载脚本)
-window.addEventListener('hashchange', () => {
-  const next = location.hash.slice(1) || 'strategies';
-  if (next !== current && render[next]) { current = next; fetch('/api/runtime-status').then(r=>r.json())
-  .then(d=>{ window.__runtimeIds = (d.runtimes||[]).map(r=>r.runtime_id); })
-  .catch(()=>{ window.__runtimeIds = []; });
-paint(); load(); }
-});
-fetch('/api/runtime-status').then(r=>r.json())
-  .then(d=>{ window.__runtimeIds = (d.runtimes||[]).map(r=>r.runtime_id); })
-  .catch(()=>{ window.__runtimeIds = []; });
-paint(); load();
+function renderResearch(model){const view=model.views.experiments;const comparisons=model.views.races;return `${answerPanel(view)}<section class="section" id="research-questions"><div class="section-head"><h2>真实研究问题</h2><p>跨策略队列</p></div>${view.items.length?view.items.map((item)=>linkCard(item,'研究问题')).join(''):emptyState('研究队列为空','这里不会用平台工程实验替代 Desk 的真实问题。先由 Desk 复盘形成明确问题，再按原研究槽顺序接入。')}</section><section class="section" id="research-comparison"><div class="section-head"><h2>锁定方案对比</h2><p>原版、候选与适当基准</p></div>${comparisons.items.length?comparisons.items.map((item)=>linkCard(item,'方案对比')).join(''):emptyState('还没有锁定对比结果','当前首案的原生扫描、基准行情与完整净成本尚未齐全，不能提前给出胜负。')}</section>`;}
+function renderShadow(model){const view=model.views.shadow;return `${answerPanel(view)}${view.items.length?`<section class="section"><div class="grid two">${view.items.map((item)=>`<article class="card"><h3>${esc(item.state_label)}</h3><p>${esc(item.sample_label)}</p><div class="status-row">${pill(item.claim_label,item.claim_label.includes('达到')?'VALID':'DEGRADED')}</div>${tech(item.technical)}</article>`).join('')}</div></section>`:emptyState('还没有真实前向观察','工程 shadow 样例不会显示为 Desk 策略的前向证据。')}`;}
+function renderPromotion(model){const view=model.views.promotion;return `${answerPanel(view)}${view.items.length?`<section class="section">${view.items.map((item)=>linkCard(item,'Desk 往返与采用')).join('')}</section>`:emptyState('还没有完成真实往返','当前没有可回到 Desk 的锁定研究结论；未实现的采用能力不会被写成“未采用”。')}<section class="section"><div class="section-head"><h2>用户决定与系统结论分开</h2><p>${esc(view.production_effect_label)}</p></div><div class="safety-grid"><div class="safety-item">Research 不能下单</div><div class="safety-item">系统不能代替用户采用</div><div class="safety-item">不写生产参数</div></div></section>${authorityDisclosure(model)}`;}
+function renderRuntime(model){const view=model.views['runtime-status'];return `${answerPanel(view)}<section class="section"><div class="section-head"><h2>所选策略的实际输入</h2><p>${view.sources.length} 个已登记文件</p></div>${view.sources.length?`<div class="grid">${view.sources.map((source)=>`<article class="card"><h3>${esc(source.label)}</h3><p>${esc(source.file_name)}</p><div class="status-row">${pill(source.state_label,'CONNECTED')}</div>${tech([source.technical],'查看原始路径')}</article>`).join('')}</div>`:emptyState('没有已登记的 QRP 实际输入','Desk 策略已登记不等于 Research 输入已接入；未登记也不等于数值为 0。')}</section>${view.blockers.length?`<section class="section"><div class="section-head"><h2>数据缺口</h2><p>影响完整回放与净核算</p></div>${view.blockers.map((item)=>`<article class="card blocker"><h3>${esc(item.label)}</h3><p>${esc(item.impact)}</p></article>`).join('')}</section>`:''}<section class="section"><div class="grid two"><article class="card"><h3>运行状态来源</h3><p>${esc(view.runtime_binding_label)}</p></article><article class="card"><h3>Research 隔离</h3><p>${esc(view.isolation.label)}</p><div class="status-row">${pill('下单：禁止','VALID')}${pill('激活：禁止','VALID')}${pill('写运行态：禁止','VALID')}</div></article></div></section><section class="section"><div class="section-head"><h2>V8.1 产品阶段证据</h2><p>工程通过不等于产品交付</p></div><div class="milestones">${view.milestones.map((stage)=>`<article class="milestone"><strong>${esc(stage.stage)} · ${esc(stage.label)}</strong>${pill(stage.state_label,stage.state)}<small>${esc(stage.environment_label)}</small>${stage.user_result?`<p>${esc(stage.user_result)}</p>`:''}</article>`).join('')}</div></section>${productEvidenceDisclosure(model)}${deskSourceDisclosure(model)}${engineeringDisclosure(model.engineering_samples)}`;}
+function engineeringDisclosure(samples){return `<details class="engineering-samples"><summary>平台工程与历史样例（不属于 Desk 当前策略）</summary><div class="detail-body"><p><strong>${esc(samples.notice)}</strong></p><ul>${samples.groups.map((group)=>`<li>${esc(group.label)}：${group.count} 个${group.technical_ids.length?`<details><summary>查看内部 ID</summary><div class="detail-body"><ul>${group.technical_ids.map((id)=>`<li><code>${esc(id||'MISSING')}</code></li>`).join('')}</ul></div></details>`:''}</li>`).join('')}</ul><p>原始只读接口：${samples.raw_readonly_endpoints.map((endpoint)=>`<code>${esc(endpoint)}</code>`).join(' · ')}</p></div></details>`;}
+function productEvidenceDisclosure(model){const t=model.technical;const health=model.views['strategy-detail'].health;const diagnostic=health.diagnostic;const stage=health.product_stage;return `<details><summary>V8.1 产品里程碑真相（技术详情）</summary><div class="detail-body"><p>冻结验收、版本化修订、实际证据门禁和完成权威共同决定阶段；页面存在或测试通过不会把 <code>NOT_VERIFIED</code> 变成已交付。</p><dl><dt>冻结验收</dt><dd><code>${esc(t.product_acceptance_ref)}</code></dd><dt>版本化修订</dt><dd><code>${esc((t.product_acceptance_amendment_refs||[]).join(' · '))}</code></dd><dt>实际证据门禁</dt><dd>必须绑定同一 case 的真实用户任务与文件哈希证据</dd><dt>完成权威</dt><dd><code>${esc(t.completion_authority)}</code></dd><dt>实际入口</dt><dd><code>/#strategy-detail?strategy=US_V5_ETF_3000USD&amp;section=health</code></dd><dt>M1 阶段</dt><dd>${esc(stage?.state_label||'尚未验证')}</dd><dt>交付环境</dt><dd>${esc(stage?.environment_label||'尚无环境证据')}</dd><dt>用户结果</dt><dd>${diagnostic?.state==='VERIFIED'?'可追踪 MSFU 决策并核对现金、持仓、费用和 Research 净结果':'尚不能完成本案完整体检任务'}</dd><dt>诊断能力</dt><dd>${diagnostic?.state==='VERIFIED'?'同窗原生回放、决策链与净账户对账已通过内容校验':'尚未取得可用的 sealed 诊断输入'}</dd><dt>限制/异常</dt><dd>${diagnostic?.state==='VERIFIED'?'12-session 样本不足；无真实账户臂；监管费为 stand-alone 研究模型':'按页面当前缺口为准；未知不得填 0'}</dd></dl></div></details>`;}
+function deskSourceDisclosure(model){const p=model.technical.desk_directory_provenance;return `<details><summary>查看 Desk 策略目录来源</summary><div class="detail-body">${p?`<p>策略范围、生命周期与名称来自同一组 Desk 只读模块。</p><ul>${p.files.map((item)=>`<li><code>${esc(item.file)}</code><br />SHA-256：<code>${esc(item.sha256)}</code></li>`).join('')}</ul>`:`<p>目录来源不可用：<code>${esc(model.technical.desk_directory_error||'UNKNOWN')}</code></p>`}</div></details>`;}
+function authorityDisclosure(model){return `<details><summary>查看四方权威边界</summary><div class="detail-body"><ul><li>${esc(model.authority.runtime)}</li><li>${esc(model.authority.research)}</li><li>${esc(model.authority.review_and_adoption)}</li><li>${esc(model.authority.cycle)}</li></ul></div></details>`;}
+const renderers={strategies:renderOverview,'strategy-detail':renderDetail,experiments:renderResearch,shadow:renderShadow,promotion:renderPromotion,'runtime-status':renderRuntime};
+let loadedStrategyRef=null;let lastModel=null;
+function requestedStrategy(){return routeInfo().params.get('strategy');}
+function scrollToSection(){const section=routeInfo().name==='runtime-research-loop'?'health':routeInfo().params.get('section');if(section)requestAnimationFrame(()=>document.getElementById(`detail-${section}`)?.scrollIntoView({block:'start'}));}
+function render(model){lastModel=model;renderContext(model);renderNavigation(model);const route=effectiveRoute();$('workspace').innerHTML=renderers[route](model);const label=route==='strategy-detail'?'策略详情':model.navigation.find((item)=>item.route===route)?.label||'Research 研究工作台';document.title=`${label} · Research 研究工作台`;$('workspace').querySelector('.retry')?.addEventListener('click',()=>load(loadedStrategyRef));scrollToSection();}
+async function load(strategyRef=requestedStrategy()||loadedStrategyRef){const workspace=$('workspace');workspace.innerHTML='<div class="loading" role="status">正在读取 Desk 策略目录与研究关联…</div>';try{const query=strategyRef?`?strategy_ref=${encodeURIComponent(strategyRef)}`:'';const response=await fetch(`/api/workspace${query}`,{headers:{Accept:'application/json'}});if(!response.ok)throw new Error(`服务返回 ${response.status}`);const model=await response.json();if(model.error)throw new Error(model.error);loadedStrategyRef=model.context.selected_strategy_ref;render(model);}catch(error){workspace.innerHTML=`<section class="error-state" role="alert"><h2>暂时无法读取 Research 数据</h2><p>${esc(error.message)}</p><button type="button" class="retry">重试</button></section>`;workspace.querySelector('.retry').addEventListener('click',()=>load(strategyRef));}}
+window.addEventListener('hashchange',()=>{const info=routeInfo();if(!KNOWN_ROUTES.has(info.name)){location.hash='strategies';return;}if(info.name==='runtime-research-loop'){const canonical=lastModel?.context.canonical_current_strategy_ref;if(canonical&&canonical!==loadedStrategyRef){load(canonical);return;}}const wanted=requestedStrategy();if(wanted&&wanted!==loadedStrategyRef)load(wanted);else if(lastModel){render(lastModel);$('workspace').focus({preventScroll:true});}});
+load();
 </script>
 </body>
 </html>
