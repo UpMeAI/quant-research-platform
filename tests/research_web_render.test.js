@@ -119,7 +119,7 @@ test('有封存结果时：结论、主数字及区间、六块数字全部来�
   const stress = html.slice(html.indexOf('data-block="stress"'), html.indexOf('data-block="kelly"'));
   assert.match(stress, /最大损失：<strong>[^<]*900[^<]*<\/strong>（场景：区间重放：2020-02-19 至 2020-04-30）/);
   assert.match(stress, /缺场景：2007–2009 行业 ETF 日线在 Mac 与 HK 均无，按 Owner 规则不重新拉取/);
-  assert.match(stress, /已执行 2 个，模拟或补充 1 个，缺场景 1 个，无效输入 0 个/);
+  assert.match(stress, /已执行 2 个压力场景，模拟或补充 1 个，缺场景 1 个，无效输入 0 个；另有当前 D 参照 0 行、风控维度 0 行/);
   assert.match(stress, /规则边界情景：只含 SPY \/ QQQ 合成载体/);
   assert.equal((stress.match(/class="missing-scenario"/g) || []).length, 1);
   const missingRow = /<tr class="missing-scenario">[\s\S]*?<\/tr>/.exec(stress)[0];
@@ -147,7 +147,7 @@ test('压力块：缺场景、无效输入各一行写原因，补充行标模�
   assert.match(stress, /无效输入：没有载体通过流动性底线/);
   assert.match(stress, /缺场景：行业 ETF 日线均无/);
   assert.equal((stress.match(/class="missing-scenario"/g) || []).length, 2);
-  assert.match(stress, /已执行 1 个，模拟或补充 1 个，缺场景 1 个，无效输入 1 个/);
+  assert.match(stress, /已执行 1 个压力场景，模拟或补充 1 个，缺场景 1 个，无效输入 1 个/);
   assert.match(stress, /压力结论：<\/strong>压力评价不完整：缺场景 1 个、无效输入 1 个/);
   assert.match(stress, /研究会话的原文/);
   assert.doesNotMatch(stress, /最大损失：<strong>[^<]*2,000/);
@@ -175,7 +175,8 @@ test('结果文件校验失败：整卡失败关闭，页面不显示任何回�
 
 test('三态结论文字：有支持证据 / 未通过 / 证据不足，尚未回测不冒充其中任何一个', async () => {
   const supported = await renderPage(await model(fixtureProjection((doc) => {
-    doc.verdict.state = 'SUPPORTED'; doc.verdict.L_R = 0.12; doc.verdict.L_g = 0.01; doc.verdict.reason_codes = []; return doc;
+    doc.verdict.state = 'SUPPORTED'; doc.verdict.L_R = 0.12; doc.verdict.L_g = 0.01; doc.verdict.reason_codes = [];
+    doc.stress.rows = doc.stress.rows.filter((row) => !row.missing); return doc;
   })));
   assert.match(supported, /<h2 id="conclusion-title">有支持证据<\/h2>/);
   const notPassed = await renderPage(await model(fixtureProjection((doc) => { doc.verdict.state = 'NOT_PASSED'; doc.verdict.U_R = 0.05; return doc; })));

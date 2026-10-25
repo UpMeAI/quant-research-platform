@@ -127,6 +127,25 @@ function approximationFromGates(doc) {
 const NO_SERIES_STATUS = Object.freeze({ MISSING_SCENARIO: 'MISSING', INVALID_INPUT: 'INVALID_INPUT' });
 const hasNoSeries = (row) => row.missing === true || Object.prototype.hasOwnProperty.call(NO_SERIES_STATUS, row.status);
 
+/**
+ * 压力表里的行分四种角色（冻结说明 2 G2）：
+ *   STRESS 计划 §5.2 在当前 D 上跑的压力场景（费用、滑点、扫描相位、区间重放、极端下跌）——只有它们进「最大损失」和 AC8；
+ *   REFERENCE 当前 D 参照行 `BASELINE`；RISK_DIMENSION 风控维度行 `RISK_*`（Q4 的输入，只报不判）；
+ *   SUPPLEMENTARY 补充情景（`status: SUPPLEMENTARY_NOT_IN_CONCLUSION`）。
+ */
+const stressRole = (row) => {
+  if (row.status === 'SUPPLEMENTARY_NOT_IN_CONCLUSION') return 'SUPPLEMENTARY';
+  if (row.scenario === 'BASELINE') return 'REFERENCE';
+  if (/^RISK_/.test(String(row.scenario || ''))) return 'RISK_DIMENSION';
+  return 'STRESS';
+};
+const HAS_CHINESE = /[\u4e00-\u9fff]/;
+/** 有中文变体就用中文变体（G1）：`<key>_zh` 非空时取它，否则取 `<key>`。 */
+const preferZh = (object, key) => {
+  const zh = object && object[`${key}_zh`];
+  return typeof zh === 'string' && zh.trim() ? zh : object && object[key];
+};
+
 function validateWhole(doc) {
   const repro = doc.reproducibility;
   need(isObject(repro) && typeof repro.command === 'string' && repro.command && Array.isArray(repro.runs)
@@ -154,12 +173,17 @@ function validateWhole(doc) {
     need(Number.isInteger(verdict.n_trades) && verdict.n_trades >= MIN_TRADES, 'Q0_VERDICT_SUPPORTED_SAMPLE_TOO_SMALL', verdict.n_trades);
     need(verdict.engine_approximation.flag === false && !gapped.length, 'Q0_VERDICT_SUPPORTED_ON_APPROXIMATE_ENGINE');
   }
+  const stressRows = isObject(doc.stress) && Array.isArray(doc.stress.rows) ? doc.stress.rows : [];
+  if (verdict.state === 'SUPPORTED') {
+    // AC8（冻结说明 2 G3）：缺场景为不足。计划 §5.2 的压力行缺场景或无效输入时，不得是 SUPPORTED。
+    const incomplete = stressRows.filter((row) => isObject(row) && hasNoSeries(row) && stressRole(row) === 'STRESS').map((row) => row.scenario);
+    need(!incomplete.length, 'Q0_VERDICT_SUPPORTED_WITH_INCOMPLETE_STRESS', incomplete.join(','));
+  }
   if (verdict.state === 'NOT_PASSED') {
     need((finite(verdict.U_R) && verdict.U_R <= DELTA_R) || (finite(verdict.U_g) && verdict.U_g <= DELTA_G),
       'Q0_VERDICT_NOT_PASSED_WITHOUT_EVIDENCE', `U_R=${verdict.U_R} U_g=${verdict.U_g}`);
   }
 
-  const stressRows = isObject(doc.stress) && Array.isArray(doc.stress.rows) ? doc.stress.rows : [];
   for (const row of stressRows) {
     // 缺场景行（F1）没有跑出任何序列，不存在「把模拟当真实」的风险，名称里带「熊市」也不要求 simulated:true。
     if (isObject(row) && !hasNoSeries(row) && /bear|熊|synthetic|模拟/i.test(`${row.scenario || ''}${row.label || ''}`)) {
@@ -280,7 +304,8 @@ const KNOWN_STRESS_STATUS = Object.freeze(['MISSING_SCENARIO', 'INVALID_INPUT', 
  *   - 缺场景：`missing:true`（F1）或 `status:MISSING_SCENARIO`，没有序列，数字全为 null；
  *   - 无效输入：`status:INVALID_INPUT`（例如 2020 年窗口里没有载体通过流动性底线），同样全为 null。
  * 缺场景和无效输入页面写「缺场景：原因」「无效输入：原因」，不让整块变空，也不计为已执行的压力。
- * 原因取 `reason_zh`（若有）、`reason`、`missing_reason`；缺原因、带了数字都只让压力块无效。
+ * 原因语言（冻结说明 2 G1）：`missing_reason`（F1 的冻结字段）→ `reason_zh` → `reason`；缺原因、带了数字都只让压力块无效。
+ * 「最大损失」只取 §5.2 压力场景（G2）：参照行 `BASELINE`、风控维度行 `RISK_*`、补充行、模拟行、缺场景和无效输入都不进，但都留在表里。
  */
 function stressBlock(doc) {
   const stress = doc.stress;
@@ -290,16 +315,22 @@ function stressBlock(doc) {
     const where = `stress.rows[${index}]`;
     need(isObject(row), 'INVALID', where);
     const scenario = field(row, 'scenario', `${where}.scenario`, 'string');
-    const label = typeof row.label === 'string' && row.label ? row.label : scenario;
+    const labelText = preferZh(row, 'label');
+    const label = typeof labelText === 'string' && labelText ? labelText : scenario;
+    const role = stressRole(row);
     need(row.status === undefined || KNOWN_STRESS_STATUS.includes(row.status), 'INVALID', `${where}.status=${row.status} 不认识`);
     if (hasNoSeries(row)) {
-      const reason = [row.reason_zh, row.missing_reason_zh, row.reason, row.missing_reason].find((item) => typeof item === 'string' && item.trim());
-      need(reason, 'MISSING', `${where}.reason`);
+      // 原因语言（冻结说明 2 G1）：先 missing_reason（F1 的冻结字段），再 reason_zh，最后 reason。
+      const reasonRaw = [row.missing_reason, row.reason_zh, row.reason].find((item) => typeof item === 'string' && item.trim());
+      need(reasonRaw, 'MISSING', `${where}.reason`);
       need(STRESS_NUMBERS.every((key) => row[key] === null), 'INVALID', `${where} 缺场景／无效输入行的数字必须是 null，不能用 0 或估计值补位`);
       const kind = row.status === 'INVALID_INPUT' ? 'INVALID_INPUT' : 'MISSING';
+      const kindLabel = kind === 'INVALID_INPUT' ? '无效输入' : '缺场景';
+      // 页面会写「<类别>：<原因>」；原因文本自己已带同一个前缀时去掉，避免「无效输入：无效输入：…」。
+      const reason = reasonRaw.trim().replace(new RegExp(`^${kindLabel}[：:]\\s*`), '');
       return {
-        scenario, label, kind, missing: kind === 'MISSING', invalid_input: kind === 'INVALID_INPUT',
-        kind_label: kind === 'INVALID_INPUT' ? '无效输入' : '缺场景', reason: reason.trim(), missing_reason: reason.trim(),
+        scenario, label, role, kind, missing: kind === 'MISSING', invalid_input: kind === 'INVALID_INPUT',
+        kind_label: kindLabel, reason, missing_reason: reason,
         simulated: false, in_headline: false,
         max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, note: null,
       };
@@ -312,22 +343,25 @@ function stressBlock(doc) {
     }
     need(row.in_headline === undefined || typeof row.in_headline === 'boolean', 'INVALID', `${where}.in_headline`);
     return {
-      scenario, label, kind: supplementary ? 'SUPPLEMENTARY' : (simulated ? 'SIMULATED' : 'EXECUTED'),
+      scenario, label, role, kind: supplementary ? 'SUPPLEMENTARY' : (simulated ? 'SIMULATED' : 'EXECUTED'),
       missing: false, invalid_input: false, kind_label: null, reason: null, missing_reason: null,
       max_loss_usd: field(row, 'max_loss_usd', 'stress.max_loss_usd'),
       longest_underwater_sessions: field(row, 'longest_underwater_sessions', 'stress.longest_underwater_sessions'),
       recovered: field(row, 'recovered', 'stress.recovered', 'bool'), end_capital: field(row, 'end_capital', 'stress.end_capital'),
-      simulated, in_headline: !simulated && row.in_headline !== false,
+      simulated, in_headline: role === 'STRESS' && !simulated && row.in_headline !== false,
       note: simulated ? '模拟序列，不是可交易历史' : null,
     };
   });
   const candidates = mapped.filter((row) => row.in_headline);
   const worst = candidates.reduce((best, row) => (!best || row.max_loss_usd > best.max_loss_usd ? row : best), null);
+  const stressRowsOnly = mapped.filter((row) => row.role === 'STRESS');
   const counts = {
-    executed: mapped.filter((row) => row.kind === 'EXECUTED').length,
+    executed: stressRowsOnly.filter((row) => row.kind === 'EXECUTED').length,
     simulated: mapped.filter((row) => row.simulated).length,
-    missing: mapped.filter((row) => row.kind === 'MISSING').length,
-    invalid_input: mapped.filter((row) => row.kind === 'INVALID_INPUT').length,
+    missing: stressRowsOnly.filter((row) => row.kind === 'MISSING').length,
+    invalid_input: stressRowsOnly.filter((row) => row.kind === 'INVALID_INPUT').length,
+    reference: mapped.filter((row) => row.role === 'REFERENCE').length,
+    risk_dimension: mapped.filter((row) => row.role === 'RISK_DIMENSION').length,
   };
   const incomplete = counts.missing + counts.invalid_input > 0;
   return {
@@ -339,7 +373,11 @@ function stressBlock(doc) {
       text: incomplete
         ? `压力评价不完整：缺场景 ${counts.missing} 个、无效输入 ${counts.invalid_input} 个；缺场景按「不足」处理（AC8），模拟和补充行不参与压力结论。`
         : null,
-      original: typeof stress.conclusion === 'string' && stress.conclusion.trim() ? stress.conclusion.trim() : null,
+      original: (() => {
+        const text = preferZh(stress, 'conclusion');
+        return typeof text === 'string' && text.trim() ? text.trim() : null;
+      })(),
+      original_is_chinese: HAS_CHINESE.test(String(preferZh(stress, 'conclusion') || '')),
     },
   };
 }
@@ -414,10 +452,11 @@ function diagnosisList(doc) {
         need(isObject(item), 'INVALID', `diagnosis_items[${index}]`);
         const source = field(item, 'source', `diagnosis_items[${index}].source`, 'string');
         need(SOURCE_LABELS[source], 'INVALID', `diagnosis_items[${index}].source=${source}`);
-        const facts = Array.isArray(item.facts) ? item.facts.map((fact) => (typeof fact === 'string' ? fact : fact && fact.text)).filter(Boolean) : [];
+        const factList = Array.isArray(item.facts_zh) && item.facts_zh.length ? item.facts_zh : item.facts;
+        const facts = Array.isArray(factList) ? factList.map((fact) => (typeof fact === 'string' ? fact : fact && fact.text)).filter(Boolean) : [];
         need(facts.length, 'MISSING', `diagnosis_items[${index}].facts`);
         const experiment = item.proposed_experiment || null;
-        const reason = item.no_topic_reason || null;
+        const reason = preferZh(item, 'no_topic_reason') || null;
         need(Boolean(experiment) !== Boolean(reason), 'INVALID', `diagnosis_items[${index}] 须二选一：proposed_experiment 或 no_topic_reason`);
         const queue = experiment ? EXPERIMENTS[experiment] || { title: experiment, status: '实验状态未登记' } : null;
         return {
