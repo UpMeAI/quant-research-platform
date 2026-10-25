@@ -175,9 +175,13 @@ function validateWhole(doc) {
   }
   const stressRows = isObject(doc.stress) && Array.isArray(doc.stress.rows) ? doc.stress.rows : [];
   if (verdict.state === 'SUPPORTED') {
-    // AC8（冻结说明 2 G3）：缺场景为不足。计划 §5.2 的压力行缺场景或无效输入时，不得是 SUPPORTED。
+    // G3（修订版）：优势评价与压力评价、采用条件是三件事（§6.7）。压力场景缺场景或无效输入时，SUPPORTED 照常导入，
+    // 但文件必须自己写明压力不完整（reason_codes 含 STRESS_SCENARIO_MISSING），不能让「有支持证据」把它盖住。
     const incomplete = stressRows.filter((row) => isObject(row) && hasNoSeries(row) && stressRole(row) === 'STRESS').map((row) => row.scenario);
-    need(!incomplete.length, 'Q0_VERDICT_SUPPORTED_WITH_INCOMPLETE_STRESS', incomplete.join(','));
+    if (incomplete.length) {
+      need(Array.isArray(verdict.reason_codes) && verdict.reason_codes.includes('STRESS_SCENARIO_MISSING'),
+        'Q0_VERDICT_SUPPORTED_HIDES_INCOMPLETE_STRESS', incomplete.join(','));
+    }
   }
   if (verdict.state === 'NOT_PASSED') {
     need((finite(verdict.U_R) && verdict.U_R <= DELTA_R) || (finite(verdict.U_g) && verdict.U_g <= DELTA_G),
@@ -469,8 +473,36 @@ function diagnosisList(doc) {
   } catch (error) { return { state: 'NOT_BACKTESTED', reason: reasonText(error), items: [] }; }
 }
 
+const EDGE_LABELS = Object.freeze({ SUPPORTED: '有支持证据', NOT_PASSED: '未通过', INSUFFICIENT: '证据不足' });
+const trimKind = (label) => String(label).replace(/[：:](缺场景|无效输入)$/, '');
+
+/**
+ * 优势结论、压力评价、采用条件分开写（V8.1 §6.7；冻结说明 2 G3）：
+ * 压力场景（G2）缺场景或无效输入时，压力评价不完整，采用条件不满足，**无论优势结论是什么**；
+ * 这两行永远写在页面的主内容里，不折叠、不并进优势结论。压力块读不出来时同样按不完整处理。
+ */
+function completenessOf(stressBlock_, verdictState) {
+  const edgeLine = `优势结论：${EDGE_LABELS[verdictState] || verdictState}`;
+  if (!stressBlock_ || stressBlock_.state !== 'AVAILABLE') {
+    return {
+      complete: false, edge_line: edgeLine,
+      stress_line: `压力评价不完整：压力表无法读取（${stressBlock_ ? stressBlock_.reason : '没有压力表'}）`,
+      adoption_line: '采用条件：未满足（必要压力缺失，§6.7）', missing: [], invalid_input: [],
+    };
+  }
+  const rows = stressBlock_.data.rows.filter((row) => row.role === 'STRESS');
+  const missing = rows.filter((row) => row.kind === 'MISSING').map((row) => trimKind(row.label));
+  const invalid = rows.filter((row) => row.kind === 'INVALID_INPUT').map((row) => trimKind(row.label));
+  if (!missing.length && !invalid.length) return { complete: true, edge_line: edgeLine, stress_line: null, adoption_line: null, missing, invalid_input: invalid };
+  return {
+    complete: false, edge_line: edgeLine,
+    stress_line: `压力评价不完整：缺场景 ${missing.length} 个、无效输入 ${invalid.length} 个（${[...missing.map((name) => `${name}：缺场景`), ...invalid.map((name) => `${name}：无效输入`)].join('；')}）`,
+    adoption_line: '采用条件：未满足（必要压力缺失，§6.7）', missing, invalid_input: invalid,
+  };
+}
+
 /** C1：三态结论 + 一个主数字及其区间 + 一个最大的限制。尚未回测时写「尚未回测」和原因，不写「证据不足」。 */
-function conclusionOf(verdictBlock_, doc) {
+function conclusionOf(verdictBlock_, doc, completeness = null) {
   if (!verdictBlock_ || verdictBlock_.state !== 'AVAILABLE') {
     return {
       state: 'NOT_BACKTESTED', label: '尚未回测', reason: verdictBlock_ ? verdictBlock_.reason : '没有封存结果',
@@ -487,7 +519,7 @@ function conclusionOf(verdictBlock_, doc) {
   const oos = (doc.stats.rows || []).find((row) => row.segment === 'OOS' && row.cost_bps === 5 && row.phase === 'PRODUCTION');
   const main = oos && Array.isArray(oos.mean_R_ci) && oos.mean_R_ci.length === 2
     ? { label: '样本外每笔扣费后净 R 均值（5 bps，生产相位）', value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
-  return { state: v.state, label: labels[v.state], reason: null, main_number: main, biggest_limit: limit };
+  return { state: v.state, label: labels[v.state], reason: null, main_number: main, biggest_limit: limit, completeness };
 }
 
 // ── 投影 ────────────────────────────────────────────────────────────────────────
@@ -497,9 +529,11 @@ function project(sealed, lock) {
   const gapped = validateWhole(doc);
   const blocks = buildBlocks(doc, gapped);
   const verdict = blocks.find((block) => block.key === 'verdict');
+  const completeness = completenessOf(blocks.find((block) => block.key === 'stress'), doc.verdict.state);
+  if (verdict.state === 'AVAILABLE') verdict.data.completeness = completeness;
   return {
     state: 'LOCKED_VERIFIED', result_id: lock.result_id, class: EVAL_CLASS, verdict_state: doc.verdict.state,
-    conclusion: conclusionOf(verdict, doc), blocks, diagnosis: diagnosisList(doc),
+    conclusion: conclusionOf(verdict, doc, completeness), blocks, diagnosis: diagnosisList(doc),
     source: {
       result_id: lock.result_id, file_ref: sealed.file, file_sha256: sealed.sha256, size: sealed.size,
       locked_at: lock.locked_at, locked_by: lock.locked_by, plan_ref: PLAN_REF, amendment_ref: AMENDMENT_REF,
@@ -622,6 +656,6 @@ const clearCache = () => defaultReader.clear();
 module.exports = {
   RESULT_SCHEMA, EVAL_CLASS, CASE_REF, STRATEGY_REF, TOP_LEVEL, STATES, DELTA_R, DELTA_G, MIN_TRADES, FLOOR_USD,
   BLOCKS, EXPERIMENTS, LEDGER, readSealed, validateWhole, buildBlocks, diagnosisList, conclusionOf, project,
-  emptyProjection, importBaselineEvaluation, headLock, locks, baselineFor, createProjectionReader, readProjection,
+  emptyProjection, completenessOf, importBaselineEvaluation, headLock, locks, baselineFor, createProjectionReader, readProjection,
   clearCache, fingerprintOf, buildProjection,
 };
