@@ -81,7 +81,7 @@ function authority(recordedBy) {
 // ── 封存文件 ────────────────────────────────────────────────────────────────────
 
 /** 读封存文件及旁边的 `<file>.sha256`；内容与旁证不一致、缺任何顶层字段都失败关闭。 */
-function readSealed(file, { allowNonActual = false } = {}) {
+function readSealed(file, { allowNonActual = false, topLevel = TOP_LEVEL } = {}) {
   need(typeof file === 'string' && path.isAbsolute(file), 'Q0_RESULT_PATH_MUST_BE_ABSOLUTE');
   let real;
   try { real = fs.realpathSync(file); } catch { fail('Q0_RESULT_MISSING', file); }
@@ -97,7 +97,7 @@ function readSealed(file, { allowNonActual = false } = {}) {
   let doc;
   try { doc = JSON.parse(bytes.toString('utf8')); } catch { fail('Q0_RESULT_NOT_JSON', real); }
   need(isObject(doc), 'Q0_RESULT_NOT_OBJECT');
-  const missing = TOP_LEVEL.filter((key) => doc[key] === undefined || doc[key] === null);
+  const missing = topLevel.filter((key) => doc[key] === undefined || doc[key] === null);
   need(!missing.length, 'Q0_RESULT_TOP_LEVEL_MISSING', missing.join(','));
   const stat = fs.statSync(real);
   return { file: real, sidecar, sha256: actual, size: bytes.length, mtimeMs: stat.mtimeMs, doc };
@@ -653,8 +653,15 @@ const defaultReader = createProjectionReader();
 const readProjection = (caseRef = CASE_REF) => defaultReader.read(caseRef);
 const clearCache = () => defaultReader.clear();
 
+/** 同类的导入器（Q1 对比）复用的内部工具；不含任何会改变 Q0 行为的东西。 */
+const internals = {
+  K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
+  stressRole, hasNoSeries, preferZh, trimKind, HAS_CHINESE, STRESS_NUMBERS, KNOWN_STRESS_STATUS, NON_ACTUAL_PATH,
+  REASON_WORDS, EDGE_LABELS, SOURCE_LABELS, EXPERIMENTS, SEGMENT_LABELS,
+};
+
 module.exports = {
-  RESULT_SCHEMA, EVAL_CLASS, CASE_REF, STRATEGY_REF, TOP_LEVEL, STATES, DELTA_R, DELTA_G, MIN_TRADES, FLOOR_USD,
+  internals, RESULT_SCHEMA, EVAL_CLASS, CASE_REF, STRATEGY_REF, TOP_LEVEL, STATES, DELTA_R, DELTA_G, MIN_TRADES, FLOOR_USD,
   BLOCKS, EXPERIMENTS, LEDGER, readSealed, validateWhole, buildBlocks, diagnosisList, conclusionOf, project,
   emptyProjection, completenessOf, importBaselineEvaluation, headLock, locks, baselineFor, createProjectionReader, readProjection,
   clearCache, fingerprintOf, buildProjection,
