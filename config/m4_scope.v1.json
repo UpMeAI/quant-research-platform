@@ -1,0 +1,22 @@
+{
+  "_comment": "V8.1 产品里程碑修订 4（M4 范围：增加策略）A4.1/A4.2 的登记：当期唯一的 M4 方向、仍未立项的方向、Owner 指定的五条策略与批次。页面和里程碑记录都从这里读，不在代码里写死。strategy_ref 为 null 的两条，账本身份在各自 K2 冻结时填入；在那之前它们不能记任何阶段。first_case_strategy_ref 是 A4.5 第 1 条所说的首案（其 M3 PASS 是平台级 M4 PASS 的前提）；registry_acceptance 是 A4.5 第 3 条所说的复用合同（文件 sha256 现场核对）。",
+  "contract": "QRP_M4_SCOPE_V1",
+  "acceptance_ref": "docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_4.md",
+  "acceptance_sha256": "fd2bf0ee11158e1ef1ef0aff454daf03a571dd9cbd8d0f3ce0771bae5d1da76f",
+  "direction": { "key": "ADD_STRATEGY_OR_MARKET", "label_zh": "同一工作台增加策略 / 市场" },
+  "other_directions": [
+    { "key": "CYCLE_LEAD_AB_INCREMENTAL", "label_zh": "从 Cycle 线索进入 A/B 增量评价", "state": "NOT_INITIATED", "state_label_zh": "未立项" }
+  ],
+  "first_case_strategy_ref": "US_V5_ETF_3000USD",
+  "registry_acceptance": {
+    "ref": "docs/contracts/QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1.md",
+    "sha256": "f24dd98774e05abc6377e403d1bd92e31ce7f42627bfbfbbae160835b1e84923"
+  },
+  "items": [
+    { "id": "QUICK_SHOT_V3", "batch": 1, "label_zh": "Quick Shot V3", "strategy_ref": "QUICK_SHOT_V3_1000USDT", "identity_note_zh": null, "currency": "USDT" },
+    { "id": "C17_V2", "batch": 1, "label_zh": "C17_V2", "strategy_ref": "C17_V2_4000USDT", "identity_note_zh": null, "currency": "USDT" },
+    { "id": "ASHARE_V6_STOCK_BOOK", "batch": 2, "label_zh": "Ashare-V6 个股账本（五段链）", "strategy_ref": null, "identity_note_zh": "策略身份在其 K2 冻结时确定", "currency": "CNY" },
+    { "id": "US_CORE", "batch": 2, "label_zh": "美股核心轮动", "strategy_ref": null, "identity_note_zh": "US_CORE（账本身份在其 K2 冻结时确定）", "currency": "USD" },
+    { "id": "CARRY_V2", "batch": 3, "label_zh": "资金费率套利", "strategy_ref": "CARRY_V2_SHADOW_10000USDT", "identity_note_zh": null, "currency": "USDT" }
+  ]
+}
