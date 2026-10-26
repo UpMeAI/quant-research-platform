@@ -6,48 +6,49 @@
  * 研究会话在 Mac 上产出 `US_V5_M2_Q0_RESULT_V1`（一个 JSON 加旁边的 sha256 文件）。QRP 只读导入：
  *   1. `importBaselineEvaluation`（命令行，完成权威）校验封存文件并追加一条 `BASELINE_EVALUATION_LOCK_V1`——
  *      Result Lock 的基线类别 `BASELINE_EVALUATION_V1`（SUPPORTED / NOT_PASSED / INSUFFICIENT，比较对象
- *      SPY_BUY_HOLD / CASH）。每个 case 只锁一次，改锁必须引用缺陷并写原因，旧锁保留；
+ *      取自策略档案：一个市场基准加现金）。每个 case 只锁一次，改锁必须引用缺陷并写原因，旧锁保留；
  *   2. `readProjection`（页面）每次现场复验文件 sha256，再把结果投影成「结论」和六块「回测结论卡」。
  *      文件漂移、缺失、封存校验失败、复现性证明缺失或判定越过算术证据，整卡失败关闭。
  *
  * 页面不重算：所有数字来自结果文件。这里只做封存校验、一致性校验和人话标签。没有 HTTP 写入口，
  * 不使用交易凭证，不写生产参数或账本。
+ *
+ * 按策略不同的值（case、结果 schema、比较对象、底线、相位词、分段词、研究计划与题目队列）都从策略档案
+ * （services/strategy-profiles）按 strategy_ref 取：导入按 `strategyRef` 或结果文件的 schema 找档案，页面按锁上的 strategy_ref 找。
+ * 未登记的 strategy_ref 失败关闭，不写账本。
  */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { dataDir, now, append, read } = require('../../packages/ledger');
+const profiles = require('../strategy-profiles');
 
-const RESULT_SCHEMA = 'US_V5_M2_Q0_RESULT_V1';
 const EVAL_CLASS = 'BASELINE_EVALUATION_V1';
-const CASE_REF = 'RRC-US-V5-3000-V8-1-M0';
-const STRATEGY_REF = 'US_V5_ETF_3000USD';
-const PLAN_REF = 'docs/contracts/US_V5_M2_RESEARCH_PROGRAM_V1.md';
-const AMENDMENT_REF = 'docs/contracts/US_V5_M2_RESEARCH_PROGRAM_V1_AMENDMENT_1.md';
+// 改造前单策略接口的默认参数与导出常量：取注册表的默认档案（registry.default_strategy_ref），不在代码里写死
+const DEFAULT_PROFILE = profiles.defaultProfile();
+const RESULT_SCHEMA = DEFAULT_PROFILE.baseline_result_schema;
+const CASE_REF = DEFAULT_PROFILE.case_ref;
+const STRATEGY_REF = DEFAULT_PROFILE.strategy_ref;
 const TOP_LEVEL = Object.freeze(['identity', 'inputs', 'gates', 'arms', 'stats', 'stress', 'half_kelly',
   'formula_table', 'verdict', 'diagnosis_items', 'reproducibility']);
 const STATES = Object.freeze(['SUPPORTED', 'NOT_PASSED', 'INSUFFICIENT']);
-const COMPARATORS = Object.freeze(['SPY_BUY_HOLD', 'CASH']);
-const ARMS = Object.freeze([['D', '本策略'], ['SPY_BUY_HOLD', 'SPY 买入持有'], ['CASH', '现金']]);
+const comparatorKeys = (profile) => profile.comparators.map((item) => item.key);
+const armsOf = (profile) => [['D', '本策略'], ...profile.comparators.map((item) => [item.key, item.label_zh])];
 const DELTA_R = 0.10; // 计划 §3 冻结，看见结果后不改
 const DELTA_G = 0;
 const MIN_TRADES = 30;
-const FLOOR_USD = 1800;
+const FLOOR_USD = DEFAULT_PROFILE.floor.value;
 const BLOCKS = Object.freeze([
   ['period', '回测周期与覆盖'], ['account', '账户结果'], ['winrate', '胜率与赔率'],
   ['stress', '压力测试'], ['kelly', '半凯利'], ['verdict', '三态结论与判据'],
 ]);
-const SEGMENT_LABELS = Object.freeze({ 'IS-a': '开发期 A', 'IS-b': '开发期 B', OOS: '样本外' });
-const PHASE_LABELS = Object.freeze({ PRODUCTION: '生产相位', PLUS_60MIN: '相位 +60 分钟', MINUS_60MIN: '相位 −60 分钟' });
+const SEGMENT_LABELS = DEFAULT_PROFILE.segment_words;
 const SOURCE_LABELS = Object.freeze({
   DATA: '数据', SELECTION: '选标的', ENTRY_EXIT: '进出规则', RISK: '风控', INSTRUMENT: '工具', EXECUTION: '执行',
 });
-const EXPERIMENTS = Object.freeze({
-  Q1: { title: 'T3：处于趋势时推迟 5 日 TIME stop', status: '排队：Q0 锁定之后开始（验收已签，HK 前向影子在跑）' },
-  Q2: { title: '收益来自信号还是杠杆', status: '排队：可与 Q1 并行' },
-  Q3: { title: '选对象了吗：对比简单基准', status: '排队：Q1 之后' },
-  Q4: { title: '风险预算、集中度、冷却与熔断', status: '候选形成后立题' },
-});
+/** 研究计划里的题目队列（标题与改造前的排队文案），按策略档案取。 */
+const experimentsOf = (profile) => profile.research_program.queue;
+const EXPERIMENTS = experimentsOf(DEFAULT_PROFILE);
 const REASON_WORDS = Object.freeze({
   ENGINE_APPROXIMATION: '研究引擎只是当前 D 的近似',
   A0_NOT_PASSED: '引擎对齐关卡 A0 未通过',
@@ -181,20 +182,24 @@ const preferZh = (object, key) => {
   return typeof zh === 'string' && zh.trim() ? zh : object && object[key];
 };
 
-function validateWhole(doc) {
+/** 结果文件属于哪条策略：显式给了档案就用它；否则按文件的 schema 找，找不到时交给默认档案，由 schema 校验拒绝。 */
+const profileForDoc = (doc) => profiles.byBaselineSchema(isObject(doc) && isObject(doc.identity) ? doc.identity.schema : null) || DEFAULT_PROFILE;
+
+function validateWhole(doc, profile = profileForDoc(doc)) {
   const repro = doc.reproducibility;
   need(isObject(repro) && typeof repro.command === 'string' && repro.command && Array.isArray(repro.runs)
     && repro.runs.length >= 2 && repro.runs.every((run) => isObject(run) && /^[0-9a-f]{64}$/.test(run.sha256 || ''))
     && new Set(repro.runs.map((run) => run.sha256)).size === 1 && repro.identical === true,
   'Q0_RESULT_NOT_REPRODUCED');
   const identity = doc.identity;
-  need(isObject(identity) && identity.schema === RESULT_SCHEMA, 'Q0_RESULT_SCHEMA_UNSUPPORTED', identity && identity.schema);
+  need(isObject(identity) && identity.schema === profile.baseline_result_schema, 'Q0_RESULT_SCHEMA_UNSUPPORTED', identity && identity.schema);
 
   const verdict = doc.verdict;
   need(isObject(verdict) && verdict.class === EVAL_CLASS, 'Q0_VERDICT_CLASS_UNSUPPORTED', verdict && verdict.class);
   need(STATES.includes(verdict.state), 'Q0_VERDICT_STATE_UNSUPPORTED', verdict.state);
-  need(Array.isArray(verdict.comparators) && COMPARATORS.every((name) => verdict.comparators.includes(name))
-    && verdict.comparators.length === COMPARATORS.length, 'Q0_VERDICT_COMPARATORS_CHANGED');
+  const comparators = comparatorKeys(profile);
+  need(Array.isArray(verdict.comparators) && comparators.every((name) => verdict.comparators.includes(name))
+    && verdict.comparators.length === comparators.length, 'Q0_VERDICT_COMPARATORS_CHANGED');
   need(verdict.delta_R === DELTA_R && verdict.delta_g === DELTA_G, 'Q0_VERDICT_DELTA_CHANGED', `${verdict.delta_R}/${verdict.delta_g}`);
   need(verdict.ci_method === 'MONTHLY_BLOCK_BOOTSTRAP_95', 'Q0_VERDICT_CI_METHOD_CHANGED', verdict.ci_method);
   need(isObject(verdict.engine_approximation) && typeof verdict.engine_approximation.flag === 'boolean'
@@ -247,7 +252,7 @@ const field = (parent, key, label, type = 'finite') => {
   return value;
 };
 
-function periodBlock(doc, gapped) {
+function periodBlock(doc, gapped, profile) {
   const segments = doc.inputs && doc.inputs.segments;
   need(Array.isArray(segments) && segments.length, 'MISSING', 'inputs.segments');
   const census = doc.inputs.census;
@@ -256,7 +261,7 @@ function periodBlock(doc, gapped) {
   const missing = [...new Set([...(verdict.engine_approximation.missing || []), ...gapped])];
   return {
     segments: segments.map((segment) => ({
-      id: field(segment, 'id', 'segment.id', 'string'), label: SEGMENT_LABELS[segment.id] || segment.id,
+      id: field(segment, 'id', 'segment.id', 'string'), label: profile.segment_words[segment.id] || segment.id,
       start: field(segment, 'start', 'segment.start', 'string'), end: field(segment, 'end', 'segment.end', 'string'),
       sessions: field(segment, 'sessions'), tradable_carriers: field(segment, 'tradable_carriers'),
       pool_overlap_ratio: field(segment, 'pool_overlap_ratio'),
@@ -272,10 +277,10 @@ function periodBlock(doc, gapped) {
   };
 }
 
-function accountBlock(doc) {
+function accountBlock(doc, profile) {
   const out = [];
   let dates = null;
-  for (const [key, label] of ARMS) {
+  for (const [key, label] of armsOf(profile)) {
     const arm = doc.arms[key];
     need(isObject(arm), 'MISSING', `arms.${key}`);
     const equity = arm.equity;
@@ -300,7 +305,7 @@ function accountBlock(doc) {
   return { arms: out, start: dates[0], end: dates[dates.length - 1] };
 }
 
-function winrateBlock(doc) {
+function winrateBlock(doc, profile) {
   const rows = doc.stats && doc.stats.rows;
   need(Array.isArray(rows) && rows.length, 'MISSING', 'stats.rows');
   const table = doc.formula_table;
@@ -316,9 +321,9 @@ function winrateBlock(doc) {
       need(win >= 0 && win <= 1, 'INVALID', 'stats.win_rate 不在 0–1');
       need(Number.isInteger(row.n) && row.n >= 0, 'INVALID', 'stats.n');
       return {
-        segment: field(row, 'segment', 'stats.segment', 'string'), segment_label: SEGMENT_LABELS[row.segment] || row.segment,
+        segment: field(row, 'segment', 'stats.segment', 'string'), segment_label: profile.segment_words[row.segment] || row.segment,
         cost_bps: field(row, 'cost_bps', 'stats.cost_bps'), phase: field(row, 'phase', 'stats.phase', 'string'),
-        phase_label: merged && row.phase === 'PLUS_60MIN' ? '相位 ±60 分钟' : (PHASE_LABELS[row.phase] || row.phase), n: row.n, win_rate: win,
+        phase_label: merged && row.phase === 'PLUS_60MIN' ? '相位 ±60 分钟' : (profile.phase_words[row.phase] || row.phase), n: row.n, win_rate: win,
         payoff: row.payoff === null ? null : field(row, 'payoff', 'stats.payoff'),
         mean_R: field(row, 'mean_R', 'stats.mean_R'), mean_R_ci: ci(row.mean_R_ci, 'stats.mean_R_ci'),
       };
@@ -421,7 +426,11 @@ function stressBlock(doc) {
   };
 }
 
-function kellyBlock(doc) {
+/**
+ * 半凯利的底线取自策略档案（数值 + 币种 + 说明）。LEGACY_V1 档案（US_V5）沿用改造前的字段名 `floor_usd`（投影由 D1 冻结）；
+ * 其他档案写 `floor: { value, currency, rule_label_zh }`，页面据此写币种和底线说明，不套用 US_V5 的措辞。
+ */
+function kellyBlock(doc, profile) {
   const k = doc.half_kelly;
   need(isObject(k), 'MISSING', 'half_kelly');
   need(isObject(k.replay), 'MISSING', 'half_kelly.replay');
@@ -439,11 +448,15 @@ function kellyBlock(doc) {
   const f = field(k, 'f_half', 'half_kelly.f_half');
   const supported = f > 0;
   need(k.supported === undefined || k.supported === supported, 'INVALID', 'half_kelly.supported 与 f_half 不一致');
-  need(k.floor_usd === undefined || k.floor_usd === FLOOR_USD, 'INVALID', 'half_kelly.floor_usd 不是 Rule 1b 的 1,800');
+  const { floor } = profile;
+  const legacy = profiles.isLegacyShape(profile);
+  const declared = legacy ? k.floor_usd : k.floor;
+  need(declared === undefined || declared === floor.value, 'INVALID', `half_kelly.${legacy ? 'floor_usd' : 'floor'} 不是 ${floor.rule_label_zh}`);
   return {
     p: field(k, 'p', 'half_kelly.p'), p_ci: ci(k.p_ci, 'half_kelly.p_ci'), b: field(k, 'b', 'half_kelly.b'), b_ci: ci(k.b_ci, 'half_kelly.b_ci'),
     f_star: field(k, 'f_star', 'half_kelly.f_star'), f_half: f, supported,
-    floor_usd: FLOOR_USD, half_kelly: side('half_kelly'), fixed_60: side('fixed_60'),
+    ...(legacy ? { floor_usd: floor.value } : { floor: { value: floor.value, currency: floor.currency, rule_label_zh: floor.rule_label_zh } }),
+    half_kelly: side('half_kelly'), fixed_60: side('fixed_60'),
     note: '研究计算，不是仓位建议；现行仓位规则不变',
   };
 }
@@ -453,11 +466,12 @@ const positionOf = (lo, hi, threshold) => (hi <= threshold ? 'AT_OR_BELOW' : (lo
 
 /**
  * 判据逐条（V1 §5.1）：每笔扣费后净 R 均值对门槛 +0.10 R；账户年化对数增长差对门槛 0——
- * 这条差是相对 SPY 买入持有的（真实文件里它与压力表基线行的 g_vs_spy 是同一组数；文件可用 `verdict.g_comparator` 另行声明）；
- * 相对现金的差（`vs_cash`）并列照报，不参与判定规则。页面不重算：点估计和区间都是文件里的数。
+ * 这条差是相对档案里的市场基准的（US_V5：SPY 买入持有，真实文件里它与压力表基线行的 g_vs_spy 是同一组数；
+ * 文件可用 `verdict.g_comparator` 另行声明）；相对现金的差（`vs_cash`）并列照报，不参与判定规则。页面不重算：点估计和区间都是文件里的数。
  */
-function criteriaRows(v) {
-  const comparator = v.g_comparator === 'CASH' ? '现金' : 'SPY 买入持有';
+function criteriaRows(v, profile) {
+  const cash = profiles.comparator(profile, 'CASH');
+  const comparator = (v.g_comparator === cash.key ? cash : profiles.comparator(profile, 'MARKET')).label_zh;
   const rows = [];
   if (finite(v.L_R) && finite(v.U_R)) {
     rows.push({
@@ -473,18 +487,18 @@ function criteriaRows(v) {
       fired: v.U_g <= DELTA_G, decisive: true,
     });
   }
-  const cash = v.vs_cash;
-  if (isObject(cash) && finite(cash.L) && finite(cash.U) && v.g_comparator !== 'CASH') {
+  const vsCash = v.vs_cash;
+  if (isObject(vsCash) && finite(vsCash.L) && finite(vsCash.U) && v.g_comparator !== cash.key) {
     rows.push({
-      key: 'G_CASH', label: `相对现金的年化对数增长差（95% 区间，门槛 ${DELTA_G}）`, short: '相对现金的账户年化对数增长差', unit: 'pct',
-      point: finite(cash.g) ? cash.g : null, ci: { lo: cash.L, hi: cash.U }, threshold: DELTA_G, position: positionOf(cash.L, cash.U, DELTA_G),
+      key: 'G_CASH', label: `相对${cash.label_zh}的年化对数增长差（95% 区间，门槛 ${DELTA_G}）`, short: `相对${cash.label_zh}的账户年化对数增长差`, unit: 'pct',
+      point: finite(vsCash.g) ? vsCash.g : null, ci: { lo: vsCash.L, hi: vsCash.U }, threshold: DELTA_G, position: positionOf(vsCash.L, vsCash.U, DELTA_G),
       fired: false, decisive: false,
     });
   }
   return rows;
 }
 
-function verdictBlock(doc, gapped) {
+function verdictBlock(doc, gapped, profile) {
   const v = doc.verdict;
   const resolved = resolveReasons(v.reason_codes, REASON_WORDS);
   return {
@@ -492,8 +506,9 @@ function verdictBlock(doc, gapped) {
     L_R: v.L_R === undefined ? null : v.L_R, U_R: v.U_R === undefined ? null : v.U_R,
     L_g: v.L_g === undefined ? null : v.L_g, U_g: v.U_g === undefined ? null : v.U_g,
     mean_R: finite(v.mean_R) ? v.mean_R : null, g: finite(v.g) ? v.g : null,
-    n_trades: v.n_trades === undefined ? null : v.n_trades, comparators: v.comparators.map((name) => (name === 'CASH' ? '现金' : 'SPY 买入持有')),
-    ci_method: '按月分块 bootstrap 95%', criteria: criteriaRows(v), reasons: resolved.known, unknown_reason_codes: resolved.unknown,
+    n_trades: v.n_trades === undefined ? null : v.n_trades,
+    comparators: v.comparators.map((name) => (name === profiles.comparator(profile, 'CASH').key ? profiles.comparator(profile, 'CASH') : profiles.comparator(profile, 'MARKET')).label_zh),
+    ci_method: '按月分块 bootstrap 95%', criteria: criteriaRows(v, profile), reasons: resolved.known, unknown_reason_codes: resolved.unknown,
     engine_label: typeof v.label === 'string' && v.label.trim() ? v.label.trim() : null,
     engine_approximation: v.engine_approximation.flag, engine_missing: [...new Set([...(v.engine_approximation.missing || []), ...gapped])],
   };
@@ -506,10 +521,10 @@ function reasonText(error) {
   return `${error.code}${error.detail ? `：${error.detail}` : ''}`;
 }
 
-function buildBlocks(doc, gapped) {
+function buildBlocks(doc, gapped, profile = profileForDoc(doc)) {
   const builders = {
-    period: () => periodBlock(doc, gapped), account: () => accountBlock(doc), winrate: () => winrateBlock(doc),
-    stress: () => stressBlock(doc), kelly: () => kellyBlock(doc), verdict: () => verdictBlock(doc, gapped),
+    period: () => periodBlock(doc, gapped, profile), account: () => accountBlock(doc, profile), winrate: () => winrateBlock(doc, profile),
+    stress: () => stressBlock(doc), kelly: () => kellyBlock(doc, profile), verdict: () => verdictBlock(doc, gapped, profile),
   };
   return BLOCKS.map(([key, title]) => {
     try { return { key, title, state: 'AVAILABLE', reason: null, data: builders[key]() }; } catch (error) {
@@ -518,7 +533,7 @@ function buildBlocks(doc, gapped) {
   });
 }
 
-function diagnosisList(doc) {
+function diagnosisList(doc, profile = profileForDoc(doc)) {
   const items = doc.diagnosis_items;
   if (!Array.isArray(items)) return { state: 'NOT_BACKTESTED', reason: '结果文件缺 diagnosis_items', items: [] };
   try {
@@ -535,7 +550,7 @@ function diagnosisList(doc) {
         const rawReason = preferZh(item, 'no_topic_reason') || null;
         const reason = rawReason ? plainNumbers(rawReason) : null;
         need(Boolean(experiment) !== Boolean(reason), 'INVALID', `diagnosis_items[${index}] 须二选一：proposed_experiment 或 no_topic_reason`);
-        const queue = experiment ? EXPERIMENTS[experiment] || { title: experiment, status: '实验状态未登记' } : null;
+        const queue = experiment ? experimentsOf(profile)[experiment] || { title: experiment, status: '实验状态未登记' } : null;
         return {
           id: item.id || `D${index + 1}`, source, source_label: SOURCE_LABELS[source], facts: facts.map(plainNumbers),
           experiment: experiment ? { id: experiment, title: queue.title, status: queue.status } : null, no_topic_reason: reason,
@@ -639,7 +654,7 @@ function limitOf(v, completeness) {
 }
 
 /** C1：三态结论 + 一个主数字及其区间 + 判定依据 + 限制。尚未回测时写「尚未回测」和原因，不写「证据不足」。 */
-function conclusionOf(verdictBlock_, doc, completeness = null) {
+function conclusionOf(verdictBlock_, doc, completeness = null, profile = profileForDoc(doc)) {
   if (!verdictBlock_ || verdictBlock_.state !== 'AVAILABLE') {
     return {
       state: 'NOT_BACKTESTED', label: '尚未回测', reason: verdictBlock_ ? verdictBlock_.reason : '没有封存结果',
@@ -651,7 +666,7 @@ function conclusionOf(verdictBlock_, doc, completeness = null) {
   const limit = limitOf(v, completeness);
   const oos = (doc.stats.rows || []).find((row) => row.segment === 'OOS' && row.cost_bps === 5 && row.phase === 'PRODUCTION');
   const main = oos && Array.isArray(oos.mean_R_ci) && oos.mean_R_ci.length === 2
-    ? { label: '样本外每笔扣费后净 R 均值（5 bps，生产相位；门槛 +0.10 R）', value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
+    ? { label: `${profile.segment_words.OOS || 'OOS'}每笔扣费后净 R 均值（5 bps，${profile.phase_words.PRODUCTION || 'PRODUCTION'}；门槛 +0.10 R）`, value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
   return {
     state: v.state, label: labels[v.state], reason: null, main_number: main, basis: basisOf(v),
     limit_label: limit.label, biggest_limit: limit.text, completeness,
@@ -660,18 +675,19 @@ function conclusionOf(verdictBlock_, doc, completeness = null) {
 
 // ── 投影 ────────────────────────────────────────────────────────────────────────
 
-function project(sealed, lock) {
+/** 档案按锁上的 strategy_ref 取（未登记即抛错）；只有没写 strategy_ref 的锁（直接投影封存文件）才按文件的 schema 找。 */
+function project(sealed, lock, profile = lock.strategy_ref ? profiles.mustGet(lock.strategy_ref) : profileForDoc(sealed.doc)) {
   const { doc } = sealed;
-  const gapped = validateWhole(doc);
-  const blocks = buildBlocks(doc, gapped);
+  const gapped = validateWhole(doc, profile);
+  const blocks = buildBlocks(doc, gapped, profile);
   const verdict = blocks.find((block) => block.key === 'verdict');
   const completeness = completenessOf(blocks.find((block) => block.key === 'stress'), doc.verdict.state);
   return {
     state: 'LOCKED_VERIFIED', result_id: lock.result_id, class: EVAL_CLASS, verdict_state: doc.verdict.state,
-    conclusion: conclusionOf(verdict, doc, completeness), blocks, diagnosis: diagnosisList(doc),
+    conclusion: conclusionOf(verdict, doc, completeness, profile), blocks, diagnosis: diagnosisList(doc, profile),
     source: {
       result_id: lock.result_id, file_ref: sealed.file, file_sha256: sealed.sha256, size: sealed.size,
-      locked_at: lock.locked_at, locked_by: lock.locked_by, plan_ref: PLAN_REF, amendment_ref: AMENDMENT_REF,
+      locked_at: lock.locked_at, locked_by: lock.locked_by, plan_ref: profile.research_program.plan_ref, amendment_ref: profile.research_program.amendment_ref,
       inputs_digest: lock.inputs_digest, engine_digest: lock.engine_digest,
     },
     production_effect: 'NONE',
@@ -719,13 +735,18 @@ function digests(doc) {
 /**
  * 导入并锁定。同一文件重复导入是幂等重放；case 已有另一份锁定时拒绝（防挑最好一次），
  * 除非显式 `supersedes` 指向当前锁并给出 `defectRef` 与 `reason`（旧锁保留）。
+ * 策略档案：给了 `strategyRef` 就必须已登记（R3.1，未登记在读文件之前就拒绝，账本不写）；没给时按结果文件的 schema 找。
+ * case 默认取档案的 case_ref。
  */
 function importBaselineEvaluation(file, {
-  registeredBy, caseRef = CASE_REF, allowNonActual = false, supersedes = null, defectRef = null, reason = null, lockedAt = null,
+  registeredBy, strategyRef = null, caseRef = null, allowNonActual = false, supersedes = null, defectRef = null, reason = null, lockedAt = null,
 } = {}) {
   authority(registeredBy);
+  const pinned = strategyRef === null ? null : profiles.mustGet(strategyRef);
   const sealed = readSealed(file, { allowNonActual });
-  validateWhole(sealed.doc);
+  const profile = pinned || profileForDoc(sealed.doc);
+  validateWhole(sealed.doc, profile);
+  caseRef = caseRef || profile.case_ref;
   const resultId = `Q0-${sealed.sha256.slice(0, 16)}`;
   const head = headLock(caseRef);
   if (head && head.result_id === resultId) return { ...head, replayHit: true };
@@ -734,9 +755,9 @@ function importBaselineEvaluation(file, {
     need(defectRef && reason, 'BASELINE_SUPERSEDE_REQUIRES_DEFECT_AND_REASON');
   } else need(!supersedes, 'BASELINE_SUPERSEDE_TARGET_NOT_FOUND', supersedes);
   const core = {
-    schema: 'BASELINE_EVALUATION_LOCK_V1', result_id: resultId, case_ref: caseRef, strategy_ref: STRATEGY_REF, eval_class: EVAL_CLASS,
+    schema: 'BASELINE_EVALUATION_LOCK_V1', result_id: resultId, case_ref: caseRef, strategy_ref: profile.strategy_ref, eval_class: EVAL_CLASS,
     verdict_state: sealed.doc.verdict.state, file_ref: sealed.file, file_sha256: sealed.sha256, file_size: sealed.size,
-    ...digests(sealed.doc), plan_ref: PLAN_REF, amendment_ref: AMENDMENT_REF,
+    ...digests(sealed.doc), plan_ref: profile.research_program.plan_ref, amendment_ref: profile.research_program.amendment_ref,
     supersedes_ref: supersedes, defect_ref: defectRef, supersede_reason: reason,
     production_effect: 'NONE', locked_by: registeredBy,
   };
@@ -759,9 +780,10 @@ function fingerprintOf(lock) {
 function buildProjection(lock, { allowNonActual = false } = {}) {
   if (!lock) return emptyProjection('NOT_IMPORTED', '研究会话尚未交付封存的回测结果');
   try {
+    const profile = profiles.mustGet(lock.strategy_ref);
     const sealed = readSealed(lock.file_ref, { allowNonActual });
     if (sealed.sha256 !== lock.file_sha256) fail('Q0_RESULT_DRIFTED_AFTER_LOCK', `${lock.file_sha256.slice(0, 12)}…≠${sealed.sha256.slice(0, 12)}…`);
-    return project(sealed, lock);
+    return project(sealed, lock, profile);
   } catch (error) {
     const missing = error instanceof K3Error && /MISSING/.test(error.code);
     return emptyProjection(missing ? 'MISSING' : 'INVALID', `结果文件校验失败：${reasonText(error)}`, { reason_code: error.code || 'UNKNOWN' });
@@ -793,6 +815,7 @@ const internals = {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, HAS_CHINESE, STRESS_NUMBERS, KNOWN_STRESS_STATUS, NON_ACTUAL_PATH,
   REASON_WORDS, EDGE_LABELS, SOURCE_LABELS, EXPERIMENTS, SEGMENT_LABELS, resolveReasons, plainNumbers, pct1, rText,
+  profileForDoc,
 };
 
 module.exports = {

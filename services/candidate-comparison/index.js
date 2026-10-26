@@ -17,10 +17,14 @@
  * 「把前向并入结论」「把复用的样本外说成独立」。没有 HTTP 写入口，不用交易凭证，不写生产参数或账本。
  * 规则出处：docs/contracts/US_V5_M2_Q1_RESULT_V1_IMPORT_PROFILE.md（Q1，已冻结）与
  * docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md（按题目登记、Q2 登记项）。
+ *
+ * 题目按策略分组：锁上的 case_ref／strategy_ref 与比较对象都取自策略档案（services/strategy-profiles），
+ * 一题属于哪条策略见 registry.js。未登记的 strategy_ref 导入时直接拒绝、页面上失败关闭。
  */
 const fs = require('fs');
 const path = require('path');
 const { dataDir, now, append, read } = require('../../packages/ledger');
+const profiles = require('../strategy-profiles');
 const registry = require('./registry');
 const {
   baseline, K3Error, fail, need, isObject, sha256, canonical, authority, reasonText, digests, stressRole, hasNoSeries,
@@ -42,10 +46,10 @@ const LEDGER = () => path.join(dataDir('research'), 'comparison_evaluations.json
 // ── 封存文件 ────────────────────────────────────────────────────────────────────
 
 /** 只为错误码起名字：不验证内容，读不出来就当默认题。 */
-function sniffEntry(file) {
+function sniffEntry(file, bySchema) {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return registry.bySchema(raw && raw.identity && raw.identity.schema);
+    return bySchema(raw && raw.identity && raw.identity.schema);
   } catch { return null; }
 }
 
@@ -53,9 +57,13 @@ function sniffEntry(file) {
  * 与 Q0 同一套封存读取；错误码前缀由 `Q0_RESULT_` 换成 `<题目>_RESULT_`。
  * 题目由 `options.question` 指定，否则按 `identity.schema` 判断；认不出的 schema 当默认题，
  * 由整文件校验报 `Q1_RESULT_SCHEMA_UNSUPPORTED`（改造前的行为）。
+ * `options.program` 是某条策略的题组（registry.forStrategy）：给了就只在这组题里找；没给时 `question` 按默认题组、schema 按全部登记题目找。
  */
 function readSealed(file, options = {}) {
-  const hinted = options.question ? registry.get(options.question) : null;
+  const program = options.program || null;
+  const getQuestion = program ? program.get : registry.get;
+  const bySchema = program ? program.bySchema : registry.entryBySchema;
+  const hinted = options.question ? getQuestion(options.question) : null;
   need(!options.question || hinted, 'COMPARISON_QUESTION_NOT_REGISTERED', options.question);
   const rename = (error, entry) => {
     if (error instanceof K3Error && /^Q0_RESULT_/.test(error.code)) return new K3Error(error.code.replace(/^Q0_RESULT_/, `${entry.code_prefix}_RESULT_`), error.detail);
@@ -63,9 +71,12 @@ function readSealed(file, options = {}) {
   };
   let sealed;
   try { sealed = baseline.readSealed(file, { allowNonActual: options.allowNonActual, topLevel: ['identity'] }); } catch (error) {
-    throw rename(error, hinted || sniffEntry(file) || DEFAULT_ENTRY);
+    throw rename(error, hinted || sniffEntry(file, bySchema) || DEFAULT_ENTRY);
   }
-  const entry = hinted || registry.bySchema(sealed.doc.identity && sealed.doc.identity.schema) || DEFAULT_ENTRY;
+  const schema = sealed.doc.identity && sealed.doc.identity.schema;
+  // 指定了策略题组时，组里没有这份文件的题目就拒绝，不回落到默认题
+  const entry = hinted || bySchema(schema) || (program ? null : DEFAULT_ENTRY);
+  need(entry, 'COMPARISON_QUESTION_NOT_REGISTERED', `${program && program.strategy_ref}:${schema}`);
   // 显式指定了题目而文件是别的题目的：先报 schema 不符，不要报一串别的题目的顶层字段缺失
   if (hinted && sealed.doc.identity && sealed.doc.identity.schema !== hinted.schema) fail(E(hinted, 'RESULT_SCHEMA_UNSUPPORTED'), sealed.doc.identity.schema);
   const missing = entry.top_level.filter((key) => sealed.doc[key] === undefined || sealed.doc[key] === null);
@@ -247,13 +258,20 @@ function checkBaseline(entry, doc, caseRef) {
  * 导入并锁定。同一文件重复导入是幂等重放；同一题已有另一份锁定时拒绝（防挑最好一次），
  * 除非显式 `supersedes` 指向当前锁并给出 `defectRef` 与 `reason`（旧锁保留）。
  * 题目按 `identity.schema` 判断，`question` 可显式指定（与文件不符则拒绝）。
+ * 策略档案：给了 `strategyRef` 就必须已登记（R3.1，未登记在读文件之前就拒绝，账本不写），且题目必须属于这条策略；
+ * 没给时取这一题所属的策略。case 默认取档案的 case_ref。
  */
 function importCandidateComparison(file, {
-  registeredBy, question = null, caseRef = CASE_REF, allowNonActual = false, supersedes = null, defectRef = null, reason = null, lockedAt = null,
+  registeredBy, strategyRef = null, question = null, caseRef = null, allowNonActual = false, supersedes = null, defectRef = null, reason = null, lockedAt = null,
 } = {}) {
   authority(registeredBy);
-  const sealed = readSealed(file, { allowNonActual, question });
+  const pinned = strategyRef === null ? null : profiles.mustGet(strategyRef);
+  const sealed = readSealed(file, { allowNonActual, question, program: pinned ? registry.forStrategy(pinned.strategy_ref) : null });
   const { entry } = sealed;
+  const profile = pinned || registry.ownerOf(entry);
+  need(profile, 'STRATEGY_PROFILE_NOT_REGISTERED', `${entry.question_ref}:${entry.profile_ref}`);
+  need(registry.forStrategy(profile.strategy_ref).get(entry.question_ref) === entry, 'COMPARISON_QUESTION_NOT_REGISTERED', `${profile.strategy_ref}:${entry.question_ref}`);
+  caseRef = caseRef || profile.case_ref;
   validateWhole(entry, sealed.doc);
   const baselineLock = checkBaseline(entry, sealed.doc, caseRef);
   const resultId = `${entry.question_ref}-${sealed.sha256.slice(0, 16)}`;
@@ -264,7 +282,7 @@ function importCandidateComparison(file, {
     need(defectRef && reason, 'COMPARISON_SUPERSEDE_REQUIRES_DEFECT_AND_REASON');
   } else need(!supersedes, 'COMPARISON_SUPERSEDE_TARGET_NOT_FOUND', supersedes);
   const core = {
-    schema: 'COMPARISON_EVALUATION_LOCK_V1', result_id: resultId, case_ref: caseRef, strategy_ref: STRATEGY_REF, question_ref: entry.question_ref,
+    schema: 'COMPARISON_EVALUATION_LOCK_V1', result_id: resultId, case_ref: caseRef, strategy_ref: profile.strategy_ref, question_ref: entry.question_ref,
     eval_class: EVAL_CLASS, verdict_state: sealed.doc.verdict.state, t3_state: entry.mirror ? sealed.doc.verdict[entry.mirror.field] : null,
     baseline_result_id: baselineLock.result_id, oos_reuse: sealed.doc.oos_reuse === true,
     file_ref: sealed.file, file_sha256: sealed.sha256, file_size: sealed.size, ...digests(sealed.doc),
@@ -290,10 +308,12 @@ function fingerprintOf(lock) {
 
 function buildProjection(lock, { allowNonActual = false, question = QUESTION_REF } = {}) {
   if (!lock) return emptyProjection('NOT_IMPORTED', EMPTY_TEXT, { question_ref: question });
-  const entry = registry.get(lock.question_ref);
+  const program = registry.forStrategy(lock.strategy_ref);
+  if (!program) return emptyProjection('INVALID', `结果文件校验失败：策略 ${lock.strategy_ref} 没有登记`, { question_ref: question, reason_code: 'STRATEGY_PROFILE_NOT_REGISTERED' });
+  const entry = program.get(lock.question_ref);
   if (!entry) return emptyProjection('INVALID', `结果文件校验失败：题目 ${lock.question_ref} 没有登记`, { question_ref: question, reason_code: 'COMPARISON_QUESTION_NOT_REGISTERED' });
   try {
-    const sealed = readSealed(lock.file_ref, { allowNonActual, question: lock.question_ref });
+    const sealed = readSealed(lock.file_ref, { allowNonActual, question: lock.question_ref, program });
     if (sealed.sha256 !== lock.file_sha256) fail(E(entry, 'RESULT_DRIFTED_AFTER_LOCK'), `${lock.file_sha256.slice(0, 12)}…≠${sealed.sha256.slice(0, 12)}…`);
     return project(sealed, lock);
   } catch (error) {
@@ -318,9 +338,15 @@ function createProjectionReader({
       cache.set(key, { at: clock(), stamp, result });
       return result;
     },
-    /** 每个已锁定的题目一张卡，按队列顺序；第一题（Q1）没有结果时也给一张「尚未完成」的卡。 */
+    /**
+     * 这个 case 所属策略的每个已锁定题目一张卡，按队列顺序；第一题（US_V5：Q1）没有结果时也给一张「尚未完成」的卡。
+     * case 不属于任何已登记的策略时没有卡（失败关闭，不借用别的策略的题）。
+     */
     readAll(caseRef = CASE_REF) {
-      return registry.ORDER.filter((question) => question === registry.DEFAULT_QUESTION || head(caseRef, question)).map((question) => this.read(caseRef, question));
+      const profile = profiles.byCase(caseRef);
+      const program = profile && registry.forStrategy(profile.strategy_ref);
+      if (!program) return [];
+      return program.ORDER.filter((question) => question === program.DEFAULT_QUESTION || head(caseRef, question)).map((question) => this.read(caseRef, question));
     },
     clear() { cache.clear(); },
   };

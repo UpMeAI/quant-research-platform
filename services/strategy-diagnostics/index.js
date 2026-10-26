@@ -7,17 +7,27 @@
  * account snapshots. This service verifies the sealed package and reconciles
  * it under the frozen M1 research-cost contract. The browser never recomputes
  * a decision, fee or account value.
+ *
+ * Per strategy (QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1 R2): the evidence
+ * manifest location, diagnostic schema and strategy identity come from the strategy
+ * profile, and the cost model is selected by the profile's cost_model_id
+ * (cost_models/). An unregistered strategy or cost model fails closed.
  */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { isDeepStrictEqual } = require('util');
 const zlib = require('zlib');
+const profiles = require('../strategy-profiles');
+const costModels = require('./cost_models');
+const { ceilCent, calculateCosts } = require('./cost_models/US_V5_M1_RESEARCH_COST_V1');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
-const MANIFEST_REF = 'docs/evidence/CYCLE_RESEARCH_DESK_US_V5_M1_NATIVE_DIAGNOSTIC_2026-10-24.json';
-const MANIFEST_FILE = path.join(REPO_ROOT, MANIFEST_REF);
-const MANIFEST_SHA256 = '8429553ddb2f4f9d9e441b23aa1852a310bbcada691ab08eb60fe513a81acf1d';
+// 改造前的导出常量：默认档案（注册表的 default_strategy_ref）的 M1 证据清单
+const MANIFEST_REF = profiles.defaultProfile().m1_evidence.manifest_ref;
+const MANIFEST_SHA256 = profiles.defaultProfile().m1_evidence.manifest_sha256;
+const manifestFileOf = (profile) => path.join(REPO_ROOT, profile.m1_evidence.manifest_ref);
+const profileOf = (strategyRef) => (strategyRef ? profiles.mustGet(strategyRef) : profiles.defaultProfile());
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_3.md';
 const ACCEPTANCE_SHA256 = '629c43babef597b7fde669b8ac82244d03e6a6d84b85a7af178136f752deb80b';
 const TOLERANCE_USD = 1e-6;
@@ -47,13 +57,6 @@ function rounded(value, places = 8) {
   return Object.is(result, -0) ? 0 : result;
 }
 
-function ceilCent(value) {
-  if (!Number.isFinite(value) || value < 0) throw diagnosticError('US_V5_M1_COST_NOT_FINITE');
-  if (value === 0) return 0;
-  // 12 位有效数字吸收二进制浮点噪声（2.2*100 = 220.00000000000003），整分金额不会被误进一分；
-  // 真正超过整分的金额（如 3.00000000206 分）仍向上取整。
-  return Math.ceil(Number((value * 100).toPrecision(12))) / 100;
-}
 
 function walkFiles(dir) {
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -262,41 +265,23 @@ function eventOf(trade, purpose) {
   return (trade.events || []).find((event) => event.purpose === purpose);
 }
 
-function calculateCosts(openEvent, closeEvent, model) {
-  const signedEntry = openEvent.notional * model.strategy_bps_each_side / 10000;
-  const signedExit = closeEvent.notional * model.strategy_bps_each_side / 10000;
-  const secSell = ceilCent(closeEvent.notional * model.sec_sell_rate_per_dollar);
-  const tafSell = ceilCent(closeEvent.quantity * model.taf_sell_rate_per_share);
-  const catBuy = ceilCent(openEvent.quantity * model.cat_rate_per_equivalent_share_each_side);
-  const catSell = ceilCent(closeEvent.quantity * model.cat_rate_per_equivalent_share_each_side);
-  const regulatory = secSell + tafSell + catBuy + catSell;
-  const signedModel = signedEntry + signedExit;
-  const total = signedModel + regulatory + model.commission_usd;
-  return {
-    signed_model: {
-      state: 'MODELLED', entry: signedEntry, exit: signedExit, total: signedModel,
-      label: '策略签署成本（双边 5 bps）',
-    },
-    regulatory: {
-      state: 'MODELLED_STANDALONE', sec_sell: secSell, taf_sell: tafSell,
-      cat_buy: catBuy, cat_sell: catSell, total: regulatory,
-      label: '监管费研究覆盖层（按日、按账户、各费种向上取整）',
-    },
-    commission: { state: 'MEASURED_ZERO', total: model.commission_usd, label: '普通股票／ETF 佣金' },
-    total,
-  };
-}
 
 function validateIdentity(document, manifest, label) {
   assert(document.ledgerId === manifest.strategy_ref, `US_V5_M1_${label}_LEDGER_MISMATCH`);
 }
 
-function buildDiagnostic({ root, manifest } = {}) {
+function buildDiagnostic({ root, manifest, strategyRef = null } = {}) {
+  const profile = profileOf(strategyRef);
+  const costModel = costModels.resolve(profile.cost_model_id);
   assert(sha256(fs.readFileSync(path.join(REPO_ROOT, ACCEPTANCE_REF))) === ACCEPTANCE_SHA256,
     'US_V5_M1_ACCEPTANCE_CONTENT_DRIFT');
-  if (!manifest) assert(sha256(fs.readFileSync(MANIFEST_FILE)) === MANIFEST_SHA256,
+  if (!manifest) assert(sha256(fs.readFileSync(manifestFileOf(profile))) === profile.m1_evidence.manifest_sha256,
     'US_V5_M1_EVIDENCE_MANIFEST_CONTENT_DRIFT');
-  const evidenceManifest = manifest || readJson(MANIFEST_FILE);
+  const evidenceManifest = manifest || readJson(manifestFileOf(profile));
+  assert(evidenceManifest.strategy_ref === profile.strategy_ref && evidenceManifest.case_ref === profile.case_ref,
+    'DIAGNOSTIC_PROFILE_MISMATCH', { strategy_ref: profile.strategy_ref });
+  assert(evidenceManifest.cost_model && evidenceManifest.cost_model.model_ref === profile.cost_model_id,
+    'DIAGNOSTIC_COST_MODEL_MISMATCH', { cost_model_id: profile.cost_model_id });
   const packageRoot = root || path.join(REPO_ROOT, evidenceManifest.input_package.relative_root);
   assert(evidenceManifest.acceptance_ref === ACCEPTANCE_REF, 'US_V5_M1_ACCEPTANCE_REF_MISMATCH');
   const packageSeal = verifyInputPackage(packageRoot, evidenceManifest.input_package);
@@ -433,7 +418,7 @@ function buildDiagnostic({ root, manifest } = {}) {
   assert(closeEnough(grossPnl, closeEvent.realized.currencyAmount)
     && closeEnough(final.account.equity - initial.account.equity, grossPnl), 'US_V5_M1_GROSS_PNL_RECONCILIATION_FAILED');
 
-  const costs = calculateCosts(openEvent, closeEvent, evidenceManifest.cost_model);
+  const costs = costModel.calculateCosts(openEvent, closeEvent, evidenceManifest.cost_model);
   assert(closeEnough(costs.signed_model.exit, closeEvent.fees.amount), 'US_V5_M1_RECORDED_EXIT_FEE_DRIFT');
   const netPnl = grossPnl - costs.total;
   const netEquity = initial.account.equity + netPnl;
@@ -445,8 +430,8 @@ function buildDiagnostic({ root, manifest } = {}) {
   }
 
   return {
-    schema: 'US_V5_M1_STRATEGY_DIAGNOSTIC_V1', state: 'VERIFIED',
-    acceptance_ref: ACCEPTANCE_REF, manifest_ref: MANIFEST_REF,
+    schema: profile.m1_evidence.diagnostic_schema, state: 'VERIFIED',
+    acceptance_ref: ACCEPTANCE_REF, manifest_ref: profile.m1_evidence.manifest_ref,
     case_ref: evidenceManifest.case_ref, strategy_ref: evidenceManifest.strategy_ref,
     book_id: evidenceManifest.book_id, frozen_predecessor_ref: evidenceManifest.frozen_predecessor_ref,
     window: { ...evidenceManifest.window, label: '2026-10-08 至 2026-10-23（12 个 NYSE session）' },
@@ -582,19 +567,20 @@ function buildDiagnostic({ root, manifest } = {}) {
       label: 'Research 只读：不使用交易凭证，不下单、不激活、不写生产参数或交易账本。',
     },
     technical: {
-      package_root: packageRoot, manifest_ref: MANIFEST_REF, package_sha256: packageSeal.sha256,
+      package_root: packageRoot, manifest_ref: profile.m1_evidence.manifest_ref, package_sha256: packageSeal.sha256,
       production_repository: evidenceManifest.source_provenance.production_repository,
       production_commit: evidenceManifest.source_provenance.production_commit,
     },
   };
 }
 
-function missingDiagnostic(error) {
+/** 失败投影：身份取自所请求的策略档案；策略本身未登记时 strategy_ref 照写请求值，schema 为 null。 */
+function missingDiagnostic(error, profile = profiles.defaultProfile(), strategyRef = profile && profile.strategy_ref) {
   const code = error && (error.code || error.message) || 'US_V5_M1_DIAGNOSTIC_UNKNOWN';
   const missing = code === 'ENOENT' || code.includes('MISSING');
   return {
-    schema: 'US_V5_M1_STRATEGY_DIAGNOSTIC_V1', state: missing ? 'MISSING' : 'INVALID',
-    strategy_ref: 'US_V5_ETF_3000USD', acceptance_ref: ACCEPTANCE_REF,
+    schema: profile ? profile.m1_evidence.diagnostic_schema : null, state: missing ? 'MISSING' : 'INVALID',
+    strategy_ref: strategyRef, acceptance_ref: ACCEPTANCE_REF,
     reason_code: code, missing_artifact: error && (error.missing_path || error.path) || null,
     producer: 'SMARTFLOW_US', responsible_party: 'Smartflow runtime/data owner',
     can_continue: [
@@ -613,12 +599,13 @@ function missingDiagnostic(error) {
 const DIAGNOSTIC_CACHE_TTL_MS = 10 * 60 * 1000;
 const DIAGNOSTIC_FAILURE_TTL_MS = 15 * 1000;
 
-function statFingerprint() {
+function statFingerprint(strategyRef = null) {
   try {
-    const evidenceManifest = readJson(MANIFEST_FILE);
+    const manifestFile = manifestFileOf(profileOf(strategyRef));
+    const evidenceManifest = readJson(manifestFile);
     const root = path.join(REPO_ROOT, evidenceManifest.input_package.relative_root);
     const stat = (file) => { const item = fs.statSync(file); return `${path.relative(REPO_ROOT, file)}:${item.size}:${item.mtimeMs}`; };
-    const rows = [stat(MANIFEST_FILE), stat(path.join(REPO_ROOT, ACCEPTANCE_REF))];
+    const rows = [stat(manifestFile), stat(path.join(REPO_ROOT, ACCEPTANCE_REF))];
     if (fs.existsSync(root)) rows.push(...walkFiles(root).sort(comparePackagePaths).map(stat));
     return sha256(rows.join('\n'));
   } catch (error) {
@@ -626,31 +613,42 @@ function statFingerprint() {
   }
 }
 
+/**
+ * 每条策略一份缓存。`options.strategyRef` 选策略档案（不给 = 默认档案）；未登记的策略不建诊断，直接失败关闭。
+ * 除 strategyRef 外带了任何选项（测试注入 root／manifest）时不走缓存。
+ */
 function createDiagnosticReader({
   build = buildDiagnostic, now = Date.now, ttlMs = DIAGNOSTIC_CACHE_TTL_MS,
   failureTtlMs = DIAGNOSTIC_FAILURE_TTL_MS, fingerprint = () => '',
 } = {}) {
-  let cached = null;
+  const cache = new Map();
   return {
     read(options = {}) {
-      const useCache = Object.keys(options).length === 0;
-      const stamp = useCache ? fingerprint() : null;
+      const { strategyRef = null, ...rest } = options;
+      const profile = strategyRef ? profiles.get(strategyRef) : profiles.defaultProfile();
+      if (!profile) {
+        return missingDiagnostic(Object.assign(new Error('STRATEGY_PROFILE_NOT_REGISTERED'), { code: 'STRATEGY_PROFILE_NOT_REGISTERED' }), null, strategyRef);
+      }
+      const key = profile.strategy_ref;
+      const useCache = Object.keys(rest).length === 0;
+      const stamp = useCache ? fingerprint(strategyRef) : null;
+      const cached = cache.get(key);
       if (useCache && cached && cached.stamp === stamp
         && now() - cached.at < (cached.result.state === 'VERIFIED' ? ttlMs : failureTtlMs)) return cached.result;
       let result;
-      try { result = build(options); } catch (error) { result = missingDiagnostic(error); }
-      if (useCache) cached = { at: now(), result, stamp };
+      try { result = build(options); } catch (error) { result = missingDiagnostic(error, profile); }
+      if (useCache) cache.set(key, { at: now(), result, stamp });
       return result;
     },
-    clear() { cached = null; },
+    clear() { cache.clear(); },
   };
 }
 
 const defaultReader = createDiagnosticReader({ fingerprint: statFingerprint });
 const readDiagnostic = (options = {}) => defaultReader.read(options);
 const clearCache = () => defaultReader.clear();
-/** 不经缓存的现场校验，供里程碑记录等一次性闸使用。 */
-const readFreshDiagnostic = () => { defaultReader.clear(); return defaultReader.read(); };
+/** 不经缓存的现场校验，供里程碑记录等一次性闸使用；`strategyRef` 不给 = 默认档案。 */
+const readFreshDiagnostic = (strategyRef = null) => { defaultReader.clear(); return defaultReader.read(strategyRef ? { strategyRef } : {}); };
 
 module.exports = {
   ACCEPTANCE_REF, ACCEPTANCE_SHA256, MANIFEST_REF, MANIFEST_SHA256, TOLERANCE_USD, TOLERANCE_SHARES,

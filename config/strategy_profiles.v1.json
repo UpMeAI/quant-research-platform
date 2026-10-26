@@ -1,0 +1,48 @@
+{
+  "_comment": "QRP 按策略取值的唯一注册表（QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1 R1）。导入器、M1 诊断、研究工作台、对比题注册、前向观察和页面都按 strategy_ref 从这里取值；未登记的 strategy_ref 失败关闭。US_V5 一项只搬入改造前代码里已有的值，一个都不改。default_strategy_ref 只服务改造前单策略接口的默认参数与导出常量；projection_shape LEGACY_V1 表示投影沿用改造前的字段名与页面措辞（US_V5 的输出由 D1 逐字节冻结），其他档案不写这一项，投影带上自己的币种与底线说明；导入和页面都按 strategy_ref／case／结果 schema 显式取档案。测试档案只在 tests/fixtures/，不进本文件。",
+  "contract": "QRP_STRATEGY_PROFILES_V1",
+  "acceptance_ref": "docs/contracts/QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1.md",
+  "default_strategy_ref": "US_V5_ETF_3000USD",
+  "profiles": [
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "case_ref": "RRC-US-V5-3000-V8-1-M0",
+      "market": "US_EQUITY",
+      "currency": "USD",
+      "display_name": "US_V5",
+      "projection_shape": "LEGACY_V1",
+      "comparators": [
+        { "key": "SPY_BUY_HOLD", "label_zh": "SPY 买入持有", "role": "MARKET" },
+        { "key": "CASH", "label_zh": "现金", "role": "CASH" }
+      ],
+      "floor": { "value": 1800, "currency": "USD", "rule_label_zh": "Rule 1b 的 1,800" },
+      "baseline_result_schema": "US_V5_M2_Q0_RESULT_V1",
+      "import_profile_id": "docs/contracts/US_V5_M2_Q0_RESULT_V1_IMPORT_PROFILE.md",
+      "comparison_import_profile_ids": [
+        "docs/contracts/US_V5_M2_Q1_RESULT_V1_IMPORT_PROFILE.md",
+        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md",
+        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_1.md"
+      ],
+      "phase_words": { "PRODUCTION": "生产相位", "PLUS_60MIN": "相位 +60 分钟", "MINUS_60MIN": "相位 −60 分钟" },
+      "segment_words": { "IS-a": "开发期 A", "IS-b": "开发期 B", "OOS": "样本外" },
+      "cost_model_id": "US_V5_M1_RESEARCH_COST_V1",
+      "m1_evidence": {
+        "manifest_ref": "docs/evidence/CYCLE_RESEARCH_DESK_US_V5_M1_NATIVE_DIAGNOSTIC_2026-10-24.json",
+        "manifest_sha256": "8429553ddb2f4f9d9e441b23aa1852a310bbcada691ab08eb60fe513a81acf1d",
+        "diagnostic_schema": "US_V5_M1_STRATEGY_DIAGNOSTIC_V1"
+      },
+      "forward_observation_source_key": "US_V5_ETF_3000USD",
+      "research_program": {
+        "plan_ref": "docs/contracts/US_V5_M2_RESEARCH_PROGRAM_V1.md",
+        "amendment_ref": "docs/contracts/US_V5_M2_RESEARCH_PROGRAM_V1_AMENDMENT_1.md",
+        "default_question": "Q1",
+        "queue": {
+          "Q1": { "title": "T3：处于趋势时推迟 5 日 TIME stop", "status": "排队：Q0 锁定之后开始（验收已签，HK 前向影子在跑）", "after": [] },
+          "Q2": { "title": "收益来自信号还是杠杆", "status": "排队：可与 Q1 并行", "after": [] },
+          "Q3": { "title": "选对象了吗：对比简单基准", "status": "排队：Q1 之后", "after": ["Q1"] },
+          "Q4": { "title": "风险预算、集中度、冷却与熔断", "status": "候选形成后立题", "after": ["Q3"] }
+        }
+      }
+    }
+  ]
+}
