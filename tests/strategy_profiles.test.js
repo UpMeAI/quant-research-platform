@@ -25,12 +25,12 @@ process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTHORITY;
 const DESK = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-profile-desk-'));
 fs.mkdirSync(path.join(DESK, 'src', 'panel'), { recursive: true });
 fs.writeFileSync(path.join(DESK, 'src', 'operation-review.js'),
-  "module.exports = { OPERATION_REVIEW_BOOKS: { CRYPTO: { FIXTURE_CRYPTO_USDT: 'PAPER', C17_V2_4000USDT: 'PAPER' } } };\n");
+  "module.exports = { OPERATION_REVIEW_BOOKS: { CRYPTO: { FIXTURE_CRYPTO_USDT: 'PAPER', CARRY_V2_SHADOW_10000USDT: 'PAPER' } } };\n");
 fs.writeFileSync(path.join(DESK, 'src', 'panel', 'read-model.js'), [
   'module.exports = { EFFECTIVE_FROM: {}, CLOSED_BOOKS: {}, closedBook: () => false, runOffBook: () => false,',
   "  notYetEffective: () => false, bookLifecycle: () => ({ state: 'OPEN' }) };", ''].join('\n'));
 fs.writeFileSync(path.join(DESK, 'src', 'panel', 'glossary.js'),
-  "module.exports = { explain: (ref) => ({ FIXTURE_CRYPTO_USDT: '测试加密账本（600 USDT 底线）', C17_V2_4000USDT: '加密 C17 账本' })[ref] || ref };\n");
+  "module.exports = { explain: (ref) => ({ FIXTURE_CRYPTO_USDT: '测试加密账本（600 USDT 底线）', CARRY_V2_SHADOW_10000USDT: '资金费率套利影子账本' })[ref] || ref };\n");
 process.env.QRP_DESK_ROOT = DESK;
 
 const profiles = require('../services/strategy-profiles');
@@ -95,7 +95,7 @@ const US_V5_VALUES = [/SPY/, /1,800/, /US\$/, /US_V5/, /RRC-US-V5/, /美元/];
 
 test('生产注册表：US_V5 一项值与改造前代码一致，另有 Quick Shot V3（CRYPTO_Q0_RESULT_V1）；测试档案不在生产注册表里', () => {
   const live = profiles.load();
-  assert.deepEqual(live.profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT']);
+  assert.deepEqual(live.profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT', 'C17_V2_4000USDT']);
   const us = live.profiles[0];
   assert.equal(us.case_ref, 'RRC-US-V5-3000-V8-1-M0');
   assert.equal(us.currency, 'USD');
@@ -270,13 +270,13 @@ test('R3.1 未登记的 strategy_ref：基线与对比导入（服务和命令�
 });
 
 test('R3.2 页面打开未登记的策略：写「该策略尚未接入研究」，不报错、不显示别的策略的数字', async () => {
-  const desk = await workspace.readModel({ strategyRef: 'C17_V2_4000USDT' });
+  const desk = await workspace.readModel({ strategyRef: 'CARRY_V2_SHADOW_10000USDT' });
   const deskDetail = desk.views['strategy-detail'];
   assert.equal(deskDetail.profile_state, 'NOT_REGISTERED');
   assert.equal(deskDetail.profile_label, '该策略尚未接入研究');
   assert.equal(deskDetail.backtest.state, 'NOT_CONNECTED');
   assert.equal(deskDetail.health.diagnostic, null);
-  const deskHtml = await renderPage(desk, '#strategy-detail?strategy=C17_V2_4000USDT&section=all');
+  const deskHtml = await renderPage(desk, '#strategy-detail?strategy=CARRY_V2_SHADOW_10000USDT&section=all');
   assert.match(deskHtml, /<h2 id="conclusion-title">尚未回测：该策略尚未接入研究<\/h2>/);
   assert.doesNotMatch(deskHtml, /role="alert"/);
   for (const pattern of [...US_V5_VALUES, /BTC 买入持有/, /600 USDT/, /FIXTURE/]) assert.doesNotMatch(deskHtml, pattern);

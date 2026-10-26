@@ -84,6 +84,12 @@ function validateProfile(raw, index) {
   if (cf.text(floor, 'currency') !== currency) fail('STRATEGY_PROFILE_FLOOR_CURRENCY_MISMATCH', `${ref}:${floor.currency}≠${currency}`);
 
   c.text(raw, 'baseline_result_schema'); c.text(raw, 'import_profile_id');
+  // CRYPTO_Q0_RESULT_V1 增补 1 冻结说明 1 第 1 条：同一 case 的后继结果 schema（如 C17 的 V2 替代 V1，按导入规格 §8 带 supersedes 导入）
+  if (raw.successor_result_schemas !== undefined) {
+    if (raw.projection_shape === 'LEGACY_V1') fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.successor_result_schemas:not allowed with LEGACY_V1`);
+    const list = c.array(raw, 'successor_result_schemas');
+    if (!list.length || !list.every(isText) || list.includes(raw.baseline_result_schema)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.successor_result_schemas:string[] other than baseline_result_schema`);
+  }
   c.array(raw, 'comparison_import_profile_ids').forEach((id, i) => { if (!isText(id)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.comparison_import_profile_ids[${i}]:string`); });
   c.words(raw, 'phase_words'); c.words(raw, 'segment_words');
   c.text(raw, 'cost_model_id');
@@ -111,6 +117,47 @@ function validateProfile(raw, index) {
 }
 
 const SHARED_DISPLAY_ZH = '共享，未复算';
+const STRESS_COLUMN_FORMATS = Object.freeze(['PCT', 'INT', 'MONEY']);
+
+/** 数组里每一项都是对象、带齐 keys 里的文字字段；空数组不行。 */
+function labelled(list, where, keys) {
+  if (!Array.isArray(list) || !list.length) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:non-empty array`);
+  list.forEach((item, i) => {
+    if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}[${i}]:object`);
+    const ci = checker(`${where}[${i}]`);
+    keys.forEach((key) => ci.text(item, key));
+  });
+  return list;
+}
+
+/**
+ * CRYPTO_Q0_RESULT_V1 增补 1 §1.3 的可选读法键（C17_V2 用；QS 不写，行为不变）：标的说明、压力金额字段、压力另加的列、
+ * 允许 simulated:false 的补充行类别、结论区块的补充行、顶层补充臂、停止事件词、R 与概率的小数位、前向子行。
+ */
+function validateAddendum1(reading, ref) {
+  const where = `${ref}.q0_reading`;
+  const c = checker(where);
+  if (reading.stress_money_field !== undefined) c.text(reading, 'stress_money_field');
+  if (reading.stress_columns !== undefined) {
+    labelled(reading.stress_columns, `${where}.stress_columns`, ['field', 'label_zh']).forEach((item, i) => {
+      if (!STRESS_COLUMN_FORMATS.includes(item.format)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.stress_columns[${i}].format:${STRESS_COLUMN_FORMATS.join('|')}`);
+    });
+  }
+  if (reading.supplementary_kinds !== undefined) c.words(reading, 'supplementary_kinds');
+  if (reading.conclusion_supplementary !== undefined) labelled(reading.conclusion_supplementary, `${where}.conclusion_supplementary`, ['scenario', 'label_zh']);
+  if (reading.supplementary_arm !== undefined) {
+    const arm = c.object(reading, 'supplementary_arm');
+    const ca = checker(`${where}.supplementary_arm`);
+    ca.text(arm, 'field'); ca.text(arm, 'title_zh');
+    labelled(arm.rows, `${where}.supplementary_arm.rows`, ['field', 'label_zh', 'stress_scenario']);
+  }
+  if (reading.halt_events !== undefined) {
+    const halt = c.object(reading, 'halt_events');
+    const ch = checker(`${where}.halt_events`);
+    ch.words(halt, 'rule_words'); ch.words(halt, 'rule_1b_words');
+  }
+  if (reading.r_digits !== undefined && ![2, 3].includes(reading.r_digits)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.r_digits:2|3`);
+}
 const hasNumber = (value) => (typeof value === 'number' ? true
   : value && typeof value === 'object' ? Object.values(value).some(hasNumber) : false);
 
@@ -139,7 +186,9 @@ function validateReadings(raw, ref) {
   }
   if (reading.phase_note_zh !== undefined) c.text(reading, 'phase_note_zh');
   const columns = c.array(reading, 'census_columns');
-  if (!columns.length) fail('STRATEGY_PROFILE_FIELD_MISSING', `${ref}.q0_reading.census_columns.*`);
+  // 增补 1 §1.3：census_columns 可以是空数组（不读 inputs.census，第 1 块改写标的说明），此时必须带 universe_note_zh
+  if (!columns.length && !isText(reading.universe_note_zh)) fail('STRATEGY_PROFILE_FIELD_MISSING', `${ref}.q0_reading.census_columns.*`);
+  if (reading.universe_note_zh !== undefined) c.text(reading, 'universe_note_zh');
   columns.forEach((item, i) => {
     if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.census_columns[${i}]:object`);
     const cc = checker(`${ref}.q0_reading.census_columns[${i}]`);
@@ -161,11 +210,14 @@ function validateReadings(raw, ref) {
   });
   if (thresholds[0].value !== raw.floor.value) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.thresholds[0].value:${thresholds[0].value}≠floor.value ${raw.floor.value}`);
   if (new Set(thresholds.map((item) => item.field)).size !== thresholds.length) fail('STRATEGY_PROFILE_DUPLICATE', `${ref}.q0_reading.kelly.thresholds.field`);
+  if (kelly.probability_digits !== undefined && ![1, 2].includes(kelly.probability_digits)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.probability_digits:1|2`);
   if (reading.forward !== undefined) {
     const forward = c.object(reading, 'forward');
     checker(`${ref}.q0_reading.forward`).text(forward, 'net_field');
     if (forward.ledger_must_equal_strategy_ref !== true) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.forward.ledger_must_equal_strategy_ref:true`);
+    if (forward.sub_rows !== undefined) labelled(forward.sub_rows, `${ref}.q0_reading.forward.sub_rows`, ['field', 'label_zh']);
   }
+  validateAddendum1(reading, ref);
   if (reading.funding_exclusion !== undefined) {
     const funding = c.object(reading, 'funding_exclusion');
     const cf = checker(`${ref}.q0_reading.funding_exclusion`);
@@ -181,7 +233,12 @@ function validateReadings(raw, ref) {
     // §10：共享约束只写文字，任何数字都不得出现（一条策略的数字不进另一条策略的页面，R3.3）
     if (hasNumber(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:no numbers`);
     const cs = checker(where);
-    cs.text(item, 'key'); cs.text(item, 'label_zh'); cs.text(item, 'rule_ref');
+    cs.text(item, 'key'); cs.text(item, 'label_zh');
+    // 冻结说明 1 第 2 条 / US_CORE 裁定 2：桶级规则只写一句原文（text_zh，含「共享，未复算」），没有规则清单里的对应条目时不写 rule_ref
+    if (item.text_zh !== undefined) {
+      if (!cs.text(item, 'text_zh').includes(SHARED_DISPLAY_ZH)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.text_zh:must contain ${SHARED_DISPLAY_ZH}`);
+      if (item.rule_ref !== undefined) cs.text(item, 'rule_ref');
+    } else cs.text(item, 'rule_ref');
     const peers = cs.array(item, 'peers');
     if (!peers.length || !peers.every(isText)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.peers:string[]`);
     if (cs.text(item, 'display_zh') !== SHARED_DISPLAY_ZH) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.display_zh:${SHARED_DISPLAY_ZH}`);
@@ -203,7 +260,7 @@ function validate(doc) {
   };
   unique('strategy_ref', profiles.map((item) => item.strategy_ref));
   unique('case_ref', profiles.map((item) => item.case_ref));
-  unique('baseline_result_schema', profiles.map((item) => item.baseline_result_schema));
+  unique('baseline_result_schema', profiles.flatMap(resultSchemasOf));
   unique('comparison_import_profile_id', profiles.flatMap((item) => item.comparison_import_profile_ids));
   if (!profiles.some((item) => item.strategy_ref === doc.default_strategy_ref)) fail('STRATEGY_PROFILE_DEFAULT_NOT_REGISTERED', doc.default_strategy_ref);
   return Object.freeze({ contract: CONTRACT, default_strategy_ref: doc.default_strategy_ref, profiles: Object.freeze(profiles) });
@@ -229,7 +286,9 @@ const list = () => active.profiles;
 const find = (predicate) => active.profiles.find(predicate) || null;
 const get = (strategyRef) => (strategyRef ? find((item) => item.strategy_ref === strategyRef) : null);
 const byCase = (caseRef) => (caseRef ? find((item) => item.case_ref === caseRef) : null);
-const byBaselineSchema = (schema) => (schema ? find((item) => item.baseline_result_schema === schema) : null);
+/** 档案认的全部 Q0 结果 schema：主 schema 加后继 schema（冻结说明 1 第 1 条）。 */
+function resultSchemasOf(profile) { return [profile.baseline_result_schema, ...(profile.successor_result_schemas || [])]; }
+const byBaselineSchema = (schema) => (schema ? find((item) => resultSchemasOf(item).includes(schema)) : null);
 /** 一个对比导入档案只属于一条策略（validate 保证不重复）。 */
 const byComparisonProfile = (profileRef) => (profileRef ? find((item) => item.comparison_import_profile_ids.includes(profileRef)) : null);
 const defaultProfile = () => get(active.default_strategy_ref);
@@ -245,6 +304,6 @@ const comparator = (profile, role) => profile.comparators.find((item) => item.ro
 const comparatorLabel = (profile, key) => (profile.comparators.find((item) => item.key === key) || {}).label_zh;
 
 module.exports = {
-  FILE, CONTRACT, CURRENCIES, StrategyProfileError, validate, load, use, list, get, mustGet, byCase, byBaselineSchema,
+  FILE, CONTRACT, CURRENCIES, StrategyProfileError, validate, load, use, list, get, mustGet, byCase, byBaselineSchema, resultSchemasOf,
   byComparisonProfile, defaultProfile, isLegacyShape, comparator, comparatorLabel,
 };

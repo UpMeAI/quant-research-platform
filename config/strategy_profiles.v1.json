@@ -105,6 +105,89 @@
       "shared_constraints": [
         { "key": "A19_LOSS_BUDGET", "label_zh": "A19 共享亏损预算", "peers": ["C17_V2_4000USDT"], "display_zh": "共享，未复算", "rule_ref": "QS-C5" }
       ]
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "case_ref": "RRC-C17-V2-4000USDT-V8-1-M0",
+      "market": "CRYPTO_USDM_PERP",
+      "currency": "USDT",
+      "display_name": "C17_V2",
+      "comparators": [
+        { "key": "BTC_BUY_HOLD", "label_zh": "BTC 买入持有", "role": "MARKET" },
+        { "key": "CASH", "label_zh": "现金", "role": "CASH" }
+      ],
+      "floor": { "value": 1800, "currency": "USDT", "rule_label_zh": "Rule 1b 的 1,800 USDT（3,000 USDT 的 40% 线）" },
+      "baseline_result_schema": "C17_V2_M2_Q0_RESULT_V1",
+      "successor_result_schemas": ["C17_V2_M2_Q0_RESULT_V2"],
+      "import_profile_id": "docs/contracts/CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE_ADDENDUM_1.md",
+      "comparison_import_profile_ids": [],
+      "phase_words": { "PRODUCTION": "4H 收线后第一个检查点", "PLUS_60MIN": "晚一小时决定（+60 分钟检查点）" },
+      "segment_words": { "IS": "开发期", "OOS": "样本外" },
+      "cost_model_id": "C17_V2_M1_RESEARCH_COST_V1",
+      "m1_evidence": {
+        "manifest_ref": "docs/evidence/C17_V2_M1_PACKAGE_MANIFEST_2026-10-26.json",
+        "manifest_sha256": "907adfb75d4f1a5067f285c01bd6cadc8695acef08bfab86576cf01f50881c9b",
+        "diagnostic_schema": "C17_V2_M1_STRATEGY_DIAGNOSTIC_V1"
+      },
+      "forward_observation_source_key": "C17_V2_4000USDT",
+      "research_program": {
+        "plan_ref": "smartflow:research/crypto-qrp-onboarding@4d704291:trading-system-v2/docs/C17_V2_QRP_ONBOARDING_K2_DRAFT_V1.md",
+        "amendment_ref": "smartflow:research/crypto-qrp-onboarding@4d704291:trading-system-v2/docs/CRYPTO_QRP_ONBOARDING_FREEZE_2.md",
+        "default_question": null,
+        "queue": {
+          "Q4": { "title": "风控维度：熔断与日停、去风险系数、总持仓、30 h 冷却", "status": "未立题：C17_V2 尚无 M2 研究计划", "after": [] }
+        }
+      },
+      "q0_reading": {
+        "main_row": { "segment": "OOS", "cost": "BASE", "phase": "PRODUCTION" },
+        "cost_words": { "BASE": "基础成本", "FEES_X2": "手续费 ×2" },
+        "phase_note_zh": "只有一种相位压力：晚一小时决定（4H 收线后 +60 分钟的检查点）。本结果按 K2 §5 每根 4H 收线只在第一个 10 分钟检查点决定一次；生产每 10 分钟扫描一次，两者的差见补充行「每 10 分钟扫描」（不进结论）。",
+        "census_columns": [],
+        "universe_note_zh": "主臂只交易 BTC / ETH（R-UNIV-C17 (a)）；非主流 3 个槽在主臂里空着（规则 C17-U2..U6 未实现），非主流见补充的近似臂。",
+        "market_g_path": "stats.g_vs_btc.OOS",
+        "stress_money_field": "max_loss_usdt",
+        "stress_columns": [
+          { "field": "max_drawdown", "label_zh": "最大回撤", "format": "PCT" },
+          { "field": "circuit_trips", "label_zh": "熔断跳闸", "format": "INT" }
+        ],
+        "supplementary_kinds": { "RULE_BOUNDARY": "规则边界", "APPROXIMATION_SIZE": "近似大小" },
+        "conclusion_supplementary": [ { "scenario": "ENGINE_SCAN_EVERY_10MIN", "label_zh": "按生产节奏每 10 分钟扫描" } ],
+        "supplementary_arm": {
+          "field": "non_major_arm",
+          "title_zh": "非主流近似臂（补充，只报不判，不进结论）",
+          "rows": [
+            { "field": "with_non_majors", "label_zh": "主流 + 非主流（代理标的池）", "stress_scenario": "NON_MAJOR_APPROXIMATION_ARM" },
+            { "field": "majors_only_same_window", "label_zh": "同窗口只主流（对照）", "stress_scenario": "NON_MAJOR_ARM_MAJORS_ONLY_SAME_WINDOW" }
+          ]
+        },
+        "halt_events": {
+          "rule_words": { "RULE_1_DRAWDOWN_AT_STOP_LINE": "Rule 1：自起点回撤到 50% 停止线" },
+          "rule_1b_words": { "NOT_EVALUABLE_SHARED_OVERSEAS_BUCKET": "Rule 1b 看海外桶（含其他账本），不复算" }
+        },
+        "r_digits": 3,
+        "kelly": {
+          "floor_field": "floor_usd",
+          "fixed_arm": { "key": "current_rule", "label_zh": "按现行定仓规则" },
+          "thresholds": [
+            { "field": "p_below_floor", "value": 1800, "label_zh": "Rule 1b 40% 线；看重抽路径中的最低权益" }
+          ],
+          "probability_digits": 2
+        },
+        "forward": {
+          "net_field": "net_usdt", "ledger_must_equal_strategy_ref": true,
+          "sub_rows": [ { "field": "current_d_full_from_2026_10_20", "label_zh": "其中 2026-10-20 起全部现行规则同时在效" } ]
+        },
+        "funding_exclusion": { "count_field": "excluded_funding_missing", "share_field": "excluded_share", "rule_ref_zh": "R-FUND (a)" },
+        "disclosures_zh": [
+          "样本外复用：2021–2026 的 BTC / ETH 已被 C17 的多项研究使用（保真度 B21 / H22 / R23 / W21 等）（K2 §5，oos_reuse = true）；真正没用过的只有尾部与前向。",
+          "R 的定义：每笔开仓时的计划风险（plannedRiskUsdt，150.75 × 系数），不是固定金额（K2 §5）。"
+        ]
+      },
+      "shared_constraints": [
+        { "key": "A19_LOSS_BUDGET", "label_zh": "A19 共享亏损预算", "peers": ["QUICK_SHOT_V3_1000USDT"], "display_zh": "共享，未复算", "rule_ref": "C17-R2" },
+        { "key": "OVERSEAS_BUCKET_RULE_1B", "label_zh": "海外桶 Rule 1b", "peers": ["US_V5_ETF_3000USD", "US_CORE", "QUICK_SHOT_V3_1000USDT"], "display_zh": "共享，未复算", "research_ref": "R1B-1",
+          "text_zh": "海外桶 Rule 1b：四本账合计 16,000，自起点峰值回撤 ≥ 40% 全体停新开仓，只有 Owner 解除（共享，未复算；研究题 R1B-1）" }
+      ]
     }
   ]
 }
