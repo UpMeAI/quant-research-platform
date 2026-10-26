@@ -36,6 +36,8 @@ const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
 const NOT_REGISTERED_LABEL = '该策略尚未接入研究';
+/** 非 LEGACY 档案已锁 Q0、运行态 case 还没建立时的接入状态（页头、目录卡片同一写法）。 */
+const BASELINE_LOCKED_LABEL = 'Q0 回测结论已锁定；运行态 case 尚未建立';
 
 const NAVIGATION = Object.freeze([
   { route: 'strategies', label: '策略总览', question: 'Desk 当前有哪些运行、观察和历史策略？' },
@@ -508,7 +510,17 @@ async function readModel({
   // 非 LEGACY 档案已锁 Q0、运行态 case 还没建立：各处说法与上方的回测结论一致，不再写「尚未接入」「不显示研究结论」
   const baselineWithoutCase = !selectedCurrentCase && profileBaselineCase && baselineProjection.state === 'LOCKED_VERIFIED';
   if (baselineWithoutCase && !researchText && selectedStrategy) {
-    selectedStrategy.research = { ...selectedStrategy.research, code: 'BASELINE_LOCKED', label: 'Q0 回测结论已锁定；运行态 case 尚未建立' };
+    selectedStrategy.research = { ...selectedStrategy.research, code: 'BASELINE_LOCKED', label: BASELINE_LOCKED_LABEL };
+  }
+  // 策略目录里的其他策略同一写法：非 LEGACY 档案已锁 Q0、还没有运行态 case 时，接入状态不再写「尚未接入 Research」
+  // （CRYPTO_Q0_RESULT_V1 增补 1 §7 第 1 条「策略目录里 C17 的接入状态」）。只读锁定投影（带缓存），不重算
+  for (const item of directory.strategies) {
+    if (item === selectedStrategy || item.research.code !== 'NOT_CONNECTED') continue;
+    const other = profiles.get(item.strategy_ref);
+    if (!other || profiles.isLegacyShape(other) || loop.cases.some((row) => row.strategy_ref === item.strategy_ref)) continue;
+    if (baselineEvaluation.readProjection(other.case_ref).state === 'LOCKED_VERIFIED') {
+      item.research = { ...item.research, code: 'BASELINE_LOCKED', label: BASELINE_LOCKED_LABEL };
+    }
   }
   const lockedLinks = globalLinks.filter((item) => item.has_locked_result);
   const linkedExperimentIds = new Set((selectedCurrentCase?.links || []).map((link) => link.experiment_ref).filter(Boolean));
