@@ -16,7 +16,7 @@
     { "id": "QUICK_SHOT_V3", "batch": 1, "label_zh": "Quick Shot V3", "strategy_ref": "QUICK_SHOT_V3_1000USDT", "identity_note_zh": null, "currency": "USDT" },
     { "id": "C17_V2", "batch": 1, "label_zh": "C17_V2", "strategy_ref": "C17_V2_4000USDT", "identity_note_zh": null, "currency": "USDT" },
     { "id": "ASHARE_V6_STOCK_BOOK", "batch": 2, "label_zh": "Ashare-V6 个股账本（五段链）", "strategy_ref": null, "identity_note_zh": "策略身份在其 K2 冻结时确定", "currency": "CNY" },
-    { "id": "US_CORE", "batch": 2, "label_zh": "美股核心轮动", "strategy_ref": null, "identity_note_zh": "US_CORE（账本身份在其 K2 冻结时确定）", "currency": "USD" },
+    { "id": "US_CORE", "batch": 2, "label_zh": "美股核心轮动", "strategy_ref": "US_CORE_9000USD_3X_GATEOBS", "identity_note_zh": null, "currency": "USD" },
     { "id": "CARRY_V2", "batch": 3, "label_zh": "资金费率套利", "strategy_ref": "CARRY_V2_SHADOW_10000USDT", "identity_note_zh": null, "currency": "USDT" }
   ]
 }

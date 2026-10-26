@@ -149,13 +149,13 @@ test('A4.1–A4.2 范围登记：唯一方向、A/B 方向未立项、五条策�
   assert.equal(scope.direction.label_zh, '同一工作台增加策略 / 市场');
   assert.deepEqual(scope.other_directions.map((item) => [item.label_zh, item.state_label_zh]), [['从 Cycle 线索进入 A/B 增量评价', '未立项']]);
   assert.deepEqual(scope.items.map((item) => [item.batch, item.strategy_ref, item.currency]), [
-    [1, 'QUICK_SHOT_V3_1000USDT', 'USDT'], [1, 'C17_V2_4000USDT', 'USDT'], [2, null, 'CNY'], [2, null, 'USD'], [3, 'CARRY_V2_SHADOW_10000USDT', 'USDT'],
+    [1, 'QUICK_SHOT_V3_1000USDT', 'USDT'], [1, 'C17_V2_4000USDT', 'USDT'], [2, null, 'CNY'], [2, 'US_CORE_9000USD_3X_GATEOBS', 'USD'], [3, 'CARRY_V2_SHADOW_10000USDT', 'USDT'],
   ]);
   assert.equal(scope.first_case_strategy_ref, 'US_V5_ETF_3000USD');
   assert.equal(scope.registry_acceptance.sha256, crypto.createHash('sha256')
     .update(fs.readFileSync(path.join(ROOT, scope.registry_acceptance.ref))).digest('hex'));
-  // 生产注册表：首案之外只有 Quick Shot V3（CRYPTO_Q0_RESULT_V1 冻结后登记），其余四条还没有档案
-  assert.deepEqual(profiles.load().profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT', 'C17_V2_4000USDT']);
+  // 生产注册表：首案之外有 Quick Shot V3、C17_V2（CRYPTO_Q0_RESULT_V1 与增补 1）与 US_CORE（US_CORE_Q0_RESULT_V1），其余两条还没有档案
+  assert.deepEqual(profiles.load().profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT', 'C17_V2_4000USDT', 'US_CORE_9000USD_3X_GATEOBS']);
   assert.throws(() => m4Scope.validate({ ...scope, items: [{ ...scope.items[2], identity_note_zh: null }] }), (error) => error.code === 'M4_SCOPE_FIELD_MISSING');
   assert.throws(() => m4Scope.validate({ ...scope, items: [{ ...scope.items[0], strategy_ref: 'US_V5_ETF_3000USD' }] }), (error) => error.code === 'M4_SCOPE_FIRST_CASE_IN_ITEMS');
 });
@@ -169,13 +169,19 @@ test('A4.4 页面：平台 M4 一行 NOT_VERIFIED、M5 OUT_OF_SCOPE、A/B 方向
   const scope = model.views['runtime-status'].m4_scope;
   assert.equal(scope.state, 'NOT_VERIFIED');
   assert.equal(scope.m5_state, 'OUT_OF_SCOPE');
-  const onboarded = new Set(['M4_TEST', 'QUICK_SHOT_V3', 'C17_V2']);
+  const onboarded = new Set(['M4_TEST', 'QUICK_SHOT_V3', 'C17_V2', 'US_CORE']);
   assert.ok(scope.items.filter((item) => !onboarded.has(item.id)).every((item) => item.state_label === '已列入 M4 范围，尚未接入' && item.stages === null));
   // A4.4 第 1–2 条：Quick Shot V3 有了导入档案（CRYPTO_Q0_RESULT_V1），按它自己的 M0–M3 显示，不再写「尚未接入」
   const qs = scope.items.find((item) => item.id === 'QUICK_SHOT_V3');
   assert.equal(qs.state, 'ONBOARDED');
   assert.deepEqual(qs.stages.map((row) => `${row.stage}:${row.state}`), ['M0:NOT_VERIFIED', 'M1:NOT_VERIFIED', 'M2:NOT_VERIFIED', 'M3:NOT_VERIFIED']);
   assert.equal((await workspace.readModel({ strategyRef: 'QUICK_SHOT_V3_1000USDT' })).views['strategy-detail'].m4_scope_label, undefined);
+  // US_CORE_Q0_RESULT_V1 §11.11：US_CORE 的 strategy_ref 在 K2 冻结时填入，有了导入档案，同样按它自己的 M0–M3 显示
+  const core = scope.items.find((item) => item.id === 'US_CORE');
+  assert.equal(m4Scope.load().items.find((item) => item.id === 'US_CORE').strategy_ref, 'US_CORE_9000USD_3X_GATEOBS');
+  assert.equal(core.state, 'ONBOARDED');
+  assert.deepEqual(core.stages.map((row) => `${row.stage}:${row.state}`), ['M0:NOT_VERIFIED', 'M1:NOT_VERIFIED', 'M2:NOT_VERIFIED', 'M3:NOT_VERIFIED']);
+  assert.equal((await workspace.readModel({ strategyRef: 'US_CORE_9000USD_3X_GATEOBS' })).views['strategy-detail'].m4_scope_label, undefined);
 
   const detailHtml = await renderPage(model, '#strategy-detail?strategy=CARRY_V2_SHADOW_10000USDT&section=all');
   assert.match(detailHtml, /已列入 M4 范围，尚未接入/);
@@ -185,10 +191,11 @@ test('A4.4 页面：平台 M4 一行 NOT_VERIFIED、M5 OUT_OF_SCOPE、A/B 方向
   assert.match(statusHtml, /平台级 M4：尚未验证/);
   assert.match(statusHtml, /M5：本轮不做/);
   assert.match(statusHtml, /从 Cycle 线索进入 A\/B 增量评价：未立项/);
-  // A4.2 其余四条还没有导入档案（Quick Shot V3 与本测试进程里加的测试范围项写「已接入」）
-  assert.equal((statusHtml.match(/已列入 M4 范围，尚未接入/g) || []).length, 3);
-  assert.equal(scope.items.filter((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED').length, 3);
+  // A4.2 其余两条还没有导入档案（Quick Shot V3、C17_V2、US_CORE 与本测试进程里加的测试范围项写「已接入」）
+  assert.equal((statusHtml.match(/已列入 M4 范围，尚未接入/g) || []).length, 2);
+  assert.equal(scope.items.filter((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED').length, 2);
   assert.match(statusHtml, /第 1 批 · Quick Shot V3<\/strong>（USDT）：已接入，按本策略自己的 M0→M3 记录/);
+  assert.match(statusHtml, /第 2 批 · 美股核心轮动<\/strong>（USD）：已接入，按本策略自己的 M0→M3 记录/);
   assert.match(statusHtml, /第 2 批 · Ashare-V6 个股账本（五段链）<\/strong>（CNY）：已列入 M4 范围，尚未接入<br><span class="muted-inline">策略身份在其 K2 冻结时确定/);
   for (const item of scope.items) assert.ok(!/零|0 \/ /.test(item.state_label));
 
@@ -274,7 +281,7 @@ test('A4.6.1 正向与 A4.5：新 case 按 M0→M3 记录；首案 M3 未 PASS �
   assert.equal(p.state, 'CONTROLLED_VERIFIED');
   assert.deepEqual(p.passed_items, ['M4_TEST']);
   assert.equal(p.supports_all_items, false); // 只有五条（及这里的测试项）全部通过才算支持全部
-  assert.ok(p.items.filter((item) => item.id !== 'M4_TEST' && item.id !== 'QUICK_SHOT_V3' && item.id !== 'C17_V2').every((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED'));
+  assert.ok(p.items.filter((item) => !['M4_TEST', 'QUICK_SHOT_V3', 'C17_V2', 'US_CORE'].includes(item.id)).every((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED'));
   assert.deepEqual(chainStates(US.case_ref).slice(4), ['M4:CONTROLLED_VERIFIED', 'M5:OUT_OF_SCOPE']);
 
   // 首案 M3 撤销：平台 M4 派生回 NOT_VERIFIED，历史 M4 行保留

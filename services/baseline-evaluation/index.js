@@ -50,8 +50,18 @@ const readingOf = (profile) => (profiles.isLegacyShape(profile) ? null : profile
 function mainRowTest(profile) {
   const reading = readingOf(profile);
   if (!reading) return isMainRow;
-  const { segment, cost, phase } = reading.main_row;
+  const { segment, cost, phase, cost_field: costField } = reading.main_row;
+  // US_CORE_Q0_RESULT_V1 §2.3.3：费用列名取 main_row.cost_field（缺省 cost，Quick Shot 不变），按字符串比较
+  if (costField) return (row) => Boolean(row) && row.segment === segment && String(row[costField]) === cost && row.phase === phase;
   return (row) => Boolean(row) && row.segment === segment && row.cost === cost && row.phase === phase;
+}
+/** 主指标形态（US_CORE_Q0_RESULT_V1 §0.3）：LEGACY_V1 → null；非 LEGACY 缺省 PER_TRADE_R（Quick Shot），US_CORE 为 G_GAP。 */
+const metricOf = (profile) => { const reading = readingOf(profile); return reading ? (reading.metric ? reading.metric.kind : 'PER_TRADE_R') : null; };
+const isGap = (profile) => metricOf(profile) === 'G_GAP';
+/** 统计行里 G_GAP 的三个读数（§3.3）：市场与现金的点估计和区间、月数，路径取自档案 g_paths。 */
+function gapOf(row, reading) {
+  const { market, cash, months } = reading.g_paths;
+  return { market: { point: row && row[market.point], ci: row && row[market.ci] }, cash: { point: row && row[cash.point], ci: row && row[cash.ci] }, months: row && row[months] };
 }
 const mainRowOf = (doc, profile) => ((doc.stats && Array.isArray(doc.stats.rows) ? doc.stats.rows : []).find(mainRowTest(profile)) || null);
 /** `a.b.c` 形式的路径（q0_reading.market_g_path）；途中不是对象就返回 undefined。 */
@@ -247,6 +257,41 @@ function checkVerdictFromMainRow(doc, profile) {
   need(!unequal.length, 'Q0_VERDICT_NOT_FROM_MAIN_ROW', unequal.join('；'));
 }
 
+/** US_CORE §3.3：G_GAP 版的同源检查——市场与现金的区间、月数、点估计逐值等于主数字行。 */
+function checkGapFromMainRow(doc, profile) {
+  const verdict = doc.verdict;
+  const main = mainRowOf(doc, profile);
+  need(main, 'Q0_VERDICT_NOT_FROM_MAIN_ROW', '主数字行缺失');
+  const g = gapOf(main, readingOf(profile));
+  const same = (ci, lo, hi) => Array.isArray(ci) && ci[0] === lo && ci[1] === hi;
+  const unequal = [];
+  if (!same(g.market.ci, verdict.L_g, verdict.U_g)) unequal.push('L_g/U_g ≠ 主数字行 市场区间');
+  if (!same(g.cash.ci, verdict.L_g_cash, verdict.U_g_cash)) unequal.push('L_g_cash/U_g_cash ≠ 主数字行 现金区间');
+  if (g.months !== verdict.n_months) unequal.push('n_months ≠ 主数字行 月数');
+  if (g.market.point !== verdict.g_diff_spy) unequal.push('g_diff_spy ≠ 主数字行 点估计');
+  need(!unequal.length, 'Q0_VERDICT_NOT_FROM_MAIN_ROW', unequal.join('；'));
+}
+
+/** US_CORE §4.2：档案要求 A0 两种读法时，文件必须写全（裁定读法、K2 原文读法、未记录计数），并引用档案登记的裁定。 */
+function checkA0Dual(doc, profile) {
+  const spec = readingOf(profile).a0;
+  if (!spec) return;
+  const a0 = isObject(doc.gates) ? doc.gates.A0 : null;
+  need(isObject(a0) && isText(a0.basis) && isObject(a0.k2_literal) && isText(a0.k2_literal.state) && isText(a0.k2_literal.passed_checks)
+    && isText(a0.passed_checks) && isObject(a0.unknown_counts), 'Q0_A0_DUAL_READING_MISSING');
+  need(doc.identity.a0_ruling_1_sha256 === spec.ruling_sha256, 'Q0_A0_RULING_MISMATCH', doc.identity.a0_ruling_1_sha256 || '未写');
+  need(a0.result_sha256 === doc.identity.a0_result_sha256, 'Q0_A0_RULING_MISMATCH', 'gates.A0.result_sha256 ≠ identity.a0_result_sha256');
+}
+
+/** US_CORE §3.2：样本外复用的标记——文件的 oos_reuse 与原因码必须一致（一个有一个没有即拒绝）。 */
+function checkOosReuse(doc, profile) {
+  const spec = readingOf(profile).oos_reuse;
+  if (!spec) return;
+  const flagged = doc.verdict.oos_reuse === true;
+  const coded = Array.isArray(doc.verdict.reason_codes) && doc.verdict.reason_codes.includes(spec.reason_code);
+  need(flagged === coded, 'Q0_OOS_REUSE_NOT_DISCLOSED', `oos_reuse=${JSON.stringify(doc.verdict.oos_reuse)} ${spec.reason_code}${coded ? '' : ' 缺'}`);
+}
+
 /** §8 新增检查 1：被替代的运行只作为记录写在文件里（state、结果 sha256、原因），不得指向本文件自己。 */
 function checkSupersedes(identity, fileSha256) {
   if (identity.supersedes === undefined) return;
@@ -294,7 +339,8 @@ function validateWhole(doc, profile = profileForDoc(doc), { fileSha256 = null } 
   const comparators = comparatorKeys(profile);
   need(Array.isArray(verdict.comparators) && comparators.every((name) => verdict.comparators.includes(name))
     && verdict.comparators.length === comparators.length, 'Q0_VERDICT_COMPARATORS_CHANGED');
-  need(verdict.delta_R === DELTA_R && verdict.delta_g === DELTA_G, 'Q0_VERDICT_DELTA_CHANGED', `${verdict.delta_R}/${verdict.delta_g}`);
+  // US_CORE §3.1：G_GAP 档案没有 R，要求 delta_R = null；δ_g 仍是代码常量
+  need((isGap(profile) ? verdict.delta_R === null : verdict.delta_R === DELTA_R) && verdict.delta_g === DELTA_G, 'Q0_VERDICT_DELTA_CHANGED', `${verdict.delta_R}/${verdict.delta_g}`);
   need(verdict.ci_method === 'MONTHLY_BLOCK_BOOTSTRAP_95', 'Q0_VERDICT_CI_METHOD_CHANGED', verdict.ci_method);
   const approximation = verdict.engine_approximation;
   if (legacy) {
@@ -302,17 +348,29 @@ function validateWhole(doc, profile = profileForDoc(doc), { fileSha256 = null } 
       && Array.isArray(approximation.missing), 'Q0_VERDICT_ENGINE_APPROXIMATION_MISSING');
   } else {
     // §4.1：非 LEGACY 档案读 approximations（数组）；missing 可省略，省略按 [] 读
-    need(isObject(approximation) && typeof approximation.flag === 'boolean' && Array.isArray(approximation.approximations)
+    // US_CORE §4.1 ★(a)：规则清单没有 APPROXIMATED 时，approximations 缺失按 [] 读；有 APPROXIMATED 而缺失仍拒绝
+    const rulesList = isObject(doc.gates) && Array.isArray(doc.gates.rules) ? doc.gates.rules : [];
+    const declared = isObject(approximation) && Array.isArray(approximation.approximations) ? approximation.approximations
+      : (isObject(approximation) && approximation.approximations === undefined && !rulesList.some((rule) => isObject(rule) && rule.status === 'APPROXIMATED') ? [] : null);
+    need(isObject(approximation) && typeof approximation.flag === 'boolean' && declared
       && (approximation.missing === undefined || Array.isArray(approximation.missing)), 'Q0_VERDICT_ENGINE_APPROXIMATION_MISSING');
-    checkRules(doc, approximation);
-    checkVerdictFromMainRow(doc, profile);
+    checkRules(doc, { ...approximation, approximations: declared });
+    if (isGap(profile)) checkGapFromMainRow(doc, profile); else checkVerdictFromMainRow(doc, profile);
     checkSupersedes(identity, fileSha256);
     checkApproximateEngine(doc);
+    checkA0Dual(doc, profile);
+    checkOosReuse(doc, profile);
   }
   const gapped = approximationFromGates(doc);
   if (gapped.length) need(verdict.engine_approximation.flag === true, 'Q0_ENGINE_APPROXIMATION_NOT_DECLARED', gapped.join('；'));
 
-  if (verdict.state === 'SUPPORTED') {
+  if (verdict.state === 'SUPPORTED' && isGap(profile)) {
+    // US_CORE §3.1：L(Δg) > 0 且 L(g − 现金) > 0，月数 ≥ min_months，A0 通过、无缺口
+    need(finite(verdict.L_g) && finite(verdict.L_g_cash) && verdict.L_g > DELTA_G && verdict.L_g_cash > DELTA_G,
+      'Q0_VERDICT_SUPPORTED_WITHOUT_EVIDENCE', `L_g=${verdict.L_g} L_g_cash=${verdict.L_g_cash}`);
+    need(Number.isInteger(verdict.n_months) && verdict.n_months >= readingOf(profile).metric.min_months, 'Q0_VERDICT_SUPPORTED_SAMPLE_TOO_SMALL', verdict.n_months);
+    need(verdict.engine_approximation.flag === false && !gapped.length, 'Q0_VERDICT_SUPPORTED_ON_APPROXIMATE_ENGINE');
+  } else if (verdict.state === 'SUPPORTED') {
     need(finite(verdict.L_R) && finite(verdict.L_g) && verdict.L_R > DELTA_R && verdict.L_g > DELTA_G,
       'Q0_VERDICT_SUPPORTED_WITHOUT_EVIDENCE', `L_R=${verdict.L_R} L_g=${verdict.L_g}`);
     need(Number.isInteger(verdict.n_trades) && verdict.n_trades >= MIN_TRADES, 'Q0_VERDICT_SUPPORTED_SAMPLE_TOO_SMALL', verdict.n_trades);
@@ -328,7 +386,9 @@ function validateWhole(doc, profile = profileForDoc(doc), { fileSha256 = null } 
         'Q0_VERDICT_SUPPORTED_HIDES_INCOMPLETE_STRESS', incomplete.join(','));
     }
   }
-  if (verdict.state === 'NOT_PASSED') {
+  if (verdict.state === 'NOT_PASSED' && isGap(profile)) {
+    need(finite(verdict.U_g) && verdict.U_g <= DELTA_G, 'Q0_VERDICT_NOT_PASSED_WITHOUT_EVIDENCE', `U_g=${verdict.U_g}`);
+  } else if (verdict.state === 'NOT_PASSED') {
     need((finite(verdict.U_R) && verdict.U_R <= DELTA_R) || (finite(verdict.U_g) && verdict.U_g <= DELTA_G),
       'Q0_VERDICT_NOT_PASSED_WITHOUT_EVIDENCE', `U_R=${verdict.U_R} U_g=${verdict.U_g}`);
   }
@@ -426,6 +486,9 @@ function periodBlockReading(doc, profile, reading, missing) {
   const optional = (segment, key) => (segment[key] === undefined || segment[key] === null ? {} : { [key]: field(segment, key) });
   const columns = reading.census_columns.map((column) => ({ field: column.field, label_zh: column.label_zh }));
   const approximated = rules.filter((rule) => rule.status === 'APPROXIMATED');
+  // US_CORE §4.1 ★(a)：已实现但附近似说明的规则照文件读「已实现」，技术详情里写它们的近似原文
+  const noted = rules.filter((rule) => rule.status !== 'APPROXIMATED' && isText(rule.approximation));
+  const a0Dual = reading.a0 ? a0DualLine(gates.A0, reading.a0) : null;
   const head = preferZh(verdict, 'label');
   const headText = typeof head === 'string' && head.trim() ? head.trim() : '当前 D';
   const counts = Object.keys(RULE_STATUS_WORDS).map((status) => [status, rules.filter((rule) => rule.status === status).length]);
@@ -444,10 +507,12 @@ function periodBlockReading(doc, profile, reading, missing) {
     engine: verdict.engine_approximation.flag
       ? { label: typeof head === 'string' && head.trim() ? head.trim() : `研究引擎近似${missing.length ? `（缺：${missing.join('；')}）` : ''}`, approximation: true, missing }
       : {
-        label: approximated.length ? `${headText}（引擎对齐关卡 A0 通过；长历史已知近似 ${approximated.length} 条，见规则清单）` : `${headText}（引擎对齐关卡 A0 通过，规则清单无缺口）`,
+        label: approximated.length ? `${headText}（引擎对齐关卡 A0 通过；长历史已知近似 ${approximated.length} 条，见规则清单）`
+          : noted.length ? `${headText}（引擎对齐关卡 A0 ${a0Dual ? `按 ${a0Dual.basis_zh} ` : ''}通过；规则清单无未实现项，${noted.length} 条附近似说明）`
+            : `${headText}（引擎对齐关卡 A0 通过，规则清单无缺口）`,
         approximation: false, missing: [],
       },
-    a0: {
+    a0: a0Dual ? a0Dual.view : {
       // 增补 1 §2.2 第 3 条：A0 未通过且文件写了原因时，原因原文跟在后面
       text_zh: isObject(gates.A0) && gates.A0.state === 'PASSED' ? '引擎对齐关卡 A0：通过'
         : `引擎对齐关卡 A0：未通过${isObject(gates.A0) && isText(gates.A0.diagnostic_zh) ? `——${gates.A0.diagnostic_zh}` : ''}`,
@@ -462,6 +527,7 @@ function periodBlockReading(doc, profile, reading, missing) {
       counts: ruleCounts,
       approximated: approximated.map((rule) => ({ rule: rule.rule, note_zh: rule.note_zh, code_ref: rule.code_ref })),
       not_implemented: rules.filter((rule) => rule.status === 'NOT_IMPLEMENTED').map((rule) => ({ rule: rule.rule, note_zh: rule.note_zh || null, code_ref: rule.code_ref || null })),
+      ...(noted.length ? { noted: noted.map((rule) => ({ rule: rule.rule, status_label: RULE_STATUS_WORDS[rule.status], approximation: rule.approximation, code_ref: rule.code_ref || null })) } : {}),
     },
     gates: Object.keys(gates).filter((key) => key !== 'A0' && key !== 'rules' && key !== 'INERTNESS').map((key) => gateLine(key, gates[key])),
     // §10：共享约束只写文字，不显示任何预算数字；规则清单里对应的规则必须是 NOT_APPLICABLE（只引用不复算）
@@ -476,6 +542,30 @@ function periodBlockReading(doc, profile, reading, missing) {
         text_zh: consistent ? `${item.label_zh}：与 ${peers.join('、')} ${item.display_zh}（规则 ${item.rule_ref}）` : `${item.label_zh}：共享约束与规则清单不一致（规则 ${item.rule_ref}）`,
       };
     }),
+  };
+}
+
+/**
+ * US_CORE §4.2：A0 两种读法的一行（主内容）——裁定读法与 K2 原文读法的通过数、未记录项计数，取自文件；括号里的原因取自档案
+ * a0.literal_note_zh（A0 裁定 1 R1/R2 的事实），只改写法：去掉「按 K2 原文：」前缀，第一个「（」改「：」并去掉末尾「）」。
+ * 「未记录 N 项」的 N 是文件 unknown_counts 各项之和（页面只做计数）。
+ */
+function a0DualLine(a0, spec) {
+  const basis = String(a0.basis).replace(/^A0 ruling (\d+)$/, 'A0 裁定 $1');
+  const note = String(spec.literal_note_zh).replace(/^按 K2 原文[：:]\s*/, '').replace('（', '：').replace(/）$/, '');
+  const unknown = Object.entries(a0.unknown_counts).filter(([, n]) => Number.isInteger(n) && n > 0);
+  const total = unknown.reduce((sum, [, n]) => sum + n, 0);
+  const state = a0.state === 'PASSED' ? '通过' : '未通过';
+  const text = `引擎对齐关卡 A0：按 ${basis} ${state}（${a0.passed_checks}）；按 K2 原文 ${a0.k2_literal.passed_checks}（${note}）；未记录 ${total} 项（${unknown.map(([key, n]) => `${key} ${n}`).join('、')}），不计入一致或不符`;
+  return {
+    basis_zh: basis,
+    view: {
+      text_zh: text, ref: null, dual: true,
+      technical: [
+        { label: 'A0 结果文件 SHA-256', value: a0.result_sha256 }, { label: 'A0 裁定 SHA-256', value: spec.ruling_sha256 },
+        ...Object.entries(isObject(a0.rows) ? a0.rows : {}).map(([key, row]) => ({ label: key, value: `${isObject(row) ? row.state : row} ${isObject(row) && isObject(row.counts) ? JSON.stringify(row.counts) : ''}`.trim() })),
+      ],
+    },
   };
 }
 
@@ -555,6 +645,7 @@ function summaryOnly(summary, where) {
 function forwardRow(forward, profile, spec) {
   const fail_ = (reason) => ({ valid: false, text_zh: `前向记录无效：${reason}`, raw: isObject(forward) ? forward : null });
   if (!isObject(forward)) return fail_('结果文件缺 forward');
+  if (spec.kind === 'EQUITY') return forwardEquityRow(forward, profile, spec, fail_);
   if (forward.in_verdict !== false) return fail_(`in_verdict 应为 false（实际 ${JSON.stringify(forward.in_verdict)}）`);
   if (forward.ledger !== profile.strategy_ref) return fail_(`账本 ${forward.ledger || '未写'} 不是本策略`);
   if (!Number.isInteger(forward.trades) || forward.trades < 0) return fail_('trades 不是非负整数');
@@ -584,10 +675,26 @@ function forwardRow(forward, profile, spec) {
   };
 }
 
+/** US_CORE §8.2：EQUITY 形态的前向行——起止权益与收益（核对 return = end/start − 1，容差 1e-6，不重算显示值）。 */
+function forwardEquityRow(forward, profile, spec, fail_) {
+  if (forward.in_verdict !== false) return fail_(`in_verdict 应为 false（实际 ${JSON.stringify(forward.in_verdict)}）`);
+  const ledger = forward[spec.ledger_field];
+  if (ledger !== profile.strategy_ref) return fail_(`账本 ${ledger || '未写'} 不是本策略`);
+  for (const key of ['start_equity', 'end_equity', 'return']) if (!finite(forward[key])) return fail_(`${key} 不是有限数`);
+  if (Math.abs(forward.return - (forward.end_equity / forward.start_equity - 1)) > 1e-6) return fail_('return 与 end_equity ÷ start_equity − 1 不符');
+  const whole = (value) => Math.round(value).toLocaleString('en-US');
+  return {
+    valid: true,
+    text_zh: `前向记录（PAPER 账本 ${ledger}，只报不判，不进结论）：${forward.from} → ${forward.to}，${whole(forward.start_equity)} → ${whole(forward.end_equity)}（${pct1(forward.return)}）。`,
+    raw: { [spec.ledger_field]: ledger, from: forward.from, to: forward.to, start_equity: forward.start_equity, end_equity: forward.end_equity, return: forward.return },
+  };
+}
+
 /** 非 LEGACY 档案第 2 块的其余字段（§4.4、§7）：本策略逐笔记录行数、开发期账户（折叠只报）、前向行。 */
 function accountExtras(doc, profile, reading, arms) {
   const main = reading.main_row.segment;
   const d = arms.find((arm) => arm.key === 'D');
+  if (reading.dev_arms_path) return gapAccountExtras(doc, profile, reading);
   const dev = Object.keys(profile.segment_words).filter((id) => id !== main && isObject(doc.arms[id])).map((id) => {
     const word = profile.segment_words[id];
     const segmentArms = armsOf(profile).filter(([key]) => isObject(doc.arms[id][key]))
@@ -608,6 +715,7 @@ function winrateBlock(doc, profile) {
   need(isObject(table) && table.kind === 'FORMULA_NOT_BACKTEST' && Array.isArray(table.cells) && table.cells.length,
     'INVALID', 'formula_table 必须标 FORMULA_NOT_BACKTEST');
   const reading = readingOf(profile);
+  if (reading && isGap(profile)) return winrateGapReading(rows, table, profile, reading);
   if (reading) return winrateBlockReading(rows, table, profile, reading);
   const hasPlus = rows.some((row) => row && row.phase === 'PLUS_60MIN');
   const hasMinus = rows.some((row) => row && row.phase === 'MINUS_60MIN');
@@ -665,6 +773,69 @@ function fundingExclusion(row, spec, isMain, where) {
  * 第 3 块，非 LEGACY 档案（§3.2、§5.6）：费用按 `cost` 与档案的 cost_words 写；相位说明取档案的 phase_note_zh，
  * 不套用 US 的「相位 ±60 分钟」合并说明；开发期笔数按主数字同一口径；资金费缺失排除单列一栏。
  */
+/** 比较对象的口径代码（结果文件 arms.<key>.basis）→ 中文；不认识的代码原样进技术详情，不翻译。 */
+const BASIS_WORDS = Object.freeze({ TOTAL_RETURN_ADJCLOSE: '总收益（含分红）' });
+const REFERENCE_ROLE = 'REFERENCE';
+
+/**
+ * US_CORE §2.2 / §8.2：第 2 块其余——比较对象口径一行（文件 basis 写一次）、参照臂（折叠，「参照，不进判定」）、
+ * 开发期账户（档案 dev_arms_path，折叠只报）、前向行（EQUITY：起止权益与收益）。
+ */
+function gapAccountExtras(doc, profile, reading) {
+  const market = profiles.comparator(profile, 'MARKET');
+  const marketArm = doc.arms[market.key];
+  const basisCode = isObject(marketArm) && isText(marketArm.basis) ? marketArm.basis : null;
+  const references = reading.reference_arms ? Object.entries(doc.arms).filter(([, arm]) => isObject(arm) && arm.role === REFERENCE_ROLE)
+    .map(([key, arm]) => ({ key, basis: isText(arm.basis) ? arm.basis : null, ...summaryOnly(arm.summary, `arms.${key}.summary`) })) : [];
+  const devArms = doc[reading.dev_arms_path];
+  const devSegment = Object.keys(profile.segment_words).find((id) => id !== reading.main_row.segment);
+  const dev = isObject(devArms) ? [{
+    segment: devSegment, title: `${profile.segment_words[devSegment]}账户（${profile.segment_words[devSegment]}，只报）`,
+    arms: armsOf(profile).filter(([key]) => isObject(devArms[key])).map(([key, label]) => ({ key, label, ...summaryOnly(devArms[key].summary, `${reading.dev_arms_path}.${key}.summary`) })),
+  }] : [];
+  return {
+    ...(basisCode ? { basis_line_zh: `比较对象口径：${market.label_zh}按${BASIS_WORDS[basisCode] || basisCode}计（结果文件 basis = ${basisCode}）。` } : {}),
+    ...(references.length ? { reference_arms: { title: '参照臂（参照，不进判定）', arms: references } } : {}),
+    ...(dev.length ? { dev_accounts: dev } : {}),
+    ...(reading.forward ? { forward: forwardRow(doc.forward, profile, reading.forward) } : {}),
+  };
+}
+
+/** US_CORE §8.1：第 3 块按持有段读（episodes[tier]），另报 g、Δg 及区间、年化、回撤、期末与换档次数。 */
+function winrateGapReading(rows, table, profile, reading) {
+  const spec = reading.winrate;
+  const costField = reading.main_row.cost_field || 'cost';
+  const isMain = mainRowTest(profile);
+  return {
+    metric: 'G_GAP', unit_zh: '段', tier_label_zh: spec.label_zh, tile_label_zh: `${profile.segment_words[reading.main_row.segment]} ${spec.label_zh}胜率与赔率`,
+    notes: reading.phase_note_zh ? [reading.phase_note_zh] : [],
+    other_tiers: (spec.other_tiers || []).map((tier) => ({ tier: tier.tier, label_zh: tier.label_zh })),
+    rows: rows.map((row, index) => {
+      const where = `stats.rows[${index}]`;
+      need(isObject(row) && isObject(row.episodes), 'MISSING', `${where}.episodes`);
+      const ep = row.episodes[spec.tier];
+      need(isObject(ep), 'MISSING', `${where}.episodes.${spec.tier}`);
+      need(Number.isInteger(ep.n) && ep.n >= 0, 'INVALID', `${where}.episodes.${spec.tier}.n`);
+      const win = field(ep, 'win_rate', `${where}.episodes.${spec.tier}.win_rate`);
+      need(win >= 0 && win <= 1, 'INVALID', `${where}.episodes.${spec.tier}.win_rate 不在 0–1`);
+      const g = gapOf(row, reading);
+      const cost = String(field(row, costField, `stats.${costField}`));
+      return {
+        segment: field(row, 'segment', 'stats.segment', 'string'), segment_label: profile.segment_words[row.segment] || row.segment,
+        cost, cost_label: reading.cost_words[cost] || cost, phase: field(row, 'phase', 'stats.phase', 'string'), phase_label: profile.phase_words[row.phase] || row.phase,
+        main: isMain(row), n: ep.n, win_rate: win, payoff: ep.payoff === null ? null : field(ep, 'payoff', `${where}.episodes.${spec.tier}.payoff`),
+        mean_return: optionalFinite(ep, 'mean_return'), mean_days: optionalFinite(ep, 'mean_days'),
+        others: (spec.other_tiers || []).map((tier) => ({ tier: tier.tier, label_zh: tier.label_zh, n: isObject(row.episodes[tier.tier]) && Number.isInteger(row.episodes[tier.tier].n) ? row.episodes[tier.tier].n : null })),
+        g: field(row, 'g', `${where}.g`), g_diff: field(g.market, 'point', `${where}.${reading.g_paths.market.point}`), g_diff_ci: ci(g.market.ci, `${where}.${reading.g_paths.market.ci}`),
+        cagr: field(row, 'cagr', `${where}.cagr`), max_drawdown: field(row, 'max_drawdown', `${where}.max_drawdown`),
+        end_capital: field(row, 'end_capital', `${where}.end_capital`), switches: Number.isInteger(row.switches) ? row.switches : null,
+      };
+    }),
+    formula: { ...formulaOf(table), ...(isText(table.basis) ? { basis: table.basis } : {}),
+      loss_per_episode: table.cells.map((cell) => (finite(cell.loss_per_episode) ? cell.loss_per_episode : null)).find((value) => value !== null) ?? null },
+  };
+}
+
 function winrateBlockReading(rows, table, profile, reading) {
   const isMain = mainRowTest(profile);
   const { main_row: main, cost_words: costWords, funding_exclusion: funding } = reading;
@@ -723,14 +894,21 @@ function stressBlock(doc, context = {}, profile = profileForDoc(doc)) {
   const kinds = reading.supplementary_kinds || null;
   const columns = reading.stress_columns || [];
   const extraOf = (row) => (columns.length ? { extra: columns.map((column) => (finite(row[column.field]) ? row[column.field] : null)) } : {});
-  const sameFields = SAME_AS_REFERENCE_FIELDS.map((key) => (key === 'max_loss_usd' ? money : key));
+  const gap = isGap(profile);
+  const words = reading.scenario_words_zh || {};
+  // US_CORE §5.1：G_GAP 文件的行没有 n、mean_R；「与参照相同」比较两行都有的这几个字段
+  const sameFields = (gap ? ['max_loss_usd', 'max_drawdown', 'longest_underwater_sessions', 'recovered', 'end_capital'] : SAME_AS_REFERENCE_FIELDS)
+    .map((key) => (key === 'max_loss_usd' ? money : key));
   const reference = rows.find((row) => isObject(row) && row.scenario === 'BASELINE') || null;
   const mapped = rows.map((row, index) => {
     const where = `stress.rows[${index}]`;
     need(isObject(row), 'INVALID', where);
     const scenario = field(row, 'scenario', `${where}.scenario`, 'string');
     const labelText = preferZh(row, 'label');
-    const label = typeof labelText === 'string' && labelText ? labelText : scenario;
+    const fileLabel = typeof labelText === 'string' && labelText ? labelText : scenario;
+    // US_CORE §2.2 ★(a)：档案按场景 id 给中文显示名（补充行的中文 label 照文件），英文原文进技术详情
+    const named = gap && !HAS_CHINESE.test(fileLabel) && isText(words[scenario]);
+    const label = named ? words[scenario] : fileLabel;
     const role = stressRole(row);
     need(row.status === undefined || KNOWN_STRESS_STATUS.includes(row.status) || (!legacy && row.status === SAME_AS_BASELINE),
       'INVALID', `${where}.status=${row.status} 不认识`);
@@ -787,8 +965,13 @@ function stressBlock(doc, context = {}, profile = profileForDoc(doc)) {
       simulated, in_headline: role === 'STRESS' && !simulated && row.in_headline !== false,
       note: simulated ? '模拟序列，不是可交易历史' : (kindWord ? `补充（${kindWord}，只报不判，不进结论）` : null),
       ...(kindWord ? { supplementary_kind: row.kind } : {}),
+      ...(gap ? {
+        label_raw: named ? fileLabel : null, max_drawdown: optionalFinite(row, 'max_drawdown'), report_only: row.report_only === true,
+        same_as_reference: role === 'RISK_DIMENSION' && Boolean(reference) && sameFields.every((key) => row[key] !== undefined && row[key] === reference[key]),
+        supplementary_note: supplementary ? '模拟，不进结论' : null,
+      } : {}),
       // §5.5：非 LEGACY 档案另报文件自带的笔数与每笔均值 R；风控维度行与参照行逐项相同时标「与参照相同」
-      ...(legacy ? {} : {
+      ...(legacy || gap ? {} : {
         n: Number.isInteger(row.n) ? row.n : null, mean_R: optionalFinite(row, 'mean_R'),
         same_as_reference: role === 'RISK_DIMENSION' && Boolean(reference)
           && sameFields.every((key) => row[key] !== undefined && row[key] === reference[key]),
@@ -817,12 +1000,13 @@ function stressBlock(doc, context = {}, profile = profileForDoc(doc)) {
   const incomplete = counts.missing + counts.invalid_input > 0;
   return {
     // §5.2：非 LEGACY 档案的压力金额写两位小数（单位取档案币种）；US_V5 仍是整数
-    ...(legacy ? {} : { money_digits: 2 }),
+    // §5.2：非 LEGACY 档案的压力金额写两位小数（单位取档案币种）；US_V5 仍是整数。US_CORE §5.2 ★：美元整数，主数字后紧跟该行文件自带的回撤
+    ...(legacy ? {} : gap ? { money_digits: 0, gap_columns: true } : { money_digits: 2 }),
     ...(columns.length ? { stress_columns: columns.map((column) => ({ label_zh: column.label_zh, format: column.format })) } : {}),
     ...(halt ? { halt } : {}),
     ...(reading.supplementary_arm ? { supplementary_arm: supplementaryArm(doc, mapped, profile, reading.supplementary_arm) } : {}),
     rows: mapped,
-    headline: worst ? { scenario: worst.scenario, label: worst.label, max_loss_usd: worst.max_loss_usd } : null,
+    headline: worst ? { scenario: worst.scenario, label: worst.label, max_loss_usd: worst.max_loss_usd, ...(gap ? { max_drawdown: worst.max_drawdown } : {}) } : null,
     counts,
     evaluation: {
       complete: !incomplete,
@@ -931,6 +1115,7 @@ function supplementaryArm(doc, mapped, profile, spec) {
 function kellyBlock(doc, profile) {
   const k = doc.half_kelly;
   need(isObject(k), 'MISSING', 'half_kelly');
+  if (readingOf(profile) && readingOf(profile).kelly.mode === 'NOT_APPLICABLE') return kellyNotApplicable(doc, k, profile, readingOf(profile).kelly);
   need(isObject(k.replay), 'MISSING', 'half_kelly.replay');
   const reading = readingOf(profile);
   if (reading) return kellyBlockReading(doc, k, profile, reading);
@@ -1020,6 +1205,34 @@ function kellyBlockReading(doc, k, profile, reading) {
   };
 }
 
+/**
+ * US_CORE §7：半凯利不适用——文件写明原因与底线，改报档案列出的概率（0–1）、重抽条数与越线事件；任一不符只让本块无效。
+ */
+function kellyNotApplicable(doc, k, profile, spec) {
+  need(k.state === 'NOT_APPLICABLE', 'INVALID', `half_kelly.state=${k.state} 不是 NOT_APPLICABLE`);
+  need(isText(k.reason), 'MISSING', 'half_kelly.reason');
+  const declared = k[spec.floor_field];
+  need(declared !== undefined && declared !== null, 'MISSING', `half_kelly.${spec.floor_field}`);
+  need(declared === profile.floor.value, 'INVALID', `half_kelly.${spec.floor_field} 不是 ${profile.floor.rule_label_zh}`);
+  need(Number.isInteger(k.paths) && k.paths > 0, 'INVALID', 'half_kelly.paths 不是正整数');
+  const probabilities = spec.probabilities.map((item) => {
+    const p = field(k, item.field, `half_kelly.${item.field}`);
+    need(p >= 0 && p <= 1, 'INVALID', `half_kelly.${item.field} 不在 0–1`);
+    return { field: item.field, label_zh: item.label_zh, p };
+  });
+  let events = null;
+  if (spec.events) {
+    const list = atPath(k, spec.events.path);
+    need(Array.isArray(list), 'INVALID', `half_kelly.${spec.events.path} 不是数组`);
+    events = { label_zh: spec.events.label_zh, count: list.length, first_session: list.length && isObject(list[0]) && isText(list[0].session) ? list[0].session : null };
+  }
+  return {
+    mode: 'NOT_APPLICABLE', supported: false, f_half: null, reason_zh: k.reason, paths: k.paths, method: isText(k.method) ? k.method : null,
+    probabilities, events, floor: { value: profile.floor.value, currency: profile.floor.currency, rule_label_zh: profile.floor.rule_label_zh },
+    note: '研究计算，不是仓位建议；现行仓位规则不变',
+  };
+}
+
 /** 判据在门槛上的位置：上沿不高于门槛／下沿高于门槛／区间跨过门槛。 */
 const positionOf = (lo, hi, threshold) => (hi <= threshold ? 'AT_OR_BELOW' : (lo > threshold ? 'ABOVE' : 'STRADDLES'));
 
@@ -1059,7 +1272,45 @@ function criteriaRows(v, profile, main = null) {
   return rows;
 }
 
+/** 带正负号的一位小数百分比（G_GAP 的判据与主数字）：+8.5%、−12.5%。 */
+const pctSigned = (value) => `${value < 0 ? '−' : '+'}${(Math.abs(value) * 100).toFixed(1)}%`;
+
+/** US_CORE §3：G_GAP 的判据两行——相对市场基准的增长差（决定性）、相对现金的增长（SUPPORTED 也要求它，同为决定性）。 */
+function gapCriteria(v, profile) {
+  const market = profiles.comparator(profile, 'MARKET').label_zh;
+  const cash = profiles.comparator(profile, 'CASH').label_zh;
+  return [
+    { key: 'G', label: `相对 ${market}的年化对数增长差（95% 区间，门槛 ${DELTA_G}）`, short: `相对 ${market}的年化对数增长差`, unit: 'pct_signed',
+      point: finite(v.g_diff_spy) ? v.g_diff_spy : null, ci: { lo: v.L_g, hi: v.U_g }, threshold: DELTA_G, position: positionOf(v.L_g, v.U_g, DELTA_G),
+      fired: v.U_g <= DELTA_G, decisive: true },
+    { key: 'G_CASH', label: `相对${cash}的年化对数增长（95% 区间，门槛 ${DELTA_G}）`, short: `相对${cash}的年化对数增长`, unit: 'pct_signed',
+      point: finite(v.g_D) ? v.g_D : null, ci: { lo: v.L_g_cash, hi: v.U_g_cash }, threshold: DELTA_G, position: positionOf(v.L_g_cash, v.U_g_cash, DELTA_G),
+      fired: false, decisive: true },
+  ];
+}
+
+function verdictGapBlock(doc, gapped, profile) {
+  const v = doc.verdict;
+  const reading = readingOf(profile);
+  const resolved = resolveReasons(v.reason_codes, reading.reason_words_zh, REASON_WORDS);
+  const label = preferZh(v, 'label');
+  return {
+    metric: 'G_GAP', class: v.class, state: v.state, delta_R: null, delta_g: DELTA_G,
+    L_g: v.L_g, U_g: v.U_g, L_g_cash: v.L_g_cash, U_g_cash: v.U_g_cash, g_diff_spy: finite(v.g_diff_spy) ? v.g_diff_spy : null, g_D: finite(v.g_D) ? v.g_D : null,
+    n_months: Number.isInteger(v.n_months) ? v.n_months : null, min_months: reading.metric.min_months,
+    // 换档次数只进技术详情，不是样本单位（§3.3）；n_trades 置空，免得落进「成熟交易 N 笔」的说法
+    n_trades: null, switches: Number.isInteger(v.n_trades) ? v.n_trades : null,
+    market_label: profiles.comparator(profile, 'MARKET').label_zh, cash_label: profiles.comparator(profile, 'CASH').label_zh,
+    comparators: v.comparators.map((name) => (name === profiles.comparator(profile, 'CASH').key ? profiles.comparator(profile, 'CASH') : profiles.comparator(profile, 'MARKET')).label_zh),
+    ci_method: '按月分块 bootstrap 95%', criteria: gapCriteria(v, profile), reasons: resolved.known, unknown_reason_codes: resolved.unknown,
+    engine_label: typeof label === 'string' && label.trim() ? label.trim() : null,
+    engine_approximation: v.engine_approximation.flag, engine_missing: [...new Set([...(v.engine_approximation.missing || []), ...gapped])],
+    oos_reuse: v.oos_reuse === true,
+  };
+}
+
 function verdictBlock(doc, gapped, profile) {
+  if (isGap(profile)) return verdictGapBlock(doc, gapped, profile);
   const v = doc.verdict;
   const resolved = resolveReasons(v.reason_codes, REASON_WORDS);
   return {
@@ -1156,9 +1407,9 @@ function criterionLine(row, digits = 2) {
   const place = {
     AT_OR_BELOW: row.ci.hi < row.threshold ? '上沿低于门槛' : '上沿不高于门槛', ABOVE: '下沿高于门槛', STRADDLES: '区间跨过门槛',
   }[row.position];
-  const fmt = row.unit === 'R' ? (value) => rText(value, digits) : pct1;
+  const fmt = row.unit === 'R' ? (value) => rText(value, digits) : row.unit === 'pct_signed' ? pctSigned : pct1;
   const threshold = row.unit === 'R' ? `+${row.threshold.toFixed(2)} R` : String(row.threshold);
-  const point = row.unit === 'R' && row.point !== null ? `${rText(row.point, digits)}，` : '';
+  const point = row.unit === 'R' && row.point !== null ? `${rText(row.point, digits)}，` : row.unit === 'pct_signed' && row.point !== null ? `${pctSigned(row.point)}，` : '';
   return `${row.short} ${point}95% 区间 ${fmt(row.ci.lo)} 至 ${fmt(row.ci.hi)}，${place} ${threshold}`;
 }
 
@@ -1190,6 +1441,9 @@ function basisOf(v, digits = 2) {
     main.push(...straddling.map(line));
     also = rest(straddling).map(line);
   }
+  if (v.metric === 'G_GAP' && Number.isInteger(v.n_months)) {
+    main.push(v.n_months < v.min_months ? `样本外只有 ${v.n_months} 个月，少于门槛 ${v.min_months} 个月` : `样本外 ${v.n_months} 个月（门槛 ${v.min_months} 个月）`);
+  }
   return { title: '判定依据', main, also, frozen_zh: '门槛在看到结果前已冻结' };
 }
 
@@ -1208,10 +1462,21 @@ function limitOf(v, completeness) {
     return { label: '其他限制', text: `${parts.length ? parts.join('；') : '本结论只对已回测的区间和费用口径成立，不外推到之后的市场'}。` };
   }
   if (v.engine_approximation) return { label: '最大的限制', text: `使用的是${v.engine_label || `研究引擎近似的当前 D（缺：${v.engine_missing.join('；') || '未列出'}）`}，结论最高只能是证据不足。` };
+  if (v.metric === 'G_GAP') return gapLimitOf(v);
   if (Number.isInteger(v.n_trades) && v.n_trades < MIN_TRADES) return { label: '最大的限制', text: `样本外只有 ${v.n_trades} 笔成熟交易，少于 ${MIN_TRADES} 笔。` };
   // 区间跨门槛的说法取自判据行本身（与「判定依据」同一份数字），不取通用原因码的措辞：原因码不分是哪一条判据
   const straddling = (v.criteria || []).filter((row) => row.decisive && row.position === 'STRADDLES');
   if (straddling.length) return { label: '最大的限制', text: `${straddling.map((row) => row.short).join('、')}的 95% 区间跨过判定门槛，现有样本不足以判定。` };
+  if (v.reasons.length) return { label: '最大的限制', text: `${v.reasons[0].text}。` };
+  return { label: '最大的限制', text: '本结论只对已回测的区间和费用口径成立，不外推到之后的市场。' };
+}
+
+/** US_CORE §3.4：G_GAP 的「最大的限制」——月数不足；两条增长区间都跨过 0；或只有一条跨过。 */
+function gapLimitOf(v) {
+  if (Number.isInteger(v.n_months) && v.n_months < v.min_months) return { label: '最大的限制', text: `样本外只有 ${v.n_months} 个月，少于 ${v.min_months} 个月。` };
+  const straddling = v.criteria.filter((row) => row.decisive && row.position === 'STRADDLES');
+  if (straddling.length === 2) return { label: '最大的限制', text: `相对 ${v.market_label}与相对${v.cash_label}的年化对数增长，95% 区间都跨过门槛 ${DELTA_G}，现有样本不足以判定。` };
+  if (straddling.length === 1) return { label: '最大的限制', text: `${straddling[0].short}的 95% 区间跨过门槛 ${DELTA_G}，现有样本不足以判定。` };
   if (v.reasons.length) return { label: '最大的限制', text: `${v.reasons[0].text}。` };
   return { label: '最大的限制', text: '本结论只对已回测的区间和费用口径成立，不外推到之后的市场。' };
 }
@@ -1243,6 +1508,7 @@ function conclusionOf(verdictBlock_, doc, completeness = null, profile = profile
  * 主数字下面一行写资金费缺失排除；判定依据下面「另须知道」写档案的 disclosures_zh（冻结 K2 的文字，不是数字）。
  */
 function conclusionReading(v, doc, completeness, profile, reading, labels, limit) {
+  if (isGap(profile)) return conclusionGap(v, doc, completeness, profile, reading, labels, limit);
   const row = mainRowOf(doc, profile);
   const { main_row: key, funding_exclusion: funding } = reading;
   const label = `${profile.segment_words[key.segment]}每笔扣费后净 R 均值（${reading.cost_words[key.cost]}，${profile.phase_words[key.phase]}；门槛 +${DELTA_R.toFixed(2)} R）`;
@@ -1295,6 +1561,61 @@ function supplementaryLine(doc, profile, reading, item) {
     : `这是${kindWord || '补充'}的读数，不是另一个版本的结论。`;
   return `补充（只报不判，不进结论）：${item.label_zh}，${profile.segment_words.OOS || '样本外'} ${row.n} 笔，每笔 ${rText(row.mean_R, digits)}，期末 ${money(row.end_capital)}；`
     + `当前 D 参照（${profile.phase_words[reading.main_row.phase]}）${reference.n} 笔，每笔 ${rText(reference.mean_R, digits)}，期末 ${money(reference.end_capital)}。${tail}`;
+}
+
+/**
+ * US_CORE §3.2、§6：G_GAP 的结论区块——主数字是样本外相对市场基准的年化对数增长差；紧挨主数字一行写样本外复用；
+ * 判定依据下面写风控高亮（只报不判，不进结论）与生产缺口原文。
+ */
+function conclusionGap(v, doc, completeness, profile, reading, labels, limit) {
+  const row = mainRowOf(doc, profile);
+  const key = reading.main_row;
+  const label = `${profile.segment_words[key.segment]}年化对数增长差，相对 ${profiles.comparator(profile, 'MARKET').label_zh}（${reading.cost_words[key.cost]}，${profile.phase_words[key.phase]}；门槛 ${DELTA_G}）`;
+  const g = row ? gapOf(row, reading) : null;
+  const main = g && Array.isArray(g.market.ci) && g.market.ci.length === 2 && finite(g.market.point)
+    ? { label, value: g.market.point, ci: { lo: g.market.ci[0], hi: g.market.ci[1] }, unit: 'pct_signed' } : null;
+  const reuse = reading.oos_reuse && doc.verdict.oos_reuse === true ? reading.oos_reuse : null;
+  return {
+    state: v.state, label: labels[v.state], reason: null, main_number: main,
+    ...(main ? {} : { main_number_missing_zh: `结果文件缺${label.replace(/（.*$/, '')}那一行` }),
+    ...(reuse ? { main_number_note_zh: reuse.text_zh, oos_reuse_short_zh: (reading.reason_words_zh && reading.reason_words_zh[reuse.reason_code]) || '样本外在开发时已用过' } : {}),
+    basis: basisOf(v),
+    highlights: (reading.highlights || []).map((spec) => highlightOf(doc, spec, row)),
+    limit_label: limit.label, biggest_limit: limit.text, completeness,
+  };
+}
+
+/** §6.1：风控高亮一行——取自文件的风控维度行、参照行与诊断项；任一检查不过只让这一行无效（写原因），不影响结论。 */
+function highlightOf(doc, spec, mainRow) {
+  const invalid = (reason) => ({ key: spec.key, valid: false, text_zh: `风控高亮无效：${reason}` });
+  const rows = isObject(doc.stress) && Array.isArray(doc.stress.rows) ? doc.stress.rows : [];
+  const row = rows.find((item) => isObject(item) && item.scenario === spec.scenario);
+  if (!row) return invalid(`压力表没有 ${spec.scenario}`);
+  if (!/^RISK_/.test(row.scenario) || row.report_only !== true) return invalid(`${spec.scenario} 不是只报不判的风控维度行`);
+  if (!Array.isArray(row.halt_events) || !row.halt_events.length || !isObject(row.halt_events[0])) return invalid(`${spec.scenario} 没有 halt_events`);
+  const event = row.halt_events[0];
+  const reference = rows.find((item) => isObject(item) && item.scenario === 'BASELINE');
+  if (!reference || !finite(reference.end_capital) || !mainRow || !finite(mainRow.end_capital) || Math.abs(reference.end_capital - mainRow.end_capital) > 1e-6) {
+    return invalid('参照行 BASELINE 的期末与主数字行不等');
+  }
+  if (!finite(row.end_capital) || !finite(event.peak) || !finite(event.drawdown) || !isText(event.session)) return invalid(`${spec.scenario} 的数字不全`);
+  let gapZh = null;
+  if (spec.diagnosis_id) {
+    const item = (Array.isArray(doc.diagnosis_items) ? doc.diagnosis_items : []).find((entry) => isObject(entry) && entry.id === spec.diagnosis_id);
+    const fact = item && Array.isArray(item.facts_zh) && isText(item.facts_zh[0]) ? item.facts_zh[0] : null;
+    if (!fact) return invalid(`诊断项 ${spec.diagnosis_id} 不存在`);
+    // US_CORE 冻结说明 1 第 2 条：缺口一行按封存事实显示（档案写明封存日期的前缀）
+    gapZh = `${spec.gap_as_of_zh || ''}生产缺口（未修）：${fact}`;
+  }
+  const whole = (value) => Math.round(value).toLocaleString('en-US');
+  return {
+    key: spec.key, valid: true, scenario: spec.scenario, label_zh: spec.label_zh,
+    // US_CORE 冻结说明 1 第 1 条：标题写明这是近似（只按本策略自己的曲线套 40% 线），不把近似下界写成规则的真实效果
+    lead_zh: `${spec.label_zh}（${spec.approximation_note_zh ? `${spec.approximation_note_zh}；` : ''}只报不判，不进结论）`,
+    text_zh: `样本外 ${event.session} 自起点峰值 ${whole(event.peak)} 回撤 ${pct1(event.drawdown)} 触发停止，之后不再开新仓，期末 ${whole(row.end_capital)}；现行主臂不执行停止，期末 ${whole(reference.end_capital)}。`,
+    gap_zh: gapZh, sentence_zh: `${spec.label_zh}，${event.session} 起不再开新仓，期末 ${whole(row.end_capital)}`,
+    numbers: { halt_session: event.session, peak: event.peak, drawdown: event.drawdown, end_capital: row.end_capital, baseline_end_capital: reference.end_capital },
+  };
 }
 
 /**

@@ -177,8 +177,11 @@ function validateReadings(raw, ref) {
   }
   const reading = checker(ref).object(raw, 'q0_reading');
   const c = checker(`${ref}.q0_reading`);
+  // US_CORE_Q0_RESULT_V1 §2.3.1：主指标形态，缺省按 PER_TRADE_R（Quick Shot 的读法不变）
+  const kind = metricKind(reading, ref);
   const main = c.object(reading, 'main_row');
   const cm = checker(`${ref}.q0_reading.main_row`);
+  if (main.cost_field !== undefined) cm.text(main, 'cost_field');
   const costWords = c.words(reading, 'cost_words');
   // 主数字那一行的三个键都必须有词，页面才能写出标签
   for (const [key, words] of [['segment', raw.segment_words], ['cost', costWords], ['phase', raw.phase_words]]) {
@@ -194,10 +197,31 @@ function validateReadings(raw, ref) {
     const cc = checker(`${ref}.q0_reading.census_columns[${i}]`);
     cc.text(item, 'field'); cc.text(item, 'label_zh');
   });
-  c.text(reading, 'market_g_path');
+  if (kind === 'PER_TRADE_R') c.text(reading, 'market_g_path'); else validateGapReading(reading, ref);
   const kelly = c.object(reading, 'kelly');
   const ck = checker(`${ref}.q0_reading.kelly`);
   ck.text(kelly, 'floor_field');
+  if (kelly.mode !== undefined && !KELLY_MODES.includes(kelly.mode)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.mode:${KELLY_MODES.join('|')}`);
+  if (kind === 'G_GAP' && kelly.mode === undefined) fail('STRATEGY_PROFILE_FIELD_MISSING', `${ref}.q0_reading.kelly.mode`);
+  if (kelly.mode === 'NOT_APPLICABLE') validateKellyNotApplicable(kelly, ref);
+  else validateKellyFixed(kelly, raw, ref, ck);
+  if (kelly.probability_digits !== undefined && ![1, 2].includes(kelly.probability_digits)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.probability_digits:1|2`);
+  validateForward(reading, ref);
+  validateDisplay(reading, ref);
+  validateAddendum1(reading, ref);
+  if (reading.funding_exclusion !== undefined) {
+    const funding = c.object(reading, 'funding_exclusion');
+    const cf = checker(`${ref}.q0_reading.funding_exclusion`);
+    cf.text(funding, 'count_field'); cf.text(funding, 'share_field'); cf.text(funding, 'rule_ref_zh');
+  }
+  if (reading.disclosures_zh !== undefined) {
+    c.array(reading, 'disclosures_zh').forEach((text, i) => { if (!isText(text)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.disclosures_zh[${i}]:string`); });
+  }
+  validateShared(raw, ref);
+}
+
+/** 半凯利（固定风险臂，QS 的读法）：两臂、阈值、第一个阈值等于档案底线。 */
+function validateKellyFixed(kelly, raw, ref, ck) {
   const fixed = ck.object(kelly, 'fixed_arm');
   checker(`${ref}.q0_reading.kelly.fixed_arm`).text(fixed, 'key');
   checker(`${ref}.q0_reading.kelly.fixed_arm`).text(fixed, 'label_zh');
@@ -210,22 +234,120 @@ function validateReadings(raw, ref) {
   });
   if (thresholds[0].value !== raw.floor.value) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.thresholds[0].value:${thresholds[0].value}≠floor.value ${raw.floor.value}`);
   if (new Set(thresholds.map((item) => item.field)).size !== thresholds.length) fail('STRATEGY_PROFILE_DUPLICATE', `${ref}.q0_reading.kelly.thresholds.field`);
-  if (kelly.probability_digits !== undefined && ![1, 2].includes(kelly.probability_digits)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.probability_digits:1|2`);
-  if (reading.forward !== undefined) {
-    const forward = c.object(reading, 'forward');
-    checker(`${ref}.q0_reading.forward`).text(forward, 'net_field');
-    if (forward.ledger_must_equal_strategy_ref !== true) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.forward.ledger_must_equal_strategy_ref:true`);
-    if (forward.sub_rows !== undefined) labelled(forward.sub_rows, `${ref}.q0_reading.forward.sub_rows`, ['field', 'label_zh']);
+}
+
+const METRIC_KINDS = Object.freeze(['PER_TRADE_R', 'G_GAP']);
+const KELLY_MODES = Object.freeze(['FIXED_RISK', 'NOT_APPLICABLE']);
+const FORWARD_KINDS = Object.freeze(['NET', 'EQUITY']);
+const REASON_CODE = /^[A-Z][A-Z0-9_]*$/;
+const HAS_CHINESE = /[\u4e00-\u9fff]/;
+const metricKind = (reading, ref) => {
+  if (reading.metric === undefined) return 'PER_TRADE_R';
+  const metric = checker(`${ref}.q0_reading`).object(reading, 'metric');
+  const kind = checker(`${ref}.q0_reading.metric`).text(metric, 'kind');
+  if (!METRIC_KINDS.includes(kind)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.metric.kind:${METRIC_KINDS.join('|')}`);
+  if (kind === 'G_GAP' && !Number.isInteger(checker(`${ref}.q0_reading.metric`).number(metric, 'min_months'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.metric.min_months:integer`);
+  return kind;
+};
+
+/** US_CORE_Q0_RESULT_V1 §2.3.2：G_GAP 档案的 g 路径（市场与现金各 point/ci、月数）与按持有段的胜率读法。 */
+function validateGapReading(reading, ref) {
+  const c = checker(`${ref}.q0_reading`);
+  const paths = c.object(reading, 'g_paths');
+  const cp = checker(`${ref}.q0_reading.g_paths`);
+  for (const key of ['market', 'cash']) {
+    const item = cp.object(paths, key);
+    checker(`${ref}.q0_reading.g_paths.${key}`).text(item, 'point');
+    checker(`${ref}.q0_reading.g_paths.${key}`).text(item, 'ci');
   }
-  validateAddendum1(reading, ref);
-  if (reading.funding_exclusion !== undefined) {
-    const funding = c.object(reading, 'funding_exclusion');
-    const cf = checker(`${ref}.q0_reading.funding_exclusion`);
-    cf.text(funding, 'count_field'); cf.text(funding, 'share_field'); cf.text(funding, 'rule_ref_zh');
+  cp.text(paths, 'months');
+  const winrate = c.object(reading, 'winrate');
+  const cw = checker(`${ref}.q0_reading.winrate`);
+  if (cw.text(winrate, 'basis') !== 'EPISODES') fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.winrate.basis:EPISODES`);
+  cw.text(winrate, 'tier'); cw.text(winrate, 'label_zh');
+  if (winrate.other_tiers !== undefined) {
+    cw.array(winrate, 'other_tiers').forEach((item, i) => {
+      if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.winrate.other_tiers[${i}]:object`);
+      checker(`${ref}.q0_reading.winrate.other_tiers[${i}]`).text(item, 'tier');
+      checker(`${ref}.q0_reading.winrate.other_tiers[${i}]`).text(item, 'label_zh');
+    });
   }
-  if (reading.disclosures_zh !== undefined) {
-    c.array(reading, 'disclosures_zh').forEach((text, i) => { if (!isText(text)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.disclosures_zh[${i}]:string`); });
+}
+
+/** §2.3.4：半凯利不适用——不得带固定风险臂与阈值；改报的概率字段不重复。 */
+function validateKellyNotApplicable(kelly, ref) {
+  for (const key of ['fixed_arm', 'thresholds']) if (kelly[key] !== undefined) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.${key}:not allowed with NOT_APPLICABLE`);
+  const probabilities = checker(`${ref}.q0_reading.kelly`).array(kelly, 'probabilities');
+  if (!probabilities.length) fail('STRATEGY_PROFILE_FIELD_MISSING', `${ref}.q0_reading.kelly.probabilities.*`);
+  probabilities.forEach((item, i) => {
+    if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.probabilities[${i}]:object`);
+    const cp = checker(`${ref}.q0_reading.kelly.probabilities[${i}]`);
+    cp.text(item, 'field'); cp.text(item, 'label_zh');
+  });
+  if (new Set(probabilities.map((item) => item.field)).size !== probabilities.length) fail('STRATEGY_PROFILE_DUPLICATE', `${ref}.q0_reading.kelly.probabilities.field`);
+  if (kelly.events !== undefined) {
+    const events = checker(`${ref}.q0_reading.kelly`).object(kelly, 'events');
+    checker(`${ref}.q0_reading.kelly.events`).text(events, 'path');
+    checker(`${ref}.q0_reading.kelly.events`).text(events, 'label_zh');
   }
+}
+
+/** 前向行：NET（QS：笔数、净额、每笔 R）或 EQUITY（US_CORE：起止权益与收益）。 */
+function validateForward(reading, ref) {
+  if (reading.forward === undefined) return;
+  const forward = checker(`${ref}.q0_reading`).object(reading, 'forward');
+  const cf = checker(`${ref}.q0_reading.forward`);
+  const kind = forward.kind === undefined ? 'NET' : forward.kind;
+  if (!FORWARD_KINDS.includes(kind)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.forward.kind:${FORWARD_KINDS.join('|')}`);
+  if (kind === 'NET') cf.text(forward, 'net_field'); else cf.text(forward, 'ledger_field');
+  if (forward.ledger_must_equal_strategy_ref !== true) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.forward.ledger_must_equal_strategy_ref:true`);
+  if (forward.sub_rows !== undefined) labelled(forward.sub_rows, `${ref}.q0_reading.forward.sub_rows`, ['field', 'label_zh']);
+}
+
+/** §2.3.5–§2.3.8：A0 两种读法、风控高亮、样本外复用、原因词与场景名、参照臂与开发期账户路径。 */
+function validateDisplay(reading, ref) {
+  const c = checker(`${ref}.q0_reading`);
+  if (reading.a0 !== undefined) {
+    const a0 = c.object(reading, 'a0');
+    if (a0.dual_reading !== true) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.a0.dual_reading:true`);
+    if (!SHA256.test(checker(`${ref}.q0_reading.a0`).text(a0, 'ruling_sha256'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.a0.ruling_sha256:sha256`);
+    checker(`${ref}.q0_reading.a0`).text(a0, 'literal_note_zh');
+  }
+  if (reading.highlights !== undefined) {
+    const highlights = c.array(reading, 'highlights');
+    if (highlights.length > 2) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.highlights:at most 2`);
+    highlights.forEach((item, i) => {
+      if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.highlights[${i}]:object`);
+      const ch = checker(`${ref}.q0_reading.highlights[${i}]`);
+      ch.text(item, 'key'); ch.text(item, 'label_zh');
+      if (!/^RISK_/.test(ch.text(item, 'scenario'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.highlights[${i}].scenario:RISK_*`);
+      if (item.diagnosis_id !== undefined) ch.text(item, 'diagnosis_id');
+      // US_CORE 冻结说明 1：标题里的近似说明与缺口一行的封存日期前缀（可选，只写文字）
+      if (item.approximation_note_zh !== undefined) ch.text(item, 'approximation_note_zh');
+      if (item.gap_as_of_zh !== undefined) ch.text(item, 'gap_as_of_zh');
+    });
+    if (new Set(highlights.map((item) => item.key)).size !== highlights.length) fail('STRATEGY_PROFILE_DUPLICATE', `${ref}.q0_reading.highlights.key`);
+  }
+  if (reading.oos_reuse !== undefined) {
+    const reuse = c.object(reading, 'oos_reuse');
+    if (!REASON_CODE.test(checker(`${ref}.q0_reading.oos_reuse`).text(reuse, 'reason_code'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.oos_reuse.reason_code:CODE`);
+    checker(`${ref}.q0_reading.oos_reuse`).text(reuse, 'text_zh');
+  }
+  if (reading.reason_words_zh !== undefined) {
+    for (const [code, text] of Object.entries(c.object(reading, 'reason_words_zh'))) {
+      if (!REASON_CODE.test(code) || !isText(text)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.reason_words_zh.${code}`);
+    }
+  }
+  if (reading.scenario_words_zh !== undefined) {
+    for (const [id, text] of Object.entries(c.object(reading, 'scenario_words_zh'))) {
+      if (!isText(text) || !HAS_CHINESE.test(text)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.scenario_words_zh.${id}:中文`);
+    }
+  }
+  if (reading.reference_arms !== undefined && typeof reading.reference_arms !== 'boolean') fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.reference_arms:boolean`);
+  if (reading.dev_arms_path !== undefined) c.text(reading, 'dev_arms_path');
+}
+
+function validateShared(raw, ref) {
   if (raw.shared_constraints === undefined) return;
   checker(ref).array(raw, 'shared_constraints').forEach((item, i) => {
     const where = `${ref}.shared_constraints[${i}]`;
@@ -234,7 +356,7 @@ function validateReadings(raw, ref) {
     if (hasNumber(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:no numbers`);
     const cs = checker(where);
     cs.text(item, 'key'); cs.text(item, 'label_zh');
-    // 冻结说明 1 第 2 条 / US_CORE 裁定 2：桶级规则只写一句原文（text_zh，含「共享，未复算」），没有规则清单里的对应条目时不写 rule_ref
+    // CRYPTO 增补 1 冻结说明 1 第 2 条：桶级规则只写一句原文（text_zh，含「共享，未复算」），没有规则清单里的对应条目时不写 rule_ref
     if (item.text_zh !== undefined) {
       if (!cs.text(item, 'text_zh').includes(SHARED_DISPLAY_ZH)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.text_zh:must contain ${SHARED_DISPLAY_ZH}`);
       if (item.rule_ref !== undefined) cs.text(item, 'rule_ref');

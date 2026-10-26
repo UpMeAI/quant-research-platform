@@ -1,0 +1,75 @@
+{
+  "schema": "US_CORE_M1_NATIVE_DIAGNOSTIC_EVIDENCE_V1",
+  "evidence_id": "US-CORE-M1-NATIVE-2026-10-08_2026-10-23",
+  "case_ref": "RRC-US-CORE-9000-V8-1-M0",
+  "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+  "acceptance_ref": "docs/contracts/US_CORE_Q0_RESULT_V1_IMPORT_PROFILE.md",
+  "window": {
+    "start_session": "2026-10-08",
+    "end_session": "2026-10-23",
+    "label": "2026-10-08 至 2026-10-23（12 个 NYSE 交易日）"
+  },
+  "book": {
+    "ledger_file": "files/config/us_core_9000usd_3x_gateobs.json",
+    "decision_inputs_dir": "files/reports/decision-inputs/us-core/US_CORE_9000USD_3X_GATEOBS",
+    "book_id": "US_CORE_9000USD_3X_GATEOBS@2026-10-08T13:30:00.000Z",
+    "initial_equity_usd": 9000,
+    "sleeves": [
+      { "sleeve": "SPY", "lev": "UPRO" },
+      { "sleeve": "QQQ", "lev": "TQQQ" }
+    ]
+  },
+  "input_package": {
+    "relative_root": "var/evidence/us-core-m1-2026-10-08_2026-10-23",
+    "files": 119,
+    "bytes": 619206,
+    "sha256": "45e72e6316638ed8335722b8e0f0ffa24b642bc79402bdaf1a5215250fcf186b"
+  },
+  "source_package": {
+    "kind": "QRP_US_CORE_V1_M1",
+    "manifest_path": "MANIFEST.sha256",
+    "manifest_sha256": "75d9ed07d8d75622a8cebdf81acd9a76e0d5c8024a18b1132265a6927423e434",
+    "copied_from": "Mac research-data/qrp_us_core_v1/m1/（= HK /root/qrp-us-core-v1/out/m1/，smartflow research/us-core-qrp-onboarding run 1）",
+    "host": "smartflow-vps (HK)",
+    "production_commit": "a8601cd37c8d57dbb713daa7c08455204aa59242"
+  },
+  "cost_model": {
+    "model_ref": "US_V5_M1_RESEARCH_COST_V1",
+    "reuse_ref": "US_CORE_Q0_RESULT_V1_IMPORT_PROFILE §9.2（FREEZE_1 R-COST ★a）；费率与 US_V5 M1 证据清单 CYCLE_RESEARCH_DESK_US_V5_M1_NATIVE_DIAGNOSTIC_2026-10-24.json 相同",
+    "strategy_bps_each_side": 5,
+    "commission_usd": 0,
+    "sec_sell_rate_per_dollar": 0.0000206,
+    "taf_sell_rate_per_share": 0,
+    "cat_rate_per_equivalent_share_each_side": 0.000003,
+    "rounding": "CEIL_EACH_FEE_TYPE_PER_DAY_PER_ACCOUNT_TO_CENT",
+    "aggregation_scope": "STANDALONE_STRATEGY_BOOK_ASSUMPTION",
+    "is_actual_broker_invoice": false,
+    "tolerance_usd": 0.000001
+  },
+  "account": {
+    "expected_end_usd": 7836.21192664,
+    "expected_end_session": "2026-10-23",
+    "expected_end_ref": "US_CORE_Q0_RESULT_V1_IMPORT_PROFILE §9.3（12 个 mark；10-08 两笔交接买入后持有）"
+  },
+  "decision_trace": {
+    "decided_at_session": "2026-10-07",
+    "predecessor_book_id": "US_CORE_6000USD_3X_GATEOBS@2026-10-01T13:30:00.000Z",
+    "fill_session": "2026-10-08",
+    "fill_reason_code": "BOOK_HANDOVER_OPEN",
+    "targets": { "SPY": "lev", "QQQ": "lev" },
+    "ref": "K2 §3：10-07 收盘前身簿决定两袖 3x → 10-08 开盘交接买入 → 之后 11 天持有 → 10-23 权益 7,836.21"
+  },
+  "limitations_zh": [
+    "窗口内只有 1 次交接成交、0 次自主换档，少于 30：能看清策略怎么运行，不能据此评价策略好坏。",
+    "没有真实账户臂：PAPER 账本在真实行情上运行，成交价是 Yahoo 日线的开盘价读数。",
+    "利差风险状态没有历史：监控进程只保留当前一个状态，历史只在决策输入记录里。",
+    "同一个开盘价被读两次时两次不同（10-08 TQQQ：前身簿卖出记 82.33，本簿买入记 82.32499694824219）。",
+    "Rule 1b 的停止记录写不进本账本（smartflow new-entry-halt-writer.js:41-42,91 的 HALTABLE 没有 US_CORE_<n>USD_<lev>X_GATEOBS），生产缺口，未修。"
+  ],
+  "safety": {
+    "production_effect": "NONE",
+    "research_can_order": false,
+    "research_can_activate": false,
+    "research_can_write_runtime": false
+  }
+}

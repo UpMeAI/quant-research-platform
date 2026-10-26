@@ -670,7 +670,7 @@ async function readModel({
         ? [forwardItems.length ? `QRP 已导入 ${forwardItems.length} 条关联的前向观察` : null,
           hkItems.length ? hkSentence(hkItems) : null]
           .filter(Boolean).join('；') + '。'
-        : (q0Forward ? `Q0 结果文件里带有前向记录 ${q0Forward.raw.trades} 笔（只报不判）；HK 前向影子：本策略尚未登记。` : '尚无属于这项策略的前向观察。'),
+        : (q0Forward ? `Q0 结果文件里带有前向记录${q0Forward.raw.trades !== undefined ? ` ${q0Forward.raw.trades} 笔` : ''}（只报不判）；HK 前向影子：本策略尚未登记。` : '尚无属于这项策略的前向观察。'),
     },
     review: {
       state: selectedLockedLinks.some((item) => item.adoption_state !== 'NOT_DECIDED') ? 'DECIDED'
