@@ -9,6 +9,9 @@
  * - QRP 各服务生产工程研究对象。
  *
  * 本层不重算策略、不判定采用、不写任何账本，也不把工程样例冒充 Desk 当前策略。
+ *
+ * 策略详情按所选 strategy_ref 取策略档案（services/strategy-profiles）：诊断、回测、对比和前向观察都只读这条策略自己的档案；
+ * 没有登记档案的策略（含 Desk 目录里没有的）详情写「该策略尚未接入研究」，不显示任何别的策略的数字。
  */
 const path = require('path');
 const runtimeResearchLoop = require('../runtime-research-loop');
@@ -24,9 +27,11 @@ const strategyDiagnostics = require('../strategy-diagnostics');
 const baselineEvaluation = require('../baseline-evaluation');
 const candidateComparison = require('../candidate-comparison');
 const hkForward = require('../hk-forward-observations');
+const profiles = require('../strategy-profiles');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
+const NOT_REGISTERED_LABEL = '该策略尚未接入研究';
 
 const NAVIGATION = Object.freeze([
   { route: 'strategies', label: '策略总览', question: 'Desk 当前有哪些运行、观察和历史策略？' },
@@ -190,12 +195,12 @@ function sourceLabel(sourceRef) {
   return '实际输入文件';
 }
 
-function blockerList(primary, caseRec) {
+function blockerList(primary, caseRec, profile = null) {
   if (!primary || !caseRec) return [];
   const freshness = primary.data_quality.freshness || {};
   const blockers = [];
   if (freshness.native_scan_bundle === 'MISSING') blockers.push({
-    key: 'native_scan_bundle', label: '缺少 US_V5 原生扫描包',
+    key: 'native_scan_bundle', label: `缺少${profile ? ` ${profile.display_name} ` : ''}原生扫描包`,
     impact: '无法证明回放走的是原策略完整扫描路径。', next: '由 Smartflow 交付同一历史时点的原生扫描 bundle。',
   });
   if (freshness.benchmark_bars === 'MISSING') blockers.push({
@@ -278,13 +283,13 @@ function queueText(state) {
  * 没有就按队列状态写（已冻结 K2 = 进行中；否则排队或待立题，写明在等谁）。只改对应那几条的 status 与 link，其余原样；
  * 清单读不出来或这项策略没有候选对比时不动。
  */
-function linkComparison(diagnosis, comparisons, strategyRef) {
+function linkComparison(diagnosis, comparisons, strategyRef, program = candidateComparison.registry.forStrategy(strategyRef)) {
   if (!diagnosis || diagnosis.state !== 'AVAILABLE') return diagnosis;
   if (comparisons.length && comparisons.every((projection) => projection.state === 'NOT_CONNECTED')) return diagnosis;
   const link = { label: '查看研究与对比', section: 'research', strategy_ref: strategyRef };
   const byQuestion = new Map(comparisons.map((projection) => [projection.question_ref, projection]));
   const statusOf = (question) => {
-    const state = candidateComparison.registry.queueState(question, comparisons);
+    const state = program ? program.queueState(question, comparisons) : null;
     if (!state) return null;
     const projection = byQuestion.get(question);
     const STATUS = {
@@ -312,14 +317,14 @@ function linkComparison(diagnosis, comparisons, strategyRef) {
  * 已锁定的取自对比结果的锁；其余取自 Q0 诊断清单里已立题的实验，再按登记项（K2 已冻结＝进行中）与研究计划的先后关系（排队，等谁）推出。
  * 没有任何已锁定的对比结果时返回 null，页面保持原来的写法。
  */
-function researchSummary(comparisons, diagnosis, returnedToDesk) {
+function researchSummary(comparisons, diagnosis, returnedToDesk, program = null) {
   const locked = comparisons.filter((card) => card.state === 'LOCKED_VERIFIED').map((card) => card.question_ref);
   const broken = comparisons.filter((card) => card.state === 'INVALID' || card.state === 'MISSING').map((card) => card.question_ref);
   if (!locked.length && !broken.length) return null;
   const proposed = [...new Set((diagnosis && diagnosis.state === 'AVAILABLE' ? diagnosis.items : [])
     .map((item) => item.experiment && item.experiment.id).filter(Boolean))].sort();
   const have = new Set([...locked, ...broken]);
-  const pending = proposed.filter((id) => !have.has(id)).map((id) => candidateComparison.registry.queueState(id, comparisons) || { question: id, phase: 'RUNNING', waiting_on: [] });
+  const pending = proposed.filter((id) => !have.has(id)).map((id) => (program && program.queueState(id, comparisons)) || { question: id, phase: 'RUNNING', waiting_on: [] });
   const running = pending.filter((state) => state.phase === 'RUNNING').map((state) => state.question);
   // 已冻结 K2 的写「进行中」；还没冻结的按计划写排队（等谁）或待立题，不一律写「进行中」
   const unlocked = [];
@@ -375,15 +380,18 @@ async function readModel({
   const productByCase = new Map(loop.product_delivery.cases.map((item) => [item.case_ref, item]));
   const primary = selectedCurrentCase
     ? humanCase(selectedCurrentCase, productByCase.get(selectedCurrentCase.case_id), strategyByRef) : null;
-  const canonicalDiagnosticCase = selectedCurrentCase?.case_id === 'RRC-US-V5-3000-V8-1-M0'
-    && selectedCurrentCase?.strategy_ref === 'US_V5_ETF_3000USD';
+  // 所选策略的档案；没有登记的策略不读任何诊断、回测、对比或前向观察（R3）
+  const profile = profiles.get(selectedStrategyRef);
+  const program = profile ? candidateComparison.registry.forStrategy(profile.strategy_ref) : null;
+  const profileCase = Boolean(profile) && selectedCurrentCase?.case_id === profile.case_ref;
+  const canonicalDiagnosticCase = profileCase && selectedCurrentCase?.strategy_ref === profile.strategy_ref;
   const candidateDiagnostic = suppliedDiagnostic === undefined
-    ? (canonicalDiagnosticCase ? strategyDiagnostics.readDiagnostic() : null)
+    ? (canonicalDiagnosticCase ? strategyDiagnostics.readDiagnostic({ strategyRef: profile.strategy_ref }) : null)
     : suppliedDiagnostic;
   const diagnostic = selectedCurrentCase && candidateDiagnostic
     && candidateDiagnostic.case_ref === selectedCurrentCase.case_id
     && candidateDiagnostic.strategy_ref === selectedCurrentCase.strategy_ref ? candidateDiagnostic : null;
-  const blockers = diagnostic?.state === 'VERIFIED' ? [] : blockerList(primary, selectedCurrentCase);
+  const blockers = diagnostic?.state === 'VERIFIED' ? [] : blockerList(primary, selectedCurrentCase, profile);
   if (diagnostic && diagnostic.state !== 'VERIFIED') blockers.unshift({
     key: 'm1_diagnostic_package', label: 'M1 原版诊断输入不可用',
     impact: `canonical 诊断返回 ${diagnostic.state}：${diagnostic.reason_code || '原因未提供'}。`,
@@ -395,15 +403,15 @@ async function readModel({
 
   // K3：回测结论只来自 QRP 导入并锁定的封存结果；没有 case、没有导入、文件校验失败都是「尚未回测」。
   const baselineProjection = suppliedBaseline !== undefined ? suppliedBaseline
-    : (selectedCurrentCase?.case_id === baselineEvaluation.CASE_REF ? baselineEvaluation.readProjection()
-      : baselineEvaluation.emptyProjection('NOT_CONNECTED', selectedCurrentCase
-        ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
+    : (profileCase ? baselineEvaluation.readProjection(profile.case_ref)
+      : baselineEvaluation.emptyProjection('NOT_CONNECTED', !profile ? NOT_REGISTERED_LABEL
+        : selectedCurrentCase ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
 
   // 候选对比（Q1、Q2……）同样只来自导入并锁定的封存结果；每个已锁定的题目一张卡，没有交付、文件校验失败都是「尚未完成」。
   const comparisonProjections = (() => {
     if (suppliedComparison !== undefined) return Array.isArray(suppliedComparison) ? suppliedComparison : [suppliedComparison];
-    return selectedCurrentCase?.case_id === candidateComparison.CASE_REF ? candidateComparison.readProjections()
-      : [candidateComparison.emptyProjection('NOT_CONNECTED', '这项策略没有候选对比')];
+    return profileCase ? candidateComparison.readProjections(profile.case_ref)
+      : [candidateComparison.emptyProjection('NOT_CONNECTED', profile ? '这项策略没有候选对比' : NOT_REGISTERED_LABEL)];
   })();
 
   const adapters = listAdapters();
@@ -426,7 +434,7 @@ async function readModel({
   })));
   const selectedLinks = primary?.links || [];
   const selectedLockedLinks = selectedLinks.filter((item) => item.has_locked_result);
-  const researchText = researchSummary(comparisonProjections, baselineProjection.diagnosis, selectedLockedLinks.length);
+  const researchText = researchSummary(comparisonProjections, baselineProjection.diagnosis, selectedLockedLinks.length, program);
   // 页头标签、概览卡片和研究区开头读同一个对象：有已锁定的对比结果就写实际状态，不再写「暂无研究问题」
   if (researchText && selectedStrategy) selectedStrategy.research = { ...selectedStrategy.research, code: 'RESULT_LOCKED', label: researchText };
   const lockedLinks = globalLinks.filter((item) => item.has_locked_result);
@@ -536,7 +544,7 @@ async function readModel({
       state: baselineProjection.state, reason: baselineProjection.reason || null,
       blocks: baselineProjection.blocks, source: baselineProjection.source,
     },
-    diagnosis_list: linkComparison(baselineProjection.diagnosis, comparisonProjections, selectedStrategyRef),
+    diagnosis_list: linkComparison(baselineProjection.diagnosis, comparisonProjections, selectedStrategyRef, program),
     comparisons: comparisonProjections.map((projection) => ({
       question: '原版和候选放在同一账户里比，候选有没有更好？',
       ...projection,
@@ -583,6 +591,10 @@ async function readModel({
       selectedCurrentCase ? technicalRef(selectedCurrentCase.case_id, '研究 case ID') : null,
       baselineRelation ? technicalRef(baselineRelation.case_id, '关联首案 ID') : null,
     ].filter(Boolean),
+    // 只加在需要的策略上（已登记策略的投影形状不变，US_V5 的 JSON 逐字节冻结，D1）：
+    // 没有档案的策略标「该策略尚未接入研究」；页面金额默认按美元写，非美元档案带上自己的币种。
+    ...(!profile ? { profile_state: 'NOT_REGISTERED', profile_label: NOT_REGISTERED_LABEL } : {}),
+    ...(profile && profile.currency !== 'USD' ? { currency: profile.currency } : {}),
   };
 
   return {
@@ -675,7 +687,7 @@ async function readModel({
             state_label: '内容校验通过', technical: technicalRef(diagnostic.technical.package_sha256, '完整输入包 SHA-256'),
           },
           {
-            label: 'US_V5 原生扫描记录', file_name: `${diagnostic.source_status.scans.files} 个 session 文件 · ${diagnostic.source_status.scans.records} 条记录`,
+            label: `${profile.display_name} 原生扫描记录`, file_name: `${diagnostic.source_status.scans.files} 个 session 文件 · ${diagnostic.source_status.scans.records} 条记录`,
             state_label: '逐条记录 hash 通过', technical: technicalRef(diagnostic.native_replay.frozen_digest, '冻结策略 digest'),
           },
           {

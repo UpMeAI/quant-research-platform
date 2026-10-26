@@ -6,6 +6,7 @@
  * 这里的函数一律带 entry 参数，错误码用 `<question>_` 前缀，Q1 的错误码与改造前逐字相同。
  */
 const baseline = require('../baseline-evaluation');
+const profiles = require('../strategy-profiles');
 
 const {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
@@ -228,11 +229,14 @@ function stressBlock(entry, doc) {
 
 // ── 臂 ──────────────────────────────────────────────────────────────────────────
 
+/** 原版、候选，再加题目所属策略档案里的比较对象（US_V5：SPY 买入持有、现金）。 */
 function armSummaries(entry, doc) {
   const arms = doc.arms;
   need(isObject(arms), 'MISSING', 'arms');
+  const owner = profiles.byComparisonProfile(entry.profile_ref);
+  need(owner, 'INVALID', `题目 ${entry.question_ref} 不属于任何已登记的策略`);
   const specs = [['BASELINE', '原版（当前 D）', BASE_KEYS], [entry.candidate.key, entry.candidate.label_zh, entry.candidate.keys],
-    ['SPY_BUY_HOLD', 'SPY 买入持有', ['SPY_BUY_HOLD']], ['CASH', '现金', ['CASH']]];
+    ...owner.comparators.map((item) => [item.key, item.label_zh, [item.key]])];
   let dates = null;
   return specs.map(([key, label, aliases]) => {
     const arm = pick(arms, aliases);

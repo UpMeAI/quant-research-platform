@@ -1,30 +1,34 @@
 {
-  "_comment": "HK 上已在跑、尚未导入 QRP 的前向影子（只读登记，页面「前向观察」用）。运行位置（pm2 名称与 cron）和输出文件由登记人在 verified_at 只读核对过；起始日取自 UX 修订 3 C5 与 T3 研究记录（输出文件最早一条交易孪生入场于 2026-10-07，只能佐证它在跑，不能独立证明 10-05 起算）；这里不放任何结果数字。导入 QRP 后把 qrp_shadow_ref 填成 shadow-control 的 shadow_id，页面改读 QRP 台账。",
+  "_comment": "HK 上已在跑、尚未导入 QRP 的前向影子（只读登记，页面「前向观察」用）。按策略分组：键是策略档案（config/strategy_profiles.v1.json）的 forward_observation_source_key，未登记的策略读不到任何一组。运行位置（pm2 名称与 cron）和输出文件由登记人在 verified_at 只读核对过；起始日取自 UX 修订 3 C5 与 T3 研究记录（输出文件最早一条交易孪生入场于 2026-10-07，只能佐证它在跑，不能独立证明 10-05 起算）；这里不放任何结果数字。导入 QRP 后把 qrp_shadow_ref 填成 shadow-control 的 shadow_id，页面改读 QRP 台账。",
   "contract": "HK_FORWARD_OBSERVATIONS_V1",
   "verified_at": "2026-10-25",
   "verified_by": "V8.1 工程实施者（只读 SSH：pm2 jlist 与输出文件）",
-  "items": [
-    {
-      "id": "US_V5_T3_TIME_STOP_TWIN",
-      "forward_stream": "B",
-      "label": "US_V5 T3：处于趋势时推迟 5 日 TIME stop（交易孪生）",
-      "applies_to": ["US_V5_ETF_3000USD", "US_V5_ETF_6000USD"],
-      "started_on": "2026-10-05",
-      "location": "HK VPS（smartflow-vps）· pm2 us-v5-time-stop-shadow · 周二至周六 06:30 CST",
-      "output_ref": "reports/us-v5-time-stop-shadow/time-stop-shadow.jsonl",
-      "acceptance_ref": "US_V5_TIME_STOP_VS_TREND_EXIT_V1（已签，sha 6b9d2ff4…）",
-      "qrp_shadow_ref": null
-    },
-    {
-      "id": "US_V5_T3_TIME_STOP_SIGNAL_LEVEL",
-      "forward_stream": "S",
-      "label": "US_V5 T3 信号层影子（S-stream）",
-      "applies_to": ["US_V5_ETF_3000USD", "US_V5_ETF_6000USD"],
-      "started_on": "2026-10-05",
-      "location": "HK VPS（smartflow-vps）· pm2 us-v5-time-stop-shadow-s · 周六 10:00 CST",
-      "output_ref": "reports/us-v5-time-stop-shadow/signal-level/time-stop-shadow-s.jsonl",
-      "acceptance_ref": "US_V5_TIME_STOP_VS_TREND_EXIT_V1（已签，sha 6b9d2ff4…）",
-      "qrp_shadow_ref": null
+  "strategies": {
+    "US_V5_ETF_3000USD": {
+      "items": [
+        {
+          "id": "US_V5_T3_TIME_STOP_TWIN",
+          "forward_stream": "B",
+          "label": "US_V5 T3：处于趋势时推迟 5 日 TIME stop（交易孪生）",
+          "applies_to": ["US_V5_ETF_3000USD", "US_V5_ETF_6000USD"],
+          "started_on": "2026-10-05",
+          "location": "HK VPS（smartflow-vps）· pm2 us-v5-time-stop-shadow · 周二至周六 06:30 CST",
+          "output_ref": "reports/us-v5-time-stop-shadow/time-stop-shadow.jsonl",
+          "acceptance_ref": "US_V5_TIME_STOP_VS_TREND_EXIT_V1（已签，sha 6b9d2ff4…）",
+          "qrp_shadow_ref": null
+        },
+        {
+          "id": "US_V5_T3_TIME_STOP_SIGNAL_LEVEL",
+          "forward_stream": "S",
+          "label": "US_V5 T3 信号层影子（S-stream）",
+          "applies_to": ["US_V5_ETF_3000USD", "US_V5_ETF_6000USD"],
+          "started_on": "2026-10-05",
+          "location": "HK VPS（smartflow-vps）· pm2 us-v5-time-stop-shadow-s · 周六 10:00 CST",
+          "output_ref": "reports/us-v5-time-stop-shadow/signal-level/time-stop-shadow-s.jsonl",
+          "acceptance_ref": "US_V5_TIME_STOP_VS_TREND_EXIT_V1（已签，sha 6b9d2ff4…）",
+          "qrp_shadow_ref": null
+        }
+      ]
     }
-  ]
+  }
 }
