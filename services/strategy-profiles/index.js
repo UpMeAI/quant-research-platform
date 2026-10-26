@@ -322,6 +322,9 @@ function validateDisplay(reading, ref) {
       ch.text(item, 'key'); ch.text(item, 'label_zh');
       if (!/^RISK_/.test(ch.text(item, 'scenario'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.highlights[${i}].scenario:RISK_*`);
       if (item.diagnosis_id !== undefined) ch.text(item, 'diagnosis_id');
+      // US_CORE 冻结说明 1：标题里的近似说明与缺口一行的封存日期前缀（可选，只写文字）
+      if (item.approximation_note_zh !== undefined) ch.text(item, 'approximation_note_zh');
+      if (item.gap_as_of_zh !== undefined) ch.text(item, 'gap_as_of_zh');
     });
     if (new Set(highlights.map((item) => item.key)).size !== highlights.length) fail('STRATEGY_PROFILE_DUPLICATE', `${ref}.q0_reading.highlights.key`);
   }

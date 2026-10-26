@@ -47,7 +47,11 @@ async function realModel(strategyRef = CORE.strategy_ref) {
   return workspace.readModel({ strategyRef });
 }
 // §11.5：US_CORE 页不得出现的词；§11.6：US_V5 与 Quick Shot 页不得出现的 US_CORE 词与数字
-const NOT_ON_CORE = ['USDT', 'BTC', '每笔扣费后净 R', '+0.10 R', '成熟交易', '5 bps', '相位 ±60 分钟', '120 分钟', 'h+1', '半凯利比例为 0', '采用率', 'Q0-24fb86c3609f7ef3', 'Q0-bd83dd6ec1754dbc'];
+const NOT_ON_CORE = ['USDT', 'BTC', '每笔扣费后净 R', '+0.10 R', '成熟交易', '5 bps', '相位 ±60 分钟', '120 分钟', 'h+1', '半凯利比例为 0', '采用率', 'Q0-24fb86c3609f7ef3', 'Q0-bd83dd6ec1754dbc',
+  // 第 14 项 ★(a)：US_CORE 页不写海外桶的共享约束行；C17 的数字也不得出现
+  '海外桶 Rule 1b：', '16,000', 'Q0-26691b6c3a2c4227', '7,737', '3,723.77'];
+// C17 的真实 Q0 文件（有就导入临时账本，用来核对 US_CORE 与 C17 页面互不出现对方的数字）
+const C17_REAL = path.join(process.env.QRP_C17_Q0_REAL_DIR || '/Users/kaylame/KaylaProject/research-data/qrp_crypto_v1/q0-c17', 'C17_V2_M2_Q0_RESULT_V1.json');
 const CORE_WORDS = ['US_CORE_9000USD', '5,400', '61,200', '若照 Rule 1b 停止', 'Q0-c5b6fc7e1e29fff9'];
 
 const PAGE = fs.readFileSync(path.join(ROOT, 'apps', 'research-web', 'index.html'), 'utf8');
@@ -99,7 +103,7 @@ test('§11.8 合成夹具本身：整文件通过，六块可读，读法按 G_G
   assert.equal(c.biggest_limit, '相对 SPY 买入持有与相对现金的年化对数增长，95% 区间都跨过门槛 0，现有样本不足以判定。');
   assert.equal(c.highlights[0].valid, true);
   assert.equal(c.highlights[0].text_zh, '样本外 2019-05-28 自起点峰值 11,000 回撤 40.9% 触发停止，之后不再开新仓，期末 6,100；现行主臂不执行停止，期末 40,000。');
-  assert.equal(c.highlights[0].gap_zh, '生产缺口（未修）：合成：Rule 1b 停止记录写不进本账本。');
+  assert.equal(c.highlights[0].gap_zh, 'Q0 封存时（2026-10-26）的生产缺口（未修）：合成：Rule 1b 停止记录写不进本账本。');
   assert.equal(block(projection, 'period').data.a0.text_zh,
     '引擎对齐关卡 A0：按 A0 裁定 1 通过（5 / 5）；按 K2 原文 3 / 5（A0-1、A0-2 未通过：U6 在窗口中间才部署；09-28 的 ^TNX 收盘差一个 float32 步长）；未记录 3 项（A0-1 2、A0-2 1），不计入一致或不符');
   assert.equal(block(projection, 'period').data.engine.label, '当前 D（引擎对齐关卡 A0 按 A0 裁定 1 通过；规则清单无未实现项，1 条附近似说明）');
@@ -275,8 +279,10 @@ test('§11.4–§11.7 真实文件的页面（全部展开）：逐字断言；U
   has('已执行 9 个压力场景，模拟或补充 2 个，缺场景 1 个，无效输入 0 个；另有当前 D 参照 1 行、风控维度 4 行（只报不判，不进最大损失）。缺场景和无效输入不计为已执行的压力。');
   has('模拟序列，不是可交易历史；模拟，不进结论');
   // §6.2 结论卡的高亮两行
-  has('若照 Rule 1b 停止（只报不判，不进结论）：样本外 2019-05-28 自起点峰值 11,001 回撤 40.4% 触发停止，之后不再开新仓，期末 6,145；现行主臂不执行停止，期末 61,200。');
-  has('生产缺口（未修）：Rule 1b 停止记录写不进 US_CORE_*_GATEOBS（new-entry-halt-writer.js:41-42,91，recordHaltForReview → NOT_A_HALTABLE_BOOK）。');
+  // US_CORE 冻结说明 1：§6.2 两行逐字（标题写明近似；缺口一行带封存日期前缀）
+  has('若照 Rule 1b 停止（近似：只按 US_CORE 自己的曲线套 40% 线，停后不解除；真实规则看海外桶合计、由 Owner 解除，见研究题 R1B-1；只报不判，不进结论）：样本外 2019-05-28 自起点峰值 11,001 回撤 40.4% 触发停止，之后不再开新仓，期末 6,145；现行主臂不执行停止，期末 61,200。');
+  has('Q0 封存时（2026-10-26）的生产缺口（未修）：Rule 1b 停止记录写不进 US_CORE_*_GATEOBS（new-entry-halt-writer.js:41-42,91，recordHaltForReview → NOT_A_HALTABLE_BOOK）。');
+  assert.ok(!text.includes('若照 Rule 1b 停止（只报不判，不进结论）'), '标题不得省掉近似说明');
   // §7.2 半凯利
   has('半凯利：不适用——没有止损与每笔风险单位，仓位是整袖资本按档位持有');
   has('按样本外月度分块重抽 10,000 条路径：权益曾低于 5,400 美元（Rule 1b 40% 线）的概率 25.6%；期末低于起点 9,000 的概率 5.5%');
@@ -294,8 +300,10 @@ test('§11.4–§11.7 真实文件的页面（全部展开）：逐字断言；U
   assert.equal((html.match(/页面不重算/g) || []).length, (html.match(/数字取自已锁定的结果文件与采用记录，页面不重算/g) || []).length + 1, '回测与研究区一次，另加总览页签的来源行');
   assert.equal((html.match(/class="completeness"/g) || []).length, 1);
   for (const code of ['CI_STRADDLES_DELTA', 'OOS_REUSED_IN_DEVELOPMENT', 'G_VS_CASH_CI_STRADDLES_ZERO']) assert.ok(!main.includes(code), `主内容出现英文原因码 ${code}`);
-  // §11.6：US_V5 与 Quick Shot 的详情页不得出现 US_CORE 的词与数字
-  for (const ref of ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT']) {
+  // §11.6：US_V5、Quick Shot 与 C17_V2 的详情页不得出现 US_CORE 的词与数字
+  const c17 = profiles.mustGet('C17_V2_4000USDT');
+  if (fs.existsSync(C17_REAL) && !k3.headLock(c17.case_ref)) k3.importBaselineEvaluation(C17_REAL, { registeredBy: AUTHORITY, strategyRef: c17.strategy_ref });
+  for (const ref of ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT', 'C17_V2_4000USDT']) {
     const other = textOf(await renderPage(await workspace.readModel({ strategyRef: ref }), `#strategy-detail?strategy=${ref}&section=all`));
     for (const word of CORE_WORDS) assert.ok(!other.includes(word), `${ref} 页出现了 US_CORE 的「${word}」`);
   }

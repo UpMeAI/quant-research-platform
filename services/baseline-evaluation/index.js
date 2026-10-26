@@ -1604,12 +1604,14 @@ function highlightOf(doc, spec, mainRow) {
     const item = (Array.isArray(doc.diagnosis_items) ? doc.diagnosis_items : []).find((entry) => isObject(entry) && entry.id === spec.diagnosis_id);
     const fact = item && Array.isArray(item.facts_zh) && isText(item.facts_zh[0]) ? item.facts_zh[0] : null;
     if (!fact) return invalid(`诊断项 ${spec.diagnosis_id} 不存在`);
-    gapZh = `生产缺口（未修）：${fact}`;
+    // US_CORE 冻结说明 1 第 2 条：缺口一行按封存事实显示（档案写明封存日期的前缀）
+    gapZh = `${spec.gap_as_of_zh || ''}生产缺口（未修）：${fact}`;
   }
   const whole = (value) => Math.round(value).toLocaleString('en-US');
   return {
     key: spec.key, valid: true, scenario: spec.scenario, label_zh: spec.label_zh,
-    lead_zh: `${spec.label_zh}（只报不判，不进结论）`,
+    // US_CORE 冻结说明 1 第 1 条：标题写明这是近似（只按本策略自己的曲线套 40% 线），不把近似下界写成规则的真实效果
+    lead_zh: `${spec.label_zh}（${spec.approximation_note_zh ? `${spec.approximation_note_zh}；` : ''}只报不判，不进结论）`,
     text_zh: `样本外 ${event.session} 自起点峰值 ${whole(event.peak)} 回撤 ${pct1(event.drawdown)} 触发停止，之后不再开新仓，期末 ${whole(row.end_capital)}；现行主臂不执行停止，期末 ${whole(reference.end_capital)}。`,
     gap_zh: gapZh, sentence_zh: `${spec.label_zh}，${event.session} 起不再开新仓，期末 ${whole(row.end_capital)}`,
     numbers: { halt_session: event.session, peak: event.peak, drawdown: event.drawdown, end_capital: row.end_capital, baseline_end_capital: reference.end_capital },
