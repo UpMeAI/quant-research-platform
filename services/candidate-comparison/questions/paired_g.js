@@ -190,10 +190,18 @@ function builders(entry, doc) {
       const base = rowOf(pick(exposure, BASE_KEYS), extras.baseline);
       const cand = rowOf(pick(exposure, entry.candidate.keys), extras.candidate);
       // 敞口表里登记项另加的行（Q3b：行业 RS 的拒绝数与重排时点数）；原版臂没有排序层，没有写就是「—」
+      // 一行可以带 `get(arm)` 读嵌套的计数（Q4：冷却计数按开盘扫描与其他扫描分开）；没有 get 时读 arm[key]，与之前相同
+      const valueOf = (arm, spec) => (spec.get ? spec.get(arm) : (isObject(arm) ? arm[spec.key] : undefined));
+      const candidateValue = (spec) => {
+        if (!spec.get) return field(pick(exposure, entry.candidate.keys), spec.key, `exposure.${spec.key}`);
+        const value = valueOf(pick(exposure, entry.candidate.keys), spec);
+        need(finite(value), 'MISSING', `exposure.${spec.key}`);
+        return value;
+      };
       const extraRows = (entry.exposure.extra_rows || []).map((spec) => ({
         key: spec.key, label: spec.label_zh, unit: spec.unit_zh,
-        baseline: finite(pick(exposure, BASE_KEYS)[spec.key]) ? pick(exposure, BASE_KEYS)[spec.key] : null,
-        candidate: field(pick(exposure, entry.candidate.keys), spec.key, `exposure.${spec.key}`),
+        baseline: finite(valueOf(pick(exposure, BASE_KEYS), spec)) ? valueOf(pick(exposure, BASE_KEYS), spec) : null,
+        candidate: candidateValue(spec),
       }));
       return {
         baseline: base, candidate: cand,

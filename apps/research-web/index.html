@@ -170,7 +170,14 @@ function renderExtraCard(card){
   const id=`extra-${card.key}-title`;
   const head=`<div class="section-head"><h3 id="${esc(id)}">${esc(card.title_zh)}</h3><p>${card.data?esc(card.data.note_zh):''}</p></div>`;
   if(card.state!=='AVAILABLE')return `<section class="backtest comparison random-control" data-state="${esc(card.state)}" aria-labelledby="${esc(id)}">${head}<p class="not-backtested">尚未完成：${esc(card.reason||'原因未提供')}</p></section>`;
+  if(Array.isArray(card.data.rows))return reportOnlyCard(card,id,head);
   return `<section class="backtest comparison random-control" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<div class="bt-blocks">${card.data.parts.map(randomPart).join('')}</div></section>`;
+}
+/** 只报不判的行（Q4 的 report_only_dimensions）：每行与原版比较，不进三态结论，也不进采用条件。 */
+function reportOnlyCard(card,id,head){
+  const gCell=(g)=>`${signed(g.value,(x)=>pct(x,2))}（95% ${signed(g.ci_95.lo,(x)=>pct(x,2))} ~ ${signed(g.ci_95.hi,(x)=>pct(x,2))}）`;
+  const rows=card.data.rows.map((r)=>[esc(r.label),usd(r.end_capital,0),esc(r.n),rVal(r.mean_R),pct(r.max_drawdown),gCell(r.g),r.changed_entries==null?'—':esc(r.changed_entries)]);
+  return `<section class="backtest comparison report-only" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<div class="status-row">${pill('只报不判','OBSERVING')}</div>${table(['行','期末资本','成熟交易','每笔净 R','最大回撤','年化对数增长差（对原版）','改变的入场'],rows)}</section>`;
 }
 function renderComparison(cmp,ctx){
   if(!cmp||cmp.state==='NOT_CONNECTED')return '';
