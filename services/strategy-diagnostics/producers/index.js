@@ -10,6 +10,7 @@ const LEGACY_DEFAULT = 'US_V5_M1_PRODUCER_V1';
 const REGISTERED = Object.freeze({
   US_V5_M1_PRODUCER_V1: () => require('..').buildUsV5Diagnostic,
   QS_V3_M1_PRODUCER_V1: () => require('./QS_V3_M1_PRODUCER_V1').build,
+  US_CORE_M1_PRODUCER_V1: () => require('./US_CORE_M1_PRODUCER_V1').build,
 });
 
 const isRegistered = (id) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(REGISTERED, id);

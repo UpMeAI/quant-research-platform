@@ -53,14 +53,17 @@ function sentenceOf({ conclusion, account, overview, questions, engine = null })
     return `${conclusion && conclusion.label ? conclusion.label : '尚未回测'}：${(conclusion && (conclusion.reason || conclusion.result_reason)) || '原因未提供'}`;
   }
   const own = ownOf(account); const cmp = comparatorOf(account);
+  // US_CORE_Q0_RESULT_V1 §8.3：样本外复用写在结论括号里；有效的风控高亮接在后面（只报不判）。没有这两项的档案句子不变
+  const flag = conclusion.oos_reuse_short_zh ? `；${conclusion.oos_reuse_short_zh}` : '';
+  const extra = (conclusion.highlights || []).filter((item) => item.valid).map((item) => item.sentence_zh).join('；');
   let head;
   if (own && cmp) {
     const relation = own.end_capital < cmp.end_capital ? '低于' : own.end_capital > cmp.end_capital ? '高于' : '等于';
-    head = `现行版本样本外期末 ${whole(own.end_capital)}，${relation} ${cmp.label}的 ${whole(cmp.end_capital)}（${conclusion.label}）`;
-  } else head = `现行版本回测结论：${conclusion.label}`;
+    head = `现行版本样本外期末 ${whole(own.end_capital)}，${relation} ${cmp.label}的 ${whole(cmp.end_capital)}（${conclusion.label}${flag}）`;
+  } else head = `现行版本回测结论：${conclusion.label}${flag ? `（${flag.slice(1)}）` : ''}`;
   // CRYPTO_Q0_RESULT_V1 增补 1 §2.2 第 1 条 ★(a)：近似引擎的标签分句紧跟结论头（只对非 LEGACY 档案、flag = true）
   if (engine) head = `${head}；所用引擎为${engine}，结论最高只能是证据不足`;
-  if (!overview) return head;
+  if (!overview) return extra ? `${head}；${extra}。` : head;
   const rows = overview.groups.flatMap((group) => group.rows);
   const improvements = adoptedImprovements(rows, questions);
   const summary = overview.cumulative || overview.groups[overview.groups.length - 1].summary;
@@ -74,7 +77,7 @@ function sentenceOf({ conclusion, account, overview, questions, engine = null })
     tail = combo ? `，研究中期末最高的是组合版本（${best.question_ref}）：${whole(best.capital.candidate)}`
       : `，研究中期末最高的候选是 ${best.question_ref}「${best.title_zh}」：${whole(best.capital.candidate)}`;
   } else if (best && own) tail = '，研究中没有候选的期末高于现行版本';
-  return `${head}；${adopted}${pending}${tail}`;
+  return `${head}；${adopted}${pending}${tail}${extra ? `；${extra}。` : ''}`;
 }
 
 /** J1.2 关键数字卡：数字原样取自锁定结果与采用一览；页面格式化。`isMain`：档案的主数字行判别（非 LEGACY 档案按 q0_reading）。 */
@@ -88,15 +91,25 @@ function tilesOf({ backtest, account, overview, isMain = isMainRow }) {
       comparator_label: cmp ? cmp.label : null, link: { section: 'runtime', block: 'account' } });
   }
   const winrate = blockData(backtest, 'winrate');
-  const main = winrate && (winrate.rows.find(isMain) || winrate.rows.find((row) => row.segment === 'OOS'));
+  // US_CORE §8.3：G_GAP 的胜率表行自带 main 标记，单位是「段」，卡名取块里的 tile_label_zh；其他档案不变
+  const main = winrate && (winrate.rows.find((row) => row.main === true) || winrate.rows.find(isMain) || winrate.rows.find((row) => row.segment === 'OOS'));
   // 费用写法：LEGACY_V1 写「5 bps」；非 LEGACY 档案写自己的费用词（CRYPTO_Q0_RESULT_V1 §3.2）
-  if (main) tiles.push({ key: 'winrate', label_zh: '样本外胜率与赔率', win_rate: main.win_rate, payoff: main.payoff, n: main.n,
+  if (main) tiles.push({ key: 'winrate', label_zh: winrate.tile_label_zh || '样本外胜率与赔率', win_rate: main.win_rate, payoff: main.payoff, n: main.n,
+    ...(winrate.unit_zh ? { unit_zh: winrate.unit_zh } : {}),
     row_zh: `${main.segment_label} · ${main.cost_label !== undefined ? main.cost_label : `${main.cost_bps} bps`} · ${main.phase_label}`, link: { section: 'runtime', block: 'winrate' } });
   const kelly = blockData(backtest, 'kelly');
-  if (kelly) tiles.push({ key: 'half_kelly', label_zh: '半凯利', f_half: kelly.f_half, supported: kelly.supported, link: { section: 'runtime', block: 'kelly' } });
+  if (kelly && kelly.mode === 'NOT_APPLICABLE') {
+    tiles.push({ key: 'half_kelly', label_zh: '半凯利', not_applicable: true, f_half: null, supported: false,
+      floor: kelly.floor.value, p_below_floor: kelly.probabilities[0].p, link: { section: 'runtime', block: 'kelly' } });
+  } else if (kelly) tiles.push({ key: 'half_kelly', label_zh: '半凯利', f_half: kelly.f_half, supported: kelly.supported, link: { section: 'runtime', block: 'kelly' } });
   if (overview) {
     const s = overview.cumulative || overview.groups[overview.groups.length - 1].summary;
     tiles.push({ key: 'adoption_rate', label_zh: '采用率', adopted: s.adopted, decided: s.decided, pending: s.pending, rate: s.rate, link: { section: 'research' } });
+  }
+  // US_CORE §8.3 卡 5：有效的风控高亮（只报不判）——期末对现行主臂、停止日，以及生产缺口一行小字
+  for (const item of ((backtest && backtest.conclusion && backtest.conclusion.highlights) || []).filter((entry) => entry.valid)) {
+    tiles.push({ key: 'rule1b', label_zh: item.label_zh, own: item.numbers.end_capital, baseline: item.numbers.baseline_end_capital,
+      halt_session: item.numbers.halt_session, gap_short_zh: item.gap_zh ? '生产缺口：停止记录写不进本账本（未修）' : null, link: { section: 'runtime', block: 'stress' } });
   }
   if (own) tiles.push({ key: 'underwater', label_zh: '最长水下期与「期末是否回到最高点」', sessions: own.longest_underwater_sessions,
     recovered: own.recovered, peak: own.peak || null, link: { section: 'runtime', block: 'account' } });

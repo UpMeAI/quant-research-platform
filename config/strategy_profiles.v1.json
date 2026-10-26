@@ -188,6 +188,169 @@
         { "key": "OVERSEAS_BUCKET_RULE_1B", "label_zh": "海外桶 Rule 1b", "peers": ["US_V5_ETF_3000USD", "US_CORE", "QUICK_SHOT_V3_1000USDT"], "display_zh": "共享，未复算", "research_ref": "R1B-1",
           "text_zh": "海外桶 Rule 1b：四本账合计 16,000，自起点峰值回撤 ≥ 40% 全体停新开仓，只有 Owner 解除（共享，未复算；研究题 R1B-1）" }
       ]
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "case_ref": "RRC-US-CORE-9000-V8-1-M0",
+      "market": "US_EQUITY",
+      "currency": "USD",
+      "display_name": "US_CORE",
+      "comparators": [
+        {
+          "key": "SPY_BUY_HOLD",
+          "label_zh": "SPY 买入持有",
+          "role": "MARKET"
+        },
+        {
+          "key": "CASH",
+          "label_zh": "现金",
+          "role": "CASH"
+        }
+      ],
+      "floor": {
+        "value": 5400,
+        "currency": "USD",
+        "rule_label_zh": "Rule 1b 的 5,400（9,000 的 40% 线）"
+      },
+      "baseline_result_schema": "US_CORE_M2_Q0_RESULT_V1",
+      "import_profile_id": "docs/contracts/US_CORE_Q0_RESULT_V1_IMPORT_PROFILE.md",
+      "comparison_import_profile_ids": [],
+      "phase_words": {
+        "NEXT_OPEN": "下一开盘成交",
+        "NEXT_CLOSE": "下一收盘成交",
+        "ONE_SESSION_LATE": "晚一个交易日成交"
+      },
+      "segment_words": {
+        "IS": "开发期",
+        "OOS": "样本外"
+      },
+      "cost_model_id": "US_V5_M1_RESEARCH_COST_V1",
+      "m1_evidence": {
+        "manifest_ref": "docs/evidence/CYCLE_RESEARCH_DESK_US_CORE_M1_NATIVE_DIAGNOSTIC_2026-10-26.json",
+        "manifest_sha256": "3d2ff6e96e8b802c56513fededcc176843566ad476c93c5592fbfde51da6f85d",
+        "diagnostic_schema": "US_CORE_M1_STRATEGY_DIAGNOSTIC_V1",
+        "producer": "US_CORE_M1_PRODUCER_V1"
+      },
+      "forward_observation_source_key": "US_CORE_9000USD_3X_GATEOBS",
+      "research_program": {
+        "plan_ref": "smartflow:research/us-core-qrp-onboarding@dfe3dcf2:trading-system-v2/docs/US_CORE_QRP_ONBOARDING_K2_DRAFT_V1.md",
+        "amendment_ref": "smartflow:research/us-core-qrp-onboarding@dfe3dcf2:trading-system-v2/docs/US_CORE_QRP_ONBOARDING_A0_RULING_1.md",
+        "default_question": null,
+        "queue": {}
+      },
+      "q0_reading": {
+        "metric": {
+          "kind": "G_GAP",
+          "min_months": 30
+        },
+        "main_row": {
+          "segment": "OOS",
+          "cost_field": "cost_bps",
+          "cost": "5",
+          "phase": "NEXT_OPEN"
+        },
+        "cost_words": {
+          "5": "每边 5 bp",
+          "15": "每边 15 bp"
+        },
+        "phase_note_zh": "生产在收盘后决定、下一个交易日开盘成交；另有两种相位压力：下一收盘成交、晚一个交易日成交（K2 §5）。",
+        "census_columns": [
+          {
+            "field": "tradable_carriers",
+            "label_zh": "可交易的 3x 载体（UPRO、TQQQ）"
+          },
+          {
+            "field": "sessions",
+            "label_zh": "交易日"
+          }
+        ],
+        "g_paths": {
+          "market": {
+            "point": "g_diff_spy",
+            "ci": "g_diff_spy_ci"
+          },
+          "cash": {
+            "point": "g",
+            "ci": "g_ci"
+          },
+          "months": "months"
+        },
+        "winrate": {
+          "basis": "EPISODES",
+          "tier": "lev",
+          "label_zh": "3x 持有段",
+          "other_tiers": [
+            {
+              "tier": "bench",
+              "label_zh": "1x 持有段"
+            }
+          ]
+        },
+        "kelly": {
+          "mode": "NOT_APPLICABLE",
+          "floor_field": "floor_usd",
+          "probabilities": [
+            {
+              "field": "p_below_floor",
+              "label_zh": "权益曾低于 5,400（Rule 1b 40% 线）"
+            },
+            {
+              "field": "p_end_below_start",
+              "label_zh": "期末低于起点 9,000"
+            }
+          ],
+          "events": {
+            "path": "rule1b_events.OOS",
+            "label_zh": "样本外主臂越过 40% 线"
+          }
+        },
+        "forward": {
+          "kind": "EQUITY",
+          "ledger_field": "book",
+          "ledger_must_equal_strategy_ref": true
+        },
+        "a0": {
+          "dual_reading": true,
+          "ruling_sha256": "50823436049d05ef5901f0047916f82a806a0c488f526a93eb64277272c3d94e",
+          "literal_note_zh": "按 K2 原文：A0-1、A0-2 未通过（U6 在窗口中间才部署；09-28 的 ^TNX 收盘差一个 float32 步长）"
+        },
+        "highlights": [
+          {
+            "key": "RULE1B_HONORED",
+            "scenario": "RISK_RULE1B_HONORED",
+            "label_zh": "若照 Rule 1b 停止",
+            "diagnosis_id": "DX-RISK-1"
+          }
+        ],
+        "oos_reuse": {
+          "reason_code": "OOS_REUSED_IN_DEVELOPMENT",
+          "text_zh": "样本外在开发时已用过：这条规则 2026-08-15 在 2010–2026 的同一份数据上选出（oos_reuse = true）；真正没用过的只有 2026-10-01 起的前向。"
+        },
+        "reason_words_zh": {
+          "CI_STRADDLES_DELTA": "相对 SPY 买入持有的年化对数增长差，95% 区间跨过门槛 0（这一条本身不足以判定）",
+          "G_VS_CASH_CI_STRADDLES_ZERO": "相对现金的年化对数增长，95% 区间跨过 0（这一条本身不足以判定）",
+          "OOS_REUSED_IN_DEVELOPMENT": "样本外在开发时已用过"
+        },
+        "scenario_words_zh": {
+          "BASELINE": "当前 D 参照（样本外）",
+          "COST_15BPS": "费用：每边 15 bp",
+          "PHASE_NEXT_CLOSE": "下一收盘成交",
+          "PHASE_ONE_SESSION_LATE": "晚一个交易日成交",
+          "INTERVAL_20110701_20111230": "区间重放 2011-07 → 2011-12",
+          "INTERVAL_20150803_20160229": "区间重放 2015-08 → 2016-02",
+          "INTERVAL_20181001_20181231": "区间重放 2018-10 → 2018-12",
+          "INTERVAL_20200219_20200430": "区间重放 2020-02 → 2020-04",
+          "INTERVAL_20220103_20221031": "区间重放 2022-01 → 2022-10",
+          "INTERVAL_20250219_20250430": "区间重放 2025-02 → 2025-04",
+          "EXTREME_DOWNTURN_2008": "极端下跌 2007–2009",
+          "RISK_RULE1B_HONORED": "风控：照 Rule 1b 停止",
+          "RISK_NO_MACRO_GATE": "风控：关掉宏观闸",
+          "RISK_PRE_U6_MACRO": "风控：U6 之前的收益率读法",
+          "RISK_WHOLE_SHARES": "风控：整股"
+        },
+        "reference_arms": true,
+        "dev_arms_path": "arms_is"
+      }
     }
   ]
 }

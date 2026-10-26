@@ -93,9 +93,9 @@ async function renderPage(model, hash) {
 // US_V5 的值（以及测试档案的值）不得出现在别的策略的页面上（R3.3）
 const US_V5_VALUES = [/SPY/, /1,800/, /US\$/, /US_V5/, /RRC-US-V5/, /美元/];
 
-test('生产注册表：US_V5 一项值与改造前代码一致，另有 Quick Shot V3（CRYPTO_Q0_RESULT_V1）；测试档案不在生产注册表里', () => {
+test('生产注册表：US_V5 一项值与改造前代码一致，另有 Quick Shot V3（CRYPTO_Q0_RESULT_V1）与 US_CORE（US_CORE_Q0_RESULT_V1）；测试档案不在生产注册表里', () => {
   const live = profiles.load();
-  assert.deepEqual(live.profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT', 'C17_V2_4000USDT']);
+  assert.deepEqual(live.profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT', 'C17_V2_4000USDT', 'US_CORE_9000USD_3X_GATEOBS']);
   const us = live.profiles[0];
   assert.equal(us.case_ref, 'RRC-US-V5-3000-V8-1-M0');
   assert.equal(us.currency, 'USD');
