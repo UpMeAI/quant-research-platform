@@ -238,6 +238,10 @@ test('§7.8 档案校验器：新键越界或缺字段、LEGACY 带读法、共�
   const entry = notes.strategies.C17_V2_4000USDT.comparators.BTC_BUY_HOLD.dividend_basis[0];
   assert.equal(entry.basis, 'PRICE_ONLY_NO_FUNDING');
   assert.ok(entry.evidence.length > 0);
+  // 扫描节奏勘误 1：V2 结果文件（e80c4252…）单独登记同一口径，页面不读成「分红口径未记录」
+  const v2 = detailNotes.comparatorNote(detailNotes.forStrategy('C17_V2_4000USDT'), 'BTC_BUY_HOLD', 'e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa');
+  assert.equal(v2.dividend, 'PRICE_ONLY_NO_FUNDING');
+  assert.ok(notes.strategies.C17_V2_4000USDT.comparators.BTC_BUY_HOLD.dividend_basis.find((item) => item.result_sha256.startsWith('e80c4252')).evidence.length > 0);
   const broken = JSON.parse(JSON.stringify(notes));
   broken.strategies.C17_V2_4000USDT.comparators.BTC_BUY_HOLD.dividend_basis[0].evidence = [];
   assert.throws(() => detailNotes.validate(broken), (error) => error.code === 'STRATEGY_DETAIL_NOTES_FIELD' && /evidence/.test(error.detail));

@@ -98,6 +98,15 @@
                 "结果文件 identity.engine_files 里 scripts/research/qrp-crypto-v1/c17-q0.js 的 sha256 2a07ae96… 与 identity.smartflow_commit 5dafbc66 一致"
               ],
               "registered_by": "CRYPTO_Q0_RESULT_V1 增补 1 实现会话（§1.2 ★(a)）"
+            },
+            {
+              "result_sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa",
+              "basis": "PRICE_ONLY_NO_FUNDING",
+              "evidence": [
+                "smartflow 9d11b64f（research/c17-engine-qrp）trading-system-v2/scripts/research/qrp-crypto-v1/c17-q0.js:283-288 btcCurve()：与 V1 同一读法——段起点前最后一根已收盘 1m 的收盘价买入一次（起点前没有已收盘的 bar 时取第一根 1m 的开盘价），之后只按 BTCUSDT 永续收盘价变化，没有资金费项（冻结裁定 1 R-BTC (a)）",
+                "结果文件 C17_V2_M2_Q0_RESULT_V2 identity.engine_files 里 c17-q0.js 的 sha256 cdfffd3a… 与 identity.smartflow_commit 9d11b64f 上该文件一致；BTC 买入持有期末 14,665.44 与 V1 相同"
+              ],
+              "registered_by": "C17 V2 导入准备（协调会话 2026-10-27：K2 §5 扫描节奏勘误 1，E-1..E-3 ★）"
             }
           ]
         }

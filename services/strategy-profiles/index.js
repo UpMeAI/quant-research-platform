@@ -325,6 +325,8 @@ function validateDisplay(reading, ref) {
       // US_CORE 冻结说明 1：标题里的近似说明与缺口一行的封存日期前缀（可选，只写文字）
       if (item.approximation_note_zh !== undefined) ch.text(item, 'approximation_note_zh');
       if (item.gap_as_of_zh !== undefined) ch.text(item, 'gap_as_of_zh');
+      // US_CORE 冻结说明 2：总览一句话与数字卡用的近似短句（可选，只写文字）
+      if (item.approximation_short_zh !== undefined) ch.text(item, 'approximation_short_zh');
     });
     if (new Set(highlights.map((item) => item.key)).size !== highlights.length) fail('STRATEGY_PROFILE_DUPLICATE', `${ref}.q0_reading.highlights.key`);
   }

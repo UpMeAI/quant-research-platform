@@ -108,8 +108,9 @@ function tilesOf({ backtest, account, overview, isMain = isMainRow }) {
   }
   // US_CORE §8.3 卡 5：有效的风控高亮（只报不判）——期末对现行主臂、停止日，以及生产缺口一行小字
   for (const item of ((backtest && backtest.conclusion && backtest.conclusion.highlights) || []).filter((entry) => entry.valid)) {
-    tiles.push({ key: 'rule1b', label_zh: item.label_zh, own: item.numbers.end_capital, baseline: item.numbers.baseline_end_capital,
-      halt_session: item.numbers.halt_session, gap_short_zh: item.gap_zh ? '生产缺口：停止记录写不进本账本（未修）' : null, link: { section: 'runtime', block: 'stress' } });
+    // US_CORE 冻结说明 2：卡片标签写明近似，并链接到结论卡上那一行（高亮行的锚点 bt-highlight-<key>）
+    tiles.push({ key: 'rule1b', label_zh: item.short_label_zh || item.label_zh, own: item.numbers.end_capital, baseline: item.numbers.baseline_end_capital,
+      halt_session: item.numbers.halt_session, gap_short_zh: item.gap_zh ? '生产缺口：停止记录写不进本账本（未修）' : null, link: { section: 'runtime', block: `highlight-${item.key}` } });
   }
   if (own) tiles.push({ key: 'underwater', label_zh: '最长水下期与「期末是否回到最高点」', sessions: own.longest_underwater_sessions,
     recovered: own.recovered, peak: own.peak || null, link: { section: 'runtime', block: 'account' } });

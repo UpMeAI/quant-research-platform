@@ -1613,7 +1613,9 @@ function highlightOf(doc, spec, mainRow) {
     // US_CORE 冻结说明 1 第 1 条：标题写明这是近似（只按本策略自己的曲线套 40% 线），不把近似下界写成规则的真实效果
     lead_zh: `${spec.label_zh}（${spec.approximation_note_zh ? `${spec.approximation_note_zh}；` : ''}只报不判，不进结论）`,
     text_zh: `样本外 ${event.session} 自起点峰值 ${whole(event.peak)} 回撤 ${pct1(event.drawdown)} 触发停止，之后不再开新仓，期末 ${whole(row.end_capital)}；现行主臂不执行停止，期末 ${whole(reference.end_capital)}。`,
-    gap_zh: gapZh, sentence_zh: `${spec.label_zh}，${event.session} 起不再开新仓，期末 ${whole(row.end_capital)}`,
+    // US_CORE 冻结说明 2：总览一句话与数字卡同样写明近似（短句）
+    short_label_zh: `${spec.label_zh}${spec.approximation_short_zh ? `（${spec.approximation_short_zh}）` : ''}`,
+    gap_zh: gapZh, sentence_zh: `${spec.label_zh}${spec.approximation_short_zh ? `（${spec.approximation_short_zh}）` : ''}，${event.session} 起不再开新仓，期末 ${whole(row.end_capital)}`,
     numbers: { halt_session: event.session, peak: event.peak, drawdown: event.drawdown, end_capital: row.end_capital, baseline_end_capital: reference.end_capital },
   };
 }
