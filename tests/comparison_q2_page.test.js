@@ -35,7 +35,10 @@ loop.openCase({
   opened_at: '2026-10-24T20:02:00Z',
 });
 
-async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`) {
+// 修订 7：「总览」页签（J1）的断言在 ux_amendment_7.test.js；这里的断言只针对原来的五个页签，所以去掉总览那一节
+const withoutOverview = (html) => html.replace(/<section class="section detail-section" id="detail-overview">[\s\S]*?(?=<section class="section detail-section" id="detail-runtime">)/, '');
+// 修订 7 J2：页签只渲染自己的内容；这些断言读整页，所以渲染「全部展开」视图（section=all，结构折叠全部打开）
+async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}&section=all`) {
   const elements = {};
   const element = (id) => elements[id] || (elements[id] = {
     id, innerHTML: '', textContent: '', addEventListener() {}, querySelector() { return null; }, focus() {}, scrollIntoView() {},
@@ -48,7 +51,7 @@ async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`)
   vm.createContext(sandbox);
   vm.runInContext(SCRIPT, sandbox);
   await new Promise((resolve) => setTimeout(resolve, 25));
-  return elements.workspace.innerHTML;
+  return withoutOverview(elements.workspace.innerHTML);
 }
 
 function mainContent(html) {
@@ -60,6 +63,8 @@ function mainContent(html) {
 }
 const FORBIDDEN = [/\bM[0-5]\b/, /NOT_VERIFIED/, /CONTROLLED/, /真实账户臂/, /PAPER/, /RRC-/, /PME-/, /[0-9a-f]{64}/, /US_V5_ETF_6000USD/, /准备、验收和发布/];
 const researchSection = (html) => html.slice(html.indexOf('id="detail-research"'), html.indexOf('id="detail-forward"'));
+// 修订 7 J4.3：各对比题的前向行集中在「前向观察」页签（按题分组），对比卡里只留一行「前向：N 行，见前向观察」
+const forwardOf = (html, question) => { const start = html.indexOf(`data-forward-card="${question}"`); return start < 0 ? '' : html.slice(start, html.indexOf('</article>', start)); };
 const cardOf = (html, title) => {
   const start = html.indexOf(`>${title}</h3>`);
   const end = html.indexOf('</section>', html.indexOf('class="bt-blocks"', start));
@@ -133,7 +138,8 @@ test('Q2 卡的主内容：优势结论写「完整账户的对数增长更好�
 
 test('Q2 卡的内容：g 的 95% 区间、次指标对 +0.10 R（不参与判定）、路由与单股 2×、两臂敞口表、判据三条', async () => {
   const { baseline, cards } = projections();
-  const q2 = mainContent(cardOf(researchSection(await renderPage(await modelOf(baseline, cards))), Q2_TITLE));
+  const page = await renderPage(await modelOf(baseline, cards));
+  const q2 = mainContent(cardOf(researchSection(page), Q2_TITLE));
   assert.match(q2, /<dt>候选相对原版的年化对数增长差（主判据）<\/dt><dd>2\.10%（95% 区间 0\.40% 至 3\.90%）<\/dd>/);
   assert.match(q2, /年化对数增长差按共同日标记配对，按月分块 bootstrap；单变体，不做多重比较校正/);
   assert.doesNotMatch(q2, /98\.33%|Bonferroni（|最低改善量/);
@@ -155,8 +161,9 @@ test('Q2 卡的内容：g 的 95% 区间、次指标对 +0.10 R（不参与判�
   for (const key of ['G1', 'P_G', 'F3']) assert.ok(q2.includes(`<strong>${key} · `), key);
   assert.equal((q2.match(/>成立</g) || []).length, 2);
   assert.equal((q2.match(/>未触发</g) || []).length, 1);
-  // 前向写明为什么为空
-  assert.match(q2, /HK 没有 1× 路由的前向影子/);
+  // 前向写明为什么为空（修订 7 J4.3：这句移到「前向观察」页签的 Q2 一组；卡里只留一行）
+  assert.match(mainContent(forwardOf(page, 'Q2')), /HK 没有 1× 路由的前向影子/);
+  assert.match(q2, /前向：0 行，<a href="#strategy-detail\?strategy=US_V5_ETF_3000USD&section=forward">见前向观察<\/a>/);
 });
 
 test('Q2a 归因表：各栏、各类、合计；监管费按日进位差单列；账户期末 − 期初；残差 0；R、开发期、定义在折叠里', async () => {

@@ -8,6 +8,7 @@
  *     结果文件没登记就是「分红口径未记录」，页面不自行判定；
  *   - stress_scenarios：缺场景／无效输入行的白话原因与能否补（E5），按 scenario + 类别对上才用；
  *   - research_queue：研究队列表每题的研究部分、中文题名与来源（E7.1）；修订 6 再加基线行的名称、每题所属轮次与各轮名称；
+ *     修订 7 再加组合题的 combines（组合了哪几题），总览的一句话结论据此数「已采用的改进」；
  *   - code_names：内部代号 → 中文题名（E7.2），页面把主内容里的代号换掉，代号只留在折叠的技术详情里。
  * 字段缺失或类型不符，require 时就抛出，进程不继续；查不到的策略返回 null（页面照旧，不借用别的策略的说明）。
  */
@@ -68,6 +69,9 @@ function validateStrategy(ref, raw) {
       // 修订 6 H4.3：所属研究计划轮次（可选，正整数）；名称在 rounds 里登记
       if (item.round !== undefined && !(Number.isInteger(item.round) && item.round > 0)) fail('STRATEGY_DETAIL_NOTES_FIELD', `${where}.round`);
       if (item.round !== undefined && queue.rounds !== undefined && !isText((queue.rounds || {})[String(item.round)])) fail('STRATEGY_DETAIL_NOTES_FIELD', `${ref}.research_queue.rounds.${item.round}`);
+      // 修订 7 J1.1：组合题登记它组合了哪几题（都要在本队列里登记过）；总览的一句话结论按此把「已采用的改进」去重
+      if (item.combines !== undefined && !(Array.isArray(item.combines) && item.combines.length >= 2
+        && item.combines.every((other) => other !== question && isObject(queue.questions[other])))) fail('STRATEGY_DETAIL_NOTES_FIELD', `${where}.combines`);
     }
     if (queue.rounds !== undefined && (!isObject(queue.rounds) || !Object.values(queue.rounds).every(isText))) fail('STRATEGY_DETAIL_NOTES_FIELD', `${ref}.research_queue.rounds`);
     if (queue.baseline !== undefined) {

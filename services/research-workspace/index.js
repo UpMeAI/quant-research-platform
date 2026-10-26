@@ -31,6 +31,7 @@ const profiles = require('../strategy-profiles');
 const detailNotes = require('../strategy-detail-notes');
 const adoption = require('../research-adoption');
 const adoptionView = require('../research-adoption/overview');
+const detailSummary = require('./summary');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
@@ -391,7 +392,8 @@ function researchQueue(profile, notes, comparisons, program) {
       : (state && PHASE[state.phase] ? PHASE[state.phase](state) : '状态未登记');
     return {
       question_ref: question, part_zh: item ? item.part_zh : '未登记', name_zh: item ? item.name_zh : profile.research_program.queue[question].title,
-      source_zh: (item && typeof item.source_zh === 'string' && item.source_zh) || queue.source_zh, status_zh: status, // 一题可写自己的来源（Q5：Owner 10-26 同意） locked: Boolean(card && card.state === 'LOCKED_VERIFIED'),
+      source_zh: (item && typeof item.source_zh === 'string' && item.source_zh) || queue.source_zh, status_zh: status, // 一题可写自己的来源（Q5：Owner 10-26 同意）
+      locked: Boolean(card && card.state === 'LOCKED_VERIFIED'),
     };
   });
   return { title_zh: '研究队列', rows };
@@ -665,6 +667,13 @@ async function readModel({
     // 修订 5：研究队列小表（E7.1）与内部代号的中文题名（E7.2，页面换掉主内容里的代号）——只加在有说明登记的策略上
     ...(queueView ? { research_queue: queueView } : {}),
     ...(adoptionOverview ? { adoption_overview: adoptionOverview } : {}),
+    // 修订 7 J1：默认页签「总览」——一句话结论（服务端模板）、关键数字卡、精简一览、现行规则与待办；只加在有档案的策略上
+    ...(profile ? { summary: detailSummary.overviewOf({
+      strategy: selectedStrategy, caseRec: selectedCurrentCase,
+      conclusion: { ...baselineProjection.conclusion, result_state: baselineProjection.state, result_reason: baselineProjection.reason || null },
+      backtest: baselineProjection, comparisons: comparisonProjections, overview: adoptionOverview,
+      notesQueue: notes && notes.research_queue, queueView,
+    }) } : {}),
     ...(notes && notes.code_names && Object.keys(notes.code_names).length ? { code_names: notes.code_names } : {}),
     // 修订 4 A4.4：列入 M4 范围、还没有接入的策略写「已列入 M4 范围，尚未接入」（只加在这些策略上）
     ...(m4Item && m4Item.state === 'IN_SCOPE_NOT_ONBOARDED' ? { m4_scope_label: m4Item.state_label, m4_scope_batch: m4Item.batch } : {}),

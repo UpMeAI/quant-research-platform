@@ -1,5 +1,5 @@
 {
-  "_comment": "策略详情页的说明登记（UX 修订 5 E2／E5／E7）：只放说明文字和登记状态，不放任何数字；数字一律取自锁定的结果文件。分红口径按结果文件 sha256 绑定，换了结果文件就回到「分红口径未记录」，直到有人按引擎核实后再登记。 修订 6：research_queue 另登记基线行的名称与研究部分（baseline），以及每题所属的研究计划轮次（round，rounds 是各轮的名称），一览表按轮次分组。",
+  "_comment": "策略详情页的说明登记（UX 修订 5 E2／E5／E7）：只放说明文字和登记状态，不放任何数字；数字一律取自锁定的结果文件。分红口径按结果文件 sha256 绑定，换了结果文件就回到「分红口径未记录」，直到有人按引擎核实后再登记。 修订 6：research_queue 另登记基线行的名称与研究部分（baseline），以及每题所属的研究计划轮次（round，rounds 是各轮的名称），一览表按轮次分组。 修订 7：组合题登记 combines（它组合了哪几题，依据该题的 K2：Q5 = 在 Q4 的冷却之上加 Q1 的推迟时间止损），总览的一句话结论据此把已采用的改进去重。",
   "contract": "QRP_STRATEGY_DETAIL_NOTES_V1",
   "acceptance_ref": "docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_5.md",
   "acceptance_sha256": "2f9f97f7b4340b9d3c095c4c220f2b8b6b436db396615caf6fc564f586b98ffa",
@@ -69,7 +69,7 @@
             "name_zh": "冷却只在开仓时武装",
             "round": 1
           },
-          "Q5": { "part_zh": "组合验证（进出规则 + 风控）", "name_zh": "在冷却只在开仓时武装之上，趋势中推迟时间止损", "round": 2, "source_zh": "Owner 2026-10-26 同意先跑 Q1+A25 组合验证（第二轮）" }
+          "Q5": { "part_zh": "组合验证（进出规则 + 风控）", "name_zh": "在冷却只在开仓时武装之上，趋势中推迟时间止损", "round": 2, "source_zh": "Owner 2026-10-26 同意先跑 Q1+A25 组合验证（第二轮）", "combines": ["Q4", "Q1"] }
         },
         "baseline": {
           "name_zh": "当前 D 原版评价",

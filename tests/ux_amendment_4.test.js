@@ -47,7 +47,10 @@ loop.openCase({
   opened_at: '2026-10-24T20:02:00Z',
 });
 
-async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`) {
+// 修订 7：「总览」页签（J1）的断言在 ux_amendment_7.test.js；这里的断言只针对原来的五个页签，所以去掉总览那一节
+const withoutOverview = (html) => html.replace(/<section class="section detail-section" id="detail-overview">[\s\S]*?(?=<section class="section detail-section" id="detail-runtime">)/, '');
+// 修订 7 J2：页签只渲染自己的内容；这些断言读整页，所以渲染「全部展开」视图（section=all，结构折叠全部打开）
+async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}&section=all`) {
   const elements = {};
   const element = (id) => elements[id] || (elements[id] = {
     id, innerHTML: '', textContent: '', addEventListener() {}, querySelector() { return null; }, focus() {}, scrollIntoView() {},
@@ -60,7 +63,7 @@ async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`)
   vm.createContext(sandbox);
   vm.runInContext(SCRIPT, sandbox);
   await new Promise((resolve) => setTimeout(resolve, 25));
-  return elements.workspace.innerHTML;
+  return withoutOverview(elements.workspace.innerHTML);
 }
 
 /** 去掉所有 <details>（含嵌套）后剩下的就是「主内容」。 */
@@ -73,7 +76,8 @@ function mainContent(html) {
 }
 const text = (html) => html.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
 const between = (html, from, to) => html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)));
-const conclusionOf = (html) => between(html, 'class="conclusion', 'class="section-nav');
+// 修订 7 J1：回测结论区块移进「运行概览」页签（页签栏之后），到它自己的 </section> 为止
+const conclusionOf = (html) => between(html, 'class="conclusion', '</section>');
 const researchSection = (html) => between(html, 'id="detail-research"', 'id="detail-forward"');
 const forwardSection = (html) => between(html, 'id="detail-forward"', 'id="detail-review"');
 const cardsOf = (html) => researchSection(html).split('<section class="backtest comparison"').slice(1);
@@ -234,7 +238,9 @@ test('D5.3 真实页面计数：「页面不重算」恰好 1 次；三行结论
   for (const card of comparisonCards) {
     const account = blockOf(card, 'account');
     const rows = tableRows(account);
-    assert.equal(rows.length, 3, '原版、候选、差值三行');
+    // 修订 7 J4.2：原版一行与回测结论卡「本策略」一行数字相同 → 只写候选与差值两行，加一句「原版见回测结论卡」
+    assert.equal(rows.length, 2, '候选、差值两行');
+    assert.match(account, /原版见回测结论卡/);
     assert.ok(rows.every((row) => !/SPY|现金/.test(row)), '账户表里没有 SPY／现金行');
     assert.match(account, /基准见回测结论卡/);
   }
@@ -250,7 +256,7 @@ test('D5.3 夹具页面计数：同样的计数断言（合成数字，两张锁
   assert.equal((html.match(/class="completeness"/g) || []).length, (incomplete ? 1 : 0) + lockedCards);
   for (const card of cardsOf(html)) {
     const rows = tableRows(blockOf(card, 'account'));
-    assert.equal(rows.length, 3);
+    assert.equal(rows.length, 2); // 修订 7 J4.2：原版一行见回测结论卡
     assert.ok(rows.every((row) => !/SPY|现金/.test(row)));
   }
 });
@@ -363,13 +369,15 @@ test('D3.8 待验证问题清单：有对应实验的在前；「不立题 / 已
 test('D3.9 前向行只写一句人话；key、type、hash 收进折叠', async () => {
   const { baseline, cards } = realProjections();
   const html = await renderPage(await modelOf(baseline, cards));
-  const q1 = mainContent(cardsOf(html)[0]);
-  const forward = q1.slice(q1.indexOf('data-cmp-block="forward"'));
+  // 修订 7 J4.3：前向行集中到「前向观察」页签的 Q1 一组；Q1 卡里只留一行「前向：N 行，见前向观察」
+  const group = html.slice(html.indexOf('data-forward-card="Q1"'), html.indexOf('</article>', html.indexOf('data-forward-card="Q1"')));
+  const forward = mainContent(group);
+  assert.match(mainContent(cardsOf(html)[0]), /前向：\d+ 行，<a href="[^"]*section=forward">见前向观察<\/a>/);
   // UX 修订 5 E7.2：主内容不出现 T3 这类代号，这一句去掉规则代号（代号在折叠的技术字段里）；D3.9 的一句人话格式不变
   assert.match(forward, /MSFU 10-09 入场，推迟过时间止损，ΔR −1\.07/);
   assert.doesNotMatch(forward, /[0-9a-f]{64}|file_sha256|forward_stream|<code>/, 'key、type、hash 不在主内容');
   assert.doesNotMatch(forward, /（PREFIX_BROKEN）/);
-  assert.match(cardsOf(html)[0], /<details>[\s\S]*?forward[\s\S]*?<\/details>|<summary>[^<]*(?:来源|技术)[^<]*<\/summary>/);
+  assert.match(group, /<details>[\s\S]*?forward[\s\S]*?<\/details>|<summary>[^<]*(?:来源|技术)[^<]*<\/summary>/);
 });
 
 test('D3.10 最近实际运行：摘要保留（一笔交易、净结果、对账残差 0）；节点表与费用逐项收进折叠', async () => {

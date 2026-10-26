@@ -36,7 +36,10 @@ loop.openCase({
   opened_at: '2026-10-24T20:02:00Z',
 });
 
-async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`) {
+// 修订 7：「总览」页签（J1）的断言在 ux_amendment_7.test.js；这里的断言只针对原来的五个页签，所以去掉总览那一节
+const withoutOverview = (html) => html.replace(/<section class="section detail-section" id="detail-overview">[\s\S]*?(?=<section class="section detail-section" id="detail-runtime">)/, '');
+// 修订 7 J2：页签只渲染自己的内容；这些断言读整页，所以渲染「全部展开」视图（section=all，结构折叠全部打开）
+async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}&section=all`) {
   const elements = {};
   const element = (id) => elements[id] || (elements[id] = {
     id, innerHTML: '', textContent: '', addEventListener() {}, querySelector() { return null; }, focus() {}, scrollIntoView() {},
@@ -49,7 +52,7 @@ async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`)
   vm.createContext(sandbox);
   vm.runInContext(SCRIPT, sandbox);
   await new Promise((resolve) => setTimeout(resolve, 25));
-  return elements.workspace.innerHTML;
+  return withoutOverview(elements.workspace.innerHTML);
 }
 
 function mainContent(html) {
@@ -61,6 +64,8 @@ function mainContent(html) {
 }
 const FORBIDDEN = [/\bM[0-5]\b/, /NOT_VERIFIED/, /CONTROLLED/, /真实账户臂/, /PAPER/, /RRC-/, /PME-/, /[0-9a-f]{64}/, /US_V5_ETF_6000USD/, /准备、验收和发布/];
 const researchSection = (html) => html.slice(html.indexOf('id="detail-research"'), html.indexOf('id="detail-forward"'));
+// 修订 7 J4.3：各对比题的前向行集中在「前向观察」页签（按题分组），对比卡里只留一行「前向：N 行，见前向观察」
+const forwardOf = (html, question) => { const start = html.indexOf(`data-forward-card="${question}"`); return start < 0 ? '' : html.slice(start, html.indexOf('</article>', start)); };
 const cardOf = (html, title) => {
   const start = html.indexOf(`>${title}</h3>`);
   const end = html.indexOf('</section>', html.indexOf('class="bt-blocks"', start));
@@ -133,7 +138,8 @@ test('Q3 主卡的主内容：同窗复测的标注、优势结论、三行分�
   assert.match(main, /行业 RS 拒绝数（不在前 4 的行业信号）<\/td><td>—<\/td><td>31 次<\/td><td>—<\/td>/);
   assert.match(main, /名次重排的时点数<\/td><td>—<\/td><td>12 个<\/td><td>—<\/td>/);
   assert.match(main, /<strong>G1 · /);
-  assert.match(main, /A23 未开启，HK 没有排序层前向/);
+  // 修订 7 J4.3：前向为空的原因移到「前向观察」页签的 Q3 一组
+  assert.match(mainContent(forwardOf(html, 'Q3')), /A23 未开启，HK 没有排序层前向/);
   assert.match(main, /改变的入场 41 笔/);
   for (const pattern of FORBIDDEN) assert.doesNotMatch(main, pattern, String(pattern));
   assert.doesNotMatch(card, /<details[^>]*\sopen(?:\s|>)/);
@@ -149,7 +155,9 @@ test('A4 规则用在 Q3 的卡上：判定依据、两臂账户表加参照行�
   // D3.2：账户表 = 原版、候选、差值 + 参照行；没有 SPY／现金行，写一句「基准见回测结论卡」
   const account = q3b.slice(q3b.indexOf('data-cmp-block="account"'), q3b.indexOf('data-cmp-block="effect"'));
   const rows = (account.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || [];
-  assert.equal(rows.length, 4, '原版、候选、差值、等权买入持有参照行');
+  // 修订 7 J4.2：原版一行与回测结论卡「本策略」一行数字相同，只写候选、差值与参照行，加一句「原版见回测结论卡」
+  assert.equal(rows.length, 3, '候选、差值、等权买入持有参照行');
+  assert.match(account, /原版见回测结论卡（「账户结果」本策略一行，数字相同）/);
   assert.ok(rows.every((row) => !/SPY|现金/.test(row)));
   assert.match(account, /<p class="muted-note">基准见回测结论卡<\/p>/);
   // D1.3 / D5.2：主内容没有任何已登记的英文原因码（含随机对照卡）

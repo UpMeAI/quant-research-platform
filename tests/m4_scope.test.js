@@ -169,7 +169,7 @@ test('A4.4 页面：平台 M4 一行 NOT_VERIFIED、M5 OUT_OF_SCOPE、A/B 方向
   assert.equal(scope.m5_state, 'OUT_OF_SCOPE');
   assert.ok(scope.items.filter((item) => item.id !== 'M4_TEST').every((item) => item.state_label === '已列入 M4 范围，尚未接入' && item.stages === null));
 
-  const detailHtml = await renderPage(model, '#strategy-detail?strategy=QUICK_SHOT_V3_1000USDT');
+  const detailHtml = await renderPage(model, '#strategy-detail?strategy=QUICK_SHOT_V3_1000USDT&section=all');
   assert.match(detailHtml, /已列入 M4 范围，尚未接入/);
   assert.doesNotMatch(detailHtml, /尚未验证|NOT_VERIFIED/);
   const statusHtml = await renderPage(model, '#runtime-status?strategy=QUICK_SHOT_V3_1000USDT');

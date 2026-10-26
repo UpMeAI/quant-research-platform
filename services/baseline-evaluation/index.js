@@ -880,7 +880,7 @@ const internals = {
 
 module.exports = {
   internals, RESULT_SCHEMA, EVAL_CLASS, CASE_REF, STRATEGY_REF, TOP_LEVEL, STATES, DELTA_R, DELTA_G, MIN_TRADES, FLOOR_USD,
-  BLOCKS, EXPERIMENTS, LEDGER, readSealed, validateWhole, buildBlocks, diagnosisList, conclusionOf, project,
+  BLOCKS, EXPERIMENTS, LEDGER, isMainRow, readSealed, validateWhole, buildBlocks, diagnosisList, conclusionOf, project,
   emptyProjection, completenessOf, importBaselineEvaluation, headLock, locks, baselineFor, createProjectionReader, readProjection,
   clearCache, fingerprintOf, buildProjection,
 };
