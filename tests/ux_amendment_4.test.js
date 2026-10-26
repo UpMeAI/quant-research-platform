@@ -327,7 +327,8 @@ test('D3.5–D3.6 胜率表默认只显示样本外各行（开发期折叠）�
   const winrate = between(html, 'data-block="winrate"', 'data-block="stress"');
   const main = mainContent(winrate);
   assert.doesNotMatch(main, /开发期 [AB]/, '开发期各行不在主内容');
-  assert.match(winrate, /<summary>开发期各行（\d+ 行；开发期，样本少，只报）<\/summary>/);
+  // 折叠标签的写法由 UX 修订 5 E4.1 改为「开发期 N 行（样本少，只报）——点开查看」并带笔数；默认折叠（D3.5）不变
+  assert.match(winrate, /<summary>开发期 \d+ 行（样本少，只报）——点开查看 · 笔数：[^<]*笔[^<]*<\/summary>/);
   assert.match(main, /样本外/);
   assert.match(main, /假设胜率 × 赔率（公式推算，不是回测）/);
   assert.match(main, /假设胜率 ＼ 假设赔率/);
@@ -364,7 +365,8 @@ test('D3.9 前向行只写一句人话；key、type、hash 收进折叠', async 
   const html = await renderPage(await modelOf(baseline, cards));
   const q1 = mainContent(cardsOf(html)[0]);
   const forward = q1.slice(q1.indexOf('data-cmp-block="forward"'));
-  assert.match(forward, /MSFU 10-09 入场，T3 推迟过时间止损，ΔR −1\.07/);
+  // UX 修订 5 E7.2：主内容不出现 T3 这类代号，这一句去掉规则代号（代号在折叠的技术字段里）；D3.9 的一句人话格式不变
+  assert.match(forward, /MSFU 10-09 入场，推迟过时间止损，ΔR −1\.07/);
   assert.doesNotMatch(forward, /[0-9a-f]{64}|file_sha256|forward_stream|<code>/, 'key、type、hash 不在主内容');
   assert.doesNotMatch(forward, /（PREFIX_BROKEN）/);
   assert.match(cardsOf(html)[0], /<details>[\s\S]*?forward[\s\S]*?<\/details>|<summary>[^<]*(?:来源|技术)[^<]*<\/summary>/);

@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const { dataDir, now, append, read } = require('../../packages/ledger');
 const profiles = require('../strategy-profiles');
+const detailNotes = require('../strategy-detail-notes');
 
 const EVAL_CLASS = 'BASELINE_EVALUATION_V1';
 // 改造前单策略接口的默认参数与导出常量：取注册表的默认档案（registry.default_strategy_ref），不在代码里写死
@@ -37,6 +38,8 @@ const armsOf = (profile) => [['D', '本策略'], ...profile.comparators.map((ite
 const DELTA_R = 0.10; // 计划 §3 冻结，看见结果后不改
 const DELTA_G = 0;
 const MIN_TRADES = 30;
+/** 主数字那一行：样本外、基础成本 5 bps、生产相位（结论区块的主数字与修订 5 E1.2 半凯利 p、b 的来源行）。 */
+const isMainRow = (row) => Boolean(row) && row.segment === 'OOS' && row.cost_bps === 5 && row.phase === 'PRODUCTION';
 const FLOOR_USD = DEFAULT_PROFILE.floor.value;
 const BLOCKS = Object.freeze([
   ['period', '回测周期与覆盖'], ['account', '账户结果'], ['winrate', '胜率与赔率'],
@@ -277,7 +280,11 @@ function periodBlock(doc, gapped, profile) {
   };
 }
 
-function accountBlock(doc, profile) {
+/**
+ * 账户结果。修订 5 E2：比较对象的定义与分红口径取自说明登记（services/strategy-detail-notes），口径按这份结果文件的 sha256 绑定；
+ * 没登记写「分红口径未记录」并列进待验证问题清单（见 project）。没有说明登记的策略不加这一项。
+ */
+function accountBlock(doc, profile, context = {}) {
   const out = [];
   let dates = null;
   for (const [key, label] of armsOf(profile)) {
@@ -302,7 +309,13 @@ function accountBlock(doc, profile) {
       sessions: equity.values.length, trades: Array.isArray(arm.trades) ? arm.trades.length : null,
     });
   }
-  return { arms: out, start: dates[0], end: dates[dates.length - 1] };
+  const notes = context.notes
+    ? profile.comparators.map((item) => {
+      const note = detailNotes.comparatorNote(context.notes, item.key, context.file_sha256);
+      return note && { ...note, label: item.label_zh };
+    }).filter(Boolean)
+    : [];
+  return { arms: out, start: dates[0], end: dates[dates.length - 1], ...(notes.length ? { comparator_notes: notes } : {}) };
 }
 
 function winrateBlock(doc, profile) {
@@ -314,8 +327,12 @@ function winrateBlock(doc, profile) {
   const hasPlus = rows.some((row) => row && row.phase === 'PLUS_60MIN');
   const hasMinus = rows.some((row) => row && row.phase === 'MINUS_60MIN');
   const merged = hasPlus && !hasMinus; // 120 分钟扫描下 −60 与 +60 是同一组时刻，研究会话只列一行
+  // 修订 5 E4：开发期折叠控件上的笔数——各开发期段在主数字同一口径（5 bps、生产相位）那一行的笔数，原样取，不相加
+  const devCounts = rows.filter((row) => row && row.segment !== 'OOS' && row.cost_bps === 5 && row.phase === 'PRODUCTION' && Number.isInteger(row.n))
+    .map((row) => ({ segment: row.segment, label: profile.segment_words[row.segment] || row.segment, n: row.n }));
   return {
     notes: merged ? ['相位 ±60 分钟：扫描间隔 120 分钟时，提前 60 分钟与推后 60 分钟落在同一组时刻，所以只列一行。'] : [],
+    dev_counts: { rows: devCounts, basis_zh: `5 bps，${profile.phase_words.PRODUCTION || '生产相位'}` },
     rows: rows.map((row) => {
       const win = field(row, 'win_rate', 'stats.win_rate');
       need(win >= 0 && win <= 1, 'INVALID', 'stats.win_rate 不在 0–1');
@@ -351,7 +368,7 @@ const KNOWN_STRESS_STATUS = Object.freeze(['MISSING_SCENARIO', 'INVALID_INPUT', 
  * 原因语言（冻结说明 2 G1）：`missing_reason`（F1 的冻结字段）→ `reason_zh` → `reason`；缺原因、带了数字都只让压力块无效。
  * 「最大损失」只取 §5.2 压力场景（G2）：参照行 `BASELINE`、风控维度行 `RISK_*`、补充行、模拟行、缺场景和无效输入都不进，但都留在表里。
  */
-function stressBlock(doc) {
+function stressBlock(doc, context = {}) {
   const stress = doc.stress;
   const rows = stress && stress.rows;
   need(Array.isArray(rows) && rows.length, 'MISSING', 'stress.rows');
@@ -372,9 +389,12 @@ function stressBlock(doc) {
       const kindLabel = kind === 'INVALID_INPUT' ? '无效输入' : '缺场景';
       // 页面会写「<类别>：<原因>」；原因文本自己已带同一个前缀时去掉，避免「无效输入：无效输入：…」。
       const reason = reasonRaw.trim().replace(new RegExp(`^${kindLabel}[：:]\\s*`), '');
+      // 修订 5 E5：白话原因与能否补取自说明登记（协调会话登记的补充计划），scenario 与类别对上才用；页面不自行判断
+      const note = detailNotes.stressNote(context.notes, scenario, kind);
       return {
         scenario, label, role, kind, missing: kind === 'MISSING', invalid_input: kind === 'INVALID_INPUT',
         kind_label: kindLabel, reason, missing_reason: reason,
+        plain_reason_zh: note ? note.plain_reason_zh : null, fill: note ? note.fill : null,
         simulated: false, in_headline: false,
         max_loss_usd: null, longest_underwater_sessions: null, recovered: null, end_capital: null, note: null,
       };
@@ -442,7 +462,7 @@ function kellyBlock(doc, profile) {
     return {
       end_capital_ci: ci(part.end_capital_ci, `half_kelly.replay.${name}.end_capital_ci`),
       max_drawdown: field(part, 'max_drawdown', `half_kelly.replay.${name}.max_drawdown`),
-      p_below_floor: p,
+      p_below_floor: p, resamples: Number.isInteger(part.resamples) && part.resamples > 0 ? part.resamples : null,
     };
   };
   const f = field(k, 'f_half', 'half_kelly.f_half');
@@ -452,9 +472,17 @@ function kellyBlock(doc, profile) {
   const legacy = profiles.isLegacyShape(profile);
   const declared = legacy ? k.floor_usd : k.floor;
   need(declared === undefined || declared === floor.value, 'INVALID', `half_kelly.${legacy ? 'floor_usd' : 'floor'} 不是 ${floor.rule_label_zh}`);
+  // 修订 5 E1.2：p、b 与「胜率与赔率」表主数字那一行（样本外、生产相位、5 bps）完全相同时才写明来源行；只比对，不另算
+  const p = field(k, 'p', 'half_kelly.p');
+  const b = field(k, 'b', 'half_kelly.b');
+  const main = ((doc.stats && doc.stats.rows) || []).find(isMainRow);
+  const sourceRow = main && main.win_rate === p && main.payoff === b
+    ? { segment_label: profile.segment_words.OOS || 'OOS', phase_label: profile.phase_words.PRODUCTION || 'PRODUCTION', cost_bps: main.cost_bps } : null;
+  const rule = k.basis_zh;
   return {
-    p: field(k, 'p', 'half_kelly.p'), p_ci: ci(k.p_ci, 'half_kelly.p_ci'), b: field(k, 'b', 'half_kelly.b'), b_ci: ci(k.b_ci, 'half_kelly.b_ci'),
+    p, p_ci: ci(k.p_ci, 'half_kelly.p_ci'), b, b_ci: ci(k.b_ci, 'half_kelly.b_ci'),
     f_star: field(k, 'f_star', 'half_kelly.f_star'), f_half: f, supported,
+    source_row: sourceRow, rule_zh: typeof rule === 'string' && rule.trim() ? rule.trim() : null,
     ...(legacy ? { floor_usd: floor.value } : { floor: { value: floor.value, currency: floor.currency, rule_label_zh: floor.rule_label_zh } }),
     half_kelly: side('half_kelly'), fixed_60: side('fixed_60'),
     note: '研究计算，不是仓位建议；现行仓位规则不变',
@@ -521,10 +549,11 @@ function reasonText(error) {
   return `${error.code}${error.detail ? `：${error.detail}` : ''}`;
 }
 
-function buildBlocks(doc, gapped, profile = profileForDoc(doc)) {
+/** context（可选）：`notes` = 这条策略的说明登记，`file_sha256` = 锁定结果文件的 sha256（分红口径按它绑定）。 */
+function buildBlocks(doc, gapped, profile = profileForDoc(doc), context = {}) {
   const builders = {
-    period: () => periodBlock(doc, gapped, profile), account: () => accountBlock(doc, profile), winrate: () => winrateBlock(doc, profile),
-    stress: () => stressBlock(doc), kelly: () => kellyBlock(doc, profile), verdict: () => verdictBlock(doc, gapped, profile),
+    period: () => periodBlock(doc, gapped, profile), account: () => accountBlock(doc, profile, context), winrate: () => winrateBlock(doc, profile),
+    stress: () => stressBlock(doc, context), kelly: () => kellyBlock(doc, profile), verdict: () => verdictBlock(doc, gapped, profile),
   };
   return BLOCKS.map(([key, title]) => {
     try { return { key, title, state: 'AVAILABLE', reason: null, data: builders[key]() }; } catch (error) {
@@ -664,12 +693,30 @@ function conclusionOf(verdictBlock_, doc, completeness = null, profile = profile
   const v = verdictBlock_.data;
   const labels = { SUPPORTED: '有支持证据', NOT_PASSED: '未通过', INSUFFICIENT: '证据不足' };
   const limit = limitOf(v, completeness);
-  const oos = (doc.stats.rows || []).find((row) => row.segment === 'OOS' && row.cost_bps === 5 && row.phase === 'PRODUCTION');
+  const oos = (doc.stats.rows || []).find(isMainRow);
   const main = oos && Array.isArray(oos.mean_R_ci) && oos.mean_R_ci.length === 2
     ? { label: `${profile.segment_words.OOS || 'OOS'}每笔扣费后净 R 均值（5 bps，${profile.phase_words.PRODUCTION || 'PRODUCTION'}；门槛 +0.10 R）`, value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
   return {
     state: v.state, label: labels[v.state], reason: null, main_number: main, basis: basisOf(v),
     limit_label: limit.label, biggest_limit: limit.text, completeness,
+  };
+}
+
+/**
+ * 修订 5 E2.2：比较对象的分红口径没有登记（结果文件换了、或从未核实）时，页面写「分红口径未记录」，并把这一项列进待验证问题清单。
+ * 只加一条说明，不判定口径。
+ */
+function withUnrecordedBasis(diagnosis, accountBlock_) {
+  const notes = accountBlock_ && accountBlock_.state === 'AVAILABLE' ? accountBlock_.data.comparator_notes || [] : [];
+  const missing = notes.filter((note) => note.dividend === 'NOT_RECORDED');
+  if (!missing.length || !diagnosis || diagnosis.state !== 'AVAILABLE') return diagnosis;
+  return {
+    ...diagnosis,
+    items: [...diagnosis.items, ...missing.map((note) => ({
+      id: `BASIS-${note.key}`, source: 'DATA', source_label: SOURCE_LABELS.DATA,
+      facts: [`${note.label}的分红口径在结果文件与说明登记里都没有记录，页面写「${detailNotes.NOT_RECORDED}」；须按引擎实际用的价格序列核实后登记`],
+      experiment: null, no_topic_reason: '口径待核实，不是研究题', state_label: '待验证，不是结论',
+    }))],
   };
 }
 
@@ -679,12 +726,13 @@ function conclusionOf(verdictBlock_, doc, completeness = null, profile = profile
 function project(sealed, lock, profile = lock.strategy_ref ? profiles.mustGet(lock.strategy_ref) : profileForDoc(sealed.doc)) {
   const { doc } = sealed;
   const gapped = validateWhole(doc, profile);
-  const blocks = buildBlocks(doc, gapped, profile);
+  const blocks = buildBlocks(doc, gapped, profile, { notes: detailNotes.forStrategy(profile.strategy_ref), file_sha256: sealed.sha256 });
   const verdict = blocks.find((block) => block.key === 'verdict');
   const completeness = completenessOf(blocks.find((block) => block.key === 'stress'), doc.verdict.state);
   return {
     state: 'LOCKED_VERIFIED', result_id: lock.result_id, class: EVAL_CLASS, verdict_state: doc.verdict.state,
-    conclusion: conclusionOf(verdict, doc, completeness, profile), blocks, diagnosis: diagnosisList(doc, profile),
+    conclusion: conclusionOf(verdict, doc, completeness, profile), blocks,
+    diagnosis: withUnrecordedBasis(diagnosisList(doc, profile), blocks.find((block) => block.key === 'account')),
     source: {
       result_id: lock.result_id, file_ref: sealed.file, file_sha256: sealed.sha256, size: sealed.size,
       locked_at: lock.locked_at, locked_by: lock.locked_by, plan_ref: profile.research_program.plan_ref, amendment_ref: profile.research_program.amendment_ref,

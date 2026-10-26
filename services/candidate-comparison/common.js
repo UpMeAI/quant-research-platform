@@ -83,15 +83,15 @@ const forwardReason = (doc) => {
 const shortDate = (text) => String(text).replace(/\d{4}-(\d{2}-\d{2})T[\d:.]+Z?/g, '$1');
 
 /**
- * 前向行的一句人话（D3.9）：「MSFU 10-09 入场，T3 推迟过时间止损，ΔR −1.07」。
+ * 前向行的一句人话（D3.9）：「MSFU 10-09 入场，推迟过时间止损，ΔR −1.07」。
  * 行里有入场标的、入场时间、ΔR 和是否受影响时按这个格式写；否则用行自己的中文说明，时间戳缩成月-日、小数缩成两位。
- * key、type、哈希等技术字段不进这一句，收在折叠里。
+ * key、type、哈希等技术字段不进这一句，收在折叠里；行里的规则代号（`rule`，例如 T3）也不进这一句（修订 5 E7.2），
+ * 它在折叠的技术字段里。
  */
 function forwardSentence(row) {
   if (typeof row.carrier === 'string' && row.carrier && typeof row.entry_time === 'string' && finite(row.delta_R) && typeof row.affected === 'boolean') {
-    const rule = typeof row.rule === 'string' && row.rule ? `${row.rule} ` : '';
     const delta = row.delta_R === 0 ? '0' : `${row.delta_R < 0 ? '−' : '+'}${Math.abs(row.delta_R).toFixed(2)}`;
-    return `${row.carrier} ${shortDate(row.entry_time)} 入场，${rule}${row.affected ? '推迟过时间止损' : '没有推迟时间止损（不受影响）'}，ΔR ${delta}`;
+    return `${row.carrier} ${shortDate(row.entry_time)} 入场，${row.affected ? '推迟过时间止损' : '没有推迟时间止损（不受影响）'}，ΔR ${delta}`;
   }
   const text = preferZh(row, 'text');
   // 研究会话原文里括号中的英文原因码（如「（PREFIX_BROKEN）」）不进主内容这一句；原文整段仍在折叠的技术详情里

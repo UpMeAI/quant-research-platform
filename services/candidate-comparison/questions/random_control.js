@@ -129,12 +129,36 @@ function buildPart(entry, cfg, spec, doc) {
   }
 }
 
+/**
+ * 修订 5 E8：卡片开头先说它在回答什么、怎么做、怎么判。重复次数取自结果文件（Q3a2 的种子数），门槛取自冻结的登记项；
+ * Q3a 另写一句：它只打乱同一时刻候选的处理顺序，样本外这种时刻有几个（结果文件的 OOS 选择点）。
+ */
+function introOf(cfg, parts) {
+  const instrument = parts.find((part) => part.key === 'Q3A2' && part.state === 'AVAILABLE');
+  return [
+    { label_zh: '回答的问题', text_zh: '这套选标的的方法，是否比随便挑更好。' },
+    {
+      label_zh: '做法',
+      text_zh: `信号和开仓时点不变，每次开仓时改为从当时可交易的同方向标的里随机挑一个，重复 ${instrument ? `${instrument.seeds.n} 次` : '若干次（结果文件没有给出次数）'}。`,
+    },
+    {
+      label_zh: '判法',
+      text_zh: `真实策略胜过 ≥ ${fmtPct(cfg.support_at, 0)} 的随机版本 → 有支持；≤ ${fmtPct(cfg.fail_at, 0)} → 不比随机好；介于两者之间 → 证据不足。`,
+    },
+  ];
+}
+const orderScope = (part) => (part.key === 'Q3A' && part.state === 'AVAILABLE'
+  ? { ...part, scope_zh: `它只打乱同一时刻候选的处理顺序；样本外这种时刻${part.g1.met ? `有 ${part.g1.oos} 个` : `只有 ${part.g1.oos} 个，不足以下结论`}。` }
+  : part);
+
 /** 随机对照那张卡的数据：两部分，各自一个三态结论，和 Q3b 的 verdict 无关。 */
 function card(entry, doc) {
   const cfg = entry.random_control;
+  const parts = cfg.parts.map((spec) => buildPart(entry, cfg, spec, doc));
   return {
     class: cfg.class,
-    parts: cfg.parts.map((spec) => buildPart(entry, cfg, spec, doc)),
+    intro: introOf(cfg, parts),
+    parts: parts.map(orderScope),
     note_zh: '随机对照是它自己的结论，与上面行业 RS 排序层（Q3b）的结论分开，互不影响；两者都不做多重比较校正（问题不同）。',
   };
 }

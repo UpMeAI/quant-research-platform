@@ -96,13 +96,13 @@ test('已交付：七块按固定顺序，主内容里有三行（优势结论�
   const positions = order.map((title) => main.indexOf(title));
   assert.ok(positions.every((position) => position > -1), JSON.stringify(positions));
   assert.deepEqual([...positions].sort((a, b) => a - b), positions, '七块顺序固定');
-  assert.ok(positions[0] > main.indexOf('候选对比：T3 对原版'));
+  assert.ok(positions[0] > main.indexOf('候选对比：「趋势中推迟时间止损」对原版')); // UX 修订 5 E7.2：主内容写中文题名
 
   assert.match(main, /<li class="">优势结论：有支持证据<\/li>/);
   assert.match(main, /<li class="warn">压力评价不完整：缺场景 1 个、无效输入 1 个（极端下跌 2008：缺场景；区间重放：2020-02-19 至 2020-04-30：无效输入）<\/li>/);
   assert.match(main, /<li class="bad">采用条件：未满足（独立样本不足，等前向成熟；必要压力缺失，§6\.7）<\/li>/);
   assert.ok(main.indexOf('优势结论：有支持证据') < main.indexOf('压力评价不完整'), '优势结论在前，压力评价不盖住它');
-  assert.match(main, /复测（当年用于挑选 T3 的样本，不是独立样本外）/);
+  assert.match(main, /复测（当年用于挑选「趋势中推迟时间止损」的样本，不是独立样本外）/);
   assert.match(main, /前向，只报不判/);
   assert.match(main, /B 流：生产账本交易的孪生/);
   assert.match(main, /S 流：信号级影子/);
@@ -117,7 +117,7 @@ test('主数字：账户对比、受影响交易改善（主 S／次 B）、判�
   const { baseline, comparison } = projections();
   const main = mainContent(researchSection(await renderPage(await modelOf(baseline, comparison))));
   assert.match(main, /原版（当前 D）/);
-  assert.match(main, /候选 T3/);
+  assert.match(main, /候选「趋势中推迟时间止损」/);
   assert.match(main, /候选 − 原版/);
   assert.match(main, /推迟 37 个 session/);
   assert.match(main, /<strong>主样本<\/strong>（S）/);
@@ -194,7 +194,7 @@ test('块级失败：压力块读不出来，只让那一块写「尚未完成�
 test('其他没有对比的策略：不显示对比卡，也不出现「尚未完成」', async () => {
   const { baseline } = projections();
   const html = await renderPage(await modelOf(baseline, q1.emptyProjection('NOT_CONNECTED', '这项策略没有候选对比')));
-  assert.doesNotMatch(researchSection(html), /候选对比：T3 对原版|尚未完成：/);
+  assert.doesNotMatch(researchSection(html), /候选对比：「趋势中推迟时间止损」对原版|候选对比：T3 对原版|尚未完成：/);
 });
 
 test('读模型：comparison 与 diagnosis_list 来自注入的投影；没有注入且 case 是首案时读真实账本（尚未导入）', async () => {

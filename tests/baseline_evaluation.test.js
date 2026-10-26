@@ -65,9 +65,11 @@ test('导入：封存校验、结果锁、输入与引擎摘要；同一文件�
   assert.equal(kelly.note, '研究计算，不是仓位建议；现行仓位规则不变');
   const winrate = projection.blocks.find((block) => block.key === 'winrate').data;
   assert.equal(winrate.formula.note, '公式推算，不是回测');
-  assert.equal(projection.diagnosis.items.length, 2);
+  // 夹具文件的 sha256 没有登记 SPY 的分红口径：页面写「分红口径未记录」并在清单末尾列一条待核实（UX 修订 5 E2.2）
+  assert.equal(projection.diagnosis.items.length, 3);
   assert.equal(projection.diagnosis.items[0].experiment.id, 'Q1');
   assert.equal(projection.diagnosis.items[1].source_label, '执行');
+  assert.equal(projection.diagnosis.items[2].id, 'BASIS-SPY_BUY_HOLD');
   assert.equal(projection.diagnosis.items[0].state_label, '待验证，不是结论');
 });
 
@@ -313,7 +315,9 @@ test('仓库里封存的真实 Q0 文件：六块和问题清单全部可读，�
   assert.deepEqual(projection.blocks.map((block) => `${block.key}:${block.state}`),
     ['period:AVAILABLE', 'account:AVAILABLE', 'winrate:AVAILABLE', 'stress:AVAILABLE', 'kelly:AVAILABLE', 'verdict:AVAILABLE']);
   assert.equal(projection.diagnosis.state, 'AVAILABLE');
-  assert.equal(projection.diagnosis.items.length, 14);
+  // 被取代的旧 Q0 文件没有登记分红口径：文件自己的 14 条，再加一条「分红口径未记录」的待核实（UX 修订 5 E2.2）
+  assert.equal(projection.diagnosis.items.length, 15);
+  assert.equal(projection.diagnosis.items[14].id, 'BASIS-SPY_BUY_HOLD');
   const stress = projection.blocks.find((block) => block.key === 'stress').data;
   const missing = stress.rows.find((row) => row.kind === 'MISSING');
   const invalid = stress.rows.find((row) => row.kind === 'INVALID_INPUT');

@@ -111,11 +111,15 @@ const positionOf = (interval, mean, delta) => {
 const optionalCi = (value) => (Array.isArray(value) && value.length === 2 && value.every(finite) && value[0] <= value[1] ? { lo: value[0], hi: value[1] } : null);
 const count = (value) => (Number.isInteger(value) && value >= 0 ? value : null);
 
+/**
+ * 样本外复用说明的人话：取 detail 里的文字字段拼起来。哈希与原因码字段（`reason_code` 这类）不进这句话——
+ * 原因码已在结论的「原因」里译成中文，主内容不出现原样的英文原因码（修订 4 D5.2，修订 5 F2 重申）。
+ */
 function detailText(detail) {
   if (typeof detail === 'string' && detail.trim()) return detail.trim();
   if (!isObject(detail)) return null;
   const parts = Object.entries(detail)
-    .filter(([key, value]) => typeof value === 'string' && value.trim() && !/_sha256$|^sha256$/.test(key)).map(([, value]) => value.trim());
+    .filter(([key, value]) => typeof value === 'string' && value.trim() && !/_sha256$|^sha256$|(?:^|_)codes?$/.test(key)).map(([, value]) => value.trim());
   return parts.length ? parts.join('；') : null;
 }
 

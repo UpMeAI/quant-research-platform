@@ -78,7 +78,7 @@ const Q4 = Object.freeze({
   code_prefix: 'Q4',
   schema: 'US_V5_M2_Q4_RESULT_V1',
   queue_order: 4,
-  title_zh: '候选对比：冷却只在开仓时武装（A25）对原版',
+  title_zh: '候选对比：冷却只在开仓时武装对原版', // 修订 5 E7.2：标题不带内部代号（A25 留在 K2 与技术详情里）
   k2: Object.freeze({ ref: K2_REF, sha256: K2_SHA256 }),
   profile_ref: 'docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_2.md',
   pending_status_zh: null,

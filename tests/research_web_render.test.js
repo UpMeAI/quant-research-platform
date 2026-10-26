@@ -125,7 +125,7 @@ test('有封存结果时：结论、主数字及区间、六块数字全部来�
   const missingRow = /<tr class="missing-scenario">[\s\S]*?<\/tr>/.exec(stress)[0];
   assert.doesNotMatch(missingRow, /US\$|个 session|已恢复|未恢复/, '缺场景行不显示任何数字或恢复状态');
   assert.match(html, /待验证，不是结论/);
-  assert.match(html, /对应实验：<\/strong>Q1 · T3/);
+  assert.match(html, /对应实验：<\/strong>Q1 · 「趋势中推迟时间止损」/); // UX 修订 5 E7.2：主内容里的 T3 换成中文题名
   assert.match(html, /不立题：<\/strong>相位是执行条件/);
   assert.equal((html.match(/data-block=/g) || []).length, 6);
   const main = mainContent(html);

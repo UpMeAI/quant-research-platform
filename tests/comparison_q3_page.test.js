@@ -103,7 +103,7 @@ test('Q3 锁定：「研究与对比」里 Q1 主卡、Q3 主卡、随机对照�
     'question', 'account', 'effect', 'exposure', 'criteria', 'stress', 'verdict', 'forward',
   ]);
   assert.deepEqual([...section.matchAll(/data-rc-part="(\w+)"/g)].map((match) => match[1]), ['Q3A', 'Q3A2']);
-  const positions = ['候选对比：T3 对原版', Q3_TITLE, RC_TITLE].map((title) => section.indexOf(title));
+  const positions = ['候选对比：「趋势中推迟时间止损」对原版', Q3_TITLE, RC_TITLE].map((title) => section.indexOf(title));
   assert.ok(positions.every((position) => position > -1) && positions[0] < positions[1] && positions[1] < positions[2], JSON.stringify(positions));
   assert.match(section, /id="comparison-title-Q3"/);
   assert.match(section, /id="extra-random_control-title"/);
