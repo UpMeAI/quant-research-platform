@@ -12,6 +12,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const producers = require('../strategy-diagnostics/producers');
 
 const FILE = path.join(__dirname, '..', '..', 'config', 'strategy_profiles.v1.json');
 const CONTRACT = 'QRP_STRATEGY_PROFILES_V1';
@@ -105,7 +106,86 @@ function validateProfile(raw, index) {
     cq.array(item, 'after').forEach((before) => { if (!queue[before]) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.research_program.queue.${question}.after:${before}`); });
   }
   if (program.default_question && !queue[program.default_question]) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.research_program.default_question:${program.default_question}`);
+  validateReadings(raw, ref);
   return deepFreeze(JSON.parse(JSON.stringify(raw)));
+}
+
+const SHARED_DISPLAY_ZH = '共享，未复算';
+const hasNumber = (value) => (typeof value === 'number' ? true
+  : value && typeof value === 'object' ? Object.values(value).some(hasNumber) : false);
+
+/**
+ * CRYPTO_Q0_RESULT_V1 §2.3：按策略取值的 Q0 读法（q0_reading）、共享约束（shared_constraints）与 M1 生产者（m1_evidence.producer）。
+ * LEGACY_V1 档案（US_V5）一项都不得带，保证它的读法与输出不变；非 LEGACY 档案必须带 q0_reading。
+ */
+function validateReadings(raw, ref) {
+  const legacy = raw.projection_shape === 'LEGACY_V1';
+  if (legacy) {
+    for (const key of ['q0_reading', 'shared_constraints']) if (raw[key] !== undefined) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.${key}:not allowed with LEGACY_V1`);
+    if (raw.m1_evidence.producer !== undefined) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.m1_evidence.producer:not allowed with LEGACY_V1`);
+    return;
+  }
+  if (raw.m1_evidence.producer !== undefined && !producers.isRegistered(raw.m1_evidence.producer)) {
+    fail('DIAGNOSTIC_PRODUCER_NOT_REGISTERED', `${ref}.m1_evidence.producer:${raw.m1_evidence.producer}`);
+  }
+  const reading = checker(ref).object(raw, 'q0_reading');
+  const c = checker(`${ref}.q0_reading`);
+  const main = c.object(reading, 'main_row');
+  const cm = checker(`${ref}.q0_reading.main_row`);
+  const costWords = c.words(reading, 'cost_words');
+  // 主数字那一行的三个键都必须有词，页面才能写出标签
+  for (const [key, words] of [['segment', raw.segment_words], ['cost', costWords], ['phase', raw.phase_words]]) {
+    if (!Object.prototype.hasOwnProperty.call(words, cm.text(main, key))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.main_row.${key}:${main[key]} 没有对应的词`);
+  }
+  if (reading.phase_note_zh !== undefined) c.text(reading, 'phase_note_zh');
+  const columns = c.array(reading, 'census_columns');
+  if (!columns.length) fail('STRATEGY_PROFILE_FIELD_MISSING', `${ref}.q0_reading.census_columns.*`);
+  columns.forEach((item, i) => {
+    if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.census_columns[${i}]:object`);
+    const cc = checker(`${ref}.q0_reading.census_columns[${i}]`);
+    cc.text(item, 'field'); cc.text(item, 'label_zh');
+  });
+  c.text(reading, 'market_g_path');
+  const kelly = c.object(reading, 'kelly');
+  const ck = checker(`${ref}.q0_reading.kelly`);
+  ck.text(kelly, 'floor_field');
+  const fixed = ck.object(kelly, 'fixed_arm');
+  checker(`${ref}.q0_reading.kelly.fixed_arm`).text(fixed, 'key');
+  checker(`${ref}.q0_reading.kelly.fixed_arm`).text(fixed, 'label_zh');
+  const thresholds = ck.array(kelly, 'thresholds');
+  if (!thresholds.length) fail('STRATEGY_PROFILE_FIELD_MISSING', `${ref}.q0_reading.kelly.thresholds.*`);
+  thresholds.forEach((item, i) => {
+    if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.thresholds[${i}]:object`);
+    const ct = checker(`${ref}.q0_reading.kelly.thresholds[${i}]`);
+    ct.text(item, 'field'); ct.number(item, 'value'); ct.text(item, 'label_zh');
+  });
+  if (thresholds[0].value !== raw.floor.value) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.kelly.thresholds[0].value:${thresholds[0].value}≠floor.value ${raw.floor.value}`);
+  if (new Set(thresholds.map((item) => item.field)).size !== thresholds.length) fail('STRATEGY_PROFILE_DUPLICATE', `${ref}.q0_reading.kelly.thresholds.field`);
+  if (reading.forward !== undefined) {
+    const forward = c.object(reading, 'forward');
+    checker(`${ref}.q0_reading.forward`).text(forward, 'net_field');
+    if (forward.ledger_must_equal_strategy_ref !== true) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.forward.ledger_must_equal_strategy_ref:true`);
+  }
+  if (reading.funding_exclusion !== undefined) {
+    const funding = c.object(reading, 'funding_exclusion');
+    const cf = checker(`${ref}.q0_reading.funding_exclusion`);
+    cf.text(funding, 'count_field'); cf.text(funding, 'share_field'); cf.text(funding, 'rule_ref_zh');
+  }
+  if (reading.disclosures_zh !== undefined) {
+    c.array(reading, 'disclosures_zh').forEach((text, i) => { if (!isText(text)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.q0_reading.disclosures_zh[${i}]:string`); });
+  }
+  if (raw.shared_constraints === undefined) return;
+  checker(ref).array(raw, 'shared_constraints').forEach((item, i) => {
+    const where = `${ref}.shared_constraints[${i}]`;
+    if (!isObject(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:object`);
+    // §10：共享约束只写文字，任何数字都不得出现（一条策略的数字不进另一条策略的页面，R3.3）
+    if (hasNumber(item)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:no numbers`);
+    const cs = checker(where);
+    cs.text(item, 'key'); cs.text(item, 'label_zh'); cs.text(item, 'rule_ref');
+    const peers = cs.array(item, 'peers');
+    if (!peers.length || !peers.every(isText)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.peers:string[]`);
+    if (cs.text(item, 'display_zh') !== SHARED_DISPLAY_ZH) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.display_zh:${SHARED_DISPLAY_ZH}`);
+  });
 }
 
 function deepFreeze(value) {

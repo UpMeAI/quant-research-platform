@@ -59,6 +59,10 @@ function fixtureResult(patch = (doc) => doc) {
     doc.half_kelly.floor = FIXTURE.floor.value;
     doc.stress.rows[2].label = '规则边界情景：合成的 BTC 序列；模拟序列，不是可交易历史';
     doc.diagnosis_items = [{ id: 'DX1', source: 'ENTRY_EXIT', facts: ['资金费为负的小时里开仓更多'], proposed_experiment: 'Q1', no_topic_reason: null }];
+    // CRYPTO_Q0_RESULT_V1 的非 LEGACY 读法：费用写 cost 词、G 区间在 market_g_path、近似写 approximations
+    doc.stats.rows = doc.stats.rows.map(({ cost_bps: bps, ...row }) => ({ ...row, cost: bps === 5 ? 'BASE' : 'FEES_X3' }));
+    doc.stats.g_vs_market = { OOS: { ci: [doc.verdict.L_g, doc.verdict.U_g] } };
+    doc.verdict.engine_approximation = { flag: false, approximations: [] };
     return patch(doc);
   });
 }
@@ -89,9 +93,9 @@ async function renderPage(model, hash) {
 // US_V5 的值（以及测试档案的值）不得出现在别的策略的页面上（R3.3）
 const US_V5_VALUES = [/SPY/, /1,800/, /US\$/, /US_V5/, /RRC-US-V5/, /美元/];
 
-test('生产注册表：只有 US_V5 一项，值与改造前代码一致；测试档案不在生产注册表里', () => {
+test('生产注册表：US_V5 一项值与改造前代码一致，另有 Quick Shot V3（CRYPTO_Q0_RESULT_V1）；测试档案不在生产注册表里', () => {
   const live = profiles.load();
-  assert.deepEqual(live.profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD']);
+  assert.deepEqual(live.profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT']);
   const us = live.profiles[0];
   assert.equal(us.case_ref, 'RRC-US-V5-3000-V8-1-M0');
   assert.equal(us.currency, 'USD');
@@ -103,12 +107,18 @@ test('生产注册表：只有 US_V5 一项，值与改造前代码一致；测�
   assert.deepEqual(us.segment_words, { 'IS-a': '开发期 A', 'IS-b': '开发期 B', OOS: '样本外' });
   assert.doesNotMatch(fs.readFileSync(profiles.FILE, 'utf8'), /FIXTURE/);
   assert.equal(costModels.resolve(us.cost_model_id).MODEL_ID, 'US_V5_M1_RESEARCH_COST_V1');
+  assert.equal(us.q0_reading, undefined);
+  const qs = live.profiles[1];
+  assert.equal(qs.case_ref, 'RRC-QUICK-SHOT-V3-1000USDT-V8-1-M0');
+  assert.equal(qs.projection_shape, undefined);
+  assert.deepEqual([qs.currency, qs.floor.value, qs.cost_model_id, qs.m1_evidence.producer], ['USDT', 600, 'CRYPTO_M1_RESEARCH_COST_V1', 'QS_V3_M1_PRODUCER_V1']);
+  assert.equal(costModels.resolve(qs.cost_model_id).MODEL_ID, 'CRYPTO_M1_RESEARCH_COST_V1');
 });
 
 test('R1.3 注册表校验负例：缺字段、类型不符、币种不支持、底线币种不符、比较对象角色、重复、默认未登记，各有原因码', () => {
   const variant = (mutate) => {
     const doc = JSON.parse(JSON.stringify({ ...PRODUCTION, profiles: [...PRODUCTION.profiles, FIXTURE] }));
-    mutate(doc, doc.profiles[1]);
+    mutate(doc, doc.profiles[doc.profiles.length - 1]);
     return () => profiles.validate(doc);
   };
   const refuses = (mutate, code, detail) => assert.throws(variant(mutate), (error) => {
@@ -180,11 +190,12 @@ test('测试档案的导入：按结果 schema 找到 FIXTURE_CRYPTO_USDT，锁�
   for (const pattern of [/SPY/, /1800/, /US_V5/, /RRC-US-V5/]) assert.doesNotMatch(json, pattern);
 });
 
-test('测试档案的诊断：按它自己的档案取证据与成本模型；成本模型没有模块时失败关闭，不借用 US_V5 的', () => {
+test('测试档案的诊断：按它自己的档案取生产者、证据与成本模型；没有登记生产者（或成本模型）时失败关闭，不借用 US_V5 的', () => {
   assert.throws(() => costModels.resolve(FIXTURE.cost_model_id), (error) => error.code === 'DIAGNOSTIC_COST_MODEL_NOT_REGISTERED');
   const diagnostic = diagnostics.readDiagnostic({ strategyRef: 'FIXTURE_CRYPTO_USDT' });
   assert.equal(diagnostic.state, 'INVALID');
-  assert.equal(diagnostic.reason_code, 'DIAGNOSTIC_COST_MODEL_NOT_REGISTERED');
+  // CRYPTO_Q0_RESULT_V1 §9.5：非 LEGACY 档案没写 m1_evidence.producer → 不借用 US_V5 的生产者
+  assert.equal(diagnostic.reason_code, 'DIAGNOSTIC_PRODUCER_NOT_REGISTERED');
   assert.equal(diagnostic.strategy_ref, 'FIXTURE_CRYPTO_USDT');
   assert.equal(diagnostic.schema, 'FIXTURE_CRYPTO_M1_STRATEGY_DIAGNOSTIC_V1');
   assert.doesNotMatch(JSON.stringify(diagnostic), /US_V5_ETF|RRC-US-V5|SPY/);
@@ -225,11 +236,11 @@ test('测试档案的渲染：策略详情按 strategy 参数取测试档案，�
   assert.equal(detail.health.delivery_truth, null);
   const html = await renderPage(model, '#strategy-detail?strategy=FIXTURE_CRYPTO_USDT&section=all');
   assert.match(html, /BTC 买入持有/);
-  assert.match(html, /跌破 600 USDT 的概率/);
+  assert.match(html, /跌破 600 USDT（测试档案的 600 USDT 底线）的概率/);
   assert.match(html, /测试样本外/);
   assert.match(html, /按现行固定风险/);
   assert.match(html, /底线：测试档案的 600 USDT 底线。/);
-  assert.match(html, /测试样本外每笔扣费后净 R 均值（5 bps，收盘小时相位；门槛 \+0\.10 R）/);
+  assert.match(html, /测试样本外每笔扣费后净 R 均值（基础成本，收盘小时相位；门槛 \+0\.10 R）/);
   for (const pattern of US_V5_VALUES) assert.doesNotMatch(html, pattern);
 });
 

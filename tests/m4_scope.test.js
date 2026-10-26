@@ -135,7 +135,9 @@ m4Scope.use(m4Scope.validate({
 // 档案 case 的 M1 要过原版诊断（闸本身的测试见 product_milestone_diagnostic_gate.test.js）：测试策略与 US_V5 桩成 VERIFIED，
 // 夹具档案照常走真实诊断（它的成本模型没有模块，必须失败关闭）
 const realDiagnostic = diagnostics.readFreshDiagnostic;
-diagnostics.readFreshDiagnostic = (strategyRef) => (strategyRef === FIXTURE.strategy_ref ? realDiagnostic(strategyRef) : { state: 'VERIFIED' });
+// 诊断的 case_ref 必须是本 case（CRYPTO_Q0_RESULT_V1 §9.5），桩也带上档案 case
+diagnostics.readFreshDiagnostic = (strategyRef) => (strategyRef === FIXTURE.strategy_ref ? realDiagnostic(strategyRef)
+  : { state: 'VERIFIED', case_ref: profiles.get(strategyRef).case_ref });
 test.after(() => { diagnostics.readFreshDiagnostic = realDiagnostic; m4Scope.use(PRODUCTION_SCOPE); });
 openCase(US.case_ref, US.strategy_ref, 'US_EQUITY');
 openCase(NEW_CASE, NEW_STRATEGY, 'CRYPTO');
@@ -152,14 +154,14 @@ test('A4.1–A4.2 范围登记：唯一方向、A/B 方向未立项、五条策�
   assert.equal(scope.first_case_strategy_ref, 'US_V5_ETF_3000USD');
   assert.equal(scope.registry_acceptance.sha256, crypto.createHash('sha256')
     .update(fs.readFileSync(path.join(ROOT, scope.registry_acceptance.ref))).digest('hex'));
-  // 生产注册表里没有任何新策略档案
-  assert.deepEqual(profiles.load().profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD']);
+  // 生产注册表：首案之外只有 Quick Shot V3（CRYPTO_Q0_RESULT_V1 冻结后登记），其余四条还没有档案
+  assert.deepEqual(profiles.load().profiles.map((item) => item.strategy_ref), ['US_V5_ETF_3000USD', 'QUICK_SHOT_V3_1000USDT']);
   assert.throws(() => m4Scope.validate({ ...scope, items: [{ ...scope.items[2], identity_note_zh: null }] }), (error) => error.code === 'M4_SCOPE_FIELD_MISSING');
   assert.throws(() => m4Scope.validate({ ...scope, items: [{ ...scope.items[0], strategy_ref: 'US_V5_ETF_3000USD' }] }), (error) => error.code === 'M4_SCOPE_FIRST_CASE_IN_ITEMS');
 });
 
 test('A4.4 页面：平台 M4 一行 NOT_VERIFIED、M5 OUT_OF_SCOPE、A/B 方向未立项；未接入的范围内策略写「已列入 M4 范围，尚未接入」，不给零值', async () => {
-  const model = await workspace.readModel({ strategyRef: 'QUICK_SHOT_V3_1000USDT' });
+  const model = await workspace.readModel({ strategyRef: 'C17_V2_4000USDT' });
   const detail = model.views['strategy-detail'];
   assert.equal(detail.m4_scope_label, '已列入 M4 范围，尚未接入');
   assert.equal(detail.m4_scope_batch, 1);
@@ -167,19 +169,26 @@ test('A4.4 页面：平台 M4 一行 NOT_VERIFIED、M5 OUT_OF_SCOPE、A/B 方向
   const scope = model.views['runtime-status'].m4_scope;
   assert.equal(scope.state, 'NOT_VERIFIED');
   assert.equal(scope.m5_state, 'OUT_OF_SCOPE');
-  assert.ok(scope.items.filter((item) => item.id !== 'M4_TEST').every((item) => item.state_label === '已列入 M4 范围，尚未接入' && item.stages === null));
+  const onboarded = new Set(['M4_TEST', 'QUICK_SHOT_V3']);
+  assert.ok(scope.items.filter((item) => !onboarded.has(item.id)).every((item) => item.state_label === '已列入 M4 范围，尚未接入' && item.stages === null));
+  // A4.4 第 1–2 条：Quick Shot V3 有了导入档案（CRYPTO_Q0_RESULT_V1），按它自己的 M0–M3 显示，不再写「尚未接入」
+  const qs = scope.items.find((item) => item.id === 'QUICK_SHOT_V3');
+  assert.equal(qs.state, 'ONBOARDED');
+  assert.deepEqual(qs.stages.map((row) => `${row.stage}:${row.state}`), ['M0:NOT_VERIFIED', 'M1:NOT_VERIFIED', 'M2:NOT_VERIFIED', 'M3:NOT_VERIFIED']);
+  assert.equal((await workspace.readModel({ strategyRef: 'QUICK_SHOT_V3_1000USDT' })).views['strategy-detail'].m4_scope_label, undefined);
 
-  const detailHtml = await renderPage(model, '#strategy-detail?strategy=QUICK_SHOT_V3_1000USDT&section=all');
+  const detailHtml = await renderPage(model, '#strategy-detail?strategy=C17_V2_4000USDT&section=all');
   assert.match(detailHtml, /已列入 M4 范围，尚未接入/);
   assert.doesNotMatch(detailHtml, /尚未验证|NOT_VERIFIED/);
-  const statusHtml = await renderPage(model, '#runtime-status?strategy=QUICK_SHOT_V3_1000USDT');
+  const statusHtml = await renderPage(model, '#runtime-status?strategy=C17_V2_4000USDT');
   assert.match(statusHtml, /M4 范围：同一工作台增加策略 \/ 市场/);
   assert.match(statusHtml, /平台级 M4：尚未验证/);
   assert.match(statusHtml, /M5：本轮不做/);
   assert.match(statusHtml, /从 Cycle 线索进入 A\/B 增量评价：未立项/);
-  // A4.2 五条都还没有档案 case（本测试进程里加的测试范围项已开 case，写「已接入」）
-  assert.equal((statusHtml.match(/已列入 M4 范围，尚未接入/g) || []).length, 5);
-  assert.equal(scope.items.filter((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED').length, 5);
+  // A4.2 其余四条还没有导入档案（Quick Shot V3 与本测试进程里加的测试范围项写「已接入」）
+  assert.equal((statusHtml.match(/已列入 M4 范围，尚未接入/g) || []).length, 4);
+  assert.equal(scope.items.filter((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED').length, 4);
+  assert.match(statusHtml, /第 1 批 · Quick Shot V3<\/strong>（USDT）：已接入，按本策略自己的 M0→M3 记录/);
   assert.match(statusHtml, /第 2 批 · Ashare-V6 个股账本（五段链）<\/strong>（CNY）：已列入 M4 范围，尚未接入<br><span class="muted-inline">策略身份在其 K2 冻结时确定/);
   for (const item of scope.items) assert.ok(!/零|0 \/ /.test(item.state_label));
 
@@ -224,7 +233,7 @@ test('A4.6.2 负向：未登记的策略、不是档案 case、用别的 case �
     case_ref: FIXTURE.case_ref, kind: 'USER_TASK', source_ref: named, object_ref: 'USER_TASK', observed_at: '2026-10-25T10:00:00Z', registered_by: AUTHORITY,
   }), /PRODUCT_EVIDENCE_NON_ACTUAL_SOURCE/);
   record(FIXTURE.case_ref, 'M0');
-  assert.throws(() => record(FIXTURE.case_ref, 'M1'), /PRODUCT_MILESTONE_M1_DIAGNOSTIC_NOT_VERIFIED:INVALID:DIAGNOSTIC_COST_MODEL_NOT_REGISTERED/);
+  assert.throws(() => record(FIXTURE.case_ref, 'M1'), /PRODUCT_MILESTONE_M1_DIAGNOSTIC_NOT_VERIFIED:INVALID:DIAGNOSTIC_PRODUCER_NOT_REGISTERED/);
   // M5 仍不在范围
   assert.throws(() => record(NEW_CASE, 'M5'), /PRODUCT_MILESTONE_STAGE_OUT_OF_SCOPE:M5/);
   // 什么都没写进新 case
@@ -265,7 +274,7 @@ test('A4.6.1 正向与 A4.5：新 case 按 M0→M3 记录；首案 M3 未 PASS �
   assert.equal(p.state, 'CONTROLLED_VERIFIED');
   assert.deepEqual(p.passed_items, ['M4_TEST']);
   assert.equal(p.supports_all_items, false); // 只有五条（及这里的测试项）全部通过才算支持全部
-  assert.ok(p.items.filter((item) => item.id !== 'M4_TEST').every((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED'));
+  assert.ok(p.items.filter((item) => item.id !== 'M4_TEST' && item.id !== 'QUICK_SHOT_V3').every((item) => item.state === 'IN_SCOPE_NOT_ONBOARDED'));
   assert.deepEqual(chainStates(US.case_ref).slice(4), ['M4:CONTROLLED_VERIFIED', 'M5:OUT_OF_SCOPE']);
 
   // 首案 M3 撤销：平台 M4 派生回 NOT_VERIFIED，历史 M4 行保留
@@ -277,4 +286,32 @@ test('A4.6.1 正向与 A4.5：新 case 按 M0→M3 记录；首案 M3 未 PASS �
   assert.equal(p.state, 'NOT_VERIFIED');
   assert.equal(p.first_case.m3_state, 'REVOKED');
   assert.equal(p.items.find((item) => item.id === 'M4_TEST').m4_state, 'CONTROLLED_VERIFIED');
+});
+
+test('CRYPTO_Q0_RESULT_V1 §11.10：Quick Shot V3 的 case 按 M0→M3 用自己的证据记录；US_V5 的证据、别的 case 的诊断、跳阶段、诊断不是 VERIFIED 时的 M1 PASS 都拒绝', () => {
+  const qs = profiles.mustGet('QUICK_SHOT_V3_1000USDT');
+  openCase(qs.case_ref, qs.strategy_ref, 'CRYPTO_USDM_PERP');
+  // 跳阶段：自己的 M0 没有 PASS 就记 M1
+  assert.throws(() => record(qs.case_ref, 'M1'), /PRODUCT_MILESTONE_UPSTREAM_NOT_VERIFIED:M0/);
+  // 用 US_V5 的证据给 Quick Shot 记阶段
+  const usEvidence = stageInput(US.case_ref, 'M0');
+  assert.throws(() => record(qs.case_ref, 'M0', { user_evidence_refs: usEvidence.user_evidence_refs }), /PRODUCT_EVIDENCE_CASE_MISMATCH/);
+  record(qs.case_ref, 'M0');
+  const stub = diagnostics.readFreshDiagnostic;
+  try {
+    // 诊断不是 VERIFIED（例如 M1 包还没拷进 var/evidence）：M1 PASS 拒绝
+    diagnostics.readFreshDiagnostic = () => ({ state: 'MISSING', reason_code: 'QS_V3_M1_INPUT_PACKAGE_MISSING', case_ref: qs.case_ref });
+    assert.throws(() => record(qs.case_ref, 'M1'), /PRODUCT_MILESTONE_M1_DIAGNOSTIC_NOT_VERIFIED:MISSING:QS_V3_M1_INPUT_PACKAGE_MISSING/);
+    // VERIFIED 但属于别的 case（US_V5 的诊断不能充当 Quick Shot 的运行证据）
+    diagnostics.readFreshDiagnostic = () => ({ state: 'VERIFIED', case_ref: US.case_ref });
+    assert.throws(() => record(qs.case_ref, 'M1'), new RegExp(`PRODUCT_MILESTONE_M1_DIAGNOSTIC_CASE_MISMATCH:${US.case_ref}`));
+  } finally { diagnostics.readFreshDiagnostic = stub; }
+  record(qs.case_ref, 'M1');
+  lockedLink(qs.case_ref);
+  for (const stage of ['M2', 'M3']) record(qs.case_ref, stage);
+  assert.deepEqual(chainStates(qs.case_ref).slice(0, 4),
+    ['M0:CONTROLLED_VERIFIED', 'M1:CONTROLLED_VERIFIED', 'M2:CONTROLLED_VERIFIED', 'M3:CONTROLLED_VERIFIED']);
+  const item = platform().items.find((row) => row.id === 'QUICK_SHOT_V3');
+  assert.equal(item.case_ref, qs.case_ref);
+  assert.deepEqual(item.stages.map((row) => row.state), ['CONTROLLED_VERIFIED', 'CONTROLLED_VERIFIED', 'CONTROLLED_VERIFIED', 'CONTROLLED_VERIFIED']);
 });

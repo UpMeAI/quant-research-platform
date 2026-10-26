@@ -9,6 +9,13 @@ const profiles = require('../services/strategy-profiles');
 
 const PRODUCTION = JSON.parse(fs.readFileSync(profiles.FILE, 'utf8'));
 
+/** 非 LEGACY 档案必带的 Q0 读法（CRYPTO_Q0_RESULT_V1 §2.3）：最小一份，主数字行 OOS / BASE / PRODUCTION，底线阈值等于档案底线。 */
+const testReading = (floor) => ({
+  main_row: { segment: 'OOS', cost: 'BASE', phase: 'PRODUCTION' }, cost_words: { BASE: '测试基础成本' },
+  census_columns: [{ field: 'tradable_carriers', label_zh: '可交易载体' }], market_g_path: 'stats.g_vs_market.OOS',
+  kelly: { floor_field: 'floor', fixed_arm: { key: 'fixed_60', label_zh: '按现行固定风险' }, thresholds: [{ field: 'p_below_floor', value: floor, label_zh: '测试底线' }] },
+});
+
 function testProfile(strategyRef, caseRef, overrides = {}) {
   return {
     strategy_ref: strategyRef, case_ref: caseRef, market: 'TEST_MARKET', currency: 'USDT', display_name: `TEST_${strategyRef}`,
@@ -20,6 +27,7 @@ function testProfile(strategyRef, caseRef, overrides = {}) {
     m1_evidence: { manifest_ref: `tests/TEST_${strategyRef}_M1_MANIFEST.json`, manifest_sha256: '0'.repeat(64), diagnostic_schema: `TEST_${strategyRef}_M1_DIAGNOSTIC_V1` },
     forward_observation_source_key: strategyRef,
     research_program: { plan_ref: `tests/TEST_${strategyRef}_PROGRAM`, amendment_ref: `tests/TEST_${strategyRef}_PROGRAM_AMENDMENT`, default_question: null, queue: {} },
+    q0_reading: testReading(100),
     ...overrides,
   };
 }
@@ -27,4 +35,4 @@ function testProfile(strategyRef, caseRef, overrides = {}) {
 /** 生产注册表 + 给定的测试档案；返回原来的注册表，测试结束时可以换回。 */
 const installProfiles = (...extra) => profiles.use(profiles.validate({ ...PRODUCTION, profiles: [...PRODUCTION.profiles, ...extra] }));
 
-module.exports = { PRODUCTION, testProfile, installProfiles, path };
+module.exports = { PRODUCTION, testProfile, testReading, installProfiles, path };

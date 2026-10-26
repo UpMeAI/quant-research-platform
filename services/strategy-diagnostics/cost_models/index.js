@@ -6,6 +6,7 @@
  */
 const MODELS = Object.freeze(Object.fromEntries([
   require('./US_V5_M1_RESEARCH_COST_V1'),
+  require('./CRYPTO_M1_RESEARCH_COST_V1'),
 ].map((model) => [model.MODEL_ID, model])));
 
 function resolve(modelId) {
