@@ -17,16 +17,19 @@ const experiments = require('../experiment-orchestrator');
 const selfAudit = require('../self-audit');
 const strategyDiagnostics = require('../strategy-diagnostics');
 const profiles = require('../strategy-profiles');
+const m4Scope = require('../strategy-profiles/m4_scope');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_RUNTIME_RESEARCH_LOOP_ACCEPTANCE_V1.md';
 const PRODUCT_ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_V1.md';
 const PRODUCT_ACCEPTANCE_AMENDMENT_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_1.md';
 const PRODUCT_ACCEPTANCE_AMENDMENT_2_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_2.md';
 const PRODUCT_ACCEPTANCE_AMENDMENT_3_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_3.md';
+const PRODUCT_ACCEPTANCE_AMENDMENT_4_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_4.md';
 const PRODUCT_ACCEPTANCE_AMENDMENT_REFS = Object.freeze([
   PRODUCT_ACCEPTANCE_AMENDMENT_REF,
   PRODUCT_ACCEPTANCE_AMENDMENT_2_REF,
   PRODUCT_ACCEPTANCE_AMENDMENT_3_REF,
+  PRODUCT_ACCEPTANCE_AMENDMENT_4_REF,
 ]);
 const PRODUCT_SPEC_REF = '/Users/kaylame/Downloads/Cycle_Research_Desk_金融策略投资系统设计与实施规格_V8_1.md';
 const PRODUCT_SPEC_SHA256 = 'ecfdda23b52075b8e69980576595fd89a1929f182af05e24fd851c2b2bed627f';
@@ -40,6 +43,9 @@ const PRODUCT_EVIDENCE_LEDGER = () => path.join(DIR(), 'product-evidence.jsonl')
 /** M1 诊断按 case 找策略档案（config/strategy_profiles.v1.json）；登记了 M1 证据的策略，M1 里程碑必须先过它的原版诊断。 */
 const canonicalM1Profile = (caseRef) => profiles.byCase(caseRef);
 const PRODUCT_STAGES = Object.freeze(['M0', 'M1', 'M2', 'M3']);
+// 修订 4：M4 记成「M4 范围项」——A4.2 的一条策略在自己的 M0→M3 之后记一条 M4；平台级 M4 由这些范围项与首案 M3 推出。M5 仍不在范围
+const RECORDABLE_STAGES = Object.freeze([...PRODUCT_STAGES, 'M4']);
+const VERIFIED_STATES = Object.freeze(['CONTROLLED_VERIFIED', 'TARGET_DELIVERED']);
 const PRODUCT_STAGE_LABELS = Object.freeze({
   M0: '首案准备完成', M1: '现行策略体检版', M2: '方案对照版', M3: '研究与复盘闭环版',
   M4: '扩展研究版', M5: '组合配置研究版',
@@ -49,7 +55,7 @@ const PRODUCT_EVIDENCE_KINDS = Object.freeze([
   'RUNTIME_NATIVE_REPLAY', 'ACCOUNT_RECONCILIATION', 'DECISION_FUNNEL', 'EXCEPTION_SCENARIO',
   'STRESS_REPORT', 'COMPARISON_REPORT', 'RESULT_REREAD',
   'DESK_OUTCOME', 'DESK_ROUND_TRIP', 'HISTORICAL_REREAD', 'RESEARCH_ISOLATION', 'DEDUPLICATION',
-  'DELIVERY_RELEASE',
+  'DELIVERY_RELEASE', 'REGISTRY_REUSE',
 ]);
 const sha256 = (value) => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const required = (value, code) => { if (value === undefined || value === null || value === '') throw new Error(code); };
@@ -198,9 +204,16 @@ function assertActualEvidenceRefs(refs) {
 function recordProductMilestone(input = {}) {
   const caseRec = headBy(CASES_LEDGER(), 'case_id', input.case_ref);
   if (!caseRec) throw new Error(`PRODUCT_MILESTONE_CASE_NOT_FOUND:${input.case_ref || 'MISSING'}`);
-  if (!PRODUCT_STAGES.includes(input.stage)) throw new Error(`PRODUCT_MILESTONE_STAGE_OUT_OF_SCOPE:${input.stage || 'MISSING'}`);
+  if (!RECORDABLE_STAGES.includes(input.stage)) throw new Error(`PRODUCT_MILESTONE_STAGE_OUT_OF_SCOPE:${input.stage || 'MISSING'}`);
   if (!['PASS', 'REVOKED'].includes(input.decision)) throw new Error('PRODUCT_MILESTONE_BAD_DECISION');
   assertProductAuthority(input.recorded_by);
+  // 修订 4 A4.2–A4.3：每条策略只能在自己档案里冻结的那个 case 上记阶段（M1 因此总要过该 case 的原版诊断）；
+  // 未登记的策略、或不是档案 case 的 case，都不能记任何阶段
+  if (input.decision === 'PASS') {
+    const profile = profiles.get(caseRec.strategy_ref);
+    if (!profile) throw new Error(`PRODUCT_MILESTONE_STRATEGY_NOT_REGISTERED:${caseRec.strategy_ref}`);
+    if (profile.case_ref !== input.case_ref) throw new Error(`PRODUCT_MILESTONE_CASE_NOT_PROFILE_CASE:${input.case_ref}`);
+  }
 
   const previous = milestoneHead(input.case_ref, input.stage);
   let upstreamEvidenceRef = null;
@@ -237,10 +250,11 @@ function recordProductMilestone(input = {}) {
       validateProductEvidenceRefs([input.release_evidence_ref], input.case_ref, ['DELIVERY_RELEASE'], 'PRODUCT_MILESTONE_RELEASE_EVIDENCE_REQUIRED');
     }
 
-    const stageIndex = PRODUCT_STAGES.indexOf(input.stage);
+    const stageIndex = RECORDABLE_STAGES.indexOf(input.stage);
     if (stageIndex > 0) {
-      const upstreamStage = PRODUCT_STAGES[stageIndex - 1];
-      const upstream = productStagesFor(input.case_ref).find((row) => row.stage === upstreamStage);
+      const upstreamStage = RECORDABLE_STAGES[stageIndex - 1];
+      // 前一阶段只看本 case 自己的链（A4.3：不从 US_V5 或其他策略继承）
+      const upstream = caseChain(input.case_ref).find((row) => row.stage === upstreamStage);
       if (!upstream || !['CONTROLLED_VERIFIED', 'TARGET_DELIVERED'].includes(upstream.state)) {
         throw new Error(`PRODUCT_MILESTONE_UPSTREAM_NOT_VERIFIED:${upstreamStage}`);
       }
@@ -282,6 +296,7 @@ function recordProductMilestone(input = {}) {
         ['DESK_ROUND_TRIP', 'HISTORICAL_REREAD', 'RESEARCH_ISOLATION', 'DEDUPLICATION'],
         'PRODUCT_MILESTONE_M3_ROUND_TRIP_EVIDENCE_REQUIRED');
     }
+    if (input.stage === 'M4') assertM4ScopeItem(input, caseRec);
   }
 
   const base = input.decision === 'REVOKED' ? previous : input;
@@ -305,6 +320,7 @@ function recordProductMilestone(input = {}) {
     stress_evidence_refs: input.decision === 'PASS' ? input.stress_evidence_refs : [],
     comparison_evidence_refs: input.decision === 'PASS' ? input.comparison_evidence_refs : [],
     round_trip_evidence_refs: input.decision === 'PASS' ? input.round_trip_evidence_refs : [],
+    ...(input.stage === 'M4' ? { reuse_evidence_refs: input.decision === 'PASS' ? input.reuse_evidence_refs : previous.reuse_evidence_refs } : {}),
     result_ref: input.decision === 'PASS' ? (input.result_ref || null) : previous.result_ref,
     desk_outcome_ref: input.decision === 'PASS' ? (input.desk_outcome_ref || null) : previous.desk_outcome_ref,
     desk_outcome_evidence_ref: input.decision === 'PASS' ? (input.desk_outcome_evidence_ref || null) : previous.desk_outcome_evidence_ref,
@@ -318,7 +334,8 @@ function recordProductMilestone(input = {}) {
   };
   const existing = headBy(MILESTONES_LEDGER(), 'evidence_id', core.evidence_id);
   if (existing) {
-    if (semanticEqual(existing, core, ['stage_hash', 'recorded_at'])) return { ...existing, replayHit: true };
+    // 引用的修订清单是记录当时的版本，不是提交内容：同内容在新增修订之后重复提交仍是幂等重放
+    if (semanticEqual(existing, core, ['stage_hash', 'recorded_at', 'acceptance_amendment_refs'])) return { ...existing, replayHit: true };
     throw new Error(`PRODUCT_MILESTONE_EVIDENCE_ID_CONFLICT:${core.evidence_id}`);
   }
   const body = { ...core, recorded_at: input.recorded_at || now() };
@@ -326,10 +343,14 @@ function recordProductMilestone(input = {}) {
   return append(MILESTONES_LEDGER(), body);
 }
 
-function productStagesFor(caseRef) {
+/**
+ * 一个 case 自己的阶段链：M0→M3，加上它作为 M4 范围项的一条（修订 4）。每一阶段只认本 case 的记录，
+ * 且必须引用本 case 上一阶段当时有效的证据；上游撤销或失效时下游派生为 INVALIDATED_BY_UPSTREAM。
+ */
+function caseChain(caseRef) {
   let upstreamValid = true;
   let upstreamEvidenceId = null;
-  const stages = PRODUCT_STAGES.map((stage) => {
+  return RECORDABLE_STAGES.map((stage) => {
     const evidence = milestoneHead(caseRef, stage);
     let state = 'NOT_VERIFIED';
     if (evidence && evidence.decision === 'REVOKED') state = 'REVOKED';
@@ -338,15 +359,71 @@ function productStagesFor(caseRef) {
       state = evidence.delivery_environment === 'TARGET_DELIVERED' ? 'TARGET_DELIVERED' : 'CONTROLLED_VERIFIED';
     } else if (evidence && evidence.decision === 'PASS' && !upstreamValid) state = 'INVALIDATED_BY_UPSTREAM';
     else if (evidence && evidence.decision === 'PASS') state = 'INVALIDATED_BY_UPSTREAM';
-    if (['CONTROLLED_VERIFIED', 'TARGET_DELIVERED'].includes(state)) upstreamEvidenceId = evidence.evidence_id;
+    if (VERIFIED_STATES.includes(state)) upstreamEvidenceId = evidence.evidence_id;
     else {
       upstreamValid = false;
       upstreamEvidenceId = null;
     }
     return { stage, label: PRODUCT_STAGE_LABELS[stage], state, evidence };
   });
-  return [...stages,
-    { stage: 'M4', label: PRODUCT_STAGE_LABELS.M4, state: 'OUT_OF_SCOPE', evidence: null },
+}
+
+/** 修订 4 A4.5 的三项前提里，记 M4 范围项时要现场核对的部分（本 case 自己的 M1–M3 已由上游规则核对）。 */
+function assertM4ScopeItem(input, caseRec) {
+  const scope = m4Scope.current();
+  if (!m4Scope.itemFor(caseRec.strategy_ref)) throw new Error(`PRODUCT_MILESTONE_M4_STRATEGY_NOT_IN_SCOPE:${caseRec.strategy_ref}`);
+  const first = profiles.get(scope.first_case_strategy_ref);
+  const firstM3 = first ? caseChain(first.case_ref).find((row) => row.stage === 'M3').state : 'NOT_VERIFIED';
+  if (!VERIFIED_STATES.includes(firstM3)) throw new Error(`PRODUCT_MILESTONE_M4_FIRST_CASE_M3_NOT_PASSED:${firstM3}`);
+  let contractSha = null;
+  try {
+    contractSha = crypto.createHash('sha256').update(fs.readFileSync(path.join(__dirname, '..', '..', scope.registry_acceptance.ref))).digest('hex');
+  } catch { contractSha = null; }
+  if (contractSha !== scope.registry_acceptance.sha256) throw new Error('PRODUCT_MILESTONE_M4_REGISTRY_ACCEPTANCE_MISSING');
+  assertStringArray(input.reuse_evidence_refs, 'PRODUCT_MILESTONE_M4_REUSE_EVIDENCE_REQUIRED', { nonempty: true });
+  assertActualEvidenceRefs(input.reuse_evidence_refs);
+  validateProductEvidenceRefs(input.reuse_evidence_refs, input.case_ref, ['REGISTRY_REUSE'], 'PRODUCT_MILESTONE_M4_REUSE_EVIDENCE_REQUIRED');
+}
+
+/**
+ * 平台级 M4（修订 4 A4.4–A4.5）：首案（US_V5）M3 有效，且至少一条 A4.2 策略的 M4 范围项有效，才不是 NOT_VERIFIED；
+ * 五条全部有效才算「支持全部五条」。没有登记档案或还没有 case 的条目写「已列入 M4 范围，尚未接入」，不给阶段零值。
+ */
+function platformM4() {
+  const scope = m4Scope.current();
+  const first = profiles.get(scope.first_case_strategy_ref);
+  const firstM3 = first ? caseChain(first.case_ref).find((row) => row.stage === 'M3').state : 'NOT_VERIFIED';
+  const items = scope.items.map((item) => {
+    const profile = item.strategy_ref ? profiles.get(item.strategy_ref) : null;
+    const caseRec = profile ? headBy(CASES_LEDGER(), 'case_id', profile.case_ref) : null;
+    if (!profile || !caseRec) {
+      return { ...item, state: 'IN_SCOPE_NOT_ONBOARDED', state_label: m4Scope.NOT_ONBOARDED_LABEL, case_ref: null, stages: null, m4_state: null, m4_evidence_id: null };
+    }
+    const chain = caseChain(profile.case_ref);
+    const own = chain.find((row) => row.stage === 'M4');
+    return {
+      ...item, state: 'ONBOARDED', state_label: '已接入，按本策略自己的 M0→M3 记录', case_ref: profile.case_ref,
+      stages: chain.filter((row) => PRODUCT_STAGES.includes(row.stage)).map(({ stage, label, state }) => ({ stage, label, state })),
+      m4_state: own.state, m4_evidence_id: own.evidence ? own.evidence.evidence_id : null,
+    };
+  });
+  const passed = VERIFIED_STATES.includes(firstM3) ? items.filter((item) => VERIFIED_STATES.includes(item.m4_state)) : [];
+  const state = !passed.length ? 'NOT_VERIFIED' : (passed.some((item) => item.m4_state === 'TARGET_DELIVERED') ? 'TARGET_DELIVERED' : 'CONTROLLED_VERIFIED');
+  return {
+    stage: 'M4', label: PRODUCT_STAGE_LABELS.M4, state, acceptance_ref: scope.acceptance_ref,
+    direction: scope.direction, other_directions: scope.other_directions,
+    first_case: { strategy_ref: scope.first_case_strategy_ref, case_ref: first ? first.case_ref : null, m3_state: firstM3 },
+    registry_acceptance_ref: scope.registry_acceptance.ref,
+    items, passed_items: passed.map((item) => item.id), supports_all_items: passed.length === items.length,
+    m5: { stage: 'M5', label: PRODUCT_STAGE_LABELS.M5, state: 'OUT_OF_SCOPE' },
+  };
+}
+
+/** 一个 case 的阶段行：本 case 的 M0–M3，平台级 M4 一行（修订 4：A4.5 满足之前都是 NOT_VERIFIED），M5 仍 OUT_OF_SCOPE。 */
+function productStagesFor(caseRef, platform = platformM4()) {
+  const firstPassed = platform.items.find((item) => platform.passed_items.includes(item.id));
+  return [...caseChain(caseRef).filter((row) => PRODUCT_STAGES.includes(row.stage)),
+    { stage: 'M4', label: PRODUCT_STAGE_LABELS.M4, state: platform.state, evidence: firstPassed ? milestoneHead(firstPassed.case_ref, 'M4') : null },
     { stage: 'M5', label: PRODUCT_STAGE_LABELS.M5, state: 'OUT_OF_SCOPE', evidence: null }];
 }
 
@@ -484,6 +561,7 @@ function listLinks() {
   return [...map.values()];
 }
 function readModel() {
+  const platform = platformM4();
   const links = listLinks();
   const cases = listCases();
   const baselines = new Map(selfAudit.list('baseline').map((row) => [row.baseline_id, row]));
@@ -504,7 +582,8 @@ function readModel() {
       truth_rule: 'ENGINEERING_OR_HTTP_SUCCESS_DOES_NOT_IMPLY_PRODUCT_DELIVERY',
       evidence_rule: 'REGISTERED_CASE_BOUND_TYPED_FILE_SHA256_EVIDENCE_ONLY',
       completion_authority: process.env.QRP_PRODUCT_MILESTONE_AUTHORITY ? 'CONFIGURED' : 'NOT_CONFIGURED',
-      cases: cases.map((caseRec) => ({ case_ref: caseRec.case_id, strategy_ref: caseRec.strategy_ref, stages: productStagesFor(caseRec.case_id) })),
+      cases: cases.map((caseRec) => ({ case_ref: caseRec.case_id, strategy_ref: caseRec.strategy_ref, stages: productStagesFor(caseRec.case_id, platform) })),
+      platform_m4: platform,
     },
     cases: cases.map((caseRec) => ({
       ...caseRec,
@@ -516,7 +595,7 @@ function readModel() {
 
 module.exports = {
   ACCEPTANCE_REF, PRODUCT_ACCEPTANCE_REF, PRODUCT_ACCEPTANCE_AMENDMENT_REF, PRODUCT_ACCEPTANCE_AMENDMENT_2_REF,
-  PRODUCT_ACCEPTANCE_AMENDMENT_3_REF,
+  PRODUCT_ACCEPTANCE_AMENDMENT_3_REF, PRODUCT_ACCEPTANCE_AMENDMENT_4_REF,
   PRODUCT_ACCEPTANCE_AMENDMENT_REFS, PRODUCT_SPEC_REF, PRODUCT_SPEC_SHA256,
   PRODUCT_EVIDENCE_KINDS, CASES_LEDGER, LINKS_LEDGER, MILESTONES_LEDGER, PRODUCT_EVIDENCE_LEDGER,
   openCase, registerReviewQuestion, linkLockedResult, registerProductEvidence, recordProductMilestone,

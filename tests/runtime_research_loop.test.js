@@ -8,9 +8,11 @@ const PRODUCT_AUTHORITY = 'INDEPENDENT_PRODUCT_REVIEWER';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = PRODUCT_AUTHORITY;
 
 const loop = require('../services/runtime-research-loop');
+const diagnostics = require('../services/strategy-diagnostics');
 const selfAudit = require('../services/self-audit');
 const experiments = require('../services/experiment-orchestrator');
 const { setupExperiment } = require('./_fixture');
+const { testProfile, installProfiles } = require('./_profile_fixture');
 
 function caseInput(overrides = {}) {
   return {
@@ -250,16 +252,25 @@ test('自审计无调用方时间戳也业务幂等；异常状态只能单向�
   assert.ok(div.record_hash);
 });
 
-test('V8.1 产品里程碑不由工程状态推断，并按 M0→M3、交付环境与撤销严格收敛', () => {
+test('V8.1 产品里程碑不由工程状态推断，并按 M0→M3、交付环境与撤销严格收敛', (t) => {
+  // 修订 4 A4.2–A4.3：只有登记了档案的策略、在档案的 case 上才能记阶段；这条 CN 工程样例 case 在测试里登记一份测试档案。
+  // 档案 case 的 M1 要过原版诊断闸（该闸自己的测试见 product_milestone_diagnostic_gate.test.js），这里把诊断桩成 VERIFIED。
+  const cnStrategy = loop.listCases().find((row) => row.case_id === 'RRC-CN-LOCKED-TEST').strategy_ref;
+  installProfiles(testProfile(cnStrategy, 'RRC-CN-LOCKED-TEST'));
+  const realDiagnostic = diagnostics.readFreshDiagnostic;
+  diagnostics.readFreshDiagnostic = () => ({ state: 'VERIFIED' });
+  t.after(() => { diagnostics.readFreshDiagnostic = realDiagnostic; });
   const initial = loop.readModel().product_delivery.cases.find((row) => row.case_ref === 'RRC-CN-LOCKED-TEST');
   assert.deepEqual(initial.stages.slice(0, 4).map((row) => row.state),
     ['NOT_VERIFIED', 'NOT_VERIFIED', 'NOT_VERIFIED', 'NOT_VERIFIED']);
-  assert.deepEqual(initial.stages.slice(4).map((row) => row.state), ['OUT_OF_SCOPE', 'OUT_OF_SCOPE']);
+  // 修订 4 A4.4.3：平台级 M4 一行在 A4.5 满足之前是 NOT_VERIFIED；M5 仍 OUT_OF_SCOPE
+  assert.deepEqual(initial.stages.slice(4).map((row) => row.state), ['NOT_VERIFIED', 'OUT_OF_SCOPE']);
   assert.deepEqual(loop.readModel().product_delivery.acceptance_amendment_refs,
     [
       'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_1.md',
       'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_2.md',
       'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_3.md',
+      'docs/contracts/CYCLE_RESEARCH_DESK_V8_1_PRODUCT_MILESTONE_ACCEPTANCE_AMENDMENT_4.md',
     ]);
   assert.equal(loop.readModel().product_delivery.evidence_rule, 'REGISTERED_CASE_BOUND_TYPED_FILE_SHA256_EVIDENCE_ONLY');
   assert.equal(loop.readModel().product_delivery.completion_authority, 'CONFIGURED');

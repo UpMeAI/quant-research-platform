@@ -71,6 +71,29 @@ function marketPresentation(marketRef) {
   return found || { market_ref: marketRef || null, aliases: [], label: '市场名称待登记', short_label: '未知市场' };
 }
 
+/**
+ * 修订 4 的平台级 M4 范围（runtime-research-loop 的 platform_m4）翻成页面文字：M4 一行、M5 一行、未立项的方向、
+ * A4.2 五条策略各自的状态。没有接入的条目只写「已列入 M4 范围，尚未接入」，不给阶段零值。
+ */
+function m4ScopeView(platform) {
+  if (!platform) return null;
+  return {
+    title: `M4 范围：${platform.direction.label_zh}`,
+    state: platform.state, state_label: words(platform.state, PRODUCT_STAGE_WORDS),
+    m5_state: platform.m5.state, m5_state_label: words(platform.m5.state, PRODUCT_STAGE_WORDS),
+    other_directions: platform.other_directions.map((item) => ({ label: item.label_zh, state: item.state, state_label: item.state_label_zh })),
+    rule_label: '平台级 M4 需要首案 M3 已通过、至少一条范围内策略用真实证据完成自己的 M1–M3，且新策略与首案用的是同一套已验收的注册表与页面；五条全部通过才算支持全部五条。',
+    first_case_label: `首案 M3：${words(platform.first_case.m3_state, PRODUCT_STAGE_WORDS)}`,
+    items: platform.items.map((item) => ({
+      id: item.id, batch: item.batch, label: item.label_zh, currency: item.currency, identity_note: item.identity_note_zh,
+      state: item.state, state_label: item.state_label,
+      stages: item.stages ? item.stages.map((stage) => ({ stage: stage.stage, state: stage.state, state_label: words(stage.state, PRODUCT_STAGE_WORDS) })) : null,
+      m4_state_label: item.m4_state ? words(item.m4_state, PRODUCT_STAGE_WORDS) : null,
+    })),
+    supports_all_items: platform.supports_all_items,
+  };
+}
+
 function strategyPresentation(strategyRef, strategyDirectory = new Map()) {
   const found = strategyDirectory.get(strategyRef);
   if (!found) return {
@@ -520,6 +543,8 @@ async function readModel({
     technical: [technicalRef(item.shadow_id, '前向观察 ID'), technicalRef(item.virtual_ledger_ref, '虚拟账本 ID')].filter(Boolean),
   }));
 
+  const platformM4 = loop.product_delivery.platform_m4 || null;
+  const m4Item = platformM4 && selectedStrategyRef ? platformM4.items.find((item) => item.strategy_ref === selectedStrategyRef) || null : null;
   const hkForwardForSelected = selectedStrategyRef
     ? hkForward.forStrategy(selectedStrategyRef, { shadowRuns }) : { state: 'AVAILABLE', items: [], verified_at: null };
   const hkItems = annotateHkItems(hkForwardForSelected.items, comparisonProjections);
@@ -595,6 +620,8 @@ async function readModel({
     // 没有档案的策略标「该策略尚未接入研究」；页面金额默认按美元写，其他档案带上自己的币种。
     ...(!profile ? { profile_state: 'NOT_REGISTERED', profile_label: NOT_REGISTERED_LABEL } : {}),
     ...(profile && !profiles.isLegacyShape(profile) ? { currency: profile.currency } : {}),
+    // 修订 4 A4.4：列入 M4 范围、还没有接入的策略写「已列入 M4 范围，尚未接入」（只加在这些策略上）
+    ...(m4Item && m4Item.state === 'IN_SCOPE_NOT_ONBOARDED' ? { m4_scope_label: m4Item.state_label, m4_scope_batch: m4Item.batch } : {}),
   };
 
   return {
@@ -706,6 +733,7 @@ async function readModel({
             : '当前首案尚未接入 QRP Runtime 状态接口；运行事实来自已登记的 Desk/Smartflow 文件。'
           : '所选策略尚无 QRP Runtime 绑定。',
         milestones: primary?.product_stages || [],
+        m4_scope: m4ScopeView(loop.product_delivery.platform_m4),
         next_step: blockers[0]?.next || (primary ? '复核实际输入与原生回放的一致性。' : '选择已接入 Research 的策略。'),
       },
     },
