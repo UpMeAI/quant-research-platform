@@ -301,7 +301,7 @@ test('E6 夹具 INSUFFICIENT 的顶部结论区块：说明紧跟在标题「证
 
 // ── E7 研究队列与中文题名 ───────────────────────────────────────────────────────────────────
 
-test('E7 真实页面：研究区开头有「研究队列」小表，Q1–Q4 四行，列为题号／研究部分／中文题名／来源／状态', async () => {
+test('E7 真实页面：研究区开头有「研究队列」小表，Q1–Q5 五行（Q5 写自己的来源），列为题号／研究部分／中文题名／来源／状态', async () => {
   const { baseline, cards } = realProjections();
   const html = await renderPage(await modelOf(baseline, cards));
   const section = researchSection(html);
@@ -316,6 +316,7 @@ test('E7 真实页面：研究区开头有「研究队列」小表，Q1–Q4 四
     ['Q2', '杠杆与载体', '换成 1 倍载体（收益来自信号还是杠杆）', source, locked.get('Q2')],
     ['Q3', '选标的', '选对象了吗：随机对照与行业 RS 排序', source, locked.get('Q3') || '进行中'],
     ['Q4', '风控', '冷却只在开仓时武装', source, locked.get('Q4') || '进行中'],
+    ['Q5', '组合验证（进出规则 + 风控）', '在冷却只在开仓时武装之上，趋势中推迟时间止损', 'Owner 2026-10-26 同意先跑 Q1+A25 组合验证（第二轮）', locked.get('Q5') || '进行中'],
   ]);
   // 卡片标题用中文题名
   const main = mainContent(section);

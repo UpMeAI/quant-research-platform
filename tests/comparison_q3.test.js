@@ -92,7 +92,7 @@ test('Q3 导入：锁里写 Q3 的 K2 与导入规格增补；结论是 Q3b 的�
   assert.deepEqual(['Q1', 'Q2', 'Q3'].map((question) => cc.headLock(cc.CASE_REF, question).result_id), [lock1.result_id, lock2.result_id, lock3.result_id]);
   assert.equal(imp(write3()).replayHit, true);
   assert.throws(() => imp(write3((doc) => { doc.diagnosis_items[0].facts = ['改过']; })), (error) => error.code === 'COMPARISON_ALREADY_LOCKED');
-  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3', 'Q4']);
+  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']);
 });
 
 test('Q3 主卡：八块按固定顺序（没有归因块）；优势结论是 Q3b 的；采用条件里没有「独立样本不足」；原因码有中文', () => {

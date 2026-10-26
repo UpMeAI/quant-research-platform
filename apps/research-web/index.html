@@ -219,15 +219,28 @@ function renderExtraCard(card){
   const head=`<div class="section-head"><h3 id="${esc(id)}">${esc(card.title_zh)}</h3><p>${card.data?esc(card.data.note_zh):''}</p></div>`;
   if(card.state!=='AVAILABLE')return `<section class="backtest comparison random-control" data-state="${esc(card.state)}" aria-labelledby="${esc(id)}">${head}<p class="not-backtested">尚未完成：${esc(card.reason||'原因未提供')}</p></section>`;
   if(Array.isArray(card.data.rows))return reportOnlyCard(card,id,head);
+  if(Array.isArray(card.data.checks))return recommendationCard(card,id,head);
   // 修订 5 E8：先说这块在回答什么、怎么做、怎么判
   const intro=card.data.intro&&card.data.intro.length?`<dl class="rc-intro">${card.data.intro.map((line)=>`<dt>${esc(line.label_zh)}</dt><dd>${esc(line.text_zh)}</dd>`).join('')}</dl>`:'';
   return `<section class="backtest comparison random-control" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}${intro}<div class="bt-blocks">${card.data.parts.map(randomPart).join('')}</div></section>`;
 }
-/** 只报不判的行（Q4 的 report_only_dimensions）：每行与原版比较，不进三态结论，也不进采用条件。 */
+/** 只报不判的行（Q4 的 report_only_dimensions、Q5 的 reference_rows）：不进三态结论，也不进采用条件；列名可由卡片数据给出。 */
 function reportOnlyCard(card,id,head){
   const gCell=(g)=>`${signed(g.value,(x)=>pct(x,2))}（95% ${signed(g.ci_95.lo,(x)=>pct(x,2))} ~ ${signed(g.ci_95.hi,(x)=>pct(x,2))}）`;
-  const rows=card.data.rows.map((r)=>[esc(r.label),usd(r.end_capital,0),esc(r.n),rVal(r.mean_R),pct(r.max_drawdown),gCell(r.g),r.changed_entries==null?'—':esc(r.changed_entries)]);
-  return `<section class="backtest comparison report-only" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<div class="status-row">${pill('只报不判','OBSERVING')}</div>${table(['行','期末资本','成熟交易','每笔净 R','最大回撤','年化对数增长差（对原版）','改变的入场'],rows)}</section>`;
+  const rows=card.data.rows.map((r)=>[esc(r.label),usd(r.end_capital,0),r.n==null?'—':esc(r.n),r.mean_R==null?'—':rVal(r.mean_R),r.max_drawdown==null?'—':pct(r.max_drawdown),gCell(r.g),r.changed_entries==null?'—':esc(r.changed_entries)]);
+  return `<section class="backtest comparison report-only" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<div class="status-row">${pill('只报不判','OBSERVING')}</div>${table(['行','期末资本','成熟交易','每笔净 R','最大回撤',card.data.g_label_zh||'年化对数增长差（对原版）',card.data.changed_label_zh||'改变的入场'],rows)}</section>`;
+}
+/** 证据不足时的采用建议核对表（Q5 K2 ★3 (a)）：前 4 项决定建议，第 5、6 项是反证、只列出；决定由 Owner 作出（修订 6）。 */
+function recommendationCard(card,id,head){
+  const d=card.data;
+  if(!d.applicable)return `<section class="backtest comparison recommendation" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<p class="muted-note">${esc(d.note_zh)}</p></section>`;
+  const mark=(c)=>c.counter?'反证，只列出':(c.yes===true?'是':(c.yes===false?'否':'—'));
+  const rows=d.checks.map((c)=>[esc(c.id),esc(c.item),esc(mark(c)),esc(c.facts)]);
+  const advice=d.recommendation==='ADOPT'?'建议采用':'建议不采用';
+  const readings=d.readings&&d.readings.length?table(['读法','第 4 项','建议'],d.readings.map((r)=>[esc(r.label),r.item4_yes===true?'是':(r.item4_yes===false?'否':'—'),esc(r.recommendation_zh)]),d.readings_note||''):'';
+  const diffs=d.share_count_differences&&d.share_count_differences.length?table(['载体','入场时点','股数（原版 / 候选）','原因'],d.share_count_differences.map((r)=>[esc(r.carrier),esc(r.entry_time),esc(Object.values(r.shares).join(' / ')),esc(r.cause)]),'同一入场股数不同的交易（账户状态带来的定仓差异）'):'';
+  const counter=d.counter_evidence&&d.counter_evidence.length?`<p><strong>反证（只列出，不单独否决）：</strong>${d.counter_evidence.map(esc).join('；')}</p>`:'';
+  return `<section class="backtest comparison recommendation" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<div class="status-row">${pill(`待 Owner 决定（${advice}）`,'OBSERVING')}</div><p><strong>${esc(d.recommendation_zh)}</strong></p>${readings}${table(['项','核对','结果','事实'],rows)}${diffs}${counter}${d.analysis.length?`<ul>${d.analysis.map((line)=>`<li>${esc(line)}</li>`).join('')}</ul>`:''}<p class="muted-note">${esc(d.note_zh)}</p></section>`;
 }
 function renderComparison(cmp,ctx){
   if(!cmp||cmp.state==='NOT_CONNECTED')return '';

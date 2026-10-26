@@ -15,6 +15,12 @@ const {
 } = baseline.internals;
 
 const BASE_KEYS = Object.freeze(['BASELINE', 'D']);
+/**
+ * 原版臂的键与名字。默认是 Q0 的 D（`BASELINE`／`D`，「原版（当前 D）」）；登记项可以用 `baseline_arm` 改成别的臂，
+ * 例如 Q5 的原版是 Q4 候选臂（D+A25），键为 `BASELINE_A25`（导入规格 V2 附录 3 的 `baseline_arm_ref` 读法）。
+ */
+const baseKeysOf = (entry) => (entry && entry.baseline_arm ? entry.baseline_arm.keys : BASE_KEYS);
+const baseLabelOf = (entry) => (entry && entry.baseline_arm ? entry.baseline_arm.label_zh : '原版（当前 D）');
 const SUMMARY_KEYS = Object.freeze(['end_capital', 'cagr', 'max_drawdown', 'longest_underwater_sessions', 'recovered']);
 const ARM_NUMBERS = Object.freeze(['max_loss_usd', 'longest_underwater_sessions', 'recovered', 'end_capital']);
 const ADOPTION_STRESS = '必要压力缺失，§6.7';
@@ -171,7 +177,7 @@ function stressBlock(entry, doc) {
     if (hasNoSeries(row)) {
       const reasonRaw = [row.missing_reason, row.reason_zh, row.reason].find((item) => typeof item === 'string' && item.trim());
       need(reasonRaw, 'MISSING', `${where}.reason`);
-      const armCells = [pick(row.arms, BASE_KEYS), pick(row.arms, entry.candidate.keys)].filter(isObject);
+      const armCells = [pick(row.arms, baseKeysOf(entry)), pick(row.arms, entry.candidate.keys)].filter(isObject);
       need(STRESS_NUMBERS.every((key) => row[key] === null || row[key] === undefined)
         && armCells.every((arm) => ARM_NUMBERS.every((key) => arm[key] === null || arm[key] === undefined)),
       'INVALID', `${where} 缺场景／无效输入行的数字必须是 null，不能用 0 或估计值补位`);
@@ -186,8 +192,8 @@ function stressBlock(entry, doc) {
     const supplementary = row.status === 'SUPPLEMENTARY_NOT_IN_CONCLUSION';
     if (supplementary) need(simulated === true && row.in_headline === false, 'INVALID', `${where} 补充行必须 simulated:true 且 in_headline:false`);
     need(isObject(row.arms), 'MISSING', `${where}.arms`);
-    const base = cell(pick(row.arms, BASE_KEYS), `${where}.arms.BASELINE`);
-    need(!base.missing, 'INVALID', `${where}.arms.BASELINE 不能缺项：原版是比较的基准`);
+    const base = cell(pick(row.arms, baseKeysOf(entry)), `${where}.arms.${baseKeysOf(entry)[0]}`);
+    need(!base.missing, 'INVALID', `${where}.arms.${baseKeysOf(entry)[0]} 不能缺项：原版是比较的基准`);
     const cand = cell(pick(row.arms, entry.candidate.keys), `${where}.arms.${entry.candidate.key}`);
     let diff = null;
     if (!cand.missing) {
@@ -235,7 +241,7 @@ function armSummaries(entry, doc) {
   need(isObject(arms), 'MISSING', 'arms');
   const owner = profiles.byComparisonProfile(entry.profile_ref);
   need(owner, 'INVALID', `题目 ${entry.question_ref} 不属于任何已登记的策略`);
-  const specs = [['BASELINE', '原版（当前 D）', BASE_KEYS], [entry.candidate.key, entry.candidate.label_zh, entry.candidate.keys],
+  const specs = [['BASELINE', baseLabelOf(entry), baseKeysOf(entry)], [entry.candidate.key, entry.candidate.label_zh, entry.candidate.keys],
     ...owner.comparators.map((item) => [item.key, item.label_zh, [item.key]])];
   let dates = null;
   return specs.map(([key, label, aliases]) => {
@@ -343,7 +349,7 @@ function linesOf(entry, stressBlock_, verdictState, oosReuse) {
 module.exports = {
   baseline, K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, STRESS_NUMBERS, KNOWN_STRESS_STATUS, REASON_WORDS, EDGE_LABELS,
-  BASE_KEYS, SUMMARY_KEYS, ARM_NUMBERS, ADOPTION_STRESS, E, pick, bound, firstFinite, fmtR, fmtPct, fmtUsd, edgeLabel,
+  BASE_KEYS, baseKeysOf, baseLabelOf, SUMMARY_KEYS, ARM_NUMBERS, ADOPTION_STRESS, E, pick, bound, firstFinite, fmtR, fmtPct, fmtUsd, edgeLabel,
   resolveReasons, plainNumbers, pct1, rText, forwardSentence,
   flagOf, criteriaOf, baselineIdOf, forwardRows, forwardReason, forwardBlock, candidateArmMissing, incompleteStressScenarios,
   stressBlock, armSummaries, accountBlock, referenceArmOf, linesOf,

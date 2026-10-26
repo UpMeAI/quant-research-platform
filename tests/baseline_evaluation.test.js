@@ -173,7 +173,7 @@ test('问题清单：来源必须是六类之一，每条二选一（立题或�
   assert.equal(projection.diagnosis.state, 'NOT_BACKTESTED');
   assert.match(projection.diagnosis.reason, /须二选一/);
   assert.deepEqual(projection.diagnosis.items, []);
-  assert.deepEqual(Object.keys(k3.EXPERIMENTS), ['Q1', 'Q2', 'Q3', 'Q4']);
+  assert.deepEqual(Object.keys(k3.EXPERIMENTS), ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']);
 });
 
 test('投影缓存：文件指纹或锁变化立即重建，未变时成功结果缓存 10 分钟，失败只缓存 15 秒', () => {
