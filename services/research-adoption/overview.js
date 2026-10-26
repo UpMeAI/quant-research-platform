@@ -15,12 +15,15 @@ const WORDS = Object.freeze({ ADOPT: '采用', NOT_ADOPTED: '不采用' });
 
 const dateOf = (iso) => (typeof iso === 'string' ? iso.slice(0, 10) : null);
 
-/** 一张对比卡（或一行）的采用决定。role：COMPARISON／BASELINE／CONTROL；基线与对照固定「不适用」。 */
+/**
+ * 一张对比卡（或一行）的采用决定。role：COMPARISON／BASELINE／CONTROL；基线与对照固定「不适用」。
+ * short_zh 是短写（修订 7：总览的精简一览与对比卡折叠后的一行摘要）：采用／不采用／不适用（…）／待 Owner 决定。
+ */
 function adoptionOf(record, role = 'COMPARISON') {
   if (role !== 'COMPARISON') {
     const what = role === 'BASELINE' ? '基线' : '对照';
     return {
-      state: 'NOT_APPLICABLE', decision: 'NOT_APPLICABLE', label_zh: `不适用（${what}）`, tone: '',
+      state: 'NOT_APPLICABLE', decision: 'NOT_APPLICABLE', label_zh: `不适用（${what}）`, short_zh: `不适用（${what}）`, tone: '',
       follow_up_zh: record && record.kind === 'DECISION' ? record.follow_up_zh : null, decided_on: record && record.kind === 'DECISION' ? dateOf(record.decided_at) : null,
       record_id: record ? record.record_id : null,
     };
@@ -30,18 +33,18 @@ function adoptionOf(record, role = 'COMPARISON') {
       ? `采用（纸面账户执行，Owner ${dateOf(record.decided_at)} 决定）`
       : `不采用（现行规则不变；后续：${record.follow_up_zh}）`;
     return {
-      state: 'DECIDED', decision: record.decision, label_zh: label, tone: record.decision === 'ADOPT' ? 'VALID' : '',
+      state: 'DECIDED', decision: record.decision, label_zh: label, short_zh: WORDS[record.decision], tone: record.decision === 'ADOPT' ? 'VALID' : '',
       follow_up_zh: record.follow_up_zh, decided_on: dateOf(record.decided_at), record_id: record.record_id,
     };
   }
   if (record && record.kind === 'RECOMMENDATION') {
     const rec = record.coordinator_recommendation;
     return {
-      state: 'RECOMMENDED', decision: null, label_zh: `待 Owner 决定（协调会话建议：${WORDS[rec.recommendation]} —— ${rec.reason_zh}）`, tone: 'DEGRADED',
+      state: 'RECOMMENDED', decision: null, label_zh: `待 Owner 决定（协调会话建议：${WORDS[rec.recommendation]} —— ${rec.reason_zh}）`, short_zh: '待 Owner 决定', tone: 'DEGRADED',
       follow_up_zh: null, decided_on: null, record_id: record.record_id,
     };
   }
-  return { state: 'NONE', decision: null, label_zh: '待 Owner 决定（协调会话尚未给出建议）', tone: 'DEGRADED', follow_up_zh: null, decided_on: null, record_id: null };
+  return { state: 'NONE', decision: null, label_zh: '待 Owner 决定（协调会话尚未给出建议）', short_zh: '待 Owner 决定', tone: 'DEGRADED', follow_up_zh: null, decided_on: null, record_id: null };
 }
 
 /** 汇总（H4.1）与方向偏差提示（H4.2）：只计对比行。 */

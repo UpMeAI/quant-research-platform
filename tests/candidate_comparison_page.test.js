@@ -35,7 +35,10 @@ loop.openCase({
 });
 
 /** 在没有 DOM 的 vm 里运行页面脚本本身，取回它写进 #workspace 的 HTML。 */
-async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`) {
+// 修订 7：「总览」页签（J1）的断言在 ux_amendment_7.test.js；这里的断言只针对原来的五个页签，所以去掉总览那一节
+const withoutOverview = (html) => html.replace(/<section class="section detail-section" id="detail-overview">[\s\S]*?(?=<section class="section detail-section" id="detail-runtime">)/, '');
+// 修订 7 J2：页签只渲染自己的内容；这些断言读整页，所以渲染「全部展开」视图（section=all，结构折叠全部打开）
+async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}&section=all`) {
   const elements = {};
   const element = (id) => elements[id] || (elements[id] = {
     id, innerHTML: '', textContent: '', addEventListener() {}, querySelector() { return null; }, focus() {}, scrollIntoView() {},
@@ -48,7 +51,7 @@ async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`)
   vm.createContext(sandbox);
   vm.runInContext(SCRIPT, sandbox);
   await new Promise((resolve) => setTimeout(resolve, 25));
-  return elements.workspace.innerHTML;
+  return withoutOverview(elements.workspace.innerHTML);
 }
 
 function mainContent(html) {
@@ -103,10 +106,15 @@ test('已交付：七块按固定顺序，主内容里有三行（优势结论�
   assert.match(main, /<li class="bad">采用条件：未满足（独立样本不足，等前向成熟；必要压力缺失，§6\.7）<\/li>/);
   assert.ok(main.indexOf('优势结论：有支持证据') < main.indexOf('压力评价不完整'), '优势结论在前，压力评价不盖住它');
   assert.match(main, /复测（当年用于挑选「趋势中推迟时间止损」的样本，不是独立样本外）/);
-  assert.match(main, /前向，只报不判/);
-  assert.match(main, /B 流：生产账本交易的孪生/);
-  assert.match(main, /S 流：信号级影子/);
+  // 修订 7 J4.3：前向行集中到「前向观察」页签的 Q1 一组，卡里只留一行
+  const forwardGroup = html.slice(html.indexOf('data-forward-card="Q1"'), html.indexOf('</article>', html.indexOf('data-forward-card="Q1"')));
+  const forward = mainContent(forwardGroup);
+  assert.match(main, /前向：\d+ 行，<a href="[^"]*section=forward">见前向观察<\/a>/);
+  assert.match(forward, /前向，只报不判/);
+  assert.match(forward, /B 流：生产账本交易的孪生/);
+  assert.match(forward, /S 流：信号级影子/);
   for (const pattern of FORBIDDEN) assert.doesNotMatch(main, pattern, String(pattern));
+  for (const pattern of FORBIDDEN) assert.doesNotMatch(forward, pattern, String(pattern));
   // 哈希与编号只在折叠的技术详情里
   assert.ok(section.includes(comparison.source.file_sha256) && !main.includes(comparison.source.file_sha256));
   assert.ok(section.includes(comparison.source.baseline_result_id) && !main.includes(comparison.source.baseline_result_id));
@@ -116,7 +124,8 @@ test('已交付：七块按固定顺序，主内容里有三行（优势结论�
 test('主数字：账户对比、受影响交易改善（主 S／次 B）、判据八条、压力两臂加差，全部来自投影', async () => {
   const { baseline, comparison } = projections();
   const main = mainContent(researchSection(await renderPage(await modelOf(baseline, comparison))));
-  assert.match(main, /原版（当前 D）/);
+  // 修订 7 J4.2：原版一行与回测结论卡「本策略」一行数字相同，对比卡只写候选与差值，加一句「原版见回测结论卡」
+  assert.match(main, /原版见回测结论卡（「账户结果」本策略一行，数字相同）/);
   assert.match(main, /候选「趋势中推迟时间止损」/);
   assert.match(main, /候选 − 原版/);
   assert.match(main, /推迟 37 个 session/);

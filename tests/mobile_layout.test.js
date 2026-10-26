@@ -32,9 +32,11 @@ const STRATEGY = q0.STRATEGY_REF;
 const CHROME = [process.env.QRP_TEST_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
   .filter(Boolean).find((file) => fs.existsSync(file));
 const LONG = 'US_V5_TIME_STOP_VS_TREND_EXIT_RESULT_V1_WITHOUT_ANY_BREAK_OPPORTUNITY_AT_ALL_ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+// 修订 7：策略详情加默认页签「总览」（不带 section）、全部展开（section=all）与 card= 定位
 const ROUTES = [
-  '#strategies', `#strategy-detail?strategy=${STRATEGY}&section=runtime`, `#strategy-detail?strategy=${STRATEGY}&section=research`,
-  `#strategy-detail?strategy=${STRATEGY}&section=forward`, '#experiments', '#shadow', '#promotion', '#runtime-status',
+  '#strategies', `#strategy-detail?strategy=${STRATEGY}`, `#strategy-detail?strategy=${STRATEGY}&section=runtime`, `#strategy-detail?strategy=${STRATEGY}&section=research`,
+  `#strategy-detail?strategy=${STRATEGY}&section=forward`, `#strategy-detail?strategy=${STRATEGY}&section=all`, `#strategy-detail?strategy=${STRATEGY}&card=Q3`,
+  '#experiments', '#shadow', '#promotion', '#runtime-status',
 ];
 
 const PROBE = `<!doctype html><meta charset="utf-8"><title>probe</title><pre id="out">PENDING</pre><script>
@@ -146,7 +148,7 @@ async function measure(port, width) {
   } finally { fs.rmSync(profile, { recursive: true, force: true }); }
 }
 
-test('手机宽度 360 与 390 px：七页路由（含策略详情各章）都没有整页水平滚动，且页面真的渲染了', { skip: CHROME ? false : '本机没有 Chrome（可用 QRP_TEST_CHROME 指定）；浏览器布局未验证，跳过不算通过', timeout: 300000 }, async () => {
+test('手机宽度 360 与 390 px：各页路由（含策略详情各页签、全部展开与 card= 定位）都没有整页水平滚动，且页面真的渲染了', { skip: CHROME ? false : '本机没有 Chrome（可用 QRP_TEST_CHROME 指定）；浏览器布局未验证，跳过不算通过', timeout: 300000 }, async () => {
   seed();
   const api = createServer({ researchToken: null });
   const server = http.createServer((req, res) => {
@@ -161,7 +163,8 @@ test('手机宽度 360 与 390 px：七页路由（含策略详情各章）都�
       assert.equal(rows.length, ROUTES.length);
       for (const row of rows) {
         assert.ok(row.rendered && row.text > 200, `${row.route} @${width} 没有渲染出页面`);
-        if (row.route.startsWith('#strategy-detail')) assert.equal(row.cards, 4, `${row.route} @${width} 应有 Q1、Q2、Q3 三张对比卡加一张随机对照卡`);
+        // 修订 7 J2：页签只渲染自己的内容，对比卡只在「研究与对比」（含 card= 定位）与全部展开里
+        if (/section=(research|all)|card=/.test(row.route)) assert.equal(row.cards, 4, `${row.route} @${width} 应有 Q1、Q2、Q3 三张对比卡加一张随机对照卡`);
         assert.ok(row.scrollWidth <= row.clientWidth, `${row.route} @${width}px：整页横向宽度 ${row.scrollWidth} > ${row.clientWidth}`);
         assert.equal(row.clientWidth, width);
       }

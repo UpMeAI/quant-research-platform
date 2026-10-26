@@ -54,7 +54,10 @@ loop.openCase({
   opened_at: '2026-10-24T20:02:00Z',
 });
 
-async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`) {
+// 修订 7：「总览」页签（J1）的断言在 ux_amendment_7.test.js；这里的断言只针对原来的五个页签，所以去掉总览那一节
+const withoutOverview = (html) => html.replace(/<section class="section detail-section" id="detail-overview">[\s\S]*?(?=<section class="section detail-section" id="detail-runtime">)/, '');
+// 修订 7 J2：页签只渲染自己的内容；这些断言读整页，所以渲染「全部展开」视图（section=all，结构折叠全部打开）
+async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}&section=all`) {
   const elements = {};
   const element = (id) => elements[id] || (elements[id] = {
     id, innerHTML: '', textContent: '', addEventListener() {}, querySelector() { return null; }, focus() {}, scrollIntoView() {},
@@ -67,7 +70,7 @@ async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`)
   vm.createContext(sandbox);
   vm.runInContext(SCRIPT, sandbox);
   await new Promise((resolve) => setTimeout(resolve, 25));
-  return elements.workspace.innerHTML;
+  return withoutOverview(elements.workspace.innerHTML);
 }
 
 /** 去掉所有 <details>（含嵌套）后剩下的就是「主内容」。 */
@@ -80,7 +83,8 @@ function mainContent(html) {
 }
 const textOf = (html) => html.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
 const between = (html, from, to) => html.slice(html.indexOf(from), html.indexOf(to, html.indexOf(from)));
-const conclusionOf = (html) => between(html, 'class="conclusion', 'class="section-nav');
+// 修订 7 J1：回测结论区块移进「运行概览」页签（页签栏之后），到它自己的 </section> 为止
+const conclusionOf = (html) => between(html, 'class="conclusion', '</section>');
 const blockOfQ0 = (html, key) => between(html, `data-block="${key}"`, '<article class="bt-block"');
 const researchSection = (html) => between(html, 'id="detail-research"', 'id="detail-forward"');
 const cardsOf = (html) => researchSection(html).split('<section class="backtest comparison').slice(1);

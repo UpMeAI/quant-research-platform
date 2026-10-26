@@ -31,7 +31,10 @@ loop.openCase({
 });
 
 /** 在没有 DOM 的 vm 里运行页面脚本本身，取回它写进 #workspace 的 HTML。 */
-async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`) {
+// 修订 7：「总览」页签（J1）的断言在 ux_amendment_7.test.js；这里的断言只针对原来的五个页签，所以去掉总览那一节
+const withoutOverview = (html) => html.replace(/<section class="section detail-section" id="detail-overview">[\s\S]*?(?=<section class="section detail-section" id="detail-runtime">)/, '');
+// 修订 7 J2：页签只渲染自己的内容；这些断言读整页，所以渲染「全部展开」视图（section=all，结构折叠全部打开）
+async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}&section=all`) {
   const elements = {};
   const element = (id) => elements[id] || (elements[id] = {
     id, innerHTML: '', textContent: '', addEventListener() {}, querySelector() { return null; }, focus() {}, scrollIntoView() {},
@@ -44,7 +47,7 @@ async function renderPage(model, hash = `#strategy-detail?strategy=${STRATEGY}`)
   vm.createContext(sandbox);
   vm.runInContext(SCRIPT, sandbox);
   await new Promise((resolve) => setTimeout(resolve, 25));
-  return elements.workspace.innerHTML;
+  return withoutOverview(elements.workspace.innerHTML);
 }
 
 /** 去掉所有 <details>（含嵌套）后剩下的就是「主内容」。 */
@@ -67,9 +70,9 @@ process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = 'INDEPENDENT_PRODUCT_REVIEWER';
 
 test('结论区块在五段标签之前；回测结论卡六块顺序固定；尚未回测时每块写「尚未回测：原因」', async () => {
   const html = await renderPage(await model(k3.emptyProjection('NOT_IMPORTED', '研究会话尚未交付封存的回测结果')));
-  assert.ok(html.indexOf('class="conclusion') > -1 && html.indexOf('class="conclusion') < html.indexOf('class="section-nav'));
-  assert.ok(html.indexOf('class="section-nav') < html.indexOf('id="detail-runtime"'));
-  assert.ok(html.indexOf('id="detail-runtime"') < html.indexOf('class="backtest'));
+  // 修订 7 J1／J2：页首是页签栏与「总览」；回测结论区块移进「运行概览」，仍在回测结论卡之前（结论先行）
+  assert.ok(html.indexOf('class="section-nav') > -1 && html.indexOf('class="section-nav') < html.indexOf('id="detail-runtime"'));
+  assert.ok(html.indexOf('id="detail-runtime"') < html.indexOf('class="conclusion') && html.indexOf('class="conclusion') < html.indexOf('class="backtest'));
   assert.deepEqual([...html.matchAll(/data-block="(\w+)"/g)].map((m) => m[1]), ['period', 'account', 'winrate', 'stress', 'kelly', 'verdict']);
   assert.deepEqual([...html.matchAll(/id="(detail-\w+)"/g)].map((m) => m[1]), ['detail-runtime', 'detail-health', 'detail-research', 'detail-forward', 'detail-review']);
   assert.match(html, /<h2 id="conclusion-title">尚未回测：研究会话尚未交付封存的回测结果<\/h2>/);
@@ -193,7 +196,7 @@ test('未接入 Research 的策略：同样的结论区块和六块，写「尚�
   const other = await workspace.readModel({ strategyRef: 'US_CORE_9000USD_3X_GATEOBS' });
   assert.ok(other.views['strategy-detail'].strategy, 'Desk 目录里有这条未接入 Research 的策略');
   assert.equal(other.views['strategy-detail'].case_role, 'NOT_CONNECTED');
-  const html = await renderPage(other, '#strategy-detail?strategy=US_CORE_9000USD_3X_GATEOBS');
+  const html = await renderPage(other, '#strategy-detail?strategy=US_CORE_9000USD_3X_GATEOBS&section=all');
   assert.match(html, /<h2 id="conclusion-title">尚未回测：/);
   assert.equal((html.match(/data-block=/g) || []).length, 6);
 });
@@ -219,7 +222,7 @@ test('G3（A4 D3.1 修订）：优势结论是「有支持证据」而压力缺�
     assert.equal(main.split(line).length - 1, 1, `${line} 在主内容里恰好出现一次（顶部结论区块），第 6 块不再重复`);
   }
   assert.equal((main.match(/class="completeness"/g) || []).length, 1, '三行结论块在 Q0 卡只有顶部这一份');
-  const conclusion = html.slice(html.indexOf('class="conclusion'), html.indexOf('class="section-nav'));
+  const conclusion = html.slice(html.indexOf('class="conclusion'), html.indexOf('</section>', html.indexOf('class="conclusion')));
   assert.ok(lines.every((line) => conclusion.includes(line)));
   assert.ok(conclusion.indexOf(lines[0]) < conclusion.indexOf(lines[1]) && conclusion.indexOf(lines[1]) < conclusion.indexOf(lines[2]));
   const verdictBlock = html.slice(html.indexOf('data-block="verdict"'), html.indexOf('id="diagnosis-title"'));

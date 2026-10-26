@@ -223,7 +223,7 @@ test('测试档案的渲染：策略详情按 strategy 参数取测试档案，�
   // 诊断按测试档案读（失败关闭，见上一条）；失败投影不带 case_ref，工作台不挂到详情上（与 US_V5 的现有行为相同），也不会挂 US_V5 的诊断
   assert.equal(detail.health.diagnostic, null);
   assert.equal(detail.health.delivery_truth, null);
-  const html = await renderPage(model, '#strategy-detail?strategy=FIXTURE_CRYPTO_USDT');
+  const html = await renderPage(model, '#strategy-detail?strategy=FIXTURE_CRYPTO_USDT&section=all');
   assert.match(html, /BTC 买入持有/);
   assert.match(html, /跌破 600 USDT 的概率/);
   assert.match(html, /测试样本外/);
@@ -265,14 +265,14 @@ test('R3.2 页面打开未登记的策略：写「该策略尚未接入研究」
   assert.equal(deskDetail.profile_label, '该策略尚未接入研究');
   assert.equal(deskDetail.backtest.state, 'NOT_CONNECTED');
   assert.equal(deskDetail.health.diagnostic, null);
-  const deskHtml = await renderPage(desk, '#strategy-detail?strategy=C17_V2_4000USDT');
+  const deskHtml = await renderPage(desk, '#strategy-detail?strategy=C17_V2_4000USDT&section=all');
   assert.match(deskHtml, /<h2 id="conclusion-title">尚未回测：该策略尚未接入研究<\/h2>/);
   assert.doesNotMatch(deskHtml, /role="alert"/);
   for (const pattern of [...US_V5_VALUES, /BTC 买入持有/, /600 USDT/, /FIXTURE/]) assert.doesNotMatch(deskHtml, pattern);
 
   const unknown = await workspace.readModel({ strategyRef: 'NOT_A_DESK_STRATEGY' });
   assert.equal(unknown.views['strategy-detail'].state, 'UNKNOWN_STRATEGY');
-  const unknownHtml = await renderPage(unknown, '#strategy-detail?strategy=NOT_A_DESK_STRATEGY');
+  const unknownHtml = await renderPage(unknown, '#strategy-detail?strategy=NOT_A_DESK_STRATEGY&section=all');
   assert.match(unknownHtml, /role="status"[^>]*><h3 id="not-onboarded-title">该策略尚未接入研究<\/h3>/);
   assert.doesNotMatch(unknownHtml, /role="alert"/);
   for (const pattern of [...US_V5_VALUES, /BTC/, /USDT/]) assert.doesNotMatch(unknownHtml, pattern);
