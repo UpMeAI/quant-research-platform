@@ -274,6 +274,8 @@ function recordProductMilestone(input = {}) {
         if (diagnostic.state !== 'VERIFIED') {
           throw new Error(`PRODUCT_MILESTONE_M1_DIAGNOSTIC_NOT_VERIFIED:${diagnostic.state}:${diagnostic.reason_code || 'UNKNOWN'}`);
         }
+        // CRYPTO_Q0_RESULT_V1 §9.5：诊断必须是本 case 的（别的策略的证据不能充当本策略的运行证据）
+        if (diagnostic.case_ref !== input.case_ref) throw new Error(`PRODUCT_MILESTONE_M1_DIAGNOSTIC_CASE_MISMATCH:${diagnostic.case_ref || 'MISSING'}`);
       }
     }
     if (['M2', 'M3'].includes(input.stage)) {
@@ -395,8 +397,8 @@ function platformM4() {
   const firstM3 = first ? caseChain(first.case_ref).find((row) => row.stage === 'M3').state : 'NOT_VERIFIED';
   const items = scope.items.map((item) => {
     const profile = item.strategy_ref ? profiles.get(item.strategy_ref) : null;
-    const caseRec = profile ? headBy(CASES_LEDGER(), 'case_id', profile.case_ref) : null;
-    if (!profile || !caseRec) {
+    // A4.4 第 2 条：有导入档案（已登记档案）就是「已接入」，按它自己的 M0→M3 显示；运行态 case 只是记阶段的前提
+    if (!profile) {
       return { ...item, state: 'IN_SCOPE_NOT_ONBOARDED', state_label: m4Scope.NOT_ONBOARDED_LABEL, case_ref: null, stages: null, m4_state: null, m4_evidence_id: null };
     }
     const chain = caseChain(profile.case_ref);

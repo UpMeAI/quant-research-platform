@@ -20,6 +20,7 @@ const { isDeepStrictEqual } = require('util');
 const zlib = require('zlib');
 const profiles = require('../strategy-profiles');
 const costModels = require('./cost_models');
+const producers = require('./producers');
 const { ceilCent, calculateCosts } = require('./cost_models/US_V5_M1_RESEARCH_COST_V1');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -270,7 +271,14 @@ function validateIdentity(document, manifest, label) {
   assert(document.ledgerId === manifest.strategy_ref, `US_V5_M1_${label}_LEDGER_MISMATCH`);
 }
 
-function buildDiagnostic({ root, manifest, strategyRef = null } = {}) {
+/** 按档案选 M1 生产者（producers/）：LEGACY_V1 档案默认 US_V5 的生产者；其他档案必须登记自己的，不借用别的策略的。 */
+function buildDiagnostic(options = {}) {
+  const profile = profileOf(options.strategyRef || null);
+  return producers.resolve(profile.m1_evidence.producer, { legacy: profiles.isLegacyShape(profile) }).build(options);
+}
+
+/** US_V5_M1_PRODUCER_V1：US_V5 的 M1 原生诊断（改造前的 buildDiagnostic，计算不变）。 */
+function buildUsV5Diagnostic({ root, manifest, strategyRef = null } = {}) {
   const profile = profileOf(strategyRef);
   const costModel = costModels.resolve(profile.cost_model_id);
   assert(sha256(fs.readFileSync(path.join(REPO_ROOT, ACCEPTANCE_REF))) === ACCEPTANCE_SHA256,
@@ -654,6 +662,6 @@ module.exports = {
   ACCEPTANCE_REF, ACCEPTANCE_SHA256, MANIFEST_REF, MANIFEST_SHA256, TOLERANCE_USD, TOLERANCE_SHARES,
   DIAGNOSTIC_CACHE_TTL_MS, DIAGNOSTIC_FAILURE_TTL_MS, statFingerprint,
   sha256, closeEnough, ceilCent, comparePackagePaths, packageDigest, verifyInputPackage,
-  verifyScanRecord, calculateCosts, buildDiagnostic, readDiagnostic, readFreshDiagnostic,
+  verifyScanRecord, calculateCosts, buildDiagnostic, buildUsV5Diagnostic, readDiagnostic, readFreshDiagnostic,
   createDiagnosticReader, clearCache,
 };

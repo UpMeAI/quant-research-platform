@@ -1,0 +1,65 @@
+{
+  "schema": "QS_V3_M1_NATIVE_DIAGNOSTIC_EVIDENCE_V1",
+  "evidence_id": "QS-V3-M1-NATIVE-2026-10-07_2026-10-24",
+  "case_ref": "RRC-QUICK-SHOT-V3-1000USDT-V8-1-M0",
+  "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+  "acceptance_ref": "docs/contracts/CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE.md",
+  "window": {
+    "start": "2026-10-07T00:00:00.000Z",
+    "end_exclusive": "2026-10-25T00:00:00.000Z",
+    "label": "2026-10-07 至 2026-10-24（18 个 UTC 日）"
+  },
+  "input_package": {
+    "relative_root": "var/evidence/qs-v3-m1-2026-10-07_2026-10-24",
+    "files": 17,
+    "bytes": 11151098,
+    "sha256": "53827da93fbce26e74e4b1fb91becdb5ac7fc5899d408977f5f2c67c4f300f33"
+  },
+  "source_package": {
+    "kind": "QRP_CRYPTO_V1_M1_QS",
+    "manifest_path": "m1-manifest.json",
+    "manifest_sha256": "7c342a05db9959092d0a06b491060ffbf11472cb3b5c80a062940ccbbd40e080",
+    "copied_from": "Mac research-data/qrp_crypto_v1/m1-qs/（= smartflow M1_QS_MANIFEST.json 的包）",
+    "host": "smartflow-vps (HK)",
+    "captured_at": "2026-10-26T06:21:05.219Z",
+    "production_commit": "a8601cd37c8d57dbb713daa7c08455204aa59242"
+  },
+  "cost_model": {
+    "model_ref": "CRYPTO_M1_RESEARCH_COST_V1",
+    "rule_refs": ["QS-F1", "QS-F2", "QS-F3", "QS-F4", "QS-P1"],
+    "taker_fee_rate_each_side": 0.0004,
+    "slippage_tiers": [
+      { "min_quote24h": 1000000000, "rate": 0.0002 },
+      { "min_quote24h": 300000000, "rate": 0.0004 },
+      { "min_quote24h": 0, "rate": 0.0006 }
+    ],
+    "risk_unit_usdt": 7.2,
+    "initial_capital_usdt": 1000,
+    "tolerance_usdt": 0.000001
+  },
+  "account": {
+    "expected_end_usdt": 949.4090992,
+    "expected_end_ref": "CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE §9.3（10 笔，Σ net_pnl = −50.5909008）"
+  },
+  "decision_trace": {
+    "trade_id": 7,
+    "symbol": "1000RATSUSDT",
+    "signal_hour_open": "2026-10-14T15:00:00.000Z",
+    "exit_reason": "TARGET",
+    "net_r": 2.6,
+    "ref": "K2 §3：1000RATSUSDT 2026-10-14 15:00Z 信号 → 开多 → TARGET +2.60 R"
+  },
+  "limitations_zh": [
+    "窗口内只有 10 笔，少于 30 笔：能看清策略怎么运行，不能据此评价策略好坏。",
+    "没有真实账户臂：PAPER 账本在真实行情上运行，成交价是决定时的 ticker 读数。",
+    "逐标的拒绝不落库：只能看到开仓与跳过的汇总，看不到每个被拒标的的原因。",
+    "出场滑点按库内列读：M1 包里没有出场前 24 根 1h，档位未重推。",
+    "源清单里 reports/rule-checks/QS_V3_BOOK_STOP 标为缺失（HK 上没有这个目录）。"
+  ],
+  "safety": {
+    "production_effect": "NONE",
+    "research_can_order": false,
+    "research_can_activate": false,
+    "research_can_write_runtime": false
+  }
+}

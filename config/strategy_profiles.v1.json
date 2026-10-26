@@ -1,5 +1,5 @@
 {
-  "_comment": "QRP 按策略取值的唯一注册表（QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1 R1）。导入器、M1 诊断、研究工作台、对比题注册、前向观察和页面都按 strategy_ref 从这里取值；未登记的 strategy_ref 失败关闭。US_V5 一项只搬入改造前代码里已有的值，一个都不改。default_strategy_ref 只服务改造前单策略接口的默认参数与导出常量；projection_shape LEGACY_V1 表示投影沿用改造前的字段名与页面措辞（US_V5 的输出由 D1 逐字节冻结），其他档案不写这一项，投影带上自己的币种与底线说明；导入和页面都按 strategy_ref／case／结果 schema 显式取档案。测试档案只在 tests/fixtures/，不进本文件。",
+  "_comment": "QRP 按策略取值的唯一注册表（QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1 R1）。导入器、M1 诊断、研究工作台、对比题注册、前向观察和页面都按 strategy_ref 从这里取值；未登记的 strategy_ref 失败关闭。US_V5 一项只搬入改造前代码里已有的值，一个都不改。default_strategy_ref 只服务改造前单策略接口的默认参数与导出常量；projection_shape LEGACY_V1 表示投影沿用改造前的字段名与页面措辞（US_V5 的输出由 D1 逐字节冻结），其他档案不写这一项，投影带上自己的币种与底线说明，并且必须带 q0_reading（Q0 结果文件的读法：主数字行、费用词、普查列、半凯利字段、前向行、资金费排除、披露），可带 shared_constraints（只写文字的共享约束）与 m1_evidence.producer（M1 诊断生产者），见 docs/contracts/CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE.md §2；导入和页面都按 strategy_ref／case／结果 schema 显式取档案。测试档案只在 tests/fixtures/，不进本文件。",
   "contract": "QRP_STRATEGY_PROFILES_V1",
   "acceptance_ref": "docs/contracts/QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1.md",
   "default_strategy_ref": "US_V5_ETF_3000USD",
@@ -46,6 +46,65 @@
           "Q5": { "title": "组合验证：在 A25 之上加 T3", "status": "Owner 2026-10-26 同意先跑；K2 已冻结", "after": ["Q1", "Q4"] }
         }
       }
+    },
+    {
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "case_ref": "RRC-QUICK-SHOT-V3-1000USDT-V8-1-M0",
+      "market": "CRYPTO_USDM_PERP",
+      "currency": "USDT",
+      "display_name": "Quick Shot V3",
+      "comparators": [
+        { "key": "BTC_BUY_HOLD", "label_zh": "BTC 买入持有", "role": "MARKET" },
+        { "key": "CASH", "label_zh": "现金", "role": "CASH" }
+      ],
+      "floor": { "value": 600, "currency": "USDT", "rule_label_zh": "Rule 1b 的 600 USDT（1,000 USDT 的 40% 线）" },
+      "baseline_result_schema": "QS_V3_M2_Q0_RESULT_V1",
+      "import_profile_id": "docs/contracts/CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE.md",
+      "comparison_import_profile_ids": [],
+      "phase_words": { "PRODUCTION": "h+1 开盘成交", "PLUS_60MIN": "晚一小时成交（h+2 开盘）" },
+      "segment_words": { "IS": "开发期", "OOS": "样本外" },
+      "cost_model_id": "CRYPTO_M1_RESEARCH_COST_V1",
+      "m1_evidence": {
+        "manifest_ref": "docs/evidence/CYCLE_RESEARCH_DESK_QS_V3_M1_NATIVE_DIAGNOSTIC_2026-10-26.json",
+        "manifest_sha256": "2f6f332a2a50201862d02b4729c169d1a45cc558a454e26d9cd03b247381e492",
+        "diagnostic_schema": "QS_V3_M1_STRATEGY_DIAGNOSTIC_V1",
+        "producer": "QS_V3_M1_PRODUCER_V1"
+      },
+      "forward_observation_source_key": "QUICK_SHOT_V3_1000USDT",
+      "research_program": {
+        "plan_ref": "smartflow:research/crypto-qrp-onboarding@44f3eac3:trading-system-v2/docs/QS_V3_QRP_ONBOARDING_K2_DRAFT_V1.md",
+        "amendment_ref": "smartflow:research/crypto-qrp-onboarding@44f3eac3:trading-system-v2/docs/CRYPTO_QRP_ONBOARDING_FREEZE_2.md",
+        "default_question": null,
+        "queue": {
+          "Q4": { "title": "风控维度：总上限、每合约仓数、保证金、账本止损", "status": "未立题：Quick Shot V3 尚无 M2 研究计划", "after": [] }
+        }
+      },
+      "q0_reading": {
+        "main_row": { "segment": "OOS", "cost": "BASE", "phase": "PRODUCTION" },
+        "cost_words": { "BASE": "基础成本", "FEES_X2": "手续费 ×2" },
+        "phase_note_zh": "只有一种相位压力：晚一小时成交（h+2 开盘）。生产在收盘后几分钟成交，没有更早的相位（K2 §5）。",
+        "census_columns": [
+          { "field": "tradable_contracts", "label_zh": "可交易合约" },
+          { "field": "liquid_contracts_20m", "label_zh": "24h 成交额 ≥ 2,000 万 USDT 的合约" }
+        ],
+        "market_g_path": "stats.g_vs_btc.OOS",
+        "kelly": {
+          "floor_field": "floor_usd",
+          "fixed_arm": { "key": "fixed_7_2", "label_zh": "按现行固定每笔 7.2 USDT 风险" },
+          "thresholds": [
+            { "field": "p_below_floor", "value": 600, "label_zh": "Rule 1b 40% 线" },
+            { "field": "p_below_book_stop_750", "value": 750, "label_zh": "25% 账本止损线" }
+          ]
+        },
+        "forward": { "net_field": "net_usdt", "ledger_must_equal_strategy_ref": true },
+        "funding_exclusion": { "count_field": "excluded_funding_missing", "share_field": "excluded_share", "rule_ref_zh": "R-FUND (a)" },
+        "disclosures_zh": [
+          "样本外复用：2024-01-01 起的同一缓存已被调参研究 V1 用于选出 V3 参数（K2 §5，oos_reuse = true）；真正没用过的只有 2026-10-01 起的尾部与 T 起的前向。"
+        ]
+      },
+      "shared_constraints": [
+        { "key": "A19_LOSS_BUDGET", "label_zh": "A19 共享亏损预算", "peers": ["C17_V2_4000USDT"], "display_zh": "共享，未复算", "rule_ref": "QS-C5" }
+      ]
     }
   ]
 }

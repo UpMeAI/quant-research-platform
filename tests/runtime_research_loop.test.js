@@ -258,7 +258,7 @@ test('V8.1 产品里程碑不由工程状态推断，并按 M0→M3、交付环�
   const cnStrategy = loop.listCases().find((row) => row.case_id === 'RRC-CN-LOCKED-TEST').strategy_ref;
   installProfiles(testProfile(cnStrategy, 'RRC-CN-LOCKED-TEST'));
   const realDiagnostic = diagnostics.readFreshDiagnostic;
-  diagnostics.readFreshDiagnostic = () => ({ state: 'VERIFIED' });
+  diagnostics.readFreshDiagnostic = () => ({ state: 'VERIFIED', case_ref: 'RRC-CN-LOCKED-TEST' });
   t.after(() => { diagnostics.readFreshDiagnostic = realDiagnostic; });
   const initial = loop.readModel().product_delivery.cases.find((row) => row.case_ref === 'RRC-CN-LOCKED-TEST');
   assert.deepEqual(initial.stages.slice(0, 4).map((row) => row.state),

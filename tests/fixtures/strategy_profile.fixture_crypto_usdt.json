@@ -1,5 +1,5 @@
 {
-  "_comment": "测试专用档案（QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1 R4）：证明注册表能驱动非 US_V5 的值（USDT、BTC_BUY_HOLD + CASH、自己的底线、相位词、分段词、成本模型和证据位置）。只在测试里与生产注册表合并，不得进入 config/strategy_profiles.v1.json。成本模型 FIXTURE_CRYPTO_COST_V1 故意没有模块（本次不写新成本模型），诊断必须失败关闭。",
+  "_comment": "测试专用档案（QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1 R4）：证明注册表能驱动非 US_V5 的值（USDT、BTC_BUY_HOLD + CASH、自己的底线、相位词、分段词、成本模型和证据位置）。只在测试里与生产注册表合并，不得进入 config/strategy_profiles.v1.json。成本模型 FIXTURE_CRYPTO_COST_V1 故意没有模块（本次不写新成本模型），诊断必须失败关闭。q0_reading（CRYPTO_Q0_RESULT_V1 §2.3）按测试结果的形状写；没有 m1_evidence.producer，诊断按 §9.5 失败关闭（DIAGNOSTIC_PRODUCER_NOT_REGISTERED）。",
   "strategy_ref": "FIXTURE_CRYPTO_USDT",
   "case_ref": "RRC-FIXTURE-CRYPTO-USDT",
   "market": "CRYPTO",
@@ -27,5 +27,16 @@
     "amendment_ref": "tests/fixtures/FIXTURE_CRYPTO_RESEARCH_PROGRAM_AMENDMENT",
     "default_question": null,
     "queue": { "Q1": { "title": "测试题：资金费过滤", "status": "测试排队", "after": [] } }
+  },
+  "q0_reading": {
+    "main_row": { "segment": "OOS", "cost": "BASE", "phase": "PRODUCTION" },
+    "cost_words": { "BASE": "基础成本", "FEES_X3": "费用 ×3" },
+    "census_columns": [{ "field": "tradable_carriers", "label_zh": "可交易载体" }],
+    "market_g_path": "stats.g_vs_market.OOS",
+    "kelly": {
+      "floor_field": "floor",
+      "fixed_arm": { "key": "fixed_60", "label_zh": "按现行固定风险" },
+      "thresholds": [{ "field": "p_below_floor", "value": 600, "label_zh": "测试档案的 600 USDT 底线" }]
+    }
   }
 }

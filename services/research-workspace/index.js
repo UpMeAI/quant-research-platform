@@ -461,8 +461,10 @@ async function readModel({
   const readiness = diagnostic?.state === 'VERIFIED' ? 'DIAGNOSTIC_AVAILABLE' : readinessOf(selectedCurrentCase, blockers);
 
   // K3：回测结论只来自 QRP 导入并锁定的封存结果；没有 case、没有导入、文件校验失败都是「尚未回测」。
+  // 非 LEGACY 档案（CRYPTO_Q0_RESULT_V1）的 Q0 锁按档案冻结的 case_ref 读：运行态 case 尚未建立时，回测结论照样显示（锁只按这个 case 键查）
+  const profileBaselineCase = profileCase || (Boolean(profile) && !selectedCurrentCase && !profiles.isLegacyShape(profile));
   const baselineProjection = suppliedBaseline !== undefined ? suppliedBaseline
-    : (profileCase ? baselineEvaluation.readProjection(profile.case_ref)
+    : (profileBaselineCase ? baselineEvaluation.readProjection(profile.case_ref)
       : baselineEvaluation.emptyProjection('NOT_CONNECTED', !profile ? NOT_REGISTERED_LABEL
         : selectedCurrentCase ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
 
@@ -503,6 +505,11 @@ async function readModel({
   }) : null;
   // 页头标签、概览卡片和研究区开头读同一个对象：有已锁定的对比结果就写实际状态，不再写「暂无研究问题」
   if (researchText && selectedStrategy) selectedStrategy.research = { ...selectedStrategy.research, code: 'RESULT_LOCKED', label: researchText };
+  // 非 LEGACY 档案已锁 Q0、运行态 case 还没建立：各处说法与上方的回测结论一致，不再写「尚未接入」「不显示研究结论」
+  const baselineWithoutCase = !selectedCurrentCase && profileBaselineCase && baselineProjection.state === 'LOCKED_VERIFIED';
+  if (baselineWithoutCase && !researchText && selectedStrategy) {
+    selectedStrategy.research = { ...selectedStrategy.research, code: 'BASELINE_LOCKED', label: 'Q0 回测结论已锁定；运行态 case 尚未建立' };
+  }
   const lockedLinks = globalLinks.filter((item) => item.has_locked_result);
   const linkedExperimentIds = new Set((selectedCurrentCase?.links || []).map((link) => link.experiment_ref).filter(Boolean));
   const selectedForward = shadowRuns.filter((item) => linkedExperimentIds.has(item.experiment_ref));
@@ -527,7 +534,9 @@ async function readModel({
 
   const noCase = {
     state: 'NO_ACTUAL_CASE', title: '尚未接入 Research',
-    summary: '这个 Desk 策略尚无运行／研究 case；平台不会用其他策略或工程样例替代。',
+    summary: baselineWithoutCase
+      ? '这项策略的 Q0 回测结论已锁定（见上方）；运行态研究 case 尚未建立，体检、研究问题与复盘要等它建立后才有。'
+      : '这个 Desk 策略尚无运行／研究 case；平台不会用其他策略或工程样例替代。',
   };
   const m0ProductStage = primary?.product_stages.find((stage) => stage.stage === 'M0') || null;
   const m1ProductStage = primary?.product_stages.find((stage) => stage.stage === 'M1') || null;
@@ -591,6 +600,12 @@ async function readModel({
   const hkForwardForSelected = selectedStrategyRef
     ? hkForward.forStrategy(selectedStrategyRef, { shadowRuns }) : { state: 'AVAILABLE', items: [], verified_at: null };
   const hkItems = annotateHkItems(hkForwardForSelected.items, comparisonProjections);
+  // CRYPTO_Q0_RESULT_V1 §7.2：Q0 结果文件自带的前向记录（有效时）写进「前向观察」一句，不与 Q0 卡里的笔数矛盾
+  const q0Forward = (() => {
+    const account = baselineProjection.state === 'LOCKED_VERIFIED' ? (baselineProjection.blocks || []).find((block) => block.key === 'account') : null;
+    const row = account && account.state === 'AVAILABLE' ? account.data.forward : null;
+    return row && row.valid ? row : null;
+  })();
   const strategyDetail = {
     question: '这项 Desk 策略现在如何运行、证据是否完整、Research 与复盘走到哪里？',
     state: selectedStrategy ? selectedStrategy.lifecycle.code : 'UNKNOWN_STRATEGY',
@@ -643,7 +658,7 @@ async function readModel({
         ? [forwardItems.length ? `QRP 已导入 ${forwardItems.length} 条关联的前向观察` : null,
           hkItems.length ? hkSentence(hkItems) : null]
           .filter(Boolean).join('；') + '。'
-        : '尚无属于这项策略的前向观察。',
+        : (q0Forward ? `Q0 结果文件里带有前向记录 ${q0Forward.raw.trades} 笔（只报不判）；HK 前向影子：本策略尚未登记。` : '尚无属于这项策略的前向观察。'),
     },
     review: {
       state: selectedLockedLinks.some((item) => item.adoption_state !== 'NOT_DECIDED') ? 'DECIDED'
@@ -664,6 +679,7 @@ async function readModel({
     // 没有档案的策略标「该策略尚未接入研究」；页面金额默认按美元写，其他档案带上自己的币种。
     ...(!profile ? { profile_state: 'NOT_REGISTERED', profile_label: NOT_REGISTERED_LABEL } : {}),
     ...(profile && !profiles.isLegacyShape(profile) ? { currency: profile.currency } : {}),
+    ...(baselineWithoutCase ? { no_case_note_zh: '回测结论见上方：QRP 导入并锁定的 Q0 结果。运行态研究 case 尚未建立，所以还没有体检、研究问题与复盘。' } : {}),
     // 修订 5：研究队列小表（E7.1）与内部代号的中文题名（E7.2，页面换掉主内容里的代号）——只加在有说明登记的策略上
     ...(queueView ? { research_queue: queueView } : {}),
     ...(adoptionOverview ? { adoption_overview: adoptionOverview } : {}),
