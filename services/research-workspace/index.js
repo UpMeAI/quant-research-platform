@@ -29,6 +29,8 @@ const candidateComparison = require('../candidate-comparison');
 const hkForward = require('../hk-forward-observations');
 const profiles = require('../strategy-profiles');
 const detailNotes = require('../strategy-detail-notes');
+const adoption = require('../research-adoption');
+const adoptionView = require('../research-adoption/overview');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
@@ -492,6 +494,11 @@ async function readModel({
   const researchText = researchSummary(comparisonProjections, baselineProjection.diagnosis, selectedLockedLinks.length, program);
   const notes = profile ? detailNotes.forStrategy(profile.strategy_ref) : null;
   const queueView = researchQueue(profile, notes, comparisonProjections, program);
+  // 修订 6：采用决定（有效记录，按 result_id + part）；每张对比卡第一行写它，研究区开头给一览与采用率
+  const decisions = profile ? adoption.effective(adoption.records().filter((row) => row.strategy_ref === profile.strategy_ref)) : new Map();
+  const adoptionOverview = profile ? adoptionView.overviewOf({
+    baselineProjection, comparisons: comparisonProjections, queue: notes && notes.research_queue, records: decisions,
+  }) : null;
   // 页头标签、概览卡片和研究区开头读同一个对象：有已锁定的对比结果就写实际状态，不再写「暂无研究问题」
   if (researchText && selectedStrategy) selectedStrategy.research = { ...selectedStrategy.research, code: 'RESULT_LOCKED', label: researchText };
   const lockedLinks = globalLinks.filter((item) => item.has_locked_result);
@@ -607,6 +614,7 @@ async function readModel({
     comparisons: comparisonProjections.map((projection) => ({
       question: '原版和候选放在同一账户里比，候选有没有更好？',
       ...projection,
+      ...(projection.state === 'LOCKED_VERIFIED' && profile ? { adoption: adoptionView.adoptionOf(decisions.get(adoption.keyOf(projection.result_id))) } : {}),
     })),
     recent_run: {
       title: '最近实际运行（纸面交易，真实行情）',
@@ -656,6 +664,7 @@ async function readModel({
     ...(profile && !profiles.isLegacyShape(profile) ? { currency: profile.currency } : {}),
     // 修订 5：研究队列小表（E7.1）与内部代号的中文题名（E7.2，页面换掉主内容里的代号）——只加在有说明登记的策略上
     ...(queueView ? { research_queue: queueView } : {}),
+    ...(adoptionOverview ? { adoption_overview: adoptionOverview } : {}),
     ...(notes && notes.code_names && Object.keys(notes.code_names).length ? { code_names: notes.code_names } : {}),
     // 修订 4 A4.4：列入 M4 范围、还没有接入的策略写「已列入 M4 范围，尚未接入」（只加在这些策略上）
     ...(m4Item && m4Item.state === 'IN_SCOPE_NOT_ONBOARDED' ? { m4_scope_label: m4Item.state_label, m4_scope_batch: m4Item.batch } : {}),
