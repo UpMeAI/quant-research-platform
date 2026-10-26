@@ -312,15 +312,24 @@ test('§11.4–§11.7 真实文件的页面（全部展开）：逐字断言；U
 test('修订 7 在 US_CORE 页上：总览的一句话与 6 张卡（没有采用率卡），卡片取自 US_CORE 的 Q0 锁，比较对象是 SPY 买入持有', { skip: SKIP_PAGE }, async () => {
   const model = await realModel();
   const summary = model.views['strategy-detail'].summary;
-  assert.equal(summary.sentence_zh, '现行版本样本外期末 61,200，高于 SPY 买入持有的 29,161（证据不足；样本外在开发时已用过）；若照 Rule 1b 停止，2019-05-28 起不再开新仓，期末 6,145。');
+  // US_CORE 冻结说明 2：一句话结论的后缀与数字卡标签都写明近似（逐字）
+  assert.equal(summary.sentence_zh, '现行版本样本外期末 61,200，高于 SPY 买入持有的 29,161（证据不足；样本外在开发时已用过）；若照 Rule 1b 停止（近似：只按 US_CORE 自己的曲线、停后不解除），2019-05-28 起不再开新仓，期末 6,145。');
   assert.deepEqual(summary.tiles.map((tile) => tile.key), ['end_capital', 'max_drawdown', 'winrate', 'half_kelly', 'rule1b', 'underwater']);
   const tile = (key) => summary.tiles.find((item) => item.key === key);
   assert.equal(tile('winrate').label_zh, '样本外 3x 持有段胜率与赔率');
   assert.equal(tile('winrate').n, 48);
   assert.equal(tile('half_kelly').not_applicable, true);
   assert.equal(tile('rule1b').halt_session, '2019-05-28');
+  assert.equal(tile('rule1b').label_zh, '若照 Rule 1b 停止（近似：只按 US_CORE 自己的曲线、停后不解除）');
+  assert.deepEqual(tile('rule1b').link, { section: 'runtime', block: 'highlight-RULE1B_HONORED' });
   assert.equal(summary.adoption, null);
-  const text = textOf(await renderPage(model, CORE_DETAIL));
+  const overviewHtml = await renderPage(model, CORE_DETAIL);
+  const text = textOf(overviewHtml);
+  assert.ok(text.includes('若照 Rule 1b 停止（近似：只按 US_CORE 自己的曲线、停后不解除）'));
+  assert.ok(overviewHtml.includes('href="#strategy-detail?strategy=US_CORE_9000USD_3X_GATEOBS&section=runtime&block=highlight-RULE1B_HONORED"'), '卡片链接到结论卡上那一行');
+  assert.ok(!text.includes('若照 Rule 1b 停止，'), '总览不得省掉近似说明');
+  const runtimeHtml = await renderPage(model, `${CORE_DETAIL}&section=runtime&block=highlight-RULE1B_HONORED`);
+  assert.ok(runtimeHtml.includes('id="bt-highlight-RULE1B_HONORED"'), '链接的落点是结论卡上的高亮行');
   assert.ok(text.includes('样本外 · 每边 5 bp · 下一开盘成交，48 段'));
   assert.ok(text.includes('不适用权益曾低于 5,400 的概率 25.6%'));
   assert.ok(text.includes('生产缺口：停止记录写不进本账本（未修）'));

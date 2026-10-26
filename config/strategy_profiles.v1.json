@@ -321,7 +321,8 @@
             "label_zh": "若照 Rule 1b 停止",
             "diagnosis_id": "DX-RISK-1",
             "approximation_note_zh": "近似：只按 US_CORE 自己的曲线套 40% 线，停后不解除；真实规则看海外桶合计、由 Owner 解除，见研究题 R1B-1",
-            "gap_as_of_zh": "Q0 封存时（2026-10-26）的"
+            "gap_as_of_zh": "Q0 封存时（2026-10-26）的",
+            "approximation_short_zh": "近似：只按 US_CORE 自己的曲线、停后不解除"
           }
         ],
         "oos_reuse": {

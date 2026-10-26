@@ -132,7 +132,7 @@ function renderConclusion(c){
     :`<p class="main-number"><strong>主数字：尚无</strong>${c.state==='NOT_BACKTESTED'?'':`<span>（${esc(c.main_number_missing_zh||'结果文件缺样本外 5 bps 生产相位一行')}）</span>`}</p>`;
   const basis=renderBasis(c.basis);
   // US_CORE §6.2：风控高亮（只报不判，不进结论）放在判定依据下面，不折叠
-  const highlights=(c.highlights||[]).map((h)=>h.valid?`<div class="risk-highlight" data-highlight="${esc(h.key)}"><p><strong>${esc(h.lead_zh)}</strong>：${esc(h.text_zh)}</p>${h.gap_zh?`<p class="muted-note">${esc(h.gap_zh)}</p>`:''}</div>`:`<p class="muted-note">${esc(h.text_zh)}</p>`).join('');
+  const highlights=(c.highlights||[]).map((h)=>h.valid?`<div class="risk-highlight" id="bt-highlight-${esc(h.key)}" data-highlight="${esc(h.key)}"><p><strong>${esc(h.lead_zh)}</strong>：${esc(h.text_zh)}</p>${h.gap_zh?`<p class="muted-note">${esc(h.gap_zh)}</p>`:''}</div>`:`<p class="muted-note">${esc(h.text_zh)}</p>`).join('');
   const body=withInsufficientNote([`<p class="eyebrow">回测结论</p><h2 id="conclusion-title">${esc(c.label)}${c.state==='NOT_BACKTESTED'?`：${esc(c.reason)}`:''}</h2>${c.engine_line_zh?`<p class="engine-line">${esc(c.engine_line_zh)}</p>`:''}`,main,(c.supplementary_lines_zh||[]).map((line)=>`<p class="supplementary-line">${esc(line)}</p>`).join(''),basis,highlights,`<p class="biggest-limit"><strong>${esc(c.limit_label||'最大的限制')}：</strong>${esc(c.biggest_limit)}</p>`,renderCompleteness(c.completeness),c.edge_line_zh?`<ul class="edge-line"><li>${esc(c.edge_line_zh)}</li></ul>`:'']);
   return `<section class="conclusion ${CONCLUSION_TONE[c.state]||''}" data-state="${esc(c.state)}" aria-labelledby="conclusion-title">${body}</section>`;
 }
