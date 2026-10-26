@@ -37,7 +37,7 @@ const REAL = {
 const HAVE_Q3_Q4 = fs.existsSync(REAL.q3) && fs.existsSync(REAL.q4);
 const RAW_Q0 = JSON.parse(fs.readFileSync(REAL.q0, 'utf8'));
 
-const RECOVERED_NOTE = '期末权益是否已回到此前最高点（走出最大回撤）；未恢复 = 期末仍在回撤中';
+const RECOVERED_NOTE = '对比的是区间内到过的最高权益，不是起始本金。未恢复 = 期末仍低于此前最高点。'; // 勘误 1 E3.1
 const INSUFFICIENT_NOTE = '证据不足 = 95% 区间跨过了事先冻结的门槛，既不能说更好也不能说更差；不等于否定。常见原因是样本太少，或者改动只影响少数交易。';
 
 loop.openCase({
@@ -190,16 +190,45 @@ test('E2 未登记的结果文件：页面写「分红口径未记录」，并�
   assert.match(mainContent(cmpBlock(q3, 'account')), /价格收益，不含分红；只报，不判/);
 });
 
-// ── E3「是否已恢复」 ─────────────────────────────────────────────────────────────────────
+// ── E3（勘误 1 替换）「期末是否回到最高点」 ─────────────────────────────────────────────────
 
-test('E3 真实页面：每个「是否已恢复」「期末是否恢复」列头都带说明；账户表与压力表下各有一行脚注', async () => {
+test('E3（勘误 1）真实页面：列名「期末是否回到最高点」，每个列头都带说明；账户表与压力表下各有一行脚注；不再出现「是否已恢复」列', async () => {
   const { baseline, cards } = realProjections();
   const html = await renderPage(await modelOf(baseline, cards));
-  const heads = [...html.matchAll(/<th scope="col"([^>]*)>(是否已恢复|期末是否恢复)<\/th>/g)];
-  assert.ok(heads.length >= 1 + cards.length, String(heads.length));
+  const heads = [...html.matchAll(/<th scope="col"([^>]*)>(期末是否回到最高点)<\/th>/g)];
+  assert.ok(heads.length >= 2 + cards.length, String(heads.length)); // Q0 账户表、Q0 压力表、每张对比卡的账户表
   for (const head of heads) assert.equal(head[1], ` title="${RECOVERED_NOTE}"`);
-  assert.ok(mainContent(blockOfQ0(html, 'account')).includes(`「是否已恢复」：${RECOVERED_NOTE}。`));
-  assert.ok(mainContent(blockOfQ0(html, 'stress')).includes(`「期末是否恢复」：${RECOVERED_NOTE}。`));
+  assert.doesNotMatch(html, />是否已恢复<\/th>|>期末是否恢复<\/th>/);
+  assert.ok(mainContent(blockOfQ0(html, 'account')).includes(`「期末是否回到最高点」：${RECOVERED_NOTE}`));
+  assert.ok(mainContent(blockOfQ0(html, 'stress')).includes(`「期末是否回到最高点」：${RECOVERED_NOTE}压力行只封存了汇总数字、没有权益序列`));
+});
+
+test('E3（勘误 1）真实 Q0：最高点与距最高点由服务端从封存权益序列读出；本策略 3,726.59（2024-10-30）→ 3,417.93，−8.3%；SPY 6,406.19（2026-10-06），−2.5%；现金已恢复', async () => {
+  const { baseline } = realProjections({ withQ3Q4: false });
+  const arms = new Map(baseline.blocks.find((block) => block.key === 'account').data.arms.map((arm) => [arm.key, arm]));
+  const d = arms.get('D');
+  assert.equal(d.recovered, false);
+  assert.equal(d.peak.value.toFixed(2), '3726.59');
+  assert.equal(d.peak.date, '2024-10-30');
+  assert.equal(d.peak.end.toFixed(2), '3417.93');
+  assert.equal((d.peak.gap * 100).toFixed(1), '-8.3');
+  const spy = arms.get('SPY_BUY_HOLD');
+  assert.equal(spy.recovered, false);
+  assert.equal(spy.peak.value.toFixed(2), '6406.19');
+  assert.equal(spy.peak.date, '2026-10-06');
+  assert.equal((spy.peak.gap * 100).toFixed(1), '-2.5');
+  assert.equal(arms.get('CASH').recovered, true);
+  // 读数就是序列的最大值、它第一次出现的日期，以及之后的交易日数（与文件里的权益序列逐点核对）
+  const series = RAW_Q0.arms.D.equity;
+  const max = Math.max(...series.values);
+  assert.equal(d.peak.value, max);
+  assert.equal(d.peak.date, series.dates[series.values.indexOf(max)]);
+  assert.equal(d.peak.sessions_since, series.values.length - 1 - series.values.indexOf(max));
+  const rows = (mainContent(blockOfQ0(await renderPage(await modelOf(baseline, [])), 'account')).match(/<tr><td>[\s\S]*?<\/tr>/g) || []);
+  const row = (label) => rows.find((item) => item.startsWith(`<tr><td>${label}</td>`));
+  assert.ok(row('本策略').includes(`未恢复<br><span class="muted-inline">距最高点 −8.3%；最高点在 2024-10-30，已过去 ${d.peak.sessions_since} 个交易日</span>`), row('本策略'));
+  assert.ok(row('SPY 买入持有').includes(`未恢复<br><span class="muted-inline">距最高点 −2.5%；最高点在 2026-10-06，已过去 ${spy.peak.sessions_since} 个交易日</span>`), row('SPY 买入持有'));
+  assert.ok(row('现金').endsWith('<td>已恢复</td></tr>'), row('现金'));
 });
 
 // ── E4 开发期折叠 ───────────────────────────────────────────────────────────────────────

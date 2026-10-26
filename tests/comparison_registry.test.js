@@ -40,7 +40,8 @@ const setCriteria = (doc, name, value) => { doc.comparison.criteria[name] = valu
 
 // UX 修订 4 只改呈现：投影里新增 A4 字段（判定依据、前向人话、与参照相同、基准提示），账户块只留原版与候选两臂；
 // 其余每个数字、标签、状态、结果编号都必须与改造前导出的金标逐字段相同。金标本身不动。
-const A4_ADDED = new Set(['benchmark_note_zh', 'same_as_reference', 'basis', 'unknown_reason_codes', 'plain_zh']);
+// UX 修订 5 勘误 1 E3 给每个臂加了 `peak`（从封存权益序列读出的最高点读数），同样是新增的呈现字段
+const A4_ADDED = new Set(['benchmark_note_zh', 'same_as_reference', 'basis', 'unknown_reason_codes', 'plain_zh', 'peak']);
 const stripA4 = (value) => (Array.isArray(value) ? value.map(stripA4)
   : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => !A4_ADDED.has(key)).map(([key, item]) => [key, stripA4(item)])) : value);
 function goldenAfterA4(goldenProjection, armKeys) {

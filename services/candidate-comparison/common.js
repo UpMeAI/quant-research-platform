@@ -11,7 +11,7 @@ const profiles = require('../strategy-profiles');
 const {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, STRESS_NUMBERS, KNOWN_STRESS_STATUS, REASON_WORDS, EDGE_LABELS,
-  resolveReasons, plainNumbers, pct1, rText,
+  resolveReasons, plainNumbers, pct1, rText, peakReadout,
 } = baseline.internals;
 
 const BASE_KEYS = Object.freeze(['BASELINE', 'D']);
@@ -254,7 +254,7 @@ function armSummaries(entry, doc) {
       key, label, end_capital: end, cagr: field(summary, 'cagr', `arms.${key}.summary.cagr`),
       max_drawdown: field(summary, 'max_drawdown', `arms.${key}.summary.max_drawdown`),
       longest_underwater_sessions: field(summary, 'longest_underwater_sessions', `arms.${key}.summary.longest_underwater_sessions`),
-      recovered: field(summary, 'recovered', `arms.${key}.summary.recovered`, 'bool'),
+      recovered: field(summary, 'recovered', `arms.${key}.summary.recovered`, 'bool'), peak: peakReadout(equity), // 修订 5 勘误 1 E3
       sessions: equity.values.length, start: equity.dates[0], end_date: equity.dates[equity.dates.length - 1],
       deferred_sessions: entry.candidate.deferred_sessions && key === entry.candidate.key && finite(arm.deferred_sessions) ? arm.deferred_sessions : null,
     };
@@ -278,6 +278,8 @@ function referenceRows(entry, doc) {
       const summary = arm.summary;
       need(isObject(summary), 'MISSING', `reference_arms.${spec.key}.summary`);
       const end = field(summary, 'end_capital', `reference_arms.${spec.key}.summary.end_capital`);
+      const series = isObject(arm.equity) && Array.isArray(arm.equity.values) && arm.equity.values.length
+        && Array.isArray(arm.equity.dates) && arm.equity.dates.length === arm.equity.values.length ? arm.equity : null;
       if (isObject(arm.equity) && Array.isArray(arm.equity.values) && arm.equity.values.length) {
         need(Math.abs(end - arm.equity.values[arm.equity.values.length - 1]) <= 1e-6 * Math.max(1, Math.abs(end)), 'INVALID', `reference_arms.${spec.key}.summary.end_capital 与权益序列末点不一致`);
       }
@@ -286,6 +288,7 @@ function referenceRows(entry, doc) {
         max_drawdown: field(summary, 'max_drawdown', `reference_arms.${spec.key}.summary.max_drawdown`),
         longest_underwater_sessions: field(summary, 'longest_underwater_sessions', `reference_arms.${spec.key}.summary.longest_underwater_sessions`),
         recovered: field(summary, 'recovered', `reference_arms.${spec.key}.summary.recovered`, 'bool'),
+        peak: series ? peakReadout(series) : null, // 参照臂没有权益序列时不给读数
       };
     } catch (error) { return { ...row, unavailable_zh: reasonText(error) }; }
   });

@@ -281,6 +281,18 @@ function periodBlock(doc, gapped, profile) {
 }
 
 /**
+ * 修订 5 勘误 1 E3：「期末是否回到最高点」的读数——区间内权益的最高点（第一次到达的那天）、期末距最高点的幅度、
+ * 最高点之后过了几个交易日。这是对已封存权益序列的确定性读数（取最大值、所在日期、期末与最大值之比），不是研究统计量；页面只显示。
+ */
+function peakReadout(equity) {
+  const values = equity.values;
+  let at = 0;
+  values.forEach((value, index) => { if (value > values[at]) at = index; });
+  const end = values[values.length - 1];
+  return { value: values[at], date: equity.dates[at], end, gap: end / values[at] - 1, sessions_since: values.length - 1 - at };
+}
+
+/**
  * 账户结果。修订 5 E2：比较对象的定义与分红口径取自说明登记（services/strategy-detail-notes），口径按这份结果文件的 sha256 绑定；
  * 没登记写「分红口径未记录」并列进待验证问题清单（见 project）。没有说明登记的策略不加这一项。
  */
@@ -305,7 +317,7 @@ function accountBlock(doc, profile, context = {}) {
       key, label, end_capital: end, cagr: field(summary, 'cagr', `arms.${key}.summary.cagr`),
       max_drawdown: field(summary, 'max_drawdown', `arms.${key}.summary.max_drawdown`),
       longest_underwater_sessions: field(summary, 'longest_underwater_sessions', `arms.${key}.summary.longest_underwater_sessions`),
-      recovered: field(summary, 'recovered', `arms.${key}.summary.recovered`, 'bool'),
+      recovered: field(summary, 'recovered', `arms.${key}.summary.recovered`, 'bool'), peak: peakReadout(equity),
       sessions: equity.values.length, trades: Array.isArray(arm.trades) ? arm.trades.length : null,
     });
   }
@@ -861,7 +873,7 @@ const clearCache = () => defaultReader.clear();
 /** 同类的导入器（Q1 对比）复用的内部工具；不含任何会改变 Q0 行为的东西。 */
 const internals = {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
-  stressRole, hasNoSeries, preferZh, trimKind, HAS_CHINESE, STRESS_NUMBERS, KNOWN_STRESS_STATUS, NON_ACTUAL_PATH,
+  stressRole, hasNoSeries, preferZh, trimKind, HAS_CHINESE, STRESS_NUMBERS, KNOWN_STRESS_STATUS, NON_ACTUAL_PATH, peakReadout,
   REASON_WORDS, EDGE_LABELS, SOURCE_LABELS, EXPERIMENTS, SEGMENT_LABELS, resolveReasons, plainNumbers, pct1, rText,
   profileForDoc,
 };
