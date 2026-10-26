@@ -2,9 +2,9 @@
 
 状态：**DRAFT，未冻结，不得实现。** 起草：QRP 规格会话，2026-10-26。冻结：V8.1 协调会话（冻结前可改；冻结后只能另出冻结说明）。
 Production effect：`NONE`。不改任何研究结果、判据、锁、证据、生产参数或权限；不写代码，不改任何 `config/`。
-QRP 基线：`origin/main` `bb1da41`（UX 修订 7 已合并）。
+QRP 基线：`origin/main` `fd74149`（UX 修订 7 与 PR #32 都已合并）。
 被增补：`docs/contracts/CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE.md`，sha256 `001c9041937bef4108d7e1eca903b597b9db66664efe9585073c10bebd64cf36`（下称「导入规格」；第 12 节 17 项全部 ★，协调会话裁定已附在文末）。导入规格原文一字不改；本增补与它冲突时，以本增补为准，且只对 C17_V2 档案生效。
-实现依赖：QRP PR #32（导入规格的实现，`claude/qs-v3-q0-import` @ `6a050186`，正在 rebase 到 `bb1da41`）。本增补的实现在 PR #32 合并之后开工，以合并后的 main 为基线。
+实现依赖：QRP PR #32（导入规格的实现）已于 2026-10-26 合并为 `fd74149`，含 UX 修订 7 的适配 `0315190`。本增补的实现以 `fd74149` 或其后的 main 为基线。
 
 需要选择的地方列出选项，推荐项标 ★；全部选择汇总在第 8 节。
 
@@ -24,9 +24,9 @@ QRP 基线：`origin/main` `bb1da41`（UX 修订 7 已合并）。
 | 研究代码（永不合并） | smartflow `research/c17-engine-qrp` @ `5dafbc66`（引擎选项 + `c17-q0.js`）、`687597f9`（车道脚本） | 引擎：生产 `71bae2c1…`，研究版 `ea803a60…` |
 | UX 修订 5 / 勘误 1 / 6 / 7 | QRP `docs/contracts/` | `2f9f97f7…` / `7d56e67a…` / `7375f7a4…` / `b1532e32…` |
 
-### 0.2 PR #32 的代码读这份文件会怎样（实测，不是推断）
+### 0.2 现在的 main 读这份文件会怎样（实测，不是推断）
 
-把 PR #32 的树（`6a050186`）用 `git archive` 解到临时目录，用 `profiles.use()` 加一个按第 1 节填写的 C17 测试档案，对真实文件跑 `readSealed` → `validateWhole` → `digests` → `buildBlocks`。临时账本目录运行后仍为空。
+把 main `fd74149` 的树用 `git archive` 解到临时目录（PR #32 合并前的 `6a050186` 也跑过一遍，结果相同），用 `profiles.use()` 加一个按第 1 节填写的 C17 测试档案，对真实文件跑 `readSealed` → `validateWhole` → `digests` → `buildBlocks`。临时账本目录运行后仍为空。
 
 | 位置 | 结果 | 原因 |
 |---|---|---|
@@ -42,7 +42,7 @@ QRP 基线：`origin/main` `bb1da41`（UX 修订 7 已合并）。
 
 在内存里逐项修补之后：「最大损失」主数字 = 3,723.77，场景 `SCAN_PHASE_PLUS_60MIN`（与执行报告一致）；`RISK_MAX_POSITIONS_3` 被认出「与参照相同」；`HALT_HONORED` 按「与当前 D 参照相同」读。
 
-另读代码（`bb1da41` 的 `services/research-workspace/summary.js`）：总览的一句话结论模板只写「（证据不足）」，**不写引擎近似标签**（第 2 节）。
+另读代码（`fd74149` 的 `services/research-workspace/summary.js`）：总览的一句话结论模板只写「（证据不足）」，**不写引擎近似标签**（第 2 节）。
 
 ### 0.3 本增补怎么做
 
@@ -380,7 +380,7 @@ IS:  { events: [ { rule: "RULE_1_DRAWDOWN_AT_STOP_LINE", at: "2022-05-09T00:00:0
 | G-18 | 0.098 R 两位小数写成「+0.10 R」，概率 6.95% 写成「7.0%」 | 误读 | `r_digits`、`probability_digits` | 档案 |
 | G-19 | 比较对象口径（修订 5 E2）：永续合约没有「分红」 | 说明登记只有两个分红词 | §1.2 新口径词 `PRICE_ONLY_NO_FUNDING` + C17 说明登记 | 全局（新词）+ 档案（登记） |
 | G-20 | 诊断 C17-D1、C17-D6 提议 Q4 | 「实验状态未登记」 | 档案 `research_program.queue.Q4` | 档案 |
-| G-21 | 总览「样本外胜率与赔率」卡用 `cost_bps` 写行名 | 非 LEGACY 档案会写出「undefined bps」 | 依赖 PR #32 rebase 的修复（QS 同样受影响）；C17 写「样本外 · 基础成本 · 4H 收线后第一个检查点」 | 依赖 |
+| G-21 | 总览「样本外胜率与赔率」卡的行名 | 已在 main 修好（`0315190`：非 LEGACY 用费用词与主数字行） | 不需新读法；C17 写「样本外 · 基础成本 · 4H 收线后第一个检查点」，第 7 节断言 | 已有 |
 | G-22 | `arms.D.counts`（扫描 8,358 次、熔断 71、日停 3、K5 12 / 589、K7 114）、`stats.rows[].open_at_end`、`identity.config.scan` / `exit_observation` / `derisk_bands` | 不读 | 只进技术详情，不进主内容 | 文件 |
 | G-23 | M1：C17 没有生产者和成本模型 | — | §1.2 M1 ★(a)：诊断失败关闭，另立规格 | 档案 |
 
@@ -398,7 +398,7 @@ IS:  { events: [ { rule: "RULE_1_DRAWDOWN_AT_STOP_LINE", at: "2022-05-09T00:00:0
 
 ## 7. P7 · 实现会话必须加的测试
 
-金样基线：PR #32 合并后的 main（含 QS 的真实锁或其临时账本副本）。全部在临时账本里跑，真实 `var/ledger`、`var/evidence` 前后 sha 相同。
+金样基线：main `fd74149`（PR #32 合并后；QS 用其真实锁或临时账本副本）。全部在临时账本里跑，真实 `var/ledger`、`var/evidence` 前后 sha 相同。
 
 1. **US_V5 与 QS 逐字节不变**：
    - 用 `qrp-profile-registry-d1/capture.js` 在基线与实现分支上各抓一次金样。US_V5 与 QS 的策略详情（全部页签全部展开，加默认总览）以及两者的全部 API 响应，逐字节相同。
@@ -442,7 +442,7 @@ IS:  { events: [ { rule: "RULE_1_DRAWDOWN_AT_STOP_LINE", at: "2022-05-09T00:00:0
    - C17 没有采用一览时句子不带采用部分。
 10. **全量**：带 `QRP_DESK_ROOT=/Users/kaylame/KaylaProject/portfolio-desk` 的 QRP 全量测试 0 失败；schema 校验；Research Web `node --check`；`git diff --check`。
 
-交付：一个 PR 到 QRP main，冻结后的本增补（与冻结说明）原样作为第一个提交，在 PR #32 合并之后开工。真实锁的导入、合并与重启 `com.upmeai.qrp-research-web` 由协调会话做。
+交付：一个 PR 到 QRP main，冻结后的本增补（与冻结说明）原样作为第一个提交。真实锁的导入、合并与重启 `com.upmeai.qrp-research-web` 由协调会话做。
 
 ## 8. 待冻结选择汇总（★ = 推荐）
 
