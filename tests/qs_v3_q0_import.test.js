@@ -9,8 +9,11 @@ require('./_env');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const http = require('node:http');
+const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
+const { spawn } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const AUTHORITY = 'QS_Q0_TEST_AUTHORITY';
@@ -36,6 +39,18 @@ const HAVE_REAL = fs.existsSync(REAL) && fs.existsSync(REAL_SUPERSEDED_1) && fs.
 const HAVE_DESK = Boolean(process.env.QRP_DESK_ROOT) && fs.existsSync(path.join(process.env.QRP_DESK_ROOT || '', 'src', 'operation-review.js'));
 const SKIP_REAL = HAVE_REAL ? false : '真实 Quick Shot Q0 文件不在本机（QRP_QS_Q0_REAL_DIR）；跳过不算通过';
 const SKIP_PAGE = HAVE_REAL && HAVE_DESK ? false : '真实 Q0 文件或 Desk 目录（QRP_DESK_ROOT）不在本机；页面断言跳过不算通过';
+const CHROME = [process.env.QRP_TEST_CHROME, '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].filter(Boolean).find((file) => fs.existsSync(file));
+const SKIP_BROWSER = SKIP_PAGE || (CHROME ? false : '本机没有 Chrome（可用 QRP_TEST_CHROME 指定）；浏览器布局未验证，跳过不算通过');
+const QS_DETAIL = '#strategy-detail?strategy=QUICK_SHOT_V3_1000USDT';
+/** 真实 Quick Shot 锁（临时账本里导入一次）与它的工作台模型。 */
+async function realModel(strategyRef = QS.strategy_ref) {
+  if (!k3.headLock(CASE)) k3.importBaselineEvaluation(REAL, { registeredBy: AUTHORITY, strategyRef: QS.strategy_ref });
+  k3.clearCache();
+  return workspace.readModel({ strategyRef });
+}
+// §11.5：Quick Shot 页面不得出现的 US 词与数字
+const US_WORDS = ['美元', 'US$', 'SPY', '1,800', '5 bps', '相位 ±60 分钟', '120 分钟', '规则清单无缺口', 'Q0-24fb86c3609f7ef3', 'RRC-US-V5'];
+const QS_NUMBERS = ['USDT', '698.67', 'Q0-bd83dd6ec1754dbc', '949.4', '−50.59', 'A19', '2,102', '1,911'];
 
 const PAGE = fs.readFileSync(path.join(ROOT, 'apps', 'research-web', 'index.html'), 'utf8');
 const SCRIPT = PAGE.slice(PAGE.indexOf('<script>') + 8, PAGE.lastIndexOf('</script>'));
@@ -316,14 +331,13 @@ test('§11.3 真实文件导入（临时账本）：result_id、case、三态、
   assert.equal(k3.locks(CASE).length, 1);
 });
 
-test('§11.4–§11.6 真实文件的页面：逐字断言、QS 页不含 US 的词与数字、US 页不含 QS 的数字、D5 计数', { skip: SKIP_PAGE }, async () => {
-  if (!k3.headLock(CASE)) k3.importBaselineEvaluation(REAL, { registeredBy: AUTHORITY, strategyRef: QS.strategy_ref });
-  k3.clearCache();
-  const model = await workspace.readModel({ strategyRef: QS.strategy_ref });
+test('§11.4–§11.6 真实文件的页面（全部展开）：逐字断言、QS 页不含 US 的词与数字、US 页不含 QS 的数字、D5 计数', { skip: SKIP_PAGE }, async () => {
+  const model = await realModel();
   const detail = model.views['strategy-detail'];
   assert.equal(detail.backtest.state, 'LOCKED_VERIFIED');
   assert.equal(detail.currency, 'USDT');
-  const html = await renderPage(model, '#strategy-detail?strategy=QUICK_SHOT_V3_1000USDT');
+  // 修订 7 J2：整页断言读「全部展开」视图
+  const html = await renderPage(model, `${QS_DETAIL}&section=all`);
   const text = textOf(html);
   const has = (needle) => assert.ok(text.includes(needle), `页面缺：${needle}`);
   // §3.2 主数字与资金费排除行
@@ -363,18 +377,103 @@ test('§11.4–§11.6 真实文件的页面：逐字断言、QS 页不含 US 的
   has('引擎对齐关卡 A0：通过');
   has('逐笔记录 869 行');
   // §11.5 QS 页不得出现 US 的词与数字
-  for (const word of ['美元', 'US$', 'SPY', '1,800', '5 bps', '相位 ±60 分钟', '120 分钟', '规则清单无缺口', 'Q0-24fb86c3609f7ef3', 'RRC-US-V5']) {
-    assert.ok(!text.includes(word), `QS 页面不得出现：${word}`);
-  }
+  for (const word of US_WORDS) assert.ok(!text.includes(word), `QS 页面不得出现：${word}`);
   // §11.6 UX 修订 4 D5
   const main = withoutDetails(html);
   for (const code of Object.keys(k3.internals.REASON_WORDS)) assert.ok(!main.includes(code), `主内容不得出现英文原因码 ${code}`);
   assert.match(html, /<section class="conclusion warn" data-state="INSUFFICIENT"[\s\S]*?判定依据/);
-  assert.equal(html.split('页面不重算').length - 1, 1);
+  const reread = (html.match(/页面不重算/g) || []).length;
+  assert.equal(reread, (html.match(/数字取自已锁定的结果文件与采用记录，页面不重算/g) || []).length + 1, '回测与研究区一次，另加总览页签的来源行');
   assert.equal((html.match(/class="completeness"/g) || []).length, 1);
 
-  // US_V5 页面不得出现 QS 的数字或 USDT
-  const us = await workspace.readModel({ strategyRef: 'US_V5_ETF_3000USD' });
-  const usHtml = await renderPage(us, '#strategy-detail?strategy=US_V5_ETF_3000USD');
-  for (const word of ['USDT', '698.67', 'Q0-bd83dd6ec1754dbc', '949.4', '−50.59', 'A19']) assert.ok(!usHtml.includes(word), `US_V5 页面不得出现：${word}`);
+  // US_V5 页面（全部展开）不得出现 QS 的数字或 USDT
+  const us = await realModel('US_V5_ETF_3000USD');
+  const usHtml = await renderPage(us, '#strategy-detail?strategy=US_V5_ETF_3000USD&section=all');
+  for (const word of QS_NUMBERS) assert.ok(!usHtml.includes(word), `US_V5 页面不得出现：${word}`);
+});
+
+test('修订 7 在 QS 页上：默认「总览」——一句话结论与数字卡取自 QS 的 Q0 锁，比较对象是 BTC 买入持有；页签只渲染自己；US 总览不含 QS 数字', { skip: SKIP_PAGE }, async () => {
+  const model = await realModel();
+  const summary = model.views['strategy-detail'].summary;
+  assert.equal(summary.sentence_zh, '现行版本样本外期末 2,102，高于 BTC 买入持有的 1,911（证据不足）');
+  assert.deepEqual(summary.tiles.map((tile) => tile.key), ['end_capital', 'max_drawdown', 'winrate', 'half_kelly', 'underwater']);
+  const tile = (key) => summary.tiles.find((item) => item.key === key);
+  assert.equal(tile('end_capital').comparator_label, 'BTC 买入持有');
+  assert.deepEqual([tile('end_capital').own, tile('end_capital').comparator], [2101.61386385, 1910.56624285]);
+  assert.equal(tile('winrate').row_zh, '样本外 · 基础成本 · h+1 开盘成交');
+  assert.deepEqual([tile('winrate').win_rate, tile('winrate').payoff, tile('winrate').n], [0.34152047, 2.45731769, 855]);
+  assert.deepEqual([tile('half_kelly').f_half, tile('half_kelly').supported], [0, false]);
+  const html = await renderPage(model, QS_DETAIL);
+  const text = textOf(html);
+  assert.equal((html.match(/class="section detail-section"/g) || []).length, 1);
+  assert.match(html, /id="detail-overview"/);
+  for (const needle of ['现行版本样本外期末 2,102，高于 BTC 买入持有的 1,911（证据不足）', '2,102 USDT', 'BTC 买入持有 1,911 USDT；2024-01-01 至 2026-10-24',
+    '22.1%', 'BTC 买入持有 53.0%', '34.2% · 2.46', '样本外 · 基础成本 · h+1 开盘成交，855 笔', '不支持按凯利加仓（区间下沿为 0）', '358 个 session']) {
+    assert.ok(text.includes(needle), `总览缺：${needle}`);
+  }
+  for (const word of [...US_WORDS, 'bps', 'undefined', 'NaN']) assert.ok(!text.includes(word), `QS 总览不得出现：${word}`);
+  // J2：每个页签只渲染自己
+  for (const section of ['runtime', 'health', 'research', 'forward', 'review']) {
+    const tab = await renderPage(model, `${QS_DETAIL}&section=${section}`);
+    assert.equal((tab.match(/class="section detail-section"/g) || []).length, 1, section);
+    assert.match(tab, new RegExp(`id="detail-${section}"`));
+    for (const word of US_WORDS) assert.ok(!textOf(tab).includes(word), `QS ${section} 页签不得出现：${word}`);
+  }
+  const usHtml = await renderPage(await realModel('US_V5_ETF_3000USD'), '#strategy-detail?strategy=US_V5_ETF_3000USD');
+  assert.match(usHtml, /id="detail-overview"/);
+  for (const word of QS_NUMBERS) assert.ok(!usHtml.includes(word), `US_V5 总览不得出现：${word}`);
+});
+
+// 修订 7 J5.1 在 QS 页上（真浏览器、真实数据）：1280 × 800 下总览 ≤ 1,600 px；390 px 宽下各页签没有整页横向滚动
+const PROBE = (routes) => `<!doctype html><meta charset="utf-8"><title>probe</title><pre id="out">PENDING</pre><script>
+const routes = ${JSON.stringify(routes)};
+(async () => {
+  const results = [];
+  for (const [route, width] of routes) {
+    const frame = document.createElement('iframe');
+    frame.style.cssText = 'position:absolute;left:0;top:0;border:0;height:800px;width:' + width + 'px';
+    frame.src = '/' + route;
+    document.body.appendChild(frame);
+    await new Promise((resolve) => frame.addEventListener('load', resolve));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    const doc = frame.contentDocument; const root = doc.documentElement;
+    results.push({ route, width, height: root.scrollHeight, scrollWidth: root.scrollWidth, clientWidth: root.clientWidth, sections: doc.querySelectorAll('#workspace .detail-section').length, text: doc.getElementById('workspace').innerText.length });
+    frame.remove();
+  }
+  document.getElementById('out').textContent = JSON.stringify(results);
+})();
+</script>`;
+
+test('修订 7 J5.1 在 QS 页上：1280 × 800 下总览 ≤ 1,600 px；390 px 宽下总览与各页签都没有整页横向滚动（真实 Q0 锁）', { skip: SKIP_BROWSER, timeout: 300000 }, async () => {
+  const model = await realModel();
+  const page = fs.readFileSync(path.join(ROOT, 'apps', 'research-web', 'index.html'));
+  const routes = [[QS_DETAIL, 1280], ...['', '&section=runtime', '&section=health', '&section=research', '&section=forward', '&section=review', '&section=all'].map((extra) => [`${QS_DETAIL}${extra}`, 390])];
+  const server = http.createServer((req, res) => {
+    if (req.url.startsWith('/__probe')) { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(PROBE(routes)); return; }
+    if (req.url.startsWith('/api/workspace')) { res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(model)); return; }
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); res.end(page);
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-qs-chrome-'));
+  try {
+    const stdout = await new Promise((resolve) => {
+      const child = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-extensions',
+        `--user-data-dir=${profile}`, '--virtual-time-budget=60000', '--dump-dom', `http://127.0.0.1:${server.address().port}/__probe`], { stdio: ['ignore', 'pipe', 'ignore'] });
+      let out = ''; child.stdout.on('data', (chunk) => { out += chunk; });
+      const timer = setTimeout(() => child.kill('SIGKILL'), 120000);
+      child.on('close', () => { clearTimeout(timer); resolve(out); });
+    });
+    const match = /<pre id="out">([\s\S]*?)<\/pre>/.exec(stdout);
+    assert.ok(match && match[1] !== 'PENDING', '探针页没有跑完');
+    const rows = JSON.parse(match[1].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+    assert.equal(rows.length, routes.length);
+    // QS 的前向、复盘页签只有一两句（没有 HK 前向影子、没有 Desk 往返），渲染门槛按页头加一句算
+    for (const row of rows) assert.ok(row.sections >= 1 && row.text > 80, `${row.route} @${row.width} 没有渲染出页面（${row.text} 字）`);
+    assert.ok(rows[0].height <= 1600, `QS 总览 @1280：${rows[0].height} px > 1,600`);
+    for (const row of rows.filter((item) => item.width === 390)) assert.ok(row.scrollWidth <= row.clientWidth, `${row.route} @390：整页横向宽度 ${row.scrollWidth} > ${row.clientWidth}`);
+    console.log(`QS J5.1: overview@1280 height=${rows[0].height}; 390: ${rows.slice(1).map((row) => `${row.route.split('&section=')[1] || 'overview'} ${row.scrollWidth}/${row.clientWidth}`).join(', ')}`);
+  } finally {
+    fs.rmSync(profile, { recursive: true, force: true });
+    await new Promise((resolve) => server.close(resolve));
+  }
 });

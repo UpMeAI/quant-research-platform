@@ -75,8 +75,8 @@ function sentenceOf({ conclusion, account, overview, questions }) {
   return `${head}；${adopted}${pending}${tail}`;
 }
 
-/** J1.2 关键数字卡：数字原样取自锁定结果与采用一览；页面格式化。 */
-function tilesOf({ backtest, account, overview }) {
+/** J1.2 关键数字卡：数字原样取自锁定结果与采用一览；页面格式化。`isMain`：档案的主数字行判别（非 LEGACY 档案按 q0_reading）。 */
+function tilesOf({ backtest, account, overview, isMain = isMainRow }) {
   const tiles = [];
   const own = ownOf(account); const cmp = comparatorOf(account);
   if (own) {
@@ -86,9 +86,10 @@ function tilesOf({ backtest, account, overview }) {
       comparator_label: cmp ? cmp.label : null, link: { section: 'runtime', block: 'account' } });
   }
   const winrate = blockData(backtest, 'winrate');
-  const main = winrate && (winrate.rows.find(isMainRow) || winrate.rows.find((row) => row.segment === 'OOS'));
+  const main = winrate && (winrate.rows.find(isMain) || winrate.rows.find((row) => row.segment === 'OOS'));
+  // 费用写法：LEGACY_V1 写「5 bps」；非 LEGACY 档案写自己的费用词（CRYPTO_Q0_RESULT_V1 §3.2）
   if (main) tiles.push({ key: 'winrate', label_zh: '样本外胜率与赔率', win_rate: main.win_rate, payoff: main.payoff, n: main.n,
-    row_zh: `${main.segment_label} · ${main.cost_bps} bps · ${main.phase_label}`, link: { section: 'runtime', block: 'winrate' } });
+    row_zh: `${main.segment_label} · ${main.cost_label !== undefined ? main.cost_label : `${main.cost_bps} bps`} · ${main.phase_label}`, link: { section: 'runtime', block: 'winrate' } });
   const kelly = blockData(backtest, 'kelly');
   if (kelly) tiles.push({ key: 'half_kelly', label_zh: '半凯利', f_half: kelly.f_half, supported: kelly.supported, link: { section: 'runtime', block: 'kelly' } });
   if (overview) {
@@ -152,7 +153,7 @@ function rulesOf({ strategy, caseRec, overview, queueView, comparisons }) {
 /**
  * 总览投影。`notesQueue` = 说明登记的 research_queue（题名、组合关系）；`overview` = 修订 6 的采用一览（可为 null）。
  */
-function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, overview, notesQueue, queueView }) {
+function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, overview, notesQueue, queueView, isMain = isMainRow }) {
   const account = blockData(backtest, 'account');
   const questions = (notesQueue && notesQueue.questions) || {};
   const locked = (comparisons || []).filter((card) => card.state === 'LOCKED_VERIFIED');
@@ -160,7 +161,7 @@ function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, over
     title_zh: '总览',
     sentence_zh: sentenceOf({ conclusion, account, overview, questions }),
     state: conclusion ? conclusion.state : null,
-    tiles: conclusion && conclusion.result_state === 'LOCKED_VERIFIED' ? tilesOf({ backtest, account, overview }) : [],
+    tiles: conclusion && conclusion.result_state === 'LOCKED_VERIFIED' ? tilesOf({ backtest, account, overview, isMain }) : [],
     adoption: adoptionOf(overview, locked),
     rules: rulesOf({ strategy, caseRec, overview, queueView, comparisons: locked }),
     source_zh: '数字取自已锁定的结果文件与采用记录，页面不重算',

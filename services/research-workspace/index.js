@@ -688,7 +688,7 @@ async function readModel({
       strategy: selectedStrategy, caseRec: selectedCurrentCase,
       conclusion: { ...baselineProjection.conclusion, result_state: baselineProjection.state, result_reason: baselineProjection.reason || null },
       backtest: baselineProjection, comparisons: comparisonProjections, overview: adoptionOverview,
-      notesQueue: notes && notes.research_queue, queueView,
+      notesQueue: notes && notes.research_queue, queueView, isMain: baselineEvaluation.mainRowTest(profile),
     }) } : {}),
     ...(notes && notes.code_names && Object.keys(notes.code_names).length ? { code_names: notes.code_names } : {}),
     // 修订 4 A4.4：列入 M4 范围、还没有接入的策略写「已列入 M4 范围，尚未接入」（只加在这些策略上）
