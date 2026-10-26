@@ -591,10 +591,10 @@ async function readModel({
       selectedCurrentCase ? technicalRef(selectedCurrentCase.case_id, '研究 case ID') : null,
       baselineRelation ? technicalRef(baselineRelation.case_id, '关联首案 ID') : null,
     ].filter(Boolean),
-    // 只加在需要的策略上（已登记策略的投影形状不变，US_V5 的 JSON 逐字节冻结，D1）：
-    // 没有档案的策略标「该策略尚未接入研究」；页面金额默认按美元写，非美元档案带上自己的币种。
+    // 只加在需要的策略上（LEGACY_V1 档案的投影形状不变，US_V5 的 JSON 逐字节冻结，D1）：
+    // 没有档案的策略标「该策略尚未接入研究」；页面金额默认按美元写，其他档案带上自己的币种。
     ...(!profile ? { profile_state: 'NOT_REGISTERED', profile_label: NOT_REGISTERED_LABEL } : {}),
-    ...(profile && profile.currency !== 'USD' ? { currency: profile.currency } : {}),
+    ...(profile && !profiles.isLegacyShape(profile) ? { currency: profile.currency } : {}),
   };
 
   return {

@@ -427,8 +427,8 @@ function stressBlock(doc) {
 }
 
 /**
- * 半凯利的底线取自策略档案（数值 + 币种）。美元档案沿用改造前的字段名 `floor_usd`（页面与 US_V5 的投影不变）；
- * 其他币种写 `floor: { value, currency }`，不把非美元的底线冒充美元。
+ * 半凯利的底线取自策略档案（数值 + 币种 + 说明）。LEGACY_V1 档案（US_V5）沿用改造前的字段名 `floor_usd`（投影由 D1 冻结）；
+ * 其他档案写 `floor: { value, currency, rule_label_zh }`，页面据此写币种和底线说明，不套用 US_V5 的措辞。
  */
 function kellyBlock(doc, profile) {
   const k = doc.half_kelly;
@@ -449,13 +449,13 @@ function kellyBlock(doc, profile) {
   const supported = f > 0;
   need(k.supported === undefined || k.supported === supported, 'INVALID', 'half_kelly.supported 与 f_half 不一致');
   const { floor } = profile;
-  const usd = floor.currency === 'USD';
-  const declared = usd ? k.floor_usd : k.floor;
-  need(declared === undefined || declared === floor.value, 'INVALID', `half_kelly.${usd ? 'floor_usd' : 'floor'} 不是 ${floor.rule_label_zh}`);
+  const legacy = profiles.isLegacyShape(profile);
+  const declared = legacy ? k.floor_usd : k.floor;
+  need(declared === undefined || declared === floor.value, 'INVALID', `half_kelly.${legacy ? 'floor_usd' : 'floor'} 不是 ${floor.rule_label_zh}`);
   return {
     p: field(k, 'p', 'half_kelly.p'), p_ci: ci(k.p_ci, 'half_kelly.p_ci'), b: field(k, 'b', 'half_kelly.b'), b_ci: ci(k.b_ci, 'half_kelly.b_ci'),
     f_star: field(k, 'f_star', 'half_kelly.f_star'), f_half: f, supported,
-    ...(usd ? { floor_usd: floor.value } : { floor: { value: floor.value, currency: floor.currency } }),
+    ...(legacy ? { floor_usd: floor.value } : { floor: { value: floor.value, currency: floor.currency, rule_label_zh: floor.rule_label_zh } }),
     half_kelly: side('half_kelly'), fixed_60: side('fixed_60'),
     note: '研究计算，不是仓位建议；现行仓位规则不变',
   };
@@ -654,7 +654,7 @@ function limitOf(v, completeness) {
 }
 
 /** C1：三态结论 + 一个主数字及其区间 + 判定依据 + 限制。尚未回测时写「尚未回测」和原因，不写「证据不足」。 */
-function conclusionOf(verdictBlock_, doc, completeness = null) {
+function conclusionOf(verdictBlock_, doc, completeness = null, profile = profileForDoc(doc)) {
   if (!verdictBlock_ || verdictBlock_.state !== 'AVAILABLE') {
     return {
       state: 'NOT_BACKTESTED', label: '尚未回测', reason: verdictBlock_ ? verdictBlock_.reason : '没有封存结果',
@@ -666,7 +666,7 @@ function conclusionOf(verdictBlock_, doc, completeness = null) {
   const limit = limitOf(v, completeness);
   const oos = (doc.stats.rows || []).find((row) => row.segment === 'OOS' && row.cost_bps === 5 && row.phase === 'PRODUCTION');
   const main = oos && Array.isArray(oos.mean_R_ci) && oos.mean_R_ci.length === 2
-    ? { label: '样本外每笔扣费后净 R 均值（5 bps，生产相位；门槛 +0.10 R）', value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
+    ? { label: `${profile.segment_words.OOS || 'OOS'}每笔扣费后净 R 均值（5 bps，${profile.phase_words.PRODUCTION || 'PRODUCTION'}；门槛 +0.10 R）`, value: oos.mean_R, ci: { lo: oos.mean_R_ci[0], hi: oos.mean_R_ci[1] }, unit: 'R' } : null;
   return {
     state: v.state, label: labels[v.state], reason: null, main_number: main, basis: basisOf(v),
     limit_label: limit.label, biggest_limit: limit.text, completeness,
@@ -684,7 +684,7 @@ function project(sealed, lock, profile = lock.strategy_ref ? profiles.mustGet(lo
   const completeness = completenessOf(blocks.find((block) => block.key === 'stress'), doc.verdict.state);
   return {
     state: 'LOCKED_VERIFIED', result_id: lock.result_id, class: EVAL_CLASS, verdict_state: doc.verdict.state,
-    conclusion: conclusionOf(verdict, doc, completeness), blocks, diagnosis: diagnosisList(doc, profile),
+    conclusion: conclusionOf(verdict, doc, completeness, profile), blocks, diagnosis: diagnosisList(doc, profile),
     source: {
       result_id: lock.result_id, file_ref: sealed.file, file_sha256: sealed.sha256, size: sealed.size,
       locked_at: lock.locked_at, locked_by: lock.locked_by, plan_ref: profile.research_program.plan_ref, amendment_ref: profile.research_program.amendment_ref,

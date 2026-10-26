@@ -17,6 +17,8 @@ const FILE = path.join(__dirname, '..', '..', 'config', 'strategy_profiles.v1.js
 const CONTRACT = 'QRP_STRATEGY_PROFILES_V1';
 const CURRENCIES = Object.freeze(['USD', 'USDT', 'CNY']);
 const COMPARATOR_ROLES = Object.freeze(['MARKET', 'CASH']);
+/** 可选：LEGACY_V1 = 投影沿用改造前的字段名与页面措辞（US_V5，输出由 D1 逐字节冻结）；不写 = 投影带上档案自己的币种与说明。 */
+const PROJECTION_SHAPES = Object.freeze(['LEGACY_V1']);
 const SHA256 = /^[0-9a-f]{64}$/;
 
 class StrategyProfileError extends Error {
@@ -56,6 +58,9 @@ function validateProfile(raw, index) {
   const ref = head.text(raw, 'strategy_ref');
   const c = checker(ref);
   c.text(raw, 'case_ref'); c.text(raw, 'market'); c.text(raw, 'display_name');
+  if (raw.projection_shape !== undefined && !PROJECTION_SHAPES.includes(raw.projection_shape)) {
+    fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.projection_shape:${PROJECTION_SHAPES.join('|')}`);
+  }
   const currency = c.text(raw, 'currency');
   if (!CURRENCIES.includes(currency)) fail('STRATEGY_PROFILE_CURRENCY_UNSUPPORTED', `${ref}:${currency}`);
 
@@ -155,10 +160,11 @@ function mustGet(strategyRef) {
   return profile;
 }
 
+const isLegacyShape = (profile) => profile.projection_shape === 'LEGACY_V1';
 const comparator = (profile, role) => profile.comparators.find((item) => item.role === role);
 const comparatorLabel = (profile, key) => (profile.comparators.find((item) => item.key === key) || {}).label_zh;
 
 module.exports = {
   FILE, CONTRACT, CURRENCIES, StrategyProfileError, validate, load, use, list, get, mustGet, byCase, byBaselineSchema,
-  byComparisonProfile, defaultProfile, comparator, comparatorLabel,
+  byComparisonProfile, defaultProfile, isLegacyShape, comparator, comparatorLabel,
 };

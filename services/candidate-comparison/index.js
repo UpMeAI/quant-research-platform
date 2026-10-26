@@ -73,7 +73,10 @@ function readSealed(file, options = {}) {
   try { sealed = baseline.readSealed(file, { allowNonActual: options.allowNonActual, topLevel: ['identity'] }); } catch (error) {
     throw rename(error, hinted || sniffEntry(file, bySchema) || DEFAULT_ENTRY);
   }
-  const entry = hinted || bySchema(sealed.doc.identity && sealed.doc.identity.schema) || DEFAULT_ENTRY;
+  const schema = sealed.doc.identity && sealed.doc.identity.schema;
+  // 指定了策略题组时，组里没有这份文件的题目就拒绝，不回落到默认题
+  const entry = hinted || bySchema(schema) || (program ? null : DEFAULT_ENTRY);
+  need(entry, 'COMPARISON_QUESTION_NOT_REGISTERED', `${program && program.strategy_ref}:${schema}`);
   // 显式指定了题目而文件是别的题目的：先报 schema 不符，不要报一串别的题目的顶层字段缺失
   if (hinted && sealed.doc.identity && sealed.doc.identity.schema !== hinted.schema) fail(E(hinted, 'RESULT_SCHEMA_UNSUPPORTED'), sealed.doc.identity.schema);
   const missing = entry.top_level.filter((key) => sealed.doc[key] === undefined || sealed.doc[key] === null);

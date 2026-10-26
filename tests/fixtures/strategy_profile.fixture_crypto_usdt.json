@@ -1,0 +1,31 @@
+{
+  "_comment": "测试专用档案（QRP_MULTI_STRATEGY_PROFILE_REGISTRY_ACCEPTANCE_V1 R4）：证明注册表能驱动非 US_V5 的值（USDT、BTC_BUY_HOLD + CASH、自己的底线、相位词、分段词、成本模型和证据位置）。只在测试里与生产注册表合并，不得进入 config/strategy_profiles.v1.json。成本模型 FIXTURE_CRYPTO_COST_V1 故意没有模块（本次不写新成本模型），诊断必须失败关闭。",
+  "strategy_ref": "FIXTURE_CRYPTO_USDT",
+  "case_ref": "RRC-FIXTURE-CRYPTO-USDT",
+  "market": "CRYPTO",
+  "currency": "USDT",
+  "display_name": "FIXTURE_CRYPTO",
+  "comparators": [
+    { "key": "BTC_BUY_HOLD", "label_zh": "BTC 买入持有", "role": "MARKET" },
+    { "key": "CASH", "label_zh": "现金", "role": "CASH" }
+  ],
+  "floor": { "value": 600, "currency": "USDT", "rule_label_zh": "测试档案的 600 USDT 底线" },
+  "baseline_result_schema": "FIXTURE_CRYPTO_Q0_RESULT_V1",
+  "import_profile_id": "tests/fixtures/FIXTURE_CRYPTO_Q0_IMPORT_PROFILE",
+  "comparison_import_profile_ids": [],
+  "phase_words": { "PRODUCTION": "收盘小时相位", "PLUS_60MIN": "收盘后 60 分钟相位" },
+  "segment_words": { "IS-a": "开发期甲", "IS-b": "开发期乙", "OOS": "测试样本外" },
+  "cost_model_id": "FIXTURE_CRYPTO_COST_V1",
+  "m1_evidence": {
+    "manifest_ref": "tests/fixtures/FIXTURE_CRYPTO_M1_MANIFEST_NOT_DELIVERED.json",
+    "manifest_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "diagnostic_schema": "FIXTURE_CRYPTO_M1_STRATEGY_DIAGNOSTIC_V1"
+  },
+  "forward_observation_source_key": "FIXTURE_CRYPTO_USDT",
+  "research_program": {
+    "plan_ref": "tests/fixtures/FIXTURE_CRYPTO_RESEARCH_PROGRAM",
+    "amendment_ref": "tests/fixtures/FIXTURE_CRYPTO_RESEARCH_PROGRAM_AMENDMENT",
+    "default_question": null,
+    "queue": { "Q1": { "title": "测试题：资金费过滤", "status": "测试排队", "after": [] } }
+  }
+}
