@@ -158,6 +158,45 @@ function validateAddendum1(reading, ref) {
   }
   if (reading.r_digits !== undefined && ![2, 3].includes(reading.r_digits)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.r_digits:2|3`);
 }
+const SUCCESSOR_READING_KEYS = Object.freeze(['phase_words', 'phase_note_zh', 'supplementary_kinds', 'supplementary_kind_notes_zh',
+  'conclusion_supplementary', 'supersedes_object', 'superseded_note_zh']);
+const SUPPLEMENTARY_LINE_FORMS = Object.freeze(['END_ONLY']);
+
+/**
+ * CRYPTO_Q0_RESULT_V1 增补 1 冻结说明 2（C17 V2）：按后继结果 schema 取值的读法（successor_readings.<schema>）。
+ * 只对那个 schema 的封存文件生效，与档案自身的读法合并；没有这一项的 schema（V1）读法不变。
+ */
+function validateSuccessorReadings(raw, reading, ref) {
+  if (raw.successor_readings === undefined) return;
+  const all = checker(ref).object(raw, 'successor_readings');
+  for (const [schema, entry] of Object.entries(all)) {
+    const where = `${ref}.successor_readings.${schema}`;
+    if (!(raw.successor_result_schemas || []).includes(schema)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:schema 不在 successor_result_schemas`);
+    if (!isObject(entry) || !Object.keys(entry).length) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:non-empty object`);
+    const extra = Object.keys(entry).filter((key) => !SUCCESSOR_READING_KEYS.includes(key));
+    if (extra.length) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.${extra[0]}:不认识（${SUCCESSOR_READING_KEYS.join('|')}）`);
+    const c = checker(where);
+    if (entry.phase_words !== undefined) c.words(entry, 'phase_words');
+    const phases = { ...raw.phase_words, ...(entry.phase_words || {}) };
+    if (!isText(phases[reading.main_row.phase])) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.phase_words.${reading.main_row.phase}:主数字那一行没有对应的词`);
+    if (entry.phase_note_zh !== undefined) c.text(entry, 'phase_note_zh');
+    if (entry.supplementary_kinds !== undefined) c.words(entry, 'supplementary_kinds');
+    if (entry.supplementary_kind_notes_zh !== undefined) {
+      const kinds = { ...(reading.supplementary_kinds || {}), ...(entry.supplementary_kinds || {}) };
+      for (const kind of Object.keys(c.words(entry, 'supplementary_kind_notes_zh'))) {
+        if (!kinds[kind]) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.supplementary_kind_notes_zh.${kind}:不是登记的补充行类别`);
+      }
+    }
+    if (entry.conclusion_supplementary !== undefined) {
+      labelled(entry.conclusion_supplementary, `${where}.conclusion_supplementary`, ['scenario', 'label_zh']).forEach((item, i) => {
+        if (item.form !== undefined && !SUPPLEMENTARY_LINE_FORMS.includes(item.form)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.conclusion_supplementary[${i}].form:${SUPPLEMENTARY_LINE_FORMS.join('|')}`);
+      });
+    }
+    if (entry.supersedes_object !== undefined && entry.supersedes_object !== true) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.supersedes_object:true`);
+    if (entry.superseded_note_zh !== undefined) c.text(entry, 'superseded_note_zh');
+  }
+}
+
 const hasNumber = (value) => (typeof value === 'number' ? true
   : value && typeof value === 'object' ? Object.values(value).some(hasNumber) : false);
 
@@ -209,6 +248,7 @@ function validateReadings(raw, ref) {
   validateForward(reading, ref);
   validateDisplay(reading, ref);
   validateAddendum1(reading, ref);
+  validateSuccessorReadings(raw, reading, ref);
   if (reading.funding_exclusion !== undefined) {
     const funding = c.object(reading, 'funding_exclusion');
     const cf = checker(`${ref}.q0_reading.funding_exclusion`);
@@ -427,7 +467,25 @@ const isLegacyShape = (profile) => profile.projection_shape === 'LEGACY_V1';
 const comparator = (profile, role) => profile.comparators.find((item) => item.role === role);
 const comparatorLabel = (profile, key) => (profile.comparators.find((item) => item.key === key) || {}).label_zh;
 
+/**
+ * 增补 1 冻结说明 2：封存文件是后继 schema、档案为它登记了 successor_readings 时，返回合并了那份读法的档案
+ * （phase_words 与 supplementary_kinds 按键合并，其余键覆盖 q0_reading 的同名键）；否则原样返回档案本身。
+ */
+const effective = new WeakMap();
+function forSchema(profile, schema) {
+  const entry = profile && profile.successor_readings && schema ? profile.successor_readings[schema] : undefined;
+  if (!entry) return profile;
+  if (!effective.has(profile)) effective.set(profile, new Map());
+  const cache = effective.get(profile);
+  if (!cache.has(schema)) {
+    const { phase_words: phaseWords, supplementary_kinds: kinds, ...rest } = entry;
+    const reading = { ...profile.q0_reading, ...rest, ...(kinds ? { supplementary_kinds: { ...(profile.q0_reading.supplementary_kinds || {}), ...kinds } } : {}) };
+    cache.set(schema, deepFreeze(JSON.parse(JSON.stringify({ ...profile, phase_words: { ...profile.phase_words, ...(phaseWords || {}) }, q0_reading: reading }))));
+  }
+  return cache.get(schema);
+}
+
 module.exports = {
   FILE, CONTRACT, CURRENCIES, StrategyProfileError, validate, load, use, list, get, mustGet, byCase, byBaselineSchema, resultSchemasOf,
-  byComparisonProfile, defaultProfile, isLegacyShape, comparator, comparatorLabel,
+  byComparisonProfile, defaultProfile, isLegacyShape, comparator, comparatorLabel, forSchema,
 };

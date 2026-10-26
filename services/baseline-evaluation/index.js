@@ -223,7 +223,9 @@ const preferZh = (object, key) => {
 };
 
 /** 结果文件属于哪条策略：显式给了档案就用它；否则按文件的 schema 找，找不到时交给默认档案，由 schema 校验拒绝。 */
-const profileForDoc = (doc) => profiles.byBaselineSchema(isObject(doc) && isObject(doc.identity) ? doc.identity.schema : null) || DEFAULT_PROFILE;
+const schemaOf = (doc) => (isObject(doc) && isObject(doc.identity) ? doc.identity.schema : null);
+// 增补 1 冻结说明 2：后继 schema 的封存文件按档案为它登记的读法读（profiles.forSchema）
+const profileForDoc = (doc) => profiles.forSchema(profiles.byBaselineSchema(schemaOf(doc)) || DEFAULT_PROFILE, schemaOf(doc));
 
 /**
  * 非 LEGACY 档案的规则清单（§4.1）：状态只认四个词；每条已知近似必须带 code_ref 与 note_zh（披露偏差大小，冻结裁定 2 G4）；
@@ -292,11 +294,39 @@ function checkOosReuse(doc, profile) {
   need(flagged === coded, 'Q0_OOS_REUSE_NOT_DISCLOSED', `oos_reuse=${JSON.stringify(doc.verdict.oos_reuse)} ${spec.reason_code}${coded ? '' : ' 缺'}`);
 }
 
-/** §8 新增检查 1：被替代的运行只作为记录写在文件里（state、结果 sha256、原因），不得指向本文件自己。 */
-function checkSupersedes(identity, fileSha256) {
+/**
+ * §8 的 identity.supersedes 读成数组。增补 1 冻结说明 2 第 1 条：档案读法 supersedes_object 为 true 时，对象形式（只替代一个
+ * 已锁的结果）读作只有一个元素的数组——sha256 → result_sha256，commit → smartflow_commit，文件里的 state 是被替代结果自己的三态；
+ * 其余字段原样带上。结构核对仍在 checkSupersedes。
+ */
+function supersedesItems(identity, reading) {
+  const value = isObject(identity) ? identity.supersedes : undefined;
+  if (value === undefined) return [];
+  if (isObject(value) && reading && reading.supersedes_object === true) {
+    return [{
+      state: 'SUPERSEDED', result_sha256: value.sha256, reason_zh: value.reason_zh, smartflow_commit: value.commit,
+      superseded_state: value.state, schema: value.schema, file: value.file, erratum_ref: value.erratum_ref, kept_visible: value.kept_visible, pointed: true,
+    }];
+  }
+  return value;
+}
+
+/**
+ * §8 新增检查 1：被替代的运行只作为记录写在文件里（state、结果 sha256、原因），不得指向本文件自己。
+ * 对象形式另核对：schema 是本档案认的另一个结果 schema，commit 是十六进制，state 是三态之一，文字字段非空（缺省的不核对）。
+ */
+function checkSupersedes(identity, fileSha256, profile) {
   if (identity.supersedes === undefined) return;
-  need(Array.isArray(identity.supersedes) && identity.supersedes.every((item) => isObject(item) && item.state === 'SUPERSEDED'
+  const items = supersedesItems(identity, readingOf(profile));
+  need(Array.isArray(items) && items.every((item) => isObject(item) && item.state === 'SUPERSEDED'
     && /^[0-9a-f]{64}$/.test(item.result_sha256 || '') && item.result_sha256 !== fileSha256 && isText(item.reason_zh)), 'Q0_SUPERSEDES_INVALID');
+  for (const item of items.filter((entry) => entry.pointed)) {
+    need(item.schema === undefined || (profiles.resultSchemasOf(profile).includes(item.schema) && item.schema !== identity.schema), 'Q0_SUPERSEDES_INVALID', `schema=${item.schema}`);
+    need(item.smartflow_commit === undefined || /^[0-9a-f]{7,40}$/.test(item.smartflow_commit), 'Q0_SUPERSEDES_INVALID', `commit=${item.smartflow_commit}`);
+    need(item.superseded_state === undefined || STATES.includes(item.superseded_state), 'Q0_SUPERSEDES_INVALID', `state=${item.superseded_state}`);
+    need(['file', 'erratum_ref'].every((key) => item[key] === undefined || isText(item[key])) && (item.kept_visible === undefined || typeof item.kept_visible === 'boolean'),
+      'Q0_SUPERSEDES_INVALID', 'file / erratum_ref / kept_visible');
+  }
 }
 
 /**
@@ -324,6 +354,7 @@ function checkApproximateEngine(doc) {
 
 /** `fileSha256`（可选）：封存文件的 sha256，用于 §8 的「supersedes 不得含本文件」。 */
 function validateWhole(doc, profile = profileForDoc(doc), { fileSha256 = null } = {}) {
+  profile = profiles.forSchema(profile, schemaOf(doc));
   const legacy = profiles.isLegacyShape(profile);
   const repro = doc.reproducibility;
   need(isObject(repro) && typeof repro.command === 'string' && repro.command && Array.isArray(repro.runs)
@@ -356,7 +387,7 @@ function validateWhole(doc, profile = profileForDoc(doc), { fileSha256 = null } 
       && (approximation.missing === undefined || Array.isArray(approximation.missing)), 'Q0_VERDICT_ENGINE_APPROXIMATION_MISSING');
     checkRules(doc, { ...approximation, approximations: declared });
     if (isGap(profile)) checkGapFromMainRow(doc, profile); else checkVerdictFromMainRow(doc, profile);
-    checkSupersedes(identity, fileSha256);
+    checkSupersedes(identity, fileSha256, profile);
     checkApproximateEngine(doc);
     checkA0Dual(doc, profile);
     checkOosReuse(doc, profile);
@@ -963,7 +994,9 @@ function stressBlock(doc, context = {}, profile = profileForDoc(doc)) {
       longest_underwater_sessions: field(row, 'longest_underwater_sessions', 'stress.longest_underwater_sessions'),
       recovered: field(row, 'recovered', 'stress.recovered', 'bool'), end_capital: field(row, 'end_capital', 'stress.end_capital'),
       simulated, in_headline: role === 'STRESS' && !simulated && row.in_headline !== false,
-      note: simulated ? '模拟序列，不是可交易历史' : (kindWord ? `补充（${kindWord}，只报不判，不进结论）` : null),
+      // 增补 1 冻结说明 2 第 2 条：档案给某类补充行登记了固定标签（C17 V2 的 SUPERSEDED_READING）时照写
+      note: simulated ? '模拟序列，不是可交易历史'
+        : (kindWord ? ((reading.supplementary_kind_notes_zh || {})[row.kind] || `补充（${kindWord}，只报不判，不进结论）`) : null),
       ...(kindWord ? { supplementary_kind: row.kind } : {}),
       ...(gap ? {
         label_raw: named ? fileLabel : null, max_drawdown: optionalFinite(row, 'max_drawdown'), report_only: row.report_only === true,
@@ -1551,6 +1584,8 @@ function supplementaryLine(doc, profile, reading, item) {
   if (!reference) return '补充行无效：压力表没有参照行 BASELINE';
   const ok = (entry) => Number.isInteger(entry.n) && finite(entry.mean_R) && finite(entry.end_capital);
   if (!ok(row) || !ok(reference)) return `补充行无效：${item.scenario} 或参照行缺笔数、每笔均值或期末`;
+  // 增补 1 冻结说明 2 第 4 条：END_ONLY 只写「<标签>：期末 <整数>」，放在主数字（参照）下面并列，不算差值
+  if (item.form === 'END_ONLY') return `${item.label_zh}：期末 ${Math.round(row.end_capital).toLocaleString('en-US')}`;
   const digits = rDigitsOf(profile);
   const money = (value) => moneyText(value, profile.currency);
   const rules = isObject(doc.gates) && Array.isArray(doc.gates.rules) ? doc.gates.rules : [];
@@ -1643,6 +1678,7 @@ function withUnrecordedBasis(diagnosis, accountBlock_) {
 /** 档案按锁上的 strategy_ref 取（未登记即抛错）；只有没写 strategy_ref 的锁（直接投影封存文件）才按文件的 schema 找。 */
 function project(sealed, lock, profile = lock.strategy_ref ? profiles.mustGet(lock.strategy_ref) : profileForDoc(sealed.doc)) {
   const { doc } = sealed;
+  profile = profiles.forSchema(profile, schemaOf(doc));
   const gapped = validateWhole(doc, profile, { fileSha256: sealed.sha256 });
   const blocks = buildBlocks(doc, gapped, profile, { notes: detailNotes.forStrategy(profile.strategy_ref), file_sha256: sealed.sha256 });
   const verdict = blocks.find((block) => block.key === 'verdict');
@@ -1655,7 +1691,7 @@ function project(sealed, lock, profile = lock.strategy_ref ? profiles.mustGet(lo
       result_id: lock.result_id, file_ref: sealed.file, file_sha256: sealed.sha256, size: sealed.size,
       locked_at: lock.locked_at, locked_by: lock.locked_by, plan_ref: profile.research_program.plan_ref, amendment_ref: profile.research_program.amendment_ref,
       inputs_digest: lock.inputs_digest, engine_digest: lock.engine_digest,
-      ...(readingOf(profile) ? supersededOf(doc.identity) : {}),
+      ...(readingOf(profile) ? supersededOf(doc.identity, readingOf(profile)) : {}),
       // 增补 1 §2.2 第 6 条：研究版与生产引擎、惰性硬门结果（文件有才写）
       ...(readingOf(profile) && isObject(doc.identity.engine_sha256) ? {
         engine_sha256: { production: doc.identity.engine_sha256.production, research: doc.identity.engine_sha256.research },
@@ -1670,16 +1706,19 @@ function project(sealed, lock, profile = lock.strategy_ref ? profiles.mustGet(lo
 /**
  * §8 ★(a)：被替代的运行只从结果文件的 identity.supersedes 显示一行「SUPERSEDED，不是结果」——不给 result_id，不显示数字，
  * 不进锁列表、题目列表或里程碑证据；原因与 change_note_zh 原文进技术详情。
+ * 增补 1 冻结说明 2 第 5 条：档案登记了 superseded_note_zh 时，在原因与勘误引用旁边加这一行；封存的勘误引用原文进技术详情。
  */
-function supersededOf(identity) {
-  const items = Array.isArray(identity.supersedes) ? identity.supersedes : [];
-  if (!items.length) return {};
+function supersededOf(identity, reading) {
+  const items = supersedesItems(identity, reading);
+  if (!Array.isArray(items) || !items.length) return {};
   return {
     superseded: items.map((item) => ({
       text_zh: `已替代的第一次运行（SUPERSEDED，不是结果）：代码 ${String(item.smartflow_commit || '未写').slice(0, 8)}，结果文件 ${item.result_sha256.slice(0, 8)}…`,
       result_sha256: item.result_sha256, smartflow_commit: item.smartflow_commit || null, reason_zh: item.reason_zh,
+      ...(isText(item.erratum_ref) ? { erratum_ref: item.erratum_ref } : {}),
     })),
     ...(isText(identity.change_note_zh) ? { change_note_zh: identity.change_note_zh } : {}),
+    ...(reading && isText(reading.superseded_note_zh) ? { superseded_note_zh: reading.superseded_note_zh } : {}),
   };
 }
 
@@ -1740,10 +1779,11 @@ function digests(doc) {
  * §8 新增检查 2：同一 case 已锁的任何文件在 identity.supersedes 里记着这份文件 → 拒绝（带 supersedes 也拒绝）。
  * 已锁文件读不出来时失败关闭，不跳过。
  */
-function refuseSupersededFile(fileSha256, caseRef, allowNonActual) {
+function refuseSupersededFile(fileSha256, caseRef, allowNonActual, profile) {
   for (const row of locks(caseRef)) {
     const locked = readSealed(row.file_ref, { allowNonActual, topLevel: [] });
-    const items = isObject(locked.doc.identity) && Array.isArray(locked.doc.identity.supersedes) ? locked.doc.identity.supersedes : [];
+    const listed = supersedesItems(locked.doc.identity, readingOf(profiles.forSchema(profile, schemaOf(locked.doc))));
+    const items = Array.isArray(listed) ? listed : [];
     need(!items.some((item) => isObject(item) && item.result_sha256 === fileSha256), 'Q0_RESULT_IS_SUPERSEDED', `${fileSha256.slice(0, 12)}… 已被 ${row.result_id} 替代`);
   }
 }
@@ -1762,7 +1802,7 @@ function importBaselineEvaluation(file, {
   const sealed = readSealed(file, { allowNonActual });
   const profile = pinned || profileForDoc(sealed.doc);
   caseRef = caseRef || profile.case_ref;
-  if (readingOf(profile)) refuseSupersededFile(sealed.sha256, caseRef, allowNonActual);
+  if (readingOf(profile)) refuseSupersededFile(sealed.sha256, caseRef, allowNonActual, profile);
   validateWhole(sealed.doc, profile, { fileSha256: sealed.sha256 });
   const resultId = `Q0-${sealed.sha256.slice(0, 16)}`;
   const head = headLock(caseRef);
@@ -1771,6 +1811,14 @@ function importBaselineEvaluation(file, {
     need(supersedes === head.result_id, 'BASELINE_ALREADY_LOCKED', head.result_id);
     need(defectRef && reason, 'BASELINE_SUPERSEDE_REQUIRES_DEFECT_AND_REASON');
   } else need(!supersedes, 'BASELINE_SUPERSEDE_TARGET_NOT_FOUND', supersedes);
+  // 增补 1 冻结说明 2 第 1 条：对象形式指向的锁必须在同一 case、sha 一致，且正是 --supersedes 指的那把锁
+  const effectiveReading = readingOf(profiles.forSchema(profile, schemaOf(sealed.doc)));
+  const listed = effectiveReading ? supersedesItems(sealed.doc.identity, effectiveReading) : [];
+  for (const item of (Array.isArray(listed) ? listed : []).filter((entry) => isObject(entry) && entry.pointed)) {
+    const target = locks(caseRef).find((row) => row.file_sha256 === item.result_sha256);
+    need(target, 'Q0_SUPERSEDES_INVALID', `指向的结果 ${item.result_sha256.slice(0, 12)}… 在 ${caseRef} 没有锁`);
+    need(supersedes === target.result_id, 'Q0_SUPERSEDES_INVALID', `必须带 --supersedes ${target.result_id}`);
+  }
   const core = {
     schema: 'BASELINE_EVALUATION_LOCK_V1', result_id: resultId, case_ref: caseRef, strategy_ref: profile.strategy_ref, eval_class: EVAL_CLASS,
     verdict_state: sealed.doc.verdict.state, file_ref: sealed.file, file_sha256: sealed.sha256, file_size: sealed.size,

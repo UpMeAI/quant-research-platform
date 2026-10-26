@@ -119,6 +119,17 @@
       "floor": { "value": 1800, "currency": "USDT", "rule_label_zh": "Rule 1b 的 1,800 USDT（3,000 USDT 的 40% 线）" },
       "baseline_result_schema": "C17_V2_M2_Q0_RESULT_V1",
       "successor_result_schemas": ["C17_V2_M2_Q0_RESULT_V2"],
+      "successor_readings": {
+        "C17_V2_M2_Q0_RESULT_V2": {
+          "phase_words": { "PRODUCTION": "生产 10 分钟扫描网格（勘误 1 E-1）", "GRID_PHASE_PLUS_5MIN": "网格相位平移 5 分钟（分钟 3，勘误 1 E-2）" },
+          "phase_note_zh": "本结果按生产 10 分钟扫描网格决定（分钟 8，勘误 1 E-1）；只有一种相位压力：网格相位平移 5 分钟（分钟 3，勘误 1 E-2；生产重启会移动网格）。V1 的读法（每根 4H 收线后第一个检查点决定一次）另列补充行，不进结论。",
+          "supplementary_kinds": { "SUPERSEDED_READING": "V1 读法" },
+          "supplementary_kind_notes_zh": { "SUPERSEDED_READING": "补充（V1 读法：每根 4H 收线后第一个检查点决定一次）" },
+          "conclusion_supplementary": [ { "scenario": "ENGINE_FIRST_CHECKPOINT_ONLY", "label_zh": "V1 读法（每根 4H 只决定一次）", "form": "END_ONLY" } ],
+          "supersedes_object": true,
+          "superseded_note_zh": "勘误 1 已于 2026-10-27 冻结（协调冻结裁定 3 F1）"
+        }
+      },
       "import_profile_id": "docs/contracts/CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE_ADDENDUM_1.md",
       "comparison_import_profile_ids": [],
       "phase_words": { "PRODUCTION": "4H 收线后第一个检查点", "PLUS_60MIN": "晚一小时决定（+60 分钟检查点）" },
