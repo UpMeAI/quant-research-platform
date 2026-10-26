@@ -52,10 +52,10 @@ function goldenAfterA4(goldenProjection, armKeys) {
 
 // ── 登记项本身 ──────────────────────────────────────────────────────────────────
 
-test('登记项：按题目 id 登记，队列顺序 Q1、Q2、Q3；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
-  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3']);
-  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2', 'Q3']);
-  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 3, 'schema 唯一');
+test('登记项：按题目 id 登记，队列顺序 Q1、Q2、Q3、Q4；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
+  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3', 'Q4']);
+  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2', 'Q3', 'Q4']);
+  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 4, 'schema 唯一');
   for (const entry of Object.values(cc.QUESTIONS)) {
     assert.equal(sha256File(entry.k2.ref), entry.k2.sha256, `${entry.question_ref} 的 K2 sha256 要等于冻结文件的实际 sha256`);
     assert.ok(fs.existsSync(path.join(ROOT, entry.profile_ref)), `${entry.question_ref} 的导入规格文件存在：${entry.profile_ref}`);
@@ -104,10 +104,11 @@ test('队列状态：K2 已冻结且没有封存结果＝进行中；K2 未冻�
   assert.deepEqual(queue('Q1', []), { question: 'Q1', phase: 'RUNNING', waiting_on: [] });
   assert.equal(queue('Q3', []).phase, 'RUNNING', 'Q3 的 K2 已冻结：不论 Q1 有没有锁，都是进行中，不再写「排队：Q1 之后」');
   assert.equal(queue('Q3', [card('Q1', 'LOCKED_VERIFIED')]).phase, 'RUNNING');
-  assert.deepEqual(queue('Q4', [card('Q1', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] });
-  assert.deepEqual(queue('Q4', [card('Q3', 'NOT_IMPORTED')]), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] }, '没有导入的空卡不算锁定');
-  assert.deepEqual(queue('Q4', [card('Q3', 'INVALID')]), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] }, '校验失败的不算锁定');
-  assert.deepEqual(queue('Q4', [card('Q3', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'READY_FOR_K2', waiting_on: [] });
+  // Q4 的 K2 已冻结（登记项在）：同 Q3，不论 Q3 锁没锁都是进行中。US_V5 计划的四题都已登记，QUEUED／READY_FOR_K2 在这条策略上不再出现
+  assert.deepEqual(queue('Q4', [card('Q1', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'RUNNING', waiting_on: [] });
+  assert.deepEqual(queue('Q4', [card('Q3', 'NOT_IMPORTED')]), { question: 'Q4', phase: 'RUNNING', waiting_on: [] });
+  assert.deepEqual(queue('Q4', [card('Q3', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'RUNNING', waiting_on: [] });
+  assert.deepEqual(queue('Q4', [card('Q4', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'LOCKED', waiting_on: [] });
   assert.deepEqual([queue('Q2', [card('Q2', 'LOCKED_VERIFIED')]).phase, queue('Q2', [card('Q2', 'INVALID')]).phase, queue('Q2', [card('Q2', 'MISSING')]).phase], ['LOCKED', 'INVALID', 'MISSING']);
   assert.equal(queue('Q9', []), null);
 });

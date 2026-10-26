@@ -21,7 +21,8 @@
       "comparison_import_profile_ids": [
         "docs/contracts/US_V5_M2_Q1_RESULT_V1_IMPORT_PROFILE.md",
         "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md",
-        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_1.md"
+        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_1.md",
+        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_2.md"
       ],
       "phase_words": { "PRODUCTION": "生产相位", "PLUS_60MIN": "相位 +60 分钟", "MINUS_60MIN": "相位 −60 分钟" },
       "segment_words": { "IS-a": "开发期 A", "IS-b": "开发期 B", "OOS": "样本外" },
