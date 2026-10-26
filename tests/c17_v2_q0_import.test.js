@@ -184,6 +184,31 @@ test('§7.7 小数位：C17 的 r_digits 3 写「+0.098 R」、probability_digit
   assert.match(kellyHtml(project(qs.result(), QS), QS), /<dd>30\.0%<\/dd>/);
 });
 
+test('冻结说明 1 第 1 条：V2 按导入规格 §8 替代 V1——V1 先锁；V2（后继 schema，supersedes 指向 V1）带 supersedes 导入；页面只把 V1 写成 SUPERSEDED；再导 V1 拒绝', () => {
+  fs.rmSync(k3.LEDGER(), { force: true });
+  const v1 = c17.write(c17.result());
+  const v1Lock = k3.importBaselineEvaluation(v1, { registeredBy: AUTHORITY, strategyRef: C17.strategy_ref, allowNonActual: true });
+  const v2 = c17.write(c17.result((doc) => {
+    doc.identity.schema = 'C17_V2_M2_Q0_RESULT_V2';
+    doc.identity.supersedes = [{ state: 'SUPERSEDED', smartflow_commit: 'c'.repeat(40), result_sha256: c17.fileSha(v1), reason_zh: '合成夹具：按生产 10 分钟节奏重建基线' }];
+  }));
+  // 没带 supersedes：一个 case 只锁一次
+  assert.throws(() => k3.importBaselineEvaluation(v2, { registeredBy: AUTHORITY, strategyRef: C17.strategy_ref, allowNonActual: true }),
+    (error) => error.code === 'BASELINE_ALREADY_LOCKED');
+  const v2Lock = k3.importBaselineEvaluation(v2, { registeredBy: AUTHORITY, strategyRef: C17.strategy_ref, allowNonActual: true,
+    supersedes: v1Lock.result_id, defectRef: 'C17-V2-SCAN-CADENCE', reason: 'V2 按生产 10 分钟节奏重建基线' });
+  assert.equal(v2Lock.supersedes_ref, v1Lock.result_id);
+  assert.deepEqual(k3.locks(C17.case_ref).map((row) => row.result_id), [v1Lock.result_id, v2Lock.result_id]);
+  const projection = k3.buildProjection(k3.headLock(C17.case_ref), { allowNonActual: true });
+  assert.equal(projection.result_id, v2Lock.result_id);
+  assert.match(projection.source.superseded[0].text_zh, /^已替代的第一次运行（SUPERSEDED，不是结果）：代码 cccccccc，结果文件 /);
+  assert.throws(() => k3.importBaselineEvaluation(v1, { registeredBy: AUTHORITY, strategyRef: C17.strategy_ref, allowNonActual: true }),
+    (error) => error.code === 'Q0_RESULT_IS_SUPERSEDED');
+  // 不认识的 schema 仍拒绝
+  assert.throws(() => k3.validateWhole(c17.result((doc) => { doc.identity.schema = 'C17_V2_M2_Q0_RESULT_V3'; }), C17), (error) => error.code === 'Q0_RESULT_SCHEMA_UNSUPPORTED');
+  fs.rmSync(k3.LEDGER(), { force: true });
+});
+
 // ── §7.8 档案校验器负例 ───────────────────────────────────────────────────────────
 
 test('§7.8 档案校验器：新键越界或缺字段、LEGACY 带读法、共享约束原文不含「共享，未复算」、空普查无标的说明，都拒绝；新口径词只在有证据时接受', () => {
@@ -206,6 +231,8 @@ test('§7.8 档案校验器：新键越界或缺字段、LEGACY 带读法、共�
   rejects((p) => { delete p.q0_reading.universe_note_zh; }, 'STRATEGY_PROFILE_FIELD_MISSING', /census_columns/);
   rejects((p) => { p.shared_constraints[1].text_zh = '海外桶 Rule 1b：四本账合计 16,000'; }, 'STRATEGY_PROFILE_FIELD_TYPE', /text_zh/);
   rejects((p, us) => { us.q0_reading = { r_digits: 3 }; }, 'STRATEGY_PROFILE_FIELD_TYPE', /US_V5_ETF_3000USD\.q0_reading/);
+  rejects((p) => { p.successor_result_schemas = [p.baseline_result_schema]; }, 'STRATEGY_PROFILE_FIELD_TYPE', /successor_result_schemas/);
+  rejects((p, us) => { us.successor_result_schemas = ['US_V5_M2_Q0_RESULT_V2']; }, 'STRATEGY_PROFILE_FIELD_TYPE', /US_V5_ETF_3000USD\.successor_result_schemas/);
   // 说明登记：新口径词 PRICE_ONLY_NO_FUNDING 没有证据 → 拒绝；有证据才接受
   const notes = JSON.parse(fs.readFileSync(detailNotes.FILE, 'utf8'));
   const entry = notes.strategies.C17_V2_4000USDT.comparators.BTC_BUY_HOLD.dividend_basis[0];

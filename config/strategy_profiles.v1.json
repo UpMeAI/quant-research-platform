@@ -118,6 +118,7 @@
       ],
       "floor": { "value": 1800, "currency": "USDT", "rule_label_zh": "Rule 1b 的 1,800 USDT（3,000 USDT 的 40% 线）" },
       "baseline_result_schema": "C17_V2_M2_Q0_RESULT_V1",
+      "successor_result_schemas": ["C17_V2_M2_Q0_RESULT_V2"],
       "import_profile_id": "docs/contracts/CRYPTO_Q0_RESULT_V1_IMPORT_PROFILE_ADDENDUM_1.md",
       "comparison_import_profile_ids": [],
       "phase_words": { "PRODUCTION": "4H 收线后第一个检查点", "PLUS_60MIN": "晚一小时决定（+60 分钟检查点）" },

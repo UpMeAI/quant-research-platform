@@ -286,7 +286,7 @@ function validateWhole(doc, profile = profileForDoc(doc), { fileSha256 = null } 
     && new Set(repro.runs.map((run) => run.sha256)).size === 1 && repro.identical === true,
   'Q0_RESULT_NOT_REPRODUCED');
   const identity = doc.identity;
-  need(isObject(identity) && identity.schema === profile.baseline_result_schema, 'Q0_RESULT_SCHEMA_UNSUPPORTED', identity && identity.schema);
+  need(isObject(identity) && profiles.resultSchemasOf(profile).includes(identity.schema), 'Q0_RESULT_SCHEMA_UNSUPPORTED', identity && identity.schema);
 
   const verdict = doc.verdict;
   need(isObject(verdict) && verdict.class === EVAL_CLASS, 'Q0_VERDICT_CLASS_UNSUPPORTED', verdict && verdict.class);

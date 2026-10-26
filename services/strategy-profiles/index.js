@@ -84,6 +84,12 @@ function validateProfile(raw, index) {
   if (cf.text(floor, 'currency') !== currency) fail('STRATEGY_PROFILE_FLOOR_CURRENCY_MISMATCH', `${ref}:${floor.currency}≠${currency}`);
 
   c.text(raw, 'baseline_result_schema'); c.text(raw, 'import_profile_id');
+  // CRYPTO_Q0_RESULT_V1 增补 1 冻结说明 1 第 1 条：同一 case 的后继结果 schema（如 C17 的 V2 替代 V1，按导入规格 §8 带 supersedes 导入）
+  if (raw.successor_result_schemas !== undefined) {
+    if (raw.projection_shape === 'LEGACY_V1') fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.successor_result_schemas:not allowed with LEGACY_V1`);
+    const list = c.array(raw, 'successor_result_schemas');
+    if (!list.length || !list.every(isText) || list.includes(raw.baseline_result_schema)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.successor_result_schemas:string[] other than baseline_result_schema`);
+  }
   c.array(raw, 'comparison_import_profile_ids').forEach((id, i) => { if (!isText(id)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.comparison_import_profile_ids[${i}]:string`); });
   c.words(raw, 'phase_words'); c.words(raw, 'segment_words');
   c.text(raw, 'cost_model_id');
@@ -254,7 +260,7 @@ function validate(doc) {
   };
   unique('strategy_ref', profiles.map((item) => item.strategy_ref));
   unique('case_ref', profiles.map((item) => item.case_ref));
-  unique('baseline_result_schema', profiles.map((item) => item.baseline_result_schema));
+  unique('baseline_result_schema', profiles.flatMap(resultSchemasOf));
   unique('comparison_import_profile_id', profiles.flatMap((item) => item.comparison_import_profile_ids));
   if (!profiles.some((item) => item.strategy_ref === doc.default_strategy_ref)) fail('STRATEGY_PROFILE_DEFAULT_NOT_REGISTERED', doc.default_strategy_ref);
   return Object.freeze({ contract: CONTRACT, default_strategy_ref: doc.default_strategy_ref, profiles: Object.freeze(profiles) });
@@ -280,7 +286,9 @@ const list = () => active.profiles;
 const find = (predicate) => active.profiles.find(predicate) || null;
 const get = (strategyRef) => (strategyRef ? find((item) => item.strategy_ref === strategyRef) : null);
 const byCase = (caseRef) => (caseRef ? find((item) => item.case_ref === caseRef) : null);
-const byBaselineSchema = (schema) => (schema ? find((item) => item.baseline_result_schema === schema) : null);
+/** 档案认的全部 Q0 结果 schema：主 schema 加后继 schema（冻结说明 1 第 1 条）。 */
+function resultSchemasOf(profile) { return [profile.baseline_result_schema, ...(profile.successor_result_schemas || [])]; }
+const byBaselineSchema = (schema) => (schema ? find((item) => resultSchemasOf(item).includes(schema)) : null);
 /** 一个对比导入档案只属于一条策略（validate 保证不重复）。 */
 const byComparisonProfile = (profileRef) => (profileRef ? find((item) => item.comparison_import_profile_ids.includes(profileRef)) : null);
 const defaultProfile = () => get(active.default_strategy_ref);
@@ -296,6 +304,6 @@ const comparator = (profile, role) => profile.comparators.find((item) => item.ro
 const comparatorLabel = (profile, key) => (profile.comparators.find((item) => item.key === key) || {}).label_zh;
 
 module.exports = {
-  FILE, CONTRACT, CURRENCIES, StrategyProfileError, validate, load, use, list, get, mustGet, byCase, byBaselineSchema,
+  FILE, CONTRACT, CURRENCIES, StrategyProfileError, validate, load, use, list, get, mustGet, byCase, byBaselineSchema, resultSchemasOf,
   byComparisonProfile, defaultProfile, isLegacyShape, comparator, comparatorLabel,
 };
