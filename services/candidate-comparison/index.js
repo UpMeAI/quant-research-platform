@@ -28,7 +28,7 @@ const profiles = require('../strategy-profiles');
 const registry = require('./registry');
 const {
   baseline, K3Error, fail, need, isObject, sha256, canonical, authority, reasonText, digests, stressRole, hasNoSeries,
-  BASE_KEYS, SUMMARY_KEYS, E, pick, edgeLabel, criteriaOf, baselineIdOf, forwardRows, incompleteStressScenarios,
+  baseKeysOf, SUMMARY_KEYS, E, pick, edgeLabel, criteriaOf, baselineIdOf, forwardRows, incompleteStressScenarios,
   stressBlock, accountBlock, forwardBlock, linesOf,
 } = require('./common');
 const { DELTA_STAR, DELTA_G, MIN_AFFECTED, MIN_BLOCKS, K2_REF, K2_SHA256, OOS_REUSE_LABEL } = require('./questions/q1');
@@ -242,7 +242,8 @@ function checkBaseline(entry, doc, caseRef) {
   let q0;
   try { q0 = baseline.readSealed(lock.file_ref, { allowNonActual: true }); } catch (error) { fail(E(entry, 'BASELINE_FILE_UNREADABLE'), `${id}:${error.code || error.message}`); }
   need(q0.sha256 === lock.file_sha256, E(entry, 'BASELINE_FILE_DRIFTED'), id);
-  const comparisonBase = pick(doc.arms, BASE_KEYS);
+  const comparisonBase = pick(doc.arms, baseKeysOf(entry));
+  if (entry.baseline_arm && entry.baseline_arm.ref) { checkBaselineArmRef(entry, doc, caseRef, id, comparisonBase); return lock; }
   const q0Base = q0.doc.arms && q0.doc.arms.D;
   need(isObject(comparisonBase) && isObject(comparisonBase.summary) && isObject(q0Base) && isObject(q0Base.summary), E(entry, 'BASELINE_ARM_MISSING'));
   for (const key of SUMMARY_KEYS) {
@@ -252,6 +253,37 @@ function checkBaseline(entry, doc, caseRef) {
     need(same, E(entry, 'BASELINE_ARM_DIFFERS_FROM_Q0'), `${key}: ${left} ≠ ${right}`);
   }
   return lock;
+}
+
+/**
+ * 原版臂来自另一题的已锁定臂（登记项 `baseline_arm.ref`，导入规格 V2 附录 3；Q5 的原版是 Q4 的候选臂 D+A25）：
+ * 文件的 `identity.baseline_arm_ref {result_id, arm, sha256}` 必须指向那一题当前的锁、臂名与登记项相同、sha256 与锁记录相同，
+ * 那份锁引用的是同一个 Q0 基线；原版臂的摘要与所引那一臂逐项相同。Q0 锁本身的核对（存在、当前、文件未漂移）照旧在前面做完。
+ */
+function checkBaselineArmRef(entry, doc, caseRef, q0Id, comparisonBase) {
+  const spec = entry.baseline_arm.ref;
+  const ref = doc.identity.baseline_arm_ref;
+  need(isObject(ref) && typeof ref.result_id === 'string' && ref.arm === spec.arm && typeof ref.sha256 === 'string', E(entry, 'BASELINE_ARM_REF_MISSING'),
+    `identity.baseline_arm_ref 必须是 {result_id, arm: ${spec.arm}, sha256}`);
+  const refLock = comparisonFor(ref.result_id);
+  need(refLock && refLock.case_ref === caseRef && refLock.question_ref === spec.question_ref, E(entry, 'BASELINE_ARM_REF_LOCK_NOT_FOUND'), ref.result_id);
+  need(ref.sha256 === refLock.file_sha256, E(entry, 'BASELINE_ARM_REF_SHA256_MISMATCH'), ref.result_id);
+  const head = headLock(caseRef, spec.question_ref);
+  need(head && head.result_id === ref.result_id, E(entry, 'BASELINE_ARM_REF_NOT_CURRENT'), `${ref.result_id} 已被 ${head ? head.result_id : '无'} 取代`);
+  need(refLock.baseline_result_id === q0Id, E(entry, 'BASELINE_ARM_REF_BASELINE_DIFFERS'), `${refLock.baseline_result_id}≠${q0Id}`);
+  let refDoc;
+  try { refDoc = baseline.readSealed(refLock.file_ref, { allowNonActual: true, topLevel: ['identity', 'arms'] }); } catch (error) {
+    fail(E(entry, 'BASELINE_ARM_REF_FILE_UNREADABLE'), `${ref.result_id}:${error.code || error.message}`);
+  }
+  need(refDoc.sha256 === refLock.file_sha256, E(entry, 'BASELINE_ARM_REF_FILE_DRIFTED'), ref.result_id);
+  const refArm = refDoc.doc.arms && refDoc.doc.arms[spec.arm];
+  need(isObject(comparisonBase) && isObject(comparisonBase.summary) && isObject(refArm) && isObject(refArm.summary), E(entry, 'BASELINE_ARM_MISSING'));
+  for (const key of SUMMARY_KEYS) {
+    const left = comparisonBase.summary[key];
+    const right = refArm.summary[key];
+    const same = typeof left === 'number' && typeof right === 'number' ? Math.abs(left - right) <= 1e-9 * Math.max(1, Math.abs(right)) : left === right;
+    need(same, E(entry, 'BASELINE_ARM_DIFFERS_FROM_REF'), `${key}: ${left} ≠ ${right}`);
+  }
 }
 
 /**

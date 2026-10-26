@@ -71,10 +71,10 @@ function goldenAfterA5(copy) {
 
 // ── 登记项本身 ──────────────────────────────────────────────────────────────────
 
-test('登记项：按题目 id 登记，队列顺序 Q1、Q2、Q3、Q4；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
-  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3', 'Q4']);
-  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2', 'Q3', 'Q4']);
-  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 4, 'schema 唯一');
+test('登记项：按题目 id 登记，队列顺序 Q1、Q2、Q3、Q4、Q5；K2 路径与 sha256 对得上仓库里冻结的 K2 文件，导入规格文件存在', () => {
+  assert.deepEqual(cc.ORDER, ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']);
+  assert.deepEqual(Object.keys(cc.QUESTIONS), ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']);
+  assert.equal(new Set(Object.values(cc.QUESTIONS).map((entry) => entry.schema)).size, 5, 'schema 唯一');
   for (const entry of Object.values(cc.QUESTIONS)) {
     assert.equal(sha256File(entry.k2.ref), entry.k2.sha256, `${entry.question_ref} 的 K2 sha256 要等于冻结文件的实际 sha256`);
     assert.ok(fs.existsSync(path.join(ROOT, entry.profile_ref)), `${entry.question_ref} 的导入规格文件存在：${entry.profile_ref}`);
@@ -119,7 +119,7 @@ test('登记项的内容：Q1 = 改造前写死的值；Q2 = K2 裁定 4–6', (
 test('队列状态：K2 已冻结且没有封存结果＝进行中；K2 未冻结按计划写排队（等谁）或待立题；封存结果的三种状态；计划里没有的题不动', () => {
   const queue = cc.registry.queueState;
   const card = (question, state) => ({ question_ref: question, state });
-  assert.deepEqual(cc.registry.PLAN, { Q1: [], Q2: [], Q3: ['Q1'], Q4: ['Q3'] });
+  assert.deepEqual(cc.registry.PLAN, { Q1: [], Q2: [], Q3: ['Q1'], Q4: ['Q3'], Q5: ['Q1', 'Q4'] });
   assert.deepEqual(queue('Q1', []), { question: 'Q1', phase: 'RUNNING', waiting_on: [] });
   assert.equal(queue('Q3', []).phase, 'RUNNING', 'Q3 的 K2 已冻结：不论 Q1 有没有锁，都是进行中，不再写「排队：Q1 之后」');
   assert.equal(queue('Q3', [card('Q1', 'LOCKED_VERIFIED')]).phase, 'RUNNING');

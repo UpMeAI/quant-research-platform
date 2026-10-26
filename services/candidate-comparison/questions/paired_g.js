@@ -12,13 +12,15 @@
  */
 const {
   fail, need, field, ci, finite, isObject, preferZh, E, bound, firstFinite, fmtPct, criteriaOf, baselineIdOf, REASON_WORDS,
-  pick, BASE_KEYS, edgeLabel, resolveReasons,
+  pick, baseKeysOf, edgeLabel, resolveReasons,
 } = require('../common');
 const { pairedBasis } = require('./basis');
 
 const DELTA_G = 0;
 const DELTA_R = 0.10;
 const MIN_TRADES = 30;
+/** G1 里「改变」那个数的键：默认改变的入场；Q5 是改变的入场加改变的出场（`changed_total`，K2 ★1 (a)）。 */
+const changedKeyOf = (entry) => entry.g1_changed_key || 'changed_entries';
 
 const CRITERIA = Object.freeze({
   G1: { kind: 'met', title: '样本够不够' },
@@ -59,9 +61,10 @@ function checkVerdict(entry, doc, flags) {
     need(finite(L_g) && L_g > DELTA_G, E(entry, 'VERDICT_SUPPORTED_WITHOUT_EVIDENCE'), `L_g=${L_g}`);
     // G1：两臂 OOS 成熟交易各 ≥ 30，改变的入场 ≥ 30；数字必须写在 criteria.G1 里
     const g1 = flags.G1.item;
-    need(['baseline_oos_trades', 'candidate_oos_trades', 'changed_entries'].every((key) => finite(g1[key]) && g1[key] >= MIN_TRADES),
+    const changedKey = changedKeyOf(entry);
+    need(['baseline_oos_trades', 'candidate_oos_trades', changedKey].every((key) => finite(g1[key]) && g1[key] >= MIN_TRADES),
       E(entry, 'VERDICT_SUPPORTED_SAMPLE_TOO_SMALL'),
-      `baseline=${g1.baseline_oos_trades} candidate=${g1.candidate_oos_trades} changed=${g1.changed_entries}`);
+      `baseline=${g1.baseline_oos_trades} candidate=${g1.candidate_oos_trades} changed=${g1[changedKey]}`);
     need(!(isObject(verdict.engine_approximation) && verdict.engine_approximation.flag === true), E(entry, 'VERDICT_SUPPORTED_ON_APPROXIMATE_ENGINE'));
   }
   if (verdict.state === 'NOT_PASSED') {
@@ -76,7 +79,7 @@ function checkVerdict(entry, doc, flags) {
 function exposureOf(entry, doc) {
   const fromDoc = [doc.comparison.exposure, doc.verdict.exposure].find(isObject);
   if (fromDoc) return fromDoc;
-  const base = pick(doc.arms, BASE_KEYS);
+  const base = pick(doc.arms, baseKeysOf(entry));
   const cand = pick(doc.arms, entry.candidate.keys);
   return isObject(base) && isObject(base.exposure) && isObject(cand) && isObject(cand.exposure)
     ? { BASELINE: base.exposure, [entry.candidate.key]: cand.exposure } : null;
@@ -88,7 +91,7 @@ function validateExposure(entry, doc) {
   const exposure = exposureOf(entry, doc);
   need(exposure, E(entry, 'EXPOSURE_DISCLOSURE_MISSING'), 'comparison.exposure');
   const extra = entry.exposure.extra_counts || { baseline: [], candidate: [] };
-  for (const [label, keys, extras] of [['BASELINE', BASE_KEYS, extra.baseline], [entry.candidate.key, entry.candidate.keys, extra.candidate]]) {
+  for (const [label, keys, extras] of [['BASELINE', baseKeysOf(entry), extra.baseline], [entry.candidate.key, entry.candidate.keys, extra.candidate]]) {
     const arm = pick(exposure, keys);
     need(isObject(arm), E(entry, 'EXPOSURE_DISCLOSURE_MISSING'), `exposure.${label}`);
     need(finite(arm.avg_notional_usd) && arm.avg_notional_usd >= 0, E(entry, 'EXPOSURE_DISCLOSURE_INVALID'), `${label}.avg_notional_usd`);
@@ -191,7 +194,7 @@ function builders(entry, doc) {
         avg_actual_risk_usd: finite(arm.avg_actual_risk_usd) ? arm.avg_actual_risk_usd : null,
         ...Object.fromEntries(extraKeys.map((key) => [key, field(arm, key, `exposure.${key}`)])),
       });
-      const base = rowOf(pick(exposure, BASE_KEYS), extras.baseline);
+      const base = rowOf(pick(exposure, baseKeysOf(entry)), extras.baseline);
       const cand = rowOf(pick(exposure, entry.candidate.keys), extras.candidate);
       // 敞口表里登记项另加的行（Q3b：行业 RS 的拒绝数与重排时点数）；原版臂没有排序层，没有写就是「—」
       // 一行可以带 `get(arm)` 读嵌套的计数（Q4：冷却计数按开盘扫描与其他扫描分开）；没有 get 时读 arm[key]，与之前相同
@@ -204,7 +207,7 @@ function builders(entry, doc) {
       };
       const extraRows = (entry.exposure.extra_rows || []).map((spec) => ({
         key: spec.key, label: spec.label_zh, unit: spec.unit_zh,
-        baseline: finite(valueOf(pick(exposure, BASE_KEYS), spec)) ? valueOf(pick(exposure, BASE_KEYS), spec) : null,
+        baseline: finite(valueOf(pick(exposure, baseKeysOf(entry)), spec)) ? valueOf(pick(exposure, baseKeysOf(entry)), spec) : null,
         candidate: candidateValue(spec),
       }));
       return {
@@ -228,7 +231,7 @@ function builders(entry, doc) {
       const has = (...values) => values.every(finite);
       const lines = {
         G1: () => `${texts.g1_rule}`
-          + `${has(g1.baseline_oos_trades) ? `原版 ${g1.baseline_oos_trades} 笔；` : ''}${has(g1.candidate_oos_trades) ? `候选 ${g1.candidate_oos_trades} 笔；` : ''}${has(g1.changed_entries) ? `${texts.changed_label} ${g1.changed_entries} 笔。` : ''}`,
+          + `${has(g1.baseline_oos_trades) ? `原版 ${g1.baseline_oos_trades} 笔；` : ''}${has(g1.candidate_oos_trades) ? `候选 ${g1.candidate_oos_trades} 笔；` : ''}${has(g1[changedKeyOf(entry)]) ? `${texts.changed_label} ${g1[changedKeyOf(entry)]} 笔。` : ''}`,
         P_G: () => `候选相对原版的年化对数增长差，95% 区间的下沿要大于 0。${has(L_g) ? `下沿 ${fmtPct(L_g, 2)}。` : ''}`,
         F3: () => `否决：账户年化对数增长差的 95% 区间上沿不高于 0。${has(U_g) ? `上沿 ${fmtPct(U_g, 2)}。` : ''}`,
       };
@@ -252,7 +255,7 @@ function builders(entry, doc) {
       return {
         layout: 'paired_g',
         class: v.class, state: v.state, label: edgeLabel(entry, v.state), delta_g: DELTA_G, delta_R: DELTA_R,
-        basis: pairedBasis({ state: v.state, flags: criteriaOf(entry, doc), L_g, U_g, delta_g: DELTA_G, min_trades: MIN_TRADES, changed_label: texts.changed_label }),
+        basis: pairedBasis({ state: v.state, flags: criteriaOf(entry, doc), L_g, U_g, delta_g: DELTA_G, min_trades: MIN_TRADES, changed_label: texts.changed_label, changed_key: changedKeyOf(entry) }),
         g_95: finite(L_g) && finite(U_g) ? { lo: L_g, hi: U_g } : null, fail_label: typeof preferZh(v, 'fail_label') === 'string' ? preferZh(v, 'fail_label') : null,
         reasons: resolved.known, unknown_reason_codes: resolved.unknown,
         method_zh: texts.method,
@@ -263,6 +266,6 @@ function builders(entry, doc) {
 }
 
 module.exports = {
-  DELTA_G, DELTA_R, MIN_TRADES, CRITERIA, REASON_WORDS_PAIRED_G, boundsOf, constants, checkVerdict, exposureOf, validateExposure,
+  DELTA_G, DELTA_R, MIN_TRADES, changedKeyOf, CRITERIA, REASON_WORDS_PAIRED_G, boundsOf, constants, checkVerdict, exposureOf, validateExposure,
   builders, detailText, count, fail,
 };

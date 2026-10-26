@@ -15,17 +15,18 @@ const FROZEN = '门槛在看到结果前已冻结';
 const lines = (...items) => items.filter(Boolean);
 
 /** 配对 g 一类（Q2、Q3b）。 */
-function pairedBasis({ state, flags, L_g, U_g, delta_g, min_trades, changed_label }) {
+function pairedBasis({ state, flags, L_g, U_g, delta_g, min_trades, changed_label, changed_key = 'changed_entries' }) {
   const item = flags.G1.item;
+  const changed = item[changed_key];
   const gLine = finite(L_g) && finite(U_g)
     ? `候选相对原版的年化对数增长差 95% 区间 ${pct1(L_g)} 至 ${pct1(U_g)}，${placeOf(L_g, U_g, delta_g)} ${delta_g}` : null;
   const short = [];
   if (finite(item.baseline_oos_trades) && item.baseline_oos_trades < min_trades) short.push(`原版样本外成熟交易 ${item.baseline_oos_trades} 笔`);
   if (finite(item.candidate_oos_trades) && item.candidate_oos_trades < min_trades) short.push(`候选样本外成熟交易 ${item.candidate_oos_trades} 笔`);
-  if (finite(item.changed_entries) && item.changed_entries < min_trades) short.push(`${changed_label} ${item.changed_entries} 笔`);
+  if (finite(changed) && changed < min_trades) short.push(`${changed_label} ${changed} 笔`);
   const g1Line = `G1 不成立：${short.length ? `${short.join('、')}，低于门槛 ${min_trades} 笔` : '样本不够（笔数没有写明）'}`;
   if (state === 'INSUFFICIENT' && flags.G1.flag !== true) return { title: '判定依据', main: [g1Line], also: lines(gLine), frozen_zh: FROZEN };
-  const g1Note = state === 'SUPPORTED' ? `；G1 成立（${changed_label} ${finite(item.changed_entries) ? item.changed_entries : '—'} 笔，门槛 ${min_trades} 笔）` : '';
+  const g1Note = state === 'SUPPORTED' ? `；G1 成立（${changed_label} ${finite(changed) ? changed : '—'} 笔，门槛 ${min_trades} 笔）` : '';
   return { title: '判定依据', main: lines(gLine && `${gLine}${g1Note}`), also: [], frozen_zh: FROZEN };
 }
 

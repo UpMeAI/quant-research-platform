@@ -22,7 +22,8 @@
         "docs/contracts/US_V5_M2_Q1_RESULT_V1_IMPORT_PROFILE.md",
         "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md",
         "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_1.md",
-        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_2.md"
+        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_2.md",
+        "docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2_ADDENDUM_3.md"
       ],
       "phase_words": { "PRODUCTION": "生产相位", "PLUS_60MIN": "相位 +60 分钟", "MINUS_60MIN": "相位 −60 分钟" },
       "segment_words": { "IS-a": "开发期 A", "IS-b": "开发期 B", "OOS": "样本外" },
@@ -41,7 +42,8 @@
           "Q1": { "title": "T3：处于趋势时推迟 5 日 TIME stop", "status": "排队：Q0 锁定之后开始（验收已签，HK 前向影子在跑）", "after": [] },
           "Q2": { "title": "收益来自信号还是杠杆", "status": "排队：可与 Q1 并行", "after": [] },
           "Q3": { "title": "选对象了吗：对比简单基准", "status": "排队：Q1 之后", "after": ["Q1"] },
-          "Q4": { "title": "风险预算、集中度、冷却与熔断", "status": "候选形成后立题", "after": ["Q3"] }
+          "Q4": { "title": "风险预算、集中度、冷却与熔断", "status": "候选形成后立题", "after": ["Q3"] },
+          "Q5": { "title": "组合验证：在 A25 之上加 T3", "status": "Owner 2026-10-26 同意先跑；K2 已冻结", "after": ["Q1", "Q4"] }
         }
       }
     }

@@ -391,7 +391,7 @@ function researchQueue(profile, notes, comparisons, program) {
       : (state && PHASE[state.phase] ? PHASE[state.phase](state) : '状态未登记');
     return {
       question_ref: question, part_zh: item ? item.part_zh : '未登记', name_zh: item ? item.name_zh : profile.research_program.queue[question].title,
-      source_zh: queue.source_zh, status_zh: status, locked: Boolean(card && card.state === 'LOCKED_VERIFIED'),
+      source_zh: (item && typeof item.source_zh === 'string' && item.source_zh) || queue.source_zh, status_zh: status, // 一题可写自己的来源（Q5：Owner 10-26 同意） locked: Boolean(card && card.state === 'LOCKED_VERIFIED'),
     };
   });
   return { title_zh: '研究队列', rows };
