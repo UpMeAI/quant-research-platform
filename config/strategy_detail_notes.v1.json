@@ -84,6 +84,24 @@
         "T3": "趋势中推迟时间止损",
         "X1": "换成 1 倍载体（收益来自信号还是杠杆）"
       }
+    },
+    "C17_V2_4000USDT": {
+      "comparators": {
+        "BTC_BUY_HOLD": {
+          "definition_zh": "BTC 买入持有 = 同本金 3,000 USDT、同起点一次买入 BTCUSDT 永续，一直持有到区间结束，中间没有任何买卖。",
+          "dividend_basis": [
+            {
+              "result_sha256": "26691b6c3a2c42277f33f28e2622de56d7f26eea16d371ef9193f0dfe2fe9e4e",
+              "basis": "PRICE_ONLY_NO_FUNDING",
+              "evidence": [
+                "smartflow 687597f9 trading-system-v2/scripts/research/qrp-crypto-v1/c17-q0.js:273-279 btcCurve()：段起点前最后一根已收盘 1m 的收盘价买入一次（起点前没有已收盘的 bar 时取第一根 1m 的开盘价），之后只按 BTCUSDT 永续收盘价变化，没有资金费项（冻结裁定 1 R-BTC (a)）",
+                "结果文件 identity.engine_files 里 scripts/research/qrp-crypto-v1/c17-q0.js 的 sha256 2a07ae96… 与 identity.smartflow_commit 5dafbc66 一致"
+              ],
+              "registered_by": "CRYPTO_Q0_RESULT_V1 增补 1 实现会话（§1.2 ★(a)）"
+            }
+          ]
+        }
+      }
     }
   }
 }

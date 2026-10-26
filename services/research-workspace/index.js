@@ -679,6 +679,8 @@ async function readModel({
     // 没有档案的策略标「该策略尚未接入研究」；页面金额默认按美元写，其他档案带上自己的币种。
     ...(!profile ? { profile_state: 'NOT_REGISTERED', profile_label: NOT_REGISTERED_LABEL } : {}),
     ...(profile && !profiles.isLegacyShape(profile) ? { currency: profile.currency } : {}),
+    // 增补 1 §1.4：本档案页面上 R 值的小数位（只加在写了 r_digits 的档案上）
+    ...(profile && !profiles.isLegacyShape(profile) && profile.q0_reading.r_digits ? { r_digits: profile.q0_reading.r_digits } : {}),
     ...(baselineWithoutCase ? { no_case_note_zh: '回测结论见上方：QRP 导入并锁定的 Q0 结果。运行态研究 case 尚未建立，所以还没有体检、研究问题与复盘。' } : {}),
     // 修订 5：研究队列小表（E7.1）与内部代号的中文题名（E7.2，页面换掉主内容里的代号）——只加在有说明登记的策略上
     ...(queueView ? { research_queue: queueView } : {}),
@@ -689,6 +691,7 @@ async function readModel({
       conclusion: { ...baselineProjection.conclusion, result_state: baselineProjection.state, result_reason: baselineProjection.reason || null },
       backtest: baselineProjection, comparisons: comparisonProjections, overview: adoptionOverview,
       notesQueue: notes && notes.research_queue, queueView, isMain: baselineEvaluation.mainRowTest(profile),
+      engineClause: !profiles.isLegacyShape(profile),
     }) } : {}),
     ...(notes && notes.code_names && Object.keys(notes.code_names).length ? { code_names: notes.code_names } : {}),
     // 修订 4 A4.4：列入 M4 范围、还没有接入的策略写「已列入 M4 范围，尚未接入」（只加在这些策略上）

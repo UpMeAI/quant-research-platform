@@ -18,7 +18,12 @@ const path = require('path');
 const FILE = path.join(__dirname, '..', '..', 'config', 'strategy_detail_notes.v1.json');
 const CONTRACT = 'QRP_STRATEGY_DETAIL_NOTES_V1';
 const SHA256 = /^[0-9a-f]{64}$/;
-const BASES = Object.freeze({ TOTAL_RETURN: '含分红（复权价）', PRICE_RETURN: '价格收益，不含分红' });
+const BASES = Object.freeze({
+  TOTAL_RETURN: '含分红（复权价）', PRICE_RETURN: '价格收益，不含分红',
+  // CRYPTO_Q0_RESULT_V1 增补 1 §1.2：永续合约没有分红，口径词写「只计价格变化，不计资金费」；页面这一项叫「口径」，不叫「分红口径」
+  PRICE_ONLY_NO_FUNDING: '只计价格变化，不计资金费',
+});
+const BASIS_LABELS = Object.freeze({ PRICE_ONLY_NO_FUNDING: '口径' });
 const NOT_RECORDED = '分红口径未记录';
 const KINDS = Object.freeze(['MISSING', 'INVALID_INPUT']);
 const FILL_STATES = Object.freeze(['FILLABLE', 'NOT_FILLABLE']);
@@ -116,6 +121,7 @@ function comparatorNote(notes, key, resultSha256) {
     key, definition_zh: item.definition_zh,
     dividend: entry ? entry.basis : 'NOT_RECORDED', dividend_zh: entry ? BASES[entry.basis] : NOT_RECORDED,
     evidence: entry ? [...entry.evidence] : [],
+    ...(entry && BASIS_LABELS[entry.basis] ? { basis_label_zh: BASIS_LABELS[entry.basis] } : {}),
   };
 }
 

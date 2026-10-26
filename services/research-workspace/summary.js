@@ -48,7 +48,7 @@ function bestCandidate(rows) {
  *   「现行版本样本外期末 {本策略}，{低于|高于|等于} {比较对象}的 {期末}（{结论}）；已采用 N 项改进（…）[，待 Owner 决定 M 题]，研究中期末最高的是…」
  * 没有锁定的回测结果时写回测状态与原因；没有锁定的对比结果时只写第一段。
  */
-function sentenceOf({ conclusion, account, overview, questions }) {
+function sentenceOf({ conclusion, account, overview, questions, engine = null }) {
   if (!conclusion || conclusion.result_state !== 'LOCKED_VERIFIED') {
     return `${conclusion && conclusion.label ? conclusion.label : '尚未回测'}：${(conclusion && (conclusion.reason || conclusion.result_reason)) || '原因未提供'}`;
   }
@@ -58,6 +58,8 @@ function sentenceOf({ conclusion, account, overview, questions }) {
     const relation = own.end_capital < cmp.end_capital ? '低于' : own.end_capital > cmp.end_capital ? '高于' : '等于';
     head = `现行版本样本外期末 ${whole(own.end_capital)}，${relation} ${cmp.label}的 ${whole(cmp.end_capital)}（${conclusion.label}）`;
   } else head = `现行版本回测结论：${conclusion.label}`;
+  // CRYPTO_Q0_RESULT_V1 增补 1 §2.2 第 1 条 ★(a)：近似引擎的标签分句紧跟结论头（只对非 LEGACY 档案、flag = true）
+  if (engine) head = `${head}；所用引擎为${engine}，结论最高只能是证据不足`;
   if (!overview) return head;
   const rows = overview.groups.flatMap((group) => group.rows);
   const improvements = adoptedImprovements(rows, questions);
@@ -153,13 +155,15 @@ function rulesOf({ strategy, caseRec, overview, queueView, comparisons }) {
 /**
  * 总览投影。`notesQueue` = 说明登记的 research_queue（题名、组合关系）；`overview` = 修订 6 的采用一览（可为 null）。
  */
-function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, overview, notesQueue, queueView, isMain = isMainRow }) {
+function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, overview, notesQueue, queueView, isMain = isMainRow, engineClause = false }) {
   const account = blockData(backtest, 'account');
+  const verdict = blockData(backtest, 'verdict');
+  const engine = engineClause && verdict && verdict.engine_approximation && verdict.engine_label ? verdict.engine_label : null;
   const questions = (notesQueue && notesQueue.questions) || {};
   const locked = (comparisons || []).filter((card) => card.state === 'LOCKED_VERIFIED');
   return {
     title_zh: '总览',
-    sentence_zh: sentenceOf({ conclusion, account, overview, questions }),
+    sentence_zh: sentenceOf({ conclusion, account, overview, questions, engine }),
     state: conclusion ? conclusion.state : null,
     tiles: conclusion && conclusion.result_state === 'LOCKED_VERIFIED' ? tilesOf({ backtest, account, overview, isMain }) : [],
     adoption: adoptionOf(overview, locked),
