@@ -159,12 +159,13 @@ const Q2 = Object.freeze({
   code_prefix: 'Q2',
   schema: 'US_V5_M2_Q2_RESULT_V1',
   queue_order: 2,
-  title_zh: '候选对比：1× 载体对原版（收益来自信号还是杠杆）',
+  // 修订 5 E7.2：卡片标题与正文里写中文题名「换成 1 倍载体（收益来自信号还是杠杆）」，不写「1× 载体」
+  title_zh: '候选对比：换成 1 倍载体对原版（收益来自信号还是杠杆）',
   k2: Object.freeze({ ref: K2_REF, sha256: K2_SHA256 }),
   profile_ref: 'docs/contracts/US_V5_M2_COMPARISON_IMPORT_PROFILE_V2.md',
   top_level: Object.freeze(['identity', 'inputs', 'gates', 'arms', 'stats', 'stress', 'half_kelly',
     'formula_table', 'verdict', 'diagnosis_items', 'reproducibility', 'comparison', 'oos_reuse', 'attribution']),
-  candidate: Object.freeze({ key: 'CANDIDATE_1X', keys: Object.freeze(['CANDIDATE_1X', '1X']), label_zh: '候选 1× 载体', deferred_sessions: false }),
+  candidate: Object.freeze({ key: 'CANDIDATE_1X', keys: Object.freeze(['CANDIDATE_1X', '1X']), label_zh: '候选（换成 1 倍载体）', deferred_sessions: false }),
   run_gates: Object.freeze(['ACCEPTANCE', 'INPUTS', 'BASELINE_REPRO', 'INERT_Q0F', 'INERT_Q1', 'ROUTING_CENSUS', 'ATTRIBUTION_RECONCILE', 'PROBE']),
   mirror: null,
   oos_reuse: Object.freeze({
@@ -174,9 +175,9 @@ const Q2 = Object.freeze({
   exposure: Object.freeze({ required: true }),
   criteria: paired.CRITERIA,
   texts: Object.freeze({
-    candidate_default: '候选 1× 载体：同一批信号，载体改为通过地板的最低 |杠杆| 行（再比 ADV，再比代码）；其余全部相同',
+    candidate_default: '候选（换成 1 倍载体）：同一批信号，载体改为通过地板的最低 |杠杆| 行（再比 ADV，再比代码）；其余全部相同',
     oos_label: '样本外没有被复用：2023–2026 没有用于选择载体杠杆',
-    exposure_note: '同样 60 美元的风险单元下，1× 载体的名义金额更大，名义上限更常约束；这是改动本身的后果，照报',
+    exposure_note: '同样 60 美元的风险单元下，1 倍载体的名义金额更大，名义上限更常约束；这是改动本身的后果，照报',
     g1_rule: '样本要够：两臂样本外成熟交易各 ≥ 30 笔，被改换载体的入场 ≥ 30 笔。',
     changed_label: '被改换载体的入场',
     method: '只按账户层面配对的年化对数增长差判定：95% 区间下沿大于 0 为有支持证据，上沿不高于 0 为未通过，其余为证据不足；单变体，不做多重比较校正。每笔净 R 对 +0.10 R 只报告，不参与判定。',

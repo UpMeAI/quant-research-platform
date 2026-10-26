@@ -1,0 +1,87 @@
+{
+  "_comment": "策略详情页的说明登记（UX 修订 5 E2／E5／E7）：只放说明文字和登记状态，不放任何数字；数字一律取自锁定的结果文件。分红口径按结果文件 sha256 绑定，换了结果文件就回到「分红口径未记录」，直到有人按引擎核实后再登记。 修订 6：research_queue 另登记基线行的名称与研究部分（baseline），以及每题所属的研究计划轮次（round，rounds 是各轮的名称），一览表按轮次分组。",
+  "contract": "QRP_STRATEGY_DETAIL_NOTES_V1",
+  "acceptance_ref": "docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_5.md",
+  "acceptance_sha256": "2f9f97f7b4340b9d3c095c4c220f2b8b6b436db396615caf6fc564f586b98ffa",
+  "strategies": {
+    "US_V5_ETF_3000USD": {
+      "comparators": {
+        "SPY_BUY_HOLD": {
+          "definition_zh": "SPY 买入持有 = 同本金、同起点一次买入，一直持有到区间结束，中间没有任何买卖。",
+          "dividend_basis": [
+            {
+              "result_sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49",
+              "basis": "TOTAL_RETURN",
+              "evidence": [
+                "smartflow 3ce05e6a trading-system-v2/scripts/research/us-v5-m2-q0-current.js:250-265 spyTr()：SPY 臂的价格序列取封存 SPY.json 第 7 列 adjclose（复权价），截至 2026-09-30；之后接续缓存收盘价（最近一次除息 2026-09-18，之后到 OOS 截止日无除息）",
+                "同文件 :266-270 benchMarks()：起点前一交易日按复权价买入一次（扣 5 bps），之后只随复权价变化，没有任何买卖",
+                "同文件 :533 与结果文件 arms.window.book_zh「SPY 总收益，起点买入扣 5 bps」；:539 与 arms.SPY_BUY_HOLD.source（SPY.json sha256 518b5ff5…，note_zh 写 adjclose）",
+                "结果文件 identity.engine_files 里 us-v5-m2-q0-current.js 的 sha256 cdebd740… 与 3ce05e6a 上该文件一致"
+              ],
+              "registered_by": "UX 修订 5 实现会话（E2.2）"
+            }
+          ]
+        }
+      },
+      "stress_scenarios": [
+        {
+          "scenario": "EXTREME_DOWNTURN_2008",
+          "kind": "MISSING",
+          "plain_reason_zh": "当时本策略的大部分交易载体（杠杆 ETF、2× 单股 ETF）还不存在，按 Owner 规则也不重拉历史；只能用合成载体做模拟（见模拟行），不计为已执行的压力。",
+          "fill": {
+            "state": "NOT_FILLABLE",
+            "reason_zh": "载体当时不存在"
+          },
+          "registered_by": "协调会话（UX 修订 5 E5.2）"
+        },
+        {
+          "scenario": "WINDOW_2020_02_19_04_30",
+          "kind": "INVALID_INPUT",
+          "plain_reason_zh": "数据从 2019-06-03 起，开局规则要先积累 250 根日线，2020-05-29 前没有可交易载体，这段一笔交易都开不出来。",
+          "fill": {
+            "state": "FILLABLE",
+            "project": "REGISTERED",
+            "plan_zh": "缓存向前延伸，只取缺的那一段，不是重拉"
+          },
+          "registered_by": "协调会话（UX 修订 5 E5.2）"
+        }
+      ],
+      "research_queue": {
+        "source_zh": "Q0 诊断，协调会话按 Owner 2026-10-25 授权立题",
+        "questions": {
+          "Q1": {
+            "part_zh": "进出规则",
+            "name_zh": "趋势中推迟时间止损",
+            "round": 1
+          },
+          "Q2": {
+            "part_zh": "杠杆与载体",
+            "name_zh": "换成 1 倍载体（收益来自信号还是杠杆）",
+            "round": 1
+          },
+          "Q3": {
+            "part_zh": "选标的",
+            "name_zh": "选对象了吗：随机对照与行业 RS 排序",
+            "round": 1
+          },
+          "Q4": {
+            "part_zh": "风控",
+            "name_zh": "冷却只在开仓时武装",
+            "round": 1
+          }
+        },
+        "baseline": {
+          "name_zh": "当前 D 原版评价",
+          "part_zh": "四部分的基线"
+        },
+        "rounds": {
+          "1": "第一轮（Q0 诊断立题，2026-10-25）"
+        }
+      },
+      "code_names": {
+        "T3": "趋势中推迟时间止损",
+        "X1": "换成 1 倍载体（收益来自信号还是杠杆）"
+      }
+    }
+  }
+}

@@ -40,7 +40,8 @@ const setCriteria = (doc, name, value) => { doc.comparison.criteria[name] = valu
 
 // UX 修订 4 只改呈现：投影里新增 A4 字段（判定依据、前向人话、与参照相同、基准提示），账户块只留原版与候选两臂；
 // 其余每个数字、标签、状态、结果编号都必须与改造前导出的金标逐字段相同。金标本身不动。
-const A4_ADDED = new Set(['benchmark_note_zh', 'same_as_reference', 'basis', 'unknown_reason_codes', 'plain_zh']);
+// UX 修订 5 勘误 1 E3 给每个臂加了 `peak`（从封存权益序列读出的最高点读数），同样是新增的呈现字段
+const A4_ADDED = new Set(['benchmark_note_zh', 'same_as_reference', 'basis', 'unknown_reason_codes', 'plain_zh', 'peak']);
 const stripA4 = (value) => (Array.isArray(value) ? value.map(stripA4)
   : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => !A4_ADDED.has(key)).map(([key, item]) => [key, stripA4(item)])) : value);
 function goldenAfterA4(goldenProjection, armKeys) {
@@ -48,6 +49,23 @@ function goldenAfterA4(goldenProjection, armKeys) {
   const account = copy.blocks.find((item) => item.key === 'account').data;
   assert.deepEqual(account.arms.map((arm) => arm.key), armKeys, '金标是改造前导出的，四臂俱在');
   account.arms = account.arms.slice(0, 2);
+  return goldenAfterA5(copy);
+}
+
+/**
+ * UX 修订 5 E7.2：Q2 的卡片标题、候选臂标签与敞口说明把「1× 载体」写作「换成 1 倍载体」。金标是改造前导出的，
+ * 只把这三处呈现文字换成新写法再比；数字与其余字段仍须逐字段相同。
+ */
+function goldenAfterA5(copy) {
+  if (copy.question_ref !== 'Q2') return copy;
+  assert.equal(copy.title_zh, '候选对比：1× 载体对原版（收益来自信号还是杠杆）');
+  copy.title_zh = '候选对比：换成 1 倍载体对原版（收益来自信号还是杠杆）';
+  const arm = copy.blocks.find((item) => item.key === 'account').data.arms.find((item) => item.key === 'CANDIDATE_1X');
+  assert.equal(arm.label, '候选 1× 载体');
+  arm.label = '候选（换成 1 倍载体）';
+  const exposure = copy.blocks.find((item) => item.key === 'exposure').data;
+  assert.equal(exposure.note_zh, '同样 60 美元的风险单元下，1× 载体的名义金额更大，名义上限更常约束；这是改动本身的后果，照报');
+  exposure.note_zh = '同样 60 美元的风险单元下，1 倍载体的名义金额更大，名义上限更常约束；这是改动本身的后果，照报';
   return copy;
 }
 
@@ -203,7 +221,7 @@ test('Q2 导入：按 identity.schema 找到登记项，锁里写 Q2 的 K2 与�
 test('Q2 的页面投影：九块按固定顺序；优势结论写「完整账户的对数增长更好」；采用条件里没有「独立样本不足」', () => {
   const projection = project2();
   assert.equal(projection.question_ref, 'Q2');
-  assert.equal(projection.title_zh, '候选对比：1× 载体对原版（收益来自信号还是杠杆）');
+  assert.equal(projection.title_zh, '候选对比：换成 1 倍载体对原版（收益来自信号还是杠杆）'); // UX 修订 5 E7.2
   assert.deepEqual(projection.blocks.map((item) => item.key), ['question', 'account', 'effect', 'exposure', 'criteria', 'stress', 'attribution', 'verdict', 'forward']);
   assert.ok(projection.blocks.every((item) => item.state === 'AVAILABLE'), JSON.stringify(projection.blocks.map((item) => [item.key, item.reason])));
   assert.equal(projection.verdict_label, '完整账户的对数增长更好（不等于信号 alpha 更大）');
@@ -215,7 +233,7 @@ test('Q2 的页面投影：九块按固定顺序；优势结论写「完整账�
   assert.equal(projection.completeness.adoption_met, false);
 
   const account = block(projection, 'account').data;
-  assert.deepEqual(account.arms.map((arm) => [arm.key, arm.label]), [['BASELINE', '原版（当前 D）'], ['CANDIDATE_1X', '候选 1× 载体']]);
+  assert.deepEqual(account.arms.map((arm) => [arm.key, arm.label]), [['BASELINE', '原版（当前 D）'], ['CANDIDATE_1X', '候选（换成 1 倍载体）']]);
   assert.ok(account.arms.every((arm) => arm.deferred_sessions === null));
   const question = block(projection, 'question').data;
   assert.deepEqual(question.populations, []);

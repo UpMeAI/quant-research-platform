@@ -233,6 +233,12 @@ const SCHEMAS = Object.freeze({
     k2_ref: 's', profile_ref: 's', supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?',
     production_effect: 's', locked_by: 's', lock_hash: 's', locked_at: 's',
   },
+  RESEARCH_ADOPTION_DECISION_V1: {
+    _doc: 'UX 修订 6 H1 —— 研究结论的采用决定（追加式）：DECISION（ADOPT／NOT_ADOPTED／NOT_APPLICABLE，Owner 原话、决定时间、后续去向、协调会话建议、决定记录文件 sha256）或 RECOMMENDATION（只有建议与理由）；按 result_id（随机对照加 part）定位，改决定须 supersedes 旧记录；只有完成权威能写',
+    record_id: 's', kind: 's', result_id: 's', part: 's?', case_ref: 's', strategy_ref: 's', question_ref: 's',
+    decision: 's?', follow_up_zh: 's?', decided_by: 's?', owner_words: 's?', decided_at: 's?', coordinator_recommendation: 'o?', evidence_ref: 'o?',
+    supersedes: 's?', production_effect: 's', written_by: 's', written_at: 's', record_hash: 's',
+  },
   STRATEGY_BASELINE_V1: {
     _doc: '自审计 strategy_baseline —— 冻结预期基线，只记录不重算策略结论',
     baseline_id: 's', strategy_ref: 's', market: 's', runtime_mode: 's', version_ref: 's',

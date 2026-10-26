@@ -11,7 +11,7 @@ const profiles = require('../strategy-profiles');
 const {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, STRESS_NUMBERS, KNOWN_STRESS_STATUS, REASON_WORDS, EDGE_LABELS,
-  resolveReasons, plainNumbers, pct1, rText,
+  resolveReasons, plainNumbers, pct1, rText, peakReadout,
 } = baseline.internals;
 
 const BASE_KEYS = Object.freeze(['BASELINE', 'D']);
@@ -83,15 +83,15 @@ const forwardReason = (doc) => {
 const shortDate = (text) => String(text).replace(/\d{4}-(\d{2}-\d{2})T[\d:.]+Z?/g, '$1');
 
 /**
- * 前向行的一句人话（D3.9）：「MSFU 10-09 入场，T3 推迟过时间止损，ΔR −1.07」。
+ * 前向行的一句人话（D3.9）：「MSFU 10-09 入场，推迟过时间止损，ΔR −1.07」。
  * 行里有入场标的、入场时间、ΔR 和是否受影响时按这个格式写；否则用行自己的中文说明，时间戳缩成月-日、小数缩成两位。
- * key、type、哈希等技术字段不进这一句，收在折叠里。
+ * key、type、哈希等技术字段不进这一句，收在折叠里；行里的规则代号（`rule`，例如 T3）也不进这一句（修订 5 E7.2），
+ * 它在折叠的技术字段里。
  */
 function forwardSentence(row) {
   if (typeof row.carrier === 'string' && row.carrier && typeof row.entry_time === 'string' && finite(row.delta_R) && typeof row.affected === 'boolean') {
-    const rule = typeof row.rule === 'string' && row.rule ? `${row.rule} ` : '';
     const delta = row.delta_R === 0 ? '0' : `${row.delta_R < 0 ? '−' : '+'}${Math.abs(row.delta_R).toFixed(2)}`;
-    return `${row.carrier} ${shortDate(row.entry_time)} 入场，${rule}${row.affected ? '推迟过时间止损' : '没有推迟时间止损（不受影响）'}，ΔR ${delta}`;
+    return `${row.carrier} ${shortDate(row.entry_time)} 入场，${row.affected ? '推迟过时间止损' : '没有推迟时间止损（不受影响）'}，ΔR ${delta}`;
   }
   const text = preferZh(row, 'text');
   // 研究会话原文里括号中的英文原因码（如「（PREFIX_BROKEN）」）不进主内容这一句；原文整段仍在折叠的技术详情里
@@ -254,7 +254,7 @@ function armSummaries(entry, doc) {
       key, label, end_capital: end, cagr: field(summary, 'cagr', `arms.${key}.summary.cagr`),
       max_drawdown: field(summary, 'max_drawdown', `arms.${key}.summary.max_drawdown`),
       longest_underwater_sessions: field(summary, 'longest_underwater_sessions', `arms.${key}.summary.longest_underwater_sessions`),
-      recovered: field(summary, 'recovered', `arms.${key}.summary.recovered`, 'bool'),
+      recovered: field(summary, 'recovered', `arms.${key}.summary.recovered`, 'bool'), peak: peakReadout(equity), // 修订 5 勘误 1 E3
       sessions: equity.values.length, start: equity.dates[0], end_date: equity.dates[equity.dates.length - 1],
       deferred_sessions: entry.candidate.deferred_sessions && key === entry.candidate.key && finite(arm.deferred_sessions) ? arm.deferred_sessions : null,
     };
@@ -278,6 +278,8 @@ function referenceRows(entry, doc) {
       const summary = arm.summary;
       need(isObject(summary), 'MISSING', `reference_arms.${spec.key}.summary`);
       const end = field(summary, 'end_capital', `reference_arms.${spec.key}.summary.end_capital`);
+      const series = isObject(arm.equity) && Array.isArray(arm.equity.values) && arm.equity.values.length
+        && Array.isArray(arm.equity.dates) && arm.equity.dates.length === arm.equity.values.length ? arm.equity : null;
       if (isObject(arm.equity) && Array.isArray(arm.equity.values) && arm.equity.values.length) {
         need(Math.abs(end - arm.equity.values[arm.equity.values.length - 1]) <= 1e-6 * Math.max(1, Math.abs(end)), 'INVALID', `reference_arms.${spec.key}.summary.end_capital 与权益序列末点不一致`);
       }
@@ -286,6 +288,7 @@ function referenceRows(entry, doc) {
         max_drawdown: field(summary, 'max_drawdown', `reference_arms.${spec.key}.summary.max_drawdown`),
         longest_underwater_sessions: field(summary, 'longest_underwater_sessions', `reference_arms.${spec.key}.summary.longest_underwater_sessions`),
         recovered: field(summary, 'recovered', `reference_arms.${spec.key}.summary.recovered`, 'bool'),
+        peak: series ? peakReadout(series) : null, // 参照臂没有权益序列时不给读数
       };
     } catch (error) { return { ...row, unavailable_zh: reasonText(error) }; }
   });

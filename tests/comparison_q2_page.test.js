@@ -88,6 +88,9 @@ function projections({ q1 = true, q2 = true, mutateQ2 } = {}) {
   return { baseline, cards, file2, lock2, build };
 }
 const modelOf = (baseline, comparison) => workspace.readModel({ strategyRef: STRATEGY, baseline, comparison });
+// UX 修订 5 E7.2：主内容里的卡片标题写中文题名（Q1 的 T3 由页面换成「趋势中推迟时间止损」；Q2 的「1× 载体」写作「换成 1 倍载体」）
+const Q1_TITLE = '候选对比：「趋势中推迟时间止损」对原版';
+const Q2_TITLE = '候选对比：换成 1 倍载体对原版（收益来自信号还是杠杆）';
 
 test('两题都锁定：策略详情「研究与对比」里两张卡，按队列 Q1、Q2；Q1 七块、Q2 九块；各有各的标题', async () => {
   const { baseline, cards } = projections();
@@ -99,8 +102,8 @@ test('两题都锁定：策略详情「研究与对比」里两张卡，按队�
     'question', 'account', 'effect', 'criteria', 'stress', 'verdict', 'forward',
     'question', 'account', 'effect', 'exposure', 'criteria', 'stress', 'attribution', 'verdict', 'forward',
   ]);
-  const q1Title = section.indexOf('候选对比：T3 对原版');
-  const q2Title = section.indexOf('候选对比：1× 载体对原版（收益来自信号还是杠杆）');
+  const q1Title = section.indexOf(Q1_TITLE);
+  const q2Title = section.indexOf(Q2_TITLE);
   assert.ok(q1Title > -1 && q2Title > q1Title, 'Q1 在前，Q2 在后');
   assert.match(section, /id="comparison-title"/);
   assert.match(section, /id="comparison-title-Q2"/);
@@ -112,7 +115,7 @@ test('两题都锁定：策略详情「研究与对比」里两张卡，按队�
 test('Q2 卡的主内容：优势结论写「完整账户的对数增长更好（不等于信号 alpha 更大）」；三行分开；采用条件里没有「独立样本不足」', async () => {
   const { baseline, cards } = projections();
   const html = await renderPage(await modelOf(baseline, cards));
-  const q2 = mainContent(cardOf(researchSection(html), '候选对比：1× 载体对原版（收益来自信号还是杠杆）'));
+  const q2 = mainContent(cardOf(researchSection(html), Q2_TITLE));
   assert.match(q2, /<span class="pill ok">优势结论：完整账户的对数增长更好（不等于信号 alpha 更大）<\/span>/);
   assert.match(q2, /<li class="">优势结论：完整账户的对数增长更好（不等于信号 alpha 更大）<\/li>/);
   assert.match(q2, /<li class="warn">压力评价不完整：缺场景 1 个、无效输入 1 个（/);
@@ -122,7 +125,7 @@ test('Q2 卡的主内容：优势结论写「完整账户的对数增长更好�
   assert.match(q2, /没有用于选择载体杠杆/);
   assert.match(q2, /「有支持证据」在这里的意思是完整账户的对数增长更好，不等于信号 alpha 更大/);
   // Q1 的卡仍是「有支持证据」和「独立样本不足」
-  const q1 = mainContent(cardOf(researchSection(html), '候选对比：T3 对原版'));
+  const q1 = mainContent(cardOf(researchSection(html), Q1_TITLE));
   assert.match(q1, /优势结论：有支持证据/);
   assert.match(q1, /独立样本不足，等前向成熟/);
   assert.doesNotMatch(q1, /不等于信号 alpha/);
@@ -130,7 +133,7 @@ test('Q2 卡的主内容：优势结论写「完整账户的对数增长更好�
 
 test('Q2 卡的内容：g 的 95% 区间、次指标对 +0.10 R（不参与判定）、路由与单股 2×、两臂敞口表、判据三条', async () => {
   const { baseline, cards } = projections();
-  const q2 = mainContent(cardOf(researchSection(await renderPage(await modelOf(baseline, cards))), '候选对比：1× 载体对原版（收益来自信号还是杠杆）'));
+  const q2 = mainContent(cardOf(researchSection(await renderPage(await modelOf(baseline, cards))), Q2_TITLE));
   assert.match(q2, /<dt>候选相对原版的年化对数增长差（主判据）<\/dt><dd>2\.10%（95% 区间 0\.40% 至 3\.90%）<\/dd>/);
   assert.match(q2, /年化对数增长差按共同日标记配对，按月分块 bootstrap；单变体，不做多重比较校正/);
   assert.doesNotMatch(q2, /98\.33%|Bonferroni（|最低改善量/);
@@ -159,7 +162,7 @@ test('Q2 卡的内容：g 的 95% 区间、次指标对 +0.10 R（不参与判�
 test('Q2a 归因表：各栏、各类、合计；监管费按日进位差单列；账户期末 − 期初；残差 0；R、开发期、定义在折叠里', async () => {
   const { baseline, cards } = projections();
   const html = await renderPage(await modelOf(baseline, cards));
-  const card = cardOf(researchSection(html), '候选对比：1× 载体对原版（收益来自信号还是杠杆）');
+  const card = cardOf(researchSection(html), Q2_TITLE);
   const main = mainContent(card);
   const attribution = main.slice(main.indexOf('data-cmp-block="attribution"'), main.indexOf('data-cmp-block="verdict"'));
   for (const label of ['母序列信号', '杠杆与路径', '单股 2×（不可分）', '费用（含在成交价里的 5 bps／边）', '监管费（逐笔未进位）']) assert.ok(attribution.includes(`<th scope="col">${label}</th>`), label);
@@ -200,7 +203,7 @@ test('只有 Q1 锁定：只有 Q1 一张卡，不出现 Q2 的空卡；Q1 没�
   const only1 = projections({ q2: false });
   const html1 = researchSection(await renderPage(await modelOf(only1.baseline, only1.cards)));
   assert.equal((html1.match(/<section class="backtest comparison"/g) || []).length, 1);
-  assert.doesNotMatch(html1, /1× 载体对原版/);
+  assert.doesNotMatch(html1, /换成 1 倍载体对原版/);
 
   const none = projections({ q1: false, q2: false });
   const htmlNone = researchSection(await renderPage(await modelOf(none.baseline, [cc.emptyProjection('NOT_IMPORTED')])));
@@ -215,7 +218,7 @@ test('Q2 文件校验失败：只有 Q2 那张卡写「尚未完成：结果文�
   assert.equal(q2.state, 'INVALID');
   const html = await renderPage(await modelOf(state.baseline, [state.cards[0], q2]));
   const section = researchSection(html);
-  assert.match(section, /候选对比：1× 载体对原版（收益来自信号还是杠杆）<\/h3>.*?尚未完成：结果文件校验失败：Q2_RESULT_SHA256_MISMATCH/);
+  assert.match(section, /候选对比：换成 1 倍载体对原版（收益来自信号还是杠杆）<\/h3>.*?尚未完成：结果文件校验失败：Q2_RESULT_SHA256_MISMATCH/);
   assert.equal((section.match(/data-cmp-block/g) || []).length, 7, '只剩 Q1 的七块');
   assert.match(section, /优势结论：有支持证据/);
   const diagnosis = html.slice(html.indexOf('id="diagnosis-title"'), html.indexOf('id="detail-health"'));
