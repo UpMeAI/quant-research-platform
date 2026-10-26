@@ -69,6 +69,11 @@
   - `checks` 含第 1–6 项，第 1–4 项写 `yes: true | false`；第 5、6 项是反证（`counter: true`），只列出；
   - `recommendation` 是 `ADOPT` 还是 `NOT_ADOPTED`，必须与第 1–4 项一致：全「是」→ `ADOPT`，任一「否」→ `NOT_ADOPTED`。
   - 拒绝条件：缺块为 `Q5_RECOMMENDATION_MISSING`，项不全为 `Q5_RECOMMENDATION_CHECKS_INCOMPLETE`，与核对不一致为 `Q5_RECOMMENDATION_INCONSISTENT`。
+- **K2 勘误 1（协调会话裁定 (b) 的条件 3）：** `readings` 必须并列两种读法：
+  - `FROZEN_TEXT`：冻结原文的读法，即主建议，与上面的核对表相同；
+  - `RUNNER_STRICT_48EF9888`：第一版运行器的较严读法。
+
+  每种读法的建议都必须与它自己的第 1–4 项一致，主建议必须等于 `FROZEN_TEXT` 的建议。缺了一种读法为 `Q5_RECOMMENDATION_READINGS_MISSING`，不一致为 `Q5_RECOMMENDATION_INCONSISTENT`。`share_count_differences`（同一入场股数不同的交易与原因）和 `counter_evidence_zh` 照列，页面并列显示。
 - **结论不是证据不足时**，不许带建议（`Q5_RECOMMENDATION_NOT_ALLOWED`）。这时采用按结论本身走：
   - 有支持证据 → 采用路径，T3 走签字；
   - 未通过 → 不采用。

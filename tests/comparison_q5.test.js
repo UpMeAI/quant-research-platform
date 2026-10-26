@@ -115,8 +115,20 @@ test('Q5 采用建议（★3 (a)）：证据不足时必须有；建议必须与
   refuses5((doc) => { doc.recommendation.checks = doc.recommendation.checks.filter((check) => check.id !== 6); }, 'Q5_RECOMMENDATION_CHECKS_INCOMPLETE');
   refuses5((doc) => { doc.recommendation.checks = fx5.checks([true, false, true, true]); }, 'Q5_RECOMMENDATION_INCONSISTENT');
   const projection = project5((doc) => { doc.recommendation.checks = fx5.checks([true, true, false, true]); doc.recommendation.recommendation = 'NOT_ADOPTED';
-    doc.recommendation.recommendation_zh = '建议不采用：第 3 项为「否」'; });
+    doc.recommendation.recommendation_zh = '建议不采用：第 3 项为「否」';
+    doc.recommendation.readings = [{ ...fx5.reading('FROZEN_TEXT', true), checks: fx5.checks([true, true, false, true]), recommendation: 'NOT_ADOPTED' },
+      { ...fx5.reading('RUNNER_STRICT_48EF9888', false), checks: fx5.checks([true, true, false, false]) }]; });
   assert.equal(extra(projection, 'recommendation').data.recommendation, 'NOT_ADOPTED');
+});
+
+test('Q5 勘误 1：两种读法都要有；各自的建议与各自第 1–4 项一致；主建议必须是冻结原文的读法；卡片并列两种读法与股数差异', () => {
+  refuses5((doc) => { doc.recommendation.readings = doc.recommendation.readings.filter((r) => r.key !== 'RUNNER_STRICT_48EF9888'); }, 'Q5_RECOMMENDATION_READINGS_MISSING');
+  refuses5((doc) => { doc.recommendation.readings[1].recommendation = 'ADOPT'; }, 'Q5_RECOMMENDATION_INCONSISTENT');
+  refuses5((doc) => { doc.recommendation.readings[0] = fx5.reading('FROZEN_TEXT', false); }, 'Q5_RECOMMENDATION_INCONSISTENT');
+  const card = extra(project5(), 'recommendation').data;
+  assert.deepEqual(card.readings.map((r) => [r.key, r.item4_yes, r.recommendation]), [['FROZEN_TEXT', true, 'ADOPT'], ['RUNNER_STRICT_48EF9888', false, 'NOT_ADOPTED']]);
+  assert.equal(card.share_count_differences.length, 1);
+  assert.equal(card.counter_evidence.length, 2);
 });
 
 test('Q5 参照行与敞口：缺一行、in_verdict 不是 false 拒绝；原版臂缺未武装的冷却数拒绝', () => {

@@ -237,7 +237,10 @@ function recommendationCard(card,id,head){
   const mark=(c)=>c.counter?'反证，只列出':(c.yes===true?'是':(c.yes===false?'否':'—'));
   const rows=d.checks.map((c)=>[esc(c.id),esc(c.item),esc(mark(c)),esc(c.facts)]);
   const advice=d.recommendation==='ADOPT'?'建议采用':'建议不采用';
-  return `<section class="backtest comparison recommendation" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<div class="status-row">${pill(`待 Owner 决定（${advice}）`,'OBSERVING')}</div><p><strong>${esc(d.recommendation_zh)}</strong></p>${table(['项','核对','结果','事实'],rows)}${d.analysis.length?`<ul>${d.analysis.map((line)=>`<li>${esc(line)}</li>`).join('')}</ul>`:''}<p class="muted-note">${esc(d.note_zh)}</p></section>`;
+  const readings=d.readings&&d.readings.length?table(['读法','第 4 项','建议'],d.readings.map((r)=>[esc(r.label),r.item4_yes===true?'是':(r.item4_yes===false?'否':'—'),esc(r.recommendation_zh)]),d.readings_note||''):'';
+  const diffs=d.share_count_differences&&d.share_count_differences.length?table(['载体','入场时点','股数（原版 / 候选）','原因'],d.share_count_differences.map((r)=>[esc(r.carrier),esc(r.entry_time),esc(Object.values(r.shares).join(' / ')),esc(r.cause)]),'同一入场股数不同的交易（账户状态带来的定仓差异）'):'';
+  const counter=d.counter_evidence&&d.counter_evidence.length?`<p><strong>反证（只列出，不单独否决）：</strong>${d.counter_evidence.map(esc).join('；')}</p>`:'';
+  return `<section class="backtest comparison recommendation" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}">${head}<div class="status-row">${pill(`待 Owner 决定（${advice}）`,'OBSERVING')}</div><p><strong>${esc(d.recommendation_zh)}</strong></p>${readings}${table(['项','核对','结果','事实'],rows)}${diffs}${counter}${d.analysis.length?`<ul>${d.analysis.map((line)=>`<li>${esc(line)}</li>`).join('')}</ul>`:''}<p class="muted-note">${esc(d.note_zh)}</p></section>`;
 }
 function renderComparison(cmp,ctx){
   if(!cmp||cmp.state==='NOT_CONNECTED')return '';

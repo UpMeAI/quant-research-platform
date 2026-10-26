@@ -65,6 +65,8 @@ function validateCooldownCounts(entry, doc) {
 
 const CHECK_IDS = Object.freeze([1, 2, 3, 4, 5, 6]);
 const DECISIVE = Object.freeze([1, 2, 3, 4]);
+/** 勘误 1 的两种读法：冻结原文的读法（主建议）在前，第一版运行器的较严读法在后。 */
+const READINGS = Object.freeze(['FROZEN_TEXT', 'RUNNER_STRICT_48EF9888']);
 /**
  * ★3 (a)：证据不足时必须有建议，且建议与前 4 项一致（全「是」→ ADOPT，任一「否」→ NOT_ADOPTED）；第 5、6 项是反证，只列出。
  * 不是证据不足时不许有建议（有支持证据 → 采用路径；未通过 → 不采用；都不需要这张核对表）。
@@ -81,6 +83,18 @@ function validateRecommendation(entry, doc) {
   need(DECISIVE.every((id) => typeof byId.get(id).yes === 'boolean'), E(entry, 'RECOMMENDATION_CHECKS_INCOMPLETE'), '第 1–4 项要写 yes: true／false');
   const expected = DECISIVE.every((id) => byId.get(id).yes) ? 'ADOPT' : 'NOT_ADOPTED';
   need(rec.recommendation === expected, E(entry, 'RECOMMENDATION_INCONSISTENT'), `${rec.recommendation}≠${expected}`);
+  // K2 勘误 1（裁定 (b) 的条件 3）：两种读法并列——冻结原文的读法（主建议，与上面的核对表相同）与第一版运行器的较严读法；
+  // 每种读法自己的建议也必须与它的第 1–4 项一致
+  need(Array.isArray(rec.readings) && READINGS.every((key) => rec.readings.some((r) => isObject(r) && r.key === key)), E(entry, 'RECOMMENDATION_READINGS_MISSING'),
+    READINGS.join('、'));
+  for (const reading of rec.readings.filter(isObject)) {
+    const items = new Map((Array.isArray(reading.checks) ? reading.checks : []).filter(isObject).map((check) => [check.id, check]));
+    need(DECISIVE.every((id) => items.has(id) && typeof items.get(id).yes === 'boolean'), E(entry, 'RECOMMENDATION_CHECKS_INCOMPLETE'), `readings.${reading.key}`);
+    const own = DECISIVE.every((id) => items.get(id).yes) ? 'ADOPT' : 'NOT_ADOPTED';
+    need(reading.recommendation === own, E(entry, 'RECOMMENDATION_INCONSISTENT'), `readings.${reading.key}: ${reading.recommendation}≠${own}`);
+  }
+  const main = rec.readings.find((r) => isObject(r) && r.key === READINGS[0]);
+  need(main.recommendation === rec.recommendation, E(entry, 'RECOMMENDATION_INCONSISTENT'), '主建议必须是冻结原文的读法');
 }
 
 /** 建议卡：六项逐条（第 5、6 项标「反证，只列出」）与建议；不是证据不足时写「本题不需要」。 */
@@ -96,6 +110,15 @@ function recommendationCard(entry, doc) {
     checks: rec.checks.filter(isObject).map((check) => ({ id: check.id, item: text(check.item_zh), counter: check.counter === true,
       yes: typeof check.yes === 'boolean' ? check.yes : null, facts: text(check.facts_zh) })),
     recommendation: rec.recommendation, recommendation_zh: text(rec.recommendation_zh),
+    readings: (Array.isArray(rec.readings) ? rec.readings : []).filter(isObject).map((reading) => {
+      const item4 = (Array.isArray(reading.checks) ? reading.checks : []).find((check) => isObject(check) && check.id === 4) || {};
+      return { key: reading.key, label: text(reading.label_zh), item4_yes: typeof item4.yes === 'boolean' ? item4.yes : null, item4_rule: text(item4.rule_zh),
+        recommendation: reading.recommendation, recommendation_zh: text(reading.recommendation_zh) };
+    }),
+    readings_note: text(rec.readings_note_zh),
+    share_count_differences: (Array.isArray(rec.share_count_differences) ? rec.share_count_differences : []).filter(isObject).map((row) => ({
+      carrier: text(row.carrier), entry_time: text(row.entry_time), shares: isObject(row.shares) ? row.shares : {}, cause: text(row.cause_zh) })),
+    counter_evidence: (Array.isArray(rec.counter_evidence_zh) ? rec.counter_evidence_zh : []).filter((line) => typeof line === 'string'),
     analysis: Array.isArray(rec.market_analysis_zh) ? rec.market_analysis_zh.filter((line) => typeof line === 'string') : [],
     note_zh: '协调会话按 K2 ★3 (a) 预先冻结的规则给出的建议，由 Owner 决定（UX 修订 6：待 Owner 决定）；A25 已采用，不受本题影响。',
   };
@@ -168,4 +191,4 @@ const Q5 = Object.freeze({
   builders: (entry, doc) => ({ ...paired.builders(entry, doc) }),
 });
 
-module.exports = { Q5, K2_REF, K2_SHA256, REFERENCE_ROWS, validateRecommendation };
+module.exports = { Q5, K2_REF, K2_SHA256, REFERENCE_ROWS, READINGS, validateRecommendation };

@@ -32,6 +32,10 @@ const checks = (yes = [true, true, true, true]) => [
   { id: 6, counter: true, item_zh: '反证（只列出）：HK T3 前向影子受影响笔', facts_zh: 'B 流 2 笔 ΔR 合计 −2.16' },
 ];
 
+/** 勘误 1 的一种读法：第 1–3 项同主表，第 4 项按这种读法。 */
+const reading = (key, yes4) => ({ key, label_zh: key === 'FROZEN_TEXT' ? '冻结原文的读法' : '第一版运行器的较严读法', checks: checks([true, true, true, yes4]),
+  recommendation: yes4 ? 'ADOPT' : 'NOT_ADOPTED', recommendation_zh: yes4 ? '建议采用' : '建议不采用：第 4 项为「否」' });
+
 /**
  * q0Doc／q0Sha／q0ResultId 是已导入的 Q0 锁；q4Lock 是已导入的 Q4 锁（它的候选臂是本题的原版臂）。
  * overrides 是函数时在默认形状上改；是对象时浅合并。
@@ -83,7 +87,11 @@ function result(q0Doc, q0Sha, q0ResultId, q4Lock, overrides = {}) {
       { key: 'COMBINED_VS_D', label_zh: '组合 D+A25+T3 对原版 D', end_capital: 4505.88, reference_end_capital: 3417.93,
         g_vs_reference: { value: 0.07, ci_95: [-0.01, 0.16] }, changed_vs_reference: { entries: 60, exits: 20, total: 80 }, in_verdict: false },
     ];
-    doc.recommendation = { rule_ref: 'K2 ★3 (a)', checks: checks(), recommendation: 'ADOPT', recommendation_zh: '建议采用（纸面账户执行）',
+    doc.recommendation = { rule_ref: 'K2 ★3 (a) + 勘误 1', checks: checks(), recommendation: 'ADOPT', recommendation_zh: '建议采用（纸面账户执行）',
+      readings: [reading('FROZEN_TEXT', true), reading('RUNNER_STRICT_48EF9888', false)],
+      readings_note_zh: '冻结原文的读法第 4 项为「是」→ 建议采用；第一版运行器的较严读法第 4 项为「否」→ 建议不采用',
+      share_count_differences: [{ carrier: 'XLV', entry_time: '2024-02-20T15:04:00.000Z', shares: { [BASE]: 20, [CAND]: 15 }, cause_zh: '名义上限余量不同' }],
+      counter_evidence_zh: ['IS 配对 g −0.0071', 'HK 前向 B 流 2 笔 ΔR −2.16'],
       market_analysis_zh: ['机制：趋势未破不按时间离场。'], decided_by: 'OWNER' };
     doc.reproducibility = { command: 'node run-q5.js', runs: [{ sha256: hex('q5-run') }, { sha256: hex('q5-run') }], identical: true };
     if (typeof overrides === 'function') overrides(doc);
@@ -92,4 +100,4 @@ function result(q0Doc, q0Sha, q0ResultId, q4Lock, overrides = {}) {
   });
 }
 
-module.exports = { result, write: fx4.write, hex, checks, BASE, CAND };
+module.exports = { result, write: fx4.write, hex, checks, reading, BASE, CAND };
