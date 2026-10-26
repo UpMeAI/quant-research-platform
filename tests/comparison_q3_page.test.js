@@ -15,6 +15,7 @@ const cc = require('../services/candidate-comparison');
 const fx0 = require('./_q0_fixture');
 const fx1 = require('./_q1_fixture');
 const fx3 = require('./_q3_fixture');
+const { programBeforeK2, withProgram } = require('./_queue_fixture');
 
 const CASE = cc.CASE_REF;
 const STRATEGY = cc.STRATEGY_REF;
@@ -206,21 +207,34 @@ test('随机对照卡是单独一张：Q3a 明说 G1 不成立、证据不足；
   for (const pattern of FORBIDDEN) assert.doesNotMatch(rc, pattern, String(pattern));
 });
 
-test('待验证问题清单：Q3 锁定后写「已完成：…」并带链接；没锁定时从登记项与计划推出状态（进行中），Q4 随之排队或待立题', async () => {
+test('待验证问题清单：Q3 锁定后写「已完成：…」并带链接；没锁定时从登记项与计划推出状态（进行中）；Q4 的 K2 已冻结＝进行中，冻结之前（夹具）随 Q3 排队或待立题', async () => {
+  const diagnosisOf = (page) => page.slice(page.indexOf('id="diagnosis-title"'), page.indexOf('id="detail-health"'));
+  const headOf = (page) => page.slice(0, page.indexOf('class="conclusion'));
+  const q4Running = /Q4 · .*（进行中：K2 已冻结，等研究会话交付封存的对比结果（见研究与对比））/;
   const locked = projections();
   const html = await renderPage(await modelOf(locked.baseline, locked.cards));
-  const diagnosis = html.slice(html.indexOf('id="diagnosis-title"'), html.indexOf('id="detail-health"'));
+  const diagnosis = diagnosisOf(html);
   assert.match(diagnosis, /Q3 · .*（已完成：完整账户的对数增长更好（不等于信号 alpha 更大）（见研究与对比））/);
+  assert.match(diagnosis, q4Running, 'Q4 的 K2 已冻结：Q3 锁定之后是进行中，不写待立题');
+  assert.match(headOf(html), /研究问题：Q1、Q3 已锁定；Q4 进行中（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
+  // 原意保留为夹具：Q4 的 K2 冻结之前，Q3 锁定后前置都已锁定，写待立题
+  const lockedBefore = await withProgram(programBeforeK2('Q4'), async () => renderPage(await modelOf(locked.baseline, locked.cards)));
+  assert.match(diagnosisOf(lockedBefore), /Q4 · .*（待立题：前置题已锁定，等 K2 冻结后开始）/, 'Q3 锁定之后 Q4 的前置都已锁定，等冻结 K2');
+  assert.match(headOf(lockedBefore), /研究问题：Q1、Q3 已锁定；Q4 待立题，前置题已锁定，等 K2 冻结（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
+
   const pending = projections({ q3: false });
   const pendingHtml = await renderPage(await modelOf(pending.baseline, pending.cards));
-  const pendingDiagnosis = pendingHtml.slice(pendingHtml.indexOf('id="diagnosis-title"'), pendingHtml.indexOf('id="detail-health"'));
+  const pendingDiagnosis = diagnosisOf(pendingHtml);
   assert.match(pendingDiagnosis, /Q3 · .*（进行中：K2 已冻结，等研究会话交付封存的对比结果（见研究与对比））/, 'Q3 的 K2 已冻结、还没有封存结果：进行中');
   assert.doesNotMatch(pendingDiagnosis, /排队：Q1 之后/, '过期的固定文案不再出现');
-  assert.match(pendingDiagnosis, /Q4 · .*（排队：Q3 锁定之后开始）/, 'Q4 在计划里排在 Q3 封存之后；Q3 没锁定就写排队，等谁');
+  assert.match(pendingDiagnosis, q4Running, 'Q4 的 K2 已冻结：Q3 没锁定也是进行中');
+  assert.doesNotMatch(pendingDiagnosis, /排队：Q3 锁定之后开始/);
   assert.equal((pendingDiagnosis.match(/class="diagnosis-link"/g) || []).length, 1, '只有 Q1 带链接，Q3 还没有卡');
-  assert.match(pendingHtml.slice(0, pendingHtml.indexOf('class="conclusion')), /研究问题：Q1 已锁定；Q3 进行中；Q4 排队，等 Q3 锁定（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
-  assert.match(diagnosis, /Q4 · .*（待立题：前置题已锁定，等 K2 冻结后开始）/, 'Q3 锁定之后 Q4 的前置都已锁定，等冻结 K2');
-  assert.match(html.slice(0, html.indexOf('class="conclusion')), /研究问题：Q1、Q3 已锁定；Q4 待立题，前置题已锁定，等 K2 冻结（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
+  assert.match(headOf(pendingHtml), /研究问题：Q1 已锁定；Q3、Q4 进行中（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
+  // 原意保留为夹具：Q4 的 K2 冻结之前，Q3 没锁定就写排队，等谁
+  const pendingBefore = await withProgram(programBeforeK2('Q4'), async () => renderPage(await modelOf(pending.baseline, pending.cards)));
+  assert.match(diagnosisOf(pendingBefore), /Q4 · .*（排队：Q3 锁定之后开始）/, 'Q4 在计划里排在 Q3 封存之后；Q3 没锁定就写排队，等谁');
+  assert.match(headOf(pendingBefore), /研究问题：Q1 已锁定；Q3 进行中；Q4 排队，等 Q3 锁定（来源：Q0 诊断，协调会话立题）；尚未回到 Desk/);
 });
 
 test('只有 Q1 锁定时没有 Q3 的任何卡；Q3 校验失败时主卡写「尚未完成」且没有随机对照卡，Q1 照常', async () => {

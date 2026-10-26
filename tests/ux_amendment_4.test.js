@@ -20,6 +20,7 @@ const cc = require('../services/candidate-comparison');
 const fx0 = require('./_q0_fixture');
 const fx1 = require('./_q1_fixture');
 const fx2 = require('./_q2_fixture');
+const { programBeforeK2, withProgram } = require('./_queue_fixture');
 
 const CASE = cc.CASE_REF;
 const STRATEGY = cc.STRATEGY_REF;
@@ -274,17 +275,24 @@ test('D3.3 压力表：缺场景与无效输入的原因只在 Q0 卡写一次�
 
 test('D5.4 / D4.1 有锁定对比结果：页头标签与研究区开头按实际状态生成，页面里没有「暂无研究问题」', async () => {
   const { baseline, cards } = realProjections();
+  const check = (model, html, sentence) => {
+    assert.ok(html.slice(0, html.indexOf('class="conclusion')).includes(sentence), '页头标签');
+    const lead = between(html, 'id="detail-research"', 'class="muted-note provenance"');
+    assert.ok(lead.includes(`${sentence}。`), '研究区开头');
+    assert.doesNotMatch(html, /暂无研究问题|暂无真实研究问题/);
+    // 同一个句子生成于读模型，页面不拼
+    assert.ok(model.views['strategy-detail'].research.answer.startsWith(sentence));
+    assert.doesNotMatch(JSON.stringify(model.views['strategy-detail']), /暂无研究问题|暂无真实研究问题/);
+  };
+  // 修订 4 的示例写「Q3、Q4 进行中」；Q3、Q4 的 K2 都已冻结、都还没有封存结果——实际状态正是如此，按实际状态生成
   const model = await modelOf(baseline, cards);
-  const html = await renderPage(model);
-  // 修订 4 的示例写「Q3、Q4 进行中」；实际状态是 Q3 的 K2 已冻结（进行中），Q4 在计划里排在 Q3 封存之后（排队）——按实际状态生成
-  const sentence = '研究问题：Q1、Q2 已锁定；Q3 进行中；Q4 排队，等 Q3 锁定（来源：Q0 诊断，协调会话立题）；尚未回到 Desk';
-  assert.ok(html.slice(0, html.indexOf('class="conclusion')).includes(sentence), '页头标签');
-  const lead = between(html, 'id="detail-research"', 'class="muted-note provenance"');
-  assert.ok(lead.includes(`${sentence}。`), '研究区开头');
-  assert.doesNotMatch(html, /暂无研究问题|暂无真实研究问题/);
-  // 同一个句子生成于读模型，页面不拼
-  assert.ok(model.views['strategy-detail'].research.answer.startsWith(sentence));
-  assert.doesNotMatch(JSON.stringify(model.views['strategy-detail']), /暂无研究问题|暂无真实研究问题/);
+  check(model, await renderPage(model), '研究问题：Q1、Q2 已锁定；Q3、Q4 进行中（来源：Q0 诊断，协调会话立题）；尚未回到 Desk');
+  // 原意保留为夹具：Q4 的 K2 冻结之前，Q4 在计划里排在 Q3 封存之后（排队，等 Q3）
+  const before = await withProgram(programBeforeK2('Q4'), async () => {
+    const m = await modelOf(baseline, cards);
+    return { model: m, html: await renderPage(m) };
+  });
+  check(before.model, before.html, '研究问题：Q1、Q2 已锁定；Q3 进行中；Q4 排队，等 Q3 锁定（来源：Q0 诊断，协调会话立题）；尚未回到 Desk');
 });
 
 test('D4.1 只锁定 Q1：「Q1 已锁定」，其余按 Q0 诊断清单里的实验状态生成', async () => {

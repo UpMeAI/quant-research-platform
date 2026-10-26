@@ -13,6 +13,7 @@ process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTHORITY;
 const q0 = require('../services/baseline-evaluation');
 const cc = require('../services/candidate-comparison');
 const fx0 = require('./_q0_fixture');
+const { programBeforeK2 } = require('./_queue_fixture');
 const fx1 = require('./_q1_fixture');
 const fx2 = require('./_q2_fixture');
 
@@ -108,6 +109,13 @@ test('队列状态：K2 已冻结且没有封存结果＝进行中；K2 未冻�
   assert.deepEqual(queue('Q4', [card('Q1', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'RUNNING', waiting_on: [] });
   assert.deepEqual(queue('Q4', [card('Q3', 'NOT_IMPORTED')]), { question: 'Q4', phase: 'RUNNING', waiting_on: [] });
   assert.deepEqual(queue('Q4', [card('Q3', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'RUNNING', waiting_on: [] });
+  // 原意保留为夹具：Q4 的 K2 冻结之前（档案里还没有它的导入规格），Q3 没锁写排队、等 Q3；Q3 锁定后待立题
+  const before = programBeforeK2('Q4');
+  assert.equal(before.get('Q4'), null);
+  assert.deepEqual(before.queueState('Q4', []), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] });
+  assert.deepEqual(before.queueState('Q4', [card('Q3', 'NOT_IMPORTED')]), { question: 'Q4', phase: 'QUEUED', waiting_on: ['Q3'] });
+  assert.deepEqual(before.queueState('Q4', [card('Q3', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'READY_FOR_K2', waiting_on: [] });
+  assert.equal(before.queueState('Q3', []).phase, 'RUNNING', '夹具只去掉 Q4，Q3 照旧');
   assert.deepEqual(queue('Q4', [card('Q4', 'LOCKED_VERIFIED')]), { question: 'Q4', phase: 'LOCKED', waiting_on: [] });
   assert.deepEqual([queue('Q2', [card('Q2', 'LOCKED_VERIFIED')]).phase, queue('Q2', [card('Q2', 'INVALID')]).phase, queue('Q2', [card('Q2', 'MISSING')]).phase], ['LOCKED', 'INVALID', 'MISSING']);
   assert.equal(queue('Q9', []), null);

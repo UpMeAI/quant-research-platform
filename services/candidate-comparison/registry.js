@@ -71,6 +71,7 @@ const ownerOf = (entry) => (entry ? profiles.byComparisonProfile(entry.profile_r
 const DEFAULT = forStrategy(profiles.defaultProfile().strategy_ref);
 
 module.exports = {
-  ENTRIES, forStrategy, ownerOf, entryBySchema, QUESTIONS: DEFAULT.QUESTIONS, ORDER: DEFAULT.ORDER, DEFAULT_QUESTION: DEFAULT.DEFAULT_QUESTION,
+  // programOf：从一份档案推出题组；测试用它构造夹具档案（例如某题 K2 冻结之前、档案里还没有它的导入规格）
+  ENTRIES, forStrategy, programOf, ownerOf, entryBySchema, QUESTIONS: DEFAULT.QUESTIONS, ORDER: DEFAULT.ORDER, DEFAULT_QUESTION: DEFAULT.DEFAULT_QUESTION,
   PLAN: DEFAULT.PLAN, queueState: DEFAULT.queueState, get: DEFAULT.get, bySchema: DEFAULT.bySchema,
 };
