@@ -31,6 +31,7 @@ const profiles = require('../strategy-profiles');
 const detailNotes = require('../strategy-detail-notes');
 const adoption = require('../research-adoption');
 const adoptionView = require('../research-adoption/overview');
+const deskRouting = require('../desk-review-routing');
 const detailSummary = require('./summary');
 const m2Rounds = require('../m2-rounds');
 const researchStage = require('./stage');
@@ -136,7 +137,7 @@ function technicalRef(value, label) {
   return value ? { label, value } : null;
 }
 
-function humanCase(caseRec, productCase, strategyDirectory) {
+function humanCase(caseRec, productCase, strategyDirectory, deskEntries = null) {
   const market = marketPresentation(caseRec.market);
   const strategy = strategyPresentation(caseRec.strategy_ref, strategyDirectory);
   const baseline = caseRec.baseline ? strategyPresentation(caseRec.baseline.strategy_ref, strategyDirectory) : null;
@@ -174,24 +175,29 @@ function humanCase(caseRec, productCase, strategyDirectory) {
           ? '受控验收环境' : '尚无环境证据',
       user_result: stage.evidence?.user_result || null,
     })),
-    links: (caseRec.links || []).map((link) => ({
-      question_label: link.research_question_label || 'Desk 研究问题（名称待登记）',
-      conclusion: link.conclusion,
-      conclusion_label: words(link.conclusion, CONCLUSION_WORDS),
-      adoption_state: link.adoption_state,
-      adoption_label: words(link.adoption_state, ADOPTION_WORDS),
-      has_frozen_experiment: Boolean(link.experiment_freeze_hash),
-      has_locked_result: Boolean(link.result_hash),
-      technical: [
-        technicalRef(link.link_id, '闭环 link ID'),
-        technicalRef(link.desk_candidate_ref, 'Desk candidate ID'),
-        technicalRef(link.research_question_ref, '研究问题 ID'),
-        technicalRef(link.experiment_ref, '实验 ID'),
-        technicalRef(link.experiment_freeze_hash, '实验冻结 hash'),
-        technicalRef(link.result_ref, '锁定结果引用'),
-        technicalRef(link.result_hash, '锁定结果 hash'),
-      ].filter(Boolean),
-    })),
+    links: (caseRec.links || []).map((link) => {
+      // 复盘闭环修订 6：desk 研究队列来的题，题名、来源与 Owner 挑选现读最新一份队列（不存副本）；其他回链不加字段
+      const desk = deskEntries ? deskRouting.deskQuestionView(link, deskEntries) : null;
+      return {
+        ...(desk ? { desk_source_zh: desk.source_zh, desk_state_zh: desk.state_zh } : {}),
+        question_label: (desk && desk.title_zh) || link.research_question_label || 'Desk 研究问题（名称待登记）',
+        conclusion: link.conclusion,
+        conclusion_label: words(link.conclusion, CONCLUSION_WORDS),
+        adoption_state: link.adoption_state,
+        adoption_label: words(link.adoption_state, ADOPTION_WORDS),
+        has_frozen_experiment: Boolean(link.experiment_freeze_hash),
+        has_locked_result: Boolean(link.result_hash),
+        technical: [
+          technicalRef(link.link_id, '闭环 link ID'),
+          technicalRef(link.desk_candidate_ref, 'Desk candidate ID'),
+          technicalRef(link.research_question_ref, '研究问题 ID'),
+          technicalRef(link.experiment_ref, '实验 ID'),
+          technicalRef(link.experiment_freeze_hash, '实验冻结 hash'),
+          technicalRef(link.result_ref, '锁定结果引用'),
+          technicalRef(link.result_hash, '锁定结果 hash'),
+        ].filter(Boolean),
+      };
+    }),
     source_files: (caseRec.data_quality.source_refs || []).map((sourceRef) => ({
       label: sourceLabel(sourceRef), file_name: path.basename(sourceRef), state_label: '已登记为首案实际输入',
       technical: technicalRef(sourceRef, '原始文件路径'),
@@ -292,6 +298,24 @@ function technicalSampleSummary({ adapters, families, modules, bundles, hypothes
     ],
     raw_readonly_endpoints: ['strategies', 'experiments', 'races', 'shadow', 'promotion', 'runtime-status'].map((name) => `/api/${name}`),
   };
+}
+
+/** 非 US_V5 型 M1 诊断的输入包文件数（package.files 是逐文件列表）；读不出来写「未知」。 */
+const packageFiles = (diagnostic) => (diagnostic.package && Array.isArray(diagnostic.package.files) ? diagnostic.package.files.length : '未知');
+
+/**
+ * 研究队列小表里 desk 来的题（每条回链一行，题号写 DQ-<questionKey>）：题名、来源、状态都现读最新一份 desk 研究队列。
+ * 这条策略没有 desk 回链时返回空数组，原表不变。
+ */
+function deskQueueRows(caseRec, deskEntries) {
+  if (!caseRec || !deskEntries) return [];
+  return (caseRec.links || []).map((link) => {
+    const view = deskRouting.deskQuestionView(link, deskEntries);
+    return view ? {
+      question_ref: `DQ-${view.question_key}`, part_zh: 'Desk 复盘问题', name_zh: view.title_zh,
+      source_zh: view.source_zh, status_zh: view.state_zh, locked: Boolean(link.result_hash),
+    } : null;
+  }).filter(Boolean);
 }
 
 /**
@@ -430,6 +454,9 @@ async function readModel({
     || loop.cases.map((item) => item.data_quality?.known_at).filter(Boolean).sort().at(-1)
     || new Date().toISOString();
   const directory = deskStrategyDirectory.readModel({ cases: loop.cases, asOf: stableAsOf });
+  // 有 desk 研究队列来的回链时才读 desk 的研究队列（现读最新一份，读不出来当作没有）
+  const deskEntries = loop.cases.some((item) => (item.links || []).some((link) => deskRouting.deskOriginOf(link)))
+    ? deskRouting.newestQueueEntries() : null;
   const strategyByRef = new Map(directory.strategies.map((item) => [item.strategy_ref, item]));
   const selectedRaw = requestedCase
     || (strategyRef ? loop.cases.find((item) => item.strategy_ref === strategyRef) : null)
@@ -440,7 +467,7 @@ async function readModel({
   const baselineRelation = loop.cases.find((item) => item.baseline?.strategy_ref === selectedStrategyRef) || null;
   const productByCase = new Map(loop.product_delivery.cases.map((item) => [item.case_ref, item]));
   const primary = selectedCurrentCase
-    ? humanCase(selectedCurrentCase, productByCase.get(selectedCurrentCase.case_id), strategyByRef) : null;
+    ? humanCase(selectedCurrentCase, productByCase.get(selectedCurrentCase.case_id), strategyByRef, deskEntries) : null;
   // 所选策略的档案；没有登记的策略不读任何诊断、回测、对比或前向观察（R3）
   const profile = profiles.get(selectedStrategyRef);
   const program = profile ? candidateComparison.registry.forStrategy(profile.strategy_ref) : null;
@@ -491,15 +518,21 @@ async function readModel({
   const migrations = migration.listMigrationRecords();
   const runtimes = await Promise.all(adapters.map((adapter) => runtimeStatus.runtimeStatus(adapter.market_id)));
 
-  const allHumanCases = loop.cases.map((item) => ({ raw: item, human: humanCase(item, productByCase.get(item.case_id), strategyByRef) }));
+  const allHumanCases = loop.cases.map((item) => ({ raw: item, human: humanCase(item, productByCase.get(item.case_id), strategyByRef, deskEntries) }));
   const globalLinks = allHumanCases.flatMap(({ raw, human }) => human.links.map((link) => ({
     ...link, strategy_ref: raw.strategy_ref, strategy_name: strategyByRef.get(raw.strategy_ref)?.name || 'Desk 策略名称暂不可读取',
   })));
   const selectedLinks = primary?.links || [];
   const selectedLockedLinks = selectedLinks.filter((item) => item.has_locked_result);
-  const researchText = researchSummary(comparisonProjections, baselineProjection.diagnosis, selectedLockedLinks.length, program);
+  // 复盘闭环修订 6 主稿 §5.3：「已有 N 项回到 Desk」数被 desk 周档 researchReturns[] 引用、recordHash 一致的本策略 QRP 采用决定（kind = DECISION），
+  // 一次真实往返；desk 周档读不出来时为 0，不抛错
+  const returnedToDesk = profile
+    ? deskRouting.returnedToDeskCount(adoption.records().filter((row) => row.strategy_ref === profile.strategy_ref), deskRouting.returnCitations()) : 0;
+  const researchText = researchSummary(comparisonProjections, baselineProjection.diagnosis, returnedToDesk, program);
   const notes = profile ? detailNotes.forStrategy(profile.strategy_ref) : null;
-  const queueView = researchQueue(profile, notes, comparisonProjections, program);
+  const deskRows = deskQueueRows(selectedCurrentCase, deskEntries);
+  const programQueue = researchQueue(profile, notes, comparisonProjections, program);
+  const queueView = deskRows.length ? { title_zh: '研究队列', rows: [...(programQueue ? programQueue.rows : []), ...deskRows] } : programQueue;
   // CRYPTO_Q0_RESULT_V1 增补 2：加密 M2 轮次（只有档案写了 m2_rounds、且已导入的轮次才有）
   const roundProjections = profile ? m2Rounds.readProjections(profile, { hk: { shadowRuns } }) : [];
   const latestRound = roundProjections.length ? roundProjections[roundProjections.length - 1] : null;
@@ -797,10 +830,16 @@ async function readModel({
         state: primary ? primary.data_quality.state : noCase.state,
         answer: primary
           ? diagnostic?.state === 'VERIFIED'
-            ? `M1 诊断输入已完成内容校验：${diagnostic.source_status.package.files} 个文件、${diagnostic.source_status.scans.records} 条原生扫描记录，当前没有诊断输入缺口。`
+            ? (diagnostic.source_status
+              ? `M1 诊断输入已完成内容校验：${diagnostic.source_status.package.files} 个文件、${diagnostic.source_status.scans.records} 条原生扫描记录，当前没有诊断输入缺口。`
+              : `M1 诊断输入已完成内容校验：${packageFiles(diagnostic)} 个文件，当前没有诊断输入缺口。`)
             : `${primary.data_quality.label}：已登记 ${primary.source_files.length} 类实际输入，仍有 ${blockers.length} 项缺口。`
           : '请选择已接入 Research 的策略查看实际输入；Desk 策略目录本身不等于 QRP 运行输入。',
-        sources: diagnostic?.state === 'VERIFIED' ? [
+        // 只有 US_V5 型诊断（带 source_status、native_replay）分三类列来源；其他档案的诊断（QS、US_CORE 生产者）只有输入包一项
+        sources: diagnostic?.state === 'VERIFIED' && !diagnostic.source_status ? [{
+          label: `${profile.display_name} M1 输入包`, file_name: `${packageFiles(diagnostic)} 个文件`,
+          state_label: '内容校验通过', technical: technicalRef(diagnostic.package && diagnostic.package.sha256, '完整输入包 SHA-256'),
+        }] : diagnostic?.state === 'VERIFIED' ? [
           {
             label: 'Desk 历史运行记录', file_name: `${diagnostic.source_status.package.groups.desk.files} 个账户、交易与决策文件`,
             state_label: '内容校验通过', technical: technicalRef(diagnostic.technical.package_sha256, '完整输入包 SHA-256'),
@@ -836,7 +875,8 @@ async function readModel({
     authority: {
       runtime: '运行事实来自市场仓与 Desk 已登记输入。',
       research: '研究结论只来自 QRP 锁定结果。',
-      review_and_adoption: '最终复盘与采用决定仍由 Desk 原流程记录。',
+      // 复盘闭环修订 6 D7 ★（协调说明 1 §1）：采用决定只记在 QRP 采用记录 RESEARCH_ADOPTION_DECISION_V1，desk 周档引用并显示
+      review_and_adoption: '采用决定记在 QRP 的采用记录里，Desk 只显示；复盘与生产版本的登记仍在 Desk。',
       cycle: 'Cycle 只作为研究证据引用，不产生交易权限。',
     },
     technical: {

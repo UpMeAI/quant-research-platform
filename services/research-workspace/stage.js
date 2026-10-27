@@ -25,6 +25,7 @@ const adoptionView = require('../research-adoption/overview');
 const detailNotes = require('../strategy-detail-notes');
 const experiments = require('../experiment-orchestrator');
 const m2Rounds = require('../m2-rounds');
+const deskRouting = require('../desk-review-routing');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -43,7 +44,8 @@ const PHASE_WORDS = Object.freeze({
   RUNNING: () => '进行中，K2 已冻结',
   QUEUED: (item) => `排队，等 ${item.waiting_on.join('、')} 锁定`,
   READY_FOR_K2: () => '待立题，等 K2 冻结',
-  DESK_LINK: () => 'Desk 研究问题，尚无锁定结果',
+  // Desk 研究队列来的题：状态写最新一份队列里的 Owner 挑选（现读，不存）；读不到时照旧
+  DESK_LINK: (item) => (item && item.desk_state_zh ? `Desk 研究问题，${item.desk_state_zh}` : 'Desk 研究问题，尚无锁定结果'),
   MERGED: (item) => item.note_zh, // 增补 2 §6.3：并入别的策略的题（QS 的成本并入 C17 的执行成本题）
 });
 const BROKEN = new Set(['INVALID', 'MISSING']);
@@ -187,16 +189,24 @@ function q0Of(profile) {
   };
 }
 
-/** Desk case 回链里还没有锁定结果的研究问题；题名与是否已锁取自 hypotheses／experiments 账本（回链没写时）。 */
+/**
+ * Desk case 回链里还没有锁定结果的研究问题；题名与是否已锁取自 hypotheses／experiments 账本（回链没写时）。
+ * 来自 desk 研究队列的回链（复盘闭环修订 6）：题名与 Owner 挑选状态现读最新一份队列（services/desk-review-routing），不存副本。
+ */
 function deskQuestions(cases) {
   const hypotheses = new Map(experiments.listHypotheses().map((row) => [row.hypothesis_id, row]));
   const experimentRows = new Map(experiments.listExperiments().map((row) => [row.experiment_id, row]));
-  return cases.flatMap((item) => item.links || [])
-    .filter((link) => !link.result_hash && !(link.experiment_ref && (experimentRows.get(link.experiment_ref) || {}).status === 'RESULT_LOCKED'))
-    .map((link) => ({
+  const open = cases.flatMap((item) => item.links || [])
+    .filter((link) => !link.result_hash && !(link.experiment_ref && (experimentRows.get(link.experiment_ref) || {}).status === 'RESULT_LOCKED'));
+  const entries = open.some((link) => deskRouting.deskOriginOf(link)) ? deskRouting.newestQueueEntries() : null;
+  return open.map((link) => {
+    const desk = entries ? deskRouting.deskQuestionView(link, entries) : null;
+    return {
       question_ref: null, phase: 'DESK_LINK', waiting_on: [],
-      title_zh: link.research_question_label || (hypotheses.get(link.research_question_ref) || {}).research_question || '研究问题（名称待登记）',
-    }));
+      title_zh: desk ? desk.title_zh : link.research_question_label || (hypotheses.get(link.research_question_ref) || {}).research_question || '研究问题（名称待登记）',
+      ...(desk ? { desk_state_zh: desk.state_zh } : {}),
+    };
+  });
 }
 
 function factsOf(strategyRef, { cases, m4Items }) {
@@ -270,4 +280,4 @@ function countsSentence(counts) {
   return `其中 ${counts.with_record} 个有研究记录：${detail}${counts.m4_pending ? `；另有 ${counts.m4_pending} 个已列入 M4 范围、尚未接入` : ''}。`;
 }
 
-module.exports = { M1_WORDS, stageOf, factsOf, readStages, countsOf, countsSentence };
+module.exports = { M1_WORDS, PHASE_WORDS, stageOf, factsOf, readStages, countsOf, countsSentence };

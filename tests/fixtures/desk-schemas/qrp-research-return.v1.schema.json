@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qrp-research-return.v1.schema.json",
+  "title": "QRP_RESEARCH_RETURN_V1",
+  "description": "Review loop Addendum 6 §5.1: QRP's projection of its own ledgers (adoption decisions, baseline and comparison locks, Desk links) for the desk week file. Producer QRP; the coordinator commits it under docs/review-loop/research-return/ and the next week revision carries it as an input. No new judgement.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contract", "producer", "generatedAt", "asOf", "sources", "decisions", "questions", "interpretation", "realOrder", "brokerWrite", "hash"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "contract": { "const": "QRP_RESEARCH_RETURN_V1" },
+    "producer": { "const": "QRP" },
+    "generatedAt": { "$ref": "#/$defs/instant" },
+    "asOf": { "$ref": "#/$defs/instant" },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["ledger", "sha256", "rows"],
+        "properties": {
+          "ledger": { "enum": ["research/adoption_decisions.jsonl", "research/baseline_evaluations.jsonl", "research/comparison_evaluations.jsonl", "runtime-research-loop/links.jsonl"] },
+          "sha256": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/hex64" }], "description": "null when the ledger file does not exist (rows 0)." },
+          "rows": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
+    "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } },
+    "interpretation": { "const": "RESEARCH_RESULTS_AND_OWNER_DECISIONS_NOT_ORDERS" },
+    "realOrder": { "const": 0 },
+    "brokerWrite": { "const": false },
+    "hash": { "$ref": "#/$defs/hex64" }
+  },
+  "$defs": {
+    "instant": { "type": "string", "format": "date-time" },
+    "hex64": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1 },
+    "nullableText": { "type": ["string", "null"], "minLength": 1 },
+    "ref": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:\\-]*$" },
+    "deskLink": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["candidateId", "questionKey", "linkId"],
+          "properties": {
+            "candidateId": { "type": "string", "pattern": "^RLC-(CN|US|CRYPTO)-\\d{4}W\\d{2}-[1-9]\\d*$" },
+            "questionKey": { "type": "string", "pattern": "^RQK-[0-9a-f]{16}$" },
+            "linkId": { "$ref": "#/$defs/ref" }
+          }
+        }
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordId", "recordHash", "kind", "strategyRef", "caseRef", "questionRef", "questionTitleZh", "resultId", "part", "lock", "decision",
+        "recommendation", "recommendationReasonZh", "ownerWords", "decidedAt", "followUpZh", "deskLink", "origin"],
+      "properties": {
+        "recordId": { "$ref": "#/$defs/ref" },
+        "recordHash": { "$ref": "#/$defs/hex64" },
+        "kind": { "enum": ["DECISION", "RECOMMENDATION"] },
+        "strategyRef": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "caseRef": { "$ref": "#/$defs/ref" },
+        "questionRef": { "$ref": "#/$defs/ref" },
+        "questionTitleZh": { "$ref": "#/$defs/nullableText" },
+        "resultId": { "$ref": "#/$defs/ref" },
+        "part": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/ref" }] },
+        "lock": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["class", "verdictState", "fileSha256", "lockedAt", "k2Ref"],
+          "properties": {
+            "class": { "enum": ["BASELINE", "COMPARISON"] },
+            "verdictState": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+            "fileSha256": { "$ref": "#/$defs/hex64" },
+            "lockedAt": { "$ref": "#/$defs/instant" },
+            "k2Ref": { "$ref": "#/$defs/nullableText" }
+          }
+        },
+        "decision": { "enum": [null, "ADOPT", "NOT_ADOPTED", "NOT_APPLICABLE"] },
+        "recommendation": { "enum": [null, "ADOPT", "NOT_ADOPTED"] },
+        "recommendationReasonZh": { "$ref": "#/$defs/nullableText" },
+        "ownerWords": { "$ref": "#/$defs/nullableText" },
+        "decidedAt": { "type": ["string", "null"], "format": "date-time" },
+        "followUpZh": { "$ref": "#/$defs/nullableText" },
+        "deskLink": { "$ref": "#/$defs/deskLink" },
+        "origin": { "enum": ["DESK_REVIEW", "QRP_PROGRAM"] }
+      }
+    },
+    "question": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategyRef", "questionRef", "titleZh", "stateZh", "k2FrozenAt", "expectedResultDate", "deskLink", "origin"],
+      "properties": {
+        "strategyRef": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "questionRef": { "$ref": "#/$defs/ref" },
+        "titleZh": { "$ref": "#/$defs/text" },
+        "stateZh": { "$ref": "#/$defs/text" },
+        "k2FrozenAt": { "type": ["string", "null"], "format": "date-time" },
+        "expectedResultDate": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+        "deskLink": { "$ref": "#/$defs/deskLink" },
+        "origin": { "enum": ["DESK_REVIEW", "QRP_PROGRAM"] }
+      }
+    }
+  }
+}
