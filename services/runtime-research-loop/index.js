@@ -492,7 +492,74 @@ const CONCLUSION_OF = Object.freeze({
   CHALLENGER_WINS: 'PASS', CHAMPION_HOLDS: 'FAIL', NEGATIVE_RESULT: 'FAIL', INCONCLUSIVE: 'INSUFFICIENT',
 });
 
+/**
+ * 基线锁与对比锁的结论机械映射（B4）：锁的三态词表就是 baseline-evaluation 的 STATES（SUPPORTED／NOT_PASSED／INSUFFICIENT），
+ * 对比锁复用同一词表。词表外的值拒绝。
+ */
+const LOCK_CONCLUSION_OF = Object.freeze({ SUPPORTED: 'PASS', NOT_PASSED: 'FAIL', INSUFFICIENT: 'INSUFFICIENT' });
+
+/**
+ * 回链绑定一把基线锁（BASELINE_EVALUATION_LOCK_V1）或对比锁（COMPARISON_EVALUATION_LOCK_V1）（复盘闭环修订 6 D6 ★；QRP 一侧说明 §2 第 3 条）。
+ * 绑定键 {result_id, expected_file_sha256}；现场复验：锁存在、LOCKED_VERIFIED（封存文件 sha256 与校验）、是同题当前的那把（没有被替代）、
+ * 锁的 case 与回链的 case 相同、文件 sha256 等于期望值。回链若已并入某个 QRP 题（research_question_ref 不是 DQ-…），锁的题号必须就是它。
+ * 写一行新的回链：result_ref = QRP:<result_id>:LOCKED，result_hash = 锁的 file_sha256，结论按 LOCK_CONCLUSION_OF，采用状态仍 NOT_DECIDED。
+ */
+function linkLockedEvaluation(linkId, binding = {}, input = {}) {
+  const baselineEvaluation = require('../baseline-evaluation');
+  const candidateComparison = require('../candidate-comparison');
+  const head = headBy(LINKS_LEDGER(), 'link_id', linkId);
+  if (!head) throw new Error(`LOOP_LINK_NOT_FOUND:${linkId}`);
+  const caseRec = headBy(CASES_LEDGER(), 'case_id', head.case_ref);
+  if (!caseRec) throw new Error(`LOOP_CASE_NOT_FOUND:${head.case_ref}`);
+  const resultId = binding.result_id;
+  required(resultId, 'LOOP_LOCK_BINDING_MISSING:result_id');
+  if (!/^[0-9a-f]{64}$/.test(binding.expected_file_sha256 || '')) throw new Error('LOOP_LOCK_BINDING_MISSING:expected_file_sha256');
+  const resultRef = `QRP:${resultId}:LOCKED`;
+  if (head.conclusion !== 'PENDING') {
+    if (head.result_ref === resultRef && head.result_hash === binding.expected_file_sha256) return { ...head, replayHit: true };
+    throw new Error(`LOOP_LINK_ALREADY_RESULT_LINKED:${linkId}`);
+  }
+  const allowNonActual = Boolean(input.allowNonActual);
+  let lock = baselineEvaluation.baselineFor(resultId);
+  let current;
+  let projection;
+  let questionRef;
+  if (lock) {
+    current = baselineEvaluation.headLock(lock.case_ref);
+    projection = () => baselineEvaluation.buildProjection(lock, { allowNonActual });
+    questionRef = 'Q0';
+  } else {
+    lock = candidateComparison.comparisonFor(resultId);
+    if (!lock) throw new Error(`LOOP_LOCK_NOT_FOUND:${resultId}`);
+    current = candidateComparison.headLock(lock.case_ref, lock.question_ref);
+    projection = () => candidateComparison.buildProjection(lock, { allowNonActual, question: lock.question_ref });
+    questionRef = lock.question_ref;
+  }
+  if (lock.case_ref !== head.case_ref || lock.strategy_ref !== caseRec.strategy_ref) throw new Error(`LOOP_LOCK_CASE_MISMATCH:${lock.case_ref}`);
+  if (!current || current.result_id !== resultId) throw new Error(`LOOP_LOCK_SUPERSEDED:${resultId}→${current ? current.result_id : 'NONE'}`);
+  if (lock.file_sha256 !== binding.expected_file_sha256) throw new Error('LOOP_RESULT_HASH_MISMATCH');
+  if (!/^DQ-/.test(head.research_question_ref) && head.research_question_ref !== questionRef) throw new Error('LOOP_RESEARCH_QUESTION_MISMATCH');
+  const verified = projection();
+  if (verified.state !== 'LOCKED_VERIFIED') throw new Error(`LOOP_LOCK_NOT_VERIFIED:${verified.state}`);
+  if (verified.verdict_state !== lock.verdict_state) throw new Error('LOOP_LOCK_VERDICT_DRIFT');
+  const conclusion = LOCK_CONCLUSION_OF[lock.verdict_state];
+  if (!conclusion) throw new Error(`LOOP_RESULT_VERDICT_UNSUPPORTED:${lock.verdict_state}`);
+  const body = {
+    ...head, result_ref: resultRef, result_hash: lock.file_sha256,
+    conclusion, adoption_state: 'NOT_DECIDED', production_effect: 'NONE', recorded_at: input.recorded_at || now(),
+  };
+  delete body.replayHit;
+  delete body.link_hash;
+  body.link_hash = sha256(body);
+  return append(LINKS_LEDGER(), body);
+}
+
+/**
+ * 锁定结果回链。第二个参数是实验 ID（旧实验引擎：verifyFreeze + RESULT_LOCKED，行为不变）；
+ * 传 {result_id, expected_file_sha256} 时改走基线锁／对比锁的绑定（linkLockedEvaluation）。
+ */
 function linkLockedResult(linkId, experimentId, input = {}) {
+  if (experimentId && typeof experimentId === 'object') return linkLockedEvaluation(linkId, experimentId, input);
   const head = headBy(LINKS_LEDGER(), 'link_id', linkId);
   if (!head) throw new Error(`LOOP_LINK_NOT_FOUND:${linkId}`);
   const caseRec = headBy(CASES_LEDGER(), 'case_id', head.case_ref);
@@ -570,8 +637,9 @@ function readModel() {
   return {
     schema: 'RUNTIME_RESEARCH_LOOP_READ_MODEL_V1',
     authority: {
-      runtime: 'MARKET_REPOSITORY', research: 'QRP_RESULT_LOCK', review_and_adoption: 'DESK_REVIEW_LOOP_WEEK_V1',
-      cycle: 'CYCLE_EVIDENCE_REFERENCE_ONLY',
+      // 复盘闭环修订 6 D7 ★（协调说明 1）：复盘归 desk 周档，采用决定只记在 QRP 采用记录，desk 周档引用它
+      runtime: 'MARKET_REPOSITORY', research: 'QRP_RESULT_LOCK', review: 'DESK_REVIEW_LOOP_WEEK_V1',
+      adoption: 'QRP_RESEARCH_ADOPTION_DECISION_V1', cycle: 'CYCLE_EVIDENCE_REFERENCE_ONLY',
     },
     invariants: {
       research_can_order: false, research_can_activate: false,
@@ -600,6 +668,6 @@ module.exports = {
   PRODUCT_ACCEPTANCE_AMENDMENT_3_REF, PRODUCT_ACCEPTANCE_AMENDMENT_4_REF,
   PRODUCT_ACCEPTANCE_AMENDMENT_REFS, PRODUCT_SPEC_REF, PRODUCT_SPEC_SHA256,
   PRODUCT_EVIDENCE_KINDS, CASES_LEDGER, LINKS_LEDGER, MILESTONES_LEDGER, PRODUCT_EVIDENCE_LEDGER,
-  openCase, registerReviewQuestion, linkLockedResult, registerProductEvidence, recordProductMilestone,
+  openCase, registerReviewQuestion, linkLockedResult, linkLockedEvaluation, LOCK_CONCLUSION_OF, registerProductEvidence, recordProductMilestone,
   listCases, listLinks, readModel,
 };
