@@ -113,7 +113,60 @@ function validateProfile(raw, index) {
   }
   if (program.default_question && !queue[program.default_question]) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.research_program.default_question:${program.default_question}`);
   validateReadings(raw, ref);
+  if (raw.m2_rounds !== undefined) validateM2Rounds(raw, ref);
   return deepFreeze(JSON.parse(JSON.stringify(raw)));
+}
+
+const M2_READINGS = Object.freeze(['C17_GAP_V1', 'QS_RESULT_V1']);
+const M2_COST_KINDS = Object.freeze(['OWN', 'MERGED']);
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * CRYPTO_Q0_RESULT_V1 增补 2 §2：加密 M2 轮次（可选键，只有 C17_V2 与 Quick Shot V3 写）。这里只查形状；
+ * 文件 sha256、K2 文字与文件数字的一致性由 services/m2-rounds 在导入与读取时核对。
+ */
+function validateM2Rounds(raw, ref) {
+  if (raw.projection_shape === 'LEGACY_V1') fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.m2_rounds:not allowed with LEGACY_V1`);
+  const rounds = checker(ref).array(raw, 'm2_rounds');
+  if (!rounds.length) fail('STRATEGY_PROFILE_FIELD_TYPE', `${ref}.m2_rounds:non-empty array`);
+  const seen = new Set();
+  rounds.forEach((spec, i) => {
+    const where = `${ref}.m2_rounds[${i}]`;
+    if (!isObject(spec)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}:object`);
+    const c = checker(where);
+    if (!Number.isInteger(spec.round) || spec.round < 1 || seen.has(spec.round)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.round:unique positive integer`);
+    seen.add(spec.round);
+    if (!ISO_DAY.test(c.text(spec, 'frozen_on'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.frozen_on:YYYY-MM-DD`);
+    if (!M2_READINGS.includes(c.text(spec, 'reading'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.reading:${M2_READINGS.join('|')}`);
+    c.text(spec, 'baseline_result_id'); c.text(spec, 'evidence_dir');
+    const files = labelled(spec.files, `${where}.files`, ['role', 'name', 'sha256']);
+    files.forEach((file, j) => { if (!SHA256.test(file.sha256)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.files[${j}].sha256:sha256`); });
+    if (files.filter((file) => file.role === 'DECOMPOSITION' || file.role === 'RESULT').length !== 1) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.files:exactly one DECOMPOSITION or RESULT`);
+    if (files.filter((file) => file.role === 'CANDIDATE_K2').length !== 1) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.files:exactly one CANDIDATE_K2`);
+    c.text(c.object(spec, 'decomposition'), 'gap_note_zh');
+    const components = c.object(spec, 'components');
+    for (const [id, words] of Object.entries(components)) {
+      if (!isObject(words) || !isText(words.label_zh) || !(words.treatment_zh === null || isText(words.treatment_zh))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.components.${id}:{label_zh, treatment_zh|null}`);
+    }
+    const candidate = c.object(spec, 'candidate');
+    const cc = checker(`${where}.candidate`);
+    ['name_zh', 'scope_zh', 'unchanged_zh', 'history_note_zh', 'btc_note_zh'].forEach((key) => cc.text(candidate, key));
+    labelled(candidate.rules, `${where}.candidate.rules`, ['id', 'label_zh', 'text_zh']);
+    labelled(candidate.rows, `${where}.candidate.rows`, ['segment', 'label_zh']);
+    const forward = c.object(spec, 'forward');
+    const cf = checker(`${where}.forward`);
+    cf.text(forward, 'observation_id'); cf.text(forward, 'do_title_zh'); cf.text(forward, 'dont_zh');
+    if (!ISO_DAY.test(cf.text(forward, 'look_not_before'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.forward.look_not_before:YYYY-MM-DD`);
+    if (!Number.isInteger(forward.min_closed) || forward.min_closed < 1) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.forward.min_closed:positive integer`);
+    for (const key of ['plan_zh', 'do_zh', 'extra_zh']) {
+      if (!cf.array(forward, key).every(isText)) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.forward.${key}:string[]`);
+    }
+    const cost = c.object(spec, 'cost');
+    const cc2 = checker(`${where}.cost`);
+    if (!M2_COST_KINDS.includes(cc2.text(cost, 'kind'))) fail('STRATEGY_PROFILE_FIELD_TYPE', `${where}.cost.kind:${M2_COST_KINDS.join('|')}`);
+    cc2.text(cost, 'component'); cc2.text(cost, 'open_title_zh');
+    (cost.kind === 'OWN' ? ['title_zh', 'frozen_zh', 'why_zh', 'observation_id', 'adoption_zh'] : ['open_note_zh', 'merged_zh']).forEach((key) => cc2.text(cost, key));
+  });
 }
 
 const SHARED_DISPLAY_ZH = '共享，未复算';

@@ -29,6 +29,38 @@
           "qrp_shadow_ref": null
         }
       ]
+    },
+    "C17_V2_4000USDT": {
+      "_comment": "CRYPTO_Q0_RESULT_V1 增补 2 §5.3（D6 ★）。2026-10-27 18:58 CST 只读 SSH 核对：strategy-worker online（2026-10-27T09:26:59Z 起，env C17_CAND_SHADOW_ENABLED=1）；chain.jsonl 第 1 条 kind START、at 2026-10-27T09:27:03.038Z、k2.sha256 443bdfcc…；最新一条 SCAN 2026-10-27T10:57:03Z。只看了记录种类、时间与 K2 字段，没有读任何权益或结果数字。",
+      "items": [
+        {
+          "id": "C17_V2_M2_R1_CANDIDATE_SHADOW",
+          "label": "C17_V2 第 1 轮组合候选影子账本（只主流 + 上涨阶段不做空）",
+          "applies_to": ["C17_V2_4000USDT"],
+          "started_on": "2026-10-27T09:27:03.038Z",
+          "location": "HK VPS（smartflow-vps）· strategy-worker 进程内的研究影子任务（C17_CAND_SHADOW_ENABLED=1）",
+          "output_ref": "reports/c17-v2-candidate-shadow/chain.jsonl",
+          "acceptance_ref": "C17 组合候选 K2（443bdfcc…）+ 加密接入冻结裁定 4",
+          "verified_at": "2026-10-27",
+          "qrp_shadow_ref": null
+        }
+      ]
+    },
+    "QUICK_SHOT_V3_1000USDT": {
+      "_comment": "CRYPTO_Q0_RESULT_V1 增补 2 §5.3（D6 ★）。2026-10-27 19:00 CST 只读 SSH 核对：main-app online；QuickShot 每分钟扫描，T_start 前后连续（日志 16:40 → 18:59 CST）；16:00 起的日志里没有停开仓、账本止损或前向复盘 FAIL 代码。只看了扫描行与停止代码，没有读开仓行或任何盈亏数字。",
+      "items": [
+        {
+          "id": "QS_V3_M2_R1_SHORT_ONLY_SHADOW",
+          "label": "Quick Shot V3 第 1 轮组合候选影子（只做空，从纸面账本推出）",
+          "applies_to": ["QUICK_SHOT_V3_1000USDT"],
+          "started_on": "2026-10-27T16:45:06+08:00",
+          "location": "HK VPS（smartflow-vps）· 纸面账本 QUICK_SHOT_V3_1000USDT 的成交行（从纸面账本推出，无单独进程）",
+          "output_ref": "纸面账本 QUICK_SHOT_V3_1000USDT 中 entry_time_ms ≥ T_start、trade_type = SHORT 的成交行",
+          "acceptance_ref": "QS 组合候选 K2（ef424705…）+ 加密 M2 第 1 轮 K2 冻结裁定 1 Q1",
+          "verified_at": "2026-10-27",
+          "qrp_shadow_ref": null
+        }
+      ]
     }
   }
 }

@@ -40,9 +40,12 @@ function forStrategy(strategyRef, { shadowRuns = [], file = CONFIG } = {}) {
     return { state: 'UNAVAILABLE', reason: String(error.message || error), verified_at: null, items: [] };
   }
   const known = new Set(shadowRuns.map((run) => run.shadow_id));
+  const items = ((doc.strategies[profile.forward_observation_source_key] || {}).items || []).filter((item) => item.applies_to.includes(strategyRef));
+  // 条目自己写了核对日（增补 2 §5.3：加密轮次的影子在 2026-10-27 另行只读核对）时，取这组里最晚的一个；都没写时用文件的核对日
+  const itemDates = items.map((item) => item.verified_at).filter((value) => typeof value === 'string' && value);
   return {
-    state: 'AVAILABLE', reason: null, verified_at: doc.verified_at,
-    items: ((doc.strategies[profile.forward_observation_source_key] || {}).items || []).filter((item) => item.applies_to.includes(strategyRef)).map((item) => {
+    state: 'AVAILABLE', reason: null, verified_at: itemDates.length ? itemDates.sort().pop() : doc.verified_at,
+    items: items.map((item) => {
       const imported = item.qrp_shadow_ref ? known.has(item.qrp_shadow_ref) : false;
       const brokenRef = Boolean(item.qrp_shadow_ref) && !imported;
       return {
@@ -52,6 +55,7 @@ function forStrategy(strategyRef, { shadowRuns = [], file = CONFIG } = {}) {
           : imported ? '已导入 QRP，状态读 QRP 台账' : '已在 HK 运行，尚未导入',
         forward_stream: item.forward_stream || null, // 对应对比结果 forward 行的 stream（B／S），页面据此写「已在 Q1 结果中读入 N 行」
         qrp_shadow_ref: item.qrp_shadow_ref || null, output_ref: item.output_ref, acceptance_ref: item.acceptance_ref || null,
+        ...(item.verified_at ? { verified_at: item.verified_at } : {}),
       };
     }),
   };
