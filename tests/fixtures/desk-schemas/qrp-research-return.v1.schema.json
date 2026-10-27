@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "qrp-research-return.v1.schema.json",
   "title": "QRP_RESEARCH_RETURN_V1",
-  "description": "Review loop Addendum 6 §5.1: QRP's projection of its own ledgers (adoption decisions, baseline and comparison locks, Desk links) for the desk week file. Producer QRP; the coordinator commits it under docs/review-loop/research-return/ and the next week revision carries it as an input. No new judgement.",
+  "description": "Review loop Addendum 6 §5.1: QRP's projection of its own ledgers (adoption decisions, baseline and comparison locks, Desk links) for the desk week file. Producer QRP; the coordinator commits it under docs/review-loop/research-return/ and the next week revision carries it as an input. No new judgement. Addendum 7 §3.3: triage[] -- each candidate's current RESEARCH_TRIAGE_V1 row from QRP var/ledger/research/desk_triage.jsonl.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "contract", "producer", "generatedAt", "asOf", "sources", "decisions", "questions", "interpretation", "realOrder", "brokerWrite", "hash"],
@@ -20,7 +20,9 @@
         "additionalProperties": false,
         "required": ["ledger", "sha256", "rows"],
         "properties": {
-          "ledger": { "enum": ["research/adoption_decisions.jsonl", "research/baseline_evaluations.jsonl", "research/comparison_evaluations.jsonl", "runtime-research-loop/links.jsonl"] },
+          "ledger": {
+            "enum": ["research/adoption_decisions.jsonl", "research/baseline_evaluations.jsonl", "research/comparison_evaluations.jsonl", "runtime-research-loop/links.jsonl"]
+          },
           "sha256": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/hex64" }], "description": "null when the ledger file does not exist (rows 0)." },
           "rows": { "type": "integer", "minimum": 0 }
         }
@@ -28,6 +30,85 @@
     },
     "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
     "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } },
+    "triage": {
+      "type": "array",
+      "description": "Addendum 7 §3.3 (optional): RESEARCH_TRIAGE_V1 rows.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recordId", "recordHash", "candidateId", "questionKey", "queueFile", "queueSha256", "outcome", "reasonCode", "questionRef", "strategyRef", "mergedInto", "fixRef", "evidence", "basisZh", "recordedBy", "sessionRef", "at", "supersedes"],
+        "properties": {
+          "recordId": { "type": "string", "pattern": "^RTR-[0-9a-f]{16}$" },
+          "recordHash": { "$ref": "#/$defs/hex64" },
+          "candidateId": { "type": "string", "pattern": "^RLC-(CN|US|CRYPTO)-\\d{4}W\\d{2}-[1-9]\\d*$" },
+          "questionKey": { "type": "string", "pattern": "^RQK-[0-9a-f]{16}$" },
+          "queueFile": { "type": "string", "pattern": "^REVIEW_LOOP_RESEARCH_QUEUE_\\d{4}-W\\d{2}(_R[1-9]\\d*)?\\.json$" },
+          "queueSha256": { "$ref": "#/$defs/hex64" },
+          "outcome": { "enum": ["OPEN_QUESTION", "FIX", "MERGE", "CLOSE"] },
+          "reasonCode": { "type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "questionRef": { "type": ["string", "null"], "minLength": 1 },
+          "strategyRef": { "type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "mergedInto": { "type": ["string", "null"], "minLength": 1 },
+          "fixRef": {
+            "anyOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["repo", "ref"],
+                "properties": { "repo": { "enum": ["Ashare-V6", "smartflow", "portfolio-desk"] }, "ref": { "type": "string", "minLength": 1 } }
+              }
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "weekId", "file", "hash"],
+                  "properties": {
+                    "kind": { "const": "SCAN" },
+                    "weekId": { "type": "string", "pattern": "^\\d{4}-W\\d{2}$" },
+                    "file": { "$ref": "#/$defs/text" },
+                    "hash": { "$ref": "#/$defs/hex64" }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "file", "hash", "path"],
+                  "properties": {
+                    "kind": { "const": "FILE" },
+                    "file": { "$ref": "#/$defs/text" },
+                    "hash": { "$ref": "#/$defs/hex64" },
+                    "path": { "$ref": "#/$defs/text" }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["kind", "repo", "path", "commit", "clause"],
+                  "properties": {
+                    "kind": { "const": "REPO" },
+                    "repo": { "$ref": "#/$defs/text" },
+                    "path": { "$ref": "#/$defs/nullableText" },
+                    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+                    "clause": { "$ref": "#/$defs/nullableText" }
+                  }
+                }
+              ]
+            }
+          },
+          "basisZh": { "$ref": "#/$defs/text" },
+          "recordedBy": { "const": "RESEARCH" },
+          "sessionRef": { "type": ["string", "null"], "minLength": 1 },
+          "at": { "$ref": "#/$defs/instant" },
+          "supersedes": { "type": ["string", "null"], "pattern": "^RTR-[0-9a-f]{16}$" }
+        }
+      }
+    },
     "interpretation": { "const": "RESEARCH_RESULTS_AND_OWNER_DECISIONS_NOT_ORDERS" },
     "realOrder": { "const": 0 },
     "brokerWrite": { "const": false },
@@ -57,8 +138,7 @@
     "decision": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["recordId", "recordHash", "kind", "strategyRef", "caseRef", "questionRef", "questionTitleZh", "resultId", "part", "lock", "decision",
-        "recommendation", "recommendationReasonZh", "ownerWords", "decidedAt", "followUpZh", "deskLink", "origin"],
+      "required": ["recordId", "recordHash", "kind", "strategyRef", "caseRef", "questionRef", "questionTitleZh", "resultId", "part", "lock", "decision", "recommendation", "recommendationReasonZh", "ownerWords", "decidedAt", "followUpZh", "deskLink", "origin"],
       "properties": {
         "recordId": { "$ref": "#/$defs/ref" },
         "recordHash": { "$ref": "#/$defs/hex64" },
