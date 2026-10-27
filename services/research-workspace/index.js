@@ -875,7 +875,8 @@ async function readModel({
     authority: {
       runtime: '运行事实来自市场仓与 Desk 已登记输入。',
       research: '研究结论只来自 QRP 锁定结果。',
-      review_and_adoption: '最终复盘与采用决定仍由 Desk 原流程记录。',
+      // 复盘闭环修订 6 D7 ★（协调说明 1 §1）：采用决定只记在 QRP 采用记录 RESEARCH_ADOPTION_DECISION_V1，desk 周档引用并显示
+      review_and_adoption: '采用决定记在 QRP 的采用记录里，Desk 只显示；复盘与生产版本的登记仍在 Desk。',
       cycle: 'Cycle 只作为研究证据引用，不产生交易权限。',
     },
     technical: {

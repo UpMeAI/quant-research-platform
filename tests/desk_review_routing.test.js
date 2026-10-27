@@ -14,7 +14,9 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const { dataRoot } = require('./_env');
 const a7 = require('./_a7_model');
 const fxCore = require('./_us_core_q0_fixture');
-const { PRODUCTION } = require('./_profile_fixture');
+const fxQs = require('./_qs_q0_fixture');
+const fxC17 = require('./_c17_q0_fixture');
+const { PRODUCTION, testProfile } = require('./_profile_fixture');
 const schema = require('./_json_schema');
 const loop = require('../services/runtime-research-loop');
 const profileCases = require('../services/runtime-research-loop/profile_cases');
@@ -37,6 +39,10 @@ const RETURN_SCHEMA = JSON.parse(fs.readFileSync(path.join(SCHEMAS, 'qrp-researc
 const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const US_V5 = 'US_V5_ETF_3000USD';
 const US_CORE = 'US_CORE_9000USD_3X_GATEOBS';
+const QS = 'QUICK_SHOT_V3_1000USDT';
+const C17 = 'C17_V2_4000USDT';
+const NO_RULING = 'TEST_NO_RULING_1000USDT';
+const NO_RULING_CASE = 'RRC-TEST-NO-RULING-V8-1-M0';
 const KEY_A = `RQK-${'a1'.repeat(8)}`;
 const KEY_B = `RQK-${'b2'.repeat(8)}`;
 const KEY_C = `RQK-${'c3'.repeat(8)}`;
@@ -199,27 +205,33 @@ test('导入只写 QRP_DATA_DIR：desk 根逐文件不变，仓库 git 状态与
   assert.deepEqual(changed, [path.relative(dataRoot, LINKS())]);
 });
 
-test('逐行拒收、其余照常：未登记策略、case 未开（不带 --open-cases）、case 开不了（带 --open-cases，写明缺哪个字段）；「并入」QRP 题时回链挂到那一题', () => {
+test('逐行拒收、其余照常：未登记策略、case 未开（不带 --open-cases）、case 开不了（带 --open-cases：没有裁定也没有事实的档案，写明缺哪个字段）；「并入」QRP 题时回链挂到那一题', () => {
   fresh();
-  const desk = makeDesk({ withSrc: false });
-  writeQueue(desk, '2026-W43', [
-    entry({ questionKey: KEY_A }),
-    entry({ questionKey: KEY_B, ledgerId: 'NOT_A_REGISTERED_STRATEGY' }),
-    entry({ questionKey: KEY_C, candidateId: 'RLC-CRYPTO-2000W01-1', market: 'CRYPTO', ledgerId: 'QUICK_SHOT_V3_1000USDT' }),
-    entry({ questionKey: KEY_D, candidateId: 'RLC-US-2000W01-2', choice: 'MERGE', mergedInto: 'Q3' }),
-  ]);
-  const plain = routing.importQueue({ deskRoot: desk });
-  assert.deepEqual(plain.registered.map((row) => row.questionKey), [KEY_A, KEY_D]);
-  assert.deepEqual(plain.refused.map((row) => [row.questionKey, row.code]), [
-    [KEY_B, 'DESK_QUEUE_ENTRY_STRATEGY_NOT_REGISTERED'], [KEY_C, 'DESK_QUEUE_ENTRY_CASE_NOT_OPEN'],
-  ]);
-  assert.equal(plain.registered.find((row) => row.questionKey === KEY_D).researchQuestionRef, 'Q3');
-  const opened = routing.importQueue({ deskRoot: desk, openCases: true });
-  const refusedQs = opened.refused.find((row) => row.questionKey === KEY_C);
-  assert.equal(refusedQs.code, 'DESK_QUEUE_ENTRY_CASE_NOT_OPENED');
-  assert.match(refusedQs.reason, /^CASE_FACT_MISSING:.*runtime_lane\.mode/);
-  assert.equal(opened.unchanged.length, 2);
-  assert.equal(loop.listCases().some((row) => row.strategy_ref === 'QUICK_SHOT_V3_1000USDT'), false);
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-no-ruling-'));
+  const original = withEvidence({}, [noRulingProfile(repoRoot)]);
+  try {
+    const desk = makeDesk({ withSrc: false });
+    writeQueue(desk, '2026-W43', [
+      entry({ questionKey: KEY_A }),
+      entry({ questionKey: KEY_B, ledgerId: 'NOT_A_REGISTERED_STRATEGY' }),
+      entry({ questionKey: KEY_C, candidateId: 'RLC-CRYPTO-2000W01-1', market: 'CRYPTO', ledgerId: NO_RULING }),
+      entry({ questionKey: KEY_D, candidateId: 'RLC-US-2000W01-2', choice: 'MERGE', mergedInto: 'Q3' }),
+    ]);
+    const plain = routing.importQueue({ deskRoot: desk });
+    assert.deepEqual(plain.registered.map((row) => row.questionKey), [KEY_A, KEY_D]);
+    assert.deepEqual(plain.refused.map((row) => [row.questionKey, row.code]), [
+      [KEY_B, 'DESK_QUEUE_ENTRY_STRATEGY_NOT_REGISTERED'], [KEY_C, 'DESK_QUEUE_ENTRY_CASE_NOT_OPEN'],
+    ]);
+    assert.equal(plain.registered.find((row) => row.questionKey === KEY_D).researchQuestionRef, 'Q3');
+    const opened = routing.importQueue({ deskRoot: desk, openCases: true, caseOptions: { repoRoot, allowNonActual: true } });
+    const refused = opened.refused.find((row) => row.questionKey === KEY_C);
+    assert.equal(refused.code, 'DESK_QUEUE_ENTRY_CASE_NOT_OPENED');
+    assert.equal(refused.reason, 'CASE_FACT_MISSING:baseline (Q0 baseline lock),runtime_lane.mode');
+    assert.equal(opened.unchanged.length, 2);
+    assert.equal(loop.listCases().some((row) => row.strategy_ref === NO_RULING), false);
+  } finally {
+    profiles.use(original);
+  }
 });
 
 // ── 2. 按档案补开 case ────────────────────────────────────────────────────────────────────────
@@ -251,13 +263,58 @@ function usCoreRepo({ ledgerPatch = (ledger) => ledger, manifestPatch = (lines) 
   return { repoRoot, ledgerFile: path.join(pkg, ledgerRel), ledgerSha: sha(ledgerBytes), evidenceSha: sha(evidenceBytes) };
 }
 
-/** 进程内把 US_CORE 档案的 m1_evidence 换成合成证据（不写 config）；返回原注册表。 */
-function withCoreEvidence(evidenceSha) {
+/** 进程内把档案的 m1_evidence 换成合成证据（`map`：strategy_ref → {ref, sha}），可再加测试档案；不写 config，返回原注册表。 */
+function withEvidence(map, extra = []) {
   return profiles.use(profiles.validate({
     ...PRODUCTION,
-    profiles: PRODUCTION.profiles.map((item) => (item.strategy_ref === US_CORE
-      ? { ...item, m1_evidence: { ...item.m1_evidence, manifest_ref: 'docs/evidence/US_CORE_M1_SYNTHETIC.json', manifest_sha256: evidenceSha } } : item)),
+    profiles: [...PRODUCTION.profiles.map((item) => (map[item.strategy_ref]
+      ? { ...item, m1_evidence: { ...item.m1_evidence, manifest_ref: map[item.strategy_ref].ref, manifest_sha256: map[item.strategy_ref].sha } } : item)), ...extra],
   }));
+}
+function withCoreEvidence(evidenceSha) {
+  return withEvidence({ [US_CORE]: { ref: 'docs/evidence/US_CORE_M1_SYNTHETIC.json', sha: evidenceSha } });
+}
+
+/**
+ * 合成的加密 M1 封存清单（kind QRP_CRYPTO_V1_M1_*）。`direct`：证据清单就是封存清单（C17 型）；
+ * 否则写 QS 型证据清单（schema QS_V3_M1_NATIVE_DIAGNOSTIC_EVIDENCE_V1），登记输入包与清单的 sha256。
+ */
+function cryptoRepo({ strategyRef, caseRef, direct = false, repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-crypto-case-')), manifestPatch = (m) => m }) {
+  const tag = strategyRef.toLowerCase();
+  const manifest = manifestPatch({
+    kind: `QRP_CRYPTO_V1_M1_${direct ? 'C17' : 'QS'}`, capturedAt: '2026-10-26T06:21:05.219Z', host: 'fixture',
+    window: { from: '2026-10-07T00:00:00.000Z', toExclusive: '2026-10-25T00:00:00.000Z' }, ledger: strategyRef,
+    productionHead: 'a'.repeat(40), codeClean: true, files: [],
+  });
+  fs.mkdirSync(path.join(repoRoot, 'docs', 'evidence'), { recursive: true });
+  if (direct) {
+    const ref = `docs/evidence/${tag}_M1_MANIFEST_SYNTHETIC.json`;
+    const bytes = writeJson(path.join(repoRoot, ref), manifest);
+    return { repoRoot, ref, sha: sha(bytes), manifestFile: path.join(repoRoot, ref), manifestSha: sha(bytes) };
+  }
+  const relRoot = `var/evidence/${tag}-m1-synthetic`;
+  fs.mkdirSync(path.join(repoRoot, relRoot), { recursive: true });
+  const manifestFile = path.join(repoRoot, relRoot, 'm1-manifest.json');
+  const manifestBytes = writeJson(manifestFile, manifest);
+  const ref = `docs/evidence/${tag}_M1_EVIDENCE_SYNTHETIC.json`;
+  const bytes = writeJson(path.join(repoRoot, ref), {
+    schema: 'QS_V3_M1_NATIVE_DIAGNOSTIC_EVIDENCE_V1', case_ref: caseRef, strategy_ref: strategyRef,
+    input_package: { relative_root: relRoot }, source_package: { manifest_path: 'm1-manifest.json', manifest_sha256: sha(manifestBytes) },
+    safety: { production_effect: 'NONE', research_can_order: false, research_can_activate: false, research_can_write_runtime: false },
+  });
+  return { repoRoot, ref, sha: sha(bytes), manifestFile, manifestSha: sha(manifestBytes) };
+}
+
+/** 没有协调会话裁定、也没有 Q0 锁的测试档案：QS 型证据（有读法），但运行方式没有来源。 */
+function noRulingProfile(repoRoot) {
+  const repo = cryptoRepo({ strategyRef: NO_RULING, caseRef: NO_RULING_CASE, repoRoot });
+  return testProfile(NO_RULING, NO_RULING_CASE, { m1_evidence: { manifest_ref: repo.ref, manifest_sha256: repo.sha, diagnostic_schema: 'TEST_NO_RULING_M1_DIAGNOSTIC_V1' } });
+}
+
+function lockQ0(strategyRef, fx) {
+  const head = q0.headLock(profiles.get(strategyRef).case_ref);
+  if (head) return head;
+  return q0.importBaselineEvaluation(fx.write(fx.result()), { registeredBy: a7.AUTHORITY, strategyRef, allowNonActual: true });
 }
 
 function lockCoreQ0() {
@@ -314,9 +371,76 @@ test('补开 case 的事实缺失或不符时拒绝并写明字段：账本没�
   assert.equal(code(usCoreRepo({ ledgerPatch: (ledger) => { ledger.marks = []; return ledger; } })), 'CASE_FACT_MISSING:runtime_lane.as_of');
   assert.match(code(usCoreRepo({ manifestPatch: () => [`${'0'.repeat(64)}  ./files/config/us_core_ledger.json`] })), /^CASE_FACT_SOURCE_SHA256_MISMATCH/);
   assert.match(code({ ...usCoreRepo(), evidenceSha: '1'.repeat(64) }), /^CASE_FACT_M1_EVIDENCE_SHA256_MISMATCH/);
-  // 真实 QS 档案：M1 包里没有结构化的运行方式字段；临时账本里也没有它的 Q0 锁
-  assert.throws(() => profileCases.caseInputFor('QUICK_SHOT_V3_1000USDT'), (error) => error.code === 'CASE_FACT_MISSING' && /runtime_lane\.mode/.test(error.detail));
-  assert.equal(loop.listCases().some((row) => row.strategy_ref === 'QUICK_SHOT_V3_1000USDT'), false);
+  // 没有裁定、也没有事实的档案：运行方式与基线都无来源，一次报全，不开 case
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-no-ruling-'));
+  const original = withEvidence({}, [noRulingProfile(repoRoot)]);
+  try {
+    assert.throws(() => profileCases.caseInputFor(NO_RULING, { repoRoot, allowNonActual: true }),
+      (error) => error.code === 'CASE_FACT_MISSING' && error.detail === 'baseline (Q0 baseline lock),runtime_lane.mode');
+    assert.throws(() => profileCases.ensureProfileCase(NO_RULING, { repoRoot, allowNonActual: true }), /CASE_FACT_MISSING/);
+    assert.equal(loop.listCases().some((row) => row.strategy_ref === NO_RULING), false);
+  } finally {
+    profiles.use(original);
+  }
+});
+
+test('协调会话裁定 2026-10-27：QS V3 与 C17_V2 按裁定补开 case——基线版本 = 当前 Q0 锁的 result_id，运行方式 PAPER；其余字段取自封存清单；导入不再拒收它们', () => {
+  fresh();
+  const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-crypto-case-'));
+  const repos = {
+    [QS]: cryptoRepo({ strategyRef: QS, caseRef: 'RRC-QUICK-SHOT-V3-1000USDT-V8-1-M0', repoRoot }),
+    [C17]: cryptoRepo({ strategyRef: C17, caseRef: 'RRC-C17-V2-4000USDT-V8-1-M0', direct: true, repoRoot }),
+  };
+  const original = withEvidence(repos);
+  try {
+    const locks = { [QS]: lockQ0(QS, fxQs), [C17]: lockQ0(C17, fxC17) };
+    const options = { repoRoot, allowNonActual: true };
+    // 裁定表：两条、字段与日期、引用协调说明 1 §3；裁定当天的值只作对照（开 case 时从当前锁读）
+    assert.deepEqual(Object.keys(profileCases.COORDINATOR_RULINGS).sort(), [C17, QS]);
+    assert.deepEqual(Object.fromEntries(Object.entries(profileCases.COORDINATOR_RULINGS).map(([ref, row]) => [ref, [row.ruled_at, row.runtime_lane_mode, row.baseline_version_ref, row.values_at_ruling.baseline_version_ref]])), {
+      [QS]: ['2026-10-27', 'PAPER', profileCases.HEAD_Q0_RESULT_ID, 'Q0-bd83dd6ec1754dbc'],
+      [C17]: ['2026-10-27', 'PAPER', profileCases.HEAD_Q0_RESULT_ID, 'Q0-e80c42523b30f768'],
+    });
+    const note = fs.readFileSync(path.join(ROOT, profileCases.COORDINATOR_RULINGS[QS].note_ref.split(' ')[0]), 'utf8');
+    for (const text of ['协调会话裁定 2026-10-27', 'COORDINATOR_RULINGS', 'Q0-bd83dd6ec1754dbc', 'Q0-e80c42523b30f768', 'AGENT_MODE=dry_run', '`PAPER`']) assert.ok(note.includes(text), text);
+    // 试算（不写账）
+    for (const ref of [QS, C17]) {
+      const input = profileCases.caseInputFor(ref, options);
+      assert.deepEqual(input.runtime_lane, {
+        source_ref: repos[ref].manifestFile, source_hash: repos[ref].manifestSha, version_ref: `${ref}@${'a'.repeat(40)}`,
+        as_of: '2026-10-25T00:00:00.000Z', mode: 'PAPER', real_order: 0,
+      });
+      assert.equal(input.baseline.version_ref, locks[ref].result_id);
+      assert.equal(input.baseline.runtime_mode, 'PAPER');
+      assert.equal(input.baseline.source_hash, locks[ref].file_sha256);
+      assert.deepEqual(input.data_quality, { status: 'UNKNOWN', as_of: '2026-10-25T00:00:00.000Z', known_at: '2026-10-26T06:21:05.219Z', source_refs: [repos[ref].manifestFile], freshness: { state: 'UNKNOWN' } });
+      assert.deepEqual(input.isolation, { research_can_order: false, research_can_activate: false, research_can_write_runtime: false });
+    }
+    assert.equal(loop.listCases().some((row) => [QS, C17].includes(row.strategy_ref)), false, '试算不写账');
+    // 封存清单与档案对不上时照旧拒绝
+    const wrong = cryptoRepo({ strategyRef: QS, caseRef: 'RRC-QUICK-SHOT-V3-1000USDT-V8-1-M0', manifestPatch: (m) => ({ ...m, ledger: C17 }) });
+    const swapped = withEvidence({ ...repos, [QS]: wrong });
+    try { assert.throws(() => profileCases.caseInputFor(QS, { repoRoot: wrong.repoRoot, allowNonActual: true }), /CASE_FACT_M1_EVIDENCE_IDENTITY_MISMATCH/); } finally { profiles.use(swapped); }
+    // 导入：两行都登记，各开各的 case（临时数据目录）
+    const desk = makeDesk({ withSrc: false });
+    writeQueue(desk, '2026-W43', [
+      entry({ questionKey: KEY_A, candidateId: 'RLC-CRYPTO-2000W01-1', market: 'CRYPTO', ledgerId: QS }),
+      entry({ questionKey: KEY_B, candidateId: 'RLC-CRYPTO-2000W01-2', market: 'CRYPTO', ledgerId: C17 }),
+    ]);
+    const result = routing.importQueue({ deskRoot: desk, openCases: true, caseOptions: options });
+    assert.deepEqual(result.refused, []);
+    assert.deepEqual(result.registered.map((row) => [row.ledgerId, row.caseRef]), [
+      [QS, 'RRC-QUICK-SHOT-V3-1000USDT-V8-1-M0'], [C17, 'RRC-C17-V2-4000USDT-V8-1-M0'],
+    ]);
+    for (const ref of [QS, C17]) {
+      const opened = loop.listCases().find((row) => row.strategy_ref === ref);
+      assert.equal(opened.runtime_lane.mode, 'PAPER');
+      assert.equal(opened.baseline_ref, `BASELINE-${locks[ref].result_id}`);
+      assert.equal(opened.production_effect, 'NONE');
+    }
+  } finally {
+    profiles.use(original);
+  }
 });
 
 test('补开 case 之后 US_CORE 页能出：运行状态页对非 US_V5 型的已校验诊断只列输入包一项（不再按 US_V5 的 source_status 取值而抛错）', { skip: SKIP_PAGE }, async () => {
