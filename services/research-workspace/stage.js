@@ -44,7 +44,7 @@ const PHASE_WORDS = Object.freeze({
   RUNNING: () => '进行中，K2 已冻结',
   QUEUED: (item) => `排队，等 ${item.waiting_on.join('、')} 锁定`,
   READY_FOR_K2: () => '待立题，等 K2 冻结',
-  // Desk 研究队列来的题：状态写最新一份队列里的 Owner 挑选（现读，不存）；读不到时照旧
+  // Desk 研究队列来的题：状态写最新一份队列里的 Owner 选择或 Research 分诊（desk 复盘闭环修订 7；现读，不存）；读不到时照旧
   DESK_LINK: (item) => (item && item.desk_state_zh ? `Desk 研究问题，${item.desk_state_zh}` : 'Desk 研究问题，尚无锁定结果'),
   MERGED: (item) => item.note_zh, // 增补 2 §6.3：并入别的策略的题（QS 的成本并入 C17 的执行成本题）
 });

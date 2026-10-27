@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "review-loop-research-queue.v1.schema.json",
+  "$id": "portfolio-desk/review-loop-research-queue.v1",
   "title": "REVIEW_LOOP_RESEARCH_QUEUE_V1",
-  "description": "Review loop Addendum 6 §4.1: the desk's research questions for QRP, one snapshot per week revision (every unconcluded research candidate, and those concluded in the last 8 weeks). Producer COORDINATOR; compiled with the week file of the same revision.",
+  "description": "Review loop Addendum 6 §4.1: the desk's research questions for QRP, one snapshot per week revision (every unconcluded research candidate, and those concluded in the last 8 weeks). Producer COORDINATOR; compiled with the week file of the same revision. Addendum 7 §4.5: every candidate Research triages -- research and engineering types, never behaviour -- each with its triage block.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "contract", "producer", "weekId", "revision", "generatedAt", "sourceWeek", "routes", "entries", "interpretation", "realOrder", "brokerWrite", "hash"],
@@ -51,8 +51,7 @@
     "entry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["questionKey", "candidateId", "market", "ledgerId", "roleId", "triggerIds", "findings", "firstWeek", "weeksSeen", "candidateType",
-        "ruleRef", "versionSegmentId", "effect", "sample", "questionZh", "ownerPick", "deskState", "mergedInto", "qrpHint"],
+      "required": ["questionKey", "candidateId", "market", "ledgerId", "roleId", "triggerIds", "findings", "firstWeek", "weeksSeen", "candidateType", "ruleRef", "versionSegmentId", "effect", "sample", "questionZh", "ownerPick", "deskState", "mergedInto", "qrpHint"],
       "properties": {
         "questionKey": { "type": "string", "pattern": "^RQK-[0-9a-f]{16}$", "description": "Addendum 6 §3.3: one key per question across weeks." },
         "candidateId": { "$ref": "#/$defs/candidateId" },
@@ -78,10 +77,10 @@
         },
         "firstWeek": { "$ref": "#/$defs/weekId" },
         "weeksSeen": { "type": "integer", "minimum": 1 },
-        "candidateType": { "enum": ["PARAMETER", "RULE"] },
+        "candidateType": { "enum": ["PARAMETER", "RULE", "DATA", "EXECUTION"] },
         "ruleRef": {
           "type": "array",
-          "minItems": 1,
+          "minItems": 0,
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -117,7 +116,7 @@
             "state": { "enum": ["AT_OR_ABOVE_FLOOR", "BELOW_FLOOR"] }
           }
         },
-        "questionZh": { "$ref": "#/$defs/text" },
+        "questionZh": { "$ref": "#/$defs/nullableText", "description": "The research question; null for an engineering candidate." },
         "ownerPick": {
           "type": "object",
           "additionalProperties": false,
@@ -132,7 +131,36 @@
         },
         "deskState": { "enum": ["OPEN", "PICKED", "RESEARCH_DRAFTED", "RESEARCH_SIGNED", "RESULT", "DO", "DONT", "DEPLOYED", "MEASURING", "NOT_PICKED", "MERGED"] },
         "mergedInto": { "$ref": "#/$defs/nullableText" },
-        "qrpHint": { "$ref": "#/$defs/nullableText", "description": "A possible QRP question to merge into, for the Owner to read; never a merge." }
+        "qrpHint": { "$ref": "#/$defs/nullableText", "description": "A possible QRP question to merge into, for the Owner to read; never a merge." },
+        "triage": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Addendum 7 §4.5: PENDING (waits for Research, due at dueBy), APPLIED (Research triaged it), OWNER_DECIDED (the Owner chose; Research does not triage).",
+          "required": ["state", "dueBy", "outcome", "reasonCode", "questionRef", "mergedInto", "fixRef", "recordId", "recordHash"],
+          "properties": {
+            "state": { "enum": ["PENDING", "APPLIED", "OWNER_DECIDED"] },
+            "dueBy": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/instant" }] },
+            "outcome": { "enum": [null, "OPEN_QUESTION", "FIX", "MERGE", "CLOSE"] },
+            "reasonCode": {
+              "enum": [null, "NO_RECURRENCE", "PARITY_MATCHED", "AS_DESIGNED", "ALREADY_FIXED", "SUBJECT_RETIRED", "COVERED_BY_QUESTION", "COVERED_BY_CANDIDATE"]
+            },
+            "questionRef": { "$ref": "#/$defs/nullableText" },
+            "mergedInto": { "$ref": "#/$defs/nullableText" },
+            "fixRef": {
+              "anyOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["repo", "ref"],
+                  "properties": { "repo": { "enum": ["Ashare-V6", "smartflow", "portfolio-desk"] }, "ref": { "type": "string", "minLength": 1 } }
+                }
+              ]
+            },
+            "recordId": { "type": ["string", "null"], "pattern": "^RTR-[0-9a-f]{16}$" },
+            "recordHash": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/hex64" }] }
+          }
+        }
       }
     }
   }

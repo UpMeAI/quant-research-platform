@@ -32,6 +32,7 @@ const detailNotes = require('../strategy-detail-notes');
 const adoption = require('../research-adoption');
 const adoptionView = require('../research-adoption/overview');
 const deskRouting = require('../desk-review-routing');
+const deskTriage = require('../desk-review-routing/triage');
 const detailSummary = require('./summary');
 const m2Rounds = require('../m2-rounds');
 const researchStage = require('./stage');
@@ -756,6 +757,9 @@ async function readModel({
     navigation: NAVIGATION,
     compatibility_routes: COMPATIBILITY_ROUTES,
     strategy_directory: directory,
+    // desk 复盘闭环修订 7 §5.2：研究总览的「Desk 复盘待分诊 N 条，最早 <月-日> 到期」（最新一份队列减去本机已分诊的；读不到队列为空）
+    desk_triage: (({ entries, earliestDue, textZh }) => ({ count: entries.length, earliest_due: earliestDue, text_zh: textZh,
+      candidates: entries.map((item) => ({ candidate_id: item.candidateId, candidate_type: item.candidateType, due_by: item.dueBy, overdue: item.overdue })) }))(deskTriage.pendingTriage()),
     context: {
       title: selectedStrategy ? `${selectedStrategy.market_label} / ${selectedStrategy.name}` : 'Desk 策略目录',
       subtitle: selectedStrategy

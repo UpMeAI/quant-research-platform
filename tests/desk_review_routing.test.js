@@ -657,13 +657,13 @@ test('desk 来的题：研究队列表、回链卡与研究进度写「Desk 复�
   const row = first.research_queue.rows.find((item) => item.question_ref === `DQ-${KEY_A}`);
   assert.deepEqual(row, {
     question_ref: `DQ-${KEY_A}`, part_zh: 'Desk 复盘问题', name_zh: '合成题：这一条规则是否按设计生效？',
-    source_zh: 'Desk 复盘 RLC-US-2000W01-1 · 2026-W42', status_zh: '待 Owner 挑选', locked: false,
+    source_zh: 'Desk 复盘 RLC-US-2000W01-1 · 2026-W42', status_zh: '待研究分诊', locked: false,
   });
   assert.deepEqual(first.research_queue.rows.slice(0, 5).map((item) => item.question_ref), ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']);
   const card = first.research.items[0];
   assert.equal(card.question_label, '合成题：这一条规则是否按设计生效？');
   assert.equal(card.desk_source_zh, 'Desk 复盘 RLC-US-2000W01-1 · 2026-W42');
-  assert.equal(card.desk_state_zh, '待 Owner 挑选');
+  assert.equal(card.desk_state_zh, '待研究分诊');
   // 下一周 Owner 选「不做」：现读最新一份，回链账本不变
   const ledger = fs.readFileSync(LINKS());
   writeQueue(desk, '2026-W44', [entry({ weeksSeen: 2, choice: 'DONT' })]);
@@ -681,9 +681,11 @@ test('desk 来的题：研究队列表、回链卡与研究进度写「Desk 复�
   assert.ok(html.includes('<dt>Desk 状态</dt><dd>Owner 不做</dd>'));
 });
 
-test('Owner 挑选的中文：null／DONT／RESEARCH／MERGE／LATER 各一句；最新队列没有这一题时写明', () => {
+// desk 复盘闭环修订 7 §5.2（2026-10-27 冻结）：没有 Owner 选择的候选由 Research 分诊，「待 Owner 挑选」改为「待研究分诊」；
+// Owner 的选择照旧写 Owner 的词。修订 7 之前的队列行（没有 triage 块）读作待研究分诊。
+test('状态词（修订 7）：未选为待研究分诊；Owner 的 DONT／RESEARCH／MERGE／LATER 各一句；最新队列没有这一题时写明', () => {
   const words = [null, 'DONT', 'RESEARCH', 'MERGE', 'LATER'].map((choice) => routing.pickWords(entry({ choice, mergedInto: choice === 'MERGE' ? 'Q3' : null })));
-  assert.deepEqual(words, ['待 Owner 挑选', 'Owner 不做', '已立研究，待冻结 K2', '并入 Q3', '待 Owner 挑选（先放着）']);
+  assert.deepEqual(words, ['待研究分诊', 'Owner 不做', 'Owner 立研究，待冻结 K2', '并入 Q3', 'Owner 先放着']);
   const link = { link_id: 'RRL-x', desk_candidate_ref: 'RLC-US-2000W01-1', desk_evidence_ref: `${routing.EVIDENCE_PREFIX}REVIEW_LOOP_RESEARCH_QUEUE_2026-W43.json#${KEY_A}` };
   assert.deepEqual(routing.deskQuestionView(link, new Map()), {
     question_key: KEY_A, candidate_id: 'RLC-US-2000W01-1', title_zh: 'Desk 研究问题（最新一份 Desk 研究队列未列出）',

@@ -7,7 +7,8 @@
  *     时带 deskLink，来源记 DESK_REVIEW，否则 QRP_PROGRAM；
  *   - questions[]：研究计划里还没有封存结果的题（研究进度 stage.js 的 open 清单，状态词同页面：进行中／排队，等谁／待立题）；
  *     desk 研究队列来的题（DQ-…）还没有 QRP 的 K2，挑选状态归 desk，不在这里回传；
- *   - sources[]：四本账本字节的 sha256（文件不存在为 null）与行数。
+ *   - sources[]：四本账本字节的 sha256（文件不存在为 null）与行数；
+ *   - triage[]（desk 复盘闭环修订 7 §3.3）：Research 分诊账本 RESEARCH_TRIAGE_V1 里每个候选当前有效的一行，按 desk 契约的字段。
  * 不改任何锁、判据或采用记录；只写调用方给的输出目录里的一份新文件（已存在就拒绝覆盖）。
  */
 const fs = require('fs');
@@ -15,6 +16,7 @@ const path = require('path');
 const { dataDir, read } = require('../../packages/ledger');
 const { contentHash, sha256 } = require('./canonical');
 const deskRouting = require('./index');
+const deskTriage = require('./triage');
 
 const CONTRACT = 'QRP_RESEARCH_RETURN_V1';
 const LEDGERS = Object.freeze([
@@ -130,7 +132,7 @@ function buildReturn({ generatedAt = new Date().toISOString() } = {}) {
   const asOf = asOfOf(LEDGERS.map((ledger) => read(dataDir(...ledger.split('/'))))) || generatedAt;
   const payload = {
     schemaVersion: 1, contract: CONTRACT, producer: 'QRP', generatedAt, asOf, sources,
-    decisions: decisionRows({ links }), questions: questionRows({ links, cases }),
+    decisions: decisionRows({ links }), questions: questionRows({ links, cases }), triage: deskTriage.effectiveTriage().map(deskTriage.deskRow),
     interpretation: 'RESEARCH_RESULTS_AND_OWNER_DECISIONS_NOT_ORDERS', realOrder: 0, brokerWrite: false,
   };
   payload.hash = contentHash(payload);

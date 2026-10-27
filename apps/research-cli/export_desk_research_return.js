@@ -17,7 +17,7 @@ try {
   const result = returns.exportReturn({ outDir: argv[1] });
   process.stdout.write(`${JSON.stringify({
     file: result.file, sha256: result.sha256, hash: result.payload.hash,
-    decisions: result.payload.decisions.length, questions: result.payload.questions.length, production_effect: 'NONE',
+    decisions: result.payload.decisions.length, questions: result.payload.questions.length, triage: result.payload.triage.length, production_effect: 'NONE',
   })}\n`);
 } catch (error) {
   process.stderr.write(`${error.message}\n`);
