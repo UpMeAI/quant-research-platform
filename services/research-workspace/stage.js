@@ -9,7 +9,7 @@
  * - M4 范围（config/m4_scope.v1.json，经 runtime-research-loop 的 platform_m4）：已列入、尚未接入的策略；
  * - var/ledger/research/：baseline_evaluations（Q0 锁与替代链；结论与 A0 取自锁定文件的投影）、comparison_evaluations（对比锁）、
  *   adoption_decisions（每个结果的有效记录）、hypotheses 与 experiments（只经 Desk case 的研究问题回链归属到策略；
- *   没有回链的平台工程样例不算任何一条策略的题）；
+ *   没有回链的平台工程样例不算任何一条策略的题）、m2_round_evaluations（加密 M2 轮次锁，导入规格增补 2）；
  * - runtime-research-loop 的 case：运行态 case 与冻结基线关系。
  * 结果与页面上选的是哪条策略无关；总览卡片、页头计数和详情页头的接入标签读同一份对象。
  */
@@ -24,6 +24,7 @@ const adoption = require('../research-adoption');
 const adoptionView = require('../research-adoption/overview');
 const detailNotes = require('../strategy-detail-notes');
 const experiments = require('../experiment-orchestrator');
+const m2Rounds = require('../m2-rounds');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
@@ -43,6 +44,7 @@ const PHASE_WORDS = Object.freeze({
   QUEUED: (item) => `排队，等 ${item.waiting_on.join('、')} 锁定`,
   READY_FOR_K2: () => '待立题，等 K2 冻结',
   DESK_LINK: () => 'Desk 研究问题，尚无锁定结果',
+  MERGED: (item) => item.note_zh, // 增补 2 §6.3：并入别的策略的题（QS 的成本并入 C17 的执行成本题）
 });
 const BROKEN = new Set(['INVALID', 'MISSING']);
 
@@ -70,9 +72,10 @@ function verdictTally(locked) {
 
 /**
  * 一条策略的研究进度，从已读出的事实推出（纯函数，测试直接喂事实）。
- * facts：{ profile, m4, current_case, baseline_of_case, m1, q0, comparisons, rounds, open }；没有档案时 m1、q0 为 null、comparisons 为空。
+ * facts：{ profile, m4, current_case, baseline_of_case, m1, q0, comparisons, rounds, open, m2_round }；没有档案时 m1、q0 为 null、comparisons 为空。
  *   comparisons[]：{ question_ref, state, verdict_label, result_id, adoption }，adoption 是 research-adoption/overview 的 adoptionOf 结果；
- *   open[]：{ question_ref, title_zh, phase, waiting_on }，phase ∈ RUNNING／QUEUED／READY_FOR_K2／DESK_LINK。
+ *   open[]：{ question_ref, title_zh, phase, waiting_on }，phase ∈ RUNNING／QUEUED／READY_FOR_K2／DESK_LINK／MERGED。
+ *   m2_round：加密 M2 轮次（services/m2-rounds 的最后一轮投影），没有导入时为 null 或不写。
  */
 function stageOf(facts) {
   const locked = facts.comparisons.filter((card) => card.state === 'LOCKED_VERIFIED');
@@ -81,13 +84,16 @@ function stageOf(facts) {
   const q0Locked = Boolean(facts.q0 && facts.q0.state === 'LOCKED_VERIFIED');
   const hasRecord = Boolean(facts.profile || facts.current_case || facts.baseline_of_case);
   const openCount = facts.open.length;
+  const round = facts.m2_round || null;
+  const a0Note = () => (facts.q0.a0 && facts.q0.a0.state !== 'PASSED' ? `（${a0Text(facts.q0.a0)}）` : '');
 
   let code;
   if (!hasRecord) code = facts.m4 && facts.m4.state === 'IN_SCOPE_NOT_ONBOARDED' ? 'M4_PENDING' : 'NOT_CONNECTED';
   else if (!facts.profile && !facts.current_case) code = 'FROZEN_BASELINE';
   else if (!facts.q0 || facts.q0.state === 'NOT_IMPORTED') code = 'CONNECTED';
   else if (!q0Locked) code = 'Q0_INVALID';
-  else if (!locked.length) code = 'Q0_LOCKED';
+  // 增补 2 §7.1：Q0 已锁、没有锁定的对比、有一把轮次锁 → ROUND_FORWARD（校验未通过 → ROUND_INVALID）
+  else if (!locked.length) code = round ? (round.state === 'LOCKED_VERIFIED' ? 'ROUND_FORWARD' : 'ROUND_INVALID') : 'Q0_LOCKED';
   else code = decisions.decided ? 'DECIDED' : 'COMPARED';
 
   const openSuffix = openCount ? `，${openCount} 题待研究` : '';
@@ -102,7 +108,9 @@ function stageOf(facts) {
     FROZEN_BASELINE: () => '作为冻结基线关联，不接收新的研究结论',
     CONNECTED: () => `已接入，Q0 尚未锁定${openSuffix}`,
     Q0_INVALID: () => q0Text(facts.q0),
-    Q0_LOCKED: () => `Q0 ${facts.q0.verdict_label}${facts.q0.a0 && facts.q0.a0.state !== 'PASSED' ? `（${a0Text(facts.q0.a0)}）` : ''}；方案对比尚未开始${openSuffix}`,
+    Q0_LOCKED: () => `Q0 ${facts.q0.verdict_label}${a0Note()}；方案对比尚未开始${openSuffix}`,
+    ROUND_FORWARD: () => `Q0 ${facts.q0.verdict_label}${a0Note()}；第 ${round.round} 轮已做：缺口分解 + 组合候选已冻结，${round.forward.text_zh}，最早 ${round.look_not_before} 查看${openSuffix}`,
+    ROUND_INVALID: () => `Q0 ${facts.q0.verdict_label}${a0Note()}；第 ${round.round} 轮封存结果校验未通过${openSuffix}`,
     COMPARED: compared,
     DECIDED: compared,
   }[code]();
@@ -116,12 +124,15 @@ function stageOf(facts) {
     },
     {
       key: 'COMPARISON', label_zh: '方案对比',
-      text_zh: [locked.length ? `${locked.length} 题已锁定（${refs(locked)}${facts.rounds ? `，${facts.rounds} 轮` : ''}）：${verdictTally(locked)}` : '尚未开始',
+      text_zh: [locked.length ? `${locked.length} 题已锁定（${refs(locked)}${facts.rounds ? `，${facts.rounds} 轮` : ''}）：${verdictTally(locked)}`
+        : code === 'ROUND_FORWARD' ? `第 ${round.round} 轮已做（${round.frozen_on} 冻结）：缺口分解 ${round.component_count} 项，组合候选「${round.candidate_name_zh}」${round.selection_note_zh}`
+          : code === 'ROUND_INVALID' ? `第 ${round.round} 轮封存结果校验未通过` : '尚未开始',
         broken.length ? `${broken.length} 题封存结果校验未通过（${refs(broken)}）` : null].filter(Boolean).join('；'),
     },
     {
       key: 'ADOPTION', label_zh: '采用决定',
-      text_zh: locked.length ? [
+      text_zh: code === 'ROUND_FORWARD' ? `前向查看后按 做 / 不做 决定：最早 ${round.look_not_before}，且影子平仓满 ${round.min_closed} 笔；任何采用须 Owner 签字`
+        : locked.length ? [
         decisions.adopted ? `采用 ${decisions.adopted}（${refs(locked.filter((card) => card.adoption.decision === 'ADOPT'))}）` : null,
         decisions.not_adopted ? `不采用 ${decisions.not_adopted}（${refs(locked.filter((card) => card.adoption.decision === 'NOT_ADOPTED'))}）` : null,
         decisions.pending ? `待 Owner 决定 ${decisions.pending}（${refs(locked.filter((card) => card.adoption.state !== 'DECIDED'))}）` : null,
@@ -139,11 +150,14 @@ function stageOf(facts) {
     counts: {
       q0_locked: q0Locked, comparisons_locked: locked.length, comparisons_broken: broken.length, rounds: facts.rounds,
       decided: decisions.decided, adopted: decisions.adopted, not_adopted: decisions.not_adopted, pending: decisions.pending, open: openCount,
+      // 只加在有轮次锁的策略上（没有的策略计数对象逐字节不变）
+      ...(round ? { m2_round: round.round, forward_running: round.state === 'LOCKED_VERIFIED' && round.forward.state === 'RUNNING' } : {}),
     },
     technical: [
       facts.q0 && facts.q0.result_id ? { label: 'Q0 锁', value: facts.q0.result_id } : null,
       ...(facts.q0 ? facts.q0.superseded_result_ids.map((id) => ({ label: '已替代的 Q0 锁', value: id })) : []),
       ...locked.map((card) => ({ label: `${card.question_ref} 锁`, value: card.result_id })),
+      round ? { label: `第 ${round.round} 轮锁`, value: round.result_id } : null,
     ].filter(Boolean),
   };
 }
@@ -207,7 +221,13 @@ function factsOf(strategyRef, { cases, m4Items }) {
   const queued = Object.keys(profile.research_program.queue).map((question) => program && program.queueState(question, projections))
     .filter((state) => state && PHASE_WORDS[state.phase])
     .map((state) => ({ ...state, question_ref: state.question, title_zh: meta(state.question).name_zh || profile.research_program.queue[state.question].title }));
-  return { ...base, m1: m1Of(profile), q0: q0Of(profile), comparisons, rounds: rounds.size || null, open: [...queued, ...base.open] };
+  // 增补 2 §6.3（D7 ★）：校验通过的轮次带来的成本题算一题待研究
+  const m2Round = m2Rounds.latestOf(profile);
+  const roundOpen = m2Round && m2Round.state === 'LOCKED_VERIFIED' ? [m2Round.cost_open] : [];
+  return {
+    ...base, m1: m1Of(profile), q0: q0Of(profile), comparisons, rounds: rounds.size || null, open: [...queued, ...roundOpen, ...base.open],
+    ...(m2Round ? { m2_round: m2Round } : {}),
+  };
 }
 
 /** 目录里每条策略的研究进度（Map：strategy_ref → stageOf 的结果）。`cases` 取自 runtime-research-loop，`m4Items` 取自它的 platform_m4。 */
@@ -219,6 +239,7 @@ function readStages({ strategies, cases = [], m4Items = [] }) {
 function countsOf(stages) {
   const list = [...stages];
   const count = (predicate) => list.filter(predicate).length;
+  const rounding = list.filter((stage) => stage.code === 'ROUND_FORWARD' && stage.counts.forward_running);
   return {
     with_record: count((stage) => stage.has_record),
     q0_locked: count((stage) => stage.counts.q0_locked),
@@ -228,14 +249,20 @@ function countsOf(stages) {
     connected_without_q0: count((stage) => stage.code === 'CONNECTED'),
     frozen_baseline: count((stage) => stage.code === 'FROZEN_BASELINE'),
     m4_pending: count((stage) => stage.code === 'M4_PENDING'),
+    // 增补 2：已做 M2 轮次、前向已登记的策略；没有时不加这两个键（计数对象逐字节不变）
+    ...(rounding.length ? { rounds_forward: rounding.length, round_numbers: [...new Set(rounding.map((stage) => stage.counts.m2_round))] } : {}),
   };
 }
 
 /** 页头那句里关于 Research 的部分，由计数套句式。 */
 function countsSentence(counts) {
   if (!counts.with_record) return `目前没有策略有研究记录${counts.m4_pending ? `；${counts.m4_pending} 个已列入 M4 范围、尚未接入` : ''}。`;
+  // 增补 2 §7.1：Q0 已锁的括号里加「N 个已做第 1 轮、前向影子运行中」（只数前向已登记的）；没有轮次时这句逐字不变
+  const roundWord = counts.rounds_forward
+    ? `${counts.rounds_forward} 个已做${counts.round_numbers.length === 1 ? `第 ${counts.round_numbers[0]} 轮` : ' M2 轮次'}、前向影子运行中` : null;
+  const q0Parts = [counts.compared ? `${counts.compared} 个已有锁定的方案对比` : null, counts.compared && counts.decided ? `${counts.decided} 个已有 Owner 采用决定` : null, roundWord].filter(Boolean);
   const detail = [
-    counts.q0_locked ? `${counts.q0_locked} 个已锁定 Q0 回测结论${counts.compared ? `（${[`${counts.compared} 个已有锁定的方案对比`, counts.decided ? `${counts.decided} 个已有 Owner 采用决定` : null].filter(Boolean).join('、')}）` : ''}` : null,
+    counts.q0_locked ? `${counts.q0_locked} 个已锁定 Q0 回测结论${q0Parts.length ? `（${q0Parts.join('、')}）` : ''}` : null,
     counts.q0_invalid ? `${counts.q0_invalid} 个 Q0 封存结果校验未通过` : null,
     counts.connected_without_q0 ? `${counts.connected_without_q0} 个已接入、Q0 尚未锁定` : null,
     counts.frozen_baseline ? `${counts.frozen_baseline} 个作为冻结基线关联` : null,

@@ -32,6 +32,7 @@ const detailNotes = require('../strategy-detail-notes');
 const adoption = require('../research-adoption');
 const adoptionView = require('../research-adoption/overview');
 const detailSummary = require('./summary');
+const m2Rounds = require('../m2-rounds');
 const researchStage = require('./stage');
 const { listAdapters } = require('../../adapters/registry');
 
@@ -499,6 +500,9 @@ async function readModel({
   const researchText = researchSummary(comparisonProjections, baselineProjection.diagnosis, selectedLockedLinks.length, program);
   const notes = profile ? detailNotes.forStrategy(profile.strategy_ref) : null;
   const queueView = researchQueue(profile, notes, comparisonProjections, program);
+  // CRYPTO_Q0_RESULT_V1 增补 2：加密 M2 轮次（只有档案写了 m2_rounds、且已导入的轮次才有）
+  const roundProjections = profile ? m2Rounds.readProjections(profile, { hk: { shadowRuns } }) : [];
+  const latestRound = roundProjections.length ? roundProjections[roundProjections.length - 1] : null;
   // 修订 6：采用决定（有效记录，按 result_id + part）；每张对比卡第一行写它，研究区开头给一览与采用率
   const decisions = profile ? adoption.effective(adoption.records().filter((row) => row.strategy_ref === profile.strategy_ref)) : new Map();
   const adoptionOverview = profile ? adoptionView.overviewOf({
@@ -649,11 +653,12 @@ async function readModel({
     },
     research: {
       state: selectedLinks.length ? 'HAS_RESEARCH_QUESTION' : (researchText ? 'HAS_LOCKED_RESULT' : (primary ? 'EMPTY' : noCase.state)),
-      answer: researchText
+      // 增补 2：有轮次锁时答句末尾接上这一轮（结论先行；细节在下方的轮次卡）
+      answer: (latestRound ? (text) => `${text}${latestRound.sentence_zh}（见下方第 ${latestRound.round} 轮卡）。` : (text) => text)(researchText
         ? `${researchText}${selectedLinks.length ? `；另已关联 ${selectedLinks.length} 个 Desk 研究问题` : ''}。`
         : selectedLinks.length
           ? `已关联 ${selectedLinks.length} 个 Desk 研究问题。`
-          : primary ? '已接入 Research，但 Desk 尚未登记真实研究问题。' : noCase.summary,
+          : primary ? '已接入 Research，但 Desk 尚未登记真实研究问题。' : noCase.summary),
       has_sealed_result: Boolean(baselineProjection.state === 'LOCKED_VERIFIED' || comparisonProjections.some((card) => card.state === 'LOCKED_VERIFIED')),
       has_comparison: comparisonProjections.some((card) => card.state !== 'NOT_IMPORTED' && card.state !== 'NOT_CONNECTED'),
       source_label: '数据来自 QRP 导入并锁定的封存结果，页面不重算',
@@ -663,8 +668,10 @@ async function readModel({
     forward: {
       state: forwardItems.length ? 'HAS_FORWARD_RUN' : 'EMPTY', items: forwardItems, // state 只表示 QRP 已导入的前向观察
       hk_state: hkItems.length ? 'HAS_HK_RUNNING' : (hkForwardForSelected.state === 'UNAVAILABLE' ? 'UNAVAILABLE' : 'EMPTY'), hk_items: hkItems, hk_verified_at: hkForwardForSelected.verified_at,
+      // 导入规格 §7.2 的 Q0 前向记录半句在 HK 已登记时也保留（增补 2 D6 登记了加密影子之后，后半句换成 HK 运行句）
       answer: forwardItems.length || hkItems.length
-        ? [forwardItems.length ? `QRP 已导入 ${forwardItems.length} 条关联的前向观察` : null,
+        ? [q0Forward && !forwardItems.length ? `Q0 结果文件里带有前向记录${q0Forward.raw.trades !== undefined ? ` ${q0Forward.raw.trades} 笔` : ''}（只报不判）` : null,
+          forwardItems.length ? `QRP 已导入 ${forwardItems.length} 条关联的前向观察` : null,
           hkItems.length ? hkSentence(hkItems) : null]
           .filter(Boolean).join('；') + '。'
         : (q0Forward ? `Q0 结果文件里带有前向记录${q0Forward.raw.trades !== undefined ? ` ${q0Forward.raw.trades} 笔` : ''}（只报不判）；HK 前向影子：本策略尚未登记。` : '尚无属于这项策略的前向观察。'),
@@ -694,13 +701,15 @@ async function readModel({
     // 修订 5：研究队列小表（E7.1）与内部代号的中文题名（E7.2，页面换掉主内容里的代号）——只加在有说明登记的策略上
     ...(queueView ? { research_queue: queueView } : {}),
     ...(adoptionOverview ? { adoption_overview: adoptionOverview } : {}),
+    // 增补 2 §7.3：「研究与对比」里的轮次卡（card=R1）；只加在有已导入轮次的策略上
+    ...(roundProjections.length ? { m2_rounds: roundProjections } : {}),
     // 修订 7 J1：默认页签「总览」——一句话结论（服务端模板）、关键数字卡、精简一览、现行规则与待办；只加在有档案的策略上
     ...(profile ? { summary: detailSummary.overviewOf({
       strategy: selectedStrategy, caseRec: selectedCurrentCase,
       conclusion: { ...baselineProjection.conclusion, result_state: baselineProjection.state, result_reason: baselineProjection.reason || null },
       backtest: baselineProjection, comparisons: comparisonProjections, overview: adoptionOverview,
       notesQueue: notes && notes.research_queue, queueView, isMain: baselineEvaluation.mainRowTest(profile),
-      engineClause: !profiles.isLegacyShape(profile),
+      engineClause: !profiles.isLegacyShape(profile), round: latestRound,
     }) } : {}),
     ...(notes && notes.code_names && Object.keys(notes.code_names).length ? { code_names: notes.code_names } : {}),
     // 修订 4 A4.4：列入 M4 范围、还没有接入的策略写「已列入 M4 范围，尚未接入」（只加在这些策略上）

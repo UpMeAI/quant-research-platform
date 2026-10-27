@@ -104,6 +104,65 @@
       },
       "shared_constraints": [
         { "key": "A19_LOSS_BUDGET", "label_zh": "A19 共享亏损预算", "peers": ["C17_V2_4000USDT"], "display_zh": "共享，未复算", "rule_ref": "QS-C5" }
+      ],
+      "m2_rounds": [
+        {
+          "round": 1,
+          "frozen_on": "2026-10-27",
+          "reading": "QS_RESULT_V1",
+          "baseline_result_id": "Q0-bd83dd6ec1754dbc",
+          "evidence_dir": "var/evidence/qs-v3-m2-r1-2026-10-27",
+          "files": [
+            { "role": "RESULT", "name": "QS_V3_M2_R1_RESULT_V1.json", "sha256": "c679d4c92c2d67a1b95a7a9bcc56e1872e96b331657d8a4e3a092f7bb158aa25" },
+            { "role": "CANDIDATE_K2", "name": "QS_V3_M2_R1_COMBINED_CANDIDATE_K2_DRAFT_V1.md", "sha256": "ef424705131c59aafb3da969d78c73037cd2ca16c8698cd4555ce17f4239db51", "template": "QS_V3_M2_Q1_COMBINED_CANDIDATE_V1" },
+            { "role": "REPORT", "name": "CRYPTO_QRP_ONBOARDING_QS_V3_M2_R1_REPORT.md", "sha256": "792ca6b02305887ff56082f2ece0128fc861fcca78fe389e2d60eccbbf0b3bd2" },
+            { "role": "FREEZE", "name": "CRYPTO_M2_R1_K2_FREEZE_1.md", "sha256": "28a3f559b7f41ba093a34ae263e7ae3f8b1cdf425fb5d552bece1b0b6dab0d08" }
+          ],
+          "decomposition": { "gap_note_zh": "各分量只列 Δg 与区间，不算份额。" },
+          "components": {},
+          "candidate": {
+            "name_zh": "只做空",
+            "scope_zh": "一项；只收紧",
+            "rules": [
+              { "id": "CAND-S", "label_zh": "只做空", "text_zh": "V3 信号 signalType = bullish（D0 多单分支）不开仓；信号、扫描记录照写。", "component": "SHORT_ONLY" }
+            ],
+            "unchanged_zh": "不变：L-LIQ 名单、量比与成交额门槛、D0 空单分支、定仓与 R = 7.2 USDT、止损 3% / 止盈 8%、单合约 1 仓、总上限 50、25% 账本止损、A18、A19、Rule 1b。",
+            "rows": [
+              { "segment": "IS", "label_zh": "开发期 2020–2023" },
+              { "segment": "OOS", "label_zh": "样本外 2024 → 2026-10-24" }
+            ],
+            "history_note_zh": "历史区间都跨 0，都在检出下限以内：历史不能确认这个候选，采用只看前向。",
+            "btc_note_zh": "候选与当前 D 都没有可信地跑赢 BTC 买入持有。"
+          },
+          "forward": {
+            "observation_id": "QS_V3_M2_R1_SHORT_ONLY_SHADOW",
+            "t_start": "2026-10-27T16:45:06+08:00",
+            "look_not_before": "2027-04-30",
+            "min_closed": 60,
+            "plan_zh": [
+              "载体：从纸面账本推出的影子：纸面账本 QUICK_SHOT_V3_1000USDT 中 entry_time_ms ≥ T_start、trade_type = SHORT 的成交行，用纸面行自己的 net_pnl / net_r；无生产改动。",
+              "起点 T_start：2026-10-27T16:45:06+08:00（冻结时刻）。此前的纸面行不进窗口。",
+              "查看：2027-04-30 与影子平仓满 60 笔，取后到者；纸面账本因 A18 前向复盘 FAIL 或 25% 账本止损停止时，在停止时提前查看，窗口截至停止。"
+            ],
+            "do_title_zh": "做（四项同时满足，交 Owner 签字成为 QS V3 的纸面修订）：",
+            "do_zh": [
+              "影子净 USDT ≥ 纸面净 USDT（同一窗口）；",
+              "影子净 USDT > 0；",
+              "影子最大亏损 USDT（已平仓净值曲线，峰到谷）≤ 纸面的 1.10 倍；",
+              "影子单独没有触发 25% 账本止损，也没有跌到 600（Rule 1b 线）以下；影子平仓 ≥ 100 笔时，还要求 A18 的检验给出 U ≥ 0。"
+            ],
+            "dont_zh": "不做：任何一项不满足，QS V3 不变。A18 照旧只作用于纸面账本。",
+            "extra_zh": [ "查看工具：只读研究脚本，第一次查看前做好；不提前看任何前向数据。" ],
+            "rate_note_zh": "按后者，60 笔约在 2027-05 下旬（K2 §6）。"
+          },
+          "cost": {
+            "kind": "MERGED",
+            "component": "COSTS_ZERO",
+            "open_title_zh": "执行成本：并入 C17 的执行成本题",
+            "open_note_zh": "QS 作为第二个账本，只报不判",
+            "merged_zh": "是执行方式，按 K2 D5 (a) 并入 C17 执行成本题：QS 作为第二个账本，只报不判；C17 的判据只对 BTC / ETH。"
+          }
+        }
       ]
     },
     {
@@ -172,7 +231,7 @@
           ]
         },
         "halt_events": {
-          "rule_words": { "RULE_1_DRAWDOWN_AT_STOP_LINE": "Rule 1：自起点回撤到 50% 停止线" },
+          "rule_words": { "RULE_1_DRAWDOWN_AT_STOP_LINE": "Rule 1：自起点回撤到 50% 停止线", "RULE_2_NEGATIVE_EXPECTANCY_T_AT_OR_BELOW_MINUS_1_28": "Rule 2：期望为负（t ≤ −1.28）" },
           "rule_1b_words": { "NOT_EVALUABLE_SHARED_OVERSEAS_BUCKET": "Rule 1b 看海外桶（含其他账本），不复算" }
         },
         "r_digits": 3,
@@ -198,6 +257,83 @@
         { "key": "A19_LOSS_BUDGET", "label_zh": "A19 共享亏损预算", "peers": ["QUICK_SHOT_V3_1000USDT"], "display_zh": "共享，未复算", "rule_ref": "C17-R2" },
         { "key": "OVERSEAS_BUCKET_RULE_1B", "label_zh": "海外桶 Rule 1b", "peers": ["US_V5_ETF_3000USD", "US_CORE", "QUICK_SHOT_V3_1000USDT"], "display_zh": "共享，未复算", "research_ref": "R1B-1",
           "text_zh": "海外桶 Rule 1b：四本账合计 16,000，自起点峰值回撤 ≥ 40% 全体停新开仓，只有 Owner 解除（共享，未复算；研究题 R1B-1）" }
+      ],
+      "m2_rounds": [
+        {
+          "round": 1,
+          "frozen_on": "2026-10-27",
+          "reading": "C17_GAP_V1",
+          "baseline_result_id": "Q0-e80c42523b30f768",
+          "evidence_dir": "var/evidence/c17-v2-m2-r1-2026-10-27",
+          "files": [
+            { "role": "DECOMPOSITION", "name": "C17_V2_M2_R1_GAP_DECOMPOSITION_V1.json", "sha256": "229940c24a2246bcebe3ce73ba148f4ce3532924d040f4fb418afd95169de64d" },
+            { "role": "CANDIDATE", "name": "C17_V2_M2_R1_CANDIDATE_V1.json", "sha256": "8a3b40b76d6f8737a40e80028955c6f5d223351bcb742f79f9be9f207d2d94eb" },
+            { "role": "CANDIDATE_K2", "name": "C17_V2_M2_R1_COMBINED_CANDIDATE_K2_DRAFT_V1.md", "sha256": "443bdfccab9cbe0e3dab2dd4453cbbc14505501a23c0ed1c4fbb24453d52e206", "template": "C17_V2_M2_Q1_COMBINED_CANDIDATE_V1" },
+            { "role": "REPORT", "name": "CRYPTO_QRP_ONBOARDING_C17_M2_R1_REPORT.md", "sha256": "e4e4b2fbdf93d34927d33c060854271aa04b398a4b292b5fa3023f1378989de8" },
+            { "role": "FREEZE", "name": "CRYPTO_QRP_ONBOARDING_FREEZE_3.md", "sha256": "59ebd6eb60c68d93f3d2f57bfd8fb543357a7dc4f238e6f3c002b701b99e2714" },
+            { "role": "FREEZE", "name": "CRYPTO_QRP_ONBOARDING_FREEZE_4.md", "sha256": "8cc4cb980252b7e7fe34640287554052ba8ba11c8fbce849a676644483e11261" },
+            { "role": "COST_K2", "name": "C17_V2_M2_R1_EXECUTION_COST_K2_DRAFT_V1.md", "sha256": "551cff82cd3f98f15486153a34c2454d66502b8f9b1181c16518daaf219652d3", "template": "C17_V2_M2_Q2_EXECUTION_COST_V1" },
+            { "role": "COST_FREEZE", "name": "CRYPTO_M2_R1_K2_FREEZE_1.md", "sha256": "28a3f559b7f41ba093a34ae263e7ae3f8b1cdf425fb5d552bece1b0b6dab0d08" },
+            { "role": "COST_RESULT", "name": "C17_V2_M2_Q2_PHASE_H_V1.json", "sha256": "6810cc3cc18327c93fd597217355c07ef186618510ea00ee4d0c9efbb702d221" },
+            { "role": "COST_RESULT_NOTE", "name": "C17_V2_M2_Q2_PHASE_H_RESULT_V1.md", "sha256": "c8737516f2efe2cf091650bafece3ef11cbd0812a0785751bf1b69cbe3b5e758" }
+          ],
+          "decomposition": { "gap_note_zh": "缺口接近 0，各分量只列 Δg 与区间，不算份额。" },
+          "components": {
+            "NO_COST": { "label_zh": "成本：费用 / 滑点 / 资金费全为 0", "treatment_zh": "不进候选；另立执行题（maker 成交需要真实成交证据）" },
+            "NO_DERISK": { "label_zh": "去风险关", "treatment_zh": "排除：样本内毁灭" },
+            "NO_EQUITY_MULTIPLIER": { "label_zh": "权益乘数关（m = 1）", "treatment_zh": "排除：符号相反，样本外显著为负" },
+            "FIXED_RISK_150_75": { "label_zh": "固定 150.75（两者都关）", "treatment_zh": "排除" },
+            "LONG_ONLY": { "label_zh": "只做多", "treatment_zh": "排除：样本外为负且量大" },
+            "SHORT_ONLY": { "label_zh": "只做空", "treatment_zh": null },
+            "UP_PHASE_SHORT_BLOCK": { "label_zh": "上涨阶段不做空（BTC 日线 > SMA200 不开空）", "treatment_zh": null }
+          },
+          "candidate": {
+            "name_zh": "只主流 + 上涨阶段不做空",
+            "scope_zh": "两项一起；都只收紧",
+            "rules": [
+              { "id": "CAND-S", "label_zh": "只主流", "text_zh": "只交易 BTCUSDT / ETHUSDT；非主流标的池记录照写，但不开仓。", "spec_flag": "majorsOnly", "component": null },
+              { "id": "CAND-D", "label_zh": "上涨阶段不做空", "text_zh": "开 SHORT 前检查 BTC 日线：上一根已收盘日线 close > SMA200（200 根已收盘日线收盘的简单均值）→ 不开空；不足 200 根时不拦。", "spec_flag": "research.upPhaseShortBlock", "component": "UP_PHASE_SHORT_BLOCK" }
+            ],
+            "unchanged_zh": "不变：信号、K5 / K7、效率闸、冷却、熔断、日停、定仓（150.75 × m × 去风险区间）、成本、出场、A19、Rule 1 / 2。",
+            "owner_note_zh": "与 Owner 目标的关系（冻结裁定 4 F1）：「只主流」与 Owner 10-06「C17 趋势核心 + 叙事山寨卫星」冲突；Owner 知情仍选立候选。冲突只在影子账本里体现，生产纸面账本的非主流卫星照常运行，直到查看后 Owner 另行签字。",
+            "a19_label_zh": "C17 单独触到 A19 线 1,400",
+            "rows": [
+              { "segment": "IS", "label_zh": "开发期 2020–2022", "window": ["2020-01-01", "2022-12-31"] },
+              { "segment": "OOS", "label_zh": "样本外 2023 → 2026-10-24", "window": ["2023-01-01", "2026-10-24"] },
+              { "segment": "FULL_BOOK", "label_zh": "全账本窗口 2024-10-04 → 2026-09-30（补充，代理标的池，不进结论）", "window": ["2024-10-04", "2026-09-30"] }
+            ],
+            "history_note_zh": "历史三处区间都跨 0，都在检出下限以内：历史不能确认这个候选，采用只看前向。",
+            "btc_note_zh": "候选与当前 D 都没有可信地跑赢 BTC 买入持有。"
+          },
+          "forward": {
+            "observation_id": "C17_V2_M2_R1_CANDIDATE_SHADOW",
+            "look_not_before": "2027-04-30",
+            "min_closed": 60,
+            "plan_zh": [
+              "载体：影子账本（HK strategy-worker 内的研究影子任务；只记录，不下单，不改 C17_V2 纸面账本）。",
+              "起点：部署后影子账本的第一条记录（冻结 4 F2.1）。只比较起点及以后开仓的交易；影子起始权益 = 起点时纸面账本的标记权益（F2.2）。",
+              "查看：2027-04-30 与影子账本平仓满 60 笔，取后到者，一次查看。"
+            ],
+            "do_title_zh": "做（三项同时满足，交 Owner 签字成为纸面修订）：",
+            "do_zh": [
+              "影子账本净 USDT ≥ C17_V2 纸面账本净 USDT（同一窗口）；",
+              "影子账本最大亏损 USDT ≤ 纸面账本的 1.10 倍；",
+              "影子账本单独没有触发 Rule 1 / Rule 2 STOP，也没有单独触到 A19 线（1,400）。"
+            ],
+            "dont_zh": "不做：任何一项不满足，C17_V2 不变。",
+            "extra_zh": [ "功效（只报）：前向 6 个月配对检出下限约 0.48，12 个月约 0.34（K2 §4）。" ]
+          },
+          "cost": {
+            "kind": "OWN",
+            "component": "NO_COST",
+            "open_title_zh": "执行成本：EXEC-1 + CAL",
+            "title_zh": "执行成本题（EXEC-1：非保护性订单先挂单 60 秒再吃单；CAL：主流入场腿按前向成交记账）",
+            "frozen_zh": "K2 已冻结（2026-10-27，冻结裁定 1 Q2）",
+            "why_zh": "为什么立这题：成本是分解里最大、样本内外最一致的一项",
+            "observation_id": "C17_V2_M2_R1_EXECUTION_COST_RECORDER",
+            "adoption_zh": "采用是交易规则修订，须 Owner 签字。"
+          }
+        }
       ]
     },
     {

@@ -219,6 +219,11 @@ const SCHEMAS = Object.freeze({
     object_ref: 's', observed_at: 's', verification_method: 's', production_effect: 's',
     acceptance_ref: 's', registered_by: 's', record_hash: 's', recorded_at: 's',
   },
+  M2_ROUND_LOCK_V1: {
+    _doc: 'CRYPTO_Q0_RESULT_V1 增补 2 —— 加密 M2 轮次锁：一条策略每一轮一把，按 sha256 绑定分解、候选、冻结的 K2 与冻结裁定（files[]：role、name、path、sha256、size）；没有三态结论（结论只来自前向查看，做 / 不做）；改锁须引用缺陷',
+    result_id: 's', case_ref: 's', strategy_ref: 's', round: 'n', baseline_result_id: 's', files: 'a', k2_sha256: 's', import_profile_id: 's',
+    supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?', production_effect: 's', locked_by: 's', locked_at: 's', lock_hash: 's',
+  },
   BASELINE_EVALUATION_LOCK_V1: {
     _doc: 'K3 —— 外部封存的基线评价结果锁（BASELINE_EVALUATION_V1）：文件 sha256、输入序列与引擎 blob 摘要；每 case 只锁一次，改锁须引用缺陷',
     result_id: 's', case_ref: 's', strategy_ref: 's', eval_class: 's', verdict_state: 's',

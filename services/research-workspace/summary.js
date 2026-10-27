@@ -48,7 +48,7 @@ function bestCandidate(rows) {
  *   「现行版本样本外期末 {本策略}，{低于|高于|等于} {比较对象}的 {期末}（{结论}）；已采用 N 项改进（…）[，待 Owner 决定 M 题]，研究中期末最高的是…」
  * 没有锁定的回测结果时写回测状态与原因；没有锁定的对比结果时只写第一段。
  */
-function sentenceOf({ conclusion, account, overview, questions, engine = null }) {
+function sentenceOf({ conclusion, account, overview, questions, engine = null, round = null }) {
   if (!conclusion || conclusion.result_state !== 'LOCKED_VERIFIED') {
     return `${conclusion && conclusion.label ? conclusion.label : '尚未回测'}：${(conclusion && (conclusion.reason || conclusion.result_reason)) || '原因未提供'}`;
   }
@@ -63,6 +63,8 @@ function sentenceOf({ conclusion, account, overview, questions, engine = null })
   } else head = `现行版本回测结论：${conclusion.label}${flag ? `（${flag.slice(1)}）` : ''}`;
   // CRYPTO_Q0_RESULT_V1 增补 1 §2.2 第 1 条 ★(a)：近似引擎的标签分句紧跟结论头（只对非 LEGACY 档案、flag = true）
   if (engine) head = `${head}；所用引擎为${engine}，结论最高只能是证据不足`;
+  // CRYPTO_Q0_RESULT_V1 增补 2 §7.2：有加密 M2 轮次锁时接一句轮次（没有时句子不变）
+  if (round) head = `${head}；${round.sentence_zh}`;
   if (!overview) return extra ? `${head}；${extra}。` : head;
   const rows = overview.groups.flatMap((group) => group.rows);
   const improvements = adoptedImprovements(rows, questions);
@@ -144,7 +146,7 @@ function adoptionOf(overview, comparisons) {
  *   - 待 Owner 决定：对比题里还没有决定的；
  *   - 下一步研究：研究队列里还没锁定的题，以及不采用题记录的后续。
  */
-function rulesOf({ strategy, caseRec, overview, queueView, comparisons }) {
+function rulesOf({ strategy, caseRec, overview, queueView, comparisons, round = null }) {
   const rows = overview ? overview.groups.flatMap((group) => group.rows).filter((row) => row.role === 'COMPARISON') : [];
   const cardOf = new Map(comparisons.filter((card) => card.result_id).map((card) => [card.result_id, card.question_ref]));
   const item = (row, text) => ({ question_ref: row.question_ref, title_zh: row.title_zh, text_zh: text, link: { section: 'research', card: cardOf.get(row.result_id) || row.question_ref } });
@@ -161,6 +163,11 @@ function rulesOf({ strategy, caseRec, overview, queueView, comparisons }) {
         question_ref: row.question_ref, title_zh: row.name_zh, text_zh: row.status_zh, link: { section: 'research' },
       })) : []),
       ...rows.filter((row) => row.adoption.decision === 'NOT_ADOPTED').map((row) => item(row, `不采用；后续：${row.adoption.follow_up_zh}`)),
+      // 增补 2 §7.2：第 N 轮组合候选的前向查看、成本题；都链接到轮次卡
+      ...(round && round.state === 'LOCKED_VERIFIED' ? [
+        { question_ref: '', title_zh: `第 ${round.round} 轮组合候选`, text_zh: `前向查看，最早 ${round.look_not_before}（且影子平仓满 ${round.min_closed} 笔）`, link: { section: 'research', card: round.card_ref } },
+        { question_ref: '', title_zh: round.cost_open.title_zh, text_zh: round.cost_open.phase === 'RUNNING' ? '进行中，K2 已冻结' : round.cost_open.note_zh, link: { section: 'research', card: round.card_ref } },
+      ] : []),
     ],
     deploy_note_zh: '部署状态不在 QRP 的记录里；这里只列采用记录写下的后续去向。',
   };
@@ -169,7 +176,7 @@ function rulesOf({ strategy, caseRec, overview, queueView, comparisons }) {
 /**
  * 总览投影。`notesQueue` = 说明登记的 research_queue（题名、组合关系）；`overview` = 修订 6 的采用一览（可为 null）。
  */
-function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, overview, notesQueue, queueView, isMain = isMainRow, engineClause = false }) {
+function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, overview, notesQueue, queueView, isMain = isMainRow, engineClause = false, round = null }) {
   const account = blockData(backtest, 'account');
   const verdict = blockData(backtest, 'verdict');
   const engine = engineClause && verdict && verdict.engine_approximation && verdict.engine_label ? verdict.engine_label : null;
@@ -177,11 +184,11 @@ function overviewOf({ strategy, caseRec, conclusion, backtest, comparisons, over
   const locked = (comparisons || []).filter((card) => card.state === 'LOCKED_VERIFIED');
   return {
     title_zh: '总览',
-    sentence_zh: sentenceOf({ conclusion, account, overview, questions, engine }),
+    sentence_zh: sentenceOf({ conclusion, account, overview, questions, engine, round }),
     state: conclusion ? conclusion.state : null,
     tiles: conclusion && conclusion.result_state === 'LOCKED_VERIFIED' ? tilesOf({ backtest, account, overview, isMain }) : [],
     adoption: adoptionOf(overview, locked),
-    rules: rulesOf({ strategy, caseRec, overview, queueView, comparisons: locked }),
+    rules: rulesOf({ strategy, caseRec, overview, queueView, comparisons: locked, round }),
     source_zh: '数字取自已锁定的结果文件与采用记录，页面不重算',
   };
 }
