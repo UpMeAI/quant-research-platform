@@ -32,12 +32,11 @@ const detailNotes = require('../strategy-detail-notes');
 const adoption = require('../research-adoption');
 const adoptionView = require('../research-adoption/overview');
 const detailSummary = require('./summary');
+const researchStage = require('./stage');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
 const NOT_REGISTERED_LABEL = '该策略尚未接入研究';
-/** 非 LEGACY 档案已锁 Q0、运行态 case 还没建立时的接入状态（页头、目录卡片同一写法）。 */
-const BASELINE_LOCKED_LABEL = 'Q0 回测结论已锁定；运行态 case 尚未建立';
 
 const NAVIGATION = Object.freeze([
   { route: 'strategies', label: '策略总览', question: 'Desk 当前有哪些运行、观察和历史策略？' },
@@ -505,23 +504,21 @@ async function readModel({
   const adoptionOverview = profile ? adoptionView.overviewOf({
     baselineProjection, comparisons: comparisonProjections, queue: notes && notes.research_queue, records: decisions,
   }) : null;
-  // 页头标签、概览卡片和研究区开头读同一个对象：有已锁定的对比结果就写实际状态，不再写「暂无研究问题」
+  // 研究进度（stage.js）：每条策略按自己的档案、锁和采用记录生成，与所选策略无关；总览卡片与页头计数读它。
+  // 接入标签同一来源：只有所选策略带运行态 case 时，详情页头照修订 4 D4 写（有锁定对比写研究问题句，没有写目录的接入状态）
+  const stages = researchStage.readStages({ strategies: directory.strategies, cases: loop.cases, m4Items: loop.product_delivery.platform_m4?.items || [] });
+  for (const item of directory.strategies) {
+    item.research_stage = stages.get(item.strategy_ref);
+    if (item === selectedStrategy && selectedCurrentCase) continue;
+    item.research = { ...item.research, code: item.research_stage.code, label: item.research_stage.headline_zh };
+  }
+  if (directory.state === 'AVAILABLE') {
+    const stageCounts = researchStage.countsOf(stages.values());
+    directory.counts = { ...directory.counts, research_connected: stageCounts.with_record, research_stage: stageCounts };
+  }
   if (researchText && selectedStrategy) selectedStrategy.research = { ...selectedStrategy.research, code: 'RESULT_LOCKED', label: researchText };
   // 非 LEGACY 档案已锁 Q0、运行态 case 还没建立：各处说法与上方的回测结论一致，不再写「尚未接入」「不显示研究结论」
   const baselineWithoutCase = !selectedCurrentCase && profileBaselineCase && baselineProjection.state === 'LOCKED_VERIFIED';
-  if (baselineWithoutCase && !researchText && selectedStrategy) {
-    selectedStrategy.research = { ...selectedStrategy.research, code: 'BASELINE_LOCKED', label: BASELINE_LOCKED_LABEL };
-  }
-  // 策略目录里的其他策略同一写法：非 LEGACY 档案已锁 Q0、还没有运行态 case 时，接入状态不再写「尚未接入 Research」
-  // （CRYPTO_Q0_RESULT_V1 增补 1 §7 第 1 条「策略目录里 C17 的接入状态」）。只读锁定投影（带缓存），不重算
-  for (const item of directory.strategies) {
-    if (item === selectedStrategy || item.research.code !== 'NOT_CONNECTED') continue;
-    const other = profiles.get(item.strategy_ref);
-    if (!other || profiles.isLegacyShape(other) || loop.cases.some((row) => row.strategy_ref === item.strategy_ref)) continue;
-    if (baselineEvaluation.readProjection(other.case_ref).state === 'LOCKED_VERIFIED') {
-      item.research = { ...item.research, code: 'BASELINE_LOCKED', label: BASELINE_LOCKED_LABEL };
-    }
-  }
   const lockedLinks = globalLinks.filter((item) => item.has_locked_result);
   const linkedExperimentIds = new Set((selectedCurrentCase?.links || []).map((link) => link.experiment_ref).filter(Boolean));
   const selectedForward = shadowRuns.filter((item) => linkedExperimentIds.has(item.experiment_ref));
@@ -738,7 +735,7 @@ async function readModel({
         question: NAVIGATION.find((item) => item.route === 'strategies').question,
         state: directory.state,
         answer: directory.state === 'AVAILABLE'
-          ? `Desk 共登记 ${directory.strategies.length} 个系统策略：${directory.counts.current} 个运行或观察中，${directory.counts.history} 个历史或收尾；其中 ${directory.counts.research_connected} 个已与 Research 建立关联。`
+          ? `Desk 共登记 ${directory.strategies.length} 个系统策略：${directory.counts.current} 个运行或观察中，${directory.counts.history} 个历史或收尾；${researchStage.countsSentence(directory.counts.research_stage)}`
           : 'Desk 权威策略目录暂时不可读取，页面不会用 QRP 工程对象代替。',
         next_step: directory.state === 'AVAILABLE' ? '选择一项策略，查看运行、体检、研究、前向观察和复盘的完整详情。' : '恢复 Desk 本地只读源后重试。',
       },
