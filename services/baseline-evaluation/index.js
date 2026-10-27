@@ -576,13 +576,21 @@ function periodBlockReading(doc, profile, reading, missing) {
   };
 }
 
+const a0BasisZh = (basis) => String(basis).replace(/^A0 ruling (\d+)$/, 'A0 裁定 $1');
+
+/** 封存文件里 A0 关卡的状态与依据，原样读出（策略总览的研究进度用它）；文件没有 A0 关卡时为 null。 */
+function a0Of(doc) {
+  const a0 = isObject(doc.gates) && isObject(doc.gates.A0) ? doc.gates.A0 : null;
+  return a0 && isText(a0.state) ? { state: a0.state, basis_zh: isText(a0.basis) ? a0BasisZh(a0.basis) : null } : null;
+}
+
 /**
  * US_CORE §4.2：A0 两种读法的一行（主内容）——裁定读法与 K2 原文读法的通过数、未记录项计数，取自文件；括号里的原因取自档案
  * a0.literal_note_zh（A0 裁定 1 R1/R2 的事实），只改写法：去掉「按 K2 原文：」前缀，第一个「（」改「：」并去掉末尾「）」。
  * 「未记录 N 项」的 N 是文件 unknown_counts 各项之和（页面只做计数）。
  */
 function a0DualLine(a0, spec) {
-  const basis = String(a0.basis).replace(/^A0 ruling (\d+)$/, 'A0 裁定 $1');
+  const basis = a0BasisZh(a0.basis);
   const note = String(spec.literal_note_zh).replace(/^按 K2 原文[：:]\s*/, '').replace('（', '：').replace(/）$/, '');
   const unknown = Object.entries(a0.unknown_counts).filter(([, n]) => Number.isInteger(n) && n > 0);
   const total = unknown.reduce((sum, [, n]) => sum + n, 0);
@@ -1684,7 +1692,7 @@ function project(sealed, lock, profile = lock.strategy_ref ? profiles.mustGet(lo
   const verdict = blocks.find((block) => block.key === 'verdict');
   const completeness = completenessOf(blocks.find((block) => block.key === 'stress'), doc.verdict.state);
   return {
-    state: 'LOCKED_VERIFIED', result_id: lock.result_id, class: EVAL_CLASS, verdict_state: doc.verdict.state,
+    state: 'LOCKED_VERIFIED', result_id: lock.result_id, class: EVAL_CLASS, verdict_state: doc.verdict.state, a0: a0Of(doc),
     conclusion: conclusionOf(verdict, doc, completeness, profile), blocks,
     diagnosis: withUnrecordedBasis(diagnosisList(doc, profile), blocks.find((block) => block.key === 'account')),
     source: {
