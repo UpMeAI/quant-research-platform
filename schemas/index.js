@@ -244,6 +244,12 @@ const SCHEMAS = Object.freeze({
     decision: 's?', follow_up_zh: 's?', decided_by: 's?', owner_words: 's?', decided_at: 's?', coordinator_recommendation: 'o?', evidence_ref: 'o?',
     supersedes: 's?', production_effect: 's', written_by: 's', written_at: 's', record_hash: 's',
   },
+  RESEARCH_TRIAGE_V1: {
+    _doc: 'desk 复盘闭环修订 7 §3.3 —— Research 对一个 desk 复盘候选的分诊（追加式）：立题／转工程修复／并入／判不做，判不做与并入带 RESEARCH_TRIAGE_CODES@v1 的码和证据；改正写新一行并 supersedes；只存本机账本（desk 事实不进 git），经回程文件 triage[] 带到 desk',
+    record_id: 's', record_hash: 's', candidate_id: 's', question_key: 's', queue_file: 's', queue_sha256: 's', outcome: 's', reason_code: 's?',
+    question_ref: 's?', strategy_ref: 's?', merged_into: 's?', fix_ref: 'o?', evidence: 'a', basis_zh: 's', recorded_by: 's', session_ref: 's?',
+    triaged_at: 's', supersedes: 's?', production_effect: 's', written_at: 's',
+  },
   STRATEGY_BASELINE_V1: {
     _doc: '自审计 strategy_baseline —— 冻结预期基线，只记录不重算策略结论',
     baseline_id: 's', strategy_ref: 's', market: 's', runtime_mode: 's', version_ref: 's',

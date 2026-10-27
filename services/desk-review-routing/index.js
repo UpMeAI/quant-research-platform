@@ -10,6 +10,10 @@
  * QRP 自己只写一处：导入时按 questionKey 在 runtime-research-loop 的 links.jsonl 登记一条回链（QRP_DATA_DIR，gitignored）。
  * Owner 挑选、出现周数、题目原文这些 desk 状态一律不存：显示时现读最新一份队列（QRP 闭环验收 D1「不复制 Desk 状态机」）。
  * QRP 仓库是公开的：这里读到的 desk 事实不进 git、文档或证据包（§6.3）。
+ *
+ * 复盘闭环修订 7（2026-10-27 冻结 FREEZE_1）：候选不再等 Owner 挑选，由 Research 分诊（./triage.js）。队列也列工程类候选（只进分诊清单，
+ * 不建回链）；状态词先看 Owner 的选择，再看队列里的 triage 块。队列与周档从 QRP_DESK_REVIEW_LOOP_ROOT（Mac 上的复盘镜像，定时周编推送的
+ * 那个提交）读，没设时照旧读 QRP_DESK_ROOT。
  */
 const fs = require('fs');
 const path = require('path');
@@ -41,6 +45,9 @@ const isObject = (value) => value !== null && typeof value === 'object' && !Arra
 const isText = (value) => typeof value === 'string' && value.trim() !== '';
 
 const deskRootOf = (deskRoot = process.env.QRP_DESK_ROOT || DEFAULT_DESK_ROOT) => path.resolve(deskRoot);
+/** 修订 7 §4.4：研究队列与周档的根——显式参数，再是复盘镜像，再是 desk checkout。策略目录不走这里。 */
+const reviewLoopRootOf = (deskRoot) => path.resolve(deskRoot || process.env.QRP_DESK_REVIEW_LOOP_ROOT || process.env.QRP_DESK_ROOT || DEFAULT_DESK_ROOT);
+const RESEARCH_TYPES = Object.freeze(['PARAMETER', 'RULE']);
 
 /** 按 (年, 周, 修订号) 排序；文件名就是顺序，不看 mtime。 */
 function orderOf(name, pattern) {
@@ -55,14 +62,14 @@ const byOrder = (pattern) => (a, b) => {
 };
 
 function listQueueFiles(deskRoot) {
-  const dir = path.join(deskRootOf(deskRoot), QUEUE_DIR);
+  const dir = path.join(reviewLoopRootOf(deskRoot), QUEUE_DIR);
   let names;
   try { names = fs.readdirSync(dir); } catch { return null; }
   return names.filter((name) => QUEUE_FILE.test(name)).sort(byOrder(QUEUE_FILE));
 }
 
 function listWeekFiles(deskRoot) {
-  const dir = path.join(deskRootOf(deskRoot), WEEK_DIR);
+  const dir = path.join(reviewLoopRootOf(deskRoot), WEEK_DIR);
   let names;
   try { names = fs.readdirSync(dir); } catch { return []; }
   return names.filter((name) => WEEK_FILE.test(name)).sort(byOrder(WEEK_FILE));
@@ -75,7 +82,8 @@ function checkEntry(entry, index) {
   need(CANDIDATE_ID.test(entry.candidateId || ''), 'DESK_QUEUE_ENTRY_INVALID', `${at}.candidateId`);
   need(/^[A-Z][A-Z0-9_]*$/.test(entry.ledgerId || ''), 'DESK_QUEUE_ENTRY_INVALID', `${at}.ledgerId`);
   need(WEEK_ID.test(entry.firstWeek || ''), 'DESK_QUEUE_ENTRY_INVALID', `${at}.firstWeek`);
-  need(isText(entry.questionZh), 'DESK_QUEUE_ENTRY_INVALID', `${at}.questionZh`);
+  // 修订 7 §4.5：工程类候选没有研究问题句（null）。
+  need(isText(entry.questionZh) || (!RESEARCH_TYPES.includes(entry.candidateType) && entry.questionZh === null), 'DESK_QUEUE_ENTRY_INVALID', `${at}.questionZh`);
   need(isObject(entry.ownerPick) && PICKS.includes(entry.ownerPick.choice), 'DESK_QUEUE_ENTRY_INVALID', `${at}.ownerPick.choice`);
   need(entry.mergedInto === null || isText(entry.mergedInto), 'DESK_QUEUE_ENTRY_INVALID', `${at}.mergedInto`);
 }
@@ -86,7 +94,7 @@ function checkEntry(entry, index) {
  * 以及每行导入要用的字段。`file` 不给 = 目录里最新的一份（按周与修订号）。
  */
 function readQueue({ deskRoot, file = null } = {}) {
-  const root = deskRootOf(deskRoot);
+  const root = reviewLoopRootOf(deskRoot);
   let name = file;
   if (!name) {
     const files = listQueueFiles(root);
@@ -163,10 +171,12 @@ function importQueue({ deskRoot, file = null, openCases = false, recordedAt = nu
   const queue = readQueue({ deskRoot, file });
   const out = {
     queue: { file: queue.file, sha256: queue.sha256, weekId: queue.payload.weekId, revision: queue.payload.revision, entries: queue.payload.entries.length },
-    registered: [], unchanged: [], refused: [],
+    registered: [], unchanged: [], refused: [], engineering: [],
   };
   for (const entry of queue.payload.entries) {
     const row = { questionKey: entry.questionKey, candidateId: entry.candidateId, ledgerId: entry.ledgerId };
+    // 修订 7 §4.5：工程类候选只进分诊清单，不登记成研究问题。
+    if (!RESEARCH_TYPES.includes(entry.candidateType)) { out.engineering.push(row); continue; }
     const profile = profiles.list().find((item) => item.strategy_ref === entry.ledgerId) || null;
     if (!profile) { out.refused.push({ ...row, code: 'DESK_QUEUE_ENTRY_STRATEGY_NOT_REGISTERED' }); continue; }
     let caseRec = loop.listCases().find((item) => item.case_id === profile.case_ref) || null;
@@ -204,15 +214,31 @@ function newestQueueEntries({ deskRoot } = {}) {
   return new Map();
 }
 
-/** Owner 挑选状态的中文（主稿 §4.2）；挑选值不在词表里返回 null。 */
-function pickWords(entry) {
+/**
+ * 这条 desk 候选现在的状态词（修订 7 §5.2）：Owner 的选择优先（原话记在 desk），再看队列的 triage 块——
+ * 待研究分诊（到期日；过期写已逾期几天）、研究已立题、并入、研究判不做（码的中文）、转工程修复。词表之外返回 null。
+ */
+function pickWords(entry, { now = new Date() } = {}) {
   if (!entry || !isObject(entry.ownerPick)) return null;
+  const choice = entry.ownerPick.choice;
+  if (choice !== null) {
+    const owner = { DONT: 'Owner 不做', RESEARCH: 'Owner 立研究，待冻结 K2', MERGE: `并入 ${entry.mergedInto || '（并入对象未写）'}`, LATER: 'Owner 先放着' };
+    return Object.prototype.hasOwnProperty.call(owner, choice) ? owner[choice] : null;
+  }
+  const t = entry.triage;
+  if (!t || t.state === 'PENDING') {
+    if (!t || !t.dueBy) return '待研究分诊';
+    const { monthDay } = require('./triage');
+    const late = Math.floor((now.getTime() - Date.parse(t.dueBy)) / 86400000);
+    return now.getTime() >= Date.parse(t.dueBy) ? `待研究分诊，已逾期 ${late} 天` : `待研究分诊（${monthDay(t.dueBy)} 前）`;
+  }
+  if (t.state !== 'APPLIED') return null;
+  const { CODE_ZH } = require('./triage');
   const words = {
-    null: '待 Owner 挑选', DONT: 'Owner 不做', RESEARCH: '已立研究，待冻结 K2',
-    MERGE: `并入 ${entry.mergedInto || '（并入对象未写）'}`, LATER: '待 Owner 挑选（先放着）',
+    OPEN_QUESTION: `研究已立题${t.questionRef ? ` ${t.questionRef}` : ''}，待冻结 K2`, MERGE: `并入 ${t.mergedInto || '（并入对象未写）'}`,
+    CLOSE: `研究判不做：${CODE_ZH[t.reasonCode] || t.reasonCode}`, FIX: `转工程修复（${t.fixRef ? t.fixRef.repo : '仓库未写'}）`,
   };
-  const key = entry.ownerPick.choice === null ? 'null' : entry.ownerPick.choice;
-  return Object.prototype.hasOwnProperty.call(words, key) ? words[key] : null;
+  return Object.prototype.hasOwnProperty.call(words, t.outcome) ? words[t.outcome] : null;
 }
 
 /**
@@ -238,7 +264,7 @@ function deskQuestionView(link, entries) {
 function returnCitations({ deskRoot } = {}) {
   const cited = new Set();
   try {
-    const root = deskRootOf(deskRoot);
+    const root = reviewLoopRootOf(deskRoot);
     for (const name of listWeekFiles(root)) {
       try {
         const payload = JSON.parse(fs.readFileSync(path.join(root, WEEK_DIR, name), 'utf8'));
@@ -266,6 +292,6 @@ function returnedToDeskCount(records, cited) {
 
 module.exports = {
   DEFAULT_DESK_ROOT, QUEUE_DIR, WEEK_DIR, QUEUE_CONTRACT, EVIDENCE_PREFIX, DeskRoutingError,
-  deskRootOf, listQueueFiles, listWeekFiles, readQueue, linkIdOf, evidenceRefOf, deskOriginOf, questionRefOf, importQueue,
+  deskRootOf, reviewLoopRootOf, listQueueFiles, listWeekFiles, readQueue, linkIdOf, evidenceRefOf, deskOriginOf, questionRefOf, importQueue,
   newestQueueEntries, pickWords, deskQuestionView, returnCitations, returnedToDeskCount,
 };
