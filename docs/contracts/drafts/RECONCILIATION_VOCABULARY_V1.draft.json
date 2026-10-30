@@ -1,0 +1,2036 @@
+{
+  "contract": "RECONCILIATION_VOCABULARY_V1",
+  "schemaVersion": 1,
+  "status": "DRAFT_UNSIGNED",
+  "draftedOn": "2026-10-30",
+  "baselineShas": {
+    "Ashare-V6": "72b5de61",
+    "smartflow": "9882d7e6",
+    "portfolio-desk": "50ab4e2",
+    "quant-research-platform": "2b0d5a4"
+  },
+  "scope": {
+    "subject": "The state of a reconciliation between a primary data source and an independent second source.",
+    "changesGateBehaviour": false,
+    "note": "This contract names and maps vocabularies. It changes no gate, no producer, no migration and no signed record. Every divergence found is registered under defects[] and left as it is; correcting one is a separate amendment with its own acceptance."
+  },
+  "authoritative": {
+    "id": "SOURCE_RECONCILIATION_STATE_V1",
+    "producerOfRecord": "Ashare-V6 src/data-runtime/contracts.js reconcileIndependentSources (emits the six values; RECONCILIATION_STATES is the code constant)",
+    "storedValues": [
+      {
+        "value": "CONSISTENT",
+        "meaning": "Two independent, use-authorised sources compared and agree."
+      },
+      {
+        "value": "MINOR_DIFFERENCE",
+        "meaning": "Two independent sources compared; the difference is inside the dataset-specific tolerance."
+      },
+      {
+        "value": "MAJOR_CONFLICT",
+        "meaning": "Two sources compared and disagree beyond tolerance, or their semantics/unit/adjustment differ. This is the only stored value that means the sources contradict each other."
+      },
+      {
+        "value": "PRIMARY_ONLY",
+        "meaning": "Only the primary source is usable: the second is absent, pending, not use-authorised, or not independent. Single-source by construction or by outcome; it is not a disagreement."
+      },
+      {
+        "value": "SECONDARY_ONLY",
+        "meaning": "Only the second source has data; the primary is missing."
+      },
+      {
+        "value": "ALL_MISSING",
+        "meaning": "Neither source has data. A positive finding (both were looked at), not an unread value."
+      }
+    ],
+    "readingSentinels": [
+      {
+        "value": "UNKNOWN",
+        "meaning": "The reader has no usable reconciliation value (absent, null, or not in the stored set). Never written to a reconciliation column. When the field is absent a gate reports its reason code with the suffix UNKNOWN."
+      },
+      {
+        "value": "NOT_APPLICABLE",
+        "meaning": "The question does not apply and a reason says so (for example source_basis SINGLE_SOURCE_BY_DESIGN or NOT_RECONCILED_BY_DESIGN). Never written to a reconciliation column; never a substitute for UNKNOWN or MISSING."
+      }
+    ],
+    "storedSetEqualsCodeConstant": "Ashare-V6 RECONCILIATION_STATES"
+  },
+  "distinctStates": {
+    "members": [
+      "UNKNOWN",
+      "STALE",
+      "MISSING",
+      "ZERO",
+      "CONFLICT",
+      "NOT_APPLICABLE"
+    ],
+    "rule": "No mapping may send one member to another member, and no two members may share a new value. A member that has a reconciliation-axis counterpart is translated to that counterpart, never to another member.",
+    "definitions": {
+      "UNKNOWN": {
+        "axis": "any",
+        "meaning": "We cannot tell. Not a negative finding.",
+        "reconciliationCounterpart": "reading sentinel UNKNOWN",
+        "notTheSameAs": [
+          "MISSING",
+          "STALE",
+          "ALL_MISSING",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "STALE": {
+        "axis": "freshness only",
+        "meaning": "The datum is older than its approved maximum age. A stale PRIMARY_ONLY stays PRIMARY_ONLY on the reconciliation axis and STALE on the freshness axis.",
+        "reconciliationCounterpart": null,
+        "notTheSameAs": [
+          "UNKNOWN",
+          "MISSING"
+        ]
+      },
+      "MISSING": {
+        "axis": "value / quality",
+        "meaning": "The datum is absent.",
+        "reconciliationCounterpart": "ALL_MISSING (both sources absent); SECONDARY_ONLY (primary absent)",
+        "notTheSameAs": [
+          "ZERO",
+          "UNKNOWN",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "ZERO": {
+        "axis": "value only",
+        "meaning": "A present value equal to zero. Reconciling two zeros is CONSISTENT; zero against absent is PRIMARY_ONLY or SECONDARY_ONLY.",
+        "reconciliationCounterpart": null,
+        "notTheSameAs": [
+          "MISSING",
+          "UNKNOWN",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "CONFLICT": {
+        "axis": "value / quality; local word of core_pool_evaluation and the compounder capability column",
+        "meaning": "Inputs contradict each other.",
+        "reconciliationCounterpart": "MAJOR_CONFLICT (never MINOR_DIFFERENCE, which is inside tolerance)",
+        "notTheSameAs": [
+          "MINOR_DIFFERENCE",
+          "UNKNOWN"
+        ]
+      },
+      "NOT_APPLICABLE": {
+        "axis": "any",
+        "meaning": "The question does not apply, with a reason code.",
+        "reconciliationCounterpart": "reading sentinel NOT_APPLICABLE",
+        "notTheSameAs": [
+          "UNKNOWN",
+          "MISSING",
+          "ZERO"
+        ]
+      }
+    }
+  },
+  "relatedDomains": [
+    {
+      "id": "DATA_QUALITY",
+      "values": [
+        "READY",
+        "DEGRADED",
+        "STALE",
+        "PARTIAL",
+        "MISSING",
+        "CONFLICT",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ],
+      "note": "Quality / freshness state of a record or dimension. READY and DEGRADED belong here, not in the reconciliation vocabulary."
+    },
+    {
+      "id": "BEHAVIOR_EVIDENCE",
+      "values": [
+        "READY",
+        "PRIMARY_ONLY",
+        "STALE",
+        "PARTIAL",
+        "MISSING",
+        "CONFLICT",
+        "UNKNOWN",
+        "ZERO",
+        "NOT_APPLICABLE",
+        "KNOWN"
+      ],
+      "note": "V6 behavior engine quality/value states. PRIMARY_ONLY is reused here as a quality word."
+    },
+    {
+      "id": "LEDGER_RECONCILIATION",
+      "values": [
+        "MATCH",
+        "DRIFT",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ],
+      "note": "POSITION_LEDGER_SNAPSHOT_V1: system units against reported units. Produced by smartflow, validated and displayed by portfolio-desk."
+    },
+    {
+      "id": "FLOW_RECONCILIATION",
+      "values": [
+        "RECONCILED",
+        "NONE_RECORDED",
+        "UNKNOWN"
+      ],
+      "note": "Desk strategy-review external capital flows."
+    },
+    {
+      "id": "ACCOUNT_CAPITAL_RECONCILIATION",
+      "values": [
+        "MATCHED",
+        "CONFLICT",
+        "PARTIAL",
+        "STALE",
+        "MISSING",
+        "UNKNOWN"
+      ],
+      "note": "V6 reported nav = cash + holdings arithmetic. Mixes data-state words with MATCHED."
+    },
+    {
+      "id": "ACCOUNT_RECONCILIATION_QRP",
+      "values": [
+        "MATCHED"
+      ],
+      "note": "QRP strategy-diagnostics account/cash reconciliation within a USD tolerance."
+    },
+    {
+      "id": "ENGINE_PARITY",
+      "values": [
+        "MATCHED",
+        "DIVERGED",
+        "UNKNOWN"
+      ],
+      "note": "QRP replay parity words."
+    },
+    {
+      "id": "SHADOW_ARM_ALIGNMENT",
+      "values": [
+        "NOT_RECONCILED"
+      ],
+      "note": "Desk shadow-vs-paper arm alignment state (stock-book-shortlist schema)."
+    },
+    {
+      "id": "DATASET_ROLE",
+      "values": [
+        "RECONCILIATION_ONLY"
+      ],
+      "note": "smartflow dataset-registry class and desk reconciliationOnly row flag: a role, never a state."
+    }
+  ],
+  "vocabularies": [
+    {
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "rows": [
+        {
+          "old": "CONSISTENT",
+          "kind": "IDENTITY",
+          "new": "CONSISTENT"
+        },
+        {
+          "old": "MINOR_DIFFERENCE",
+          "kind": "IDENTITY",
+          "new": "MINOR_DIFFERENCE"
+        },
+        {
+          "old": "MAJOR_CONFLICT",
+          "kind": "IDENTITY",
+          "new": "MAJOR_CONFLICT"
+        },
+        {
+          "old": "PRIMARY_ONLY",
+          "kind": "IDENTITY",
+          "new": "PRIMARY_ONLY"
+        },
+        {
+          "old": "SECONDARY_ONLY",
+          "kind": "IDENTITY",
+          "new": "SECONDARY_ONLY"
+        },
+        {
+          "old": "ALL_MISSING",
+          "kind": "IDENTITY",
+          "new": "ALL_MISSING"
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "rows": [
+        {
+          "old": "PRIMARY_ONLY",
+          "kind": "IDENTITY",
+          "new": "PRIMARY_ONLY"
+        },
+        {
+          "old": "SECONDARY_PENDING",
+          "kind": "FOLD",
+          "new": "PRIMARY_ONLY",
+          "note": "reconcileIndependentSources itself reports a pending second source as PRIMARY_ONLY with reason SECONDARY_SOURCE_MISSING_OR_PENDING; the pending fact moves to the reason code."
+        },
+        {
+          "old": "MATCHED",
+          "kind": "TRANSLATE",
+          "new": "CONSISTENT",
+          "note": "Open question OQ-1: the column records no tolerance, so MATCHED cannot be told from MINOR_DIFFERENCE. No writer emits it today."
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "TRANSLATE",
+          "new": "MAJOR_CONFLICT",
+          "note": "This column's own word for \"the sources disagree\". Legal here; it is not a foreign freshness state."
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_COMPOUNDER_CAPABILITY_RECONCILIATION_STATE",
+      "rows": [
+        {
+          "old": "CONSISTENT",
+          "kind": "IDENTITY",
+          "new": "CONSISTENT",
+          "note": "Weaker meaning than the authoritative one: all four required financial facts are usable, not that two sources agree (RV-D6)."
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "TRANSLATE",
+          "new": "MAJOR_CONFLICT",
+          "note": "Set when the combined quality of the input financial facts is CONFLICT: the facts contradict each other."
+        },
+        {
+          "old": "INCOMPLETE",
+          "kind": "READING",
+          "new": "UNKNOWN",
+          "note": "A required input is missing; the cause stays in the reason codes and is not merged into UNKNOWN as a state of its own."
+        },
+        {
+          "old": "NOT_APPLICABLE",
+          "kind": "READING",
+          "new": "NOT_APPLICABLE"
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_GATE_LEGACY_QUALITY_WORDS",
+      "rows": [
+        {
+          "old": "READY",
+          "kind": "DEFECT",
+          "new": null,
+          "note": "RV-D1. A DATA_QUALITY word found in archived gate lists over a reconciliation field. Intent recoverable from quality.js: CONSISTENT. Not applied here."
+        },
+        {
+          "old": "DEGRADED",
+          "kind": "DEFECT",
+          "new": null,
+          "note": "RV-D1. Intent recoverable from quality.js: MINOR_DIFFERENCE. Not applied here."
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_DATA_QUALITY_STATES",
+      "rows": [
+        {
+          "old": "READY",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "DEGRADED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "STALE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "PARTIAL",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "MISSING",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "UNKNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "NOT_APPLICABLE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_BEHAVIOR_QUALITY_STATES",
+      "rows": [
+        {
+          "old": "READY",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "PRIMARY_ONLY",
+          "kind": "SHARED_TOKEN",
+          "new": "PRIMARY_ONLY",
+          "note": "The reconciliation word reused as a quality word. current-position-diagnosis.js maps quality DEGRADED to it (RV-D3)."
+        },
+        {
+          "old": "STALE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "PARTIAL",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "MISSING",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "UNKNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "ZERO",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "NOT_APPLICABLE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_BEHAVIOR_VALUE_STATES",
+      "rows": [
+        {
+          "old": "KNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "ZERO",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "UNKNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "MISSING",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "STALE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "PARTIAL",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        },
+        {
+          "old": "NOT_APPLICABLE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "BEHAVIOR_EVIDENCE"
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_FINANCIAL_VALUE_STATE",
+      "rows": [
+        {
+          "old": "PRESENT",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "ZERO",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "MISSING",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        },
+        {
+          "old": "NOT_APPLICABLE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY"
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_FINANCIAL_SOURCE_BASIS",
+      "rows": [
+        {
+          "old": "TWO_SOURCE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATA_QUALITY: reconciliation_state is expected"
+        },
+        {
+          "old": "SINGLE_SOURCE_BY_DESIGN",
+          "kind": "READING",
+          "new": "NOT_APPLICABLE",
+          "note": "reconciliation_state is NULL; the reading is NOT_APPLICABLE"
+        },
+        {
+          "old": "NOT_RECONCILED_BY_DESIGN",
+          "kind": "READING",
+          "new": "NOT_APPLICABLE",
+          "note": "reconciliation_state is NULL; the reading is NOT_APPLICABLE"
+        }
+      ]
+    },
+    {
+      "vocabulary": "V6_ACCOUNT_CAPITAL_RECONCILIATION",
+      "rows": [
+        {
+          "old": "MATCHED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ACCOUNT_CAPITAL_RECONCILIATION"
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ACCOUNT_CAPITAL_RECONCILIATION"
+        },
+        {
+          "old": "PARTIAL",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ACCOUNT_CAPITAL_RECONCILIATION"
+        },
+        {
+          "old": "STALE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ACCOUNT_CAPITAL_RECONCILIATION"
+        },
+        {
+          "old": "MISSING",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ACCOUNT_CAPITAL_RECONCILIATION"
+        },
+        {
+          "old": "UNKNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ACCOUNT_CAPITAL_RECONCILIATION"
+        }
+      ]
+    },
+    {
+      "vocabulary": "LEDGER_RECONCILIATION_V1",
+      "rows": [
+        {
+          "old": "MATCH",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "LEDGER_RECONCILIATION"
+        },
+        {
+          "old": "DRIFT",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "LEDGER_RECONCILIATION"
+        },
+        {
+          "old": "UNKNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "LEDGER_RECONCILIATION"
+        },
+        {
+          "old": "NOT_APPLICABLE",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "LEDGER_RECONCILIATION"
+        }
+      ]
+    },
+    {
+      "vocabulary": "DESK_FLOW_RECONCILIATION",
+      "rows": [
+        {
+          "old": "RECONCILED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "FLOW_RECONCILIATION"
+        },
+        {
+          "old": "NONE_RECORDED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "FLOW_RECONCILIATION"
+        },
+        {
+          "old": "UNKNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "FLOW_RECONCILIATION"
+        }
+      ]
+    },
+    {
+      "vocabulary": "DESK_SHADOW_ARM_ALIGNMENT",
+      "rows": [
+        {
+          "old": "NOT_RECONCILED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "SHADOW_ARM_ALIGNMENT"
+        }
+      ]
+    },
+    {
+      "vocabulary": "QRP_ACCOUNT_RECONCILIATION",
+      "rows": [
+        {
+          "old": "MATCHED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ACCOUNT_RECONCILIATION_QRP"
+        }
+      ]
+    },
+    {
+      "vocabulary": "QRP_ENGINE_PARITY",
+      "rows": [
+        {
+          "old": "MATCHED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ENGINE_PARITY"
+        },
+        {
+          "old": "DIVERGED",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ENGINE_PARITY"
+        },
+        {
+          "old": "UNKNOWN",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "ENGINE_PARITY"
+        }
+      ]
+    },
+    {
+      "vocabulary": "DATASET_ROLE",
+      "rows": [
+        {
+          "old": "RECONCILIATION_ONLY",
+          "kind": "OUT_OF_DOMAIN",
+          "new": null,
+          "note": "DATASET_ROLE"
+        }
+      ]
+    },
+    {
+      "vocabulary": "DESK_RECORDED_FUNNEL_SUFFIX",
+      "rows": [
+        {
+          "old": "PRIMARY_ONLY",
+          "kind": "IDENTITY",
+          "new": "PRIMARY_ONLY",
+          "note": "Suffix of SELECTION_REJECTED_SOURCE_RECONCILIATION:<state> in a recorded five-stage funnel."
+        },
+        {
+          "old": "CONFLICT",
+          "kind": "DEFECT",
+          "new": null,
+          "note": "RV-D7. Recorded 2026-10-08 (v1 era). Not in RECONCILIATION_STATES; legal only in core_pool_evaluation. No producer at HEAD emits it into stock_type_score."
+        }
+      ]
+    }
+  ],
+  "gates": [
+    {
+      "id": "G1",
+      "repo": "Ashare-V6",
+      "name": "five-stage SOURCE_RECONCILIATION",
+      "where": "src/stock-book/five-stage/shortlist.js step('SOURCE_RECONCILIATION'); list in config/v6/research/stock_book_five_stage_v*.json sourceReconciliation.admitted",
+      "evaluatedField": "stock_type_score.source_reconciliation_state",
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "id": "G2",
+      "repo": "Ashare-V6",
+      "name": "core-pool SOURCE_RECONCILIATION",
+      "where": "src/core-pools/selection.js case 'SOURCE_RECONCILIATION'; list in config/v6/research/core_pool_selection_v*.json gates[].admitted",
+      "evaluatedField": "core_pool_evaluation.source_reconciliation_state",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE"
+    },
+    {
+      "id": "G3",
+      "repo": "Ashare-V6",
+      "name": "compounder v3 baseline reconciliation gate",
+      "where": "src/alpha/compounder/v3/postgres-repository.js BASELINE_ADMITTED_RECONCILIATION_STATES",
+      "evaluatedField": "core_pool_evaluation.source_reconciliation_state",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE"
+    },
+    {
+      "id": "G4",
+      "repo": "Ashare-V6",
+      "name": "v3 shared research link trigger",
+      "where": "db/migrations/231_v3_compounder_current_baseline_runtime.sql CORE_POOL_EVALUATION branch",
+      "evaluatedField": "core_pool_evaluation.source_reconciliation_state",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE"
+    },
+    {
+      "id": "G5",
+      "repo": "Ashare-V6",
+      "name": "data binding decision",
+      "where": "src/data-runtime/contracts.js bindingDecisionForReconciliation",
+      "evaluatedField": "source_reconciliation_observation.state",
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "id": "G6",
+      "repo": "Ashare-V6",
+      "name": "config loader vocabulary guard",
+      "where": "src/kernel/config/research-configuration.js assertSourceReconciliationVocabulary",
+      "evaluatedField": "admitted/rejected lists of a record",
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "id": "G7",
+      "repo": "Ashare-V6",
+      "name": "industry PRIMARY_ONLY degradation",
+      "where": "src/risk/postgres-current-risk-repository.js primaryOnlySourceDegradation",
+      "evaluatedField": "industry_membership.source_reconciliation_state",
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "id": "G8",
+      "repo": "Ashare-V6",
+      "name": "stock-type degraded flag",
+      "where": "src/data-runtime/feature-stock-type.js buildFeatureRecordsWithWindowReasons",
+      "evaluatedField": "sourceReconciliationState argument",
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "id": "G9",
+      "repo": "Ashare-V6",
+      "name": "cyclical degraded-breadth boundary query",
+      "where": "db/migrations/224_cyclical_degraded_breadth_shadow_boundary.sql",
+      "evaluatedField": "core_pool_evaluation.source_reconciliation_state",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE"
+    },
+    {
+      "id": "G10",
+      "repo": "Ashare-V6",
+      "name": "value-layer A4 coverage",
+      "where": "src/research/value-layer/a4-coverage.js",
+      "evaluatedField": "core_pool_evaluation.source_reconciliation_state",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE"
+    }
+  ],
+  "legacyGateViolations": [
+    {
+      "key": "CORE_POOL_SELECTION",
+      "version": "v1-ordered-shortlist-with-rejection-ledger-shadow",
+      "file": "config/v6/research/core_pool_selection_v1.json",
+      "effectiveTo": "2026-09-24",
+      "admitted": [
+        "READY",
+        "DEGRADED"
+      ]
+    },
+    {
+      "key": "CORE_POOL_SELECTION",
+      "version": "v2-ordered-shortlist-with-volume-gate-shadow",
+      "file": "config/v6/research/core_pool_selection_v2.json",
+      "effectiveTo": "2026-09-25",
+      "admitted": [
+        "READY",
+        "DEGRADED"
+      ]
+    },
+    {
+      "key": "CORE_POOL_SELECTION",
+      "version": "v3-ordered-shortlist-with-slow-volume-gate-shadow",
+      "file": "config/v6/research/core_pool_selection_v3.json",
+      "effectiveTo": "2026-09-26",
+      "admitted": [
+        "READY",
+        "DEGRADED"
+      ]
+    },
+    {
+      "key": "CORE_POOL_SELECTION",
+      "version": "v4-ordered-shortlist-with-realized-momentum-ranking-shadow",
+      "file": "config/v6/research/core_pool_selection_v4.json",
+      "effectiveTo": "2026-09-27",
+      "admitted": [
+        "READY",
+        "DEGRADED"
+      ]
+    },
+    {
+      "key": "CORE_POOL_SELECTION",
+      "version": "v5-theme-momentum-secondary-tiebreak-shadow",
+      "file": "config/v6/research/core_pool_selection_v5.json",
+      "effectiveTo": "2026-10-08",
+      "admitted": [
+        "READY",
+        "DEGRADED"
+      ]
+    },
+    {
+      "key": "STOCK_BOOK_FIVE_STAGE",
+      "version": "v1-one-book-five-stage-shadow",
+      "file": "config/v6/research/stock_book_five_stage_v1.json",
+      "effectiveTo": "2026-10-09",
+      "admitted": [
+        "READY",
+        "DEGRADED"
+      ]
+    },
+    {
+      "key": "STOCK_BOOK_FIVE_STAGE",
+      "version": "v2-three-names-held",
+      "file": "config/v6/research/stock_book_five_stage_v2.json",
+      "effectiveTo": "2026-10-10",
+      "admitted": [
+        "READY",
+        "DEGRADED"
+      ]
+    }
+  ],
+  "columns": [
+    {
+      "file": "029_data_freshness_source_independence.sql",
+      "table": "source_reconciliation_observation",
+      "column": "state",
+      "check": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "030_feature_stock_type_runtime.sql",
+      "table": "industry_membership",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "030_feature_stock_type_runtime.sql",
+      "table": "feature_record",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "030_feature_stock_type_runtime.sql",
+      "table": "stock_type_score",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "031_market_daily_basic_observation.sql",
+      "table": "market_daily_basic_observation",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "033_core_pool_shadow_runtime.sql",
+      "table": "core_pool_research_run",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY",
+        "SECONDARY_PENDING",
+        "MATCHED",
+        "CONFLICT"
+      ],
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE"
+    },
+    {
+      "file": "033_core_pool_shadow_runtime.sql",
+      "table": "core_pool_evaluation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY",
+        "SECONDARY_PENDING",
+        "MATCHED",
+        "CONFLICT"
+      ],
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE"
+    },
+    {
+      "file": "060_current_research_evidence_observations.sql",
+      "table": "analyst_forecast_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "060_current_research_evidence_observations.sql",
+      "table": "industry_daily_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "063_research_evidence_transform_facts.sql",
+      "table": "analyst_revision_pair_fact",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "063_research_evidence_transform_facts.sql",
+      "table": "industry_breadth_fact",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "128_v3_compounder_shadow_capabilities.sql",
+      "table": "compounder_capability_observation",
+      "column": "reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_COMPOUNDER_CAPABILITY_RECONCILIATION_STATE"
+    },
+    {
+      "file": "191_b13_historical_calendar_benchmark_envelope.sql",
+      "table": "b13_historical_calendar_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "191_b13_historical_calendar_benchmark_envelope.sql",
+      "table": "b13_historical_benchmark_price_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "193_b13_historical_moneyflow_envelope.sql",
+      "table": "b13_historical_moneyflow_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "197_b13_historical_risk_warning_envelope.sql",
+      "table": "b13_historical_risk_warning_coverage",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "197_b13_historical_risk_warning_envelope.sql",
+      "table": "b13_historical_risk_warning_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "198_b13_historical_daily_universe_envelope.sql",
+      "table": "b13_historical_daily_universe_coverage",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "198_b13_historical_daily_universe_envelope.sql",
+      "table": "b13_historical_daily_universe_member",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "209_b13_historical_price_limit_envelope.sql",
+      "table": "b13_historical_price_limit_coverage",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "209_b13_historical_price_limit_envelope.sql",
+      "table": "b13_historical_price_limit_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "250_current_daily_suspension_observation.sql",
+      "table": "security_suspension_observation",
+      "column": "source_reconciliation_state",
+      "check": [
+        "PRIMARY_ONLY"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "255_market_index_daily_observation.sql",
+      "table": "market_index_daily_observation",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "272_macro_series_and_pivot_observation.sql",
+      "table": "macro_series_observation",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "272_macro_series_and_pivot_observation.sql",
+      "table": "fund_share_daily_observation",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "276_fund_nav_daily_observation.sql",
+      "table": "fund_nav_daily_observation",
+      "column": "source_reconciliation_state",
+      "check": null,
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    },
+    {
+      "file": "326_company_financial_quality_facts.sql",
+      "table": "company_financial_quality_fact",
+      "column": "reconciliation_state",
+      "check": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "vocabulary": "V6_RECONCILIATION_STATES"
+    }
+  ],
+  "inventory": [
+    {
+      "id": "V6-P01",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/data-runtime/contracts.js",
+      "anchor": "function reconcileIndependentSources",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "The only producer of the full six. Output persisted to source_reconciliation_observation (029)."
+    },
+    {
+      "id": "V6-P02",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/data-runtime/sync-service.js",
+      "anchor": "reconcileIndependentSources({",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "Writes the observation row and the binding decision for registry datasets."
+    },
+    {
+      "id": "V6-P03",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/data-runtime/independent-quote-sources.js",
+      "anchor": "return 'MINOR_DIFFERENCE'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT"
+      ],
+      "note": "Quote comparison; feeds reconcileIndependentSources through scripts/probe-independent-quote-sources.js."
+    },
+    {
+      "id": "V6-P04",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/research/financial-quality/facts.js",
+      "anchor": "FINANCIAL_QUALITY_RECONCILIATION_INVALID",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "company_financial_quality_fact.reconciliation_state; NULL when source_basis is not TWO_SOURCE."
+    },
+    {
+      "id": "V6-P05",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/data-runtime/feature-stock-type-service.js",
+      "anchor": "sourceReconciliationState: 'PRIMARY_ONLY', runId,",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "Hard-coded: stock_type_score and feature_record are single-source by construction."
+    },
+    {
+      "id": "V6-P06",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/data-runtime/feature-stock-type.js",
+      "anchor": "sourceReconciliationState: 'PRIMARY_ONLY'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "Feature record and stock-type score bodies."
+    },
+    {
+      "id": "V6-P07",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/data-runtime/canonicalize.js",
+      "anchor": "sourceReconciliationState: 'PRIMARY_ONLY'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "Six canonicalizers, all hard-coded PRIMARY_ONLY. Also macro-data/canonicalize.js, full-market-day-sync.js and the b13-historical-* envelopes."
+    },
+    {
+      "id": "V6-P08",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/core-pools/core-pool-service.js",
+      "anchor": "sourceReconciliationState: 'PRIMARY_ONLY', shadowOutputAllowed: true",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "core_pool_research_run."
+    },
+    {
+      "id": "V6-P09",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/core-pools/core-pool-producer.js",
+      "anchor": "sourceReconciliationState: stockType.sourceReconciliationState",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "core_pool_evaluation copies the stock-type score state. The only value ever copied is PRIMARY_ONLY, so MATCHED, SECONDARY_PENDING and CONFLICT are never written."
+    },
+    {
+      "id": "V6-P10",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/alpha/compounder/v3/contracts.js",
+      "anchor": "reconciliationState = 'NOT_APPLICABLE'",
+      "vocabulary": "V6_COMPOUNDER_CAPABILITY_RECONCILIATION_STATE",
+      "values": [
+        "CONSISTENT",
+        "CONFLICT",
+        "INCOMPLETE",
+        "NOT_APPLICABLE"
+      ],
+      "note": "REINVESTMENT capability observation."
+    },
+    {
+      "id": "V6-P11",
+      "repo": "Ashare-V6",
+      "role": "PRODUCER",
+      "file": "src/data-runtime/industry-membership-versions.js",
+      "anchor": "sourceReconciliationState: prior.sourceReconciliationState",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "Copy forward."
+    },
+    {
+      "id": "V6-T01",
+      "repo": "Ashare-V6",
+      "role": "TRANSLATION",
+      "file": "src/data-runtime/quality.js",
+      "anchor": "PRIMARY_ONLY: 'PARTIAL', SECONDARY_ONLY: 'PARTIAL', ALL_MISSING: 'MISSING'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "PRIMARY_ONLY -> PARTIAL (or NOT_APPLICABLE when the binding decision allows capital)."
+    },
+    {
+      "id": "V6-T02",
+      "repo": "Ashare-V6",
+      "role": "TRANSLATION",
+      "file": "src/research/financial-quality/facts.js",
+      "anchor": "PRIMARY_ONLY: 'DEGRADED', SECONDARY_ONLY: 'DEGRADED', ALL_MISSING: 'MISSING'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "PRIMARY_ONLY -> DEGRADED."
+    },
+    {
+      "id": "V6-T03",
+      "repo": "Ashare-V6",
+      "role": "TRANSLATION",
+      "file": "db/migrations/231_v3_compounder_current_baseline_runtime.sql",
+      "anchor": "source_reconciliation_state='CONFLICT' THEN 'CONFLICT' ELSE 'READY'",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "PRIMARY_ONLY",
+        "SECONDARY_PENDING",
+        "MATCHED",
+        "CONFLICT"
+      ],
+      "note": "Signed. PRIMARY_ONLY -> READY."
+    },
+    {
+      "id": "V6-T04",
+      "repo": "Ashare-V6",
+      "role": "TRANSLATION",
+      "file": "src/research/shared/contracts.js",
+      "anchor": "function authoritativeCorePoolEvaluationQualityState",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "PRIMARY_ONLY",
+        "SECONDARY_PENDING",
+        "MATCHED",
+        "CONFLICT"
+      ],
+      "note": "JS mirror of T03, guarded by test/column-vocabulary-admitted-lists.test.js."
+    },
+    {
+      "id": "V6-T05",
+      "repo": "Ashare-V6",
+      "role": "TRANSLATION",
+      "file": "src/positions/current-position-diagnosis.js",
+      "anchor": "return quality === 'DEGRADED' ? 'PRIMARY_ONLY'",
+      "vocabulary": "V6_BEHAVIOR_QUALITY_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "Reverse direction: quality DEGRADED -> the reconciliation word PRIMARY_ONLY."
+    },
+    {
+      "id": "V6-C01",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/stock-book/five-stage/shortlist.js",
+      "anchor": "step('SOURCE_RECONCILIATION'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "PRIMARY_ONLY"
+      ],
+      "note": "G1. Reads stockTypes.get(id).sourceReconciliationState (shadow-runtime.js reads stock_type_score). Admitted list comes from the signed record; v3 and v4 admit the three values, v1 and v2 admitted READY and DEGRADED."
+    },
+    {
+      "id": "V6-C02",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/core-pools/selection.js",
+      "anchor": "case 'SOURCE_RECONCILIATION':",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "READY",
+        "DEGRADED"
+      ],
+      "note": "G2. Every core_pool_selection record admitted READY and DEGRADED; the last (v5) closed 2026-10-08."
+    },
+    {
+      "id": "V6-C03",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/alpha/compounder/v3/postgres-repository.js",
+      "anchor": "BASELINE_ADMITTED_RECONCILIATION_STATES",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "PRIMARY_ONLY",
+        "SECONDARY_PENDING",
+        "MATCHED"
+      ],
+      "note": "G3. Derived from the core_pool_evaluation CHECK; admits everything except CONFLICT."
+    },
+    {
+      "id": "V6-C04",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/data-runtime/contracts.js",
+      "anchor": "function bindingDecisionForReconciliation",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "G5. Throws RECONCILIATION_STATE_INVALID for anything else."
+    },
+    {
+      "id": "V6-C05",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/kernel/config/research-configuration.js",
+      "anchor": "CONFIG_SOURCE_RECONCILIATION_VOCABULARY_INVALID",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "G6. Rejects any non-legacy record whose list leaves RECONCILIATION_STATES; the exception is the exact [READY, DEGRADED] list of the seven archived versions."
+    },
+    {
+      "id": "V6-C06",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/risk/postgres-current-risk-repository.js",
+      "anchor": "industry?.source_reconciliation_state === 'PRIMARY_ONLY'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "G7."
+    },
+    {
+      "id": "V6-C07",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/data-runtime/feature-stock-type.js",
+      "anchor": "String(sourceReconciliationState).toUpperCase() === 'PRIMARY_ONLY'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "G8."
+    },
+    {
+      "id": "V6-C08",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "db/migrations/224_cyclical_degraded_breadth_shadow_boundary.sql",
+      "anchor": "evaluation.source_reconciliation_state='PRIMARY_ONLY'",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "G9."
+    },
+    {
+      "id": "V6-C09",
+      "repo": "Ashare-V6",
+      "role": "GATE",
+      "file": "src/research/value-layer/a4-coverage.js",
+      "anchor": "source_reconciliation_state==='CONFLICT'",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "CONFLICT"
+      ],
+      "note": "G10."
+    },
+    {
+      "id": "V6-C10",
+      "repo": "Ashare-V6",
+      "role": "CONSUMER",
+      "file": "src/stock-book/five-stage/shadow-runtime.js",
+      "anchor": "sourceReconciliationState: row.source_reconciliation_state",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "Reads stock_type_score into the shortlist input."
+    },
+    {
+      "id": "V6-C11",
+      "repo": "Ashare-V6",
+      "role": "CONSUMER",
+      "file": "src/opportunity-density/current-repository.js",
+      "anchor": "sourceReconciliationState: row.source_reconciliation_state",
+      "vocabulary": "V6_CORE_POOL_EVALUATION_STATE",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "Pass-through."
+    },
+    {
+      "id": "V6-C12",
+      "repo": "Ashare-V6",
+      "role": "CONSUMER",
+      "file": "src/research/financial-quality/facts.js",
+      "anchor": "['CONSISTENT', 'MINOR_DIFFERENCE', 'MAJOR_CONFLICT'].includes(row.reconciliationState)",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT"
+      ],
+      "note": "Two-source coverage and the 5% MAJOR_CONFLICT summary gate."
+    },
+    {
+      "id": "V6-C13",
+      "repo": "Ashare-V6",
+      "role": "DISPLAY",
+      "file": "src/positions/current-control-plane-projection.js",
+      "anchor": "MINOR_DIFFERENCE: ",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT",
+        "MINOR_DIFFERENCE",
+        "MAJOR_CONFLICT",
+        "PRIMARY_ONLY",
+        "SECONDARY_ONLY",
+        "ALL_MISSING"
+      ],
+      "note": "STATE_NAMES_CN mixes DATA_QUALITY words and the six reconciliation words in one map; unknown state shows 复核状态未知."
+    },
+    {
+      "id": "V6-C14",
+      "repo": "Ashare-V6",
+      "role": "DISPLAY",
+      "file": "web/js/view-model.mjs",
+      "anchor": "['READY', 'CONSISTENT'].includes(item.freshnessState || item.reconciliationState)",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "CONSISTENT"
+      ],
+      "note": "Pill colour: READY or CONSISTENT is green, everything else amber."
+    },
+    {
+      "id": "SF-L01",
+      "repo": "smartflow",
+      "role": "PRODUCER",
+      "file": "trading-system-v2/scripts/lib/ledger-reconciliation.js",
+      "anchor": "function reconciliationState(items)",
+      "vocabulary": "LEDGER_RECONCILIATION_V1",
+      "values": [
+        "MATCH",
+        "DRIFT",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ],
+      "note": "Position-ledger domain, not data-source. One rule for every smartflow ledger export."
+    },
+    {
+      "id": "SF-L02",
+      "repo": "smartflow",
+      "role": "CONSUMER",
+      "file": "trading-system-v2/scripts/export-us-review-decomposition.js",
+      "anchor": "new Set(['MATCH', 'DRIFT', 'UNKNOWN', 'NOT_APPLICABLE'])",
+      "vocabulary": "LEDGER_RECONCILIATION_V1",
+      "values": [
+        "MATCH",
+        "DRIFT",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ],
+      "note": "Validates its own output."
+    },
+    {
+      "id": "SF-L03",
+      "repo": "smartflow",
+      "role": "SCHEMA",
+      "file": "trading-system-v2/tests/fixtures/desk/carry-v2-shadow/position-ledger-snapshot.v1.current.schema.json",
+      "anchor": "\"reconciliation\"",
+      "vocabulary": "LEDGER_RECONCILIATION_V1",
+      "values": [
+        "MATCH",
+        "DRIFT",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ],
+      "note": "Pinned copy of the desk schema."
+    },
+    {
+      "id": "SF-L04",
+      "repo": "smartflow",
+      "role": "DECLARATION",
+      "file": "trading-system-v2/tests/fixtures/dataset-registry/datasets.v1.json",
+      "anchor": "\"RECONCILIATION_ONLY\"",
+      "vocabulary": "DATASET_ROLE",
+      "values": [
+        "RECONCILIATION_ONLY"
+      ],
+      "note": "Dataset class (a role). Not a state."
+    },
+    {
+      "id": "SF-L05",
+      "repo": "smartflow",
+      "role": "DECLARATION",
+      "file": "trading-system-v2/scripts/lib/us-sentiment-context.js",
+      "anchor": "reconciliationOnly: { owner: E5_OWNER",
+      "vocabulary": "DATASET_ROLE",
+      "values": [
+        "RECONCILIATION_ONLY"
+      ],
+      "note": "Row flag marking a row kept only to reconcile with Cycle Atlas E5."
+    },
+    {
+      "id": "DK-D01",
+      "repo": "portfolio-desk",
+      "role": "DISPLAY",
+      "file": "src/panel/glossary.js",
+      "anchor": "'SELECTION_REJECTED_SOURCE_RECONCILIATION:PRIMARY_ONLY'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [
+        "PRIMARY_ONLY"
+      ],
+      "note": "The only source-reconciliation value with a desk display word. Other values render as the raw code (decision 2026-10-13 U2)."
+    },
+    {
+      "id": "DK-D02",
+      "repo": "portfolio-desk",
+      "role": "CONSUMER",
+      "file": "src/panel/pick-render.js",
+      "anchor": "stopped?.gate === 'SOURCE_RECONCILIATION'",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [],
+      "note": "Reads only the gate name from the V6 funnel, no state value."
+    },
+    {
+      "id": "DK-D03",
+      "repo": "portfolio-desk",
+      "role": "CONSUMER",
+      "file": "src/stock-book-shortlist.js",
+      "anchor": "STOCK_BOOK_FIVE_STAGE@v3-source-reconciliation-vocabulary-fix",
+      "vocabulary": "V6_RECONCILIATION_STATES",
+      "values": [],
+      "note": "Pins the ruleRef of the 2026-10-10 vocabulary fix."
+    },
+    {
+      "id": "DK-D04",
+      "repo": "portfolio-desk",
+      "role": "SCHEMA",
+      "file": "schemas/position-ledger-snapshot.v1.schema.json",
+      "anchor": "\"MATCH\"",
+      "vocabulary": "LEDGER_RECONCILIATION_V1",
+      "values": [
+        "MATCH",
+        "DRIFT",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ],
+      "note": "Authoritative schema of the ledger domain."
+    },
+    {
+      "id": "DK-D05",
+      "repo": "portfolio-desk",
+      "role": "PRODUCER",
+      "file": "src/position-kernel/reconcile.js",
+      "anchor": "function reconcilePositions",
+      "vocabulary": "LEDGER_RECONCILIATION_V1",
+      "values": [
+        "MATCH",
+        "DRIFT",
+        "UNKNOWN"
+      ],
+      "note": "Desk-side position reconciliation."
+    },
+    {
+      "id": "DK-D06",
+      "repo": "portfolio-desk",
+      "role": "CONSUMER",
+      "file": "src/validate.js",
+      "anchor": "MATCH_WITH_DRIFT_OR_UNKNOWN_ITEM",
+      "vocabulary": "LEDGER_RECONCILIATION_V1",
+      "values": [
+        "MATCH",
+        "DRIFT",
+        "UNKNOWN",
+        "NOT_APPLICABLE"
+      ],
+      "note": "Validates snapshot reconciliation consistency."
+    },
+    {
+      "id": "DK-D07",
+      "repo": "portfolio-desk",
+      "role": "SCHEMA",
+      "file": "schemas/strategy-review.v1.schema.json",
+      "anchor": "\"RECONCILED\", \"NONE_RECORDED\", \"UNKNOWN\"",
+      "vocabulary": "DESK_FLOW_RECONCILIATION",
+      "values": [
+        "RECONCILED",
+        "NONE_RECORDED",
+        "UNKNOWN"
+      ],
+      "note": "External capital flows."
+    },
+    {
+      "id": "DK-D08",
+      "repo": "portfolio-desk",
+      "role": "SCHEMA",
+      "file": "schemas/stock-book-shortlist.v1.schema.json",
+      "anchor": "\"NOT_RECONCILED\"",
+      "vocabulary": "DESK_SHADOW_ARM_ALIGNMENT",
+      "values": [
+        "NOT_RECONCILED"
+      ],
+      "note": "Shadow arm alignment."
+    },
+    {
+      "id": "DK-D09",
+      "repo": "portfolio-desk",
+      "role": "DECLARATION",
+      "file": "src/panel/brief-render.js",
+      "anchor": "reconciliationOnly",
+      "vocabulary": "DATASET_ROLE",
+      "values": [
+        "RECONCILIATION_ONLY"
+      ],
+      "note": "Hides reconciliation-only sentiment rows."
+    },
+    {
+      "id": "QRP-A01",
+      "repo": "quant-research-platform",
+      "role": "PRODUCER",
+      "file": "services/strategy-diagnostics/index.js",
+      "anchor": "reconciliation_state: 'MATCHED'",
+      "vocabulary": "QRP_ACCOUNT_RECONCILIATION",
+      "values": [
+        "MATCHED"
+      ],
+      "note": "Account/cash reconciliation of a US_V5 M1 package."
+    },
+    {
+      "id": "QRP-A02",
+      "repo": "quant-research-platform",
+      "role": "DISPLAY",
+      "file": "apps/research-web/index.html",
+      "anchor": "PARITY_WORDS={MATCHED:'一致',DIVERGED:'有差异',UNKNOWN:'未知'}",
+      "vocabulary": "QRP_ENGINE_PARITY",
+      "values": [
+        "MATCHED",
+        "DIVERGED",
+        "UNKNOWN"
+      ],
+      "note": "Replay parity words. Not a data-source reconciliation."
+    }
+  ],
+  "repoScopes": {
+    "Ashare-V6": {
+      "sourceReconciliation": "PRODUCER_AND_CONSUMER",
+      "note": "Owns the authoritative set and every legacy vocabulary."
+    },
+    "smartflow": {
+      "sourceReconciliation": "NONE",
+      "note": "Produces and validates the LEDGER_RECONCILIATION domain only. No source-reconciliation state is produced, stored or gated.",
+      "ledgerDomainFiles": [
+        "trading-system-v2/scripts/export-us-review-decomposition.js",
+        "trading-system-v2/scripts/lib/agent-fixed-ledger-snapshot.js",
+        "trading-system-v2/scripts/lib/c17-ledger-snapshot.js",
+        "trading-system-v2/scripts/lib/cmp-v1-desk-book.js",
+        "trading-system-v2/scripts/lib/crypto-desk-books.js",
+        "trading-system-v2/scripts/lib/ledger-reconciliation.js",
+        "trading-system-v2/scripts/lib/us-book-exports.js"
+      ]
+    },
+    "portfolio-desk": {
+      "sourceReconciliation": "DISPLAY_AND_PASS_THROUGH",
+      "note": "Reads the five-stage gate name and one reason-code suffix from V6 output; owns the ledger schema."
+    },
+    "quant-research-platform": {
+      "sourceReconciliation": "NONE",
+      "note": "Only the QRP account and engine-parity words. No V6 source-reconciliation field is read.",
+      "reconciliationStateFiles": [
+        "services/strategy-diagnostics/index.js"
+      ]
+    }
+  },
+  "defects": [
+    {
+      "id": "RV-D1",
+      "severity": "CLOSED_IN_EFFECT",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "Seven archived signed records (core_pool_selection v1-v5, stock_book_five_stage v1-v2) admit [READY, DEGRADED], which are DATA_QUALITY words, over a reconciliation field. The gate rejects every row by construction.",
+      "evidence": [
+        "config/v6/research/core_pool_selection_v1..v5.json",
+        "config/v6/research/stock_book_five_stage_v1.json",
+        "config/v6/research/stock_book_five_stage_v2.json",
+        "src/kernel/config/research-configuration.js:assertSourceReconciliationVocabulary (exact legacy exception)"
+      ],
+      "residual": "five_stage v3 (effective 2026-10-10) and v4 (2026-10-15, open) admit [CONSISTENT, MINOR_DIFFERENCE, PRIMARY_ONLY]; the loader rejects any new record repeating the defect. No record in force uses the bad list. The 2026-10-09 60-to-0 rejection was five_stage v2."
+    },
+    {
+      "id": "RV-D2",
+      "severity": "LATENT",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "The loader guard checks a core_pool_selection gate list against RECONCILIATION_STATES, but the evaluated field is core_pool_evaluation.source_reconciliation_state, which only shares PRIMARY_ONLY with that set. A future core_pool_selection record could not legally admit MATCHED or SECONDARY_PENDING, and the values it may admit (CONSISTENT, MINOR_DIFFERENCE) are never held by the field.",
+      "evidence": [
+        "src/kernel/config/research-configuration.js:171-179",
+        "src/core-pools/selection.js:148-150",
+        "db/migrations/033_core_pool_shadow_runtime.sql"
+      ],
+      "residual": "No core_pool_selection record is in force after 2026-10-08."
+    },
+    {
+      "id": "RV-D3",
+      "severity": "DIVERGENCE",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "Three producers translate the same reconciliation state to a quality state differently, and one translates the other way. PRIMARY_ONLY becomes PARTIAL (quality.js), DEGRADED (financial-quality facts.js) or READY (migration 231, signed); position diagnosis maps quality DEGRADED to the reconciliation word PRIMARY_ONLY.",
+      "evidence": [
+        "src/data-runtime/quality.js",
+        "src/research/financial-quality/facts.js RECONCILIATION_QUALITY",
+        "db/migrations/231_v3_compounder_current_baseline_runtime.sql",
+        "src/positions/current-position-diagnosis.js normalizedBarQuality"
+      ],
+      "residual": "Changing migration 231 needs the Owner signature (an ELIGIBLE assessment may not cite a blocking input). Not touched here."
+    },
+    {
+      "id": "RV-D4",
+      "severity": "LOW",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "quality.js assessBatch indexes its translation table with sourceReconciliation.state without validating it. A state outside RECONCILIATION_STATES yields undefined and silently becomes UNKNOWN (secondary configured) or PARTIAL, whereas bindingDecisionForReconciliation throws RECONCILIATION_STATE_INVALID for the same input.",
+      "evidence": [
+        "src/data-runtime/quality.js"
+      ],
+      "residual": "Neither fallback allows capital binding."
+    },
+    {
+      "id": "RV-D5",
+      "severity": "LATENT",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "Nine reconciliation columns carry no CHECK: stock_type_score, feature_record, industry_membership, market_daily_basic_observation, market_index_daily_observation, macro_series_observation, fund_share_daily_observation, fund_nav_daily_observation, compounder_capability_observation. The database cannot stop a foreign value; only the list of writers (all hard-coded PRIMARY_ONLY today) does.",
+      "evidence": [
+        "db/migrations (see columns[] where check is null)"
+      ],
+      "residual": "Every current writer emits PRIMARY_ONLY or a code-checked value."
+    },
+    {
+      "id": "RV-D6",
+      "severity": "SEMANTIC",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "compounder_capability_observation.reconciliation_state holds CONSISTENT, CONFLICT, INCOMPLETE and NOT_APPLICABLE. CONSISTENT there means all four required facts are usable, not that two sources agreed; INCOMPLETE exists in no other vocabulary. Migration 128 requires CONSISTENT for a READY REINVESTMENT capability.",
+      "evidence": [
+        "src/alpha/compounder/v3/contracts.js:296-316",
+        "db/migrations/128_v3_compounder_shadow_capabilities.sql"
+      ],
+      "residual": "Research-only capability, capital binding is CHECK-pinned to false."
+    },
+    {
+      "id": "RV-D7",
+      "severity": "HISTORICAL",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "A recorded five-stage funnel (2026-10-08) carries SELECTION_REJECTED_SOURCE_RECONCILIATION:CONFLICT. CONFLICT is not in RECONCILIATION_STATES; it is legal only in core_pool_evaluation. No producer at HEAD writes it into stock_type_score (hard-coded PRIMARY_ONLY), so the origin is a pre-2026-10-10 path not reproducible from current code.",
+      "evidence": [
+        "portfolio-desk fixtures/stock-book-shortlist/STOCK_BOOK_SHORTLIST_SHADOW_A_2026-10-08.json"
+      ],
+      "residual": "Recorded data, immutable."
+    },
+    {
+      "id": "RV-D8",
+      "severity": "HOMONYMS",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "The same tokens mean different things across domains: MATCHED (two sources agree / reported sums agree / engine parity), CONFLICT (sources disagree / inputs contradict / sums differ), UNKNOWN and NOT_APPLICABLE (in six vocabularies), PRIMARY_ONLY (reconciliation outcome and behavior quality word). The contract resolves this by naming the domain, not by renaming a value.",
+      "evidence": [
+        "see vocabularies[] and relatedDomains[]"
+      ],
+      "residual": "None needed for V1."
+    },
+    {
+      "id": "RV-D9",
+      "severity": "DISPLAY",
+      "status": "REGISTERED_NOT_FIXED",
+      "summary": "portfolio-desk shows SELECTION_REJECTED_SOURCE_RECONCILIATION:<state> through generic glossary words for four states and as a raw code for five. UNKNOWN renders as 两个数据源对不上，先不进名单（无法确认）: it says the sources disagree when the reader has no reconciliation reading at all, which is the conflation between UNKNOWN and CONFLICT this contract forbids, and it is reachable today whenever stockTypes carries no state. READY and DEGRADED (the archived v1/v2 reasons of 2026-10-09) render as 两个数据源对不上…（可用）, a contradiction. Only PRIMARY_ONLY has its own sentence. (NOT_APPLICABLE would render the same way; it is a reading sentinel and is never stored, so it cannot appear today.)",
+      "displayClasses": {
+        "SPECIFIC": [
+          "PRIMARY_ONLY"
+        ],
+        "GENERIC_WORD_UNDER_THE_CONFLICT_HEAD": [
+          "CONFLICT",
+          "DEGRADED",
+          "NOT_APPLICABLE",
+          "READY",
+          "UNKNOWN"
+        ],
+        "RAW_CODE": [
+          "ALL_MISSING",
+          "CONSISTENT",
+          "MAJOR_CONFLICT",
+          "MINOR_DIFFERENCE",
+          "SECONDARY_ONLY"
+        ]
+      },
+      "evidence": [
+        "portfolio-desk src/panel/glossary.js (SELECTION_REJECTED_SOURCE_RECONCILIATION head; bare entries UNKNOWN, CONFLICT, READY, DEGRADED)"
+      ],
+      "residual": "Display only; the gate and the record are unaffected."
+    }
+  ],
+  "openQuestions": [
+    {
+      "id": "OQ-1",
+      "question": "core_pool_evaluation MATCHED maps to CONSISTENT, but the column records no tolerance. Should MATCHED be CONSISTENT, MINOR_DIFFERENCE, or stay unmapped until a writer exists?"
+    },
+    {
+      "id": "OQ-2",
+      "question": "The stored set has no \"reconciliation not attempted\" value; UNKNOWN and NOT_APPLICABLE are reading sentinels only. Adding stored values would need CHECK migrations on 029 and 326 and is outside this task. Keep sentinels?"
+    },
+    {
+      "id": "OQ-3",
+      "question": "RV-D3: which of PARTIAL, DEGRADED, READY is the one reading of PRIMARY_ONLY? Needs a revision with acceptance and, for migration 231, the Owner signature."
+    },
+    {
+      "id": "OQ-4",
+      "question": "RV-D2: correct the loader guard to the evaluated field's vocabulary, or retire the core_pool_selection record family?"
+    },
+    {
+      "id": "OQ-5",
+      "question": "Where does the sealed JSON live as the single source? Draft: Ashare-V6 docs/contracts/drafts, with byte-identical pinned copies elsewhere, compared by payloadSha256."
+    }
+  ],
+  "scanCoverage": {
+    "tokenPattern": "source_?[rR]econciliation | SOURCE_RECONCILIATION | reconciliation_?[sS]tate | CONSISTENT | MINOR_DIFFERENCE | MAJOR_CONFLICT | PRIMARY_ONLY | SECONDARY_ONLY | ALL_MISSING | SECONDARY_PENDING (word-bounded)",
+    "Ashare-V6": {
+      "dirs": [
+        "src",
+        "scripts",
+        "web/js",
+        "config"
+      ],
+      "mentionOnlyFiles": [
+        "config/v6/behavior/evidence_transition_registry_v2.json",
+        "config/v6/data/history/source_independence_registry_v1.4.json",
+        "config/v6/research/core_pool_selection_v1.json",
+        "config/v6/research/core_pool_selection_v2.json",
+        "config/v6/research/core_pool_selection_v3.json",
+        "config/v6/research/core_pool_selection_v4.json",
+        "config/v6/research/core_pool_selection_v5.json",
+        "config/v6/research/stock_book_five_stage_v1.json",
+        "config/v6/research/stock_book_five_stage_v2.json",
+        "config/v6/research/stock_book_five_stage_v3.json",
+        "config/v6/research/stock_book_five_stage_v4.json",
+        "scripts/backfill-b13-calendar-benchmark-history.js",
+        "scripts/backfill-b13-moneyflow-history.js",
+        "scripts/backfill-b13-risk-warning-history.js",
+        "scripts/backfill-phase1-fundamentals.js",
+        "scripts/backfill-phase1-market-history.js",
+        "scripts/build-company-financial-quality-facts.js",
+        "scripts/lib/concentration-rebalance-replay.js",
+        "scripts/lib/v2-behavior-contract-validator.js",
+        "scripts/probe-independent-quote-sources.js",
+        "scripts/research/market-sensitivity-fixture.js",
+        "scripts/sync-industry-memberships.js",
+        "scripts/v2-behavior-contract-guard.js",
+        "scripts/v2-behavior-final-guard.js",
+        "scripts/verify-amendment12-runtime.js",
+        "scripts/verify-b13-historical-daily-universe.js",
+        "scripts/verify-b13-historical-price-limit.js",
+        "scripts/verify-b13-historical-risk-warning.js",
+        "scripts/verify-current-research-transforms.js",
+        "scripts/verify-policy-transmission-postgres.js",
+        "scripts/verify-v2-current-runtime.js",
+        "scripts/verify-v2-m1-postgres.js",
+        "scripts/verify-v2-m5-postgres.js",
+        "scripts/verify-v2-m9-pit-postgres.js",
+        "scripts/verify-v3-b02-postgres.js",
+        "scripts/verify-v3-b04-postgres.js",
+        "scripts/verify-v3-m1-postgres.js",
+        "src/alpha/compounder/v3/financial-production.js",
+        "src/behavior/canonical-facts.js",
+        "src/behavior/engine.js",
+        "src/behavior/evidence-transition.js",
+        "src/behavior/monthly-analytics.js",
+        "src/behavior/position-envelope.js",
+        "src/behavior/postgres-monthly-analytics.js",
+        "src/behavior/zero-position-counterfactual.js",
+        "src/core-pools/core-pool-repository.js",
+        "src/data-runtime/b13-historical-daily-universe.js",
+        "src/data-runtime/b13-historical-moneyflow.js",
+        "src/data-runtime/b13-historical-price-limit.js",
+        "src/data-runtime/b13-historical-risk-warning.js",
+        "src/data-runtime/b13-historical-source-envelope.js",
+        "src/data-runtime/bulk-market-backfill-repository.js",
+        "src/data-runtime/feature-stock-type-repository.js",
+        "src/data-runtime/full-market-day-sync.js",
+        "src/data-runtime/full-market-lookback.js",
+        "src/data-runtime/postgres-repository.js",
+        "src/data-runtime/research-evidence-transform-repository.js",
+        "src/data-runtime/research-evidence-transforms.js",
+        "src/intraday/quote-contract.js",
+        "src/intraday/quote-provider.js",
+        "src/intraday/watch-events.js",
+        "src/macro-data/canonicalize.js",
+        "src/macro-data/repository.js",
+        "src/opportunity-density/current-service.js",
+        "src/research/financial-quality/repository.js",
+        "src/research/history-replay/r11-ingestion.js",
+        "src/stock-book/five-stage/atoms.js"
+      ],
+      "mentionOnlyMeaning": "Persistence, canonicalisation, backfill and verify code that carries the column or hard-codes PRIMARY_ONLY without deciding anything on it, and the config records read by the gates above. A new file that mentions a token must be added here or to inventory[] by a reviewer."
+    },
+    "portfolio-desk": {
+      "dirs": [
+        "src",
+        "schemas",
+        "ops",
+        "scripts",
+        "contracts",
+        "config"
+      ],
+      "sourceTokenFiles": [
+        "src/panel/glossary.js",
+        "src/panel/pick-render.js"
+      ]
+    },
+    "smartflow": {
+      "dirs": [
+        "trading-system-v2/src",
+        "trading-system-v2/scripts",
+        "trading-system-v2/us-value-selector/src"
+      ],
+      "sourceTokenFiles": []
+    },
+    "quant-research-platform": {
+      "dirs": [
+        "services",
+        "packages",
+        "adapters",
+        "apps",
+        "schemas",
+        "config"
+      ],
+      "sourceTokenFiles": []
+    },
+    "sourceTokenPatternOutsideV6": "source_?[rR]econciliation | SOURCE_RECONCILIATION | MINOR_DIFFERENCE | MAJOR_CONFLICT | PRIMARY_ONLY | SECONDARY_ONLY | ALL_MISSING | SECONDARY_PENDING (word-bounded; bare CONSISTENT is excluded because SQL says WITH CONSISTENT SNAPSHOT)"
+  },
+  "payloadSha256": "75070fea035d1f1792951e082e9fa781d7976949a173f868948236bea2b74227"
+}
