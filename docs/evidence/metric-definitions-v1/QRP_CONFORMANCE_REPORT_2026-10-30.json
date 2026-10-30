@@ -1,0 +1,147 @@
+{
+ "repo": "quant-research-platform",
+ "fixture": "METRIC_CONFORMANCE_FIXTURE_V1",
+ "implementations": [
+  {
+   "id": "QRP-ashare-local-backtestCurve",
+   "source": "adapters/ashare-local/backtest_engine.js backtestCurve(...).summary (rounded to six decimals by the engine)"
+  }
+ ],
+ "summary": {
+  "QRP-ashare-local-backtestCurve": {
+   "conforms": 14,
+   "known": 2,
+   "unexpected": 0
+  }
+ },
+ "comparisons": [
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_CLEAN_60",
+   "metric": "totalReturn",
+   "expected": -0.0184833333,
+   "actual": -0.0184833333,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_CLEAN_60",
+   "metric": "maxDrawdown",
+   "expected": 0.0523736117,
+   "actual": 0.0523736117,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_CLEAN_60",
+   "metric": "cagr",
+   "expected": -0.0753651677,
+   "actual": -0.0753651677,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_CLEAN_60",
+   "metric": "calmar",
+   "expected": -1.43899123,
+   "actual": -1.43899123,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_CLEAN_60",
+   "metric": "annualVol",
+   "expected": 0.132219324,
+   "actual": 0.132219324,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_CLEAN_60",
+   "metric": "sharpe",
+   "expected": -0.527549354,
+   "actual": -0.570001,
+   "status": "DIFFERS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_COST_60",
+   "metric": "totalReturn",
+   "expected": 0.0420633333,
+   "actual": 0.0420633333,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_COST_60",
+   "metric": "maxDrawdown",
+   "expected": 0.029543584,
+   "actual": 0.029543584,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_COST_60",
+   "metric": "cagr",
+   "expected": 0.188927253,
+   "actual": 0.188927253,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_COST_60",
+   "metric": "calmar",
+   "expected": 6.39486575,
+   "actual": 6.39486575,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_COST_60",
+   "metric": "annualVol",
+   "expected": 0.0870901262,
+   "actual": 0.0870901262,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "US_COST_60",
+   "metric": "sharpe",
+   "expected": 2.03050943,
+   "actual": 2.16933,
+   "status": "DIFFERS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "PATH_HAND_12",
+   "metric": "totalReturn",
+   "expected": -0.01,
+   "actual": -0.01,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "PATH_HAND_12",
+   "metric": "maxDrawdown",
+   "expected": 0.03,
+   "actual": 0.03,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "PATH_HAND_12",
+   "metric": "cagr",
+   "expected": -0.190272132,
+   "actual": -0.190272132,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-ashare-local-backtestCurve",
+   "case": "PATH_HAND_12",
+   "metric": "calmar",
+   "expected": -6.34240439,
+   "actual": -6.34240439,
+   "status": "CONFORMS"
+  }
+ ]
+}
