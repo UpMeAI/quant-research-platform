@@ -1,8 +1,19 @@
 {
   "contract": "RECONCILIATION_VOCABULARY_V1",
   "schemaVersion": 1,
-  "status": "DRAFT_UNSIGNED",
+  "status": "FROZEN",
   "draftedOn": "2026-10-30",
+  "frozenOn": "2026-10-31",
+  "frozenBy": "Coordinator session local_7bfe14da, rulings OQ-1..OQ-5 in rulings[]",
+  "singleSource": {
+    "leadCopy": "Ashare-V6 docs/contracts/RECONCILIATION_VOCABULARY_V1.json (with the rendered .md)",
+    "byteIdenticalCopies": {
+      "smartflow": "trading-system-v2/docs/contracts/RECONCILIATION_VOCABULARY_V1.json",
+      "portfolio-desk": "docs/contracts/RECONCILIATION_VOCABULARY_V1.json",
+      "quant-research-platform": "docs/contracts/RECONCILIATION_VOCABULARY_V1.json"
+    },
+    "comparedBy": "payloadSha256"
+  },
   "baselineShas": {
     "Ashare-V6": "72b5de61",
     "smartflow": "9882d7e6",
@@ -274,7 +285,7 @@
           "old": "MATCHED",
           "kind": "TRANSLATE",
           "new": "CONSISTENT",
-          "note": "Open question OQ-1: the column records no tolerance, so MATCHED cannot be told from MINOR_DIFFERENCE. No writer emits it today."
+          "note": "Ruling OQ-1 (coordinator, 2026-10-31): MATCHED is CONSISTENT. No writer emits it today; the mapping is pinned by test so a future writer follows it."
         },
         {
           "old": "CONFLICT",
@@ -1793,6 +1804,7 @@
       "id": "RV-D2",
       "severity": "LATENT",
       "status": "REGISTERED_NOT_FIXED",
+      "disposition": "Ruling OQ-4: resolve by retiring the core_pool_selection record family in a separate small PR; the loader vocabulary is not changed for it. Core pools were retired 2026-10-09 and the archived records stay readable.",
       "summary": "The loader guard checks a core_pool_selection gate list against RECONCILIATION_STATES, but the evaluated field is core_pool_evaluation.source_reconciliation_state, which only shares PRIMARY_ONLY with that set. A future core_pool_selection record could not legally admit MATCHED or SECONDARY_PENDING, and the values it may admit (CONSISTENT, MINOR_DIFFERENCE) are never held by the field.",
       "evidence": [
         "src/kernel/config/research-configuration.js:171-179",
@@ -1805,6 +1817,7 @@
       "id": "RV-D3",
       "severity": "DIVERGENCE",
       "status": "REGISTERED_NOT_FIXED",
+      "disposition": "Ruling OQ-3: not touched by this contract. A separate revision candidate, to be opened after 2026-11-10 (migration 231 is signed text).",
       "summary": "Three producers translate the same reconciliation state to a quality state differently, and one translates the other way. PRIMARY_ONLY becomes PARTIAL (quality.js), DEGRADED (financial-quality facts.js) or READY (migration 231, signed); position diagnosis maps quality DEGRADED to the reconciliation word PRIMARY_ONLY.",
       "evidence": [
         "src/data-runtime/quality.js",
@@ -1868,7 +1881,30 @@
     {
       "id": "RV-D9",
       "severity": "DISPLAY",
-      "status": "REGISTERED_NOT_FIXED",
+      "status": "FIX_IN_SEPARATE_PR",
+      "disposition": "Ruling (coordinator, 2026-10-31): fix now, display words only, in a separate portfolio-desk PR with a test. :UNKNOWN is to read 数据源读数缺失，无法确认对账，先不进名单. The copies of this contract assert displayClasses on the baseline 50ab4e2; the fix PR asserts displayClassesAfterFix.",
+      "fixedDisplay": {
+        "UNKNOWN": "数据源读数缺失，无法确认对账，先不进名单"
+      },
+      "displayClassesAfterFix": {
+        "SPECIFIC": [
+          "PRIMARY_ONLY",
+          "UNKNOWN"
+        ],
+        "GENERIC_WORD_UNDER_THE_CONFLICT_HEAD": [
+          "CONFLICT",
+          "DEGRADED",
+          "NOT_APPLICABLE",
+          "READY"
+        ],
+        "RAW_CODE": [
+          "ALL_MISSING",
+          "CONSISTENT",
+          "MAJOR_CONFLICT",
+          "MINOR_DIFFERENCE",
+          "SECONDARY_ONLY"
+        ]
+      },
       "summary": "portfolio-desk shows SELECTION_REJECTED_SOURCE_RECONCILIATION:<state> through generic glossary words for four states and as a raw code for five. UNKNOWN renders as 两个数据源对不上，先不进名单（无法确认）: it says the sources disagree when the reader has no reconciliation reading at all, which is the conflation between UNKNOWN and CONFLICT this contract forbids, and it is reachable today whenever stockTypes carries no state. READY and DEGRADED (the archived v1/v2 reasons of 2026-10-09) render as 两个数据源对不上…（可用）, a contradiction. Only PRIMARY_ONLY has its own sentence. (NOT_APPLICABLE would render the same way; it is a reading sentinel and is never stored, so it cannot appear today.)",
       "displayClasses": {
         "SPECIFIC": [
@@ -1892,29 +1928,37 @@
       "evidence": [
         "portfolio-desk src/panel/glossary.js (SELECTION_REJECTED_SOURCE_RECONCILIATION head; bare entries UNKNOWN, CONFLICT, READY, DEGRADED)"
       ],
-      "residual": "Display only; the gate and the record are unaffected."
+      "residual": "Display only; the gate and the record are unaffected. After the fix, READY and DEGRADED (archived 2026-10-09 reasons), CONFLICT (one 2026-10-08 record) and NOT_APPLICABLE (never stored) still read through the generic words; none is reachable under five_stage v3/v4."
     }
   ],
-  "openQuestions": [
+  "rulings": [
     {
       "id": "OQ-1",
-      "question": "core_pool_evaluation MATCHED maps to CONSISTENT, but the column records no tolerance. Should MATCHED be CONSISTENT, MINOR_DIFFERENCE, or stay unmapped until a writer exists?"
+      "ruling": "MATCHED maps to CONSISTENT (two sources agree). There is no writer today; the test pins the mapping and a future writer follows it."
     },
     {
       "id": "OQ-2",
-      "question": "The stored set has no \"reconciliation not attempted\" value; UNKNOWN and NOT_APPLICABLE are reading sentinels only. Adding stored values would need CHECK migrations on 029 and 326 and is outside this task. Keep sentinels?"
+      "ruling": "Accepted. UNKNOWN and NOT_APPLICABLE are reading sentinels only, never stored; the CHECKs of migrations 029 and 326 are not changed."
     },
     {
       "id": "OQ-3",
-      "question": "RV-D3: which of PARTIAL, DEGRADED, READY is the one reading of PRIMARY_ONLY? Needs a revision with acceptance and, for migration 231, the Owner signature."
+      "ruling": "This contract does not touch RV-D3. It is registered as a separate revision candidate, to be opened after 2026-11-10 (migration 231 is a signed text)."
     },
     {
       "id": "OQ-4",
-      "question": "RV-D2: correct the loader guard to the evaluated field's vocabulary, or retire the core_pool_selection record family?"
+      "ruling": "Retire the core_pool_selection record family; do not change the loader vocabulary for it. Core pools were retired 2026-10-09 and archived records stay readable. A separate small PR; not part of this contract."
     },
     {
       "id": "OQ-5",
-      "question": "Where does the sealed JSON live as the single source? Draft: Ashare-V6 docs/contracts/drafts, with byte-identical pinned copies elsewhere, compared by payloadSha256."
+      "ruling": "The single source is Ashare-V6 docs/contracts/ (moved out of drafts/ at the freeze, status FROZEN). The other three repositories carry byte-identical copies compared by payloadSha256."
+    },
+    {
+      "id": "RV-D9",
+      "ruling": "Fix now, display words only, in a separate portfolio-desk PR with a test: :UNKNOWN reads 数据源读数缺失，无法确认对账，先不进名单 and no longer says the sources disagree."
+    },
+    {
+      "id": "OTHER",
+      "ruling": "RV-D1, D2, D4, D5, D6, D7 and D8 stay as registered and are not fixed here."
     }
   ],
   "scanCoverage": {
@@ -2032,5 +2076,5 @@
     },
     "sourceTokenPatternOutsideV6": "source_?[rR]econciliation | SOURCE_RECONCILIATION | MINOR_DIFFERENCE | MAJOR_CONFLICT | PRIMARY_ONLY | SECONDARY_ONLY | ALL_MISSING | SECONDARY_PENDING (word-bounded; bare CONSISTENT is excluded because SQL says WITH CONSISTENT SNAPSHOT)"
   },
-  "payloadSha256": "75070fea035d1f1792951e082e9fa781d7976949a173f868948236bea2b74227"
+  "payloadSha256": "1e80c4bc5d1d3f453d3721ae6ddf68ccf628e7d212e1bc4ea409607f4de0b654"
 }

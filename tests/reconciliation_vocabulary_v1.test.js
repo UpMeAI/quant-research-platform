@@ -1,9 +1,9 @@
 'use strict';
-// RECONCILIATION_VOCABULARY_V1 (draft, unsigned) -- quant-research-platform mapping test.
+// RECONCILIATION_VOCABULARY_V1 (frozen 2026-10-31) -- quant-research-platform mapping test.
 //
 // QRP produces and reads no source-reconciliation state. Two unrelated vocabularies here share the word:
 // the account/cash reconciliation of a strategy-diagnostics package (MATCHED) and the replay-parity words
-// (MATCHED / DIVERGED / UNKNOWN). Both are registered as other domains in the draft contract; this file pins that
+// (MATCHED / DIVERGED / UNKNOWN). Both are registered as other domains in the frozen contract (single source: Ashare-V6 docs/contracts; this repository carries a byte-identical copy); this file pins that
 // they stay that, and that no source-reconciliation token arrives. It changes no behaviour.
 require('./_env');
 const test = require('node:test');
@@ -13,7 +13,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const contract = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'contracts', 'drafts', 'RECONCILIATION_VOCABULARY_V1.draft.json'), 'utf8'));
+const contract = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'contracts', 'RECONCILIATION_VOCABULARY_V1.json'), 'utf8'));
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 const sorted = (values) => [...values].sort();
 const keysOf = (id) => contract.vocabularies.find((item) => item.vocabulary === id).rows.map((row) => row.old);
@@ -39,7 +39,8 @@ test('the contract copy is sealed and QRP declares no source-reconciliation role
   const body = { ...contract }; delete body.payloadSha256;
   assert.equal(contract.payloadSha256, crypto.createHash('sha256').update(JSON.stringify(canonical(body))).digest('hex'),
     'the copy was edited without re-sealing; compare payloadSha256 with the other three repositories');
-  assert.equal(contract.status, 'DRAFT_UNSIGNED');
+  assert.equal(contract.status, 'FROZEN');
+  assert.equal(contract.singleSource.byteIdenticalCopies['quant-research-platform'], 'docs/contracts/RECONCILIATION_VOCABULARY_V1.json');
   assert.equal(contract.repoScopes['quant-research-platform'].sourceReconciliation, 'NONE');
 });
 
