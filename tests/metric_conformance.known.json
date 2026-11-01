@@ -1,0 +1,10 @@
+{
+ "QRP-ashare-local-backtestCurve|US_CLEAN_60|sharpe": {
+  "id": "D-QRP-01",
+  "actual": -0.570001
+ },
+ "QRP-ashare-local-backtestCurve|US_COST_60|sharpe": {
+  "id": "D-QRP-01",
+  "actual": 2.16933
+ }
+}
