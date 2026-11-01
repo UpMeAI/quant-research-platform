@@ -1,7 +1,7 @@
 {
  "fixtureId": "METRIC_CONFORMANCE_FIXTURE_V1",
- "contract": "METRIC_DEFINITIONS_V1 (draft)",
- "generatedBy": "scripts/build-metric-conformance-fixture.js",
+ "contract": "METRIC_DEFINITIONS_V1",
+ "generatedBy": "docs/contracts/metric-definitions-v1/build-metric-conformance-fixture.js",
  "synthetic": true,
  "tolerance": {
   "relative": 1e-9,

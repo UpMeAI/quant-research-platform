@@ -9,7 +9,7 @@ const AUTHORITY = 'INDEPENDENT_PRODUCT_REVIEWER';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTHORITY;
 
 /**
- * METRIC_DEFINITIONS_V1 (draft) -- quant-research-platform's side of the consistency test.
+ * METRIC_DEFINITIONS_V1 (FROZEN 2026-10-31) -- quant-research-platform's side of the consistency test.
  *
  * QRP computes almost nothing itself. services/baseline-evaluation and candidate-comparison print what the producers sealed
  * (summary values are taken "原样，不从序列推"); the numbers are made by the research runners that live in smartflow and V6
@@ -33,9 +33,9 @@ const { result, write } = require('./_q0_fixture');
 const FIXTURE = path.join(__dirname, 'fixtures', 'metric-conformance', 'METRIC_CONFORMANCE_FIXTURE_V1.json');
 const SUPPORT = path.join(__dirname, 'support');
 const PINS = {
-  [path.join(SUPPORT, 'metric-reference.js')]: '2a247f7d98f6cc8bd0f929d538e582bfb508ca715bf2ec0ed64a3fea6a259afb',
+  [path.join(SUPPORT, 'metric-reference.js')]: 'b0bfb6741a6837e76a58e2a3b0d25cfd60323e07cd9dcecfd91669fa6e8e732f',
   [path.join(SUPPORT, 'metric-conformance-harness.js')]: '424a96969bbd08444ef6832c99717521e898de3a8396fc28c51fcf42a128bf4c',
-  [FIXTURE]: '106236a9622519691318c49c9da146a504e79698301d02ae1cbeba8918b3f718',
+  [FIXTURE]: 'cb7ca1ae31a171c1b847342d8fc959137e879bc1a63200f46f67b7e712573b39',
 };
 
 const fixture = H.loadFixture(FIXTURE);

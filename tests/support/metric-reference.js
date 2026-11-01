@@ -1,6 +1,9 @@
 'use strict';
 
-// metric-reference -- the executable reading of docs/contracts/METRIC_DEFINITIONS_V1.draft.md.
+// metric-reference -- the executable reading of docs/contracts/METRIC_DEFINITIONS_V1.md (FROZEN 2026-10-31).
+//
+// Single source: portfolio-desk docs/contracts/metric-definitions-v1/. The other repositories hold byte-identical copies and pin the sha256
+// (contract §11.2); a change here is a V1.1 amendment with new hashes, never an in-place edit.
 //
 // Test support only. No production file requires it: a value has one producer (the book's exporter, or the QRP baseline
 // evaluation), and this file exists so that the producers can be held to one number on a fixed input. It is written to be

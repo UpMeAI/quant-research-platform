@@ -1,8 +1,8 @@
-# QRP 一致性测试 2026-10-30（METRIC_DEFINITIONS_V1 草案）
+# QRP 一致性测试 2026-10-30（METRIC_DEFINITIONS_V1，2026-10-31 冻结）
 
 测试：`tests/metric_conformance.test.js`（已知差异 `tests/metric_conformance.known.json`），共用三个字节相同的文件在 `tests/support/`、`tests/fixtures/metric-conformance/`。
 运行：`node --test tests/metric_conformance.test.js`。完整比较表：`QRP_CONFORMANCE_REPORT_2026-10-30.json`。
-契约草案在 portfolio-desk 仓库 `docs/contracts/METRIC_DEFINITIONS_V1.draft.md`（本仓库不存契约，只存测试与证据）。没有改任何生产代码。
+契约在 portfolio-desk 仓库 `docs/contracts/METRIC_DEFINITIONS_V1.md`，三个共用文件的唯一来源是同仓库 `docs/contracts/metric-definitions-v1/`（本仓库不存契约，只存测试与证据）。没有改任何生产代码。
 
 ## 1. QRP 里的指标实现
 
