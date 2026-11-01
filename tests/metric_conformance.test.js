@@ -18,7 +18,8 @@ process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTHORITY;
  *   1. holds the one metric implementation QRP does own (adapters/ashare-local backtestCurve) to the shared fixture;
  *   2. re-derives every sealed summary and every paired g (with its interval) in var/evidence from the sealed equity series,
  *      with the contract's reference -- the sealed Q1/Q2 numbers are the evidence that fixes the contract's conventions;
- *   3. records that the importer accepts a summary that disagrees with its own series (it checks end_capital only).
+ *   3. holds the importer's new re-derivation (services/baseline-evaluation/summary_rederive.js) to the same fixture and shows it
+ *      refusing a summary that disagrees with its series (D-QRP-02, fixed).
  *
  * No production file is changed.
  */
@@ -78,6 +79,16 @@ const IMPLEMENTATIONS = [{
     return out;
   },
 }];
+
+IMPLEMENTATIONS.push({
+  id: 'QRP-summary-rederive',
+  source: 'services/baseline-evaluation/summary_rederive.js summaryFromSeries(values, startCapital, A) -- what the importer now checks the sealed summaries against',
+  series: (c) => {
+    if (c.expected.gapMarks > 0) return null; // a sealed series is a list of consecutive marks: no gap can be represented
+    const m = require('../services/baseline-evaluation/summary_rederive').summaryFromSeries(c.marks.map((x) => x.equity), c.capital0, c.annualFactor);
+    return { cagr: m.cagr, maxDrawdown: m.max_drawdown, longestUnderwaterSessions: m.longest_underwater_sessions, recovered: m.recovered };
+  },
+});
 
 const KNOWN_DIFFERENCES = require('./metric_conformance.known.json');
 
@@ -141,17 +152,58 @@ for (const file of SEALED) {
   });
 }
 
-// -- 3. what the importer does not check --------------------------------------------------------------------------------------
+// -- 3. the importer re-derives the summary from the series (D-QRP-02, fixed) -----------------------------------------------------
+
+const summaryCheck = require('../services/baseline-evaluation/summary_rederive');
+const cc = require('../services/candidate-comparison');
 
 beforeEach(() => { fs.rmSync(k3.LEDGER(), { force: true }); k3.clearCache(); });
 
-test('D-QRP-02: the importer accepts a summary that disagrees with its own equity series (it checks end_capital only)', () => {
-  const doc = result();
+/** The synthetic fixture's summaries are arbitrary numbers; this makes each arm's summary the contract's, with its starting capital. */
+function consistent(doc, startCapital = 3000) {
+  for (const arm of Object.values(doc.arms)) {
+    if (!arm.equity) continue;
+    const m = ref.seriesMetrics(seriesOf({ ...arm, summary: { start_capital: startCapital } }, 252));
+    arm.summary = { ...arm.summary, start_capital: startCapital, end_capital: arm.equity.values[arm.equity.values.length - 1], cagr: r6(m.cagr), max_drawdown: r6(m.maxDrawdown),
+      longest_underwater_sessions: m.longestUnderwaterSessions, recovered: m.recovered };
+  }
+  return doc;
+}
+const importer = (doc) => k3.importBaselineEvaluation(write(doc), { registeredBy: AUTHORITY, allowNonActual: true });
+
+test('D-QRP-02 fixed: a summary that agrees with its equity series (with start_capital) imports', () => {
+  assert.doesNotThrow(() => importer(consistent(result())));
+});
+
+for (const [field, tampered] of [['cagr', 0.31], ['max_drawdown', 0.05], ['longest_underwater_sessions', 5], ['recovered', false]]) {
+  test(`D-QRP-02 fixed: ${field} that disagrees with the equity series is refused as INVALID, naming the field`, () => {
+    const doc = consistent(result());
+    doc.arms.D.summary[field] = tampered;
+    assert.throws(() => importer(doc), (error) => error.code === 'INVALID' && error.message.includes(`arms.D.summary.${field}`) && error.message.includes('重算'),
+      'the importer must say which summary field disagrees with the series');
+  });
+}
+
+test('an arm without start_capital is not re-derived (the base cannot be known); the check says so instead of passing it', () => {
+  const doc = result(); // the synthetic fixture: no start_capital, arbitrary summaries
+  assert.doesNotThrow(() => importer(doc));
   const arm = doc.arms.D;
-  const m = ref.seriesMetrics(seriesOf({ ...arm, summary: { ...arm.summary, start_capital: arm.equity.values[0] } }, 252));
-  // The synthetic fixture says max_drawdown 0.05, cagr 0.31 and 2 sessions under water for a six-mark series.
-  assert.notEqual(r6(m.maxDrawdown), arm.summary.max_drawdown);
-  assert.notEqual(r6(m.cagr), arm.summary.cagr);
-  assert.doesNotThrow(() => k3.importBaselineEvaluation(write(doc), { registeredBy: AUTHORITY, allowNonActual: true }),
-    'when the importer starts re-deriving cagr / max_drawdown / longest_underwater_sessions / recovered from the series, this record must be deleted');
+  assert.deepEqual(summaryCheck.check(arm.equity.values, arm.summary, 'US_EQUITY'), { checked: false, reason: 'NO_START_CAPITAL', problems: [] });
+  const withStart = { ...arm.summary, start_capital: 3000 };
+  assert.deepEqual(summaryCheck.check(arm.equity.values, withStart, 'SOME_NEW_MARKET'), { checked: false, reason: 'NO_ANNUAL_FACTOR:SOME_NEW_MARKET', problems: [] });
+  assert.equal(summaryCheck.check(arm.equity.values, { ...arm.summary, start_capital: -1 }, 'US_EQUITY').problems[0].field, 'start_capital');
+});
+
+test('the real sealed Q0, Q1 and Q2 files import through the new check, and a Q2 arm summary that is off is refused', () => {
+  const ev = (dir, file) => path.join(EVIDENCE, dir, file);
+  const lock = k3.importBaselineEvaluation(ev('us-v5-m2-q0-current-2026-10-25', 'US_V5_M2_Q0_RESULT_V1.json'), { registeredBy: AUTHORITY });
+  assert.match(lock.result_id, /^Q0-/);
+  for (const [dir, file] of [['us-v5-m2-q1-2026-10-25', 'US_V5_M2_Q1_RESULT_V1.json'], ['us-v5-m2-q2-2026-10-25', 'US_V5_M2_Q2_RESULT_V1.json']]) {
+    assert.match(cc.importCandidateComparison(ev(dir, file), { registeredBy: AUTHORITY }).result_id, /^Q\d-/);
+  }
+  const doc = JSON.parse(fs.readFileSync(ev('us-v5-m2-q2-2026-10-25', 'US_V5_M2_Q2_RESULT_V1.json'), 'utf8'));
+  doc.arms.CANDIDATE_1X.summary.max_drawdown += 0.01;
+  fs.rmSync(cc.LEDGER(), { force: true });
+  assert.throws(() => cc.importCandidateComparison(write(doc), { registeredBy: AUTHORITY, allowNonActual: true }),
+    (error) => /arms\.CANDIDATE_1X\.summary\.max_drawdown.*重算/.test(error.message));
 });

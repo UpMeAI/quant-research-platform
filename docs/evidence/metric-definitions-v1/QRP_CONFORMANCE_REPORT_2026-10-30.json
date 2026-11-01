@@ -5,12 +5,21 @@
   {
    "id": "QRP-ashare-local-backtestCurve",
    "source": "adapters/ashare-local/backtest_engine.js backtestCurve(...).summary (rounded to six decimals by the engine)"
+  },
+  {
+   "id": "QRP-summary-rederive",
+   "source": "services/baseline-evaluation/summary_rederive.js summaryFromSeries(values, startCapital, A) -- what the importer now checks the sealed summaries against"
   }
  ],
  "summary": {
   "QRP-ashare-local-backtestCurve": {
    "conforms": 14,
    "known": 2,
+   "unexpected": 0
+  },
+  "QRP-summary-rederive": {
+   "conforms": 12,
+   "known": 0,
    "unexpected": 0
   }
  },
@@ -141,6 +150,102 @@
    "metric": "calmar",
    "expected": -6.34240439,
    "actual": -6.34240439,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_CLEAN_60",
+   "metric": "cagr",
+   "expected": -0.0753651677,
+   "actual": -0.0753651677,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_CLEAN_60",
+   "metric": "maxDrawdown",
+   "expected": 0.0523736117,
+   "actual": 0.0523736117,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_CLEAN_60",
+   "metric": "longestUnderwaterSessions",
+   "expected": 32,
+   "actual": 32,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_CLEAN_60",
+   "metric": "recovered",
+   "expected": false,
+   "actual": false,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_COST_60",
+   "metric": "cagr",
+   "expected": 0.188927253,
+   "actual": 0.188927253,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_COST_60",
+   "metric": "maxDrawdown",
+   "expected": 0.029543584,
+   "actual": 0.029543584,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_COST_60",
+   "metric": "longestUnderwaterSessions",
+   "expected": 21,
+   "actual": 21,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "US_COST_60",
+   "metric": "recovered",
+   "expected": true,
+   "actual": true,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "PATH_HAND_12",
+   "metric": "cagr",
+   "expected": -0.190272132,
+   "actual": -0.190272132,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "PATH_HAND_12",
+   "metric": "maxDrawdown",
+   "expected": 0.03,
+   "actual": 0.03,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "PATH_HAND_12",
+   "metric": "longestUnderwaterSessions",
+   "expected": 4,
+   "actual": 4,
+   "status": "CONFORMS"
+  },
+  {
+   "impl": "QRP-summary-rederive",
+   "case": "PATH_HAND_12",
+   "metric": "recovered",
+   "expected": false,
+   "actual": false,
    "status": "CONFORMS"
   }
  ]
