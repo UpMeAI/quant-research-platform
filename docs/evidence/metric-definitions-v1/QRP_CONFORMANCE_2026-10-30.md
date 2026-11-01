@@ -43,7 +43,7 @@ Q1：BASELINE、CANDIDATE_T3、SPY_BUY_HOLD、CASH；Q2：BASELINE、CANDIDATE_1
 
 D-QRP-02 的修法与范围：
 - 重算按契约：`cagr = (末点/起始资本)^(A/T) − 1`，T = 标记个数；`max_drawdown` 峰值从起始资本起算；水下期严格低于运行峰值；A 取策略档案的 `market`（`US_EQUITY` 252，`CRYPTO_USDM_PERP` 365）。小数项容差 5e-7（文件取 6 位），计数和布尔必须相等。
-- **起始资本取自 `summary.start_capital`。** 现有真实封存的 US_V5（Q0、Q0-current、Q1、Q2）都带这个字段，都通过；US_CORE、Quick Shot、C17 的导入规格没有要求它，其测试夹具也没有，这些臂**不重算**（`check` 返回 `checked: false` 和原因，不当作已核对）。建议下一版导入规格对带序列的臂要求 `start_capital`。
+- **起始资本取自 `summary.start_capital`。** 现有真实封存的 US_V5（Q0、Q0-current、Q1、Q2）都带这个字段，都通过；US_CORE、Quick Shot、C17 的导入规格没有要求它，其测试夹具也没有，这些臂**不重算**（`check` 返回 `checked: false` 和原因，不当作已核对）。**跟进（协调会话裁定 2026-11-01）：下一版 US_CORE／Quick Shot／C17 的导入规格须要求带序列的臂有 `summary.start_capital`；在此之前这几类臂的摘要仍是原样印出、不被重算。** 未排期，随各自导入规格的下一次修订做。
 - 没有改任何展示数字，页面输出与之前相同；全量 `npm test` 的失败集合与修改前逐项相同（87 项页面类测试，修改前即失败）。
 
 另有一条观察而非缺陷：`max_dd_recovery_days` 是最近一次完成回撤的恢复天数，不是最长水下期，两者不可互相替代（契约 §8.4）。
