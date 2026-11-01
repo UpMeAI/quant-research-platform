@@ -11,7 +11,7 @@ const profiles = require('../strategy-profiles');
 const {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
   stressRole, hasNoSeries, preferZh, trimKind, STRESS_NUMBERS, KNOWN_STRESS_STATUS, REASON_WORDS, EDGE_LABELS,
-  resolveReasons, plainNumbers, pct1, rText, peakReadout,
+  resolveReasons, plainNumbers, pct1, rText, peakReadout, rederive,
 } = baseline.internals;
 
 const BASE_KEYS = Object.freeze(['BASELINE', 'D']);
@@ -256,6 +256,7 @@ function armSummaries(entry, doc) {
     need(isObject(summary), 'MISSING', `arms.${key}.summary`);
     const end = field(summary, 'end_capital', `arms.${key}.summary.end_capital`);
     need(Math.abs(end - equity.values[equity.values.length - 1]) <= 1e-6 * Math.max(1, Math.abs(end)), 'INVALID', `arms.${key}.summary.end_capital 与权益序列末点不一致`);
+    rederive(equity.values, summary, owner.market, `arms.${key}`); // METRIC_DEFINITIONS_V1：摘要由序列重算并核对（D-QRP-02）
     return {
       key, label, end_capital: end, cagr: field(summary, 'cagr', `arms.${key}.summary.cagr`),
       max_drawdown: field(summary, 'max_drawdown', `arms.${key}.summary.max_drawdown`),
@@ -288,6 +289,8 @@ function referenceRows(entry, doc) {
         && Array.isArray(arm.equity.dates) && arm.equity.dates.length === arm.equity.values.length ? arm.equity : null;
       if (isObject(arm.equity) && Array.isArray(arm.equity.values) && arm.equity.values.length) {
         need(Math.abs(end - arm.equity.values[arm.equity.values.length - 1]) <= 1e-6 * Math.max(1, Math.abs(end)), 'INVALID', `reference_arms.${spec.key}.summary.end_capital 与权益序列末点不一致`);
+        const owner = profiles.byComparisonProfile(entry.profile_ref);
+        rederive(arm.equity.values, summary, owner && owner.market, `reference_arms.${spec.key}`);
       }
       return {
         ...row, end_capital: end, cagr: field(summary, 'cagr', `reference_arms.${spec.key}.summary.cagr`),

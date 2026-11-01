@@ -24,6 +24,7 @@ const { dataDir, now, append, read } = require('../../packages/ledger');
 const profiles = require('../strategy-profiles');
 const m4Scope = require('../strategy-profiles/m4_scope');
 const detailNotes = require('../strategy-detail-notes');
+const summaryCheck = require('./summary_rederive');
 
 const EVAL_CLASS = 'BASELINE_EVALUATION_V1';
 // 改造前单策略接口的默认参数与导出常量：取注册表的默认档案（registry.default_strategy_ref），不在代码里写死
@@ -363,6 +364,7 @@ function validateWhole(doc, profile = profileForDoc(doc), { fileSha256 = null } 
   'Q0_RESULT_NOT_REPRODUCED');
   const identity = doc.identity;
   need(isObject(identity) && profiles.resultSchemasOf(profile).includes(identity.schema), 'Q0_RESULT_SCHEMA_UNSUPPORTED', identity && identity.schema);
+  rederiveArms(doc.arms, profile.market); // METRIC_DEFINITIONS_V1：摘要由权益序列重算并核对（D-QRP-02）；以前导入时不看臂
 
   const verdict = doc.verdict;
   need(isObject(verdict) && verdict.class === EVAL_CLASS, 'Q0_VERDICT_CLASS_UNSUPPORTED', verdict && verdict.class);
@@ -621,6 +623,29 @@ function peakReadout(equity) {
 }
 
 /**
+ * 摘要必须与自己的权益序列一致（METRIC_DEFINITIONS_V1 §5、§6、§8；缺陷 D-QRP-02）：有 `summary.start_capital` 的臂，
+ * `cagr`、`max_drawdown`、`longest_underwater_sessions`、`recovered` 由序列重算，不符即 INVALID。没有起始资本的臂不重算（见 summary_rederive）。
+ */
+function rederive(values, summary, market, where) {
+  const result = summaryCheck.check(values, summary, market);
+  if (result.problems.length) {
+    const { field: name, detail } = summaryCheck.describe(result.problems);
+    need(false, 'INVALID', `${where}.summary.${name} 与权益序列重算不一致（${detail}）`);
+  }
+  return result;
+}
+
+/** 导入时对每个带权益序列的臂做同一个核对（页面读取时 accountBlock 再做一遍）；顶层 `arms` 里没有序列的项（如只有 summary 的 IS 对照）跳过。 */
+function rederiveArms(arms, market, where = 'arms') {
+  if (!isObject(arms)) return;
+  for (const [key, arm] of Object.entries(arms)) {
+    if (!isObject(arm) || !isObject(arm.equity) || !Array.isArray(arm.equity.values) || !isObject(arm.summary)) continue;
+    if (!arm.equity.values.length || !arm.equity.values.every((value) => finite(value) && value > 0)) continue; // 序列本身的校验在页面块里
+    rederive(arm.equity.values, arm.summary, market, `${where}.${key}`);
+  }
+}
+
+/**
  * 账户结果。修订 5 E2：比较对象的定义与分红口径取自说明登记（services/strategy-detail-notes），口径按这份结果文件的 sha256 绑定；
  * 没登记写「分红口径未记录」并列进待验证问题清单（见 project）。没有说明登记的策略不加这一项。
  */
@@ -648,6 +673,7 @@ function accountBlock(doc, profile, context = {}) {
     const end = field(summary, 'end_capital', `arms.${key}.summary.end_capital`);
     need(Math.abs(end - equity.values[equity.values.length - 1]) <= 1e-6 * Math.max(1, Math.abs(end)),
       'INVALID', `arms.${key}.summary.end_capital 与权益序列末点不一致`);
+    rederive(equity.values, summary, profile.market, `arms.${key}`);
     out.push({
       key, label, end_capital: end, cagr: field(summary, 'cagr', `arms.${key}.summary.cagr`),
       max_drawdown: field(summary, 'max_drawdown', `arms.${key}.summary.max_drawdown`),
@@ -1886,7 +1912,7 @@ const clearCache = () => defaultReader.clear();
 /** 同类的导入器（Q1 对比）复用的内部工具；不含任何会改变 Q0 行为的东西。 */
 const internals = {
   K3Error, fail, need, field, ci, finite, isObject, sha256, canonical, authority, reasonText, digests,
-  stressRole, hasNoSeries, preferZh, trimKind, HAS_CHINESE, STRESS_NUMBERS, KNOWN_STRESS_STATUS, NON_ACTUAL_PATH, peakReadout,
+  stressRole, hasNoSeries, preferZh, trimKind, HAS_CHINESE, STRESS_NUMBERS, KNOWN_STRESS_STATUS, NON_ACTUAL_PATH, peakReadout, rederive, rederiveArms,
   REASON_WORDS, EDGE_LABELS, SOURCE_LABELS, EXPERIMENTS, SEGMENT_LABELS, resolveReasons, plainNumbers, pct1, rText,
   profileForDoc,
 };

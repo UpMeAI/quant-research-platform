@@ -120,6 +120,8 @@ function validateWhole(entry, doc) {
     need(verdict[entry.mirror.field] === entry.mirror.map[verdict.state], E(entry, entry.mirror.mismatch_code), `${verdict.state}/${verdict[entry.mirror.field]}`);
   }
   entry.constants(entry, doc);
+  const owner = profiles.byComparisonProfile(entry.profile_ref);
+  baseline.internals.rederiveArms(doc.arms, owner && owner.market); // METRIC_DEFINITIONS_V1：摘要由权益序列重算并核对（D-QRP-02）
   const codes = Array.isArray(verdict.reason_codes) ? verdict.reason_codes : [];
 
   // AC5：样本外复用。Q1 的 K2 裁定 4 把它定为 true 且必须带原因码；Q2 是 false，带原因码反而矛盾，且要写理由。
