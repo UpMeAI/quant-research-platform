@@ -193,3 +193,15 @@ test('跨仓 golden:适配器输出与 replay-core golden 用例逐字节一致,
     }
     if (process.env.QRP_REPLAY_CORE_PROOF_OUT) fs.writeFileSync(process.env.QRP_REPLAY_CORE_PROOF_OUT, `${JSON.stringify(proof, null, 1)}\n`);
   });
+
+test('研究专用适配器不让运行健康汇总 500:没有 Runtime 的市场标 NO_RUNTIME_BOUND,其余市场照常', async () => {
+  const observability = require('../services/observability');
+  const report = await observability.healthReport();
+  const byMarket = Object.fromEntries(report.markets.map((m) => [m.market, m.operational]));
+  for (const m of [US, CRYPTO]) {
+    assert.equal(byMarket[m].verdict, 'NO_RUNTIME_BOUND');
+    assert.equal(byMarket[m].runtime_id, null);
+    assert.deepEqual(byMarket[m].problems, []);
+  }
+  assert.notEqual(byMarket.CN_A.verdict, 'NO_RUNTIME_BOUND');
+});
