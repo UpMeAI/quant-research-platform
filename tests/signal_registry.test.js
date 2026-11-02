@@ -202,6 +202,32 @@ test('T8 结果来源次序：记分牌标签 > 口径相符的成交台账 > �
   assert.deepEqual(b.sourceChecks.divergences.map((d) => d.kind), ['TRADE_LEDGER_GROSS_REVIEW_NET', 'TRADE_LEDGER_VS_SCOREBOARD_TAG']);
 });
 
+test('T10 取整按出数的一方：汇总行照记分牌（窗口 4 位、状态格不取整），信号行是登记簿自己算的比率，取 6 位（§10.2）', () => {
+  const inp = synthetic({ n: 31 });
+  const sb = inp.scoreboard.json;
+  const frame = sb.windows.bookSinceStart;
+  const axes = { macro: { state: 'NOT_APPLICABLE', reasonCode: 'NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE', cells: [] },
+    price: { state: 'SPLIT', reasonCode: null, cells: [{ key: 'TREND' }, { key: 'STATE_UNKNOWN' }, { key: 'STATE_NOT_APPLICABLE' }] } };
+  const split = { state: 'MEASURED', reasonCode: null, from: frame.from, to: frame.to, segmentIds: frame.segmentIds, axes };
+  sb.stateSplit = { state: 'ACTIVE', reasonCode: null, since: frame.from, mapping: null, axisKeys: {}, windows: { bookSinceStart: split, currentVersion: split },
+    tags: Array.from({ length: 31 }, (_, i) => ({ tradeId: String(i + 1), axes: { macro: { state: 'NOT_APPLICABLE' }, price: { state: 'TAGGED', value: 'TREND' } },
+      outcome: { closedAt: new Date(T0 + i * H + H).toISOString(), netPnl: i % 3 === 0 ? -1 : 2, resultR: i % 3 === 0 ? -0.5 : 1, pnlBasis: 'NET' } })) };
+  const built = R.buildBook(inp);
+  const rollup = built.book.blocks[0].rollup;
+  const row = built.rows[0];
+  assert.equal(row.signalKey, 'QUICK_SHOT_RULES_V3+QS_V3_SIGNAL_BULLISH');
+  const w = (r) => r.windows.bookSinceStart;
+  assert.deepEqual([w(rollup).winRate.value, w(rollup).avgR.value], [0.6452, 0.4677]);
+  assert.deepEqual([w(row).winRate.value, w(row).avgR.value], [0.645161, 0.467742]);
+  assert.equal(w(row).expectancyT.value, Math.round(w(row).expectancyT.value * 1e6) / 1e6);
+  assert.notEqual(w(rollup).expectancyT.value, w(row).expectancyT.value);
+  const cell = (r) => r.stateSplit.windows.bookSinceStart.axes.price.cells[0];
+  assert.deepEqual([cell(rollup).winRate.value, cell(rollup).avgR.value], [20 / 31, 14.5 / 31]);
+  assert.deepEqual([cell(row).winRate.value, cell(row).avgR.value], [0.645161, 0.467742]);
+  // 计数、口径、金额字段两边相同；只有比率的表示不同。
+  for (const k of ['closed', 'open', 'wins', 'losses', 'flats', 'pnlBasis', 'expectancyAmount_like', 'costs']) assert.deepEqual(w(row)[k], w(rollup)[k], k);
+});
+
 test('T9 命令行：在夹具上 0 差异退出 0，只读、不写台账', () => {
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'sigreg-cli-'));
   const res = spawnSync(process.execPath, [path.join(ROOT, 'apps', 'research-cli', 'build_signal_registry.js'), '--inbox', FIXTURE,

@@ -57,6 +57,12 @@ const NOT_MEASURED_REASON = Object.freeze({ fee: 'FEE_NOT_REPORTED', funding: 'F
 const finite = (v) => typeof v === 'number' && Number.isFinite(v);
 const round2 = (v) => Math.round(v * 100) / 100;
 const round4 = (v) => Math.round(v * 1e4) / 1e4;
+const round6 = (v) => Math.round(v * 1e6) / 1e6;
+/**
+ * 比率的取整由谁出数决定：汇总行（signalKey '*'）的字段记分牌也有，照记分牌导出的样子（窗口 4 位、状态格不取整），逐字比较；
+ * 信号行是登记簿自己算的，按 METRIC_DEFINITIONS_V1 §10.2 取 6 位（协调会话 2026-11-02 裁定）。
+ */
+const RATIO = Object.freeze({ SCOREBOARD: Object.freeze({ window: (v) => round4(round4(v)), cell: (v) => v }), OWN: Object.freeze({ window: round6, cell: round6 }) });
 const iso = (ms) => new Date(ms).toISOString();
 const stat = (value, state, reasonCode = null) => ({ value, state, reasonCode });
 const money = (state, amount = null, reasonCode = null) => ({ state, amount, reasonCode });
@@ -254,7 +260,7 @@ function expectancyStats(rs) {
 }
 
 /** 记分牌 sampleStats：平均 R、期望 t，30 笔下限，五态分开。 */
-function sampleStats(closed, noInitialStop) {
+function sampleStats(closed, noInitialStop, ratio = RATIO.SCOREBOARD.window) {
   const na = (code) => stat(null, 'NOT_APPLICABLE', code);
   const below = stat(null, 'INSUFFICIENT_SAMPLE');
   if (noInitialStop) return { avgR: na(CODES.NO_INITIAL_STOP), expectancyT: na(CODES.NO_INITIAL_STOP) };
@@ -262,8 +268,8 @@ function sampleStats(closed, noInitialStop) {
   if (closed.length < RATE_FLOOR) return { avgR: below, expectancyT: below };
   const s = expectancyStats(closed.map((t) => t.rMultiple));
   if (!finite(s.mean)) { const u = stat(null, 'UNKNOWN', CODES.RISK_UNIT_NOT_RECORDED); return { avgR: u, expectancyT: u }; }
-  return { avgR: stat(round4(round4(s.mean)), 'MEASURED'),
-    expectancyT: finite(s.t) ? stat(round4(round4(s.t)), 'MEASURED') : stat(null, 'UNKNOWN', CODES.T_ZERO_VARIANCE) };
+  return { avgR: stat(ratio(s.mean), 'MEASURED'),
+    expectancyT: finite(s.t) ? stat(ratio(s.t), 'MEASURED') : stat(null, 'UNKNOWN', CODES.T_ZERO_VARIANCE) };
 }
 
 /**
@@ -328,8 +334,8 @@ function windowOf(name, sbw, trades, ctx) {
   const pnlBasis = gross ? 'GROSS' : 'NET';
   return {
     ...frame, state: 'MEASURED', reasonCode: null, closed: n, open, wins, losses, flats: n - wins - losses, pnlBasis,
-    winRate: !n ? stat(null, 'NOT_APPLICABLE', CODES.NO_CLOSED_TRADE) : n < RATE_FLOOR ? stat(null, 'INSUFFICIENT_SAMPLE') : stat(round4(wins / n), 'MEASURED'),
-    ...sampleStats(closed, false),
+    winRate: !n ? stat(null, 'NOT_APPLICABLE', CODES.NO_CLOSED_TRADE) : n < RATE_FLOOR ? stat(null, 'INSUFFICIENT_SAMPLE') : stat(ctx.ratio.window(wins / n), 'MEASURED'),
+    ...sampleStats(closed, false, ctx.ratio.window),
     expectancyAmount_like: expectancyAmount(closed.map(basisPnl), pnlBasis, cfg.currency, RATE_FLOOR),
     costs, costsSource: restated.length ? `SCOREBOARD_WINDOW:${restated.join(',')}` : 'TRADE_ROWS',
   };
@@ -344,7 +350,7 @@ function closedInWindow(closedAt, w) {
   return t >= Date.parse(w.from) && t < end;
 }
 
-function cellOf(key, mine, w, currency) {
+function cellOf(key, mine, w, currency, ratio = RATIO.SCOREBOARD.cell) {
   const closed = mine.filter((t) => t.outcome && closedInWindow(t.outcome.closedAt, w));
   const open = mine.filter((t) => !t.outcome).length;
   const base = { key, closed: closed.length, open, sample: { n: closed.length, floor: CELL_FLOOR, state: closed.length >= CELL_FLOOR ? 'AT_OR_ABOVE_FLOOR' : 'BELOW_FLOOR' } };
@@ -369,8 +375,8 @@ function cellOf(key, mine, w, currency) {
   const basis = outcomes.some((o) => o.pnlBasis === 'GROSS') ? 'GROSS' : 'NET';
   return {
     ...base,
-    winRate: pnlUnknown || stat(pnl.filter((v) => v > 0).length / closed.length, 'MEASURED'),
-    avgR: rUnknown || stat(sum(outcomes.map((o) => o.resultR)) / closed.length, 'MEASURED'),
+    winRate: pnlUnknown || stat(ratio(pnl.filter((v) => v > 0).length / closed.length), 'MEASURED'),
+    avgR: rUnknown || stat(ratio(sum(outcomes.map((o) => o.resultR)) / closed.length), 'MEASURED'),
     netPnl: pnlUnknown ? { ...pnlUnknown, basis: null } : { ...stat(sum(pnl), 'MEASURED'), basis },
     expectancyAmount_like: pnlUnknown ? exp(null, 'UNKNOWN', pnlUnknown.reasonCode) : exp(round2(sum(pnl) / closed.length), 'MEASURED', null, basis),
   };
@@ -380,7 +386,7 @@ function cellOf(key, mine, w, currency) {
  * 一行的状态拆分：标签与格子键次序都用记分牌这一块交付的（标签自决策时刻起不变，`since` 之前开的仓只计数、不拆，§3.3）；
  * 这一行只取自己信号的那些标签。未标签数 = 这一行窗口的已平/未平减去价格轴格子之和（与 desk 同一算法）。
  */
-function stateSplitOf(sbSplit, rowTradeIds, rowWindows, cfg) {
+function stateSplitOf(sbSplit, rowTradeIds, rowWindows, cfg, ratio = RATIO.SCOREBOARD) {
   if (!sbSplit) return { state: 'NOT_AVAILABLE', reasonCode: cfg.noSplit || 'NOT_AVAILABLE:STATE_SPLIT_NOT_DELIVERED', since: null, mapping: null, windows: null };
   const tags = sbSplit.tags.filter((t) => rowTradeIds.has(String(t.tradeId)));
   const windows = {};
@@ -391,7 +397,7 @@ function stateSplitOf(sbSplit, rowTradeIds, rowWindows, cfg) {
     const axes = {};
     for (const [axis, a] of Object.entries(sw.axes)) {
       axes[axis] = a.state !== 'SPLIT' ? { state: a.state, reasonCode: a.reasonCode, cells: [] }
-        : { state: 'SPLIT', reasonCode: null, cells: a.cells.map((c) => cellOf(c.key, tags.filter((t) => cellKeyOf(t.axes[axis]) === c.key), sw, cfg.currency)) };
+        : { state: 'SPLIT', reasonCode: null, cells: a.cells.map((c) => cellOf(c.key, tags.filter((t) => cellKeyOf(t.axes[axis]) === c.key), sw, cfg.currency, ratio.cell)) };
     }
     const priceCells = (axes.price && axes.price.cells) || [];
     const rw = rowWindows[name];
@@ -405,7 +411,8 @@ function stateSplitOf(sbSplit, rowTradeIds, rowWindows, cfg) {
 
 function rowOf({ ledgerId, partId, signalKey, trades, sbBlock, ctx }) {
   const restatements = [];
-  const windows = Object.fromEntries(WINDOWS.map((n) => [n, windowOf(n, sbBlock.windows[n], trades, { ...ctx, restatements })]));
+  const ratio = signalKey === '*' ? RATIO.SCOREBOARD : RATIO.OWN;
+  const windows = Object.fromEntries(WINDOWS.map((n) => [n, windowOf(n, sbBlock.windows[n], trades, { ...ctx, restatements, ratio })]));
   for (const r of restatements) {
     const stale = trades.filter((t) => t.state === 'CLOSED' && r.costs.some((k) => !['MEASURED', 'MODELLED'].includes(t.costProvenance[k] || 'UNKNOWN')))
       .map((t) => t.tradeId);
@@ -419,7 +426,7 @@ function rowOf({ ledgerId, partId, signalKey, trades, sbBlock, ctx }) {
     entries: entries.length, firstEntryAt: entries.length ? iso(entries[0]) : null, lastEntryAt: entries.length ? iso(entries[entries.length - 1]) : null,
     windows,
     stateSplit: ctx.cfg.rotation ? { state: 'NOT_APPLICABLE', reasonCode: ctx.cfg.noSplit, since: null, mapping: null, windows: null }
-      : stateSplitOf(sbBlock.stateSplit, new Set(trades.map((t) => t.tradeId)), windows, ctx.cfg),
+      : stateSplitOf(sbBlock.stateSplit, new Set(trades.map((t) => t.tradeId)), windows, ctx.cfg, ratio),
   };
 }
 
