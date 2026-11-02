@@ -89,7 +89,7 @@
 
 任何一笔取不到窗口口径的盈亏 → 整窗 `UNKNOWN:TRADE_PNL_NOT_RECORDED`，各项为 `null`（与记分牌 `emptyWindow` 相同）。
 
-**取整。** 两边都有的字段照记分牌导出的样子（比率与费用 4 位），以便逐字比较；登记簿新增的金额字段按 METRIC_DEFINITIONS_V1 §10.2 取 2 位。
+**取整**（协调会话 2026-11-02 裁定）。汇总行（`signalKey: '*'`）的字段记分牌也有，记分牌是它们唯一的生产者：照记分牌导出的样子（窗口的比率与费用 4 位、状态格的 `winRate`、`avgR`、`netPnl` 不取整），以便逐字比较。登记簿自己算的比率（信号行窗口的 `winRate`、`avgR`、`expectancyT`，信号行状态格的 `winRate`、`avgR`）按 METRIC_DEFINITIONS_V1 §10.2 取 6 位；登记簿自己算的金额（信号行窗口的费用合计、信号行状态格的 `netPnl`、`expectancyAmount_like`）取 2 位。信号行窗口按 §3.3 从记分牌重述的那一项费用是记分牌的数，照它的 4 位（`costsSource` 写明）。
 
 ## 6. 按市场状态拆分
 
