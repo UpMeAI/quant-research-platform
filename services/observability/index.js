@@ -51,6 +51,17 @@ async function operationalHealth(marketId, o = {}) {
       verdictCn: '市场适配器不可达 —— 该市场的运行事实无法核验(其他市场不受影响)',
     };
   }
+  // 研究专用适配器(如 replay-core 钉版回放)没有绑定 Runtime:运行事实不适用,不是故障,也不臆造一个 runtime_id
+  if (!runtimeId) {
+    return {
+      market: marketId, runtime_id: null, business_date: today,
+      adapter: { adapter_version: adapter.manifest.adapter_version, health_status: adapter.manifest.health_status, research_only: caps.research_only === true },
+      data_freshness: dataFreshness,
+      problems: [],
+      verdict: 'NO_RUNTIME_BOUND',
+      verdictCn: '研究专用适配器,没有绑定 Runtime —— 发布漂移、激活队列等运行事实不适用',
+    };
+  }
   const platformActive = controlPlane.activeReleaseIdFor(runtimeId);
   const reported = await runtimeStatus.activeRelease(marketId);
   let releaseDrift;

@@ -1,0 +1,624 @@
+{
+ "kind": "QRP_REPLAY_CORE_ADAPTERS_GOLDEN_PROOF_V1",
+ "produced": "2026-11-01",
+ "source_test": "tests/replay_core_market_adapters.test.js (cross-repo golden case)",
+ "adapter_code_commit": "d4dd3fb",
+ "authority_note": "macOS x64 node 23.11.0: not the replay-core byte-authority env class (Linux x86_64 node 18.20.8); the comparison is same-machine harness vs adapter, both against the committed receipts",
+ "core_version_hash": "5a4808b0b775335a21a0c8e43de21d57048d5f64d820169b6225e36c95829c7b",
+ "smartflow_commit": "8d97cbdec0a775fd9fe8cc75643da34fffebe9bc",
+ "env": {
+  "node": "23.11.0",
+  "platform": "darwin",
+  "arch": "x64"
+ },
+ "summary": [
+  {
+   "golden": "G3",
+   "strategy": "US_V5",
+   "profile": "CLOSE_MARK",
+   "market": "US_EQUITY",
+   "committed_receipt_sha256": "f87e175886925f3041f2d91bb2033f684f3ddd4af8916dad644bdc9aafab19d7",
+   "cases": 6,
+   "core_runs": 6,
+   "verdict": "BYTE_IDENTICAL"
+  },
+  {
+   "golden": "G2",
+   "strategy": "CARRY",
+   "profile": "HOURLY_REBALANCE_BAND",
+   "market": "CRYPTO",
+   "committed_receipt_sha256": "4ef2adef3e15bdee1ccb27cef8a3021f832a6e3f860846d2fd8f3f56fc61a5a6",
+   "cases": 8,
+   "core_runs": 8,
+   "verdict": "BYTE_IDENTICAL"
+  },
+  {
+   "golden": "G1",
+   "strategy": "C17",
+   "profile": "NEXT_BAR_OPEN",
+   "market": "CRYPTO",
+   "committed_receipt_sha256": "61ecd0e648b0c2e3529958a033853146e417858b4c63a61dd1660567b525a3ce",
+   "cases": 30,
+   "core_runs": 33,
+   "verdict": "BYTE_IDENTICAL"
+  }
+ ],
+ "goldens": [
+  {
+   "golden": "G3",
+   "strategy": "US_V5",
+   "profile": "CLOSE_MARK",
+   "market": "US_EQUITY",
+   "committed_receipt_sha256": "f87e175886925f3041f2d91bb2033f684f3ddd4af8916dad644bdc9aafab19d7",
+   "cases": 6,
+   "core_runs": 6,
+   "rows": [
+    {
+     "case_id": "G3.L1.1",
+     "committed_new_sha256": "a1759e2776c8880f127278e22a55e370f72bfb91d2cd61b78807b05f7d570d52",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "19304101a4bca408fcada069b3dc8c8b83dfea532c28c79c8c6483b7052b5b1a",
+       "input_hash": "9770e06129fd93300f0c7e08d617feda5cba8df4b9f9364341888f3c488994fc",
+       "payload_sha256": "bc40bcde15f2f59ef1d0cfaeed59196057bb630026959920e72312d3479db326"
+      }
+     ]
+    },
+    {
+     "case_id": "G3.L1.2",
+     "committed_new_sha256": "9c96af644ccbf6f16db4e947c3aabce46eb32d58be30d838618da2923b800662",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "793fb17b811c97f60228b37d21a456939272c61107461b27ac0b048f59056230",
+       "input_hash": "2dde306c1d70e998c701ced6a61dadacdb9c817c7f909d897d92c816821b2a9e",
+       "payload_sha256": "b19f2cb23e6442a4b86f4b8d8e39ba66dd1b6741b7b1b23fe342e0fc0cf016b5"
+      }
+     ]
+    },
+    {
+     "case_id": "G3.L1.3",
+     "committed_new_sha256": "10650e637d7fa947829442d511fe8baf486cedf6076fe75f3a0e5e1e6c9c2296",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "35fa0f58c49cf3b7d266ddfb7f242768d15108274b227a36b686061b63e119b2",
+       "input_hash": "a6f638e4aad4e343b8ecdc87445bee01c5effc18a4c73880f844353d008e251f",
+       "payload_sha256": "663ddead006c12eac9e5fc22e4c0bccfdeb7e223c0087c5156166f15983ef1e1"
+      }
+     ]
+    },
+    {
+     "case_id": "G3.L1.4",
+     "committed_new_sha256": "abf0aba9c8dd63d8bf5cacd7571d1313d2d87c44ee4293d1bd1e66c9c7997565",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "b74f0052de347f390987285ba1954fb390528f3d29ed21a41fcc73e95a1b4c75",
+       "input_hash": "7276b42d4655a08695242289f2c99595253773ac73b8e63fa59fb71eb834e5aa",
+       "payload_sha256": "0d482e52260b99bc98053d1e4829ce2f1bf87e7a21394bde866fd039a12ead54"
+      }
+     ]
+    },
+    {
+     "case_id": "G3.L1.5",
+     "committed_new_sha256": "f20f4edd66edbb6168ec9aeb820a96f638e789cc3f6d31f27c7978aee2cc9879",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "209816cb44b797054f5ba06784f57ea7ef87c942ff4da834f0d069b5fbaef8cd",
+       "input_hash": "187d8ee66b2732bc6ad50ad854508155b4080e22179eed51a8906d97339f7050",
+       "payload_sha256": "d12ee47f98a5043cb9d1f9b569801e5367dfa3a1912806f2f4a3c1da01fb7ca3"
+      }
+     ]
+    },
+    {
+     "case_id": "G3.L1.6",
+     "committed_new_sha256": "eef486c94b61e946af74ecfd6ca8f15869a8fb081ca722b05b15b7429d5bc3a6",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "a09e47c695ff74901b671c648445cc73083fa884ace15bb3e24f2e948000f6f3",
+       "input_hash": "54416da8cf9232381409d2a3e6fba28680283de246f7b6ccdadca4fa1aae0603",
+       "payload_sha256": "e4b9a2daba97cb6389c36965993c5efb4b00d58381b8f62d710c56e01dc0893c"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "golden": "G2",
+   "strategy": "CARRY",
+   "profile": "HOURLY_REBALANCE_BAND",
+   "market": "CRYPTO",
+   "committed_receipt_sha256": "4ef2adef3e15bdee1ccb27cef8a3021f832a6e3f860846d2fd8f3f56fc61a5a6",
+   "cases": 8,
+   "core_runs": 8,
+   "rows": [
+    {
+     "case_id": "G2.L1.1",
+     "committed_new_sha256": "48fe438d137da0d7016df8cf05db225fe8a691262a7a70e839c48cbffa6bb7cc",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "795ad697b8299d0e1247506cb608246ab66b30722648abc8c37f601cc3f0d089",
+       "input_hash": "56f60d21d3023bd6f626c20c752784bb59e7eeb9b6f3ea4bf57198f785acfd4c",
+       "payload_sha256": "b302414c4a80d26278790d7b464f097265c5f97ddba31d69d659768c92d499c7"
+      }
+     ]
+    },
+    {
+     "case_id": "G2.L1.2",
+     "committed_new_sha256": "1810c33499866bdac1ec87a99a345ad59e542d677f5ec7e7890b564f0d2b420c",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "bbe82b4e0e1537ebaffffd1d63e00eefaf4025144ffe8d5d9284fc1b143034c7",
+       "input_hash": "e5811b995c5de3ed3d2d47748572dba4468402f70bd4fae0b1a9d24c4c23b2f1",
+       "payload_sha256": "9853c89ae8ac6c43cc6137f8440c919aa9b9f40bf291dbc21ec31284e31bb9db"
+      }
+     ]
+    },
+    {
+     "case_id": "G2.L1.3",
+     "committed_new_sha256": "3eed9938d92e10089cec6bb8b625da0533e97f27241028371f9221491382eb49",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "bb5a8d2828bf8d0433f0c5aa04f400dc84fe5a1db2ddb47c4dfce671b57cb80c",
+       "input_hash": "e6b4d62ac75241a34a7d4013a4dc47e2caeb56035a467bc17555de0d77f16306",
+       "payload_sha256": "54fc60e73193c50920132317fd960c1b3f09df16ea708b479ed15f97b71c88c5"
+      }
+     ]
+    },
+    {
+     "case_id": "G2.L1.4",
+     "committed_new_sha256": "ecb8e2c1bd4c357b10cf050b82eb2ab0719b44d8236674a8d1221402db82cc68",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "18073acce3258d62094c3963074134a3ea024060079363ae762b4795b3466283",
+       "input_hash": "bd517b06d81bac5b0f670b62c15f216b2f7ae755205e6fad5d27cd46b47eec7c",
+       "payload_sha256": "8026c5894677e3cebd8bb002b3eec9bea5db42c74f77afadd68da380ab8a38fb"
+      }
+     ]
+    },
+    {
+     "case_id": "G2.L1.5",
+     "committed_new_sha256": "75be59291b9f49bba8be1c509663cbc824e6c40886d0f141fc01cdf11ace6011",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "0e320f478dc47db276d62c50ab8d45e260bee9b7cc80379e1b5360019cc97485",
+       "input_hash": "ecd63bf7e0c899fe6407e6c6df9bf2e01f33f053243c8159f6d5378dc9fad005",
+       "payload_sha256": "ff9d523d8bacf749778b2a318141b0ffd1e83fc248c3882295194cf964e4a233"
+      }
+     ]
+    },
+    {
+     "case_id": "G2.L1.6",
+     "committed_new_sha256": "09d5fb55f2c13962bb765ca6dfdb17f40ecd7942f57622709e986a4a7a52d2a5",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "5b055f5e7e8e595ac5767613fdf6bd01c5146b48d98a73969c6188caf57e4fe9",
+       "input_hash": "bc39a3ab073527e0c041f5ac231804556cbdeea05267c5df028108be6e6dcf50",
+       "payload_sha256": "b856d7794af0382180c209a5edc301f2aefe5c855ae2cbd5d49b0d01d5f1a6d1"
+      }
+     ]
+    },
+    {
+     "case_id": "G2.L1.7",
+     "committed_new_sha256": "3f74fb0a8ca82094d7d2c192e6233416ab90b2f09d6a18fa157482074ef46115",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "9b473d0403652663bb556dcb947b0ba990f085dd5c36d4fe837dcf082c2238a9",
+       "input_hash": "7b44bf2b8e21ef4685d716efd28e976ea1670dc904c110c40fba918472ac4903",
+       "payload_sha256": "1728e69c4dcfbed05a0b4026986fb6c33dc61dc58d366e877e7014baf2b7f07c"
+      }
+     ]
+    },
+    {
+     "case_id": "G2.L1.8",
+     "committed_new_sha256": "e9f6dc1b4593ea64d76b49773535ff929e1abdd805e59810d7472238f0422bf1",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "c39e08169b04330fb7a9844c02c07f3b01943d6acff968eb0184e4bfe69da626",
+       "input_hash": "f9c03550b7f013193ef8e883d8889a85b782bd8c05be5588db192d212fe26e00",
+       "payload_sha256": "ffed26a93c9afa7f6af28ff87446547b4e5151d07c4396cd206c584ad47834e6"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "golden": "G1",
+   "strategy": "C17",
+   "profile": "NEXT_BAR_OPEN",
+   "market": "CRYPTO",
+   "committed_receipt_sha256": "61ecd0e648b0c2e3529958a033853146e417858b4c63a61dd1660567b525a3ce",
+   "cases": 30,
+   "core_runs": 33,
+   "rows": [
+    {
+     "case_id": "G1.L1.1",
+     "committed_new_sha256": "d91106ff3dfd2bb65bcaebb69b6a53e966c820bf4ec47817a8995c529020d812",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "c0894ddd55b73efdee7c91df385edf3a5225f0d487b80d9ae58965a20c2710a8",
+       "input_hash": "15d18d3ce88952bf54889aad58c807787bf66b45f6da8733527e013f17f892f4",
+       "payload_sha256": "452e82a92e4f19fc4b82adc995a236caf93a8111f46d91e1c94be40ad1bdb6e7"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.2",
+     "committed_new_sha256": "87bdf01814911a723f44e379b9ebd85064dae2f283bae302d5d6c0d1fcabf180",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "71695befc624898f789e12829325ebe1eed472db42070dd514a2d477957dd021",
+       "input_hash": null,
+       "payload_sha256": "4c0ea1cdfdc8a48086593eb050ddd97769128b9f0a134397b260d40577637c3b"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.3",
+     "committed_new_sha256": "576a1d679bcd5c5b7652dde772638c681d61a8d3a0e396ea81c97cb1342c705e",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "faac243aab3b954865b4cc9fcc4d0bb93a91737b8cdca973b2207f15444e803e",
+       "input_hash": null,
+       "payload_sha256": "4ab14330c7e86454eb3298a7fa07d2c50714dae64121a63e6eaf8af3d807726b"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.4",
+     "committed_new_sha256": "a2a443a3ebac7b0f9aec7fead6737c106d075edab97e8f27c15a9317a0bb3e7f",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "eb4be67eb99d8889f342c59f8ecd6595dfc39e7100a5c195f084c0927e3fcfa8",
+       "input_hash": null,
+       "payload_sha256": "c8a1cf05ddc39953affe77fb11e075233e1ef1cf108230f1874bd4bb5f4f4790"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.5",
+     "committed_new_sha256": "f0d8b09f73a15cabe83c8ed4b1b04f1055a73857bf5ddcb4d69c3fcc512052e5",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "02e03288f8f883af87d10e664a9510e4f9241f5a8764a7911c39fd763a8bb0ba",
+       "input_hash": null,
+       "payload_sha256": "49ffb943486ee64bc01ec69893274fc6bbff7082c4a3a77d6cd46365f786e773"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.6",
+     "committed_new_sha256": "36e9158559d94a89392b7a05ac676d5d11e44e5a753cda9a9787d8f6c9a3a9e6",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "86b338b80c52e461144b15e360196ac76ad511c338a18d05b2d1ed2b9d264e19",
+       "input_hash": null,
+       "payload_sha256": "634165825f19d79792a95603edf60d9a145efbaab935ae95167b2394f3c44ee2"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.7",
+     "committed_new_sha256": "185950e243e2cdacb6f0b16370d19da3d2d32ea800ebf355bb3e09856522d424",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "5eaa0296d608641cc2ddf32d6c8a6ddd2fcdbb1830a9b402311a4cc6f54c31c0",
+       "input_hash": null,
+       "payload_sha256": "e54103f6c98a5b463447ade0adbc9db0b547782ab8981015c1cb456ff2fb69ca"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.8",
+     "committed_new_sha256": "6bebafedb4b82efc76da5f65c6ad442fcbd00404ca3aae71b02ab76e9ce3a9bd",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "055e4debcdf48ec9da8ca47d6e78ba385e401df10193bd1409257ef30f13eb05",
+       "input_hash": null,
+       "payload_sha256": "19f5bb2e7c807e9c08ed03260d3531e9170ab204fa12e3abff53665f69a6dc19"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.9",
+     "committed_new_sha256": "8d773f9e37bc3c8cf03673e5f2e901c4d8aed61b3c7d2ed4d3dfecbd2334e644",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "5325f6c7cbf7aec0e1ec3a50ea15041e6741071b3e4704bdf20a76ae42c23ce0",
+       "input_hash": null,
+       "payload_sha256": "f04df315572fd1e0cf4606554cd9d4ceae681870552c209e7c897cd78bb76703"
+      },
+      {
+       "output_sha256": "c9216361c900913ba009d5c01073ba04399f63161127ad19c6372db666d54a62",
+       "input_hash": null,
+       "payload_sha256": "4fea9ee0f3b88c52c318f161d05f6bed2f8a0c02c83c07fd2cd3b57c82e64090"
+      },
+      {
+       "output_sha256": "d0826106b0dd544de19d5ab6f173785f7a2d14f6e5462b998b03f081b17dcd14",
+       "input_hash": null,
+       "payload_sha256": "745466cf605474c032d46284225ebc7e6f5ac0db35c5a7b338452c97fbc7f75f"
+      },
+      {
+       "output_sha256": "59ba1e240613261038b9d679d50ea6cb1d78fec2d9257fa9684cd942824bb8f8",
+       "input_hash": null,
+       "payload_sha256": "5f0cb18ea40dfeafdc3431955a062368c08db1aabc096c3edcab10ba03ce8ae6"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.10",
+     "committed_new_sha256": "b241f0268a85b12e88dc0de43d7ed4892c9b819d062981803896d1d4dd37e130",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "62e5d7e374431a053826a77fc0b5d561c643931fe42927b18e4b07ceebb416e7",
+       "input_hash": null,
+       "payload_sha256": "863066cde07ace2c2938026b8263bf1200bec2f73efff1ad65640cf05bdcd7aa"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.11",
+     "committed_new_sha256": "d91106ff3dfd2bb65bcaebb69b6a53e966c820bf4ec47817a8995c529020d812",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "85bf5f88424ac7a8152e69acb0f459ad338e7f5c0579ec9946593ebdd9cfcba4",
+       "input_hash": null,
+       "payload_sha256": "082c9e08c48c843c669e9b3c320febe73f82e2197b0a8a931d4947c3b0fba92c"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.12",
+     "committed_new_sha256": "5415b66b01414782ad1fcafa407bf5b4ebc848a1371870e5943c4e16965f111a",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "a94af88e46cbec3acf8f58968896ea0897b81d2ac1345a8815c04ea00978c670",
+       "input_hash": null,
+       "payload_sha256": "4357ca9258b1c9c428cd6347b050008af82e27ca10269f6a06527fbf340de1f0"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.13",
+     "committed_new_sha256": "3eeed7fb69f789141396b9214cd94256f02673f6720cecedd89488640b01b4d5",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "435b6bc04f1afd2fbfeab348759de6a5ea3abf01b7f5809156859b785c329199",
+       "input_hash": null,
+       "payload_sha256": "e2b9c56cd034e28a6ddbf54b8d67eed4ac312e5611c3f3ccba55fa35964aa452"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.14",
+     "committed_new_sha256": "5bee2f141ca7a7c1e440370d5bbdda243b1870d80c28283d55e02a050bc803aa",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "6556769d54e54ed2e5a36472efaaa1b495d1938f22d20f4dd060a206b7a9e438",
+       "input_hash": null,
+       "payload_sha256": "724196736a544275a424872f6690266a4343dfc55e798c995b178f2acd55607e"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.15",
+     "committed_new_sha256": "20d55bf55d5bba6356ac4702cffe20d7ca838333fc2b99c5081351dae4ccad79",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "39058950a579bc1a216fd11ab4631e6451a3424657e91a764aafd9cd64e61ab5",
+       "input_hash": null,
+       "payload_sha256": "597fec761f4cb26025c1e752a1114188268cf0de2acafdea8ba45d101fc4eb5e"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.16",
+     "committed_new_sha256": "6bb892424688730f12204229a46ddc795c07508aa53d1ea8a738ecb6b1d87dc4",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "4b3cf47e2071238281554c6d8fcc3e1bb888f23b3f7ce616e384a82ed3149c47",
+       "input_hash": null,
+       "payload_sha256": "5bde77c946c227a34aa478fe2ac5337d74d3cffd23595fb76298169fefe1deff"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.17",
+     "committed_new_sha256": "1afac94782ecafc0f4257d509a7b8a76b3d6927398737b70ccb66b44ac32d4fd",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "58662fee11f3336dd2bc5cf8933552662644c812bd426d97a6ba5c422cc5d788",
+       "input_hash": null,
+       "payload_sha256": "9e1d3be39084aa39c6072701d88ff23da2617d471289e24e8f5b480ab2233d70"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.18",
+     "committed_new_sha256": "4e8e8679fa66a672d4728d0893cf432d47232268151333a13d94c9a7816535c0",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "b7f9bc326613635e263f3907cf81909aaba742063aebece263751d1ac9f517c6",
+       "input_hash": null,
+       "payload_sha256": "789eb2038827e788602344205ba3f40e3e41461d5e713d50760125892a5984ef"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.19",
+     "committed_new_sha256": "512664a8acaf385a21321c556e9ee04b51c85f3dc295a6fcc1d8d3e58b0259d5",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "38a195e0fa18e7412c85f8d3b472ef00f3b1e420fda75914963cadb78b820afa",
+       "input_hash": null,
+       "payload_sha256": "86edeaa285ffaba85cf43897369f447fef538b7cb8e943c7a8dfd1361966954e"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.20",
+     "committed_new_sha256": "4c46af3538d39da3184ecf53d15983e530990f9e5af1cdea7a64c8d6315ef4da",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "43afe762985fd7753dca45ee8fbb9b5979555645401c6b015bb826e760f2bf83",
+       "input_hash": null,
+       "payload_sha256": "17b8955e73d717bf8c1c9b46604d522bffc6074639abeafc643aa98bdef53628"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.21",
+     "committed_new_sha256": "98450ef77c76df22fb194c618eea368ac7936ae28c1e859df2b1b4927e5abe1f",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "b01b79e163cebb03b98660d1cd1ad1a1e3b926d4488e43f16fb91cd10c537884",
+       "input_hash": null,
+       "payload_sha256": "fdc355fc18d13bc005a0fa22f373bd5a571d97e08453d040447168866202a6d5"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.22",
+     "committed_new_sha256": "50f82db2b9da44ad07f6e09a92ced8b20d2d90d79ad114b2355dbef8de601896",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "8cd6593dcbb61d7b3032d0fc9fada74667d4fd1e4914850b4cea627b557269a9",
+       "input_hash": null,
+       "payload_sha256": "a95e9fa5772e1ce66eb463f5a9080971d1676f2f4b6659aa595e9f01ee217c6b"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.23",
+     "committed_new_sha256": "0bf95c65c11e93e3fe98c536ba3fc0adfa8d6dc69d24e5bfdced151ca0d01cbb",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "34cad34682aff0736421737ded86149d083bf45d8493cbf6fdc4b7832d89eb61",
+       "input_hash": null,
+       "payload_sha256": "31e4786e6a48049505a3779f920630338050afe4d7043e082aef397d1d9ae81b"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.24",
+     "committed_new_sha256": "d9f58a49b0a5fd39f42b8f76534329cf7bed62344ea295d3b6eb0a3d7263b450",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "ce608383e4213327214d6aa37046ca682f1c23b680f2748e17464ca7bff5e57a",
+       "input_hash": null,
+       "payload_sha256": "88ab03fb50956a14ce2c079aaf0792ac74ce387d1247f36464167cb151ea061a"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.25",
+     "committed_new_sha256": "2abf80bded54127131c8426ee91e9e861f004b3679d659591b0de04f2a89ba86",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "3eb3dd9f30f432b80c3bba1e7a16864fa8dc91eab6a4a485fbf3ad6b6814126b",
+       "input_hash": null,
+       "payload_sha256": "a00438f035493b655c7d266d7d013e335727711b5d4ad8844c7bafc0a0b53d21"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.26",
+     "committed_new_sha256": "0f2b23efab79e9738b9bcd1b58ffb1f7cdf5bd887dc7b6849619d8d97e2a5798",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "b7f7dacec259c8b9bc1d54711c30ea33990627540117d86aab4e343cc204f3bd",
+       "input_hash": null,
+       "payload_sha256": "61c53af4f78c2871cf6c4b5d0627fa5c3d386737115e60d660c982ecae27e343"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.27",
+     "committed_new_sha256": "0f2b23efab79e9738b9bcd1b58ffb1f7cdf5bd887dc7b6849619d8d97e2a5798",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "b7f7dacec259c8b9bc1d54711c30ea33990627540117d86aab4e343cc204f3bd",
+       "input_hash": null,
+       "payload_sha256": "2751930bf65ce8bcb49f53c27c36551148bbb6c6a452e84c3ed0519b3698d6d5"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.28",
+     "committed_new_sha256": "f19c84033df80acd6aac6a20151903d8e4367ca666c52bb700c23d10772c7d9b",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "04112da55fd505f2c45d0c542bf51ecdd1fdffeaad2310ead2e4dd1d0a9c32fa",
+       "input_hash": null,
+       "payload_sha256": "78cde3d2dca0334a34f5218355d51709729968a99e7dc67a4ead111a366bdb2e"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.29",
+     "committed_new_sha256": "98450ef77c76df22fb194c618eea368ac7936ae28c1e859df2b1b4927e5abe1f",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "b01b79e163cebb03b98660d1cd1ad1a1e3b926d4488e43f16fb91cd10c537884",
+       "input_hash": null,
+       "payload_sha256": "8687daadea63e09143c1dcc72d49443bd656db74b86380f6102e73c2573c01f6"
+      }
+     ]
+    },
+    {
+     "case_id": "G1.L1.30",
+     "committed_new_sha256": "4aec7136f84949ab01b7b16506e1db83d234458e8fe5fce57586094acbef895b",
+     "verdict": "BYTE_IDENTICAL",
+     "core_runs": [
+      {
+       "output_sha256": "373568008417c8bbc8f4ea5a87b6dc2501f88571ef70dda7e7e959f8bb27f8c2",
+       "input_hash": null,
+       "payload_sha256": "c8b5cdf66015e70d734b6bf934cea9b79e44486909ce47c1c86c0425d8a2536f"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -4,6 +4,8 @@
 > 参照实现:`UpMeAI/Ashare-V5` → `research-adapter/`(CN_A,已上线并端到端验证)。
 > 已实现但待真实 bundle／部署验收:`wendy926/smartflow` → US_EQUITY（只读原生回放 bundle）。
 > 待实现:`wendy926/smartflow` → CRYPTO。
+> 平台内置(钉版回放,§9):`adapters/us-replay-core`(US_EQUITY)与 `adapters/crypto-replay-core`(CRYPTO)——
+> 以子进程调用钉住的 smartflow replay core,不复制回放逻辑;远程适配器接入后按 market_id 覆盖内置注册。
 
 ## 0. 为什么适配器写在市场仓库,而不是平台仓库
 
@@ -132,3 +134,41 @@ const { registered, skipped } = await registerConfiguredRemoteMarkets();
 [ ] 错误 token 被 401 拒绝,且拒绝发生在路由之前
 [ ] 用平台真实 createHttpMarketAdapterClient 打通(必需 6/6 挂载、validateAdapter 通过)
 ```
+
+## 9. 平台内置的 replay-core 适配器(US_EQUITY / CRYPTO)
+
+研究侧要与生产跑**同一份回放内核**,又不能把 smartflow 的策略代码搬进平台(§0)。做法是钉版子进程:
+
+| 市场 | 适配器 | 策略 → replay core profile |
+|---|---|---|
+| US_EQUITY | `adapters/us-replay-core` | US_V5 → `CLOSE_MARK`(机械切片:逐 tick 退出、腿记账、权益标记) |
+| CRYPTO | `adapters/crypto-replay-core` | C17(含 C17_V2 研究约束)→ `NEXT_BAR_OPEN`;CARRY → `HOURLY_REBALANCE_BAND` |
+
+- **钉版**:`adapters/replay-core-bridge/pin.json` 记 smartflow 提交、核心目录哈希(完整 sha256,`5a4808b0…`)、
+  各策略 hooks 版本与已加载策略文件哈希。子进程 `runner.js` 独立复算核心目录哈希,再核对核心自报、hooks 版本与策略文件哈希,
+  任一不符即拒跑(`CORE_VERSION_MISMATCH` / `HOOKS_VERSION_MISMATCH` / `STRATEGY_FILES_MISMATCH`)。
+- **作业**:`QRP_REPLAY_CORE_JOB_V1`(JSON)指向一份 v8 载荷:US_V5 是去掉 hooks 的 `REPLAY_CORE_INPUT_V1`;
+  C17 / CARRY 是 smartflow 输入构造器(`c17Input` / `carryInput`)的参数。输入由 smartflow 自己构造,输出是核心
+  `canonBytes` 的原样字节,`result_hash` = 其 sha256。
+- **边界**:子进程环境只有 `PATH` / `TZ`;smartflow 模块若在加载时注入环境变量即拒跑;适配器只读研究缓存
+  (`QRP_REPLAY_CORE_CACHE_US_EQUITY` / `QRP_REPLAY_CORE_CACHE_CRYPTO`),不拉数;影子观察显式 `SHADOW_UNSUPPORTED`。
+- **接通**:`QRP_SMARTFLOW_ROOT` 指向 pin 所记提交的 smartflow 检出(含 `node_modules`);未设置时调用即
+  `REPLAY_CORE_SOURCE_NOT_CONFIGURED`。
+
+### 跨仓字节一致性
+
+`tests/replay_core_market_adapters.test.js` 的跨仓用例在 `QRP_SMARTFLOW_ROOT` 设置时运行(否则跳过并写明原因):
+`golden_capture.js` 跑 smartflow 自己的 layer-1 golden 用例,记录每次 `Core.run` 的作业与输出哈希,并核对每个用例的
+新侧投影哈希与 smartflow 已提交的 golden 回执(文件 sha256 由 pin 钉住)一致;随后同一批作业经已注册的适配器重跑,
+输出字节必须与 golden 自跑逐字节一致。载荷含策略参数,不进仓库;仓库只收只含哈希的证明回执(`docs/evidence/`)。
+
+```bash
+QRP_SMARTFLOW_ROOT=/path/to/smartflow QRP_REPLAY_CORE_PROOF_OUT=/tmp/proof.json \
+  node --test tests/replay_core_market_adapters.test.js
+```
+
+### 换钉
+
+smartflow 核心或 hooks 变更后:检出新提交,`node adapters/replay-core-bridge/runner.js --root <检出> --probe <US_V5|C17|CARRY>`
+取新哈希,更新 `pin.json`(含新的 golden 回执文件与 sha256),跑跨仓用例全绿后再提交。不允许只改 pin 不跑跨仓用例。
+
