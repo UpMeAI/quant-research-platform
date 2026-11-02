@@ -1,0 +1,16 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "STRATEGY_REVIEW_V1",
+  "file": "SMARTFLOW_US/review/STRATEGY/US_CORE_9000USD_3X_GATEOBS/STRATEGY_REVIEW_2026-10-09.json",
+  "hash": "1bed84ab2b925aec4c4a0fce553e2a3e59f5f216d02630d567b3e5dca1512e5f"
+ },
+ "period": {
+  "kind": "WEEK",
+  "from": "2026-10-08",
+  "to": "2026-10-09",
+  "clock": "NYSE_SESSIONS"
+ },
+ "generatedAt": "2026-10-09T20:50:01.806Z",
+ "tradeReviews": []
+}

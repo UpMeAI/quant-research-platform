@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-03",
+  "generatedAt": "2026-10-05T08:52:50.380Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4732:OPEN",
+      "lotId": "C17_V2_4000USDT:BTCUSDT:4732",
+      "instrument": {
+        "id": "BTCUSDT",
+        "kind": "PERP",
+        "name": "BTC/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "direction": "LONG",
+      "quantity": 0.118,
+      "price": 84665.1,
+      "notional": 9990.4818,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 2.99864311,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-03T12:14:50.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:BTCUSDT:LONG:TREND:1791028799999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ]
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 1,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 9990.4818,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "45f947474737779d51dac8881144de92403df43bf7bfd46ea51eac9d360bef79"
+}

@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-07",
+  "generatedAt": "2026-10-08T00:20:00.038Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4733:OPEN",
+      "lotId": "C17_V2_4000USDT:ETHUSDT:4733",
+      "instrument": {
+        "id": "ETHUSDT",
+        "kind": "PERP",
+        "name": "ETH/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 2.958,
+      "price": 2575.21,
+      "notional": 7617.4711800000005,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 2.28409873,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-07T16:07:31.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:ETHUSDT:SHORT:TREND:1791388799999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ]
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4733:CLOSE",
+      "lotId": "C17_V2_4000USDT:ETHUSDT:4733",
+      "instrument": {
+        "id": "ETHUSDT",
+        "kind": "PERP",
+        "name": "ETH/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 2.958,
+      "price": 2576,
+      "notional": 7619.808000000001,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 3.04944716,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-07T20:16:31.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "TRAILING_STOP"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED_GROSS",
+        "currencyAmount": -2.33682,
+        "r": -0.015339,
+        "reasonCode": "FUNDING_UNVERIFIED"
+      }
+    }
+  ],
+  "counts": {
+    "events": 2,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 1
+    }
+  },
+  "totals": {
+    "notional": 15237.279180000001,
+    "realized": {
+      "state": "MEASURED_GROSS",
+      "currencyAmount": -2.33682,
+      "r": -0.015339,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "ccb0e6357f91da6cc4c14ce40061423c29ef53a5c95e07c874acbece506ef5e7"
+}

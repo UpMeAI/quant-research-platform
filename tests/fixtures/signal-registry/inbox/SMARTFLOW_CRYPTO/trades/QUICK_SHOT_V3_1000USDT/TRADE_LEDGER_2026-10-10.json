@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-10",
+  "generatedAt": "2026-10-11T00:20:01.127Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:3:OPEN",
+      "lotId": "QUICK_SHOT_V3_1000USDT:CAPUSDT:3",
+      "instrument": {
+        "id": "CAPUSDT",
+        "kind": "PERP",
+        "name": "CAP/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 2669.929914339749,
+      "price": 0.08989,
+      "notional": 240.00000000000003,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-10T04:01:27.225Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "191",
+        "reasonCodes": [
+          "QUICK_SHOT_RULES_V3",
+          "QS_V3_SIGNAL_BEARISH",
+          "FORWARD_EVIDENCE_TUNING_V1_INSUFFICIENT"
+        ],
+        "ruleRef": "QUICK_SHOT_V3_ENTRY@AMENDMENT_18"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:3:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:CAPUSDT:3",
+      "instrument": {
+        "id": "CAPUSDT",
+        "kind": "PERP",
+        "name": "CAP/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 2669.929914339749,
+      "price": 0.0925867,
+      "notional": 247.20000000000002,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-10T04:14:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_STOP_3PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -7.68,
+        "r": -1.066667,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    }
+  ],
+  "counts": {
+    "events": 2,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 1
+    }
+  },
+  "totals": {
+    "notional": 487.20000000000005,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": -7.68,
+      "r": -1.066667,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "75c57746baff30cf0ebc4cd6473f7af0bb02514d1cd7450dd38b106182121389"
+}

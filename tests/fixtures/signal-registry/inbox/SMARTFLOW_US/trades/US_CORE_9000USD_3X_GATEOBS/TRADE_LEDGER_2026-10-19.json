@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_US",
+  "market": "US",
+  "ledgerId": "US_CORE_9000USD_3X_GATEOBS",
+  "sessionDate": "2026-10-19",
+  "generatedAt": "2026-10-19T20:50:10.108Z",
+  "currency": "USD",
+  "executionMode": "PAPER",
+  "events": [],
+  "counts": {
+    "events": 0,
+    "byPurpose": {
+      "OPEN": 0,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 0,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 0,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "3d80992a8840504cd870bd706484d7284aa967ee59c16194130ae8b4d73feee6"
+}

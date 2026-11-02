@@ -1,0 +1,41 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "STRATEGY_REVIEW_V1",
+  "file": "SMARTFLOW_US/review/STRATEGY/US_V5_ETF_3000USD/STRATEGY_REVIEW_2026-10-16.json",
+  "hash": "ab4fa3e241c4dcb1cb33d52cf4ca22d97e358edc8f769a1cac676f180f307298"
+ },
+ "period": {
+  "kind": "WEEK",
+  "from": "2026-10-12",
+  "to": "2026-10-16",
+  "clock": "NYSE_SESSIONS"
+ },
+ "generatedAt": "2026-10-16T20:50:00.962Z",
+ "tradeReviews": [
+  {
+   "tradeId": "USV5_1791566586316_oehxpg",
+   "symbol": "MSFU",
+   "direction": "LONG",
+   "entryAt": "2026-10-09T17:23:09.000Z",
+   "exitAt": "2026-10-14T17:49:09.000Z",
+   "entryReason": "TREND BUY MSFU->MSFU 2x regime=TREND",
+   "riskUnit": 41.09,
+   "rMultiple": 0.1222,
+   "exitReason": "TIME_STOP",
+   "pnl": 5.02,
+   "costs": {
+    "fee": null,
+    "funding": null,
+    "slippage": null
+   },
+   "costProvenance": {
+    "fee": "UNKNOWN",
+    "funding": "NOT_APPLICABLE",
+    "slippage": "UNKNOWN"
+   },
+   "holdHours": 120.43,
+   "parity": "UNKNOWN"
+  }
+ ]
+}

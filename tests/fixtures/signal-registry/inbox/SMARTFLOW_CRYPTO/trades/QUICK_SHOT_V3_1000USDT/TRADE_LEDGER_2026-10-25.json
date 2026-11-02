@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-25",
+  "generatedAt": "2026-10-27T00:20:01.977Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:10:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:BRUSDT:10",
+      "instrument": {
+        "id": "BRUSDT",
+        "kind": "PERP",
+        "name": "BR/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "CLOSE",
+      "direction": "LONG",
+      "quantity": 521.059487624837,
+      "price": 0.446782,
+      "notional": 232.7999999999999,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-25T10:56:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_STOP_3PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -7.74,
+        "r": -1.075,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    }
+  ],
+  "counts": {
+    "events": 1,
+    "byPurpose": {
+      "OPEN": 0,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 0,
+      "SELL": 1
+    }
+  },
+  "totals": {
+    "notional": 232.7999999999999,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": -7.74,
+      "r": -1.075,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "a08d6f32af70397c08a96ffb2c5a3eb2297fc72c0490fa2edac86751ae105bb9"
+}

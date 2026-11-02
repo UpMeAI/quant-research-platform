@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-29",
+  "generatedAt": "2026-10-31T00:20:02.421Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4749:OPEN",
+      "lotId": "C17_V2_4000USDT:HYPEUSDT:4749",
+      "instrument": {
+        "id": "HYPEUSDT",
+        "kind": "PERP",
+        "name": "HYPE/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "direction": "LONG",
+      "quantity": 24.03,
+      "price": 93.672,
+      "notional": 2250.93816,
+      "quantityUnit": {
+        "asset": "HYPE",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-29T20:16:52.598Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.67561909,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-29T20:13:53.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:HYPEUSDT:LONG:TREND:1793303999999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ],
+        "ruleRef": "C17_V2_ENTRY@AMENDMENT_19"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4749:CLOSE",
+      "lotId": "C17_V2_4000USDT:HYPEUSDT:4749",
+      "instrument": {
+        "id": "HYPEUSDT",
+        "kind": "PERP",
+        "name": "HYPE/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "CLOSE",
+      "direction": "LONG",
+      "quantity": 24.03,
+      "price": 90.486941,
+      "notional": 2174.40119223,
+      "quantityUnit": {
+        "asset": "HYPE",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-29T20:47:04.394Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.8693256,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-29T20:43:46.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "STOP_LOSS",
+          "EXIT_FILL_AT_TOUCHED_LEVEL"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_19"
+      },
+      "realized": {
+        "state": "MEASURED_GROSS",
+        "currencyAmount": -76.53696777,
+        "r": -1,
+        "reasonCode": "FUNDING_UNVERIFIED"
+      }
+    }
+  ],
+  "counts": {
+    "events": 2,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 1
+    }
+  },
+  "totals": {
+    "notional": 4425.33935223,
+    "realized": {
+      "state": "MEASURED_GROSS",
+      "currencyAmount": -76.53696777,
+      "r": -1,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "6003c45f88121220814717cba5d8e47fdded2d29de07bcc4a765568d15f23e39"
+}

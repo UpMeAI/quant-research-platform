@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-29",
+  "generatedAt": "2026-10-31T00:20:02.421Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:11:OPEN",
+      "lotId": "QUICK_SHOT_V3_1000USDT:KATUSDT:11",
+      "instrument": {
+        "id": "KATUSDT",
+        "kind": "PERP",
+        "name": "KAT/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 52504.92233646904,
+      "price": 0.004571,
+      "notional": 240,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-29T08:01:27.131Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "199",
+        "reasonCodes": [
+          "QUICK_SHOT_RULES_V3",
+          "QS_V3_SIGNAL_BEARISH",
+          "FORWARD_EVIDENCE_TUNING_V1_INSUFFICIENT"
+        ],
+        "ruleRef": "QUICK_SHOT_V3_ENTRY@AMENDMENT_18"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:11:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:KATUSDT:11",
+      "instrument": {
+        "id": "KATUSDT",
+        "kind": "PERP",
+        "name": "KAT/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 52504.92233646904,
+      "price": 0.00420532,
+      "notional": 220.8,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-29T20:44:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_TARGET_8PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 18.1474992,
+        "r": 2.520486,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:12:OPEN",
+      "lotId": "QUICK_SHOT_V3_1000USDT:UAIUSDT:12",
+      "instrument": {
+        "id": "UAIUSDT",
+        "kind": "PERP",
+        "name": "UAI/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 909.435392194013,
+      "price": 0.2639,
+      "notional": 240.00000000000006,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-29T21:05:27.859Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "200",
+        "reasonCodes": [
+          "QUICK_SHOT_RULES_V3",
+          "QS_V3_SIGNAL_BEARISH",
+          "FORWARD_EVIDENCE_TUNING_V1_INSUFFICIENT"
+        ],
+        "ruleRef": "QUICK_SHOT_V3_ENTRY@AMENDMENT_18"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 3,
+    "byPurpose": {
+      "OPEN": 2,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 2
+    }
+  },
+  "totals": {
+    "notional": 700.8000000000001,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": 18.1474992,
+      "r": 2.520486,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "8a038ee17e857f5c7a9ad4d8b8f97bd34683bbdb52b1456cad06e7c28f579b52"
+}

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-11",
+  "generatedAt": "2026-10-12T00:20:01.071Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [],
+  "counts": {
+    "events": 0,
+    "byPurpose": {
+      "OPEN": 0,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 0,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 0,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "c80221074557648ef5e0b175392994a4463d3f99b850638c571a0b93538ec26e"
+}

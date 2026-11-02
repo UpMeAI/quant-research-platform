@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-21",
+  "generatedAt": "2026-10-23T00:20:01.897Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4744:OPEN",
+      "lotId": "C17_V2_4000USDT:XRPUSDT:4744",
+      "instrument": {
+        "id": "XRPUSDT",
+        "kind": "PERP",
+        "name": "XRP/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "direction": "LONG",
+      "quantity": 2778.2,
+      "price": 1.3566,
+      "notional": 3768.9061199999996,
+      "quantityUnit": {
+        "asset": "XRP",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-21T12:07:04.760Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.13123717,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-21T12:03:37.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:XRPUSDT:LONG:TREND:1792583999999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ],
+        "ruleRef": "C17_V2_ENTRY@AMENDMENT_19"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4745:OPEN",
+      "lotId": "C17_V2_4000USDT:BTCUSDT:4745",
+      "instrument": {
+        "id": "BTCUSDT",
+        "kind": "PERP",
+        "name": "BTC/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "direction": "LONG",
+      "quantity": 0.044,
+      "price": 84669.6,
+      "notional": 3725.4624,
+      "quantityUnit": {
+        "asset": "BTC",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-21T18:14:21.876Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.11819754,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-21T18:13:36.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:BTCUSDT:LONG:TREND:1792605599999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ],
+        "ruleRef": "C17_V2_ENTRY@AMENDMENT_19"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 2,
+    "byPurpose": {
+      "OPEN": 2,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 2,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 7494.36852,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "31e6bbf00ca74d88162e757a9427b098ee575c7f58115633ada9da47286f98be"
+}

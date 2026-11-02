@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_US",
+  "market": "US",
+  "ledgerId": "US_V5_ETF_3000USD",
+  "sessionDate": "2026-10-30",
+  "generatedAt": "2026-10-30T20:50:21.356Z",
+  "currency": "USD",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "US_V5_ETF_3000USD:USV5_1793369066268_pye5bc:OPEN",
+      "lotId": "USV5_1793369066268_pye5bc",
+      "instrument": {
+        "id": "XLV",
+        "kind": "ETF",
+        "name": "State Street Health Care Select Sector SPDR ETF"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "quantity": 16,
+      "price": 186.74,
+      "notional": 2987.84,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.49392,
+        "reasonCode": "FEE_MODELLED_US_V5_COST_SIDE"
+      },
+      "executedAt": "2026-10-30T14:04:27.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "US_V5_SCAN_RECORD_V2:2810723:1793369064821:XLV",
+        "reasonCodes": [
+          "V5_SIGNAL:TREND:BUY"
+        ],
+        "ruleRef": "US_V5_ENTRY@AMENDMENT_17"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 1,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 2987.84,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "7351567a5a35c788edf5b405dfc61222034afc2d7e36e6c94e17585905119dd5"
+}

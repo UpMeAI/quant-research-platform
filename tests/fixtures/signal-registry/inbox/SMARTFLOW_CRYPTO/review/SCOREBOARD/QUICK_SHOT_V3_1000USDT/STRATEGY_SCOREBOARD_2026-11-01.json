@@ -1,0 +1,738 @@
+{
+  "schemaVersion": 1,
+  "contract": "STRATEGY_SCOREBOARD_V1",
+  "market": "CRYPTO",
+  "producer": "SMARTFLOW_CRYPTO",
+  "producerVersion": "8d97cbdec0a7",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "generatedAt": "2026-11-02T00:20:02.507Z",
+  "period": {
+    "to": "2026-11-01",
+    "clock": "UTC_DAYS"
+  },
+  "bindings": {
+    "strategyReview": {
+      "file": "review/STRATEGY/QUICK_SHOT_V3_1000USDT/STRATEGY_REVIEW_2026-11-01.json",
+      "hash": "854ea50940c2739aa8e186a5a1663b8aed9b594b5ebdeecffab482ec8c408af0"
+    },
+    "replays": [],
+    "benchmarkSeries": [
+      {
+        "id": "BTC",
+        "file": "review/SCOREBOARD/QUICK_SHOT_V3_1000USDT/series/BTC_2026-11-01.json",
+        "hash": "a813c1d5a29a0e3405a93afef349d986f657259562f75c503953a55f5d9a7e21"
+      }
+    ]
+  },
+  "book": {
+    "strategyIdentity": "QUICK_SHOT_V3_1000USDT QUICK_SHOT_BOOK_V3 version=QUICK_SHOT_V3_LLIQ_V5_D0_SL3_TP8 capital=1000USDT rules=QUICK_SHOT_RULES_V3 mode=paper start=2026-10-07T00:00:00.000Z source=quick_shot_v3_trades",
+    "startedAt": "2026-10-07T00:00:00.000Z",
+    "state": "RUNNING",
+    "predecessorLedgerId": "QUICK_SHOT",
+    "versioning": {
+      "state": "SEGMENTED",
+      "reasonCode": null
+    }
+  },
+  "versions": [
+    {
+      "segmentId": "QUICK_SHOT_V3_1000USDT:S1",
+      "versionKey": "S17:QUICK_SHOT.positionRule@2+QUICK_SHOT.signalConfig@2+QUICK_SHOT.signalRules@3+QUICK_SHOT_V3_1000USDT.capitalUsdt@1",
+      "members": [
+        {
+          "ruleRef": "QUICK_SHOT.positionRule@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "QUICK_SHOT.signalConfig@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "QUICK_SHOT.signalRules@3",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "QUICK_SHOT_V3_1000USDT.capitalUsdt@1",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-07T00:00:00.000Z",
+      "to": "2026-10-13T13:00:00.000Z",
+      "changedMembers": [],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "QUICK_SHOT_V3_1000USDT:S2",
+      "versionKey": "S17:QUICK_SHOT.positionRule@3+QUICK_SHOT.signalConfig@2+QUICK_SHOT.signalRules@3+QUICK_SHOT_V3_1000USDT.capitalUsdt@1",
+      "members": [
+        {
+          "ruleRef": "QUICK_SHOT.positionRule@3",
+          "effectiveFrom": "2026-10-13T13:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "QUICK_SHOT.signalConfig@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "QUICK_SHOT.signalRules@3",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "QUICK_SHOT_V3_1000USDT.capitalUsdt@1",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-13T13:00:00.000Z",
+      "to": null,
+      "changedMembers": [
+        "QUICK_SHOT.positionRule@2",
+        "QUICK_SHOT.positionRule@3"
+      ],
+      "boundary": "RECORDED"
+    }
+  ],
+  "windows": {
+    "bookSinceStart": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-07T00:00:00.000Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "QUICK_SHOT_V3_1000USDT:S1",
+        "QUICK_SHOT_V3_1000USDT:S2"
+      ],
+      "sessions": 26,
+      "shortWindow": false,
+      "crossesVersions": true,
+      "closed": 13,
+      "open": 0,
+      "wins": 3,
+      "losses": 10,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -2.1385,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 5.0591,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -8.4139,
+          "maxDrawdownPct": 9.5838,
+          "reasonCode": null,
+          "excessPct": 6.2754,
+          "bearProtectionRatio": {
+            "value": 0.5279,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": false
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": false
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 2.496,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": 0.745,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 3.744,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 10,
+          "favorableAtLeast1R": 9
+        },
+        "takeProfit": {
+          "exits": 3,
+          "favorableAtLeast1R": 2
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "NONE",
+          "interim": false,
+          "basis": null,
+          "state": "NOT_APPLICABLE",
+          "reasonCode": "NOT_APPLICABLE:EXPERIMENT_OWN_CRITERIA",
+          "returnPct": null,
+          "excessPct": null,
+          "maxDrawdownPct": null,
+          "bearProtectionRatio": null,
+          "bullParticipationRatio": null
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "EXPERIMENT"
+    },
+    "currentVersion": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-13T13:00:00.000Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "QUICK_SHOT_V3_1000USDT:S2"
+      ],
+      "sessions": 20,
+      "shortWindow": false,
+      "crossesVersions": false,
+      "closed": 7,
+      "open": 0,
+      "wins": 3,
+      "losses": 4,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": 0.9643,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 2.3848,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -4.2785,
+          "maxDrawdownPct": 8.0159,
+          "reasonCode": null,
+          "excessPct": 5.2428,
+          "bearProtectionRatio": {
+            "value": 0.2975,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": false
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": false
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 1.344,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": 0.709,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 2.016,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 4,
+          "favorableAtLeast1R": 4
+        },
+        "takeProfit": {
+          "exits": 3,
+          "favorableAtLeast1R": 2
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "NONE",
+          "interim": false,
+          "basis": null,
+          "state": "NOT_APPLICABLE",
+          "reasonCode": "NOT_APPLICABLE:EXPERIMENT_OWN_CRITERIA",
+          "returnPct": null,
+          "excessPct": null,
+          "maxDrawdownPct": null,
+          "bearProtectionRatio": null,
+          "bullParticipationRatio": null
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "EXPERIMENT"
+    },
+    "previousVersion": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-07T00:00:00.000Z",
+      "to": "2026-10-13T13:00:00.000Z",
+      "segmentIds": [
+        "QUICK_SHOT_V3_1000USDT:S1"
+      ],
+      "sessions": 6,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 6,
+      "open": 0,
+      "wins": 0,
+      "losses": 6,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -3.0732,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 3.0732,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -4.3202,
+          "maxDrawdownPct": 4.44,
+          "reasonCode": null,
+          "excessPct": 1.247,
+          "bearProtectionRatio": {
+            "value": 0.6922,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 1.152,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": 0.036,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 1.728,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 6,
+          "favorableAtLeast1R": 5
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "NONE",
+          "interim": false,
+          "basis": null,
+          "state": "NOT_APPLICABLE",
+          "reasonCode": "NOT_APPLICABLE:EXPERIMENT_OWN_CRITERIA",
+          "returnPct": null,
+          "excessPct": null,
+          "maxDrawdownPct": null,
+          "bearProtectionRatio": null,
+          "bullParticipationRatio": null
+        }
+      ],
+      "capitalSharePct": {
+        "value": null,
+        "state": "UNKNOWN",
+        "reasonCode": "CAPITAL_SHARE_AT_PERIOD_END_ONLY"
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "EXPERIMENT"
+    },
+    "rolling60": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-07T00:00:00.000Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "QUICK_SHOT_V3_1000USDT:S1",
+        "QUICK_SHOT_V3_1000USDT:S2"
+      ],
+      "sessions": 26,
+      "shortWindow": false,
+      "crossesVersions": true,
+      "closed": 13,
+      "open": 0,
+      "wins": 3,
+      "losses": 10,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -2.1385,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 5.0591,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -8.4139,
+          "maxDrawdownPct": 9.5838,
+          "reasonCode": null,
+          "excessPct": 6.2754,
+          "bearProtectionRatio": {
+            "value": 0.5279,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": false
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": false
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 2.496,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": 0.745,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 3.744,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 10,
+          "favorableAtLeast1R": 9
+        },
+        "takeProfit": {
+          "exits": 3,
+          "favorableAtLeast1R": 2
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "NONE",
+          "interim": false,
+          "basis": null,
+          "state": "NOT_APPLICABLE",
+          "reasonCode": "NOT_APPLICABLE:EXPERIMENT_OWN_CRITERIA",
+          "returnPct": null,
+          "excessPct": null,
+          "maxDrawdownPct": null,
+          "bearProtectionRatio": null,
+          "bullParticipationRatio": null
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "EXPERIMENT"
+    },
+    "last30Closed": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-07T03:03:27.139Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "QUICK_SHOT_V3_1000USDT:S1",
+        "QUICK_SHOT_V3_1000USDT:S2"
+      ],
+      "sessions": 26,
+      "shortWindow": false,
+      "crossesVersions": true,
+      "closed": 13,
+      "open": 0,
+      "wins": 3,
+      "losses": 10,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+      },
+      "maxDrawdownPct": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": null,
+          "maxDrawdownPct": null,
+          "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": false
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": false
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 2.496,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": 0.745,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 3.744,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 10,
+          "favorableAtLeast1R": 9
+        },
+        "takeProfit": {
+          "exits": 3,
+          "favorableAtLeast1R": 2
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "NONE",
+          "interim": false,
+          "basis": null,
+          "state": "NOT_APPLICABLE",
+          "reasonCode": "NOT_APPLICABLE:EXPERIMENT_OWN_CRITERIA",
+          "returnPct": null,
+          "excessPct": null,
+          "maxDrawdownPct": null,
+          "bearProtectionRatio": null,
+          "bullParticipationRatio": null
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "EXPERIMENT"
+    }
+  },
+  "comparisons": [
+    {
+      "fromSegment": "QUICK_SHOT_V3_1000USDT:S1",
+      "toSegment": "QUICK_SHOT_V3_1000USDT:S2",
+      "reasonCode": null,
+      "n": 6,
+      "meanDiff": null,
+      "unit": null,
+      "tStat": null,
+      "researchRef": null,
+      "expectedRange": null,
+      "position": null,
+      "kind": "DESCRIPTIVE",
+      "state": "BELOW_FLOOR",
+      "notCausal": true
+    },
+    {
+      "fromSegment": "QUICK_SHOT_V3_1000USDT:S1",
+      "toSegment": "QUICK_SHOT_V3_1000USDT:S2",
+      "reasonCode": "NOT_AVAILABLE:PAIRED_REPLAY_NOT_BUILT",
+      "n": null,
+      "meanDiff": null,
+      "unit": null,
+      "tStat": null,
+      "researchRef": null,
+      "expectedRange": null,
+      "position": null,
+      "kind": "PAIRED_REPLAY",
+      "state": "NOT_AVAILABLE",
+      "notCausal": false
+    }
+  ],
+  "interpretation": "SCOREBOARD_FACTS_NOT_A_VERDICT",
+  "realOrder": 0,
+  "brokerWrite": false,
+  "role": {
+    "roleId": "EXPERIMENT",
+    "roleMapVersion": "ROLE_MAP_V1",
+    "roleMapSha256": "756c57436e973470506c819d4da15221bfc7551b22a5874b05d2cb5d836d5613"
+  },
+  "hash": "ae48f2d3ea0ca6bc18265caca7fef537647c2ec93342da25bc0697defcd21c74"
+}

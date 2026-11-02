@@ -1,0 +1,113 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "STRATEGY_REVIEW_V1",
+  "file": "SMARTFLOW_CRYPTO/review/STRATEGY/QUICK_SHOT_V3_1000USDT/STRATEGY_REVIEW_2026-10-18.json",
+  "hash": "a64d42407f403d65b4f78005385ad1d4c3af400975d610969b0fa4294e8bb5cf"
+ },
+ "period": {
+  "kind": "WEEK",
+  "from": "2026-10-12",
+  "to": "2026-10-18",
+  "clock": "UTC_DAYS"
+ },
+ "generatedAt": "2026-10-19T00:20:01.922Z",
+ "tradeReviews": [
+  {
+   "tradeId": "4",
+   "symbol": "BTWUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-12T11:02:27.458Z",
+   "exitAt": "2026-10-12T12:12:00.000Z",
+   "entryReason": "QUICK_SHOT_RULES_V3 bearish signal #192",
+   "riskUnit": 7.2,
+   "rMultiple": -1.065,
+   "exitReason": "QS_V3_EXIT_STOP_3PCT",
+   "pnl": -7.668,
+   "costs": {
+    "fee": 0.192,
+    "funding": -0.012,
+    "slippage": 0.288
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 1.16,
+   "parity": "UNKNOWN"
+  },
+  {
+   "tradeId": "5",
+   "symbol": "DYMUSDT",
+   "direction": "LONG",
+   "entryAt": "2026-10-12T17:00:29.734Z",
+   "exitAt": "2026-10-13T00:48:00.000Z",
+   "entryReason": "QUICK_SHOT_RULES_V3 bullish signal #193",
+   "riskUnit": 7.2,
+   "rMultiple": -1.07,
+   "exitReason": "QS_V3_EXIT_STOP_3PCT",
+   "pnl": -7.704,
+   "costs": {
+    "fee": 0.192,
+    "funding": 0.024,
+    "slippage": 0.288
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 7.79,
+   "parity": "UNKNOWN"
+  },
+  {
+   "tradeId": "6",
+   "symbol": "CTKUSDT",
+   "direction": "LONG",
+   "entryAt": "2026-10-13T10:00:27.886Z",
+   "exitAt": "2026-10-13T10:57:00.000Z",
+   "entryReason": "QUICK_SHOT_RULES_V3 bullish signal #194",
+   "riskUnit": 7.2,
+   "rMultiple": -1.0667,
+   "exitReason": "QS_V3_EXIT_STOP_3PCT",
+   "pnl": -7.68,
+   "costs": {
+    "fee": 0.192,
+    "funding": 0,
+    "slippage": 0.288
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 0.94,
+   "parity": "UNKNOWN"
+  },
+  {
+   "tradeId": "7",
+   "symbol": "1000RATSUSDT",
+   "direction": "LONG",
+   "entryAt": "2026-10-14T16:02:27.369Z",
+   "exitAt": "2026-10-14T18:09:00.000Z",
+   "entryReason": "QUICK_SHOT_RULES_V3 bullish signal #195",
+   "riskUnit": 7.2,
+   "rMultiple": 2.6,
+   "exitReason": "QS_V3_EXIT_TARGET_8PCT",
+   "pnl": 18.72,
+   "costs": {
+    "fee": 0.192,
+    "funding": 0,
+    "slippage": 0.288
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 2.11,
+   "parity": "UNKNOWN"
+  }
+ ]
+}

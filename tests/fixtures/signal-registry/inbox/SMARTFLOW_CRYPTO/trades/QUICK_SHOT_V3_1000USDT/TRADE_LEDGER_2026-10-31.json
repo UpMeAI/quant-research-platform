@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-31",
+  "generatedAt": "2026-11-02T00:20:02.507Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:13:OPEN",
+      "lotId": "QUICK_SHOT_V3_1000USDT:RSRUSDT:13",
+      "instrument": {
+        "id": "RSRUSDT",
+        "kind": "PERP",
+        "name": "RSR/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 169611.3074204947,
+      "price": 0.001415,
+      "notional": 240,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-31T08:06:28.314Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "201",
+        "reasonCodes": [
+          "QUICK_SHOT_RULES_V3",
+          "QS_V3_SIGNAL_BEARISH",
+          "FORWARD_EVIDENCE_TUNING_V1_INSUFFICIENT"
+        ],
+        "ruleRef": "QUICK_SHOT_V3_ENTRY@AMENDMENT_18"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:13:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:RSRUSDT:13",
+      "instrument": {
+        "id": "RSRUSDT",
+        "kind": "PERP",
+        "name": "RSR/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 169611.3074204947,
+      "price": 0.00145745,
+      "notional": 247.20000000000002,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-31T08:29:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_STOP_3PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -7.68,
+        "r": -1.066667,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    }
+  ],
+  "counts": {
+    "events": 2,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 1
+    }
+  },
+  "totals": {
+    "notional": 487.20000000000005,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": -7.68,
+      "r": -1.066667,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "8ffd7ed766add00334bfaf27d7f521d9489c6ecf84ce7a967235e26432be0531"
+}

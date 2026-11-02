@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_US",
+  "market": "US",
+  "ledgerId": "US_V5_ETF_3000USD",
+  "sessionDate": "2026-10-27",
+  "generatedAt": "2026-10-27T20:50:13.813Z",
+  "currency": "USD",
+  "executionMode": "PAPER",
+  "events": [],
+  "counts": {
+    "events": 0,
+    "byPurpose": {
+      "OPEN": 0,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 0,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 0,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "10c3256277ee1d5ffabd0a82aa486ac5060198891da624a0da2968d5f388b5e6"
+}

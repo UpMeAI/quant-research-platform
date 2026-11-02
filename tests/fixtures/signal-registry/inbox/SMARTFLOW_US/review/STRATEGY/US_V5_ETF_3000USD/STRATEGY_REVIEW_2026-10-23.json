@@ -1,0 +1,16 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "STRATEGY_REVIEW_V1",
+  "file": "SMARTFLOW_US/review/STRATEGY/US_V5_ETF_3000USD/STRATEGY_REVIEW_2026-10-23.json",
+  "hash": "ce872deb2efb645c1d90674aff46dd5eda7da786912519e36bd6ec42ffac1d46"
+ },
+ "period": {
+  "kind": "WEEK",
+  "from": "2026-10-19",
+  "to": "2026-10-23",
+  "clock": "NYSE_SESSIONS"
+ },
+ "generatedAt": "2026-10-23T20:50:00.943Z",
+ "tradeReviews": []
+}

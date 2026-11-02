@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-04",
+  "generatedAt": "2026-10-05T08:52:50.380Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [],
+  "counts": {
+    "events": 0,
+    "byPurpose": {
+      "OPEN": 0,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 0,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 0,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "ca3eaa248d1038dde56444fd40595a39af617b7fd189a6e42f05b7c1a755e7b0"
+}

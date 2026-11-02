@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-02",
+  "generatedAt": "2026-10-04T01:04:47.498Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4730:CLOSE",
+      "lotId": "C17_V2_4000USDT:BTCUSDT:4730",
+      "instrument": {
+        "id": "BTCUSDT",
+        "kind": "PERP",
+        "name": "BTC/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "CLOSE",
+      "direction": "LONG",
+      "quantity": 0.118,
+      "price": 85856.2,
+      "notional": 10131.031599999998,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 4.05038643,
+        "reasonCode": null
+      },
+      "executedAt": "2026-10-02T06:09:02.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "TRAILING_STOP"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 127.3155614,
+        "r": 0.629575,
+        "reasonCode": null
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4731:OPEN",
+      "lotId": "C17_V2_4000USDT:ETHUSDT:4731",
+      "instrument": {
+        "id": "ETHUSDT",
+        "kind": "PERP",
+        "name": "ETH/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "direction": "LONG",
+      "quantity": 3.788,
+      "price": 2736.92,
+      "notional": 10367.45296,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 3.11179101,
+        "reasonCode": null
+      },
+      "executedAt": "2026-10-02T08:00:05.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:ETHUSDT:LONG:TREND:1790927999999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ]
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4731:CLOSE",
+      "lotId": "C17_V2_4000USDT:ETHUSDT:4731",
+      "instrument": {
+        "id": "ETHUSDT",
+        "kind": "PERP",
+        "name": "ETH/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "CLOSE",
+      "direction": "LONG",
+      "quantity": 3.788,
+      "price": 2678.8,
+      "notional": 10147.2944,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 4.0568883,
+        "reasonCode": null
+      },
+      "executedAt": "2026-10-02T17:15:02.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "STOP_LOSS"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -237.75974867,
+        "r": -1.153271,
+        "reasonCode": null
+      }
+    }
+  ],
+  "counts": {
+    "events": 3,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 2
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 2
+    }
+  },
+  "totals": {
+    "notional": 30645.778959999996,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": -110.44418727,
+      "r": -0.523696,
+      "closingEvents": 2,
+      "measuredEvents": 2
+    }
+  },
+  "hash": "b1472f1730ee99b1554e0fc95bdda67311f77809814b7eb2cc706ab0685a8264"
+}

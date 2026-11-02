@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-13",
+  "generatedAt": "2026-10-14T00:20:01.136Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:5:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:DYMUSDT:5",
+      "instrument": {
+        "id": "DYMUSDT",
+        "kind": "PERP",
+        "name": "DYM/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "CLOSE",
+      "direction": "LONG",
+      "quantity": 12170.385395537525,
+      "price": 0.0191284,
+      "notional": 232.8,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-13T00:48:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_STOP_3PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -7.704,
+        "r": -1.07,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:6:OPEN",
+      "lotId": "QUICK_SHOT_V3_1000USDT:CTKUSDT:6",
+      "instrument": {
+        "id": "CTKUSDT",
+        "kind": "PERP",
+        "name": "CTK/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "direction": "LONG",
+      "quantity": 1840.490797546012,
+      "price": 0.1304,
+      "notional": 239.99999999999991,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-13T10:00:27.886Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "194",
+        "reasonCodes": [
+          "QUICK_SHOT_RULES_V3",
+          "QS_V3_SIGNAL_BULLISH",
+          "FORWARD_EVIDENCE_TUNING_V1_INSUFFICIENT"
+        ],
+        "ruleRef": "QUICK_SHOT_V3_ENTRY@AMENDMENT_18"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:6:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:CTKUSDT:6",
+      "instrument": {
+        "id": "CTKUSDT",
+        "kind": "PERP",
+        "name": "CTK/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "CLOSE",
+      "direction": "LONG",
+      "quantity": 1840.490797546012,
+      "price": 0.126488,
+      "notional": 232.79999999999993,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-13T10:57:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_STOP_3PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -7.68,
+        "r": -1.066667,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    }
+  ],
+  "counts": {
+    "events": 3,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 2
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 2
+    }
+  },
+  "totals": {
+    "notional": 705.5999999999999,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": -15.384,
+      "r": -2.136667,
+      "closingEvents": 2,
+      "measuredEvents": 2
+    }
+  },
+  "hash": "b556532fe20ecb95ad35434901280380e7c251865ed3c1513bd94a6cab070458"
+}

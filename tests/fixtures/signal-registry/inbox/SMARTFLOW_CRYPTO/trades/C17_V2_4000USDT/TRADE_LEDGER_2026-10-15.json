@@ -1,0 +1,375 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-15",
+  "generatedAt": "2026-10-16T00:20:02.272Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4736:CLOSE",
+      "lotId": "C17_V2_4000USDT:SOLUSDT:4736",
+      "instrument": {
+        "id": "SOLUSDT",
+        "kind": "PERP",
+        "name": "SOL/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 39.41,
+      "price": 103.42,
+      "notional": 4075.7821999999996,
+      "quantityUnit": {
+        "asset": "SOL",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T02:48:50.644Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.63112804,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T02:44:50.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": "SMARTFLOW_CRYPTO:CRYPTO:2026-10-15:T0:C17_V2_4000USDT:C17_V2_4000USDT:SOLUSDT:4736",
+        "signalId": null,
+        "reasonCodes": [
+          "TRAILING_STOP"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 23.00504011,
+        "r": 0.218833,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4738:OPEN",
+      "lotId": "C17_V2_4000USDT:BTCUSDT:4738",
+      "instrument": {
+        "id": "BTCUSDT",
+        "kind": "PERP",
+        "name": "BTC/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 0.065,
+      "price": 81149.6,
+      "notional": 5274.724,
+      "quantityUnit": {
+        "asset": "BTC",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T02:53:51.844Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.58162599,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T02:48:51.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:BTCUSDT:SHORT:TREND:1792029599999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ],
+        "ruleRef": "C17_V2_ENTRY@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4737:CLOSE",
+      "lotId": "C17_V2_4000USDT:ETHUSDT:4737",
+      "instrument": {
+        "id": "ETHUSDT",
+        "kind": "PERP",
+        "name": "ETH/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 2.166,
+      "price": 2385.03,
+      "notional": 5165.97498,
+      "quantityUnit": {
+        "asset": "ETH",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T02:58:52.943Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 2.06742319,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T02:55:50.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": "SMARTFLOW_CRYPTO:CRYPTO:2026-10-15:T0:C17_V2_4000USDT:C17_V2_4000USDT:ETHUSDT:4737",
+        "signalId": null,
+        "reasonCodes": [
+          "TRAILING_STOP"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 99.793844,
+        "r": 0.946253,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4739:OPEN",
+      "lotId": "C17_V2_4000USDT:HYPEUSDT:4739",
+      "instrument": {
+        "id": "HYPEUSDT",
+        "kind": "PERP",
+        "name": "HYPE/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 49.5,
+      "price": 78.453,
+      "notional": 3883.4235000000003,
+      "quantityUnit": {
+        "asset": "HYPE",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T04:09:09.441Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.16444454,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T04:08:52.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:HYPEUSDT:SHORT:TREND:1792036799999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ],
+        "ruleRef": "C17_V2_ENTRY@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4740:OPEN",
+      "lotId": "C17_V2_4000USDT:BNBUSDT:4740",
+      "instrument": {
+        "id": "BNBUSDT",
+        "kind": "PERP",
+        "name": "BNB/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 7.36,
+      "price": 716.5,
+      "notional": 5273.4400000000005,
+      "quantityUnit": {
+        "asset": "BNB",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T04:09:09.441Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.58124098,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T04:08:53.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:BNBUSDT:SHORT:TREND:1792036799999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ],
+        "ruleRef": "C17_V2_ENTRY@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4739:CLOSE",
+      "lotId": "C17_V2_4000USDT:HYPEUSDT:4739",
+      "instrument": {
+        "id": "HYPEUSDT",
+        "kind": "PERP",
+        "name": "HYPE/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 49.5,
+      "price": 80.575,
+      "notional": 3988.4625,
+      "quantityUnit": {
+        "asset": "HYPE",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T08:00:04.215Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.59618269,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T07:57:50.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "STOP_LOSS"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "MEASURED_GROSS",
+        "currencyAmount": -105.039,
+        "r": -1.000117,
+        "reasonCode": "FUNDING_UNVERIFIED"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4738:CLOSE",
+      "lotId": "C17_V2_4000USDT:BTCUSDT:4738",
+      "instrument": {
+        "id": "BTCUSDT",
+        "kind": "PERP",
+        "name": "BTC/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 0.065,
+      "price": 80780.3,
+      "notional": 5250.7195,
+      "quantityUnit": {
+        "asset": "BTC",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T14:11:32.313Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 2.10133794,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T14:08:50.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "TRAILING_STOP"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 15.40931966,
+        "r": 0.145182,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4740:CLOSE",
+      "lotId": "C17_V2_4000USDT:BNBUSDT:4740",
+      "instrument": {
+        "id": "BNBUSDT",
+        "kind": "PERP",
+        "name": "BNB/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 7.36,
+      "price": 732.18,
+      "notional": 5388.8448,
+      "quantityUnit": {
+        "asset": "BNB",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-15T15:06:46.191Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 2.15661569,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-15T15:03:51.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "STOP_LOSS"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -124.47379907,
+        "r": -1.178518,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    }
+  ],
+  "counts": {
+    "events": 8,
+    "byPurpose": {
+      "OPEN": 3,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 5
+    },
+    "bySide": {
+      "BUY": 5,
+      "SELL": 3
+    }
+  },
+  "totals": {
+    "notional": 38301.37148,
+    "realized": {
+      "state": "MEASURED_GROSS",
+      "currencyAmount": -91.3045953,
+      "r": -0.868367,
+      "closingEvents": 5,
+      "measuredEvents": 5
+    }
+  },
+  "hash": "18107eaa29780e0de477416c8e8401d7c2d387760a0068018bda9f55f6f42617"
+}

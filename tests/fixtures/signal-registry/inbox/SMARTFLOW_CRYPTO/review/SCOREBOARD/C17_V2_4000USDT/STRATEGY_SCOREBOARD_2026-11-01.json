@@ -1,0 +1,4890 @@
+{
+  "schemaVersion": 1,
+  "contract": "STRATEGY_SCOREBOARD_V1",
+  "market": "CRYPTO",
+  "producer": "SMARTFLOW_CRYPTO",
+  "producerVersion": "8d97cbdec0a7",
+  "ledgerId": "C17_V2_4000USDT",
+  "generatedAt": "2026-11-02T00:20:02.507Z",
+  "period": {
+    "to": "2026-11-01",
+    "clock": "UTC_DAYS"
+  },
+  "bindings": {
+    "strategyReview": {
+      "file": "review/STRATEGY/C17_V2_4000USDT/STRATEGY_REVIEW_2026-11-01.json",
+      "hash": "b778a500b37e46e22bcc20ab04a34ecbc42cd5d065f22b45dc8c22f3b7f6d7b9"
+    },
+    "replays": [],
+    "benchmarkSeries": [
+      {
+        "id": "BTC",
+        "file": "review/SCOREBOARD/C17_V2_4000USDT/series/BTC_2026-11-01.json",
+        "hash": "489f6568bfc40ea8e77ba38fee9c8aa9e27cfe57e48f5d4c2885ef2ae8b06aeb"
+      },
+      {
+        "id": "BTC_ETH_EQUAL_START",
+        "file": "review/SCOREBOARD/C17_V2_4000USDT/series/BTC_ETH_EQUAL_START_2026-11-01.json",
+        "hash": "11608b09679903b0f38ce52b8e481403804bb08ed184788c21814ee69f25ba1f"
+      },
+      {
+        "id": "C17_V2_BTC_ETH_PART",
+        "file": "review/SCOREBOARD/C17_V2_4000USDT/series/C17_V2_BTC_ETH_PART_2026-11-01.json",
+        "hash": "c1103bb4501c3c65097ae5e4c2094508cc477e63f2cd76a5a3768efde0a2e4ad"
+      }
+    ]
+  },
+  "book": {
+    "strategyIdentity": "C17_V2_4000USDT C17_BOOK_V2 version=C17_V2 capital=3000USDT universe=C17_V2_UNIVERSE_V1 mode=dry_run start=2026-10-01T08:00:00.000Z source=simulation_trades strategy_name=AGENT strategyVersion=C17_V2",
+    "startedAt": "2026-10-01T08:00:00.000Z",
+    "state": "RUNNING",
+    "predecessorLedgerId": "C17_AGENT",
+    "versioning": {
+      "state": "SEGMENTED",
+      "reasonCode": null
+    }
+  },
+  "versions": [
+    {
+      "segmentId": "C17_V2_4000USDT:S1",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorMax@1+C17_V2_4000USDT.universePolicy@1",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-01T08:00:00.000Z",
+      "to": "2026-10-03T05:30:00.000Z",
+      "changedMembers": [],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "C17_V2_4000USDT:S2",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@2",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-03T05:30:00.000Z",
+      "to": "2026-10-03T12:00:00.000Z",
+      "changedMembers": [
+        "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+        "C17_V2_4000USDT.nonMajorMax@1",
+        "C17_V2_4000USDT.nonMajorMax@2",
+        "C17_V2_4000USDT.universePolicy@1",
+        "C17_V2_4000USDT.universePolicy@2"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "C17_V2_4000USDT:S3",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+          "effectiveFrom": "2026-10-03T12:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-03T12:00:00.000Z",
+      "to": "2026-10-06T04:06:00.000Z",
+      "changedMembers": [
+        "C17_V2_4000USDT.universePolicy@2",
+        "C17_V2_4000USDT.universePolicy@3"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "C17_V2_4000USDT:S4",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+          "effectiveFrom": "2026-10-06T04:06:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+          "effectiveFrom": "2026-10-03T12:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-06T04:06:00.000Z",
+      "to": "2026-10-07T00:00:00.000Z",
+      "changedMembers": [
+        "C17_V2_4000USDT.holdingSwap@1"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "C17_V2_4000USDT:S5",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+          "effectiveFrom": "2026-10-06T04:06:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+          "effectiveFrom": "2026-10-03T12:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-07T00:00:00.000Z",
+      "to": "2026-10-13T15:05:00.000Z",
+      "changedMembers": [
+        "C17_V2_4000USDT.capitalUsdt@1",
+        "C17_V2_4000USDT.capitalUsdt@2",
+        "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+        "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+        "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+        "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "C17_V2_4000USDT:S6",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+          "effectiveFrom": "2026-10-06T04:06:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+          "effectiveFrom": "2026-10-13T15:05:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+          "effectiveFrom": "2026-10-03T12:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-13T15:05:00.000Z",
+      "to": "2026-10-14T00:00:00.000Z",
+      "changedMembers": [
+        "C17_V2_4000USDT.nonMajorEligibility@1"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "C17_V2_4000USDT:S7",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.klineTiming@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+          "effectiveFrom": "2026-10-06T04:06:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.klineTiming@1",
+          "effectiveFrom": "2026-10-14T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+          "effectiveFrom": "2026-10-13T15:05:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+          "effectiveFrom": "2026-10-03T12:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-14T00:00:00.000Z",
+      "to": "2026-10-20T00:00:00.000Z",
+      "changedMembers": [
+        "C17_V2_4000USDT.klineTiming@1"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "C17_V2_4000USDT:S8",
+      "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.circuitBreaker@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.klineTiming@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+      "members": [
+        {
+          "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.circuitBreaker@1",
+          "effectiveFrom": "2026-10-20T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.exitFill@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+          "effectiveFrom": "2026-10-06T04:06:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.klineTiming@1",
+          "effectiveFrom": "2026-10-14T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+          "effectiveFrom": "2026-10-01T08:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+          "effectiveFrom": "2026-10-07T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+          "effectiveFrom": "2026-10-13T15:05:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+          "effectiveFrom": "2026-10-03T05:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+          "effectiveFrom": "2026-10-03T12:00:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-20T00:00:00.000Z",
+      "to": null,
+      "changedMembers": [
+        "C17_V2_4000USDT.circuitBreaker@1"
+      ],
+      "boundary": "RECORDED"
+    }
+  ],
+  "windows": {
+    "bookSinceStart": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-01T08:00:00.000Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "C17_V2_4000USDT:S1",
+        "C17_V2_4000USDT:S2",
+        "C17_V2_4000USDT:S3",
+        "C17_V2_4000USDT:S4",
+        "C17_V2_4000USDT:S5",
+        "C17_V2_4000USDT:S6",
+        "C17_V2_4000USDT:S7",
+        "C17_V2_4000USDT:S8"
+      ],
+      "sessions": 32,
+      "shortWindow": false,
+      "crossesVersions": true,
+      "closed": 22,
+      "open": 3,
+      "wins": 9,
+      "losses": 13,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": null,
+        "state": "UNKNOWN",
+        "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+      },
+      "maxDrawdownPct": {
+        "value": null,
+        "state": "UNKNOWN",
+        "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -6.2983,
+          "maxDrawdownPct": 10.6035,
+          "reasonCode": null,
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+            "shortWindow": false
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": false
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 79.0103,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": -4.0137,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 112.8764,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 10,
+          "favorableAtLeast1R": 5
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": null,
+      "capitalSharePct": null,
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": null
+    },
+    "currentVersion": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-20T00:00:00.000Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "C17_V2_4000USDT:S8"
+      ],
+      "sessions": 13,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 9,
+      "open": 3,
+      "wins": 3,
+      "losses": 6,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -10.951,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 11.098,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -4.3836,
+          "maxDrawdownPct": 8.0159,
+          "reasonCode": null,
+          "excessPct": -6.5674,
+          "bearProtectionRatio": {
+            "value": 1.3845,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 21.4887,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": -5.9766,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 30.7144,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 4,
+          "favorableAtLeast1R": 2
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": null,
+      "capitalSharePct": null,
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": null
+    },
+    "previousVersion": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-14T00:00:00.000Z",
+      "to": "2026-10-20T00:00:00.000Z",
+      "segmentIds": [
+        "C17_V2_4000USDT:S7"
+      ],
+      "sessions": 6,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 7,
+      "open": 1,
+      "wins": 4,
+      "losses": 3,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -6.5632,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 6.5632,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -1.4705,
+          "maxDrawdownPct": 2.0088,
+          "reasonCode": null,
+          "excessPct": -5.0927,
+          "bearProtectionRatio": {
+            "value": 3.2672,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 21.9428,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": -0.9485,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 31.3355,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 3,
+          "favorableAtLeast1R": 2
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": null,
+      "capitalSharePct": null,
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": null
+    },
+    "rolling60": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-01T08:00:00.000Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "C17_V2_4000USDT:S1",
+        "C17_V2_4000USDT:S2",
+        "C17_V2_4000USDT:S3",
+        "C17_V2_4000USDT:S4",
+        "C17_V2_4000USDT:S5",
+        "C17_V2_4000USDT:S6",
+        "C17_V2_4000USDT:S7",
+        "C17_V2_4000USDT:S8"
+      ],
+      "sessions": 32,
+      "shortWindow": false,
+      "crossesVersions": true,
+      "closed": 22,
+      "open": 3,
+      "wins": 9,
+      "losses": 13,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": null,
+        "state": "UNKNOWN",
+        "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+      },
+      "maxDrawdownPct": {
+        "value": null,
+        "state": "UNKNOWN",
+        "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": -6.2983,
+          "maxDrawdownPct": 10.6035,
+          "reasonCode": null,
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+            "shortWindow": false
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": false
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 79.0103,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": -4.0137,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 112.8764,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 10,
+          "favorableAtLeast1R": 5
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": null,
+      "capitalSharePct": null,
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": null
+    },
+    "last30Closed": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-01T20:00:04.000Z",
+      "to": "2026-11-02T00:00:00.000Z",
+      "segmentIds": [
+        "C17_V2_4000USDT:S1",
+        "C17_V2_4000USDT:S2",
+        "C17_V2_4000USDT:S3",
+        "C17_V2_4000USDT:S4",
+        "C17_V2_4000USDT:S5",
+        "C17_V2_4000USDT:S6",
+        "C17_V2_4000USDT:S7",
+        "C17_V2_4000USDT:S8"
+      ],
+      "sessions": 32,
+      "shortWindow": false,
+      "crossesVersions": true,
+      "closed": 22,
+      "open": 3,
+      "wins": 9,
+      "losses": 13,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+      },
+      "maxDrawdownPct": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+      },
+      "benchmarks": [
+        {
+          "id": "BTC",
+          "returnPct": null,
+          "maxDrawdownPct": null,
+          "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": false
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": false
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 79.0103,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "MEASURED",
+          "amount": -4.0137,
+          "reasonCode": null
+        },
+        "slippage": {
+          "state": "MODELLED",
+          "amount": 112.8764,
+          "reasonCode": null
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 24,
+          "unit": "HOURS_1H"
+        },
+        "stopLoss": {
+          "exits": 10,
+          "favorableAtLeast1R": 5
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": null,
+      "capitalSharePct": null,
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": null
+    }
+  },
+  "comparisons": [
+    {
+      "fromSegment": "C17_V2_4000USDT:S7",
+      "toSegment": "C17_V2_4000USDT:S8",
+      "reasonCode": null,
+      "n": 6,
+      "meanDiff": null,
+      "unit": null,
+      "tStat": null,
+      "researchRef": null,
+      "expectedRange": null,
+      "position": null,
+      "kind": "DESCRIPTIVE",
+      "state": "BELOW_FLOOR",
+      "notCausal": true
+    },
+    {
+      "fromSegment": "C17_V2_4000USDT:S7",
+      "toSegment": "C17_V2_4000USDT:S8",
+      "reasonCode": "NOT_AVAILABLE:PAIRED_REPLAY_NOT_BUILT",
+      "n": null,
+      "meanDiff": null,
+      "unit": null,
+      "tStat": null,
+      "researchRef": null,
+      "expectedRange": null,
+      "position": null,
+      "kind": "PAIRED_REPLAY",
+      "state": "NOT_AVAILABLE",
+      "notCausal": false
+    }
+  ],
+  "interpretation": "SCOREBOARD_FACTS_NOT_A_VERDICT",
+  "realOrder": 0,
+  "brokerWrite": false,
+  "parts": [
+    {
+      "partId": "BTC_ETH",
+      "role": {
+        "roleId": "CRYPTO_CORE",
+        "roleMapVersion": "ROLE_MAP_V1",
+        "roleMapSha256": "756c57436e973470506c819d4da15221bfc7551b22a5874b05d2cb5d836d5613"
+      },
+      "versions": [
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S1",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorMax@1+C17_V2_4000USDT.universePolicy@1",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-01T08:00:00.000Z",
+          "to": "2026-10-03T05:30:00.000Z",
+          "changedMembers": [],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S2",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@2",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-03T05:30:00.000Z",
+          "to": "2026-10-03T12:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+            "C17_V2_4000USDT.nonMajorMax@1",
+            "C17_V2_4000USDT.nonMajorMax@2",
+            "C17_V2_4000USDT.universePolicy@1",
+            "C17_V2_4000USDT.universePolicy@2"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S3",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-03T12:00:00.000Z",
+          "to": "2026-10-06T04:06:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.universePolicy@2",
+            "C17_V2_4000USDT.universePolicy@3"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S4",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-06T04:06:00.000Z",
+          "to": "2026-10-07T00:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.holdingSwap@1"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S5",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-07T00:00:00.000Z",
+          "to": "2026-10-13T15:05:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.capitalUsdt@1",
+            "C17_V2_4000USDT.capitalUsdt@2",
+            "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+            "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+            "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+            "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S6",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+              "effectiveFrom": "2026-10-13T15:05:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-13T15:05:00.000Z",
+          "to": "2026-10-14T00:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.nonMajorEligibility@1"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S7",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.klineTiming@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.klineTiming@1",
+              "effectiveFrom": "2026-10-14T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+              "effectiveFrom": "2026-10-13T15:05:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-14T00:00:00.000Z",
+          "to": "2026-10-20T00:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.klineTiming@1"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:BTC_ETH:S8",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.circuitBreaker@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.klineTiming@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.circuitBreaker@1",
+              "effectiveFrom": "2026-10-20T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.klineTiming@1",
+              "effectiveFrom": "2026-10-14T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+              "effectiveFrom": "2026-10-13T15:05:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-20T00:00:00.000Z",
+          "to": null,
+          "changedMembers": [
+            "C17_V2_4000USDT.circuitBreaker@1"
+          ],
+          "boundary": "RECORDED"
+        }
+      ],
+      "windows": {
+        "bookSinceStart": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-01T08:00:00.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:BTC_ETH:S1",
+            "C17_V2_4000USDT:BTC_ETH:S2",
+            "C17_V2_4000USDT:BTC_ETH:S3",
+            "C17_V2_4000USDT:BTC_ETH:S4",
+            "C17_V2_4000USDT:BTC_ETH:S5",
+            "C17_V2_4000USDT:BTC_ETH:S6",
+            "C17_V2_4000USDT:BTC_ETH:S7",
+            "C17_V2_4000USDT:BTC_ETH:S8"
+          ],
+          "sessions": 32,
+          "shortWindow": false,
+          "crossesVersions": true,
+          "closed": 14,
+          "open": 1,
+          "wins": 7,
+          "losses": 7,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "maxDrawdownPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -6.2983,
+              "maxDrawdownPct": 10.6035,
+              "reasonCode": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": false
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 58.2388,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": -4.0521,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 83.2164,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 5,
+              "favorableAtLeast1R": 2
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "BTC_ETH_EQUAL_START",
+              "interim": false,
+              "basis": null,
+              "state": "MEASURED",
+              "reasonCode": null,
+              "returnPct": -10.7927,
+              "maxDrawdownPct": 14.1118,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": false
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "ALIGNED"
+        },
+        "currentVersion": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-20T00:00:00.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:BTC_ETH:S8"
+          ],
+          "sessions": 13,
+          "shortWindow": true,
+          "crossesVersions": false,
+          "closed": 5,
+          "open": 1,
+          "wins": 3,
+          "losses": 2,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": 1.9797,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "maxDrawdownPct": {
+            "value": 3.0319,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -4.3836,
+              "maxDrawdownPct": 8.0159,
+              "reasonCode": null,
+              "excessPct": 6.3633,
+              "bearProtectionRatio": {
+                "value": 0.3782,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": true
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 12.6577,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": -6.0364,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 18.0983,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 1,
+              "favorableAtLeast1R": 0
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "BTC_ETH_EQUAL_START",
+              "interim": false,
+              "basis": null,
+              "state": "MEASURED",
+              "reasonCode": null,
+              "returnPct": -4.9494,
+              "maxDrawdownPct": 8.6416,
+              "excessPct": 6.9291,
+              "bearProtectionRatio": {
+                "value": 0.3508,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": true
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "ALIGNED"
+        },
+        "previousVersion": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-14T00:00:00.000Z",
+          "to": "2026-10-20T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:BTC_ETH:S7"
+          ],
+          "sessions": 6,
+          "shortWindow": true,
+          "crossesVersions": false,
+          "closed": 3,
+          "open": 1,
+          "wins": 2,
+          "losses": 1,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": 1.0429,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "maxDrawdownPct": {
+            "value": 3.0827,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -1.4705,
+              "maxDrawdownPct": 2.0088,
+              "reasonCode": null,
+              "excessPct": 2.5134,
+              "bearProtectionRatio": {
+                "value": 1.5346,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": true
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 10.0023,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": -0.9271,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 14.2916,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 1,
+              "favorableAtLeast1R": 1
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "BTC_ETH_EQUAL_START",
+              "interim": false,
+              "basis": null,
+              "state": "MEASURED",
+              "reasonCode": null,
+              "returnPct": -2.5349,
+              "maxDrawdownPct": 2.913,
+              "excessPct": 3.5778,
+              "bearProtectionRatio": {
+                "value": 1.0583,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": true
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "ALIGNED"
+        },
+        "rolling60": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-01T08:00:00.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:BTC_ETH:S1",
+            "C17_V2_4000USDT:BTC_ETH:S2",
+            "C17_V2_4000USDT:BTC_ETH:S3",
+            "C17_V2_4000USDT:BTC_ETH:S4",
+            "C17_V2_4000USDT:BTC_ETH:S5",
+            "C17_V2_4000USDT:BTC_ETH:S6",
+            "C17_V2_4000USDT:BTC_ETH:S7",
+            "C17_V2_4000USDT:BTC_ETH:S8"
+          ],
+          "sessions": 32,
+          "shortWindow": false,
+          "crossesVersions": true,
+          "closed": 14,
+          "open": 1,
+          "wins": 7,
+          "losses": 7,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "maxDrawdownPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -6.2983,
+              "maxDrawdownPct": 10.6035,
+              "reasonCode": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": false
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 58.2388,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": -4.0521,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 83.2164,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 5,
+              "favorableAtLeast1R": 2
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "BTC_ETH_EQUAL_START",
+              "interim": false,
+              "basis": null,
+              "state": "MEASURED",
+              "reasonCode": null,
+              "returnPct": -10.7927,
+              "maxDrawdownPct": 14.1118,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": false
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "ALIGNED"
+        },
+        "last30Closed": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-01T20:00:04.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:BTC_ETH:S1",
+            "C17_V2_4000USDT:BTC_ETH:S2",
+            "C17_V2_4000USDT:BTC_ETH:S3",
+            "C17_V2_4000USDT:BTC_ETH:S4",
+            "C17_V2_4000USDT:BTC_ETH:S5",
+            "C17_V2_4000USDT:BTC_ETH:S6",
+            "C17_V2_4000USDT:BTC_ETH:S7",
+            "C17_V2_4000USDT:BTC_ETH:S8"
+          ],
+          "sessions": 32,
+          "shortWindow": false,
+          "crossesVersions": true,
+          "closed": 14,
+          "open": 1,
+          "wins": 7,
+          "losses": 7,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+          },
+          "maxDrawdownPct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": null,
+              "maxDrawdownPct": null,
+              "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": false
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 58.2388,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": -4.0521,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 83.2164,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 5,
+              "favorableAtLeast1R": 2
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "BTC_ETH_EQUAL_START",
+              "interim": false,
+              "basis": null,
+              "state": "NOT_APPLICABLE",
+              "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+              "returnPct": null,
+              "maxDrawdownPct": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": false
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "ALIGNED"
+        }
+      },
+      "comparisons": [
+        {
+          "fromSegment": "C17_V2_4000USDT:BTC_ETH:S7",
+          "toSegment": "C17_V2_4000USDT:BTC_ETH:S8",
+          "reasonCode": null,
+          "n": 6,
+          "meanDiff": null,
+          "unit": null,
+          "tStat": null,
+          "researchRef": null,
+          "expectedRange": null,
+          "position": null,
+          "kind": "DESCRIPTIVE",
+          "state": "BELOW_FLOOR",
+          "notCausal": true
+        },
+        {
+          "fromSegment": "C17_V2_4000USDT:BTC_ETH:S7",
+          "toSegment": "C17_V2_4000USDT:BTC_ETH:S8",
+          "reasonCode": "NOT_AVAILABLE:PAIRED_REPLAY_NOT_BUILT",
+          "n": null,
+          "meanDiff": null,
+          "unit": null,
+          "tStat": null,
+          "researchRef": null,
+          "expectedRange": null,
+          "position": null,
+          "kind": "PAIRED_REPLAY",
+          "state": "NOT_AVAILABLE",
+          "notCausal": false
+        }
+      ],
+      "stateSplit": {
+        "state": "ACTIVE",
+        "reasonCode": null,
+        "since": "2026-10-19T00:20:01.922Z",
+        "mapping": {
+          "file": "config/cycle-state/mapping.v2.json",
+          "hash": "71e115c649649e7a6ffc6349abf05f8b63ab4fa333762ccf32790154aca6cea8"
+        },
+        "axisKeys": {
+          "macro": "NONE",
+          "industry": "NONE",
+          "price": "C17_MODE"
+        },
+        "tags": [
+          {
+            "tradeId": "4745",
+            "decidedAt": "2026-10-21T18:13:36.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:BTCUSDT:LONG:TREND:1792605599999"
+            },
+            "taggedAt": "2026-10-26T00:20:02.311Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-21T18:13:36.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-10-22T02:19:34.000Z",
+              "resultR": -1.1144440321018896,
+              "netPnl": -83.03638677,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "d64d5b50dc18646b4d46e484cff3dfd0f1333da915596ad2a1b3cf5acd6eb7e8"
+          },
+          {
+            "tradeId": "4746",
+            "decidedAt": "2026-10-24T04:03:37.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:BTCUSDT:SHORT:TREND:1792814399999"
+            },
+            "taggedAt": "2026-10-26T00:20:02.311Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-24T04:03:37.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-10-27T04:03:56.000Z",
+              "resultR": 0.6967841473684693,
+              "netPnl": 52.15897582,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "6d2cc771f3bcd9751f6ca535eb65f315b89bd9ae157502a6f31442cd1d420764"
+          },
+          {
+            "tradeId": "4747",
+            "decidedAt": "2026-10-24T04:03:38.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:ETHUSDT:SHORT:TREND:1792814399999"
+            },
+            "taggedAt": "2026-10-26T00:20:02.311Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-24T04:03:38.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-10-27T04:03:56.000Z",
+              "resultR": 1.409620605233505,
+              "netPnl": 106.21778964,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "d88266afc72d7fb86883904ff688b25709aa4a75daaf9a9fc8b7f32332e51191"
+          },
+          {
+            "tradeId": "4750",
+            "decidedAt": "2026-10-30T12:03:53.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:ETHUSDT:SHORT:TREND:1793361599999"
+            },
+            "taggedAt": "2026-11-02T00:20:02.507Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-30T12:03:53.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-10-30T23:33:00.000Z",
+              "resultR": -0.3346773818098278,
+              "netPnl": -25.38597432,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "bf30ccc2a55a1a0ca791e2c77ac04074891ccfea825fe3e0e9d02e4aa20431ed"
+          },
+          {
+            "tradeId": "4751",
+            "decidedAt": "2026-10-30T16:03:53.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:BTCUSDT:SHORT:TREND:1793375999999"
+            },
+            "taggedAt": "2026-11-02T00:20:02.507Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-30T16:03:53.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": null,
+            "tagHash": "2d04cf878e38b2adae129feac9653770c269b89cbfd3c2c255e3a0d4b0256836"
+          }
+        ],
+        "windows": {
+          "bookSinceStart": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "from": "2026-10-01T08:00:00.000Z",
+            "to": "2026-11-02T00:00:00.000Z",
+            "segmentIds": [
+              "C17_V2_4000USDT:BTC_ETH:S1",
+              "C17_V2_4000USDT:BTC_ETH:S2",
+              "C17_V2_4000USDT:BTC_ETH:S3",
+              "C17_V2_4000USDT:BTC_ETH:S4",
+              "C17_V2_4000USDT:BTC_ETH:S5",
+              "C17_V2_4000USDT:BTC_ETH:S6",
+              "C17_V2_4000USDT:BTC_ETH:S7",
+              "C17_V2_4000USDT:BTC_ETH:S8"
+            ],
+            "untaggedClosed": 10,
+            "untaggedOpen": 0,
+            "axes": {
+              "macro": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "cells": []
+              },
+              "industry": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "cells": []
+              },
+              "price": {
+                "state": "SPLIT",
+                "reasonCode": null,
+                "cells": [
+                  {
+                    "key": "TREND",
+                    "closed": 4,
+                    "open": 1,
+                    "sample": {
+                      "n": 4,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "REVERSION",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "STATE_UNKNOWN",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    }
+                  },
+                  {
+                    "key": "STATE_NOT_APPLICABLE",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "currentVersion": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "from": "2026-10-20T00:00:00.000Z",
+            "to": "2026-11-02T00:00:00.000Z",
+            "segmentIds": [
+              "C17_V2_4000USDT:BTC_ETH:S8"
+            ],
+            "untaggedClosed": 1,
+            "untaggedOpen": 0,
+            "axes": {
+              "macro": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "cells": []
+              },
+              "industry": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "cells": []
+              },
+              "price": {
+                "state": "SPLIT",
+                "reasonCode": null,
+                "cells": [
+                  {
+                    "key": "TREND",
+                    "closed": 4,
+                    "open": 1,
+                    "sample": {
+                      "n": 4,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "REVERSION",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "STATE_UNKNOWN",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    }
+                  },
+                  {
+                    "key": "STATE_NOT_APPLICABLE",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "partId": "NON_MAJOR",
+      "role": {
+        "roleId": "CRYPTO_SATELLITE",
+        "roleMapVersion": "ROLE_MAP_V1",
+        "roleMapSha256": "756c57436e973470506c819d4da15221bfc7551b22a5874b05d2cb5d836d5613"
+      },
+      "versions": [
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S1",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorMax@1+C17_V2_4000USDT.universePolicy@1",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-01T08:00:00.000Z",
+          "to": "2026-10-03T05:30:00.000Z",
+          "changedMembers": [],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S2",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@2",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-03T05:30:00.000Z",
+          "to": "2026-10-03T12:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+            "C17_V2_4000USDT.nonMajorMax@1",
+            "C17_V2_4000USDT.nonMajorMax@2",
+            "C17_V2_4000USDT.universePolicy@1",
+            "C17_V2_4000USDT.universePolicy@2"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S3",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-03T12:00:00.000Z",
+          "to": "2026-10-06T04:06:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.universePolicy@2",
+            "C17_V2_4000USDT.universePolicy@3"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S4",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@1+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-06T04:06:00.000Z",
+          "to": "2026-10-07T00:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.holdingSwap@1"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S5",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-07T00:00:00.000Z",
+          "to": "2026-10-13T15:05:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.capitalUsdt@1",
+            "C17_V2_4000USDT.capitalUsdt@2",
+            "C17_V2_4000USDT.maxLossPerTradeUsdt@1",
+            "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+            "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@1",
+            "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S6",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+              "effectiveFrom": "2026-10-13T15:05:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-13T15:05:00.000Z",
+          "to": "2026-10-14T00:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.nonMajorEligibility@1"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S7",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.klineTiming@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.klineTiming@1",
+              "effectiveFrom": "2026-10-14T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+              "effectiveFrom": "2026-10-13T15:05:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-14T00:00:00.000Z",
+          "to": "2026-10-20T00:00:00.000Z",
+          "changedMembers": [
+            "C17_V2_4000USDT.klineTiming@1"
+          ],
+          "boundary": "RECORDED"
+        },
+        {
+          "segmentId": "C17_V2_4000USDT:NON_MAJOR:S8",
+          "versionKey": "S17:C17_V2_4000USDT.capitalUsdt@2+C17_V2_4000USDT.circuitBreaker@1+C17_V2_4000USDT.deriskFailMode@1+C17_V2_4000USDT.entryFilters@1+C17_V2_4000USDT.exitFill@1+C17_V2_4000USDT.holdingSwap@1+C17_V2_4000USDT.klineTiming@1+C17_V2_4000USDT.managementAtr@1+C17_V2_4000USDT.maxLossPerTradeUsdt@2+C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2+C17_V2_4000USDT.nonMajorEligibility@1+C17_V2_4000USDT.nonMajorMax@2+C17_V2_4000USDT.universePolicy@3",
+          "members": [
+            {
+              "ruleRef": "C17_V2_4000USDT.capitalUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.circuitBreaker@1",
+              "effectiveFrom": "2026-10-20T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.deriskFailMode@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.entryFilters@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.exitFill@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.holdingSwap@1",
+              "effectiveFrom": "2026-10-06T04:06:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.klineTiming@1",
+              "effectiveFrom": "2026-10-14T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.managementAtr@1",
+              "effectiveFrom": "2026-10-01T08:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.maxLossPerTradeUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorCombinedRiskCapUsdt@2",
+              "effectiveFrom": "2026-10-07T00:00:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorEligibility@1",
+              "effectiveFrom": "2026-10-13T15:05:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.nonMajorMax@2",
+              "effectiveFrom": "2026-10-03T05:30:00.000Z",
+              "source": "S17"
+            },
+            {
+              "ruleRef": "C17_V2_4000USDT.universePolicy@3",
+              "effectiveFrom": "2026-10-03T12:00:00.000Z",
+              "source": "S17"
+            }
+          ],
+          "from": "2026-10-20T00:00:00.000Z",
+          "to": null,
+          "changedMembers": [
+            "C17_V2_4000USDT.circuitBreaker@1"
+          ],
+          "boundary": "RECORDED"
+        }
+      ],
+      "windows": {
+        "bookSinceStart": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-01T08:00:00.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:NON_MAJOR:S1",
+            "C17_V2_4000USDT:NON_MAJOR:S2",
+            "C17_V2_4000USDT:NON_MAJOR:S3",
+            "C17_V2_4000USDT:NON_MAJOR:S4",
+            "C17_V2_4000USDT:NON_MAJOR:S5",
+            "C17_V2_4000USDT:NON_MAJOR:S6",
+            "C17_V2_4000USDT:NON_MAJOR:S7",
+            "C17_V2_4000USDT:NON_MAJOR:S8"
+          ],
+          "sessions": 32,
+          "shortWindow": false,
+          "crossesVersions": true,
+          "closed": 8,
+          "open": 2,
+          "wins": 2,
+          "losses": 6,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "maxDrawdownPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -6.2983,
+              "maxDrawdownPct": 10.6035,
+              "reasonCode": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": false
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 20.7715,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": 0.0384,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 29.66,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 5,
+              "favorableAtLeast1R": 3
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "C17_V2_BTC_ETH_PART",
+              "interim": false,
+              "basis": null,
+              "state": "UNKNOWN",
+              "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+              "returnPct": null,
+              "maxDrawdownPct": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "UNDER_STUDY"
+        },
+        "currentVersion": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-20T00:00:00.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:NON_MAJOR:S8"
+          ],
+          "sessions": 13,
+          "shortWindow": true,
+          "crossesVersions": false,
+          "closed": 4,
+          "open": 2,
+          "wins": 0,
+          "losses": 4,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": -11.8481,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "maxDrawdownPct": {
+            "value": 11.8481,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -4.3836,
+              "maxDrawdownPct": 8.0159,
+              "reasonCode": null,
+              "excessPct": -7.4645,
+              "bearProtectionRatio": {
+                "value": 1.4781,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": true
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 8.831,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": 0.0598,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 12.6161,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 3,
+              "favorableAtLeast1R": 2
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "C17_V2_BTC_ETH_PART",
+              "interim": false,
+              "basis": null,
+              "state": "MEASURED",
+              "reasonCode": null,
+              "returnPct": 1.9797,
+              "maxDrawdownPct": 3.0319,
+              "excessPct": -13.8278,
+              "bearProtectionRatio": {
+                "value": 3.9078,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": -5.9848,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "UNDER_STUDY"
+        },
+        "previousVersion": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-14T00:00:00.000Z",
+          "to": "2026-10-20T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:NON_MAJOR:S7"
+          ],
+          "sessions": 6,
+          "shortWindow": true,
+          "crossesVersions": false,
+          "closed": 4,
+          "open": 0,
+          "wins": 2,
+          "losses": 2,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": -6.8615,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "maxDrawdownPct": {
+            "value": 7.1068,
+            "state": "MEASURED",
+            "reasonCode": null
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -1.4705,
+              "maxDrawdownPct": 2.0088,
+              "reasonCode": null,
+              "excessPct": -5.391,
+              "bearProtectionRatio": {
+                "value": 3.5378,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": true
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 11.9405,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": -0.0214,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 17.0439,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 2,
+              "favorableAtLeast1R": 1
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "C17_V2_BTC_ETH_PART",
+              "interim": false,
+              "basis": null,
+              "state": "MEASURED",
+              "reasonCode": null,
+              "returnPct": 1.0429,
+              "maxDrawdownPct": 3.0827,
+              "excessPct": -7.9044,
+              "bearProtectionRatio": {
+                "value": 2.3054,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": -6.5793,
+                "state": "MEASURED",
+                "reasonCode": null,
+                "shortWindow": true
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "UNDER_STUDY"
+        },
+        "rolling60": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-01T08:00:00.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:NON_MAJOR:S1",
+            "C17_V2_4000USDT:NON_MAJOR:S2",
+            "C17_V2_4000USDT:NON_MAJOR:S3",
+            "C17_V2_4000USDT:NON_MAJOR:S4",
+            "C17_V2_4000USDT:NON_MAJOR:S5",
+            "C17_V2_4000USDT:NON_MAJOR:S6",
+            "C17_V2_4000USDT:NON_MAJOR:S7",
+            "C17_V2_4000USDT:NON_MAJOR:S8"
+          ],
+          "sessions": 32,
+          "shortWindow": false,
+          "crossesVersions": true,
+          "closed": 8,
+          "open": 2,
+          "wins": 2,
+          "losses": 6,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "maxDrawdownPct": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW"
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": -6.2983,
+              "maxDrawdownPct": 10.6035,
+              "reasonCode": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+                "shortWindow": false
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 20.7715,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": 0.0384,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 29.66,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 5,
+              "favorableAtLeast1R": 3
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "C17_V2_BTC_ETH_PART",
+              "interim": false,
+              "basis": null,
+              "state": "UNKNOWN",
+              "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+              "returnPct": null,
+              "maxDrawdownPct": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "UNKNOWN",
+                "reasonCode": "CAPITAL_BASE_CHANGED_IN_WINDOW",
+                "shortWindow": false
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "UNDER_STUDY"
+        },
+        "last30Closed": {
+          "state": "MEASURED",
+          "reasonCode": null,
+          "from": "2026-10-14T16:08:51.000Z",
+          "to": "2026-11-02T00:00:00.000Z",
+          "segmentIds": [
+            "C17_V2_4000USDT:NON_MAJOR:S7",
+            "C17_V2_4000USDT:NON_MAJOR:S8"
+          ],
+          "sessions": 19,
+          "shortWindow": true,
+          "crossesVersions": true,
+          "closed": 8,
+          "open": 2,
+          "wins": 2,
+          "losses": 6,
+          "flats": 0,
+          "pnlBasis": "NET",
+          "winRate": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "avgR": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "expectancyT": {
+            "value": null,
+            "state": "INSUFFICIENT_SAMPLE",
+            "reasonCode": null
+          },
+          "returnPct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+          },
+          "maxDrawdownPct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+          },
+          "benchmarks": [
+            {
+              "id": "BTC",
+              "returnPct": null,
+              "maxDrawdownPct": null,
+              "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": true
+              }
+            }
+          ],
+          "costs": {
+            "fee": {
+              "state": "MODELLED",
+              "amount": 20.7715,
+              "reasonCode": null
+            },
+            "funding": {
+              "state": "MEASURED",
+              "amount": 0.0384,
+              "reasonCode": null
+            },
+            "slippage": {
+              "state": "MODELLED",
+              "amount": 29.66,
+              "reasonCode": null
+            }
+          },
+          "postExit": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "horizon": {
+              "bars": 24,
+              "unit": "HOURS_1H"
+            },
+            "stopLoss": {
+              "exits": 5,
+              "favorableAtLeast1R": 3
+            },
+            "takeProfit": {
+              "exits": 0,
+              "favorableAtLeast1R": 0
+            }
+          },
+          "roleBenchmark": [
+            {
+              "id": "C17_V2_BTC_ETH_PART",
+              "interim": false,
+              "basis": null,
+              "state": "NOT_APPLICABLE",
+              "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+              "returnPct": null,
+              "maxDrawdownPct": null,
+              "excessPct": null,
+              "bearProtectionRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": true
+              },
+              "bullParticipationRatio": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+                "shortWindow": true
+              }
+            }
+          ],
+          "capitalSharePct": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:PARTS_SHARE_ONE_BOOK_CAPITAL"
+          },
+          "capitalShareTarget": "NOT_SET",
+          "roleStatus": "UNDER_STUDY"
+        }
+      },
+      "comparisons": [
+        {
+          "fromSegment": "C17_V2_4000USDT:NON_MAJOR:S7",
+          "toSegment": "C17_V2_4000USDT:NON_MAJOR:S8",
+          "reasonCode": null,
+          "n": 6,
+          "meanDiff": null,
+          "unit": null,
+          "tStat": null,
+          "researchRef": null,
+          "expectedRange": null,
+          "position": null,
+          "kind": "DESCRIPTIVE",
+          "state": "BELOW_FLOOR",
+          "notCausal": true
+        },
+        {
+          "fromSegment": "C17_V2_4000USDT:NON_MAJOR:S7",
+          "toSegment": "C17_V2_4000USDT:NON_MAJOR:S8",
+          "reasonCode": "NOT_AVAILABLE:PAIRED_REPLAY_NOT_BUILT",
+          "n": null,
+          "meanDiff": null,
+          "unit": null,
+          "tStat": null,
+          "researchRef": null,
+          "expectedRange": null,
+          "position": null,
+          "kind": "PAIRED_REPLAY",
+          "state": "NOT_AVAILABLE",
+          "notCausal": false
+        }
+      ],
+      "stateSplit": {
+        "state": "ACTIVE",
+        "reasonCode": null,
+        "since": "2026-10-19T00:20:01.922Z",
+        "mapping": {
+          "file": "config/cycle-state/mapping.v2.json",
+          "hash": "71e115c649649e7a6ffc6349abf05f8b63ab4fa333762ccf32790154aca6cea8"
+        },
+        "axisKeys": {
+          "macro": "NONE",
+          "industry": "NONE",
+          "price": "C17_MODE"
+        },
+        "tags": [
+          {
+            "tradeId": "4744",
+            "decidedAt": "2026-10-21T12:03:37.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:XRPUSDT:LONG:TREND:1792583999999"
+            },
+            "taggedAt": "2026-10-26T00:20:02.311Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-21T12:03:37.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-10-22T08:34:26.000Z",
+              "resultR": -1.1705851886862775,
+              "netPnl": -88.55522137,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "4da61db19ccf895fd5faf24f6ee879b5487aa96fcdee205dec545c053406f660"
+          },
+          {
+            "tradeId": "4748",
+            "decidedAt": "2026-10-27T12:07:05.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:SOLUSDT:SHORT:TREND:1793102399999"
+            },
+            "taggedAt": "2026-11-02T00:20:02.507Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-27T12:07:05.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-10-28T03:28:18.000Z",
+              "resultR": -1.0774736333078252,
+              "netPnl": -81.19559649,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "813fd43e135de33780b8cf91acddcf802b4cb7dd2847d38db02f3f37a798a8c6"
+          },
+          {
+            "tradeId": "4749",
+            "decidedAt": "2026-10-29T20:13:53.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:HYPEUSDT:LONG:TREND:1793303999999"
+            },
+            "taggedAt": "2026-11-02T00:20:02.507Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-29T20:13:53.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-10-29T20:43:46.000Z",
+              "resultR": -1.049095417149162,
+              "netPnl": -80.29458213,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "7bce836e4154458b8ba3302d008035514197adc5fe9b11d7db060e1cbaf463f6"
+          },
+          {
+            "tradeId": "4752",
+            "decidedAt": "2026-10-30T16:03:55.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:BNBUSDT:SHORT:TREND:1793375999999"
+            },
+            "taggedAt": "2026-11-02T00:20:02.507Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-30T16:03:55.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": {
+              "closedAt": "2026-11-01T15:02:29.000Z",
+              "resultR": -1.0627008877572761,
+              "netPnl": -81.00823729,
+              "pnlBasis": "NET",
+              "reasonCode": null
+            },
+            "tagHash": "ff094d17b34fefe09faf96066b7fe3ec29b5be344de8dcb7114db434d6790a3f"
+          },
+          {
+            "tradeId": "4753",
+            "decidedAt": "2026-10-31T11:33:56.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:HYPEUSDT:LONG:TREND:1793444399999"
+            },
+            "taggedAt": "2026-11-02T00:20:02.507Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-10-31T11:33:56.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": null,
+            "tagHash": "5c76201fb19ac2f7c596141e87c059b0c4e59d0019fa302f867b1869c842b9b0"
+          },
+          {
+            "tradeId": "4754",
+            "decidedAt": "2026-11-01T20:03:35.000Z",
+            "decisionRef": {
+              "record": "ENTRY_SIGNAL",
+              "id": "C17_SIGNAL_V1:SOLUSDT:SHORT:TREND:1793563199999"
+            },
+            "taggedAt": "2026-11-02T00:20:02.507Z",
+            "axes": {
+              "macro": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "industry": {
+                "value": null,
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "sourceKind": null,
+                "subjectId": null,
+                "knownAt": null,
+                "qualityStatus": null,
+                "methodVersion": null,
+                "source": null,
+                "divergenceState": null
+              },
+              "price": {
+                "value": "TREND",
+                "state": "TAGGED",
+                "reasonCode": null,
+                "sourceKind": "STRATEGY_STATE",
+                "subjectId": "CRYPTO",
+                "knownAt": "2026-11-01T20:03:35.000Z",
+                "qualityStatus": "READY",
+                "methodVersion": "C17_MODE",
+                "source": null,
+                "divergenceState": null
+              }
+            },
+            "outcome": null,
+            "tagHash": "22bcc8e356b7a5b0bff6d7ab99cb73410d238ab44754d0990807fab22abec1e8"
+          }
+        ],
+        "windows": {
+          "bookSinceStart": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "from": "2026-10-01T08:00:00.000Z",
+            "to": "2026-11-02T00:00:00.000Z",
+            "segmentIds": [
+              "C17_V2_4000USDT:NON_MAJOR:S1",
+              "C17_V2_4000USDT:NON_MAJOR:S2",
+              "C17_V2_4000USDT:NON_MAJOR:S3",
+              "C17_V2_4000USDT:NON_MAJOR:S4",
+              "C17_V2_4000USDT:NON_MAJOR:S5",
+              "C17_V2_4000USDT:NON_MAJOR:S6",
+              "C17_V2_4000USDT:NON_MAJOR:S7",
+              "C17_V2_4000USDT:NON_MAJOR:S8"
+            ],
+            "untaggedClosed": 4,
+            "untaggedOpen": 0,
+            "axes": {
+              "macro": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "cells": []
+              },
+              "industry": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "cells": []
+              },
+              "price": {
+                "state": "SPLIT",
+                "reasonCode": null,
+                "cells": [
+                  {
+                    "key": "TREND",
+                    "closed": 4,
+                    "open": 2,
+                    "sample": {
+                      "n": 4,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "REVERSION",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "STATE_UNKNOWN",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    }
+                  },
+                  {
+                    "key": "STATE_NOT_APPLICABLE",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "currentVersion": {
+            "state": "MEASURED",
+            "reasonCode": null,
+            "from": "2026-10-20T00:00:00.000Z",
+            "to": "2026-11-02T00:00:00.000Z",
+            "segmentIds": [
+              "C17_V2_4000USDT:NON_MAJOR:S8"
+            ],
+            "untaggedClosed": 0,
+            "untaggedOpen": 0,
+            "axes": {
+              "macro": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_SIGNED_MACRO_SCOPE",
+                "cells": []
+              },
+              "industry": {
+                "state": "NOT_APPLICABLE",
+                "reasonCode": "NOT_APPLICABLE:NO_INDUSTRY_AXIS",
+                "cells": []
+              },
+              "price": {
+                "state": "SPLIT",
+                "reasonCode": null,
+                "cells": [
+                  {
+                    "key": "TREND",
+                    "closed": 4,
+                    "open": 2,
+                    "sample": {
+                      "n": 4,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "REVERSION",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null,
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "INSUFFICIENT_SAMPLE",
+                      "reasonCode": null
+                    }
+                  },
+                  {
+                    "key": "STATE_UNKNOWN",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                    }
+                  },
+                  {
+                    "key": "STATE_NOT_APPLICABLE",
+                    "closed": 0,
+                    "open": 0,
+                    "sample": {
+                      "n": 0,
+                      "floor": 20,
+                      "state": "BELOW_FLOOR"
+                    },
+                    "winRate": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "avgR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "netPnl": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                      "basis": null
+                    },
+                    "maxDrawdownR": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    },
+                    "maxDrawdownAmount": {
+                      "value": null,
+                      "state": "NOT_APPLICABLE",
+                      "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "hash": "385621f0416e75185ddbf488bbe7e545dac852e949cda0fc1b44ca5f163cf0d9"
+}

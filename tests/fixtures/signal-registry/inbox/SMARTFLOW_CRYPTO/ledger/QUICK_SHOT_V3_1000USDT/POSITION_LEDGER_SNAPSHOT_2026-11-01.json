@@ -1,0 +1,11 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "POSITION_LEDGER_SNAPSHOT_V1",
+  "file": "SMARTFLOW_CRYPTO/ledger/QUICK_SHOT_V3_1000USDT/POSITION_LEDGER_SNAPSHOT_2026-11-01.json",
+  "hash": "4b157ec5ef1a4451f2614514d4e69c25be090718e295fbe0cbe1a38af20b90bf"
+ },
+ "sessionDate": "2026-11-01",
+ "generatedAt": "2026-11-02T00:20:02.507Z",
+ "lots": []
+}

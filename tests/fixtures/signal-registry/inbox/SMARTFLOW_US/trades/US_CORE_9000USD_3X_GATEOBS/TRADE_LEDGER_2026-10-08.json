@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_US",
+  "market": "US",
+  "ledgerId": "US_CORE_9000USD_3X_GATEOBS",
+  "sessionDate": "2026-10-08",
+  "generatedAt": "2026-10-09T01:38:25.638Z",
+  "currency": "USD",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "US_CORE_9000USD_3X_GATEOBS:2026-10-08:QQQ:lev:OPEN",
+      "lotId": "QQQ:lev",
+      "instrument": {
+        "id": "TQQQ",
+        "kind": "ETF",
+        "name": "ProShares UltraPro QQQ"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "quantity": 54.634074299787,
+      "price": 82.32499694824219,
+      "notional": 4497.750000000002,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 2.25,
+        "reasonCode": "FEE_MODELLED_US_CORE_COST_SIDE"
+      },
+      "executedAt": "2026-10-08T13:30:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "BOOK_HANDOVER_OPEN"
+        ]
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "US_CORE_9000USD_3X_GATEOBS:2026-10-08:SPY:lev:OPEN",
+      "lotId": "SPY:lev",
+      "instrument": {
+        "id": "UPRO",
+        "kind": "ETF",
+        "name": "ProShares UltraPro S&P 500"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "quantity": 29.259367449148,
+      "price": 153.72000122070312,
+      "notional": 4497.750000000032,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 2.25,
+        "reasonCode": "FEE_MODELLED_US_CORE_COST_SIDE"
+      },
+      "executedAt": "2026-10-08T13:30:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "BOOK_HANDOVER_OPEN"
+        ]
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 2,
+    "byPurpose": {
+      "OPEN": 2,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 2,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 8995.500000000033,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "592cb86a39c954e4457c552003e40b5f6486b2f4f5a35b0090e7a2424c4e0546"
+}

@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-12",
+  "generatedAt": "2026-10-13T00:20:01.073Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:4:OPEN",
+      "lotId": "QUICK_SHOT_V3_1000USDT:BTWUSDT:4",
+      "instrument": {
+        "id": "BTWUSDT",
+        "kind": "PERP",
+        "name": "BTW/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 140.342670019297,
+      "price": 1.7101,
+      "notional": 239.9999999999998,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-12T11:02:27.458Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "192",
+        "reasonCodes": [
+          "QUICK_SHOT_RULES_V3",
+          "QS_V3_SIGNAL_BEARISH",
+          "FORWARD_EVIDENCE_TUNING_V1_INSUFFICIENT"
+        ],
+        "ruleRef": "QUICK_SHOT_V3_ENTRY@AMENDMENT_18"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:4:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:BTWUSDT:4",
+      "instrument": {
+        "id": "BTWUSDT",
+        "kind": "PERP",
+        "name": "BTW/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 140.342670019297,
+      "price": 1.761403,
+      "notional": 247.19999999999982,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-12T12:12:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_STOP_3PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -7.668,
+        "r": -1.065,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:5:OPEN",
+      "lotId": "QUICK_SHOT_V3_1000USDT:DYMUSDT:5",
+      "instrument": {
+        "id": "DYMUSDT",
+        "kind": "PERP",
+        "name": "DYM/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "direction": "LONG",
+      "quantity": 12170.385395537525,
+      "price": 0.01972,
+      "notional": 240.00000000000003,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-12T17:00:29.734Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "193",
+        "reasonCodes": [
+          "QUICK_SHOT_RULES_V3",
+          "QS_V3_SIGNAL_BULLISH",
+          "FORWARD_EVIDENCE_TUNING_V1_INSUFFICIENT"
+        ],
+        "ruleRef": "QUICK_SHOT_V3_ENTRY@AMENDMENT_18"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 3,
+    "byPurpose": {
+      "OPEN": 2,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 2,
+      "SELL": 1
+    }
+  },
+  "totals": {
+    "notional": 727.1999999999996,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": -7.668,
+      "r": -1.065,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "56dbff7ea5291acebc3c6923e37e551f022f2e5b82bfed45633d467e015589eb"
+}

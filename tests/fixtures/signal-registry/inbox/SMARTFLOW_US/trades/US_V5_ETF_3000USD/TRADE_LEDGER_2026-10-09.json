@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_US",
+  "market": "US",
+  "ledgerId": "US_V5_ETF_3000USD",
+  "sessionDate": "2026-10-09",
+  "generatedAt": "2026-10-09T20:50:06.114Z",
+  "currency": "USD",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "US_V5_ETF_3000USD:USV5_1791566586316_oehxpg:OPEN",
+      "lotId": "USV5_1791566586316_oehxpg",
+      "instrument": {
+        "id": "MSFU",
+        "kind": "ETF",
+        "name": "Direxion Shares ETF Trust Direxion Daily MSFT Bull 2X ETF"
+      },
+      "side": "BUY",
+      "purpose": "OPEN",
+      "quantity": 29,
+      "price": 42.466897,
+      "notional": 1231.540013,
+      "fees": {
+        "state": "NOT_MEASURED",
+        "amount": null,
+        "reasonCode": "FEES_NOT_RECORDED"
+      },
+      "executedAt": "2026-10-09T17:23:09.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "US_V5_SCAN_RECORD_V2:1455286:1791566585240:MSFU",
+        "reasonCodes": [
+          "V5_SIGNAL:TREND:BUY"
+        ],
+        "ruleRef": "US_V5_ENTRY@AMENDMENT_17"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 1,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 0
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 1231.540013,
+    "realized": {
+      "state": "NOT_APPLICABLE",
+      "currencyAmount": null,
+      "r": null,
+      "closingEvents": 0,
+      "measuredEvents": 0
+    }
+  },
+  "hash": "6ad2c9ceef93468f7fd614757d1dbb7e346a7aa4b6eca8dfff6e5d6d86309a7f"
+}
