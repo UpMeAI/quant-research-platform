@@ -4,7 +4,11 @@
  * 注册即校验合同(fail-closed:合同不齐拒绝注册);核心侧禁止绕过注册表直连市场实现。
  *
  * 内置注册:
- *   CN_A → adapters/ashare-local(平台内置的 A 股本地适配器,样本数据/演示与测试用)。
+ *   CN_A      → adapters/ashare-local(平台内置的 A 股本地适配器,样本数据/演示与测试用);
+ *   US_EQUITY → adapters/us-replay-core(钉住的 smartflow replay core,US_V5 / CLOSE_MARK);
+ *   CRYPTO    → adapters/crypto-replay-core(钉住的 smartflow replay core,C17 / NEXT_BAR_OPEN、CARRY / HOURLY_REBALANCE_BAND)。
+ *   后两者以子进程调用 smartflow 的核心与策略 hooks(adapters/replay-core-bridge),平台不复制回放逻辑;
+ *   未设置 QRP_SMARTFLOW_ROOT 时调用即显式失败(REPLAY_CORE_SOURCE_NOT_CONFIGURED)。
  * 生产形态下各市场适配器由**各自市场仓库**实现同一合同(§5/§20 M2),
  * 经 REST 传输层接入(§25 已冻结为 HTTP_JSON_RPC_V1)—— 合同语义两侧一致:
  *   CN_A → UpMeAI/Ashare-V5 research-adapter/;US_EQUITY / CRYPTO → wendy926/smartflow。
@@ -31,5 +35,7 @@ function hasAdapter(marketId) { return _adapters.has(marketId); }
 function listAdapters() { return [..._adapters.values()].map((a) => a.manifest); }
 
 registerAdapter(require('./ashare-local'));
+registerAdapter(require('./us-replay-core'));
+registerAdapter(require('./crypto-replay-core'));
 
 module.exports = { registerAdapter, getAdapter, hasAdapter, listAdapters };

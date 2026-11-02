@@ -1,0 +1,40 @@
+{
+  "kind": "QRP_REPLAY_CORE_PIN_V1",
+  "smartflow": {
+    "repo": "wendy926/smartflow",
+    "commit": "8d97cbdec0a775fd9fe8cc75643da34fffebe9bc",
+    "package_dir": "trading-system-v2"
+  },
+  "core": {
+    "contract": "REPLAY_CORE_CONTRACT_V1",
+    "dir": "scripts/lib/replay-core",
+    "version_hash": "5a4808b0b775335a21a0c8e43de21d57048d5f64d820169b6225e36c95829c7b",
+    "file_count": 14,
+    "last_core_commit": "6ac34ecfd569c6db7be1d76f48921eb05819f07a"
+  },
+  "strategies": {
+    "US_V5": {
+      "profile": "CLOSE_MARK",
+      "module": "scripts/lib/replay-core-adapters/us-v5.js",
+      "hooks_id": "us-v5-hooks@ba8af5fa5ae3",
+      "strategy_files_sha256": "7056fb57613cc79f1a25bac3503d3a33403e967855b7e4d37d11ffcb86e9c256"
+    },
+    "C17": {
+      "profile": "NEXT_BAR_OPEN",
+      "module": "scripts/lib/replay-core-adapters/c17.js",
+      "hooks_id": "c17-hooks@45e9ce0e9278",
+      "strategy_files_sha256": "eb393354eca321b00e8cc8384b8b6bd261de0de2c8f94528bc19a4153cf0b49f"
+    },
+    "CARRY": {
+      "profile": "HOURLY_REBALANCE_BAND",
+      "module": "scripts/lib/replay-core-adapters/carry.js",
+      "hooks_id": "carry-hooks@024b2911f093",
+      "strategy_files_sha256": "a3e78c839cf0343c135e1ff8747ded6d9c68cad3a8d07ddf62a271d9ef3a8ac7"
+    }
+  },
+  "golden_receipts": {
+    "G1": { "file": "receipts/replay-core-golden-5a4808b0.tier1.G1.json", "sha256": "61ecd0e648b0c2e3529958a033853146e417858b4c63a61dd1660567b525a3ce", "strategy": "C17" },
+    "G2": { "file": "receipts/replay-core-golden-5a4808b0.tier1.G2.json", "sha256": "4ef2adef3e15bdee1ccb27cef8a3021f832a6e3f860846d2fd8f3f56fc61a5a6", "strategy": "CARRY" },
+    "G3": { "file": "receipts/replay-core-golden-5a4808b0.tier1.G3.json", "sha256": "f87e175886925f3041f2d91bb2033f684f3ddd4af8916dad644bdc9aafab19d7", "strategy": "US_V5" }
+  }
+}
