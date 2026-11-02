@@ -5597,7 +5597,7 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 58.2388,
+              "amount": 58.24,
               "reasonCode": null
             },
             "funding": {
@@ -5607,7 +5607,7 @@
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 83.2164,
+              "amount": 83.22,
               "reasonCode": null
             }
           },
@@ -5652,17 +5652,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 12.6577,
+              "amount": 12.66,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": -6.0364,
+              "amount": -6.04,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 18.0983,
+              "amount": 18.1,
               "reasonCode": null
             }
           },
@@ -5707,17 +5707,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 10.0023,
+              "amount": 10,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": -0.9271,
+              "amount": -0.93,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 14.2916,
+              "amount": 14.29,
               "reasonCode": null
             }
           },
@@ -6134,12 +6134,12 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 20.7715,
+              "amount": 20.77,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": 0.0384,
+              "amount": 0.04,
               "reasonCode": null
             },
             "slippage": {
@@ -6189,17 +6189,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 8.831,
+              "amount": 8.83,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": 0.0598,
+              "amount": 0.06,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 12.6161,
+              "amount": 12.62,
               "reasonCode": null
             }
           },
@@ -6244,17 +6244,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 11.9405,
+              "amount": 11.94,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": -0.0214,
+              "amount": -0.02,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 17.0439,
+              "amount": 17.04,
               "reasonCode": null
             }
           },
@@ -6665,17 +6665,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 1.344,
+              "amount": 1.34,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": 0.637,
+              "amount": 0.64,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 2.016,
+              "amount": 2.02,
               "reasonCode": null
             }
           },
@@ -6725,7 +6725,7 @@
             },
             "funding": {
               "state": "MEASURED",
-              "amount": 0.649,
+              "amount": 0.65,
               "reasonCode": null
             },
             "slippage": {
@@ -6775,17 +6775,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 0.384,
+              "amount": 0.38,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": -0.012,
+              "amount": -0.01,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 0.576,
+              "amount": 0.58,
               "reasonCode": null
             }
           },
@@ -6859,17 +6859,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 1.152,
+              "amount": 1.15,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": 0.108,
+              "amount": 0.11,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 1.728,
+              "amount": 1.73,
               "reasonCode": null
             }
           },
@@ -6914,7 +6914,7 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 0.384,
+              "amount": 0.38,
               "reasonCode": null
             },
             "funding": {
@@ -6924,7 +6924,7 @@
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 0.576,
+              "amount": 0.58,
               "reasonCode": null
             }
           },
@@ -6969,17 +6969,17 @@
           "costs": {
             "fee": {
               "state": "MODELLED",
-              "amount": 0.768,
+              "amount": 0.77,
               "reasonCode": null
             },
             "funding": {
               "state": "MEASURED",
-              "amount": 0.048,
+              "amount": 0.05,
               "reasonCode": null
             },
             "slippage": {
               "state": "MODELLED",
-              "amount": 1.152,
+              "amount": 1.15,
               "reasonCode": null
             }
           },
@@ -6997,5 +6997,5 @@
   ],
   "interpretation": "REGISTRY_FACTS_NOT_A_VERDICT",
   "productionEffect": "NONE",
-  "hash": "cf02c2f33b1776427bd4368fa87090ab86cc6ebf698bf5dd98c9c6350469570c"
+  "hash": "7e20a677010ae378304d126aa56ba1c3943b903007f4b46cccc8b5a95f806d24"
 }

@@ -82,6 +82,13 @@ test('T2 来源核对照实写出：成交台账停在毛值的三笔（资金�
   const btc = reg.rows.find((r) => r.rowId === 'C17_V2_4000USDT|BTC_ETH|C17_SIGNAL_AND_RANKING+TREND');
   assert.equal(btc.windows.bookSinceStart.costsSource, 'SCOREBOARD_WINDOW:funding');
   assert.equal(btc.windows.currentVersion.costsSource, 'TRADE_ROWS');
+  // 金额取整按出数的一方：信号行自己算的费用合计 2 位；从记分牌重述的那一项照记分牌 4 位；汇总行照记分牌 4 位。
+  const amounts = (w) => ['fee', 'funding', 'slippage'].map((k) => w.costs[k].amount);
+  assert.deepEqual(amounts(btc.windows.bookSinceStart), [58.24, -4.0521, 83.22]);
+  const btcRollup = c17.blocks.find((b) => b.partId === 'BTC_ETH').rollup;
+  assert.deepEqual(amounts(btcRollup.windows.bookSinceStart), [58.2388, -4.0521, 83.2164]);
+  const nonMajor = reg.rows.find((r) => r.rowId === 'C17_V2_4000USDT|NON_MAJOR|C17_SIGNAL_AND_RANKING+TREND');
+  assert.deepEqual(amounts(nonMajor.windows.bookSinceStart), [20.77, 0.04, 29.66]);
 });
 
 test('T3 一致性检查会报出差异：改记分牌一个窗口的笔数、一个状态格、一笔标签的结果，各自报在对应路径上', () => {
@@ -202,7 +209,7 @@ test('T8 结果来源次序：记分牌标签 > 口径相符的成交台账 > �
   assert.deepEqual(b.sourceChecks.divergences.map((d) => d.kind), ['TRADE_LEDGER_GROSS_REVIEW_NET', 'TRADE_LEDGER_VS_SCOREBOARD_TAG']);
 });
 
-test('T10 取整按出数的一方：汇总行照记分牌（窗口 4 位、状态格不取整），信号行是登记簿自己算的比率，取 6 位（§10.2）', () => {
+test('T10 取整按出数的一方：汇总行照记分牌（窗口 4 位、状态格不取整），信号行是登记簿自己算的，比率 6 位、金额 2 位（§10.2）', () => {
   const inp = synthetic({ n: 31 });
   const sb = inp.scoreboard.json;
   const frame = sb.windows.bookSinceStart;
@@ -211,7 +218,7 @@ test('T10 取整按出数的一方：汇总行照记分牌（窗口 4 位、状�
   const split = { state: 'MEASURED', reasonCode: null, from: frame.from, to: frame.to, segmentIds: frame.segmentIds, axes };
   sb.stateSplit = { state: 'ACTIVE', reasonCode: null, since: frame.from, mapping: null, axisKeys: {}, windows: { bookSinceStart: split, currentVersion: split },
     tags: Array.from({ length: 31 }, (_, i) => ({ tradeId: String(i + 1), axes: { macro: { state: 'NOT_APPLICABLE' }, price: { state: 'TAGGED', value: 'TREND' } },
-      outcome: { closedAt: new Date(T0 + i * H + H).toISOString(), netPnl: i % 3 === 0 ? -1 : 2, resultR: i % 3 === 0 ? -0.5 : 1, pnlBasis: 'NET' } })) };
+      outcome: { closedAt: new Date(T0 + i * H + H).toISOString(), netPnl: i % 3 === 0 ? -1.0049 : 2.123, resultR: i % 3 === 0 ? -0.5 : 1, pnlBasis: 'NET' } })) };
   const built = R.buildBook(inp);
   const rollup = built.book.blocks[0].rollup;
   const row = built.rows[0];
@@ -224,6 +231,10 @@ test('T10 取整按出数的一方：汇总行照记分牌（窗口 4 位、状�
   const cell = (r) => r.stateSplit.windows.bookSinceStart.axes.price.cells[0];
   assert.deepEqual([cell(rollup).winRate.value, cell(rollup).avgR.value], [20 / 31, 14.5 / 31]);
   assert.deepEqual([cell(row).winRate.value, cell(row).avgR.value], [0.645161, 0.467742]);
+  const netSum = Array.from({ length: 31 }, (_, i) => (i % 3 === 0 ? -1.0049 : 2.123)).reduce((a, b) => a + b, 0);
+  assert.equal(cell(rollup).netPnl.value, netSum); // 记分牌（desk 格子）不取整
+  assert.equal(cell(row).netPnl.value, 31.41); // 登记簿自己算的金额 2 位
+  assert.deepEqual(cell(row).expectancyAmount_like, cell(rollup).expectancyAmount_like);
   // 计数、口径、金额字段两边相同；只有比率的表示不同。
   for (const k of ['closed', 'open', 'wins', 'losses', 'flats', 'pnlBasis', 'expectancyAmount_like', 'costs']) assert.deepEqual(w(row)[k], w(rollup)[k], k);
 });

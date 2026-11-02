@@ -25,7 +25,9 @@ node apps/research-cli/build_signal_registry.js --inbox <inbox> \
 
 ## 结果
 
-- 登记簿 `SIGNAL_REGISTRY_V1.json`，hash `cf02c2f33b1776427bd4368fa87090ab86cc6ebf698bf5dd98c9c6350469570c`；5 条信号行 + 5 个块的汇总行。
+- 登记簿 `SIGNAL_REGISTRY_V1.json`，hash `7e20a677010ae378304d126aa56ba1c3943b903007f4b46cccc8b5a95f806d24`；5 条信号行 + 5 个块的汇总行。
+  2026-11-02 同一批输入重跑：信号行自己算的比率 6 位、金额 2 位（协调会话裁定，§10.2），只有信号行的费用合计变了；第一次运行的 hash 为
+  `cf02c2f33b1776427bd4368fa87090ab86cc6ebf698bf5dd98c9c6350469570c`（PR #46，见 git 历史）。
 - 一致性 `SIGNAL_REGISTRY_V1.conformance.json`：与四份记分牌比较 752 处，**差异 0**（US_V5 319、US_CORE 46、C17 326、QS 61）。
 
 | 行 | 自起始 已平 / 赚-亏 | 当前版本 已平 / 赚-亏 | 状态拆分 |
