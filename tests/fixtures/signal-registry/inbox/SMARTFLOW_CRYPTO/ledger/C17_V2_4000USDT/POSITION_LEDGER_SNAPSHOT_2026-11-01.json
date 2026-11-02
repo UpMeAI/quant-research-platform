@@ -1,0 +1,21 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "POSITION_LEDGER_SNAPSHOT_V1",
+  "file": "SMARTFLOW_CRYPTO/ledger/C17_V2_4000USDT/POSITION_LEDGER_SNAPSHOT_2026-11-01.json",
+  "hash": "e72d2a85321ed21f7f028b679ebe44417bdf8daea94d1b4a468e1714d78a05ef"
+ },
+ "sessionDate": "2026-11-01",
+ "generatedAt": "2026-11-02T00:20:05.836Z",
+ "lots": [
+  {
+   "lotId": "C17_V2_4000USDT:BTCUSDT:4751"
+  },
+  {
+   "lotId": "C17_V2_4000USDT:HYPEUSDT:4753"
+  },
+  {
+   "lotId": "C17_V2_4000USDT:SOLUSDT:4754"
+  }
+ ]
+}

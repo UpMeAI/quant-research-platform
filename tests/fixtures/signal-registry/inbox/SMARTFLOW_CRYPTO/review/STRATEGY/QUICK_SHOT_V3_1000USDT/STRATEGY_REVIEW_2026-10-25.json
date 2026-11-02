@@ -1,0 +1,89 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "STRATEGY_REVIEW_V1",
+  "file": "SMARTFLOW_CRYPTO/review/STRATEGY/QUICK_SHOT_V3_1000USDT/STRATEGY_REVIEW_2026-10-25.json",
+  "hash": "2efbf74c15b0cd58a5cc1f7d168ec05c5d9df722fa8633ec05e693296c2e817c"
+ },
+ "period": {
+  "kind": "WEEK",
+  "from": "2026-10-19",
+  "to": "2026-10-25",
+  "clock": "UTC_DAYS"
+ },
+ "generatedAt": "2026-10-27T00:20:01.977Z",
+ "tradeReviews": [
+  {
+   "tradeId": "8",
+   "symbol": "MASKUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-22T11:03:27.185Z",
+   "exitAt": "2026-10-22T12:06:00.000Z",
+   "entryReason": "QUICK_SHOT_RULES_V3 bearish signal #196",
+   "riskUnit": 7.2,
+   "rMultiple": -1.0798,
+   "exitReason": "QS_V3_EXIT_STOP_3PCT",
+   "pnl": -7.7749,
+   "costs": {
+    "fee": 0.192,
+    "funding": 0.0949,
+    "slippage": 0.288
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 1.04,
+   "parity": "UNKNOWN"
+  },
+  {
+   "tradeId": "9",
+   "symbol": "JCTUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-22T12:07:28.113Z",
+   "exitAt": "2026-10-22T12:13:00.000Z",
+   "entryReason": "QUICK_SHOT_RULES_V3 bearish signal #197",
+   "riskUnit": 7.2,
+   "rMultiple": -1.0667,
+   "exitReason": "QS_V3_EXIT_STOP_3PCT",
+   "pnl": -7.68,
+   "costs": {
+    "fee": 0.192,
+    "funding": 0,
+    "slippage": 0.288
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 0.09,
+   "parity": "UNKNOWN"
+  },
+  {
+   "tradeId": "10",
+   "symbol": "BRUSDT",
+   "direction": "LONG",
+   "entryAt": "2026-10-24T15:03:29.065Z",
+   "exitAt": "2026-10-25T10:56:00.000Z",
+   "entryReason": "QUICK_SHOT_RULES_V3 bullish signal #198",
+   "riskUnit": 7.2,
+   "rMultiple": -1.075,
+   "exitReason": "QS_V3_EXIT_STOP_3PCT",
+   "pnl": -7.74,
+   "costs": {
+    "fee": 0.192,
+    "funding": 0.06,
+    "slippage": 0.288
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 19.88,
+   "parity": "UNKNOWN"
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "POSITION_LEDGER_SNAPSHOT_V1",
+  "file": "SMARTFLOW_US/ledger/US_V5_ETF_3000USD/POSITION_LEDGER_SNAPSHOT_2026-10-30.json",
+  "hash": "9bdc951c216225909f8328eca06d91ded4b3d6612bfe8441ef2822591936171d"
+ },
+ "sessionDate": "2026-10-30",
+ "generatedAt": "2026-10-30T20:50:00.783Z",
+ "lots": [
+  {
+   "lotId": "USV5_1793369066268_pye5bc"
+  }
+ ]
+}

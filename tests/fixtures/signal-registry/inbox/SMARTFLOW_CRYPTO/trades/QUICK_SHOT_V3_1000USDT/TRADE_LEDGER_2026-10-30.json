@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "QUICK_SHOT_V3_1000USDT",
+  "sessionDate": "2026-10-30",
+  "generatedAt": "2026-11-01T00:20:02.731Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "QUICK_SHOT_V3_1000USDT:12:CLOSE",
+      "lotId": "QUICK_SHOT_V3_1000USDT:UAIUSDT:12",
+      "instrument": {
+        "id": "UAIUSDT",
+        "kind": "PERP",
+        "name": "UAI/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 909.435392194013,
+      "price": 0.242788,
+      "notional": 220.80000000000004,
+      "fees": {
+        "state": "MEASURED",
+        "amount": 0.096,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-30T00:19:00.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": null,
+        "reasonCodes": [
+          "QS_V3_EXIT_TARGET_8PCT"
+        ]
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 18.73836,
+        "r": 2.60255,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    }
+  ],
+  "counts": {
+    "events": 1,
+    "byPurpose": {
+      "OPEN": 0,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 220.80000000000004,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": 18.73836,
+      "r": 2.60255,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "7225dde50e59314e0a3c242f1e5fedd167771de7045f7ef45ec02f2d87d561ee"
+}

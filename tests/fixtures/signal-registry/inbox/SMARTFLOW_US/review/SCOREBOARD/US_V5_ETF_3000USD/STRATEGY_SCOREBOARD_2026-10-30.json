@@ -1,0 +1,2457 @@
+{
+  "schemaVersion": 1,
+  "contract": "STRATEGY_SCOREBOARD_V1",
+  "market": "US",
+  "producer": "SMARTFLOW_US",
+  "producerVersion": "9882d7e67f49",
+  "ledgerId": "US_V5_ETF_3000USD",
+  "generatedAt": "2026-10-30T20:50:01.753Z",
+  "period": {
+    "to": "2026-10-30",
+    "clock": "NYSE_SESSIONS"
+  },
+  "bindings": {
+    "strategyReview": {
+      "file": "review/STRATEGY/US_V5_ETF_3000USD/STRATEGY_REVIEW_2026-10-30.json",
+      "hash": "869eb76f39f3aa607aa99c90836453ca09771cfca43fe5beff922639d736edf5"
+    },
+    "replays": [],
+    "benchmarkSeries": [
+      {
+        "id": "SPY",
+        "file": "review/SCOREBOARD/US_V5_ETF_3000USD/series/SPY_2026-10-30.json",
+        "hash": "016c144b78536cb7b3a85ddfc0c9fc127e93f84b0367687486b103b4539573f1"
+      },
+      {
+        "id": "QQQ",
+        "file": "review/SCOREBOARD/US_V5_ETF_3000USD/series/QQQ_2026-10-30.json",
+        "hash": "afe9aafce63eb2083ea64cd7c7dbefbc68d781f4db02d6cca84f331c7ce8891b"
+      }
+    ]
+  },
+  "book": {
+    "strategyIdentity": "US_V5_ETF_UNIVERSE_V1 universe=config/us_etf_universe_v1.json signal=V5 on the ETF series (unlevered parent for leveraged and inverse carriers) capital=3000USD riskUnit=60USD maxPositions=3 mode=paper start=2026-10-08T13:30:00.000Z (new book version, AMENDMENT_4)",
+    "startedAt": "2026-10-08T13:30:00.000Z",
+    "state": "RUNNING",
+    "predecessorLedgerId": "US_V5_ETF_6000USD",
+    "versioning": {
+      "state": "SEGMENTED",
+      "reasonCode": null
+    }
+  },
+  "versions": [
+    {
+      "segmentId": "US_V5_ETF_3000USD:S1",
+      "versionKey": "S17:US_V5_ETF_3000USD.book@1+US_V5_ETF_6000USD.classCaps@1+US_V5_ETF_6000USD.earningsGate@1+US_V5_ETF_6000USD.entryGate@1+US_V5_ETF_6000USD.etfUniverse@3+US_V5_ETF_6000USD.holdingSwap@1+US_V5_ETF_6000USD.longIndexCarriers@2+US_V5_ETF_6000USD.regimeBinding@2+US_V5_ETF_6000USD.signalBranches@1",
+      "members": [
+        {
+          "ruleRef": "US_V5_ETF_3000USD.book@1",
+          "effectiveFrom": "2026-10-08T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.classCaps@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.earningsGate@1",
+          "effectiveFrom": "2026-10-02T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.entryGate@1",
+          "effectiveFrom": "2026-10-01T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.etfUniverse@3",
+          "effectiveFrom": "2026-10-06T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.holdingSwap@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.longIndexCarriers@2",
+          "effectiveFrom": "2026-10-06T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.regimeBinding@2",
+          "effectiveFrom": "2026-10-01T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.signalBranches@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-08T13:30:00.000Z",
+      "to": "2026-10-13T13:00:00.000Z",
+      "changedMembers": [],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "US_V5_ETF_3000USD:S2",
+      "versionKey": "S17:US_V5_ETF_3000USD.book@1+US_V5_ETF_6000USD.classCaps@1+US_V5_ETF_6000USD.earningsGate@1+US_V5_ETF_6000USD.entryGate@1+US_V5_ETF_6000USD.etfUniverse@3+US_V5_ETF_6000USD.holdingSwap@1+US_V5_ETF_6000USD.longIndexCarriers@2+US_V5_ETF_6000USD.regimeBinding@3+US_V5_ETF_6000USD.signalBranches@1",
+      "members": [
+        {
+          "ruleRef": "US_V5_ETF_3000USD.book@1",
+          "effectiveFrom": "2026-10-08T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.classCaps@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.earningsGate@1",
+          "effectiveFrom": "2026-10-02T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.entryGate@1",
+          "effectiveFrom": "2026-10-01T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.etfUniverse@3",
+          "effectiveFrom": "2026-10-06T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.holdingSwap@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.longIndexCarriers@2",
+          "effectiveFrom": "2026-10-06T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.regimeBinding@3",
+          "effectiveFrom": "2026-10-13T13:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.signalBranches@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-13T13:00:00.000Z",
+      "to": "2026-10-14T00:00:00.000Z",
+      "changedMembers": [
+        "US_V5_ETF_6000USD.regimeBinding@2",
+        "US_V5_ETF_6000USD.regimeBinding@3"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "US_V5_ETF_3000USD:S3",
+      "versionKey": "S17:US_V5_ETF_3000USD.book@1+US_V5_ETF_6000USD.classCaps@1+US_V5_ETF_6000USD.earningsGate@1+US_V5_ETF_6000USD.entryGate@1+US_V5_ETF_6000USD.etfUniverse@3+US_V5_ETF_6000USD.holdingSwap@1+US_V5_ETF_6000USD.klineTiming@1+US_V5_ETF_6000USD.longIndexCarriers@2+US_V5_ETF_6000USD.regimeBinding@3+US_V5_ETF_6000USD.signalBranches@1",
+      "members": [
+        {
+          "ruleRef": "US_V5_ETF_3000USD.book@1",
+          "effectiveFrom": "2026-10-08T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.classCaps@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.earningsGate@1",
+          "effectiveFrom": "2026-10-02T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.entryGate@1",
+          "effectiveFrom": "2026-10-01T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.etfUniverse@3",
+          "effectiveFrom": "2026-10-06T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.holdingSwap@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.klineTiming@1",
+          "effectiveFrom": "2026-10-14T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.longIndexCarriers@2",
+          "effectiveFrom": "2026-10-06T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.regimeBinding@3",
+          "effectiveFrom": "2026-10-13T13:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.signalBranches@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-14T00:00:00.000Z",
+      "to": "2026-10-27T13:30:00.000Z",
+      "changedMembers": [
+        "US_V5_ETF_6000USD.klineTiming@1"
+      ],
+      "boundary": "RECORDED"
+    },
+    {
+      "segmentId": "US_V5_ETF_3000USD:S4",
+      "versionKey": "S17:US_V5_ETF_3000USD.book@1+US_V5_ETF_6000USD.classCaps@1+US_V5_ETF_6000USD.earningsGate@1+US_V5_ETF_6000USD.entryGate@1+US_V5_ETF_6000USD.etfUniverse@4+US_V5_ETF_6000USD.holdingSwap@1+US_V5_ETF_6000USD.klineTiming@1+US_V5_ETF_6000USD.longIndexCarriers@2+US_V5_ETF_6000USD.regimeBinding@3+US_V5_ETF_6000USD.signalBranches@1",
+      "members": [
+        {
+          "ruleRef": "US_V5_ETF_3000USD.book@1",
+          "effectiveFrom": "2026-10-08T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.classCaps@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.earningsGate@1",
+          "effectiveFrom": "2026-10-02T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.entryGate@1",
+          "effectiveFrom": "2026-10-01T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.etfUniverse@4",
+          "effectiveFrom": "2026-10-27T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.holdingSwap@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.klineTiming@1",
+          "effectiveFrom": "2026-10-14T00:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.longIndexCarriers@2",
+          "effectiveFrom": "2026-10-06T13:30:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.regimeBinding@3",
+          "effectiveFrom": "2026-10-13T13:00:00.000Z",
+          "source": "S17"
+        },
+        {
+          "ruleRef": "US_V5_ETF_6000USD.signalBranches@1",
+          "effectiveFrom": "2026-10-05T13:30:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-27T13:30:00.000Z",
+      "to": null,
+      "changedMembers": [
+        "US_V5_ETF_6000USD.etfUniverse@3",
+        "US_V5_ETF_6000USD.etfUniverse@4"
+      ],
+      "boundary": "RECORDED"
+    }
+  ],
+  "windows": {
+    "bookSinceStart": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-08T13:30:00.000Z",
+      "to": "2026-10-30T20:00:00.000Z",
+      "segmentIds": [
+        "US_V5_ETF_3000USD:S1",
+        "US_V5_ETF_3000USD:S2",
+        "US_V5_ETF_3000USD:S3",
+        "US_V5_ETF_3000USD:S4"
+      ],
+      "sessions": 17,
+      "shortWindow": true,
+      "crossesVersions": true,
+      "closed": 1,
+      "open": 1,
+      "wins": 1,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "GROSS",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -0.83,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 2.2503,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": -2.7663,
+          "maxDrawdownPct": 2.9349,
+          "reasonCode": null,
+          "excessPct": 1.9363,
+          "bearProtectionRatio": {
+            "value": 0.7667,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": -8.8739,
+          "maxDrawdownPct": 8.8739,
+          "reasonCode": null,
+          "excessPct": 8.0439,
+          "bearProtectionRatio": {
+            "value": 0.2536,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "FEE_NOT_REPORTED"
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "SLIPPAGE_NOT_MEASURED"
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "SPY",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -2.7663,
+          "maxDrawdownPct": 2.9349,
+          "excessPct": 1.9363,
+          "bearProtectionRatio": {
+            "value": 0.7667,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -8.8739,
+          "maxDrawdownPct": 8.8739,
+          "excessPct": 8.0439,
+          "bearProtectionRatio": {
+            "value": 0.2536,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "UNDER_STUDY"
+    },
+    "currentVersion": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-27T13:30:00.000Z",
+      "to": "2026-10-30T20:00:00.000Z",
+      "segmentIds": [
+        "US_V5_ETF_3000USD:S4"
+      ],
+      "sessions": 4,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 0,
+      "open": 1,
+      "wins": 0,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+      },
+      "avgR": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+      },
+      "returnPct": {
+        "value": -0.9957,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 0.9957,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": -1.2608,
+          "maxDrawdownPct": 2.1481,
+          "reasonCode": null,
+          "excessPct": 0.2651,
+          "bearProtectionRatio": {
+            "value": 0.4635,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": -3.0483,
+          "maxDrawdownPct": 4.8401,
+          "reasonCode": null,
+          "excessPct": 2.0526,
+          "bearProtectionRatio": {
+            "value": 0.2057,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+        }
+      },
+      "postExit": {
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE",
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": null,
+        "takeProfit": null
+      },
+      "roleBenchmark": [
+        {
+          "id": "SPY",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -1.2608,
+          "maxDrawdownPct": 2.1481,
+          "excessPct": 0.2651,
+          "bearProtectionRatio": {
+            "value": 0.4635,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -3.0483,
+          "maxDrawdownPct": 4.8401,
+          "excessPct": 2.0526,
+          "bearProtectionRatio": {
+            "value": 0.2057,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "UNDER_STUDY"
+    },
+    "previousVersion": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-14T00:00:00.000Z",
+      "to": "2026-10-27T13:30:00.000Z",
+      "segmentIds": [
+        "US_V5_ETF_3000USD:S3"
+      ],
+      "sessions": 10,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 1,
+      "open": 0,
+      "wins": 1,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "GROSS",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -0.8895,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 1.2673,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": -1.636,
+          "maxDrawdownPct": 2.33,
+          "reasonCode": null,
+          "excessPct": 0.7465,
+          "bearProtectionRatio": {
+            "value": 0.5439,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": -4.5359,
+          "maxDrawdownPct": 5.5815,
+          "reasonCode": null,
+          "excessPct": 3.6464,
+          "bearProtectionRatio": {
+            "value": 0.2271,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "FEE_NOT_REPORTED"
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "SLIPPAGE_NOT_MEASURED"
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "SPY",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -1.636,
+          "maxDrawdownPct": 2.33,
+          "excessPct": 0.7465,
+          "bearProtectionRatio": {
+            "value": 0.5439,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -4.5359,
+          "maxDrawdownPct": 5.5815,
+          "excessPct": 3.6464,
+          "bearProtectionRatio": {
+            "value": 0.2271,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": null,
+        "state": "UNKNOWN",
+        "reasonCode": "CAPITAL_SHARE_AT_PERIOD_END_ONLY"
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "UNDER_STUDY"
+    },
+    "rolling60": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-08T13:30:00.000Z",
+      "to": "2026-10-30T20:00:00.000Z",
+      "segmentIds": [
+        "US_V5_ETF_3000USD:S1",
+        "US_V5_ETF_3000USD:S2",
+        "US_V5_ETF_3000USD:S3",
+        "US_V5_ETF_3000USD:S4"
+      ],
+      "sessions": 17,
+      "shortWindow": true,
+      "crossesVersions": true,
+      "closed": 1,
+      "open": 1,
+      "wins": 1,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "GROSS",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": -0.83,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 2.2503,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": -2.7663,
+          "maxDrawdownPct": 2.9349,
+          "reasonCode": null,
+          "excessPct": 1.9363,
+          "bearProtectionRatio": {
+            "value": 0.7667,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": -8.8739,
+          "maxDrawdownPct": 8.8739,
+          "reasonCode": null,
+          "excessPct": 8.0439,
+          "bearProtectionRatio": {
+            "value": 0.2536,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "FEE_NOT_REPORTED"
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "SLIPPAGE_NOT_MEASURED"
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "SPY",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -2.7663,
+          "maxDrawdownPct": 2.9349,
+          "excessPct": 1.9363,
+          "bearProtectionRatio": {
+            "value": 0.7667,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "interim": true,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": "ROLE_BENCHMARK_INTERIM",
+          "returnPct": -8.8739,
+          "maxDrawdownPct": 8.8739,
+          "excessPct": 8.0439,
+          "bearProtectionRatio": {
+            "value": 0.2536,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "UNDER_STUDY"
+    },
+    "last30Closed": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-09T17:23:09.000Z",
+      "to": "2026-10-30T20:00:00.000Z",
+      "segmentIds": [
+        "US_V5_ETF_3000USD:S1",
+        "US_V5_ETF_3000USD:S2",
+        "US_V5_ETF_3000USD:S3",
+        "US_V5_ETF_3000USD:S4"
+      ],
+      "sessions": 16,
+      "shortWindow": true,
+      "crossesVersions": true,
+      "closed": 1,
+      "open": 1,
+      "wins": 1,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "GROSS",
+      "winRate": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "avgR": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "INSUFFICIENT_SAMPLE",
+        "reasonCode": null
+      },
+      "returnPct": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+      },
+      "maxDrawdownPct": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW"
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": null,
+          "maxDrawdownPct": null,
+          "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": null,
+          "maxDrawdownPct": null,
+          "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "FEE_NOT_REPORTED"
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_MEASURED",
+          "amount": null,
+          "reasonCode": "SLIPPAGE_NOT_MEASURED"
+        }
+      },
+      "postExit": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        },
+        "takeProfit": {
+          "exits": 0,
+          "favorableAtLeast1R": 0
+        }
+      },
+      "roleBenchmark": [
+        {
+          "id": "SPY",
+          "interim": true,
+          "basis": null,
+          "state": "NOT_APPLICABLE",
+          "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+          "returnPct": null,
+          "maxDrawdownPct": null,
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "interim": true,
+          "basis": null,
+          "state": "NOT_APPLICABLE",
+          "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+          "returnPct": null,
+          "maxDrawdownPct": null,
+          "excessPct": null,
+          "bearProtectionRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:TRADE_COUNT_WINDOW",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": 25,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "UNDER_STUDY"
+    }
+  },
+  "comparisons": [
+    {
+      "fromSegment": "US_V5_ETF_3000USD:S3",
+      "toSegment": "US_V5_ETF_3000USD:S4",
+      "reasonCode": null,
+      "n": 4,
+      "meanDiff": null,
+      "unit": null,
+      "tStat": null,
+      "researchRef": null,
+      "expectedRange": null,
+      "position": null,
+      "kind": "DESCRIPTIVE",
+      "state": "BELOW_FLOOR",
+      "notCausal": true
+    },
+    {
+      "fromSegment": "US_V5_ETF_3000USD:S3",
+      "toSegment": "US_V5_ETF_3000USD:S4",
+      "reasonCode": "NOT_AVAILABLE:PAIRED_REPLAY_NOT_BUILT",
+      "n": null,
+      "meanDiff": null,
+      "unit": null,
+      "tStat": null,
+      "researchRef": null,
+      "expectedRange": null,
+      "position": null,
+      "kind": "PAIRED_REPLAY",
+      "state": "NOT_AVAILABLE",
+      "notCausal": false
+    }
+  ],
+  "interpretation": "SCOREBOARD_FACTS_NOT_A_VERDICT",
+  "realOrder": 0,
+  "brokerWrite": false,
+  "role": {
+    "roleId": "US_SATELLITE",
+    "roleMapVersion": "ROLE_MAP_V1",
+    "roleMapSha256": "756c57436e973470506c819d4da15221bfc7551b22a5874b05d2cb5d836d5613"
+  },
+  "stateSplit": {
+    "state": "ACTIVE",
+    "reasonCode": null,
+    "since": "2026-10-16T20:50:00.962Z",
+    "mapping": {
+      "file": "config/cycle-state/mapping.v2.json",
+      "hash": "71e115c649649e7a6ffc6349abf05f8b63ab4fa333762ccf32790154aca6cea8"
+    },
+    "axisKeys": {
+      "macro": "MACRO_STATE",
+      "industry": "INDUSTRY_REALTIME_MOMENTUM",
+      "price": "US_MARKET_REGIME"
+    },
+    "tags": [
+      {
+        "tradeId": "USV5_1793369066268_pye5bc",
+        "decidedAt": "2026-10-30T14:04:27.000Z",
+        "decisionRef": {
+          "record": "ENTRY_SIGNAL",
+          "id": "USV5_1793369066268_pye5bc"
+        },
+        "taggedAt": "2026-10-30T20:50:01.753Z",
+        "axes": {
+          "macro": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "UNKNOWN:STATE_SOURCE_STALE",
+            "sourceKind": null,
+            "subjectId": null,
+            "knownAt": null,
+            "qualityStatus": null,
+            "methodVersion": null,
+            "source": null,
+            "divergenceState": null
+          },
+          "industry": {
+            "value": null,
+            "state": "UNKNOWN",
+            "reasonCode": "UNKNOWN:STATE_SOURCE_NOT_DELIVERED",
+            "sourceKind": null,
+            "subjectId": null,
+            "knownAt": null,
+            "qualityStatus": null,
+            "methodVersion": null,
+            "source": null,
+            "divergenceState": null
+          },
+          "price": {
+            "value": "cautious",
+            "state": "TAGGED",
+            "reasonCode": null,
+            "sourceKind": "STRATEGY_STATE",
+            "subjectId": "US",
+            "knownAt": "2026-10-30T14:04:27.000Z",
+            "qualityStatus": "READY",
+            "methodVersion": "US_MARKET_REGIME",
+            "source": null,
+            "divergenceState": null
+          }
+        },
+        "outcome": null,
+        "tagHash": "c581bbbed85c5579f2bcd1af71aceaf597a18c7575f6ad5ceea03af3e5401ec9"
+      }
+    ],
+    "windows": {
+      "bookSinceStart": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "from": "2026-10-08T13:30:00.000Z",
+        "to": "2026-10-30T20:00:00.000Z",
+        "segmentIds": [
+          "US_V5_ETF_3000USD:S1",
+          "US_V5_ETF_3000USD:S2",
+          "US_V5_ETF_3000USD:S3",
+          "US_V5_ETF_3000USD:S4"
+        ],
+        "untaggedClosed": 1,
+        "untaggedOpen": 0,
+        "axes": {
+          "macro": {
+            "state": "SPLIT",
+            "reasonCode": null,
+            "cells": [
+              {
+                "key": "CONTRACTION",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "SLOWDOWN",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "EXPANSION",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "FLAT",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "STATE_UNKNOWN",
+                "closed": 0,
+                "open": 1,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                }
+              },
+              {
+                "key": "STATE_NOT_APPLICABLE",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                }
+              }
+            ]
+          },
+          "industry": {
+            "state": "SPLIT",
+            "reasonCode": null,
+            "cells": [
+              {
+                "key": "IMPROVING",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "WEAKENING",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "FLAT",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "STATE_UNKNOWN",
+                "closed": 0,
+                "open": 1,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                }
+              },
+              {
+                "key": "STATE_NOT_APPLICABLE",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                }
+              }
+            ]
+          },
+          "price": {
+            "state": "SPLIT",
+            "reasonCode": null,
+            "cells": [
+              {
+                "key": "normal",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "cautious",
+                "closed": 0,
+                "open": 1,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "risk_off",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "STATE_UNKNOWN",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                }
+              },
+              {
+                "key": "STATE_NOT_APPLICABLE",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                }
+              }
+            ]
+          }
+        }
+      },
+      "currentVersion": {
+        "state": "MEASURED",
+        "reasonCode": null,
+        "from": "2026-10-27T13:30:00.000Z",
+        "to": "2026-10-30T20:00:00.000Z",
+        "segmentIds": [
+          "US_V5_ETF_3000USD:S4"
+        ],
+        "untaggedClosed": 0,
+        "untaggedOpen": 0,
+        "axes": {
+          "macro": {
+            "state": "SPLIT",
+            "reasonCode": null,
+            "cells": [
+              {
+                "key": "CONTRACTION",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "SLOWDOWN",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "EXPANSION",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "FLAT",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "STATE_UNKNOWN",
+                "closed": 0,
+                "open": 1,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                }
+              },
+              {
+                "key": "STATE_NOT_APPLICABLE",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                }
+              }
+            ]
+          },
+          "industry": {
+            "state": "SPLIT",
+            "reasonCode": null,
+            "cells": [
+              {
+                "key": "IMPROVING",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "WEAKENING",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "FLAT",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "STATE_UNKNOWN",
+                "closed": 0,
+                "open": 1,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                }
+              },
+              {
+                "key": "STATE_NOT_APPLICABLE",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                }
+              }
+            ]
+          },
+          "price": {
+            "state": "SPLIT",
+            "reasonCode": null,
+            "cells": [
+              {
+                "key": "normal",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "cautious",
+                "closed": 0,
+                "open": 1,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "risk_off",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null,
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "INSUFFICIENT_SAMPLE",
+                  "reasonCode": null
+                }
+              },
+              {
+                "key": "STATE_UNKNOWN",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_UNKNOWN"
+                }
+              },
+              {
+                "key": "STATE_NOT_APPLICABLE",
+                "closed": 0,
+                "open": 0,
+                "sample": {
+                  "n": 0,
+                  "floor": 20,
+                  "state": "BELOW_FLOOR"
+                },
+                "winRate": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "avgR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "netPnl": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE",
+                  "basis": null
+                },
+                "maxDrawdownR": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                },
+                "maxDrawdownAmount": {
+                  "value": null,
+                  "state": "NOT_APPLICABLE",
+                  "reasonCode": "NOT_APPLICABLE:CELL_STATE_NOT_APPLICABLE"
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "hash": "c2fff7e2198863ea0d7b53b9f590dd4723fe9f06f616e5ee829eae812a46b1d8"
+}

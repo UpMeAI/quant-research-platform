@@ -1,0 +1,161 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "STRATEGY_REVIEW_V1",
+  "file": "SMARTFLOW_CRYPTO/review/STRATEGY/C17_V2_4000USDT/STRATEGY_REVIEW_2026-11-01.json",
+  "hash": "b778a500b37e46e22bcc20ab04a34ecbc42cd5d065f22b45dc8c22f3b7f6d7b9"
+ },
+ "period": {
+  "kind": "WEEK",
+  "from": "2026-10-26",
+  "to": "2026-11-01",
+  "clock": "UTC_DAYS"
+ },
+ "generatedAt": "2026-11-02T00:20:02.507Z",
+ "tradeReviews": [
+  {
+   "tradeId": "4746",
+   "symbol": "BTCUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-24T04:03:37.000Z",
+   "exitAt": "2026-10-27T04:03:56.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 74.8567,
+   "rMultiple": 0.6968,
+   "exitReason": "TIME_STOP",
+   "pnl": 52.159,
+   "costs": {
+    "fee": 2.5866,
+    "funding": -2.1268,
+    "slippage": 3.699
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 72.01,
+   "parity": "MATCHED"
+  },
+  {
+   "tradeId": "4747",
+   "symbol": "ETHUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-24T04:03:38.000Z",
+   "exitAt": "2026-10-27T04:03:56.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 75.352,
+   "rMultiple": 1.4096,
+   "exitReason": "TIME_STOP",
+   "pnl": 106.2178,
+   "costs": {
+    "fee": 2.5937,
+    "funding": -1.7597,
+    "slippage": 3.713
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 72.01,
+   "parity": "MATCHED"
+  },
+  {
+   "tradeId": "4748",
+   "symbol": "SOLUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-27T12:07:05.000Z",
+   "exitAt": "2026-10-28T03:28:18.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 75.3574,
+   "rMultiple": -1.0775,
+   "exitReason": "STOP_LOSS",
+   "pnl": -81.1956,
+   "costs": {
+    "fee": 2.6679,
+    "funding": -0.6578,
+    "slippage": 3.8056
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 15.35,
+   "parity": "MATCHED"
+  },
+  {
+   "tradeId": "4749",
+   "symbol": "HYPEUSDT",
+   "direction": "LONG",
+   "entryAt": "2026-10-29T20:13:53.000Z",
+   "exitAt": "2026-10-29T20:43:46.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 76.537,
+   "rMultiple": -1.0491,
+   "exitReason": "STOP_LOSS",
+   "pnl": -80.2946,
+   "costs": {
+    "fee": 1.5449,
+    "funding": 0,
+    "slippage": 2.2127
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 0.5,
+   "parity": "MATCHED"
+  },
+  {
+   "tradeId": "4750",
+   "symbol": "ETHUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-30T12:03:53.000Z",
+   "exitAt": "2026-10-30T23:33:00.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 75.8521,
+   "rMultiple": -0.3347,
+   "exitReason": "TRAILING_STOP",
+   "pnl": -25.386,
+   "costs": {
+    "fee": 2.2787,
+    "funding": 0.1365,
+    "slippage": 3.2536
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 11.49,
+   "parity": "MATCHED"
+  },
+  {
+   "tradeId": "4752",
+   "symbol": "BNBUSDT",
+   "direction": "SHORT",
+   "entryAt": "2026-10-30T16:03:55.000Z",
+   "exitAt": "2026-11-01T15:02:29.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 76.2286,
+   "rMultiple": -1.0627,
+   "exitReason": "STOP_LOSS",
+   "pnl": -81.0082,
+   "costs": {
+    "fee": 2.0127,
+    "funding": -0.1027,
+    "slippage": 2.8696
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 46.98,
+   "parity": "MATCHED"
+  }
+ ]
+}

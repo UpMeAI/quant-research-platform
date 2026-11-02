@@ -274,6 +274,15 @@ const SCHEMAS = Object.freeze({
     next_checkpoint: 's?', status: 's', resolution_ref: 's?', resolved_at: 's?',
     record_hash: 's', recorded_at: 's',
   },
+  SIGNAL_REGISTRY_V1: {
+    _doc: '美股、加密信号登记簿（docs/contracts/SIGNAL_REGISTRY_V1.md）—— 一行 = 一本在跑账本（或其部分）的一条入场信号：命中率、每笔期望、已平笔数及其按市场状态拆分；只读生产方已交付文件，对记分牌 0 差异；事实不是裁决',
+    registryVersion: 'n', generatedAt: 's?', contracts: 'o', floors: 'o', books: 'a', rows: 'a', interpretation: 's', productionEffect: 's', hash: 's',
+  },
+  SIGNAL_REGISTRY_ROW_V1: {
+    _doc: 'SIGNAL_REGISTRY_V1 的一行（rows[] 与 books[].blocks[].rollup）；windows 为 bookSinceStart / currentVersion / previousVersion',
+    rowId: 's', ledgerId: 's', market: 's', partId: 's?', signalKey: 's', signalCodes: 'a', ruleRefs: 'a', entries: 'n',
+    firstEntryAt: 's?', lastEntryAt: 's?', windows: 'o', stateSplit: 'o',
+  },
 });
 
 const TYPE_CHECK = {

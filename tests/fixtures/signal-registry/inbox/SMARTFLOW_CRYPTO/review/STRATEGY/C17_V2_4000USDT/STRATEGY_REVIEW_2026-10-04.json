@@ -1,0 +1,65 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "STRATEGY_REVIEW_V1",
+  "file": "SMARTFLOW_CRYPTO/review/STRATEGY/C17_V2_4000USDT/STRATEGY_REVIEW_2026-10-04.json",
+  "hash": "699610625dca732415bf9e49bd8f49b3947e9a3ffb090630249b9e1b52a4f5a2"
+ },
+ "period": {
+  "kind": "WEEK",
+  "from": "2026-09-28",
+  "to": "2026-10-04",
+  "clock": "UTC_DAYS"
+ },
+ "generatedAt": "2026-10-05T08:52:50.380Z",
+ "tradeReviews": [
+  {
+   "tradeId": "4730",
+   "symbol": "BTCUSDT",
+   "direction": "LONG",
+   "entryAt": "2026-10-01T20:00:04.000Z",
+   "exitAt": "2026-10-02T06:09:02.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 202.2246,
+   "rMultiple": 0.6296,
+   "exitReason": "TRAILING_STOP",
+   "pnl": 127.3156,
+   "costs": {
+    "fee": 7.0478,
+    "funding": 0.2696,
+    "slippage": 10.0587
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 10.15,
+   "parity": "MATCHED"
+  },
+  {
+   "tradeId": "4731",
+   "symbol": "ETHUSDT",
+   "direction": "LONG",
+   "entryAt": "2026-10-02T08:00:05.000Z",
+   "exitAt": "2026-10-02T17:15:02.000Z",
+   "entryReason": "Agent TREND TREND signal",
+   "riskUnit": 206.1611,
+   "rMultiple": -1.1533,
+   "exitReason": "STOP_LOSS",
+   "pnl": -237.7597,
+   "costs": {
+    "fee": 7.1687,
+    "funding": 0.1751,
+    "slippage": 10.2574
+   },
+   "costProvenance": {
+    "fee": "MODELLED",
+    "funding": "MEASURED",
+    "slippage": "MODELLED"
+   },
+   "holdHours": 9.25,
+   "parity": "MATCHED"
+  }
+ ]
+}

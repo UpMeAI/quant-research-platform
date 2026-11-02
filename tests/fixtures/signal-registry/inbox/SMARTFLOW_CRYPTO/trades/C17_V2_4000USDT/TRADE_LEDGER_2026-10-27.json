@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-27",
+  "generatedAt": "2026-10-29T00:20:02.205Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4746:CLOSE",
+      "lotId": "C17_V2_4000USDT:BTCUSDT:4746",
+      "instrument": {
+        "id": "BTCUSDT",
+        "kind": "PERP",
+        "name": "BTC/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 0.046,
+      "price": 79800,
+      "notional": 3670.7999999999997,
+      "quantityUnit": {
+        "asset": "BTC",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-27T04:05:23.764Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.46905416,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-27T04:03:56.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": "SMARTFLOW_CRYPTO:CRYPTO:2026-10-27:T0:C17_V2_4000USDT:C17_V2_4000USDT:BTCUSDT:4746",
+        "signalId": null,
+        "reasonCodes": [
+          "TIME_STOP"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_19"
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 52.15897582,
+        "r": 0.696784,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4747:CLOSE",
+      "lotId": "C17_V2_4000USDT:ETHUSDT:4747",
+      "instrument": {
+        "id": "ETHUSDT",
+        "kind": "PERP",
+        "name": "ETH/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 1.581,
+      "price": 2313.5,
+      "notional": 3657.6435,
+      "quantityUnit": {
+        "asset": "ETH",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-27T04:05:23.764Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.46378893,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-27T04:03:56.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": "SMARTFLOW_CRYPTO:CRYPTO:2026-10-27:T0:C17_V2_4000USDT:C17_V2_4000USDT:ETHUSDT:4747",
+        "signalId": null,
+        "reasonCodes": [
+          "TIME_STOP"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_19"
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": 106.21778964,
+        "r": 1.409621,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    },
+    {
+      "eventId": "C17_V2_4000USDT:4748:OPEN",
+      "lotId": "C17_V2_4000USDT:SOLUSDT:4748",
+      "instrument": {
+        "id": "SOLUSDT",
+        "kind": "PERP",
+        "name": "SOL/USDT 永续合约"
+      },
+      "side": "SELL",
+      "purpose": "OPEN",
+      "direction": "SHORT",
+      "quantity": 37.69,
+      "price": 99.97,
+      "notional": 3767.8693,
+      "quantityUnit": {
+        "asset": "SOL",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-27T12:08:28.228Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.12979561,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-27T12:07:05.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": null,
+        "signalId": "C17_SIGNAL_V1:SOLUSDT:SHORT:TREND:1793102399999",
+        "reasonCodes": [
+          "C17_SIGNAL_AND_RANKING",
+          "TREND"
+        ],
+        "ruleRef": "C17_V2_ENTRY@AMENDMENT_19"
+      },
+      "realized": {
+        "state": "NOT_APPLICABLE",
+        "currencyAmount": null,
+        "r": null,
+        "reasonCode": "NOT_A_CLOSING_EVENT"
+      }
+    }
+  ],
+  "counts": {
+    "events": 3,
+    "byPurpose": {
+      "OPEN": 1,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 2
+    },
+    "bySide": {
+      "BUY": 2,
+      "SELL": 1
+    }
+  },
+  "totals": {
+    "notional": 11096.3128,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": 158.37676546,
+      "r": 2.106405,
+      "closingEvents": 2,
+      "measuredEvents": 2
+    }
+  },
+  "hash": "de88b306f04f191a0a590153b903d2b03200ed2098528905dcb5755fb66de983"
+}

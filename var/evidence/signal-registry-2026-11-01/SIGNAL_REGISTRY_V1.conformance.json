@@ -1,0 +1,32 @@
+{
+  "contract": "SIGNAL_REGISTRY_V1_SCOREBOARD_CONFORMANCE",
+  "registryHash": "cf02c2f33b1776427bd4368fa87090ab86cc6ebf698bf5dd98c9c6350469570c",
+  "compared": 752,
+  "differences": 0,
+  "books": [
+    {
+      "ledgerId": "US_V5_ETF_3000USD",
+      "scoreboardHash": "c2fff7e2198863ea0d7b53b9f590dd4723fe9f06f616e5ee829eae812a46b1d8",
+      "compared": 319,
+      "differences": []
+    },
+    {
+      "ledgerId": "US_CORE_9000USD_3X_GATEOBS",
+      "scoreboardHash": "498e4375c8d6e69c9e002a87dc5e6d7418663de43b17375134b9d2a7f29674f4",
+      "compared": 46,
+      "differences": []
+    },
+    {
+      "ledgerId": "C17_V2_4000USDT",
+      "scoreboardHash": "385621f0416e75185ddbf488bbe7e545dac852e949cda0fc1b44ca5f163cf0d9",
+      "compared": 326,
+      "differences": []
+    },
+    {
+      "ledgerId": "QUICK_SHOT_V3_1000USDT",
+      "scoreboardHash": "ae48f2d3ea0ca6bc18265caca7fef537647c2ec93342da25bc0697defcd21c74",
+      "compared": 61,
+      "differences": []
+    }
+  ]
+}

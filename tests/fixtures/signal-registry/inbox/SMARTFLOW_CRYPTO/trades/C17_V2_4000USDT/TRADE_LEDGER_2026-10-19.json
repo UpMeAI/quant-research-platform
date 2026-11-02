@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "producer": "SMARTFLOW_CRYPTO",
+  "market": "CRYPTO",
+  "ledgerId": "C17_V2_4000USDT",
+  "sessionDate": "2026-10-19",
+  "generatedAt": "2026-10-20T00:20:01.616Z",
+  "currency": "USDT",
+  "executionMode": "PAPER",
+  "events": [
+    {
+      "eventId": "C17_V2_4000USDT:4743:CLOSE",
+      "lotId": "C17_V2_4000USDT:ETHUSDT:4743",
+      "instrument": {
+        "id": "ETHUSDT",
+        "kind": "PERP",
+        "name": "ETH/USDT 永续合约"
+      },
+      "side": "BUY",
+      "purpose": "CLOSE",
+      "direction": "SHORT",
+      "quantity": 1.577,
+      "price": 2440.76,
+      "notional": 3849.07852,
+      "quantityUnit": {
+        "asset": "ETH",
+        "source": "BINANCE_USDM_EXCHANGE_INFO",
+        "observedAt": "2026-10-19T07:35:20.666Z"
+      },
+      "fees": {
+        "state": "MEASURED",
+        "amount": 1.54040122,
+        "reasonCode": "FEE_MODELLED_ASSUMED_CONFIG"
+      },
+      "executedAt": "2026-10-19T07:34:53.000Z",
+      "provenance": "PAPER_FILL",
+      "reportedAt": null,
+      "decision": {
+        "planId": "SMARTFLOW_CRYPTO:CRYPTO:2026-10-19:T0:C17_V2_4000USDT:C17_V2_4000USDT:ETHUSDT:4743",
+        "signalId": null,
+        "reasonCodes": [
+          "STOP_LOSS"
+        ],
+        "ruleRef": "C17_V2_EXIT_LADDER@AMENDMENT_21"
+      },
+      "realized": {
+        "state": "MEASURED",
+        "currencyAmount": -86.97811834,
+        "r": -1.154036,
+        "reasonCode": "NET_INCLUDES_MODELLED_FEE_AND_SLIPPAGE"
+      }
+    }
+  ],
+  "counts": {
+    "events": 1,
+    "byPurpose": {
+      "OPEN": 0,
+      "ADD": 0,
+      "REDUCE": 0,
+      "CLOSE": 1
+    },
+    "bySide": {
+      "BUY": 1,
+      "SELL": 0
+    }
+  },
+  "totals": {
+    "notional": 3849.07852,
+    "realized": {
+      "state": "MEASURED",
+      "currencyAmount": -86.97811834,
+      "r": -1.154036,
+      "closingEvents": 1,
+      "measuredEvents": 1
+    }
+  },
+  "hash": "13946b3ee662b1530c7e1c3e3572215fb266f85a280934ec020f2fdf6f56b0e7"
+}

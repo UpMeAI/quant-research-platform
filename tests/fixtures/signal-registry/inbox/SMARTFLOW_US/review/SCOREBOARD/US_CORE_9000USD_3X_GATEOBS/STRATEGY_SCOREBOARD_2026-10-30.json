@@ -1,0 +1,611 @@
+{
+  "schemaVersion": 1,
+  "contract": "STRATEGY_SCOREBOARD_V1",
+  "market": "US",
+  "producer": "SMARTFLOW_US",
+  "producerVersion": "9882d7e67f49",
+  "ledgerId": "US_CORE_9000USD_3X_GATEOBS",
+  "generatedAt": "2026-10-30T20:50:01.753Z",
+  "period": {
+    "to": "2026-10-30",
+    "clock": "NYSE_SESSIONS"
+  },
+  "bindings": {
+    "strategyReview": {
+      "file": "review/STRATEGY/US_CORE_9000USD_3X_GATEOBS/STRATEGY_REVIEW_2026-10-30.json",
+      "hash": "0e11e772496a13fca4d65fa20a9eb9ece5bafa5234a098fd003bf8fde6bf7f76"
+    },
+    "replays": [],
+    "benchmarkSeries": [
+      {
+        "id": "SPY",
+        "file": "review/SCOREBOARD/US_CORE_9000USD_3X_GATEOBS/series/SPY_2026-10-30.json",
+        "hash": "8f0573bc5393b608e7adf76671d0dfec92eba018a195f2e5c24ed25ce7f0121d"
+      },
+      {
+        "id": "QQQ",
+        "file": "review/SCOREBOARD/US_CORE_9000USD_3X_GATEOBS/series/QQQ_2026-10-30.json",
+        "hash": "6e07006a2dc99cccb4bd2c1a1dd3969a3060a9457d427080eaf61178825d3d59"
+      },
+      {
+        "id": "VOO",
+        "file": "review/SCOREBOARD/US_CORE_9000USD_3X_GATEOBS/series/VOO_2026-10-30.json",
+        "hash": "f6f2d5e7d9665c0319704952c630b2160a8be09a84b079a300069a0f9c6ea6f4"
+      }
+    ]
+  },
+  "book": {
+    "strategyIdentity": "US_CORE lev=3x initialEquity=9000USD carryRiskGate=OBSERVE_ONLY start=2026-10-08T13:30:00.000Z rotation=US_CORE_ROT rule unchanged (AMENDMENT_5, one US Core book)",
+    "startedAt": "2026-10-08T13:30:00.000Z",
+    "state": "RUNNING",
+    "predecessorLedgerId": "US_CORE_6000USD_3X_GATEOBS",
+    "versioning": {
+      "state": "SEGMENTED",
+      "reasonCode": null
+    }
+  },
+  "versions": [
+    {
+      "segmentId": "US_CORE_9000USD_3X_GATEOBS:S1",
+      "versionKey": "S17:US_CORE_9000USD_3X_GATEOBS.carryRiskGateMode@1",
+      "members": [
+        {
+          "ruleRef": "US_CORE_9000USD_3X_GATEOBS.carryRiskGateMode@1",
+          "effectiveFrom": "2026-10-08T13:30:00.000Z",
+          "source": "S17"
+        }
+      ],
+      "from": "2026-10-08T13:30:00.000Z",
+      "to": null,
+      "changedMembers": [],
+      "boundary": "RECORDED"
+    }
+  ],
+  "windows": {
+    "bookSinceStart": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-08T13:30:00.000Z",
+      "to": "2026-10-30T20:00:00.000Z",
+      "segmentIds": [
+        "US_CORE_9000USD_3X_GATEOBS:S1"
+      ],
+      "sessions": 17,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 0,
+      "open": 2,
+      "wins": 0,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+      },
+      "avgR": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP"
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP"
+      },
+      "returnPct": {
+        "value": -16.4492,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 16.4492,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": -2.7663,
+          "maxDrawdownPct": 2.9349,
+          "reasonCode": null,
+          "excessPct": -13.6829,
+          "bearProtectionRatio": {
+            "value": 5.6047,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": -8.8739,
+          "maxDrawdownPct": 8.8739,
+          "reasonCode": null,
+          "excessPct": -7.5753,
+          "bearProtectionRatio": {
+            "value": 1.8537,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 4.5,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:SLIPPAGE_INSIDE_MODELLED_FILL_PRICE"
+        }
+      },
+      "postExit": {
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP",
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": null,
+        "takeProfit": null
+      },
+      "roleBenchmark": [
+        {
+          "id": "VOO",
+          "interim": false,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": null,
+          "returnPct": -2.734,
+          "maxDrawdownPct": 2.9039,
+          "excessPct": -13.7152,
+          "bearProtectionRatio": {
+            "value": 5.6645,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": 75,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "MISALIGNED",
+      "sma200Crossings": [
+        {
+          "leg": "SPY",
+          "count": 0,
+          "sessions": 17,
+          "state": "MEASURED",
+          "reasonCode": null,
+          "shortWindow": true
+        },
+        {
+          "leg": "QQQ",
+          "count": 0,
+          "sessions": 17,
+          "state": "MEASURED",
+          "reasonCode": null,
+          "shortWindow": true
+        }
+      ]
+    },
+    "currentVersion": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-08T13:30:00.000Z",
+      "to": "2026-10-30T20:00:00.000Z",
+      "segmentIds": [
+        "US_CORE_9000USD_3X_GATEOBS:S1"
+      ],
+      "sessions": 17,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 0,
+      "open": 2,
+      "wins": 0,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+      },
+      "avgR": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP"
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP"
+      },
+      "returnPct": {
+        "value": -16.4492,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 16.4492,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": -2.7663,
+          "maxDrawdownPct": 2.9349,
+          "reasonCode": null,
+          "excessPct": -13.6829,
+          "bearProtectionRatio": {
+            "value": 5.6047,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": -8.8739,
+          "maxDrawdownPct": 8.8739,
+          "reasonCode": null,
+          "excessPct": -7.5753,
+          "bearProtectionRatio": {
+            "value": 1.8537,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 4.5,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:SLIPPAGE_INSIDE_MODELLED_FILL_PRICE"
+        }
+      },
+      "postExit": {
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP",
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": null,
+        "takeProfit": null
+      },
+      "roleBenchmark": [
+        {
+          "id": "VOO",
+          "interim": false,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": null,
+          "returnPct": -2.734,
+          "maxDrawdownPct": 2.9039,
+          "excessPct": -13.7152,
+          "bearProtectionRatio": {
+            "value": 5.6645,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": 75,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "MISALIGNED",
+      "sma200Crossings": [
+        {
+          "leg": "SPY",
+          "count": 0,
+          "sessions": 17,
+          "state": "MEASURED",
+          "reasonCode": null,
+          "shortWindow": true
+        },
+        {
+          "leg": "QQQ",
+          "count": 0,
+          "sessions": 17,
+          "state": "MEASURED",
+          "reasonCode": null,
+          "shortWindow": true
+        }
+      ]
+    },
+    "previousVersion": {
+      "state": "NOT_APPLICABLE",
+      "reasonCode": "NOT_APPLICABLE:NO_PREVIOUS_VERSION",
+      "from": null,
+      "to": null,
+      "segmentIds": [],
+      "sessions": null,
+      "shortWindow": null,
+      "crossesVersions": null,
+      "closed": null,
+      "open": null,
+      "wins": null,
+      "losses": null,
+      "flats": null,
+      "pnlBasis": null,
+      "winRate": null,
+      "avgR": null,
+      "expectancyT": null,
+      "returnPct": null,
+      "maxDrawdownPct": null,
+      "benchmarks": null,
+      "costs": null,
+      "postExit": null,
+      "roleBenchmark": null,
+      "capitalSharePct": null,
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": null,
+      "sma200Crossings": null
+    },
+    "rolling60": {
+      "state": "MEASURED",
+      "reasonCode": null,
+      "from": "2026-10-08T13:30:00.000Z",
+      "to": "2026-10-30T20:00:00.000Z",
+      "segmentIds": [
+        "US_CORE_9000USD_3X_GATEOBS:S1"
+      ],
+      "sessions": 17,
+      "shortWindow": true,
+      "crossesVersions": false,
+      "closed": 0,
+      "open": 2,
+      "wins": 0,
+      "losses": 0,
+      "flats": 0,
+      "pnlBasis": "NET",
+      "winRate": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE"
+      },
+      "avgR": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP"
+      },
+      "expectancyT": {
+        "value": null,
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP"
+      },
+      "returnPct": {
+        "value": -16.4492,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "maxDrawdownPct": {
+        "value": 16.4492,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "benchmarks": [
+        {
+          "id": "SPY",
+          "returnPct": -2.7663,
+          "maxDrawdownPct": 2.9349,
+          "reasonCode": null,
+          "excessPct": -13.6829,
+          "bearProtectionRatio": {
+            "value": 5.6047,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        },
+        {
+          "id": "QQQ",
+          "returnPct": -8.8739,
+          "maxDrawdownPct": 8.8739,
+          "reasonCode": null,
+          "excessPct": -7.5753,
+          "bearProtectionRatio": {
+            "value": 1.8537,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "costs": {
+        "fee": {
+          "state": "MODELLED",
+          "amount": 4.5,
+          "reasonCode": null
+        },
+        "funding": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:NOT_A_PERPETUAL"
+        },
+        "slippage": {
+          "state": "NOT_APPLICABLE",
+          "amount": null,
+          "reasonCode": "NOT_APPLICABLE:SLIPPAGE_INSIDE_MODELLED_FILL_PRICE"
+        }
+      },
+      "postExit": {
+        "state": "NOT_APPLICABLE",
+        "reasonCode": "NOT_APPLICABLE:NO_INITIAL_STOP",
+        "horizon": {
+          "bars": 5,
+          "unit": "SESSIONS"
+        },
+        "stopLoss": null,
+        "takeProfit": null
+      },
+      "roleBenchmark": [
+        {
+          "id": "VOO",
+          "interim": false,
+          "basis": "PRICE_ONLY",
+          "state": "MEASURED",
+          "reasonCode": null,
+          "returnPct": -2.734,
+          "maxDrawdownPct": 2.9039,
+          "excessPct": -13.7152,
+          "bearProtectionRatio": {
+            "value": 5.6645,
+            "state": "MEASURED",
+            "reasonCode": null,
+            "shortWindow": true
+          },
+          "bullParticipationRatio": {
+            "value": null,
+            "state": "NOT_APPLICABLE",
+            "reasonCode": "NOT_APPLICABLE:BENCHMARK_NOT_UP",
+            "shortWindow": true
+          }
+        }
+      ],
+      "capitalSharePct": {
+        "value": 75,
+        "state": "MEASURED",
+        "reasonCode": null
+      },
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": "MISALIGNED",
+      "sma200Crossings": [
+        {
+          "leg": "SPY",
+          "count": 0,
+          "sessions": 17,
+          "state": "MEASURED",
+          "reasonCode": null,
+          "shortWindow": true
+        },
+        {
+          "leg": "QQQ",
+          "count": 0,
+          "sessions": 17,
+          "state": "MEASURED",
+          "reasonCode": null,
+          "shortWindow": true
+        }
+      ]
+    },
+    "last30Closed": {
+      "state": "NOT_APPLICABLE",
+      "reasonCode": "NOT_APPLICABLE:NO_CLOSED_TRADE",
+      "from": null,
+      "to": null,
+      "segmentIds": [],
+      "sessions": null,
+      "shortWindow": null,
+      "crossesVersions": null,
+      "closed": null,
+      "open": null,
+      "wins": null,
+      "losses": null,
+      "flats": null,
+      "pnlBasis": null,
+      "winRate": null,
+      "avgR": null,
+      "expectancyT": null,
+      "returnPct": null,
+      "maxDrawdownPct": null,
+      "benchmarks": null,
+      "costs": null,
+      "postExit": null,
+      "roleBenchmark": null,
+      "capitalSharePct": null,
+      "capitalShareTarget": "NOT_SET",
+      "roleStatus": null,
+      "sma200Crossings": null
+    }
+  },
+  "comparisons": [],
+  "interpretation": "SCOREBOARD_FACTS_NOT_A_VERDICT",
+  "realOrder": 0,
+  "brokerWrite": false,
+  "role": {
+    "roleId": "US_CORE_ROLE",
+    "roleMapVersion": "ROLE_MAP_V1",
+    "roleMapSha256": "756c57436e973470506c819d4da15221bfc7551b22a5874b05d2cb5d836d5613"
+  },
+  "hash": "498e4375c8d6e69c9e002a87dc5e6d7418663de43b17375134b9d2a7f29674f4"
+}

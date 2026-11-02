@@ -1,0 +1,18 @@
+{
+ "projection": "SIGNAL_REGISTRY_INPUT_PROJECTION_V1",
+ "of": {
+  "contract": "POSITION_LEDGER_SNAPSHOT_V1",
+  "file": "SMARTFLOW_US/ledger/US_CORE_9000USD_3X_GATEOBS/POSITION_LEDGER_SNAPSHOT_2026-10-30.json",
+  "hash": "7ee700a0bce67a2b4b8da6ba309b11bd76596ad5c6a2cbe63edc0cd810b46572"
+ },
+ "sessionDate": "2026-10-30",
+ "generatedAt": "2026-10-30T20:50:00.543Z",
+ "lots": [
+  {
+   "lotId": "SPY:lev"
+  },
+  {
+   "lotId": "QQQ:lev"
+  }
+ ]
+}
