@@ -1,0 +1,209 @@
+{
+ "_comment": "Carry V2 接入 QRP 的 M1 / A0 规格常量,逐条抄自冻结的 K2(smartflow research/carry-v2-qrp-onboarding-k2@82753e30)与它点名的已封存文本。M1-1 的每条记录值在运行时还要在来源文本里找到(同一行含 anchor 与该值),来源 sha256 不符即拒跑;不在这里定任何新判据。",
+ "kind": "CARRY_V2_QRP_ONBOARDING_SPEC_V1",
+ "k2": {
+  "ref": "smartflow:research/carry-v2-qrp-onboarding-k2@82753e301e4d420f051a95cd5389e97bdebf4a31:trading-system-v2/docs/CARRY_V2_QRP_ONBOARDING_K2_DRAFT_V1.md",
+  "sha256": "319a055d58e0c1d3fe1d4042cf592680deaca7e097d8e398c42bc1bfc19cc1ba",
+  "freeze_ref": "artifacts/coordinator/CARRY_V2_QRP_ONBOARDING_K2_FREEZE_1.md"
+ },
+ "identity": { "strategy_ref": "CARRY_V2_SHADOW_10000USDT", "case_ref": "RRC-CARRY-V2-10000USDT-V8-1-M0", "verdict_form": "(a)" },
+ "data": {
+  "manifest_sha256": "162d80c9422e88ae163ad39b45cd600e6b9c9801c5dd27bddc739133d0797c23",
+  "data_files": 2459,
+  "dtb3_rel": "fred/DTB3-20261002T115735Z.csv",
+  "dtb3_sha256_prefix": "1e9dbca8",
+  "dtb3_bytes": 301189
+ },
+ "sealed_results": {
+  "V1": { "IS": "886a7b8c795c9a9a", "OOS": "65d3fe97f17479e8" },
+  "V2": { "W1": "55c7ba90bddf68ef", "W2": "fb47c57f496ccb09", "FULL": "b121f2427ab48944" }
+ },
+ "sealed_evidence": {
+  "V1_IS": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_IS.json",
+  "V1_OOS": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_OOS.json",
+  "V2_W1": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_W1.json",
+  "V2_W2": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_W2.json",
+  "V2_FULL": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_FULL.json",
+  "V2_DATA": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_DATA.json",
+  "V2_VERDICT": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_VERDICT.json",
+  "V2_FORWARD_SETUP": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_FORWARD_SETUP.json",
+  "V2_SHADOW_CODE_MANIFEST": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_SHADOW_CODE_MANIFEST.json"
+ },
+ "verdict_objects": ["gates", "verdict", "table", "alts", "rV1Link", "seenData"],
+ "verdict_expected": {
+  "result": "INSUFFICIENT", "failingK": ["K1"], "next": "FORWARD_VALIDATION_B7_FORM_A",
+  "K1": { "X": 0.00895380746004637, "L": -0.0023572746282827803, "U": 0.024109378171334052 },
+  "K2": { "W1": 0.014484824789218139, "W2": 0.0019706036729547818 },
+  "K3": { "W1": 0, "W2": 0 }, "K4": 0.005378767479808033, "K5": 0.092405149957699
+ },
+ "tests_expected": { "passed": 53, "failed": 0, "suites": ["funding-basis-carry.test.js", "funding-basis-carry-v2.test.js"] },
+ "pr48": {
+  "proof_ref": "docs/evidence/QRP_REPLAY_CORE_CACHE_JOBS_LINUX_PROOF_2026-11-03.json",
+  "groups": {
+   "IS_OOS": { "run": "CARRY", "windows": ["IS", "OOS"], "jobs": 28 },
+   "W1_W2_FULL": { "run": "CARRY_V2", "windows": ["W1", "W2", "FULL"], "jobs": 42 }
+  }
+ },
+ "forward": {
+  "a_f_start": "2026-10-02T16:00:00.000Z",
+  "a_first_look": "2027-12-31",
+  "b_label": "PAPER_SHADOW · NO_CAPITAL · NO_VERDICT",
+  "denied_keys": ["equity", "cash", "amount", "amountFref", "a7", "negRun", "tau", "S", "F", "w", "q", "d", "MB", "pliq", "markClose", "markPrice", "fundingRate", "basis", "fRef", "baseCash", "y", "dtb3", "interest", "fees", "balance", "X", "CI", "ci", "annualized", "return"]
+ },
+ "history_sources": {
+  "K2": { "kind": "TEXT", "from": "k2" },
+  "RESULT_V1": { "kind": "TEXT", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_RESULT_V1.md" },
+  "RESULT_V2": { "kind": "TEXT", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_RESULT_V2.md" },
+  "SHADOW_ACCEPTANCE": { "kind": "TEXT", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_V2_PAPER_SHADOW_IMPLEMENTATION_ACCEPTANCE_V1.md" },
+  "EV_W1": { "kind": "JSON", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_W1.json" },
+  "EV_W2": { "kind": "JSON", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_W2.json" },
+  "EV_FULL": { "kind": "JSON", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_FULL.json" },
+  "EV_DATA": { "kind": "JSON", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_DATA.json" },
+  "EV_VERDICT": { "kind": "JSON", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_VERDICT.json" },
+  "EV_FORWARD_SETUP": { "kind": "JSON", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_FORWARD_SETUP.json" },
+  "SHADOW_MANIFEST": { "kind": "JSON", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_SHADOW_CODE_MANIFEST.json" },
+  "QRP_PIN": { "kind": "PIN" }
+ },
+ "history": [
+  { "group": "acceptance", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "065ce5fe", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md" },
+   { "source": "EV_W1", "field": "acceptance.v1.fileSha256" }, { "source": "EV_W2", "field": "acceptance.v1.fileSha256" }, { "source": "EV_FULL", "field": "acceptance.v1.fileSha256" },
+   { "source": "EV_DATA", "field": "acceptance.v1.fileSha256" }, { "source": "EV_VERDICT", "field": "acceptance.v1.fileSha256" }, { "source": "EV_FORWARD_SETUP", "field": "acceptance.v1.fileSha256" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md", "view": "PREFIX:31987", "recorded": [
+   { "source": "K2", "value": "dbf62ee1", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md" },
+   { "source": "RESULT_V2", "value": "dbf62ee1", "anchor": "signed-text sha256" },
+   { "source": "EV_W1", "field": "acceptance.v1.sha256" }, { "source": "EV_W2", "field": "acceptance.v1.sha256" }, { "source": "EV_FULL", "field": "acceptance.v1.sha256" },
+   { "source": "EV_DATA", "field": "acceptance.v1.sha256" }, { "source": "EV_VERDICT", "field": "acceptance.v1.sha256" }, { "source": "EV_FORWARD_SETUP", "field": "acceptance.v1.sha256" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md", "view": "SUFFIX:31987", "recorded": [
+   { "source": "K2", "value": "ecfde3fe", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md" },
+   { "source": "EV_W1", "field": "acceptance.v1.appendedAfterSigning.sha256" }, { "source": "EV_DATA", "field": "acceptance.v1.appendedAfterSigning.sha256" },
+   { "source": "EV_VERDICT", "field": "acceptance.v1.appendedAfterSigning.sha256" }, { "source": "EV_FORWARD_SETUP", "field": "acceptance.v1.appendedAfterSigning.sha256" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1_AMENDMENT_1.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "97803d3bc7c780e5", "anchor": "ACCEPTANCE_V1_AMENDMENT_1.md" },
+   { "source": "RESULT_V2", "value": "97803d3b", "anchor": "Amendment 1's sha256" },
+   { "source": "EV_W1", "field": "acceptance.v1.amendment1.sha256" }, { "source": "EV_DATA", "field": "acceptance.v1.amendment1.sha256" },
+   { "source": "EV_VERDICT", "field": "acceptance.v1.amendment1.sha256" }, { "source": "EV_FORWARD_SETUP", "field": "acceptance.v1.amendment1.sha256" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_BOLLINGER_VOLUME_ROUND2_RESEARCH_ACCEPTANCE_V1.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "71cb98aa24d5eb0c", "anchor": "CRYPTO_BOLLINGER_VOLUME_ROUND2_RESEARCH_ACCEPTANCE_V1.md" },
+   { "source": "RESULT_V2", "value": "71cb98aa", "anchor": "round-2 acceptance sha256" },
+   { "source": "EV_W1", "field": "acceptance.sha256" }, { "source": "EV_W2", "field": "acceptance.sha256" }, { "source": "EV_FULL", "field": "acceptance.sha256" },
+   { "source": "EV_DATA", "field": "acceptance.sha256" }, { "source": "EV_VERDICT", "field": "acceptance.sha256" }, { "source": "EV_FORWARD_SETUP", "field": "acceptance.sha256" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_BOLLINGER_VOLUME_ROUND2_RESEARCH_ACCEPTANCE_V1_AMENDMENT_4.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "b989f1efb6f038ca", "anchor": "ACCEPTANCE_V1_AMENDMENT_4.md" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_V2_PAPER_SHADOW_IMPLEMENTATION_ACCEPTANCE_V1.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "ef2c5bd86eb8149f", "anchor": "PAPER_SHADOW_IMPLEMENTATION_ACCEPTANCE_V1.md" },
+   { "source": "SHADOW_MANIFEST", "field": "acceptance.sha256" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_V2_PAPER_SHADOW_IMPLEMENTATION_ACCEPTANCE_V1.draft.md", "view": "FILE", "recorded": [
+   { "source": "SHADOW_ACCEPTANCE", "value": "6679b00f550a96cf65b2f98b273e841a77897c7b9980d1a9fd59bc8789eef645", "anchor": "sha256" } ] },
+  { "group": "acceptance", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_V2_SHADOW_HK_RUNBOOK.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "a86cefbe", "anchor": "HK runbook" } ] },
+  { "group": "acceptance", "path": "docs/REPLAY_CORE_CARRY_DUAL_RUN_V1.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "93f0d81f", "anchor": "REPLAY_CORE_CARRY_DUAL_RUN_V1.md" } ] },
+  { "group": "result", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_RESULT_V1.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "e180e4ca", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_RESULT_V1.md" } ] },
+  { "group": "result", "path": "docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_RESULT_V2.md", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "a43ecd5e704dbeb7", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_RESULT_V2.md" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_DATA.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "689b08cd", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_DATA.json" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_DATA_A1.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "eaa64a2e", "anchor": "_V1_DATA_A1.json" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_IS_RUN1.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "33cb6054", "anchor": "_V1_IS_RUN1.json" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_IS.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "99ccedb4", "anchor": "_V1_IS.json" },
+   { "source": "EV_DATA", "field": "GC1.windows.IS.evidenceSha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_OOS.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "54afe6bb", "anchor": "_V1_OOS.json" },
+   { "source": "EV_DATA", "field": "GC1.windows.OOS.evidenceSha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_TESTS.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "1ef0cb71", "anchor": "_V1_TESTS.json" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_VERDICT.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "3a1864f7", "anchor": "_V1_VERDICT.json" },
+   { "source": "EV_DATA", "field": "GC1.v1Verdict.evidenceSha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_FUNDING_REGIME.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V1", "value": "1ee1721f", "anchor": "_V1_FUNDING_REGIME.json" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_DATA.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V2", "value": "71a76b2b", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_V2_DATA.json" },
+   { "source": "EV_VERDICT", "field": "inputs.dataEvidence.sha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_W1.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V2", "value": "4a6de1e2", "anchor": "_V2_W1.json" },
+   { "source": "K2", "value": "4a6de1e2", "anchor": "V2_{W1,W2,FULL}.json" },
+   { "source": "EV_VERDICT", "field": "inputs.windows.W1.sha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_W2.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V2", "value": "ee8cc51e", "anchor": "_V2_W2.json" },
+   { "source": "K2", "value": "ee8cc51e", "anchor": "V2_{W1,W2,FULL}.json" },
+   { "source": "EV_VERDICT", "field": "inputs.windows.W2.sha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_FULL.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V2", "value": "326a14a4", "anchor": "_V2_FULL.json" },
+   { "source": "K2", "value": "326a14a4", "anchor": "V2_{W1,W2,FULL}.json" },
+   { "source": "EV_VERDICT", "field": "inputs.windows.FULL.sha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_TESTS.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V2", "value": "fa7ecdcf", "anchor": "_V2_TESTS.json" },
+   { "source": "EV_VERDICT", "field": "inputs.tests.sha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_VERDICT.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V2", "value": "25123e19", "anchor": "_V2_VERDICT.json" },
+   { "source": "K2", "value": "25123e19", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_V2_VERDICT.json" },
+   { "source": "EV_FORWARD_SETUP", "field": "trigger.verdictSha256" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_FORWARD_SETUP.json", "view": "FILE", "recorded": [
+   { "source": "RESULT_V2", "value": "6be89f25", "anchor": "_V2_FORWARD_SETUP.json" },
+   { "source": "K2", "value": "6be89f25", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_V2_FORWARD_SETUP.json" } ] },
+  { "group": "evidence", "path": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_V2_SHADOW_CODE_MANIFEST.json", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "2ec1a25e", "anchor": "CRYPTO_FUNDING_BASIS_CARRY_V2_SHADOW_CODE_MANIFEST.json" } ] },
+  { "group": "code", "path": "scripts/research/funding-basis-carry-lib.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "44f823e3bde7f10d", "anchor": "scripts/research/funding-basis-carry-lib.js" },
+   { "source": "RESULT_V2", "value": "44f823e3", "anchor": "scripts/research/funding-basis-carry-lib.js" },
+   { "source": "EV_W1", "field": "code.scripts/research/funding-basis-carry-lib.js" }, { "source": "EV_W2", "field": "code.scripts/research/funding-basis-carry-lib.js" },
+   { "source": "EV_FULL", "field": "code.scripts/research/funding-basis-carry-lib.js" }, { "source": "EV_DATA", "field": "code.scripts/research/funding-basis-carry-lib.js" },
+   { "source": "EV_VERDICT", "field": "inputs.code.scripts/research/funding-basis-carry-lib.js" }, { "source": "EV_FORWARD_SETUP", "field": "code.scripts/research/funding-basis-carry-lib.js" },
+   { "source": "SHADOW_MANIFEST", "field": "ruleBearing.scripts/research/funding-basis-carry-lib.js" } ] },
+  { "group": "code", "path": "scripts/research/funding-basis-carry-run.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "e3992edf40463ea7", "anchor": "scripts/research/funding-basis-carry-run.js" },
+   { "source": "RESULT_V2", "value": "e3992edf", "anchor": "scripts/research/funding-basis-carry-run.js" },
+   { "source": "EV_W1", "field": "code.scripts/research/funding-basis-carry-run.js" }, { "source": "EV_W2", "field": "code.scripts/research/funding-basis-carry-run.js" },
+   { "source": "EV_FULL", "field": "code.scripts/research/funding-basis-carry-run.js" }, { "source": "EV_DATA", "field": "code.scripts/research/funding-basis-carry-run.js" },
+   { "source": "EV_VERDICT", "field": "inputs.code.scripts/research/funding-basis-carry-run.js" }, { "source": "EV_FORWARD_SETUP", "field": "code.scripts/research/funding-basis-carry-run.js" } ] },
+  { "group": "code", "path": "scripts/research/funding-basis-carry-fetch.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "bf7da549c39b4d63", "anchor": "scripts/research/funding-basis-carry-fetch.js" },
+   { "source": "RESULT_V2", "value": "bf7da549", "anchor": "scripts/research/funding-basis-carry-fetch.js" },
+   { "source": "EV_W1", "field": "code.scripts/research/funding-basis-carry-fetch.js" }, { "source": "EV_DATA", "field": "code.scripts/research/funding-basis-carry-fetch.js" },
+   { "source": "EV_VERDICT", "field": "inputs.code.scripts/research/funding-basis-carry-fetch.js" }, { "source": "EV_FORWARD_SETUP", "field": "code.scripts/research/funding-basis-carry-fetch.js" } ] },
+  { "group": "code", "path": "scripts/lib/cmp-v1-data.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "b7c51c35e9033651", "anchor": "scripts/lib/cmp-v1-data.js" },
+   { "source": "RESULT_V2", "value": "b7c51c35", "anchor": "scripts/lib/cmp-v1-data.js" },
+   { "source": "EV_W1", "field": "code.scripts/lib/cmp-v1-data.js" }, { "source": "EV_DATA", "field": "code.scripts/lib/cmp-v1-data.js" },
+   { "source": "EV_VERDICT", "field": "inputs.code.scripts/lib/cmp-v1-data.js" }, { "source": "EV_FORWARD_SETUP", "field": "code.scripts/lib/cmp-v1-data.js" },
+   { "source": "SHADOW_MANIFEST", "field": "ruleBearing.scripts/lib/cmp-v1-data.js" } ] },
+  { "group": "code", "path": "scripts/cmp-v1-fetch.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "010b1d7622aa7367", "anchor": "scripts/cmp-v1-fetch.js" },
+   { "source": "RESULT_V2", "value": "010b1d76", "anchor": "scripts/cmp-v1-fetch.js" },
+   { "source": "EV_W1", "field": "code.scripts/cmp-v1-fetch.js" }, { "source": "EV_DATA", "field": "code.scripts/cmp-v1-fetch.js" },
+   { "source": "EV_VERDICT", "field": "inputs.code.scripts/cmp-v1-fetch.js" }, { "source": "EV_FORWARD_SETUP", "field": "code.scripts/cmp-v1-fetch.js" } ] },
+  { "group": "code", "path": "scripts/research/funding-basis-carry-regime.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "84d44b33", "anchor": "funding-basis-carry-regime.js" } ] },
+  { "group": "code", "path": "scripts/lib/replay-core-adapters/carry.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "024b2911f093", "anchor": "scripts/lib/replay-core-adapters/carry.js" },
+   { "source": "QRP_PIN", "field": "strategies.CARRY.hooks_id" } ] },
+  { "group": "code", "path": "scripts/lib/replay-core-golden/tier2.js", "view": "FILE", "recorded": [
+   { "source": "K2", "value": "11b5db585adc", "anchor": "scripts/lib/replay-core-golden/tier2.js" } ] },
+  { "group": "code", "path": "tests/scripts/funding-basis-carry.test.js", "view": "FILE", "recorded": [] },
+  { "group": "code", "path": "tests/scripts/funding-basis-carry-v2.test.js", "view": "FILE", "recorded": [] }
+ ],
+ "attempts": [
+  { "study": "V1", "label": "IS run 1", "evidence": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_IS_RUN1.json", "status": "SUPERSEDED_BY_AMENDMENT_1 (kept on file; not reproduced, K2 A0-7)" },
+  { "study": "V1", "label": "IS run 2", "evidence": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_IS.json", "status": "SEALED" },
+  { "study": "V1", "label": "OOS", "evidence": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_OOS.json", "status": "SEALED (V1 FAIL, archived per V1 §9.3)" },
+  { "study": "V1", "label": "FUNDING_REGIME post-hoc table", "evidence": "docs/evidence/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_V1_FUNDING_REGIME.json", "status": "DESCRIPTIVE (not reproduced, K2 A0-7)" },
+  { "study": "V2", "label": "carry-v2-dtb3 11:41:51Z", "status": "rc=1 FRED timeout; nothing written (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-dtb3 11:57:35Z", "status": "rc=0 DTB3 retrieved (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-gates 11:57:49Z", "status": "rc=1 V1 whole-file acceptance guard refused (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-gates 11:59:27Z", "status": "rc=1 code defect, nothing computed (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-gates 12:00:36Z", "status": "rc=0 gates run 1, code 6e5af7ad (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-runs 12:01:42Z", "status": "rc=0 W1/W2/FULL run 1 (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-verdict 12:03:23Z", "status": "rc=0 verdict run 1 INSUFFICIENT (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-run2 12:06:49Z", "status": "rc=0 run 2 on 47a29adc, identical results hashes and verdict (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-forward-setup 12:07:25Z", "status": "rc=0 frozen setup (RESULT V2 §9)" },
+  { "study": "V2", "label": "carry-v2-forward-smoke 12:07:25Z", "status": "rc=1 refusal by design (RESULT V2 §9)" },
+  { "study": "QRP #48", "label": "CARRY IS/OOS jobs (Linux)", "status": "28 jobs, harness + rerun BYTE_IDENTICAL (QRP_REPLAY_CORE_CACHE_JOBS_LINUX_PROOF_2026-11-03)" },
+  { "study": "QRP #48", "label": "CARRY_V2 W1/W2/FULL jobs (Linux)", "status": "42 jobs, harness + rerun BYTE_IDENTICAL (QRP_REPLAY_CORE_CACHE_JOBS_LINUX_PROOF_2026-11-03)" }
+ ]
+}
