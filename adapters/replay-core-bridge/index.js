@@ -42,11 +42,16 @@ function childEnv() {
   return env;
 }
 
-/** 把载荷写成 v8 文件并返回作业;`dir` 为作业与载荷所在目录(研究缓存或临时目录)。 */
-function writeJob(dir, strategy, payload, options = {}) {
+/** 载荷的 v8 字节与其 sha256(写作业与回填对号共用这一处,carry_backfill.js 按它对号)。 */
+function payloadBytes(strategy, payload) {
   if (!PIN.strategies[strategy]) throw new Error(`STRATEGY_UNSUPPORTED:${strategy}`);
   const bytes = v8.serialize({ ...payload, kind: PAYLOAD_KIND, strategy });
-  const sha = sha256Hex(bytes);
+  return { bytes, sha256: sha256Hex(bytes) };
+}
+
+/** 把载荷写成 v8 文件并返回作业;`dir` 为作业与载荷所在目录(研究缓存或临时目录)。 */
+function writeJob(dir, strategy, payload, options = {}) {
+  const { bytes, sha256: sha } = payloadBytes(strategy, payload);
   const payloadFile = `payload-${sha.slice(0, 16)}.v8`;
   const full = path.join(dir, payloadFile);
   if (!fs.existsSync(full)) fs.writeFileSync(full, bytes);
@@ -143,4 +148,4 @@ function runCacheJobs(outDir, source, opts = {}) {
     env: { node: process.versions.node, platform: process.platform, arch: process.arch }, ...v };
 }
 
-module.exports = { PIN, ROOT_ENV, RUNNER, smartflowRoot, childEnv, writeJob, runJob, listJobs, writeCacheJobs, runCacheJobs };
+module.exports = { PIN, ROOT_ENV, RUNNER, smartflowRoot, childEnv, payloadBytes, writeJob, runJob, listJobs, writeCacheJobs, runCacheJobs };
