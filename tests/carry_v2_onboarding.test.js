@@ -63,6 +63,30 @@ test('restoreNative:数组按旧引擎的类型还原,数值不变;形状不符�
   assert.throws(() => Backfill.restoreNative([]), /RESTORE_SHAPE:native/);
 });
 
+test('载荷内容 sha256:与 V8 内部表示无关(同形对象被推广后的 0、单 / 双字节串),内容不同则不同', () => {
+  const v8 = require('v8');
+  const mk = () => ({ X: 0.5, MMR: 0.01, mode: 'RULES', idleRate: 0 });
+  const a = mk();
+  const before = v8.serialize(a);
+  const generalised = { ...a, idleRate: 0.05 }; // 跑数器 R4 的写法:同形字段被推广为双精度
+  const b = mk();
+  assert.notDeepEqual(v8.serialize(b), before, '同内容的 v8 字节随进程里的形状演变而变(本测试要复现的就是这一点)');
+  assert.equal(Backfill.contentDigest(b), Backfill.contentDigest(a));
+  assert.notEqual(Backfill.contentDigest(generalised), Backfill.contentDigest(a));
+  const twoByte = Buffer.from('CARRY', 'utf16le').toString('utf16le');
+  assert.equal(Backfill.contentDigest({ strategy: twoByte }), Backfill.contentDigest({ strategy: 'CARRY' }));
+  const D = Backfill.contentDigest;
+  assert.notEqual(D([0]), D([-0]));
+  assert.notEqual(D([undefined]), D(new Array(1)));
+  assert.notEqual(D([1, 2]), D(new Float64Array([1, 2])));
+  assert.notEqual(D(new Map([['a', 1]])), D({ a: 1 }));
+  assert.notEqual(D({ a: 1, b: 2 }), D({ b: 2, a: 1 }));
+  assert.notEqual(D('1'), D(1));
+  assert.equal(D(v8.deserialize(v8.serialize({ m: new Map([[1, [1.5, null]]]), t: new Uint8Array([1, 0]) }))), D({ m: new Map([[1, [1.5, null]]]), t: new Uint8Array([1, 0]) }));
+  assert.throws(() => D({ f: () => 1 }), /CONTENT_DIGEST_UNSUPPORTED:function/);
+  assert.throws(() => D(new Set([1])), /CONTENT_DIGEST_UNSUPPORTED:Set/);
+});
+
 test('判定对象比较:六个对象逐个;关键数与 K2 原值逐字节', () => {
   const sealed = { gates: { a: 1 }, verdict: { result: 'INSUFFICIENT' }, table: {}, alts: {}, rV1Link: {}, seenData: 's', inputs: { x: 1 } };
   assert.equal(Onb.compareVerdict({ ...sealed, inputs: { x: 2 } }, sealed).identical, true);
@@ -93,6 +117,12 @@ test('两遍比较:只有写明的易变字段可以不同', () => {
   assert.equal(r.different, 1);
   assert.equal(r.missing, 1);
   both('a0-4/a0-4-backfill.receipt.json', '{"generatedAt":"t1"}\n', '{"generatedAt":"t2"}\n');
+  // A0-4 的参数文件:只差本遍目录的绝对路径 → 换成 <PASS_DIR> 后逐字节相同;别的不同照样是 DIFFERENT
+  both('a0-4/args.G.A.json', `{"jobs":["${a}/a0-3/jobs/CARRY"],"again":null}\n`, `{"jobs":["${b}/a0-3/jobs/CARRY"],"again":null}\n`);
+  both('a0-4/args.G.B.json', `{"jobs":["${a}/a0-3/jobs/CARRY"],"windows":["IS"]}\n`, `{"jobs":["${b}/a0-3/jobs/CARRY"],"windows":["OOS"]}\n`);
+  const p = Onb.sealCompare(a, b);
+  assert.equal(p.rows.find((x) => x.file === 'a0-4/args.G.A.json').verdict, 'IDENTICAL_EXCEPT_PASS_PATH');
+  assert.equal(p.rows.find((x) => x.file === 'a0-4/args.G.B.json').verdict, 'DIFFERENT');
   assert.equal(Onb.sealCompare(a, b).rows.find((x) => x.file === 'a0-4/a0-4-backfill.receipt.json').verdict, 'DIFFERENT');
 });
 
@@ -153,7 +183,7 @@ test('作业输出还原 = 旧引擎返回(V2 口径一个 sleeve:stableJson、�
 });
 
 for (const [label, win] of [['V1 windowLines', SYN], ['V2 windowLinesV2(平 4.5% 闲置利率)', { ...SYN, idleFlat: 0.045 }]]) {
-  test(`回填重组(${label}):小窗口回填结果 = 跑数器直接算;按载荷 sha256 对号,作业全用上`, { skip: SKIP }, () => {
+  test(`回填重组(${label}):小窗口回填结果 = 跑数器直接算;按载荷内容对号(载荷文件逐字节核过),作业全用上`, { skip: SKIP }, () => {
     const base = tmp();
     const archive = path.join(base, 'archive');
     fs.mkdirSync(archive);
@@ -172,7 +202,8 @@ for (const [label, win] of [['V1 windowLines', SYN], ['V2 windowLinesV2(平 4.5%
     assert.equal(row.G3.pass, true);
     assert.equal(row.jobs_same_both_passes, true);
     assert.equal(row.sleeves, 14);
-    assert.deepEqual([r.receipt.jobs_used, r.receipt.jobs_unused], [14, 0]);
+    assert.deepEqual([r.receipt.jobs_used, r.receipt.jobs_unused, r.receipt.calls], [14, 0, 14]);
+    assert.ok(row.calls.every((c) => /^[0-9a-f]{64}$/.test(c.content_sha256) && typeof c.raw_identical === 'boolean'));
     // 调用顺序不是对号依据:清单里的作业顺序打乱,结果不变
     const shuffled = path.join(base, 'jobs-shuffled');
     fs.cpSync(jobs, shuffled, { recursive: true });
@@ -194,7 +225,15 @@ for (const [label, win] of [['V1 windowLines', SYN], ['V2 windowLinesV2(平 4.5%
     fs.writeFileSync(path.join(bad, CacheJobs.manifestFile('CARRY')), `${JSON.stringify(m4, null, 1)}\n`);
     const r4 = runBackfill({ data: archive, windows: [win], jobs: [bad] }, path.join(base, 'a0-4-missing'));
     assert.notEqual(r4.status, 0);
-    assert.match(r4.err, /BACKFILL_JOB_NOT_FOUND:[0-9a-f]{16}:call=\d+:normalized=NONE/);
+    assert.match(r4.err, /BACKFILL_JOB_NOT_FOUND:[0-9a-f]{16}:call=\d+$/);
+    // 载荷文件被改过(与清单的 payload_sha256 不符)→ 建索引时就拒绝
+    const tampered = path.join(base, 'jobs-tampered');
+    fs.cpSync(jobs, tampered, { recursive: true });
+    const j0 = JSON.parse(fs.readFileSync(path.join(tampered, manifest.jobs[0].job_file), 'utf8'));
+    fs.appendFileSync(path.join(tampered, j0.payload_file), Buffer.from([0]));
+    const r5 = runBackfill({ data: archive, windows: [win], jobs: [tampered] }, path.join(base, 'a0-4-tampered'));
+    assert.notEqual(r5.status, 0);
+    assert.match(r5.err, /PAYLOAD_SHA256_MISMATCH/);
   });
 }
 
