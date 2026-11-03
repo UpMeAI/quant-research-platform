@@ -1,0 +1,256 @@
+{
+ "kind": "QRP_REPLAY_CORE_CACHE_JOBS_LINUX_PROOF_V1",
+ "host": "Linux research host (x86_64, Ubuntu 24.04), node 18.20.8 = HK production binary sha256 8f4e416b…",
+ "core_version_hash": "5a4808b0b775335a21a0c8e43de21d57048d5f64d820169b6225e36c95829c7b",
+ "smartflow_commit": "8d97cbdec0a775fd9fe8cc75643da34fffebe9bc",
+ "qrp_code": "18cd38b",
+ "data": "HK production caches copied read-only 2026-11-03 (tree sha256 8c4809f8…), never re-fetched",
+ "unzip": "lane-local busybox unzip (Linux host has no Info-ZIP); busybox -p output byte-identical to python zipfile on all 600 C17 archives",
+ "golden_proof": {
+  "env": {
+   "node": "18.20.8",
+   "platform": "linux",
+   "arch": "x64"
+  },
+  "goldens": [
+   {
+    "golden": "G3",
+    "strategy": "US_V5",
+    "profile": "CLOSE_MARK",
+    "market": "US_EQUITY",
+    "committed_receipt_sha256": "f87e175886925f3041f2d91bb2033f684f3ddd4af8916dad644bdc9aafab19d7",
+    "cases": 6,
+    "core_runs": 6
+   },
+   {
+    "golden": "G2",
+    "strategy": "CARRY",
+    "profile": "HOURLY_REBALANCE_BAND",
+    "market": "CRYPTO",
+    "committed_receipt_sha256": "4ef2adef3e15bdee1ccb27cef8a3021f832a6e3f860846d2fd8f3f56fc61a5a6",
+    "cases": 8,
+    "core_runs": 8
+   },
+   {
+    "golden": "G1",
+    "strategy": "C17",
+    "profile": "NEXT_BAR_OPEN",
+    "market": "CRYPTO",
+    "committed_receipt_sha256": "61ecd0e648b0c2e3529958a033853146e417858b4c63a61dd1660567b525a3ce",
+    "cases": 30,
+    "core_runs": 33
+   }
+  ],
+  "rows_sha256": "4274dcfad6fedaef5fdcb30aeef3e25fc3a62fc4c320698511cec3faf287c946",
+  "all_byte_identical": true
+ },
+ "sources": [
+  {
+   "run": "C17_AGENT_LIVE",
+   "source": "C17_AGENT_LIVE",
+   "strategy": "C17",
+   "profile": "NEXT_BAR_OPEN",
+   "hooks_id": "c17-hooks@45e9ce0e9278",
+   "source_identity": [
+    {
+     "cacheManifestSha256": "856a7762ec31a5e93ba3575c6bbf905def71b7d5f7a2f97607e8d6cc65fb5a95",
+     "hooksId": "c17-hooks@45e9ce0e9278"
+    }
+   ],
+   "windows": [
+    {
+     "window": "C17_AGENT live replay PRE_EFFICIENCY 2026-08-22T10:53..2026-08-23T09:05",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "7fd0c1fe87f5502abf25cfb6717ff0629717f2bfce8248085e440dfd97587f23",
+     "trades": 2,
+     "sleeves": null
+    },
+    {
+     "window": "C17_AGENT live replay PRE_EFFICIENCY 2026-08-23T09:05..2026-10-28T00:00",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "23e215b2e22108870c2b52c453cb346711c6bec1be2e3649304965165f1e5bda",
+     "trades": 50,
+     "sleeves": null
+    },
+    {
+     "window": "C17_AGENT live replay EFFICIENCY_PAPER 2026-08-23T09:05..2026-10-28T00:00",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "8272718376a6975d9ffed84633a084f3a7925f707dcf072160cb66f2794e2f6c",
+     "trades": 34,
+     "sleeves": null
+    }
+   ],
+   "harness_verdict": "BYTE_IDENTICAL",
+   "jobs": 3,
+   "rerun_verdict": "BYTE_IDENTICAL",
+   "identical": 3,
+   "different": 0,
+   "manifest_sha256": "67f094e59b8a8d3143f37df42e25109a4046bf2b19719ed065c205ba505e648d",
+   "jobs_sha256": "76fb3a76e99fc9df8ab85d8b68ba46d489ea803ebde16230059173400bf77477",
+   "env": {
+    "node": "18.20.8",
+    "platform": "linux",
+    "arch": "x64"
+   }
+  },
+  {
+   "run": "C17_V2_LIVE",
+   "source": "C17_V2_LIVE",
+   "strategy": "C17",
+   "profile": "NEXT_BAR_OPEN",
+   "hooks_id": "c17-hooks@45e9ce0e9278",
+   "source_identity": [
+    {
+     "cacheManifestSha256": "02169fa321cf7138b6908997dc0013e814e235a71e8a7e4ca7dcb545879fe155",
+     "replayVersion": "C17_V2_LIVE_REPLAY_V1:71bae2c1d7127222de38e7fbd9cfcbde518044a7f77411ad800b6ba53b73819b:d2817ac278c44aa81b1ad878450d896865f2854e43ce88e0607813a05422b912",
+     "hooksId": "c17-hooks@45e9ce0e9278"
+    }
+   ],
+   "windows": [
+    {
+     "window": "C17_V2 live replay C17_V2 2026-10-01T08:00..2026-10-28T00:00",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "7dc7c375fa89073f209f82ffbf26cdb3fbfad047ac82c63cf5c5c6080198d23a",
+     "trades": 15,
+     "sleeves": null
+    }
+   ],
+   "harness_verdict": "BYTE_IDENTICAL",
+   "jobs": 1,
+   "rerun_verdict": "BYTE_IDENTICAL",
+   "identical": 1,
+   "different": 0,
+   "manifest_sha256": "aa012c2b59d5a5fb08627373da042142d69de47c23244224b99150bd0e2c79bb",
+   "jobs_sha256": "2472fafcdafbf3591b85a28c54f8d6bd61389d204ce03567888082cff3589c49",
+   "env": {
+    "node": "18.20.8",
+    "platform": "linux",
+    "arch": "x64"
+   }
+  },
+  {
+   "run": "CARRY",
+   "source": "CARRY",
+   "strategy": "CARRY",
+   "profile": "HOURLY_REBALANCE_BAND",
+   "hooks_id": "carry-hooks@024b2911f093",
+   "source_identity": [
+    {
+     "dataManifestSha256": "162d80c9422e88ae163ad39b45cd600e6b9c9801c5dd27bddc739133d0797c23"
+    }
+   ],
+   "windows": [
+    {
+     "window": "IS 2020-01-01..2024-01-01",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "43107898d1627e3318117cb38f13d48c35791ace295128d81a814844d8f3ac82",
+     "trades": null,
+     "sleeves": 14
+    },
+    {
+     "window": "OOS 2024-01-01..2026-10-01",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "cbfd6f4e5f806fe8bbeb1e34b7b8b50f129cecd3c632b8ea3f1d746d63e834f6",
+     "trades": null,
+     "sleeves": 14
+    }
+   ],
+   "harness_verdict": "BYTE_IDENTICAL",
+   "jobs": 28,
+   "rerun_verdict": "BYTE_IDENTICAL",
+   "identical": 28,
+   "different": 0,
+   "manifest_sha256": "6edf69a6d5134263f9d406477403f394b1e63260aa1e24ea50471d03727b7296",
+   "jobs_sha256": "d816662e49b2100cc989a02f56c4ba36b71e81b738361185fe655738e362e2d9",
+   "env": {
+    "node": "18.20.8",
+    "platform": "linux",
+    "arch": "x64"
+   }
+  },
+  {
+   "run": "CARRY_V2",
+   "source": "CARRY",
+   "strategy": "CARRY",
+   "profile": "HOURLY_REBALANCE_BAND",
+   "hooks_id": "carry-hooks@024b2911f093",
+   "source_identity": [
+    {
+     "dataManifestSha256": "162d80c9422e88ae163ad39b45cd600e6b9c9801c5dd27bddc739133d0797c23"
+    }
+   ],
+   "windows": [
+    {
+     "window": "W1 2020-01-01..2024-01-01",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "2b7dac8a2a61f41a801e2f5548d648f3b00038abb79844540675ac2144adc4f5",
+     "trades": null,
+     "sleeves": 14
+    },
+    {
+     "window": "W2 2024-01-01..2026-10-01",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "c4ca99497330a3dfc3563957d9faa43d61a677258af905f7ec4c46bf4de187cc",
+     "trades": null,
+     "sleeves": 14
+    },
+    {
+     "window": "FULL 2020-01-01..2026-10-01",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "9fb56173895f36a8c539b805a8f92a4d90fb811210b72c5f8c51b4420171cff4",
+     "trades": null,
+     "sleeves": 14
+    }
+   ],
+   "harness_verdict": "BYTE_IDENTICAL",
+   "jobs": 42,
+   "rerun_verdict": "BYTE_IDENTICAL",
+   "identical": 42,
+   "different": 0,
+   "manifest_sha256": "e98c65870ca84268684de984310889d727bece20c4dbd2f126115e28fcd0f1a6",
+   "jobs_sha256": "620cb8b16705aa717d74b63cf0fd038cde1381bbfae3ca1e4ed06e653e7ee1ac",
+   "env": {
+    "node": "18.20.8",
+    "platform": "linux",
+    "arch": "x64"
+   }
+  },
+  {
+   "run": "US_V5_RECORDS",
+   "source": "US_V5_RECORDS",
+   "strategy": "US_V5",
+   "profile": "CLOSE_MARK",
+   "hooks_id": "us-v5-hooks@ba8af5fa5ae3",
+   "source_identity": [
+    {}
+   ],
+   "windows": [
+    {
+     "window": "2026-10-08..2026-11-02",
+     "verdict": "BYTE_IDENTICAL",
+     "new_sha256": "a256f9a3aba4785dd38fce6de59e280e6366197e38aaef46ea536df706e8b789",
+     "trades": null,
+     "sleeves": null
+    }
+   ],
+   "harness_verdict": "BYTE_IDENTICAL",
+   "jobs": 1,
+   "rerun_verdict": "BYTE_IDENTICAL",
+   "identical": 1,
+   "different": 0,
+   "manifest_sha256": "ad8b27d494708cdcdec9d5cac8dfed3fbccab7a5c925ae5cdb4a20c5c90a95b2",
+   "jobs_sha256": "a28747ce3bc22c7fb7d577bd65dccc14eb151ec6b175e2a4db24806cb68bd22d",
+   "env": {
+    "node": "18.20.8",
+    "platform": "linux",
+    "arch": "x64"
+   }
+  }
+ ],
+ "not_run": [
+  {
+   "source": "C17_CACHE",
+   "reason": "缺输入: no loadFuturesDataset cache of the frozen C17 evaluation window on HK or the Mac (the live parity caches carry other source/evaluation starts; loader refuses: invalid source/evaluation window identity). Source covered by the synthetic test only."
+  }
+ ]
+}

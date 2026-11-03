@@ -51,6 +51,8 @@ const BUILDERS = Object.freeze({
     return mod.c17Input(payload.dataset, payload.opts);
   },
   CARRY(mod, payload) {
+    // legacy:研究跑数器自己的 simulateSleeve 调用参数(layer-2 / 真实缓存作业),由 smartflow 的 carryInputFromLegacy 还原成输入
+    if (payload.legacy) return mod.carryInputFromLegacy(payload.legacy.input, payload.legacy.opts);
     return mod.carryInput(payload.data, payload.win, payload.capital, payload.opts);
   },
 });
