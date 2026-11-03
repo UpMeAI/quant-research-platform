@@ -191,4 +191,4 @@ const Q5 = Object.freeze({
   builders: (entry, doc) => ({ ...paired.builders(entry, doc) }),
 });
 
-module.exports = { Q5, K2_REF, K2_SHA256, REFERENCE_ROWS, READINGS, validateRecommendation };
+module.exports = { Q5, K2_REF, K2_SHA256, REFERENCE_ROWS, READINGS, EXTRA_ROWS, validateRecommendation, validateCooldownCounts };

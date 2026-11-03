@@ -125,7 +125,8 @@ test('J1 默认打开就是「总览」：一句话结论、数字卡、精简�
   assert.match(rules, /<strong>现行版本：<\/strong>美股 ETF 主策略账本（US_V5 · 3000 美元）：Desk 登记 \d{4}-\d{2}-\d{2} 起生效，模拟运行/);
   assert.match(rules, /<h4>已采用、待落地<\/h4><ul class="todo-list"><li><a href="[^"]*card=Q1">Q1 趋势中推迟时间止损<\/a>：Owner 2026-10-26 决定采用；后续：同一规则以 Q5 的组合形式采用<\/li>/);
   assert.match(rules, /<h4>待 Owner 决定<\/h4><p class="muted-note">没有待 Owner 决定的题。<\/p>/);
-  assert.match(rules, /<h4>下一步研究<\/h4><ul class="todo-list"><li><a href="[^"]*card=Q2">Q2 换成 1 倍载体（收益来自信号还是杠杆）<\/a>：不采用；后续：现行载体不变<\/li>/);
+  // 研究队列里还没锁定的题（Q6：K2 已冻结、还没有封存结果 = 进行中）排在不采用题的后续之前
+  assert.match(rules, /<h4>下一步研究<\/h4><ul class="todo-list"><li><a href="[^"]*section=research">Q6 在当前 D 之上，闲置现金停放 SPY<\/a>：进行中<\/li><li><a href="[^"]*card=Q2">Q2 换成 1 倍载体（收益来自信号还是杠杆）<\/a>：不采用；后续：现行载体不变<\/li>/);
   assert.match(rules, /部署状态不在 QRP 的记录里/);
   // 总览的主内容同样不出现内部代号（修订 5 E7.2 的规则用在新页签上）
   assert.doesNotMatch(mainContent(html), /(?<![A-Za-z0-9_])(?:T3|X1)(?![A-Za-z0-9_])/);
