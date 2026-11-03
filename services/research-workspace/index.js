@@ -35,6 +35,8 @@ const deskRouting = require('../desk-review-routing');
 const deskTriage = require('../desk-review-routing/triage');
 const detailSummary = require('./summary');
 const m2Rounds = require('../m2-rounds');
+const gapDecomposition = require('../gap-decomposition');
+const stressSupplement = require('../baseline-stress-supplement');
 const researchStage = require('./stage');
 const { listAdapters } = require('../../adapters/registry');
 
@@ -493,10 +495,15 @@ async function readModel({
   // K3：回测结论只来自 QRP 导入并锁定的封存结果；没有 case、没有导入、文件校验失败都是「尚未回测」。
   // 非 LEGACY 档案（CRYPTO_Q0_RESULT_V1）的 Q0 锁按档案冻结的 case_ref 读：运行态 case 尚未建立时，回测结论照样显示（锁只按这个 case 键查）
   const profileBaselineCase = profileCase || (Boolean(profile) && !selectedCurrentCase && !profiles.isLegacyShape(profile));
-  const baselineProjection = suppliedBaseline !== undefined ? suppliedBaseline
+  const baselineRead = suppliedBaseline !== undefined ? suppliedBaseline
     : (profileBaselineCase ? baselineEvaluation.readProjection(profile.case_ref)
       : baselineEvaluation.emptyProjection('NOT_CONNECTED', !profile ? NOT_REGISTERED_LABEL
         : selectedCurrentCase ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
+  // US_V5 Q0 导入规格增补 1 §2：另行封存的压力补充挂在 Q0 卡片压力表那一行下面（只有已导入补充的策略才有；
+  // Q0 的主数字、计数、压力评价与采用条件不变）。没有补充时投影原样不动。
+  const baselineProjection = profile ? stressSupplement.attach(baselineRead, stressSupplement.readProjections(profile.case_ref)) : baselineRead;
+  // 增补 1 §1：差距分解描述记录（Q0 卡片下面一张卡，不是结论）；只有已导入的 case 才有
+  const gapProjections = profileBaselineCase ? gapDecomposition.readProjections(profile.case_ref) : [];
 
   // 候选对比（Q1、Q2……）同样只来自导入并锁定的封存结果；每个已锁定的题目一张卡，没有交付、文件校验失败都是「尚未完成」。
   const comparisonProjections = (() => {
@@ -737,6 +744,8 @@ async function readModel({
     ...(adoptionOverview ? { adoption_overview: adoptionOverview } : {}),
     // 增补 2 §7.3：「研究与对比」里的轮次卡（card=R1）；只加在有已导入轮次的策略上
     ...(roundProjections.length ? { m2_rounds: roundProjections } : {}),
+    // US_V5 Q0 导入规格增补 1 §1.5：Q0 卡片下面的差距分解卡「差距分解（描述，不是结论）」；只加在有已导入差距分解的策略上
+    ...(gapProjections.length ? { gap_decompositions: gapProjections } : {}),
     // 修订 7 J1：默认页签「总览」——一句话结论（服务端模板）、关键数字卡、精简一览、现行规则与待办；只加在有档案的策略上
     ...(profile ? { summary: detailSummary.overviewOf({
       strategy: selectedStrategy, caseRec: selectedCurrentCase,
