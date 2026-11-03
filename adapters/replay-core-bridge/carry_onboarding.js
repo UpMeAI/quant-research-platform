@@ -251,6 +251,8 @@ const VOLATILE = Object.freeze([
   { file: /(^|\/)V2_VERDICT(\.backfill)?\.json$/, paths: ['inputs.dataEvidence.sha256', 'inputs.windows.W1.sha256', 'inputs.windows.W2.sha256', 'inputs.windows.FULL.sha256', 'inputs.tests.sha256'],
     why: 'sha256 of input files that contain generatedAt / jest timings (K2 A0-6)' },
   { file: /(^|\/)V2_TESTS\.json$/, projection: true, why: 'jest JSON carries timings and absolute paths; compared through the G1 projection (V2_TESTS.projection.json)' },
+  // 输入,不是输出:A0-4 的参数文件写的是本遍自己的目录;把本遍目录的绝对路径换成 <PASS_DIR> 后逐字节比
+  { file: /(^|\/)args\.[A-Za-z0-9_]+\.[AB]\.json$/, passPath: true, why: 'A0-4 input argument files name this pass\'s own directories; compared byte for byte after the pass directory is replaced by <PASS_DIR>' },
 ]);
 
 function listFiles(dir, rel = '', out = []) {
@@ -284,6 +286,12 @@ function sealCompare(dir1, dir2) {
     const rule = VOLATILE.find((v) => v.file.test(n));
     if (!rule) return { file: n, verdict: 'DIFFERENT', sha256: [s1, sha256(b2)] };
     if (rule.projection) return { file: n, verdict: 'PROJECTION_COMPARED', why: rule.why };
+    if (rule.passPath) {
+      const strip = (buf, dir) => buf.toString('utf8').split(`${path.resolve(dir)}/`).join('<PASS_DIR>/');
+      const same = strip(b1, dir1) === strip(b2, dir2);
+      return { file: n, verdict: same ? 'IDENTICAL_EXCEPT_PASS_PATH' : 'DIFFERENT', why: rule.why, sha256: [s1, sha256(b2)],
+        ...(same ? { normalized_sha256: sha256(Buffer.from(strip(b1, dir1), 'utf8')) } : {}) };
+    }
     const j1 = JSON.parse(b1.toString('utf8'));
     const j2 = JSON.parse(b2.toString('utf8'));
     for (const p of rule.paths) { dropPath(j1, p); dropPath(j2, p); }
@@ -294,8 +302,9 @@ function sealCompare(dir1, dir2) {
   return {
     kind: 'QRP_CARRY_V2_A0_5_TWICE_V1', files: rows.length,
     byte_identical: count('BYTE_IDENTICAL'), identical_except_volatile: count('IDENTICAL_EXCEPT_VOLATILE'), projection_compared: count('PROJECTION_COMPARED'),
+    identical_except_pass_path: count('IDENTICAL_EXCEPT_PASS_PATH'),
     different: count('DIFFERENT'), missing: count('MISSING'),
-    volatile_rules: VOLATILE.map((v) => ({ file: String(v.file), paths: v.paths || null, projection: Boolean(v.projection), why: v.why })),
+    volatile_rules: VOLATILE.map((v) => ({ file: String(v.file), paths: v.paths || null, projection: Boolean(v.projection), pass_path: Boolean(v.passPath), why: v.why })),
     rows,
     pass: count('DIFFERENT') === 0 && count('MISSING') === 0 && rows.length > 0,
   };

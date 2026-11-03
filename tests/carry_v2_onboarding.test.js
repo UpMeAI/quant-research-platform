@@ -117,6 +117,12 @@ test('两遍比较:只有写明的易变字段可以不同', () => {
   assert.equal(r.different, 1);
   assert.equal(r.missing, 1);
   both('a0-4/a0-4-backfill.receipt.json', '{"generatedAt":"t1"}\n', '{"generatedAt":"t2"}\n');
+  // A0-4 的参数文件:只差本遍目录的绝对路径 → 换成 <PASS_DIR> 后逐字节相同;别的不同照样是 DIFFERENT
+  both('a0-4/args.G.A.json', `{"jobs":["${a}/a0-3/jobs/CARRY"],"again":null}\n`, `{"jobs":["${b}/a0-3/jobs/CARRY"],"again":null}\n`);
+  both('a0-4/args.G.B.json', `{"jobs":["${a}/a0-3/jobs/CARRY"],"windows":["IS"]}\n`, `{"jobs":["${b}/a0-3/jobs/CARRY"],"windows":["OOS"]}\n`);
+  const p = Onb.sealCompare(a, b);
+  assert.equal(p.rows.find((x) => x.file === 'a0-4/args.G.A.json').verdict, 'IDENTICAL_EXCEPT_PASS_PATH');
+  assert.equal(p.rows.find((x) => x.file === 'a0-4/args.G.B.json').verdict, 'DIFFERENT');
   assert.equal(Onb.sealCompare(a, b).rows.find((x) => x.file === 'a0-4/a0-4-backfill.receipt.json').verdict, 'DIFFERENT');
 });
 
