@@ -294,6 +294,7 @@ const CMP_RENDER={
     const numbers=(r)=>{const show=!baseInQ0(r);return `<td>${trio(r.baseline.max_loss_usd,r.candidate_missing?null:r.candidate.max_loss_usd,r.diff&&r.diff.max_loss_usd,(v)=>usd(v,0),(v)=>signed(v,(x)=>usd(x,0)),show)}</td><td>${trio(r.baseline.longest_underwater_sessions,r.candidate_missing?null:r.candidate.longest_underwater_sessions,r.diff&&r.diff.longest_underwater_sessions,(v)=>`${v} 个`,(v)=>signed(v,(x)=>`${x} 个`),show)}</td><td>${trio(r.baseline.end_capital,r.candidate_missing?null:r.candidate.end_capital,r.diff&&r.diff.end_capital,(v)=>usd(v,0),(v)=>signed(v,(x)=>usd(x,0)),show)}</td>`;};
     const rowHtml=(r)=>{if(r.kind==='MISSING'||r.kind==='INVALID_INPUT'){if(sameAsQ0(r)){collapsed=true;return `<tr class="missing-scenario"><td>${esc(r.label)}</td><td colspan="3">${esc(r.kind_label)}（原因同回测结论卡）</td></tr>`;}return `<tr class="missing-scenario"><td>${esc(r.label)}</td><td colspan="3">${esc(r.kind_label)}：${esc(r.reason)}</td></tr>`;}
       if(r.same_as_reference)return `<tr><td>${esc(r.label)}</td><td colspan="3">与参照相同</td></tr>`;
+      if(r.kind==='BOUND'){const b=r.bound;return `<tr class="bound-row"><td>${esc(r.label)}<br><span class="sim-note">${esc(r.note)}</span></td><td>${usd(b.max_loss_usd,0)}<br><span class="muted-inline">最大回撤 ${pct(b.max_drawdown)}</span></td><td>${esc(b.longest_underwater_sessions)} 个</td><td>${usd(b.end_capital,0)}<br><span class="muted-inline">最低 ${usd(b.min_equity,0)}${b.below_1800?'（低于 1,800）':''}${b.rule1_50pct_touched?'（触及 50%）':''}</span></td></tr>`;}
       return `<tr><td>${esc(r.label)}${r.simulated?`<br><span class="sim-note">${esc(r.note||'模拟序列，不是可交易历史')}</span>`:''}${r.kind==='SUPPLEMENTARY'?'<br><span class="muted-inline">补充情景，不进结论</span>':''}${r.candidate_missing?`<br><span class="sim-note">候选臂缺项：${esc(r.candidate.reason)}</span>`:''}</td>${numbers(r)}</tr>`;};
     const mainRows=d.rows.filter((r)=>r.role!=='RISK_DIMENSION');const riskRows=d.rows.filter((r)=>r.role==='RISK_DIMENSION');
     const wrap=(rows)=>`<div class="table-wrap"><table><thead><tr>${['场景','最大亏损','最长水下期','期末资本'].map((item)=>`<th scope="col">${item}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -323,6 +324,7 @@ function renderExtraCard(card,ctx={}){
   // 标题文字原样留在 <h3> 里；开合按钮放在标题前，按钮文字由样式给出（展开／收起），读屏用 aria-label
   const head=`<div class="section-head fold-head"><button type="button" class="fold-toggle fold-side" aria-expanded="${open?'true':'false'}" aria-label="展开或收起：${esc(card.title_zh)}"></button><h3 id="${esc(id)}">${esc(card.title_zh)}</h3><p>${card.data?esc(card.data.note_zh):''}</p></div>`;
   const wrap=(cls,body)=>`<section class="backtest comparison ${cls}" data-state="LOCKED_VERIFIED" aria-labelledby="${esc(id)}"${foldAttr(open)}>${head}${body}</section>`;
+  if(card.data.class==='DO_OR_NOT')return wrap('do-or-not',doOrNotCard(card));
   if(Array.isArray(card.data.rows))return wrap('report-only',reportOnlyCard(card));
   if(Array.isArray(card.data.checks))return wrap('recommendation',recommendationCard(card));
   // 修订 5 E8：先说这块在回答什么、怎么做、怎么判
@@ -334,6 +336,14 @@ function reportOnlyCard(card){
   const gCell=(g)=>`${signed(g.value,(x)=>pct(x,2))}（95% ${signed(g.ci_95.lo,(x)=>pct(x,2))} ~ ${signed(g.ci_95.hi,(x)=>pct(x,2))}）`;
   const rows=card.data.rows.map((r)=>[esc(r.label),usd(r.end_capital,0),r.n==null?'—':esc(r.n),r.mean_R==null?'—':rVal(r.mean_R),r.max_drawdown==null?'—':pct(r.max_drawdown),gCell(r.g),r.changed_entries==null?'—':esc(r.changed_entries)]);
   return `<div class="status-row">${pill('只报不判','OBSERVING')}</div>${table(['行','期末资本','成熟交易','每笔净 R','最大回撤',card.data.g_label_zh||'年化对数增长差（对原版）',card.data.changed_label_zh||'改变的入场'],rows)}`;
+}
+/** 做 / 不做（Q6，第 2 步 K2 §6）：结论、证据强度、允许用途与 N1–N4 逐条；功效、收回率、停放与披露照文件排版；「做」不是生产采用。 */
+function doOrNotCard(card){
+  const d=card.data;
+  const tone=d.decision==='NOT_DO'?'INVALID':(d.decision==='DO'?'VALID':'OBSERVING');
+  const checks=table(['条','不做条件','是否成立','事实'],d.checks.map((c)=>[esc(c.id),esc(c.rule),c.triggered?'成立':'不成立',esc(c.facts)]),d.order_zh||'');
+  const rec=d.recommendation?`<h5 class="formula-title">§6.3 核对（证据不足时，只列出）</h5>${table(['项','核对','结果','事实'],d.recommendation.checks.map((c)=>[esc(c.id),esc(c.item),esc(c.mark),esc(c.facts)]))}${d.recommendation.analysis.length?`<ul>${d.recommendation.analysis.map((line)=>`<li>${esc(line)}</li>`).join('')}</ul>`:''}`:'';
+  return `<div class="status-row">${pill('结论：'+d.decision_zh,tone)}</div><dl><dt>证据强度</dt><dd>${esc(d.strength_zh)}</dd><dt>允许用途</dt><dd>${esc(d.allowed_use_zh)}</dd>${d.lines.map((line)=>`<dt>${esc(line.label)}</dt><dd>${esc(line.text)}</dd>`).join('')}</dl>${checks}${rec}${d.production_note_zh?`<p><strong>${esc(d.production_note_zh)}</strong></p>`:''}${d.disclosures.length?`<h5 class="formula-title">必须随候选披露的</h5><ul>${d.disclosures.map((line)=>`<li>${esc(line)}</li>`).join('')}</ul>`:''}<p class="muted-note">${esc(d.note_zh)}</p>`;
 }
 /** 证据不足时的采用建议核对表（Q5 K2 ★3 (a)）：前 4 项决定建议，第 5、6 项是反证、只列出；决定由 Owner 作出（修订 6）。 */
 function recommendationCard(card){
@@ -368,6 +378,7 @@ const OPEN_CMP_BLOCKS=new Set(['account','verdict']);
 function cmpBlock(cmp,block,index,ctx){
   const title=`<span class="bt-num">${index+1}</span>${esc(block.title)}`;
   if(block.state!=='AVAILABLE')return `<article class="bt-block" data-cmp-block="${esc(block.key)}"><h4>${title}</h4><p class="not-backtested">尚未完成：${esc(block.reason||'原因未提供')}</p></article>`;
+  if(block.key==='forward'&&block.data.spec)return `<article class="bt-block" data-cmp-block="forward"><h4>${title}</h4><p class="forward-pointer">${esc(block.data.reason_zh)}</p><details><summary>冻结的前向规则（K2 ${esc(block.data.spec.section)}）</summary><div class="detail-body"><ul>${block.data.spec.lines_zh.map((line)=>`<li>${esc(line)}</li>`).join('')}</ul></div></details>${tech([{label:'规则原文 SHA-256',value:block.data.spec.sha256}],'前向规则的哈希')}</article>`;
   if(block.key==='forward')return `<article class="bt-block" data-cmp-block="forward"><h4>${title}</h4><p class="forward-pointer">前向：${block.data.rows.length} 行，<a href="${detailHref(ctx.strategyRef,'forward')}">见前向观察</a></p></article>`;
   const open=Boolean(ctx.all)||OPEN_CMP_BLOCKS.has(block.key);
   return `<article class="bt-block" data-cmp-block="${esc(block.key)}"${foldAttr(open)}><h4>${foldToggle(title,open)}</h4>${CMP_RENDER[block.key](block.data,{...ctx,adoption:cmp.adoption})}</article>`;

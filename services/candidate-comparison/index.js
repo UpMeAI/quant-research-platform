@@ -138,10 +138,11 @@ function validateWhole(entry, doc) {
   }
   if (oos.detail_required) need(detailPresent(doc.oos_reuse_detail), E(entry, 'OOS_REUSE_DETAIL_MISSING'));
 
-  // 前向只报不判，任何一行都不能进结论。
+  // 前向只报不判，任何一行都不能进结论。登记项可以改成核对冻结的前向规则（附录 4：Q6 还没有前向行，只有 K2 §7 原文）。
   const forward = forwardRows(doc);
-  need(Array.isArray(forward), E(entry, 'FORWARD_ROWS_MISSING'));
-  forward.forEach((row, index) => need(isObject(row) && row.in_verdict === false, E(entry, 'FORWARD_IN_VERDICT'), `rows[${index}]`));
+  if (entry.validateForward) entry.validateForward(entry, doc);
+  else need(Array.isArray(forward), E(entry, 'FORWARD_ROWS_MISSING'));
+  (Array.isArray(forward) ? forward : []).forEach((row, index) => need(isObject(row) && row.in_verdict === false, E(entry, 'FORWARD_IN_VERDICT'), `rows[${index}]`));
 
   const flags = criteriaOf(entry, doc);
   entry.checkVerdict(entry, doc, flags);
@@ -308,6 +309,8 @@ function importCandidateComparison(file, {
   caseRef = caseRef || profile.case_ref;
   validateWhole(entry, sealed.doc);
   const baselineLock = checkBaseline(entry, sealed.doc, caseRef);
+  // 登记项另要的账本核对（附录 4：Q6 引用的差距分解、压力补充与 Q4 锁）；Q1–Q5 没有这一项
+  if (entry.checkLedger) entry.checkLedger(entry, sealed.doc, caseRef, { baselineLock, comparison: { comparisonFor, headLock } });
   const resultId = `${entry.question_ref}-${sealed.sha256.slice(0, 16)}`;
   const head = headLock(caseRef, entry.question_ref);
   if (head && head.result_id === resultId) return { ...head, replayHit: true };
@@ -319,7 +322,7 @@ function importCandidateComparison(file, {
     schema: 'COMPARISON_EVALUATION_LOCK_V1', result_id: resultId, case_ref: caseRef, strategy_ref: profile.strategy_ref, question_ref: entry.question_ref,
     eval_class: EVAL_CLASS, verdict_state: sealed.doc.verdict.state, t3_state: entry.mirror ? sealed.doc.verdict[entry.mirror.field] : null,
     baseline_result_id: baselineLock.result_id, oos_reuse: sealed.doc.oos_reuse === true,
-    file_ref: sealed.file, file_sha256: sealed.sha256, file_size: sealed.size, ...digests(sealed.doc),
+    file_ref: sealed.file, file_sha256: sealed.sha256, file_size: sealed.size, ...(entry.digests ? entry.digests(entry, sealed.doc) : digests(sealed.doc)),
     k2_ref: entry.k2.ref, profile_ref: entry.profile_ref, supersedes_ref: supersedes, defect_ref: defectRef, supersede_reason: reason,
     production_effect: 'NONE', locked_by: registeredBy,
   };

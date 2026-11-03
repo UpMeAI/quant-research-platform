@@ -639,7 +639,7 @@ test('US_V5 页头：desk 周档引用 5 条决定后写「已有 5 项回到 De
   const research = async () => (await withDeskRoot(desk, () => a7.modelOf({ locks }))).views['strategy-detail'];
   const empty = await research();
   assert.match(empty.research.answer, /尚未回到 Desk/);
-  assert.deepEqual(empty.research_queue.rows.map((row) => row.question_ref), ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']);
+  assert.deepEqual(empty.research_queue.rows.map((row) => row.question_ref), ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6']);
   weekWithReturns(desk, '2026-W44', adoption.records().map((record) => cite(record)));
   const returned = await research();
   assert.match(returned.research.answer, /已有 5 项回到 Desk/);

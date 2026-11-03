@@ -247,6 +247,17 @@ function armSummaries(entry, doc) {
   return specs.map(([key, label, aliases]) => {
     const arm = pick(arms, aliases);
     need(isObject(arm), 'MISSING', `arms.${key}`);
+    // 附录 4：登记项点名的比较对象（Q6 的现金臂）可以只有摘要——只核对摘要字段，不画序列，也不拿别的臂的日期补
+    if ((entry.summary_only_comparators || []).includes(key) && arm.equity === undefined) {
+      need(isObject(arm.summary), 'MISSING', `arms.${key}.summary`);
+      return {
+        key, label, end_capital: field(arm.summary, 'end_capital', `arms.${key}.summary.end_capital`), cagr: field(arm.summary, 'cagr', `arms.${key}.summary.cagr`),
+        max_drawdown: field(arm.summary, 'max_drawdown', `arms.${key}.summary.max_drawdown`),
+        longest_underwater_sessions: field(arm.summary, 'longest_underwater_sessions', `arms.${key}.summary.longest_underwater_sessions`),
+        recovered: field(arm.summary, 'recovered', `arms.${key}.summary.recovered`, 'bool'), peak: null, sessions: null, start: null, end_date: null,
+        deferred_sessions: null, summary_only: true,
+      };
+    }
     const equity = arm.equity;
     need(isObject(equity) && Array.isArray(equity.dates) && Array.isArray(equity.values) && equity.dates.length === equity.values.length
       && equity.values.length >= 2 && equity.values.every((value) => finite(value) && value > 0), 'INVALID', `arms.${key}.equity`);
