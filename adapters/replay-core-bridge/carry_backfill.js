@@ -9,8 +9,11 @@
  *
  * 冻结跑数器(scripts/research/funding-basis-carry-run.js)自己的 windowLines / windowLinesV2 原样运行。它每调用一次
  * simulateSleeve,旧引擎不算,改为:
- *   1. 用写作业的同一载荷({ legacy: { input, opts } },index.payloadBytes)求 v8 字节的 sha256,在作业清单里按载荷
- *      sha256 对号(不按调用顺序);对不上即拒绝(BACKFILL_JOB_NOT_FOUND);
+ *   1. 按载荷对号(不按调用顺序):这次调用的载荷({ legacy: { input, opts }, kind, strategy },与写作业端同形)与每个作业的载荷
+ *      (载荷文件先按清单里的 payload_sha256 逐字节核过,再 v8 反序列化)各求「内容 sha256」(contentDigest:与 V8 内部表示无关的
+ *      规范写法),相等才算同一载荷;对不上即拒绝(BACKFILL_JOB_NOT_FOUND)。原始 v8 字节是否也相同另记(raw_identical,只作诊断)。
+ *      为什么不直接比 v8 字节:写作业端的字节取决于那个进程里的对象形状与字符串表示(11-03 Linux 实测:同一内容,'CARRY'
+ *      在本文件里是双字节串、在写作业端是单字节串,字节就不同),同内容不同字节;判定只认内容。
  *   2. 经 runJob(与适配器 run_backtest 同一子进程路径)重跑该作业;输出 sha256 必须等于清单里 harness 自跑的 sha256;
  *   3. 输出的 native 按 restoreNative 还原成旧引擎返回的同一形状交回跑数器。
  * 线的汇总、bootstrap、判定都由跑数器自己做(唯一产出者);这里只把 V2 窗口按 v2Run 的形状写成证据,交 v2-result。
@@ -25,6 +28,9 @@ const crypto = require('crypto');
 const { PIN, sha256Hex, layout, assertCore } = require('./core_pin');
 const bridge = require('./index');
 const CacheJobs = require('./cache_jobs');
+
+const v8 = require('v8');
+const { PAYLOAD_KIND } = require('./runner');
 
 const RECEIPT_KIND = 'QRP_CARRY_V2_A0_BACKFILL_V1';
 const SOURCE = 'CARRY';
@@ -56,9 +62,61 @@ function restoreNative(native) {
   return { ...native, equity: Float64Array.from(equity), held: Uint8Array.from(held) };
 }
 
-/** 作业目录 → 按载荷 sha256 的索引。清单必须是本钉版的 CARRY 清单;同一载荷两个不同输出即拒绝。 */
+/**
+ * 载荷的内容 sha256:与 V8 内部表示无关(小整数 / 双精度、单字节 / 双字节串、元素种类都不影响),内容不同则不同。
+ * 写法(带类型标记,按插入顺序):null n;undefined u;数组空位 h;布尔 T/F;数 d<Object.is -0 写 -0,否则 String(x)>;
+ * 串 s<JSON>;数组 [ … ];类型化数组 A<构造名>[ … ];Map M{ k=>v … }(插入顺序);普通对象 {k:v …}(插入顺序)。
+ * 其他类型(函数、Date、Set、类实例、非有限数以外的一切)拒绝,不猜。
+ */
+function contentDigest(value) {
+  const h = crypto.createHash('sha256');
+  let buf = '';
+  const put = (t) => { buf += t; if (buf.length > 65536) { h.update(buf); buf = ''; } };
+  const walk = (v) => {
+    if (v === null) { put('n'); return; }
+    switch (typeof v) {
+      case 'undefined': put('u'); return;
+      case 'boolean': put(v ? 'T' : 'F'); return;
+      case 'number': put(`d${Object.is(v, -0) ? '-0' : String(v)};`); return;
+      case 'string': put(`s${JSON.stringify(v)}`); return;
+      case 'object': break;
+      default: throw new Error(`CONTENT_DIGEST_UNSUPPORTED:${typeof v}`);
+    }
+    if (Array.isArray(v)) {
+      put('[');
+      for (let i = 0; i < v.length; i += 1) { if (i in v) walk(v[i]); else put('h'); put(','); }
+      put(']');
+      return;
+    }
+    if (ArrayBuffer.isView(v) && !(v instanceof DataView)) {
+      put(`A${v.constructor.name}[`);
+      for (let i = 0; i < v.length; i += 1) { walk(v[i]); put(','); }
+      put(']');
+      return;
+    }
+    if (v instanceof Map) {
+      put('M{');
+      for (const [k, x] of v) { walk(k); put('=>'); walk(x); put(','); }
+      put('}');
+      return;
+    }
+    const proto = Object.getPrototypeOf(v);
+    if (proto !== Object.prototype && proto !== null) throw new Error(`CONTENT_DIGEST_UNSUPPORTED:${v.constructor ? v.constructor.name : 'object'}`);
+    put('{');
+    for (const k of Object.keys(v)) { put(`${JSON.stringify(k)}:`); walk(v[k]); put(','); }
+    put('}');
+  };
+  walk(value);
+  h.update(buf);
+  return h.digest('hex');
+}
+
+/**
+ * 作业目录 → 按载荷内容 sha256 的索引(另留原始字节 sha256)。清单必须是本钉版的 CARRY 清单;每个载荷文件先按清单的
+ * payload_sha256 逐字节核过再反序列化;同一内容两个不同输出即拒绝。
+ */
 function jobIndex(dirs) {
-  const bySha = new Map();
+  const byContent = new Map();
   const manifests = [];
   for (const dir of dirs) {
     const file = path.join(dir, CacheJobs.manifestFile(SOURCE));
@@ -70,27 +128,17 @@ function jobIndex(dirs) {
     if (m.smartflow_commit !== PIN.smartflow.commit) throw new Error(`SMARTFLOW_COMMIT_MISMATCH:manifest:${path.basename(dir)}`);
     manifests.push({ dir: path.basename(dir), manifest_sha256: sha256Hex(bytes), jobs: m.jobs.length, harness_verdict: m.harness_verdict });
     for (const j of m.jobs) {
-      const prev = bySha.get(j.payload_sha256);
-      if (prev && prev.harness_output_sha256 !== j.harness_output_sha256) throw new Error(`BACKFILL_PAYLOAD_AMBIGUOUS:${j.payload_sha256.slice(0, 16)}`);
-      if (!prev) bySha.set(j.payload_sha256, { dir, job_file: j.job_file, payload_sha256: j.payload_sha256, harness_output_sha256: j.harness_output_sha256 });
+      const job = JSON.parse(fs.readFileSync(path.join(dir, j.job_file), 'utf8'));
+      if (job.payload_sha256 !== j.payload_sha256) throw new Error(`CACHE_JOB_CHANGED:${j.job_file}`);
+      const raw = fs.readFileSync(path.join(dir, job.payload_file));
+      if (sha256Hex(raw) !== j.payload_sha256) throw new Error(`PAYLOAD_SHA256_MISMATCH:${j.job_file}`);
+      const content = contentDigest(v8.deserialize(raw));
+      const prev = byContent.get(content);
+      if (prev && prev.harness_output_sha256 !== j.harness_output_sha256) throw new Error(`BACKFILL_PAYLOAD_AMBIGUOUS:${content.slice(0, 16)}`);
+      if (!prev) byContent.set(content, { dir, job_file: j.job_file, payload_sha256: j.payload_sha256, content_sha256: content, harness_output_sha256: j.harness_output_sha256 });
     }
   }
-  return { bySha, manifests };
-}
-
-/**
- * 只在对不上时做的诊断(不改判定,仍然拒绝):把这次调用的载荷与每个作业的载荷都经 v8 反序列化再序列化,
- * 看内容上是否等于某个作业 —— 等于则差别只在进程内的数值表示(字节),不在内容。
- */
-function normalizedDiagnosis(index, payload) {
-  const v8 = require('v8');
-  const norm = (bytes) => sha256Hex(v8.serialize(v8.deserialize(bytes)));
-  const want = norm(bridge.payloadBytes(SOURCE, payload).bytes);
-  for (const hit of index.bySha.values()) {
-    const job = JSON.parse(fs.readFileSync(path.join(hit.dir, hit.job_file), 'utf8'));
-    if (norm(fs.readFileSync(path.join(hit.dir, job.payload_file))) === want) return `normalized=${hit.job_file}`;
-  }
-  return 'normalized=NONE';
+  return { byContent, manifests };
 }
 
 /**
@@ -101,14 +149,18 @@ function backfillLines({ L, runner, data, win, yields, index, runJob }) {
   const original = L.simulateSleeve;
   const calls = [];
   L.simulateSleeve = function backfilled(input, opts) {
-    const { sha256: payloadSha } = bridge.payloadBytes(SOURCE, { legacy: { input, opts } });
-    const hit = index.bySha.get(payloadSha);
-    if (!hit) throw new Error(`BACKFILL_JOB_NOT_FOUND:${payloadSha.slice(0, 16)}:call=${calls.length + 1}:${normalizedDiagnosis(index, { legacy: { input, opts } })}`);
+    const payload = { legacy: { input, opts }, kind: PAYLOAD_KIND, strategy: SOURCE };
+    const content = contentDigest(payload);
+    const hit = index.byContent.get(content);
+    if (!hit) throw new Error(`BACKFILL_JOB_NOT_FOUND:${content.slice(0, 16)}:call=${calls.length + 1}`);
     const job = JSON.parse(fs.readFileSync(path.join(hit.dir, hit.job_file), 'utf8'));
-    if (job.payload_sha256 !== payloadSha) throw new Error(`CACHE_JOB_CHANGED:${hit.job_file}`);
+    if (job.payload_sha256 !== hit.payload_sha256) throw new Error(`CACHE_JOB_CHANGED:${hit.job_file}`);
     const { receipt, output } = runJob(job, hit.dir);
+    if (receipt.payload_sha256 !== hit.payload_sha256) throw new Error(`BACKFILL_PAYLOAD_DIFFERENT:${hit.job_file}`);
     if (receipt.output_sha256 !== hit.harness_output_sha256) throw new Error(`BACKFILL_OUTPUT_DIFFERENT:${hit.job_file}`);
-    calls.push({ call: calls.length + 1, jobs_dir: path.basename(hit.dir), job_file: hit.job_file, payload_sha256: payloadSha, output_sha256: receipt.output_sha256 });
+    const rawIdentical = bridge.payloadBytes(SOURCE, { legacy: { input, opts } }).sha256 === hit.payload_sha256;
+    calls.push({ call: calls.length + 1, jobs_dir: path.basename(hit.dir), job_file: hit.job_file, payload_sha256: hit.payload_sha256, content_sha256: content,
+      raw_identical: rawIdentical, output_sha256: receipt.output_sha256 });
     return restoreNative(output.native);
   };
   try {
@@ -217,7 +269,7 @@ function backfill(root, args, out, inject = {}) {
     }
     windows.push(row);
   }
-  const used = new Set(windows.flatMap((w) => w.calls.map((c) => c.payload_sha256)));
+  const used = new Set(windows.flatMap((w) => w.calls.map((c) => c.content_sha256)));
   const receipt = {
     kind: RECEIPT_KIND, group, pass, ...(prior ? { again_of_sha256: sha256Hex(fs.readFileSync(args.again)) } : {}),
     rule: 'K2 §4.1 R-A0-PATH ★a: job outputs (runJob, output sha256 = harness sha256) restored and handed back to the frozen runner',
@@ -226,7 +278,9 @@ function backfill(root, args, out, inject = {}) {
     runner_sha256: sha256Hex(fs.readFileSync(path.join(pkgRoot, RUNNER))), lib_sha256: sha256Hex(fs.readFileSync(path.join(pkgRoot, LIB))),
     data_manifest_sha256: manifestSha256, dtb3_sha256: dtb3 ? dtb3.file.sha256 : null,
     job_manifests: index.manifests,
-    jobs_indexed: index.bySha.size, jobs_used: used.size, jobs_unused: [...index.bySha.keys()].filter((k) => !used.has(k)).length,
+    match_rule: 'payload content sha256 (contentDigest), job payload files verified byte-for-byte against payload_sha256; raw v8 byte identity recorded per call (raw_identical, diagnostic)',
+    jobs_indexed: index.byContent.size, jobs_used: used.size, jobs_unused: [...index.byContent.keys()].filter((k) => !used.has(k)).length,
+    calls_raw_identical: windows.reduce((n, w) => n + w.calls.filter((c) => c.raw_identical).length, 0), calls: windows.reduce((n, w) => n + w.calls.length, 0),
     windows,
     all_calls_matched: windows.every((w) => w.calls.length > 0),
     ...(prior ? { all_g3: windows.every((w) => w.G3.pass && w.jobs_same_both_passes) } : {}),
@@ -259,4 +313,4 @@ function main(argv) {
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
-module.exports = { RECEIPT_KIND, V1_WINDOWS, V2_WINDOWS, restoreNative, jobIndex, backfillLines, windowOf, backfill };
+module.exports = { RECEIPT_KIND, V1_WINDOWS, V2_WINDOWS, restoreNative, contentDigest, jobIndex, backfillLines, windowOf, backfill };
