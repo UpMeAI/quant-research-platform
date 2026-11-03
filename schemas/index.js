@@ -238,6 +238,18 @@ const SCHEMAS = Object.freeze({
     k2_ref: 's', profile_ref: 's', supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?',
     production_effect: 's', locked_by: 's', lock_hash: 's', locked_at: 's',
   },
+  GAP_DECOMPOSITION_LOCK_V1: {
+    _doc: 'US_V5_M2_Q0_RESULT_V1 导入规格增补 1 §1 —— 差距分解描述记录（GAP_DECOMPOSITION_V1）的锁：文件 sha256、Q0 基线、原版臂来源（Q5 的当前 D 臂）与引用的 Q1–Q5 锁；没有三态（描述，不是结论）；每 case 一条，改锁须引用缺陷',
+    record_type: 's', result_id: 's', case_ref: 's', strategy_ref: 's', baseline_result_id: 's', base_arm_ref: 'o', cited_result_ids: 'a', oos_reuse: 'b', decision: 's',
+    file_ref: 's', file_sha256: 's', file_size: 'n', smartflow_commit: 's', k2_ref: 's', k2_sha256: 's', import_profile_id: 's',
+    supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?', production_effect: 's', locked_by: 's', locked_at: 's', lock_hash: 's',
+  },
+  BASELINE_STRESS_SUPPLEMENT_LOCK_V1: {
+    _doc: 'US_V5_M2_Q0_RESULT_V1 导入规格增补 1 §2 —— Q0 压力补充记录（BASELINE_STRESS_SUPPLEMENT_V1）的锁：只追加，不改 Q0 锁；同一 (Q0 基线, 场景) 一条；参照行只显示、不进任何锁；改锁须引用缺陷',
+    record_type: 's', result_id: 's', case_ref: 's', strategy_ref: 's', baseline_result_id: 's', scenario: 's', input_route: 's', oos_reuse: 'b', reference_result_ids: 'a',
+    file_ref: 's', file_sha256: 's', file_size: 'n', smartflow_commit: 's', k2_ref: 's', k2_sha256: 's', import_profile_id: 's',
+    supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?', production_effect: 's', locked_by: 's', locked_at: 's', lock_hash: 's',
+  },
   RESEARCH_ADOPTION_DECISION_V1: {
     _doc: 'UX 修订 6 H1 —— 研究结论的采用决定（追加式）：DECISION（ADOPT／NOT_ADOPTED／NOT_APPLICABLE，Owner 原话、决定时间、后续去向、协调会话建议、决定记录文件 sha256）或 RECOMMENDATION（只有建议与理由）；按 result_id（随机对照加 part）定位，改决定须 supersedes 旧记录；只有完成权威能写',
     record_id: 's', kind: 's', result_id: 's', part: 's?', case_ref: 's', strategy_ref: 's', question_ref: 's',
