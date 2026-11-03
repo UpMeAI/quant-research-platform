@@ -12,6 +12,8 @@
  *   US_V5 { input }                          REPLAY_CORE_INPUT_V1 去掉 hooks(hooksId 指名 hooks)
  *   C17   { dataset, opts, configOverlay }   c17Input 的参数;configOverlay 只允许 ASSET_PARAMS 的止盈/冷却
  *   CARRY { data, win, capital, opts }       carryInput 的参数
+ *         { legacy: { input, opts } }        或研究跑数器 simulateSleeve 的调用参数(carryInputFromLegacy;真实缓存作业)
+ * 真实研究缓存 → 作业:writeCacheJobs(cache_jobs.js,smartflow 自己的 layer-2 入口);runCacheJobs 逐个重跑并与 harness 字节比对。
  *
  * 边界:只读研究缓存;子进程环境裁成最小集(PATH / TZ),拿不到任何凭证;未配置 QRP_SMARTFLOW_ROOT = 未接通,显式抛错。
  */
@@ -95,4 +97,50 @@ function listJobs(cacheDir) {
   return out;
 }
 
-module.exports = { PIN, ROOT_ENV, RUNNER, smartflowRoot, childEnv, writeJob, runJob, listJobs };
+const CACHE_JOBS = path.join(__dirname, 'cache_jobs.js');
+const CACHE_JOBS_TIMEOUT_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * 真实研究缓存 → 作业(cache_jobs.js 子进程,钉住的 smartflow 检出,最小环境)。args 是可 JSON 化的来源参数(路径、窗口等)。
+ * 返回写出的清单 QRP_REPLAY_CORE_CACHE_JOBS_V1;作业与载荷写在 outDir,可直接作研究缓存(QRP_REPLAY_CORE_CACHE_*)用。
+ */
+function writeCacheJobs(source, args, outDir, opts = {}) {
+  const root = smartflowRoot(opts);
+  const CacheJobs = require('./cache_jobs');
+  CacheJobs.checkArgs(source, args);
+  fs.mkdirSync(outDir, { recursive: true });
+  CacheJobs.assertFresh(outDir, source);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-cache-jobs-'));
+  try {
+    const argsFile = path.join(tmp, 'args.json');
+    fs.writeFileSync(argsFile, JSON.stringify(args));
+    const r = spawnSync(process.execPath, [CACHE_JOBS, '--root', root, '--source', source, '--args', argsFile, '--out', path.resolve(outDir)], {
+      cwd: tmp, env: childEnv(), encoding: 'utf8', timeout: opts.timeoutMs || CACHE_JOBS_TIMEOUT_MS, maxBuffer: 1 << 26,
+    });
+    if (r.error) throw new Error(`CACHE_JOBS_FAILED:${r.error.code || r.error.message}`);
+    if (r.status !== 0) throw new Error(`CACHE_JOBS_FAILED:${String(r.stderr || '').trim().split('\n').pop()}`);
+    return JSON.parse(fs.readFileSync(path.join(outDir, CacheJobs.manifestFile(source)), 'utf8'));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+/**
+ * 按清单逐个重跑一个来源的作业(runJob,与适配器 run_backtest 同一路径),输出 sha256 与写作业时 harness 自跑的比。
+ * 在 Linux 研究机上跑即为该批真实数据作业的字节权威回执。
+ */
+function runCacheJobs(outDir, source, opts = {}) {
+  const CacheJobs = require('./cache_jobs');
+  const manifest = JSON.parse(fs.readFileSync(path.join(outDir, CacheJobs.manifestFile(source)), 'utf8'));
+  if (manifest.core_version_hash !== PIN.core.version_hash) throw new Error('CORE_VERSION_MISMATCH:manifest');
+  const v = CacheJobs.verdictOf(manifest.jobs, (j) => {
+    const job = JSON.parse(fs.readFileSync(path.join(outDir, j.job_file), 'utf8'));
+    if (job.payload_sha256 !== j.payload_sha256) throw new Error(`CACHE_JOB_CHANGED:${j.job_file}`);
+    return runJob(job, outDir, opts).receipt.output_sha256;
+  });
+  return { kind: 'QRP_REPLAY_CORE_CACHE_JOBS_RUN_V1', source, strategy: manifest.strategy, core_version_hash: PIN.core.version_hash,
+    manifest_sha256: sha256Hex(fs.readFileSync(path.join(outDir, CacheJobs.manifestFile(source)))), harness_verdict: manifest.harness_verdict,
+    env: { node: process.versions.node, platform: process.platform, arch: process.arch }, ...v };
+}
+
+module.exports = { PIN, ROOT_ENV, RUNNER, smartflowRoot, childEnv, writeJob, runJob, listJobs, writeCacheJobs, runCacheJobs };
