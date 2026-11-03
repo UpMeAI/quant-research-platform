@@ -140,3 +140,15 @@ test('US_V5_RECORDS:扫描记录 → 账本回放交给出场规则的持仓,一
     assertJobsReproduce(m, out, 'US_EQUITY');
   } finally { fs.rmSync(out, { recursive: true, force: true }); }
 });
+
+test('US_V5_RECORDS 磁盘路径:按日志自己的目录变量读回全部记录;区间里没有记录即拒绝,不落到缺省目录', { skip: SKIP }, () => {
+  const out = tmpDir();
+  try {
+    const r = spawnSync(process.execPath, [FIXTURE, path.resolve(ROOT), 'US_V5_READ_BACK', out], { cwd: out, env: bridge.childEnv(), encoding: 'utf8', timeout: 120000 });
+    assert.equal(r.status, 0, r.stderr);
+    const got = JSON.parse(r.stdout);
+    assert.ok(got.written > 0);
+    assert.equal(got.read, got.written);
+    assert.equal(got.outside, 'US_V5_RECORDS_EMPTY:2026-01-05..2026-01-09');
+  } finally { fs.rmSync(out, { recursive: true, force: true }); }
+});

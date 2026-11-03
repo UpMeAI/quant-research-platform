@@ -55,7 +55,21 @@ const FIXTURES = {
   },
 };
 
+/** 决策输入日志的磁盘路径:用 smartflow 自己的 appendRecord 写一周记录,再按 usV5Records 读回(只打印条数)。 */
+function readBack(root, out) {
+  const pkg = path.join(root, 'trading-system-v2');
+  const req = (rel) => require(path.join(pkg, rel));
+  const F = req('tests/helpers/us-v5-book-replay-fixture.js');
+  const log = req('src/services/us-decision-input-log.js');
+  const env = { US_DECISION_INPUTS_DIR: out };
+  const records = F.weekRecords();
+  for (const r of records) if (log.appendRecord('us-v5', r, { env, nowMs: Date.parse(r.startedAt) }).state !== 'WRITTEN') throw new Error('FIXTURE_WRITE_FAILED');
+  const read = (from, to) => { try { return CacheJobs.usV5Records(req, { records: out, from, to }).length; } catch (e) { return String(e.message); } };
+  process.stdout.write(JSON.stringify({ written: records.length, read: read('2026-10-05', '2026-10-09'), outside: read('2026-01-05', '2026-01-09') }));
+}
+
 function main([root, name, out]) {
+  if (name === 'US_V5_READ_BACK') { readBack(root, out); return; }
   const make = FIXTURES[name];
   if (!make) throw new Error(`USAGE:fixture ${name}`);
   let made = null;

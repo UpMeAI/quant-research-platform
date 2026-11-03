@@ -31,6 +31,21 @@ const manifestFile = (source) => `cache-jobs-${source}.json`;
 
 const need = (a, keys) => { for (const k of keys) if (a[k] === undefined || a[k] === null || a[k] === '') throw new Error(`USAGE:${k}`); };
 
+/**
+ * US_V5 扫描记录:按决策输入日志自己的目录变量(resolveDir 读 US_DECISION_INPUTS_DIR)读 [from, to];
+ * 目录没对上、有损坏文件、或一条记录都没有,一律拒绝(smartflow golden CLI 传的 US_DECISION_INPUT_DIR 会被 resolveDir 忽略而落到缺省目录)。
+ */
+function usV5Records(req, a) {
+  const inputs = req('src/services/us-decision-input-log.js');
+  const env = { US_DECISION_INPUTS_DIR: path.resolve(a.records) };
+  if (inputs.resolveDir(env) !== path.resolve(a.records)) throw new Error('US_V5_RECORDS_DIR_NOT_HONOURED');
+  const { bySession, corrupt } = inputs.readRecords('us-v5', { from: a.from, to: a.to, env });
+  if (corrupt.length) throw new Error(`US_V5_RECORDS_CORRUPT:${corrupt.map((c) => c.session).join(',')}`);
+  const records = [...bySession.values()].flat();
+  if (!records.length) throw new Error(`US_V5_RECORDS_EMPTY:${a.from}..${a.to}`);
+  return records;
+}
+
 /** 各来源:策略、参数校验(补缺省)、调用 tier2 的入口。inject 只给测试与已在内存里的数据用(tier2 同样接受)。 */
 const SOURCES = Object.freeze({
   CARRY: {
@@ -70,10 +85,8 @@ const SOURCES = Object.freeze({
         return T2.usV5Tier2({ records: inject.records, StrategyModule: inject.StrategyModule, book: inject.book, sessions: inject.sessions,
           timeRule, windowSessions: inject.windowSessions || inject.sessions });
       }
-      const inputs = req('src/services/us-decision-input-log.js');
       const { resolveV5Book } = req('src/services/us-v5-book.js');
-      const { bySession } = inputs.readRecords('us-v5', { from: a.from, to: a.to, env: { US_DECISION_INPUT_DIR: path.resolve(a.records) } });
-      return T2.usV5Tier2({ records: [...bySession.values()].flat(), StrategyModule: req('src/strategies/us-v5-strategy.js'),
+      return T2.usV5Tier2({ records: usV5Records(req, a), StrategyModule: req('src/strategies/us-v5-strategy.js'),
         book: resolveV5Book({ US_V5_BOOK_EQUITY: String(a.bookEquity), US_V5_BOOK_START_AT: a.bookStart }), sessions: R.sessionsBetween(a.from, a.to), timeRule });
     },
   },
@@ -210,4 +223,4 @@ function main(argv) {
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
-module.exports = { MANIFEST_KIND, SOURCES, manifestFile, checkArgs, assertFresh, verdictOf, captureCacheJobs };
+module.exports = { MANIFEST_KIND, SOURCES, manifestFile, checkArgs, assertFresh, verdictOf, usV5Records, captureCacheJobs };
