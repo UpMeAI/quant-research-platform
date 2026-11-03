@@ -79,6 +79,21 @@ function jobIndex(dirs) {
 }
 
 /**
+ * 只在对不上时做的诊断(不改判定,仍然拒绝):把这次调用的载荷与每个作业的载荷都经 v8 反序列化再序列化,
+ * 看内容上是否等于某个作业 —— 等于则差别只在进程内的数值表示(字节),不在内容。
+ */
+function normalizedDiagnosis(index, payload) {
+  const v8 = require('v8');
+  const norm = (bytes) => sha256Hex(v8.serialize(v8.deserialize(bytes)));
+  const want = norm(bridge.payloadBytes(SOURCE, payload).bytes);
+  for (const hit of index.bySha.values()) {
+    const job = JSON.parse(fs.readFileSync(path.join(hit.dir, hit.job_file), 'utf8'));
+    if (norm(fs.readFileSync(path.join(hit.dir, job.payload_file))) === want) return `normalized=${hit.job_file}`;
+  }
+  return 'normalized=NONE';
+}
+
+/**
  * 一个窗口的线:跑数器自己的函数,simulateSleeve 换成「对号 → 重跑作业 → 还原」。
  * runJob(job, dir) → { receipt, output };used 收集每次调用对上的作业。
  */
@@ -88,7 +103,7 @@ function backfillLines({ L, runner, data, win, yields, index, runJob }) {
   L.simulateSleeve = function backfilled(input, opts) {
     const { sha256: payloadSha } = bridge.payloadBytes(SOURCE, { legacy: { input, opts } });
     const hit = index.bySha.get(payloadSha);
-    if (!hit) throw new Error(`BACKFILL_JOB_NOT_FOUND:${payloadSha.slice(0, 16)}`);
+    if (!hit) throw new Error(`BACKFILL_JOB_NOT_FOUND:${payloadSha.slice(0, 16)}:call=${calls.length + 1}:${normalizedDiagnosis(index, { legacy: { input, opts } })}`);
     const job = JSON.parse(fs.readFileSync(path.join(hit.dir, hit.job_file), 'utf8'));
     if (job.payload_sha256 !== payloadSha) throw new Error(`CACHE_JOB_CHANGED:${hit.job_file}`);
     const { receipt, output } = runJob(job, hit.dir);

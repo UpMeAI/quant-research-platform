@@ -194,7 +194,7 @@ for (const [label, win] of [['V1 windowLines', SYN], ['V2 windowLinesV2(平 4.5%
     fs.writeFileSync(path.join(bad, CacheJobs.manifestFile('CARRY')), `${JSON.stringify(m4, null, 1)}\n`);
     const r4 = runBackfill({ data: archive, windows: [win], jobs: [bad] }, path.join(base, 'a0-4-missing'));
     assert.notEqual(r4.status, 0);
-    assert.match(r4.err, /BACKFILL_JOB_NOT_FOUND/);
+    assert.match(r4.err, /BACKFILL_JOB_NOT_FOUND:[0-9a-f]{16}:call=\d+:normalized=NONE/);
   });
 }
 
