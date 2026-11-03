@@ -250,6 +250,14 @@ const SCHEMAS = Object.freeze({
     file_ref: 's', file_sha256: 's', file_size: 'n', smartflow_commit: 's', k2_ref: 's', k2_sha256: 's', import_profile_id: 's',
     supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?', production_effect: 's', locked_by: 's', locked_at: 's', lock_hash: 's',
   },
+  SEALED_RESEARCH_RESULT_LOCK_V1: {
+    _doc: 'CARRY_V2_RESULT_IMPORT_PROFILE_V1（487cf360…，FREEZE_1）§0/§1/§4 —— 封存研究结论锁：导入封存结论原样（不重算、不重新评价），按 sha256 绑定接入封存包与钉版 smartflow 的封存文件；只有日历与计数，不含任何前向数值；每 case 一条，换包须 supersedes 并引用缺陷',
+    record_type: 's', result_id: 's', case_ref: 's', strategy_ref: 's', verdict_form: 's', verdict_result: 's', verdict_next: 's', first_look: 's',
+    oos_reuse: 'b', seen_data: 's', data_uses: 'a', segment_marks: 'o', forward_calendar: 'o', half_kelly: 's', reproduction: 'o', sealed_files: 'a',
+    bundle_ref: 's', bundle_sha256: 's', receipts: 'a', smartflow_commit: 's', k2_ref: 's', k2_sha256: 's', k2_freeze_sha256: 's',
+    import_profile_id: 's', import_profile_sha256: 's', import_profile_freeze_sha256: 's',
+    supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?', production_effect: 's', locked_by: 's', locked_at: 's', lock_hash: 's',
+  },
   RESEARCH_ADOPTION_DECISION_V1: {
     _doc: 'UX 修订 6 H1 —— 研究结论的采用决定（追加式）：DECISION（ADOPT／NOT_ADOPTED／NOT_APPLICABLE，Owner 原话、决定时间、后续去向、协调会话建议、决定记录文件 sha256）或 RECOMMENDATION（只有建议与理由）；按 result_id（随机对照加 part）定位，改决定须 supersedes 旧记录；只有完成权威能写',
     record_id: 's', kind: 's', result_id: 's', part: 's?', case_ref: 's', strategy_ref: 's', question_ref: 's',
