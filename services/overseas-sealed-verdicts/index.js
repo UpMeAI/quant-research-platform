@@ -42,7 +42,7 @@ const COMMIT = Object.freeze({
   X06: '215b2bab4a6b8123d6174429c115a42e972abf72', N3: '5104c3b9cb8251bff1519882f22b5e2fd99f55ff', N5: '2a6dbfefee17a9c14f5e9bb111c8668255dad8a2',
   Q6_SHADOW: '86864cc4c78254e9e22328386eea992c6415a489', N1: '833737dba793d38f97ca6101ed05436db67f181b',
   US_CORE_TOUCH: '352fa66fbe8fd45a0221eaae5c051fb873dbe492', X08: '312faa9656df27bb5c729dfc6dadf9067dcc890e',
-  N8: 'f38045671afd5c31434f36a6ab580dfd3842d34a',
+  N8: 'f38045671afd5c31434f36a6ab580dfd3842d34a', N7_RUN: 'a7e74f15c5b526bfe0af61d549a73ce1c43ebcfb',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -50,7 +50,9 @@ const Q4_K2 = sf(COMMIT.Q4, 'docs/CRYPTO_C17_QS_RISK_Q4_K2_DRAFT_V1.md', '56a976
 const Q4_FREEZE = coord('CRYPTO_C17_QS_RISK_Q4_K2_FREEZE_1.md', '759e35fb5f0f52d5a55ac98efba0ebf4df9efd8c0ba33f689ed1ff315aca9e1a');
 const N7_K2 = sf(COMMIT.N7, 'docs/CRYPTO_N7_TRADE_FREQUENCY_K2_DRAFT_V1.md', 'fa6032d2fd67767c01ef9c1e51c745392da098b2e47b0d9a0f942c2da00e385b');
 const N7_FREEZE = coord('CRYPTO_N7_TRADE_FREQUENCY_K2_FREEZE_1.md', '0c10d255779369e1e592615f8a391a56350736287cf6d0e96a9a85a26073e258');
-const N7_NOTE = '2026-11-05 01:4x CST 冻结（★ 全按推荐 (a)，裁定 R-N7-1 到 R-N7-4），冻结的是 K2 草稿 fa6032d2；旧 MBP 上运行中。本题封存、Owner 决定之前任何规则都不改。C17_V2 与 QUICK_SHOT_V3 分开判定。';
+const N7_RESULT = sf(COMMIT.N7_RUN, 'docs/evidence/crypto-n7-v1/CRYPTO_N7_TRADE_FREQUENCY_RESULT_V1.json', '469a0d86e441b75dd617f8e0f9882ff4aac2d7780e4b2c74bdbabac1c48c5c97');
+const n7Read = (book) => Object.freeze({ decision: `verdict.${book}.decision`, strength: `verdict.${book}.evidence_strength`,
+  use: `verdict.${book}.allowed_use`, text: 'answer_first_r_n7_2.text_zh' });
 const N8_K2 = sf(COMMIT.N8, 'docs/C17_N8_NON_MAIN_K2_DRAFT_V1.md', '404cd2695324b7d545aacc4ab4fb021374fa9453c2cb0979e808ffe4305a46f2');
 const N8_FREEZE = coord('C17_N8_NON_MAIN_K2_FREEZE_1.md', 'f3b1477c78ea4c1f1a32f8fc779fb497c119208f734e381c11d9719f40c799cc');
 const US_CORE_K2 = sf(COMMIT.US_CORE_TOUCH, 'docs/US_CORE_TOUCH_EXIT_Q0_K2_DRAFT_V1.md', 'ab4302b7e492727ae4c6c0b45d4f72f2c6ca50e63bf7bd3d33fd33f1eda4e83a');
@@ -97,10 +99,10 @@ const ENTRIES = Object.freeze([
     k2: sf(COMMIT.N6, 'docs/C17_N6_OUT_OF_MARKET_K2_DRAFT_V1.md', 'fd7783507c2e4986ca618ae41339df26f91842f7376281d3089c0d21d70a218e'),
     freeze: coord('C17_N6_OUT_OF_MARKET_K2_FREEZE_1.md', '7dc84e563e815cf43b54134499694c38bf4fb8c12bb043e782b8c8f02a044cb5'),
     read: verdictPaths(), expect: '不做' },
-  // 修订 1：草稿 fa6032d2 已于 11-05 冻结，改为 STATUS（绑定冻结裁定），按 supersede 取代草稿锁
-  { id: 'C17-N7', label_zh: 'N7', strategy_ref: C17, kind: 'STATUS', sealed_on: '2026-11-05',
-    title_zh: '降低交易频率：每月至多开仓一次', file: N7_FREEZE, file_label_zh: '冻结裁定', k2: N7_K2, freeze: N7_FREEZE,
-    status_zh: '已冻结，运行中', note_zh: N7_NOTE },
+  // 修订 1：草稿 fa6032d2 冻结后为 STATUS；11-05 封存（469a0d86），改为 RESULT，按 supersede 取代 STATUS 锁
+  { id: 'C17-N7', label_zh: 'N7', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-05',
+    title_zh: '降低交易频率：每月至多开仓一次', file: N7_RESULT, k2: N7_K2, freeze: N7_FREEZE,
+    read: n7Read('C17_V2_4000USDT'), expect: '不做' },
   // 修订 1：N8 于 11-05 02:05 CST 冻结，排在 N7 之后运行
   { id: 'C17-N8', label_zh: 'N8', strategy_ref: C17, kind: 'STATUS', sealed_on: '2026-11-05',
     title_zh: '非主流合约：保留、收窄还是去掉', file: N8_FREEZE, file_label_zh: '冻结裁定', k2: N8_K2, freeze: N8_FREEZE,
@@ -109,10 +111,10 @@ const ENTRIES = Object.freeze([
   { id: 'QS-Q4', label_zh: 'Q4（风控）', strategy_ref: QS, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: '熔断与日停按凯利后的风险单位重设（QS 部分）', file: Q4_RESULT, k2: Q4_K2, freeze: Q4_FREEZE,
     read: verdictPaths('verdict.qs', { text: null }), expect: '不做' },
-  // 修订 1：草稿 fa6032d2 已于 11-05 冻结，改为 STATUS（绑定冻结裁定），按 supersede 取代草稿锁
-  { id: 'QS-N7', label_zh: 'N7', strategy_ref: QS, kind: 'STATUS', sealed_on: '2026-11-05',
-    title_zh: '降低交易频率：每月至多开仓一次', file: N7_FREEZE, file_label_zh: '冻结裁定', k2: N7_K2, freeze: N7_FREEZE,
-    status_zh: '已冻结，运行中', note_zh: N7_NOTE },
+  // 修订 1：草稿 fa6032d2 冻结后为 STATUS；11-05 封存（469a0d86），改为 RESULT，按 supersede 取代 STATUS 锁
+  { id: 'QS-N7', label_zh: 'N7', strategy_ref: QS, kind: 'RESULT', sealed_on: '2026-11-05',
+    title_zh: '降低交易频率：每月至多开仓一次', file: N7_RESULT, k2: N7_K2, freeze: N7_FREEZE,
+    read: n7Read('QUICK_SHOT_V3_1000USDT'), expect: '不做' },
   { id: 'US5-X06', label_zh: 'X06', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: '45 日回看：45 日读法与锚定读法取严',
     file: sf(COMMIT.X06, 'docs/evidence/kelly-us-drawdown-v1/us5-lookback/KELLY_US5_LOOKBACK_RESULT_V1.json', '97677edb65420a70a9f0047774df7250fea8f118ef53f801a5a15ddd32d1ad59'),
