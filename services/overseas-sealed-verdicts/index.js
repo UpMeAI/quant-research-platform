@@ -42,6 +42,7 @@ const COMMIT = Object.freeze({
   X06: '215b2bab4a6b8123d6174429c115a42e972abf72', N3: '5104c3b9cb8251bff1519882f22b5e2fd99f55ff', N5: '2a6dbfefee17a9c14f5e9bb111c8668255dad8a2',
   Q6_SHADOW: '86864cc4c78254e9e22328386eea992c6415a489', N1: '833737dba793d38f97ca6101ed05436db67f181b',
   US_CORE_TOUCH: '352fa66fbe8fd45a0221eaae5c051fb873dbe492', X08: '312faa9656df27bb5c729dfc6dadf9067dcc890e',
+  N8: 'f38045671afd5c31434f36a6ab580dfd3842d34a',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -50,6 +51,8 @@ const Q4_FREEZE = coord('CRYPTO_C17_QS_RISK_Q4_K2_FREEZE_1.md', '759e35fb5f0f52d
 const N7_K2 = sf(COMMIT.N7, 'docs/CRYPTO_N7_TRADE_FREQUENCY_K2_DRAFT_V1.md', 'fa6032d2fd67767c01ef9c1e51c745392da098b2e47b0d9a0f942c2da00e385b');
 const N7_FREEZE = coord('CRYPTO_N7_TRADE_FREQUENCY_K2_FREEZE_1.md', '0c10d255779369e1e592615f8a391a56350736287cf6d0e96a9a85a26073e258');
 const N7_NOTE = '2026-11-05 01:4x CST 冻结（★ 全按推荐 (a)，裁定 R-N7-1 到 R-N7-4），冻结的是 K2 草稿 fa6032d2；旧 MBP 上运行中。本题封存、Owner 决定之前任何规则都不改。C17_V2 与 QUICK_SHOT_V3 分开判定。';
+const N8_K2 = sf(COMMIT.N8, 'docs/C17_N8_NON_MAIN_K2_DRAFT_V1.md', '404cd2695324b7d545aacc4ab4fb021374fa9453c2cb0979e808ffe4305a46f2');
+const N8_FREEZE = coord('C17_N8_NON_MAIN_K2_FREEZE_1.md', 'f3b1477c78ea4c1f1a32f8fc779fb497c119208f734e381c11d9719f40c799cc');
 const US_CORE_K2 = sf(COMMIT.US_CORE_TOUCH, 'docs/US_CORE_TOUCH_EXIT_Q0_K2_DRAFT_V1.md', 'ab4302b7e492727ae4c6c0b45d4f72f2c6ca50e63bf7bd3d33fd33f1eda4e83a');
 
 const C17 = 'C17_V2_4000USDT';
@@ -98,6 +101,11 @@ const ENTRIES = Object.freeze([
   { id: 'C17-N7', label_zh: 'N7', strategy_ref: C17, kind: 'STATUS', sealed_on: '2026-11-05',
     title_zh: '降低交易频率：每月至多开仓一次', file: N7_FREEZE, file_label_zh: '冻结裁定', k2: N7_K2, freeze: N7_FREEZE,
     status_zh: '已冻结，运行中', note_zh: N7_NOTE },
+  // 修订 1：N8 于 11-05 02:05 CST 冻结，排在 N7 之后运行
+  { id: 'C17-N8', label_zh: 'N8', strategy_ref: C17, kind: 'STATUS', sealed_on: '2026-11-05',
+    title_zh: '非主流合约：保留、收窄还是去掉', file: N8_FREEZE, file_label_zh: '冻结裁定', k2: N8_K2, freeze: N8_FREEZE,
+    status_zh: '已冻结，待运行（排在 N7 之后）',
+    note_zh: '2026-11-05 02:05 CST 冻结（★ 全按推荐 (a)，裁定 R-N8-1 到 R-N8-5）：唯一候选 DROP（只做 BTC/ETH）对 KEEP（Q4 非主流近似臂）。前向影子 T_start 2026-11-04T18:05:00Z。补记 1：签字的凯利上限 0.43 已含非主流；研究线工具只算 BTC/ETH，已记入诊断清单。生产规则不变。' },
   { id: 'QS-Q4', label_zh: 'Q4（风控）', strategy_ref: QS, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: '熔断与日停按凯利后的风险单位重设（QS 部分）', file: Q4_RESULT, k2: Q4_K2, freeze: Q4_FREEZE,
     read: verdictPaths('verdict.qs', { text: null }), expect: '不做' },
