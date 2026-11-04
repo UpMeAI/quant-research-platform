@@ -258,6 +258,12 @@ const SCHEMAS = Object.freeze({
     import_profile_id: 's', import_profile_sha256: 's', import_profile_freeze_sha256: 's',
     supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?', production_effect: 's', locked_by: 's', locked_at: 's', lock_hash: 's',
   },
+  OVERSEAS_SEALED_VERDICT_LOCK_V1: {
+    _doc: 'OVERSEAS_SEALED_VERDICTS_IMPORT_PROFILE_V1 —— 海外研究封存结论锁：一题一条，按 sha256 绑定封存文件（草稿题为 K2 草稿，前向影子题为冻结的影子规格）、K2 与冻结裁定；结论从封存文件原样读出，不重算；同题换文件须 supersedes 并引用缺陷',
+    record_type: 's', result_id: 's', entry_id: 's', kind: 's', strategy_ref: 's', case_ref: 's', sealed_on: 's', decision: 's',
+    file_ref: 's', file_sha256: 's', refs: 'a', cites: 'a', smartflow_commit: 's?', import_profile_id: 's',
+    supersedes_ref: 's?', defect_ref: 's?', supersede_reason: 's?', production_effect: 's', locked_by: 's', locked_at: 's', lock_hash: 's',
+  },
   RESEARCH_ADOPTION_DECISION_V1: {
     _doc: 'UX 修订 6 H1 —— 研究结论的采用决定（追加式）：DECISION（ADOPT／NOT_ADOPTED／NOT_APPLICABLE，Owner 原话、决定时间、后续去向、协调会话建议、决定记录文件 sha256）或 RECOMMENDATION（只有建议与理由）；按 result_id（随机对照加 part）定位，改决定须 supersedes 旧记录；只有完成权威能写',
     record_id: 's', kind: 's', result_id: 's', part: 's?', case_ref: 's', strategy_ref: 's', question_ref: 's',
