@@ -62,7 +62,9 @@ test('登记表：每题绑定的 sha256 都是 64 位小写十六进制，id �
     assert.ok(!ids.has(entry.id), entry.id); ids.add(entry.id);
     for (const { spec } of verdicts.internals.boundFiles(entry)) assert.match(spec.sha256, /^[0-9a-f]{64}$/, `${entry.id}:${spec.path}`);
     if (entry.kind === 'RESULT') assert.ok(entry.expect, entry.id);
-    assert.ok(['RESULT', 'DRAFT', 'STATUS'].includes(entry.kind));
+    assert.ok(['RESULT', 'DRAFT', 'STATUS', 'READING'].includes(entry.kind));
+    // 修订 1：页面结论只写做 / 不做；INSUFFICIENT 必须有 resolve
+    if (entry.kind === 'RESULT' && entry.expect === 'INSUFFICIENT') assert.ok(entry.resolve && entry.resolve.INSUFFICIENT, entry.id);
   }
   assert.equal(verdicts.ENTRIES.length, 16);
 });
@@ -135,4 +137,64 @@ test('页面投影每次读都现场复验：文件漂移显示 INVALID，文件
   fs.rmSync(file);
   verdicts.clearCache();
   assert.equal(verdicts.readProjections('C17_V2_4000USDT', { entries: fx.entries })[0].state, 'MISSING');
+});
+
+test('修订 1：统计态 INSUFFICIENT 按 resolve 写成做 / 不做，统计态留在证据强度栏；READING 不写做 / 不做', () => {
+  const fx = fixture({ decision: 'INSUFFICIENT' });
+  const entries = [
+    { ...fx.entries[0], expect: 'INSUFFICIENT', resolve: { INSUFFICIENT: { decision: '做', use_zh: '纸面继续' } } },
+    { ...fx.entries[0], id: 'T-READING', kind: 'READING', expect: 'INSUFFICIENT', status_zh: '只报读数（不改规则）' },
+  ];
+  const out = tmp('qrp-osv-ev-');
+  verdicts.stageEvidence({ smartflowRoot: fx.repo, artifactsRoot: fx.art, out, entries });
+  verdicts.importVerdicts(out, { registeredBy: AUTH, entries });
+  const [resolved, reading] = verdicts.readProjections('C17_V2_4000USDT', { entries });
+  assert.equal(resolved.decision_zh, '做');
+  assert.equal(resolved.tone, 'DO');
+  assert.match(resolved.strength_zh, /^统计判定 INSUFFICIENT/);
+  assert.equal(resolved.use_zh, '纸面继续');
+  assert.equal(reading.decision_zh, '只报读数（不改规则）');
+  assert.equal(reading.tone, 'NEUTRAL');
+  assert.equal(reading.result_sha256, entries[1].file.sha256);
+  assert.equal(reading.source.files[0].label_zh, '封存读数文件');
+});
+
+test('修订 1：同一文件换读法（rev 加一）只能 supersede；重新导入之前页面显示 REIMPORT_PENDING，不按新读法显示旧锁', () => {
+  const fx = fixture();
+  const { out } = stageAndImport(fx);
+  const old = verdicts.headLock('T-RESULT');
+  const entries = fx.entries.map((entry) => (entry.id === 'T-RESULT' ? { ...entry, rev: 2 } : entry));
+  assert.equal(verdicts.internals.resultIdOf(entries[0]), `${old.result_id}-r2`);
+  verdicts.clearCache();
+  const pending = verdicts.readProjections('C17_V2_4000USDT', { entries })[0];
+  assert.equal(pending.state, 'REIMPORT_PENDING');
+  assert.equal(pending.decision_zh, undefined);
+  assert.throws(() => verdicts.importVerdicts(out, { registeredBy: AUTH, entries }), /ALREADY_LOCKED/);
+  const before = fs.readFileSync(verdicts.LEDGER());
+  const rows = verdicts.importVerdicts(out, { registeredBy: AUTH, entries, supersedes: { 'T-RESULT': old.result_id }, defectRef: 'QRP#54 标签', reason: '读法修订' });
+  assert.equal(rows[0].result_id, `${old.result_id}-r2`);
+  assert.equal(rows[0].supersedes_ref, old.result_id);
+  assert.deepEqual(fs.readFileSync(verdicts.LEDGER()).subarray(0, before.length), before);
+  const now = verdicts.readProjections('C17_V2_4000USDT', { entries })[0];
+  assert.equal(now.state, 'LOCKED_VERIFIED');
+  assert.equal(now.source.supersedes_ref, old.result_id);
+});
+
+test('修订 1：草稿题冻结后改为 STATUS，绑定冻结裁定（文件不同，result_id 自然不同），按 supersede 取代草稿锁', () => {
+  const fx = fixture();
+  const { out } = stageAndImport(fx);
+  const draft = verdicts.headLock('T-DRAFT');
+  const freeze = fx.entries[0].freeze;
+  const entries = fx.entries.map((entry) => (entry.id === 'T-DRAFT'
+    ? { ...entry, kind: 'STATUS', file: freeze, file_label_zh: '冻结裁定', k2: entry.k2, freeze, status_zh: '已冻结，运行中' } : entry));
+  const rows = verdicts.importVerdicts(out, { registeredBy: AUTH, entries, supersedes: { 'T-DRAFT': draft.result_id }, defectRef: 'D', reason: 'R' });
+  const row = rows.find((item) => item.entry_id === 'T-DRAFT');
+  assert.equal(row.kind, 'STATUS');
+  assert.equal(row.supersedes_ref, draft.result_id);
+  assert.deepEqual(row.refs.map((ref) => ref.role), ['FILE', 'K2']);
+  const view = verdicts.readProjections('C17_V2_4000USDT', { entries }).find((item) => item.entry_id === 'T-DRAFT');
+  assert.equal(view.decision_zh, '已冻结，运行中');
+  assert.equal(view.k2_sha256, entries[1].k2.sha256);
+  assert.equal(view.result_sha256, null);
+  assert.equal(view.source.files[0].label_zh, '冻结裁定');
 });

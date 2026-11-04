@@ -90,7 +90,8 @@ test('首案缺口、空研究链与安全边界以人类可读状态投影，�
 
 test('按 Desk 策略选择详情：未接入策略保持空态，未知策略 fail closed', async () => {
   let model = await workspace.readModel({ strategyRef: 'C17_V2_4000USDT' });
-  assert.equal(model.context.title, '加密 / 加密 C17 账本（C17_V2 · 4000 USDT · BTC、ETH 与高叙事币）');
+  // desk A104（cac0a1b3，10-27）起标题不再带「4000 USDT」
+  assert.equal(model.context.title, '加密 / 加密 C17 账本（C17_V2 · BTC、ETH 与高叙事币）');
   assert.equal(model.context.selected, null);
   assert.equal(model.views['strategy-detail'].case_role, 'NOT_CONNECTED');
   assert.equal(model.views['strategy-detail'].research.state, 'NO_ACTUAL_CASE');

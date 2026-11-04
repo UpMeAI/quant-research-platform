@@ -48,6 +48,8 @@ const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK
 const Q4_K2 = sf(COMMIT.Q4, 'docs/CRYPTO_C17_QS_RISK_Q4_K2_DRAFT_V1.md', '56a976593f4f582706215b22d444dc1fda563469f365db0edd8d4f7053c5e808');
 const Q4_FREEZE = coord('CRYPTO_C17_QS_RISK_Q4_K2_FREEZE_1.md', '759e35fb5f0f52d5a55ac98efba0ebf4df9efd8c0ba33f689ed1ff315aca9e1a');
 const N7_K2 = sf(COMMIT.N7, 'docs/CRYPTO_N7_TRADE_FREQUENCY_K2_DRAFT_V1.md', 'fa6032d2fd67767c01ef9c1e51c745392da098b2e47b0d9a0f942c2da00e385b');
+const N7_FREEZE = coord('CRYPTO_N7_TRADE_FREQUENCY_K2_FREEZE_1.md', '0c10d255779369e1e592615f8a391a56350736287cf6d0e96a9a85a26073e258');
+const N7_NOTE = '2026-11-05 01:4x CST 冻结（★ 全按推荐 (a)，裁定 R-N7-1 到 R-N7-4），冻结的是 K2 草稿 fa6032d2；旧 MBP 上运行中。本题封存、Owner 决定之前任何规则都不改。C17_V2 与 QUICK_SHOT_V3 分开判定。';
 const US_CORE_K2 = sf(COMMIT.US_CORE_TOUCH, 'docs/US_CORE_TOUCH_EXIT_Q0_K2_DRAFT_V1.md', 'ab4302b7e492727ae4c6c0b45d4f72f2c6ca50e63bf7bd3d33fd33f1eda4e83a');
 
 const C17 = 'C17_V2_4000USDT';
@@ -59,7 +61,9 @@ const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use 
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
 
 /**
- * kind：RESULT（封存结论，读文件里的结论）、DRAFT（K2 草稿，未冻结）、STATUS（前向影子：冻结规格 + 部署状态，不出结论）。
+ * kind：RESULT（封存结论，读文件里的结论）、DRAFT（K2 草稿，未冻结）、STATUS（已冻结或前向影子：冻结文本 + 运行状态，不出结论）、
+ * READING（只报读数，不改规则，不出结论；修订 1）。RESULT 的统计态 INSUFFICIENT 按 resolve 写成做 / 不做（Owner 10-06），统计态留在证据强度栏。
+ * rev：登记修订号（修订 1）。同一文件换了读法时 rev 加一，result_id 随之改变，只能按 supersede 取代旧锁。
  * expect：导入时文件里读出的结论必须等于它（失败即关）。note_zh 只写来源说明与日期，不写数字以外的结论。
  */
 const ENTRIES = Object.freeze([
@@ -90,17 +94,17 @@ const ENTRIES = Object.freeze([
     k2: sf(COMMIT.N6, 'docs/C17_N6_OUT_OF_MARKET_K2_DRAFT_V1.md', 'fd7783507c2e4986ca618ae41339df26f91842f7376281d3089c0d21d70a218e'),
     freeze: coord('C17_N6_OUT_OF_MARKET_K2_FREEZE_1.md', '7dc84e563e815cf43b54134499694c38bf4fb8c12bb043e782b8c8f02a044cb5'),
     read: verdictPaths(), expect: '不做' },
-  { id: 'C17-N7', label_zh: 'N7（草稿）', strategy_ref: C17, kind: 'DRAFT', sealed_on: '2026-11-05',
-    title_zh: '降低交易频率：每月至多开仓一次', file: N7_K2, k2: N7_K2, freeze: null,
-    status_zh: '草稿（未冻结）',
-    note_zh: 'K2 草稿，等协调会话冻结；本题封存、Owner 决定之前任何规则都不改。C17_V2 与 QUICK_SHOT_V3 分开判定。' },
+  // 修订 1：草稿 fa6032d2 已于 11-05 冻结，改为 STATUS（绑定冻结裁定），按 supersede 取代草稿锁
+  { id: 'C17-N7', label_zh: 'N7', strategy_ref: C17, kind: 'STATUS', sealed_on: '2026-11-05',
+    title_zh: '降低交易频率：每月至多开仓一次', file: N7_FREEZE, file_label_zh: '冻结裁定', k2: N7_K2, freeze: N7_FREEZE,
+    status_zh: '已冻结，运行中', note_zh: N7_NOTE },
   { id: 'QS-Q4', label_zh: 'Q4（风控）', strategy_ref: QS, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: '熔断与日停按凯利后的风险单位重设（QS 部分）', file: Q4_RESULT, k2: Q4_K2, freeze: Q4_FREEZE,
     read: verdictPaths('verdict.qs', { text: null }), expect: '不做' },
-  { id: 'QS-N7', label_zh: 'N7（草稿）', strategy_ref: QS, kind: 'DRAFT', sealed_on: '2026-11-05',
-    title_zh: '降低交易频率：每月至多开仓一次', file: N7_K2, k2: N7_K2, freeze: null,
-    status_zh: '草稿（未冻结）',
-    note_zh: 'K2 草稿，等协调会话冻结；本题封存、Owner 决定之前任何规则都不改。C17_V2 与 QUICK_SHOT_V3 分开判定。' },
+  // 修订 1：草稿 fa6032d2 已于 11-05 冻结，改为 STATUS（绑定冻结裁定），按 supersede 取代草稿锁
+  { id: 'QS-N7', label_zh: 'N7', strategy_ref: QS, kind: 'STATUS', sealed_on: '2026-11-05',
+    title_zh: '降低交易频率：每月至多开仓一次', file: N7_FREEZE, file_label_zh: '冻结裁定', k2: N7_K2, freeze: N7_FREEZE,
+    status_zh: '已冻结，运行中', note_zh: N7_NOTE },
   { id: 'US5-X06', label_zh: 'X06', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: '45 日回看：45 日读法与锚定读法取严',
     file: sf(COMMIT.X06, 'docs/evidence/kelly-us-drawdown-v1/us5-lookback/KELLY_US5_LOOKBACK_RESULT_V1.json', '97677edb65420a70a9f0047774df7250fea8f118ef53f801a5a15ddd32d1ad59'),
@@ -132,15 +136,18 @@ const ENTRIES = Object.freeze([
     also: Object.freeze([sf(COMMIT.US_CORE_TOUCH, 'docs/evidence/us-core-touch-q0-v1/phase2/US_CORE_TOUCH_KELLY_LINES_V1.json', '6d75a0ce4e75b71f7517a8b648c50c26ef09f2a7ffbac8eb7c38cc46d3253842')]),
     k2: US_CORE_K2, freeze: coord('US_CORE_TOUCH_EXIT_Q0_K2_FREEZE_1.md', '72a54f6cd045d390c6b5d07ea10a4b5528e3832eb1283f464823b20d670e4206'),
     read: Object.freeze({ decision: 'verdict.state', strength: 'verdict.reason_codes', use: null, text: null }), expect: 'INSUFFICIENT',
+    // 修订 1：页面结论只写做 / 不做（Owner 10-06）。当前 D 在 HK 纸面账本上运行（到价出场 10-29 起、凯利 0.42），INSUFFICIENT 而在纸面 = 做
+    rev: 2, resolve: Object.freeze({ INSUFFICIENT: Object.freeze({ decision: '做', use_zh: '当前 D 继续在纸面账本上运行（Owner 10-06：INSUFFICIENT 而在纸面 = 做）；生产规则不变' }) }),
     note_zh: '日线近似最多到 INSUFFICIENT，不能认证盘中到价规则。R-REUSE 不做：封存 Q0 不代表当前 D（差别主要来自凯利 0.42）。生产不变。' },
-  { id: 'UC-U13-30M', label_zh: '30 分钟读数（附录 1）', strategy_ref: UC, kind: 'RESULT', sealed_on: '2026-11-04',
+  // 修订 1：只报读数，没有提出、也没有采用任何规则改动，所以不写做 / 不做
+  { id: 'UC-U13-30M', label_zh: '30 分钟读数（附录 1）', strategy_ref: UC, kind: 'READING', rev: 2, sealed_on: '2026-11-04',
     title_zh: '凯利线的 30 分钟读数（1 分钟历史不存在）',
     file: sf(COMMIT.US_CORE_TOUCH, 'docs/evidence/us-core-touch-q0-v1/addendum-1/phase2/US_CORE_TOUCH_KELLY_LINES_30MIN_V1.json', '78a9b2aa53da00baa902f26d2711d6a5d8d019197977dd983297a701e9583203'),
     also: Object.freeze([sf(COMMIT.US_CORE_TOUCH, 'docs/evidence/us-core-touch-q0-v1/addendum-1/US_CORE_CURRENT_D_Q0_30MIN_RESULT_V1.json', '870a644ac07c17242cebf10648dcdb97fff7c695bad70985665da7d432db2937')]),
     k2: sf(COMMIT.US_CORE_TOUCH, 'docs/US_CORE_TOUCH_EXIT_Q0_K2_ADDENDUM_1_30MIN_DRAFT.md', '0ac538ea0b73a93f96f9b83f16090a7ee0d3bc0928d1dd555cd3237512ce983e'),
     freeze: coord('US_CORE_TOUCH_EXIT_Q0_K2_ADDENDUM_1_FREEZE_1.md', '05e72fa0aac0e8721ea6e1ab3561f9e527bb18c31f0f4516f3d82df3de9cc390'),
     read: Object.freeze({ decision: 'verdict.decision', strength: null, use: null, text: 'verdict.text' }), expect: '做',
-    note_zh: '只报不判；30 分钟近似，不是 1 分钟。不改 m，不触发修订（R-A1-4）。' },
+    status_zh: '只报读数（不改规则）', note_zh: '只报不判；30 分钟近似，不是 1 分钟。不改 m，不触发修订（R-A1-4）。' },
   { id: 'UC-N1', label_zh: 'N1', strategy_ref: UC, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: '当前 D 的差距分解 + 闲置现金组合候选',
     file: sf(COMMIT.N1, 'docs/evidence/us-core-n1-v1/US_CORE_N1_RESULT_V1.json', '0fe7c5976eceecc1d29da5ac3fef2cc93a6bc9b24b2e3eff7fbdca6f4569a6f4'),
@@ -168,7 +175,7 @@ const FINAL_ZH = { UNDECIDED: '未判定（转前向）' };
 
 /** 从封存文件读出结论（RESULT）；DRAFT / STATUS 不读结论。 */
 function readVerdict(entry, doc) {
-  if (entry.kind !== 'RESULT') return { decision: entry.status_zh, strength: null, use: null, text: null };
+  if (entry.kind === 'DRAFT' || entry.kind === 'STATUS') return { decision: entry.status_zh, strength: null, use: null, text: null };
   if (entry.read.final) {
     const final = at(doc, entry.read.final);
     need(final && typeof final === 'object', E('VERDICT_FIELD_MISSING'), `${entry.id}:${entry.read.final}`);
@@ -176,16 +183,24 @@ function readVerdict(entry, doc) {
     return { decision: lines.join('；'), code: Object.entries(final).map(([line, row]) => `${line}:${row.action}`), strength: null, use: null,
       text: Object.entries(final).map(([line, row]) => `${line}：${row.verdict}${row.label ? `（${row.label}）` : ''}${row.next ? ` → ${row.next}` : ''}`).join('；') };
   }
-  const decision = textOf(at(doc, entry.read.decision));
-  need(decision, E('VERDICT_FIELD_MISSING'), `${entry.id}:${entry.read.decision}`);
-  return { decision, code: [decision], strength: textOf(at(doc, entry.read.strength)), use: textOf(at(doc, entry.read.use)), text: textOf(at(doc, entry.read.text)) };
+  const raw = textOf(at(doc, entry.read.decision));
+  need(raw, E('VERDICT_FIELD_MISSING'), `${entry.id}:${entry.read.decision}`);
+  const strength = textOf(at(doc, entry.read.strength));
+  const text = textOf(at(doc, entry.read.text));
+  if (entry.kind === 'READING') return { decision: entry.status_zh, raw, code: [raw], strength, use: textOf(at(doc, entry.read.use)), text };
+  const resolved = entry.resolve && entry.resolve[raw];
+  if (resolved) return { decision: resolved.decision, raw, code: [raw], strength: `统计判定 ${raw}${strength ? `（${strength}）` : ''}`, use: resolved.use_zh, text };
+  return { decision: raw, raw, code: [raw], strength, use: textOf(at(doc, entry.read.use)), text };
 }
-const expectHolds = (entry, verdict) => (entry.kind !== 'RESULT' ? true
-  : entry.read.final ? verdict.code.includes(entry.expect) : verdict.decision === entry.expect);
+const readsFile = (entry) => entry.kind === 'RESULT' || entry.kind === 'READING';
+const expectHolds = (entry, verdict) => (!readsFile(entry) ? true
+  : entry.read.final ? verdict.code.includes(entry.expect) : verdict.raw === entry.expect);
+/** 一题的锁编号：OSV-<题>-<绑定文件 sha256 前 12 位>，登记修订号 rev > 1 时加 -r<rev>（修订 1）。 */
+const resultIdOf = (entry) => `OSV-${entry.id}-${entry.file.sha256.slice(0, 12)}${entry.rev > 1 ? `-r${entry.rev}` : ''}`;
 
 const boundFiles = (entry) => [
   { role: 'FILE', spec: entry.file }, ...(entry.also || []).map((spec) => ({ role: 'ALSO', spec })),
-  ...(entry.k2 && entry.k2 !== entry.file ? [{ role: 'K2', spec: entry.k2 }] : []), ...(entry.freeze ? [{ role: 'FREEZE', spec: entry.freeze }] : []),
+  ...(entry.k2 && entry.k2 !== entry.file ? [{ role: 'K2', spec: entry.k2 }] : []), ...(entry.freeze && entry.freeze !== entry.file ? [{ role: 'FREEZE', spec: entry.freeze }] : []),
 ];
 const evidencePath = (dir, spec) => (spec.source === 'smartflow' ? path.join(dir, 'smartflow', spec.commit.slice(0, 12), spec.path) : path.join(dir, 'coordinator', spec.path));
 
@@ -248,8 +263,8 @@ function checkEntry(entry, evidenceDir) {
     return { role, ref: spec.ref, sha256: spec.sha256, file_ref: path.resolve(file) };
   });
   const bytes = fs.readFileSync(evidencePath(evidenceDir, entry.file));
-  const verdict = entry.kind === 'RESULT' ? readVerdict(entry, parseJson(bytes, entry.id)) : readVerdict(entry, null);
-  need(expectHolds(entry, verdict), E('VERDICT_NOT_AS_REGISTERED'), `${entry.id}:${verdict.decision}≠${entry.expect}`);
+  const verdict = readsFile(entry) ? readVerdict(entry, parseJson(bytes, entry.id)) : readVerdict(entry, null);
+  need(expectHolds(entry, verdict), E('VERDICT_NOT_AS_REGISTERED'), `${entry.id}:${verdict.raw}≠${entry.expect}`);
   for (const cited of entry.cites || []) need(typeof cited === 'string' && cited, E('CITE_INVALID'), entry.id);
   return { profile, refs, verdict };
 }
@@ -266,7 +281,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, supersed
     need(!ids.has(entry.id), E('DUPLICATE_ENTRY'), entry.id);
     ids.add(entry.id);
     const checked = checkEntry(entry, evidenceDir);
-    const resultId = `OSV-${entry.id}-${entry.file.sha256.slice(0, 12)}`;
+    const resultId = resultIdOf(entry);
     const head = headLock(entry.id);
     if (head && head.result_id === resultId) return { replay: head };
     if (head) {
@@ -294,7 +309,9 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, supersed
 
 // ── 页面投影 ────────────────────────────────────────────────────────────────────
 
-const KIND_ZH = { RESULT: '已封存', DRAFT: '草稿（未冻结）', STATUS: '前向影子' };
+const KIND_ZH = { RESULT: '已封存', DRAFT: '草稿（未冻结）', STATUS: '冻结 / 前向影子', READING: '只报读数' };
+const FILE_LABEL_ZH = { RESULT: '封存结果文件', READING: '封存读数文件', DRAFT: 'K2 草稿', STATUS: '影子规格' };
+const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定' };
 const toneOf = (entry, decision) => (entry.kind !== 'RESULT' ? 'NEUTRAL' : decision === '做' ? 'DO' : decision === '不做' ? 'DONT' : 'OTHER');
 const reasonText = (error) => (error instanceof K3Error ? `${error.code}${error.detail ? `（${error.detail}）` : ''}` : error.message);
 
@@ -302,9 +319,13 @@ function buildProjection(entry, lock) {
   const base = { entry_id: entry.id, label_zh: entry.label_zh, title_zh: entry.title_zh, kind: entry.kind, kind_zh: KIND_ZH[entry.kind],
     sealed_on: lock.sealed_on, result_id: lock.result_id, production_effect: 'NONE' };
   try {
+    // 修订 1：登记改了读法（rev）或绑定文件，而台账里还是旧锁时，不按新读法显示旧锁，等协调会话按 supersede 重新导入
+    if (lock.result_id !== resultIdOf(entry)) {
+      return { ...base, state: 'REIMPORT_PENDING', reason: `登记已更新（${resultIdOf(entry)}），等待按 supersede 重新导入；旧锁 ${lock.result_id} 保留`, reason_code: E('REIMPORT_PENDING') };
+    }
     for (const ref of lock.refs) readBound(ref.file_ref, ref.sha256);
     need(lock.file_sha256 === entry.file.sha256, E('LOCK_NOT_REGISTERED_FILE'), entry.id);
-    const verdict = entry.kind === 'RESULT' ? readVerdict(entry, parseJson(fs.readFileSync(lock.file_ref), entry.id)) : readVerdict(entry, null);
+    const verdict = readsFile(entry) ? readVerdict(entry, parseJson(fs.readFileSync(lock.file_ref), entry.id)) : readVerdict(entry, null);
     need(expectHolds(entry, verdict), E('VERDICT_NOT_AS_REGISTERED'), entry.id);
     const ref = (role) => lock.refs.find((row) => row.role === role) || null;
     const k2 = entry.k2 === entry.file ? ref('FILE') : ref('K2');
@@ -312,10 +333,13 @@ function buildProjection(entry, lock) {
       ...base, state: 'LOCKED_VERIFIED', reason: null,
       decision_zh: verdict.decision, tone: toneOf(entry, verdict.decision),
       strength_zh: verdict.strength, use_zh: verdict.use, text_zh: verdict.text, note_zh: entry.note_zh || null,
-      k2_sha256: k2 ? k2.sha256 : null, result_sha256: entry.kind === 'RESULT' ? lock.file_sha256 : null, cites: lock.cites,
+      k2_sha256: k2 ? k2.sha256 : null, result_sha256: readsFile(entry) ? lock.file_sha256 : null, cites: lock.cites,
       source: {
         result_id: lock.result_id, locked_at: lock.locked_at, locked_by: lock.locked_by, smartflow_commit: lock.smartflow_commit,
-        files: lock.refs.map((row) => ({ role: row.role, ref: row.ref, sha256: row.sha256 })), import_profile_id: lock.import_profile_id,
+        supersedes_ref: lock.supersedes_ref || null,
+        files: lock.refs.map((row) => ({ role: row.role, ref: row.ref, sha256: row.sha256,
+          label_zh: row.role === 'FILE' ? entry.file_label_zh || FILE_LABEL_ZH[entry.kind] : ROLE_LABEL_ZH[row.role] || row.role })),
+        import_profile_id: lock.import_profile_id,
       },
     };
   } catch (error) {
@@ -348,5 +372,5 @@ const clearCache = () => CACHE.clear();
 
 module.exports = {
   LOCK_SCHEMA, RECORD_TYPE, IMPORT_PROFILE_ID, ENTRIES, LEDGER, stageEvidence, importVerdicts, locks, headLock, readProjections, clearCache,
-  internals: { readVerdict, boundFiles, evidencePath, checkEntry, SHA64 },
+  internals: { readVerdict, boundFiles, evidencePath, checkEntry, resultIdOf, SHA64 },
 };
