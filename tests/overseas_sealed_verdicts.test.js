@@ -66,7 +66,7 @@ test('登记表：每题绑定的 sha256 都是 64 位小写十六进制，id �
     // 修订 1：页面结论只写做 / 不做；INSUFFICIENT 必须有 resolve
     if (entry.kind === 'RESULT' && entry.expect === 'INSUFFICIENT') assert.ok(entry.resolve && entry.resolve.INSUFFICIENT, entry.id);
   }
-  assert.equal(verdicts.ENTRIES.length, 17); // 修订 1 加 C17-N8
+  assert.equal(verdicts.ENTRIES.length, 21); // 修订 1 加 C17-N8；R-US-ETF-1 加 4 个单元
 });
 
 test('stage + import：一题一条锁，结论原样读自文件；重复导入是幂等重放，台账旧字节不变', () => {
