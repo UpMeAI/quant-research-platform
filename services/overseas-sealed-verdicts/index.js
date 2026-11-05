@@ -44,6 +44,7 @@ const COMMIT = Object.freeze({
   US_CORE_TOUCH: '352fa66fbe8fd45a0221eaae5c051fb873dbe492', X08: '312faa9656df27bb5c729dfc6dadf9067dcc890e',
   N8: 'f38045671afd5c31434f36a6ab580dfd3842d34a', N7_RUN: 'a7e74f15c5b526bfe0af61d549a73ce1c43ebcfb',
   N8_RUN: 'b971b05cb95546eb3cc83fe2d86f7dd0166f04a7',
+  R_US_ETF_1: 'e41c43c44fd03462040f6e1b039a53729eed1ee3', R_US_ETF_1_RUN: '3a635a49538f84e9b4582393d18e76ef1262d521',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -57,6 +58,15 @@ const n7Read = (book) => Object.freeze({ decision: `verdict.${book}.decision`, s
 const N8_K2 = sf(COMMIT.N8, 'docs/C17_N8_NON_MAIN_K2_DRAFT_V1.md', '404cd2695324b7d545aacc4ab4fb021374fa9453c2cb0979e808ffe4305a46f2');
 const N8_RESULT = sf(COMMIT.N8_RUN, 'docs/evidence/c17-n8-v1/C17_N8_NON_MAIN_RESULT_V1.json', '7aacf521398d2fc1f0aa3ed3a2b4daf4c81eacad497e1f2269e9673cb946b3fb');
 const N8_FREEZE = coord('C17_N8_NON_MAIN_K2_FREEZE_1.md', 'f3b1477c78ea4c1f1a32f8fc779fb497c119208f734e381c11d9719f40c799cc');
+const RUE1_K2 = sf(COMMIT.R_US_ETF_1, 'docs/R_US_ETF_1_MEAN_REVERSION_K2_DRAFT_V1.md', '1db0b65f188f7a02d827c7d765e486dbfd07ca0ec1892ba41a004177c32561b5');
+const RUE1_RESULT = sf(COMMIT.R_US_ETF_1_RUN, 'docs/evidence/us-etf-r1-v1/R_US_ETF_1_RESULT_V1.json', '406a061b1c181331252cb4683c02cb9c653ab77d5b3f1b21aed3d41c980625af');
+// 冻结记录含勘误 1（V5-SPY、V5-QQQ 不适用）；勘误前 301d26b8…
+const RUE1_FREEZE = coord('R_US_ETF_1_K2_V1_FREEZE_RECORD.md', '95b0408fe062e775f572c2f97305d2cd15a1ceb3fe7c737f206303bd3f9a7b6e');
+// 结果文件 verdict_detail 的顺序：0 UC-SPY、1 UC-QQQ、2 V5-SPY、3 V5-QQQ、4 V5-VOO、5 V5-SPMO
+const rue1Read = (i) => Object.freeze({ decision: `verdict_detail.${i}.decision`, strength: `verdict_detail.${i}.evidence_strength_zh`,
+  use: `verdict_detail.${i}.allowed_use_zh`, text: 'first_paragraph_zh' });
+const rue1 = (id, label, strategy_ref, i, expect, note_zh) => Object.freeze({ id, label_zh: label, strategy_ref, kind: 'RESULT', sealed_on: '2026-11-05',
+  title_zh: `宽基 ETF 均值回归波段（R-US-ETF-1，${label}）`, file: RUE1_RESULT, k2: RUE1_K2, freeze: RUE1_FREEZE, read: rue1Read(i), expect, note_zh });
 const US_CORE_K2 = sf(COMMIT.US_CORE_TOUCH, 'docs/US_CORE_TOUCH_EXIT_Q0_K2_DRAFT_V1.md', 'ab4302b7e492727ae4c6c0b45d4f72f2c6ca50e63bf7bd3d33fd33f1eda4e83a');
 
 const C17 = 'C17_V2_4000USDT';
@@ -173,6 +183,14 @@ const ENTRIES = Object.freeze([
     k2: sf(COMMIT.X08, 'docs/US_LONGTERM_CORE_VS_3X_TIMING_ACCEPTANCE_V1.md', '59ac9e5e931cd5eec26c9e40a3f0f5b5a6841ee9aef9af311755901d1a2feddc'),
     freeze: null, read: Object.freeze({ final: 'final' }), expect: 'V2_SPY:不做',
     note_zh: '10-06 签署后跑完（验收即 K2，Owner 签字 f7664c1b）。2026-11-04 盘点：V1、V2_SPMO 前向影子在 HK 运行（10-07 起，2026-11-05 只读核对 pm2）；V3 两条影子未启动，待协调会话裁定。' },
+  rue1('UC-RUE1-SPY', 'R-US-ETF-1 SPY 袖', UC, 0, '不做',
+    'MR-V1 只在 2.9% 的交易日持仓，差距几乎全在「现行在场、MR 空仓」一格，即少拿了趋势期的 3x 收益；IS、OOS 同号。该袖保留现行趋势规则，计划页照写趋势。生产不变。'),
+  rue1('UC-RUE1-QQQ', 'R-US-ETF-1 QQQ 袖', UC, 1, '不做',
+    'MR-V1 只在 2.0% 的交易日持仓，输在趋势期的 3x 收益；IS、OOS 同号。该袖保留现行趋势规则。生产不变。'),
+  rue1('US5-RUE1-VOO', 'R-US-ETF-1 VOO', US5, 4, '做',
+    '点估计 +0.0036，方向判对的概率只有 56%，接近抛硬币（K2 §9 预先写明）。「做」= 起草第 1 类修订交 Owner 签字；进修订前须补一次 US_V5 账本级的线检查。V5-SPY、V5-QQQ 按勘误 1 不适用（US_V5 不做多这两个序列，在 US_CORE 两袖判）。生产不变。'),
+  rue1('US5-RUE1-SPMO', 'R-US-ETF-1 SPMO', US5, 5, '做',
+    '弱：窗口内现行 US_V5 在 SPMO 上只成交 3 笔（全部止损），+0.0313 主要是 MR-V1 对近乎现金的差，不是胜过一条活跃的规则；买入持有对 MR-V1 高 0.169 /年。SPMO 按 smartflow #99 的 P-3 表算宽基，#99 合并前「待归类定稿」。「做」= 起草第 1 类修订交 Owner 签字，进修订前须补 US_V5 账本级线检查。生产不变。'),
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────
