@@ -39,6 +39,7 @@ const gapDecomposition = require('../gap-decomposition');
 const overseasVerdicts = require('../overseas-sealed-verdicts');
 const stressSupplement = require('../baseline-stress-supplement');
 const researchStage = require('./stage');
+const strategyOverview = require('./strategy-overview');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
@@ -564,6 +565,7 @@ async function readModel({
     const stageCounts = researchStage.countsOf(stages.values());
     directory.counts = { ...directory.counts, research_connected: stageCounts.with_record, research_stage: stageCounts };
   }
+  const strategiesOverview = directory.state === 'AVAILABLE' ? strategyOverview.buildOverview(directory) : null;
   if (researchText && selectedStrategy) selectedStrategy.research = { ...selectedStrategy.research, code: 'RESULT_LOCKED', label: researchText };
   // 非 LEGACY 档案已锁 Q0、运行态 case 还没建立：各处说法与上方的回测结论一致，不再写「尚未接入」「不显示研究结论」
   const baselineWithoutCase = !selectedCurrentCase && profileBaselineCase && baselineProjection.state === 'LOCKED_VERIFIED';
@@ -795,9 +797,10 @@ async function readModel({
         question: NAVIGATION.find((item) => item.route === 'strategies').question,
         state: directory.state,
         answer: directory.state === 'AVAILABLE'
-          ? `Desk 共登记 ${directory.strategies.length} 个系统策略：${directory.counts.current} 个运行或观察中，${directory.counts.history} 个历史或收尾；${researchStage.countsSentence(directory.counts.research_stage)}`
+          ? strategiesOverview.answer_zh
           : 'Desk 权威策略目录暂时不可读取，页面不会用 QRP 工程对象代替。',
-        next_step: directory.state === 'AVAILABLE' ? '选择一项策略，查看运行、体检、研究、前向观察和复盘的完整详情。' : '恢复 Desk 本地只读源后重试。',
+        next_step: directory.state === 'AVAILABLE' ? '先看做 / 不做；需要时再展开统计与研究详情。' : '恢复 Desk 本地只读源后重试。',
+        overview: strategiesOverview,
       },
       'strategy-detail': strategyDetail,
       'runtime-research-loop': selectedHealth,

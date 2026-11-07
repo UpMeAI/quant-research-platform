@@ -266,17 +266,20 @@ test('读模型：C17——没有运行态 case 也照锁写 Q0、A0 未通过�
   assert.equal(model.context.subtitle.endsWith(c17.research_stage.headline_zh), true);
 });
 
-test('读模型：页头数到每一条有研究记录的策略（四条已登记档案 + 冻结基线），细分与卡片一致；总览卡片显示结论句与四行', async () => {
+test('读模型：研究阶段计数保留；策略总览按做／不做重算，统计研究句收进详情', async () => {
   const model = await workspace.readModel();
   const counts = model.strategy_directory.counts.research_stage;
   assert.deepEqual(counts, { with_record: 5, q0_locked: 2, q0_invalid: 0, compared: 1, decided: 1, connected_without_q0: 2, frozen_baseline: 1, m4_pending: 1 });
   assert.equal(model.strategy_directory.counts.research_connected, 5);
   assert.equal(model.views.strategies.answer,
-    'Desk 共登记 8 个系统策略：6 个运行或观察中，2 个历史或收尾；其中 5 个有研究记录：2 个已锁定 Q0 回测结论（1 个已有锁定的方案对比、1 个已有 Owner 采用决定），2 个已接入、Q0 尚未锁定，1 个作为冻结基线关联；另有 1 个已列入 M4 范围、尚未接入。');
+    'Desk 共登记 8 个系统策略，按研究模块展示 9 项：做 6 项，不做 3 项。A 股 1 个资金池拆为 2 个研究模块，父账本只计一次。');
   const html = await renderOverview(model);
-  for (const item of model.strategy_directory.strategies) {
+  for (const item of model.strategy_directory.strategies.filter((row) => row.strategy_ref !== 'ASHARE_V6_PAPER'
+    && !['NOT_CONNECTED', 'M4_PENDING'].includes(row.research_stage.code))) {
     assert.ok(html.includes(`Research：${item.research_stage.headline_zh}</p>`), `${item.strategy_ref} 卡片缺结论句`);
   }
+  assert.match(html, /待交付 · R-ETF-1 研究状态/);
+  assert.match(html, /待交付 · R-STK-1 研究状态/);
   const withSteps = model.strategy_directory.strategies.filter((item) => item.research_stage.steps.length).length;
   assert.equal((html.match(/<dl class="stage-steps">/g) || []).length, withSteps);
   assert.equal(withSteps, 4);
