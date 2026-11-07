@@ -1,0 +1,370 @@
+{
+  "_comment": "A 股两个研究模块的登记（Owner 2026-11-07：A 股拆成「宽基 ETF」和「个股 / 行业 ETF」两个研究模块；Codex 队列 #21 的数据侧）。只放身份、状态、结论和出处，不放回测数字；数字一律在被引用的封存文件里。每个出处都按 sha256 绑定：Ashare-V6 的文件按提交取，协调会话目录的文件不在 git 里。结论只写「做」或「不做」（Owner 2026-10-06）；统计标签（INSUFFICIENT 等）只放在 statistical_label，不是结论。仍在研究的题放 in_progress，写预计日期和转成做 / 不做的规则，不写结论。整本账本 ASHARE_V6_PAPER 是两块的上级，只计一次。tests/ashare_research_modules.test.js 校验本文件的形状，并在本机有源文件时现场核对 sha256。",
+  "contract": "QRP_ASHARE_RESEARCH_MODULES_V1",
+  "acceptance_ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md",
+  "acceptance_sha256": "6a8087e61d78a3392b4405b6808ae7b2f47e0c271bcc0a05b79f874a798cf88c",
+  "registered_at": "2026-11-07T21:52:39+08:00",
+  "registered_by": "R-ETF-1 研究会话（协调会话 2026-11-07 派发；队列 #21 的数据侧，页面由 Codex 做）",
+  "verdict_rule": {
+    "values": [
+      "做",
+      "不做"
+    ],
+    "in_progress_label_zh": "研究进行中",
+    "source_zh": "Owner 2026-10-06：验证结论只有「做」和「不做」。INSUFFICIENT 记作「做」，即上前向模拟影子（ASHARE_STRATEGY_SPLIT_V1_FREEZE_1 §2）。仍在研究的题不写结论，写预计日期和判定规则。",
+    "files": [
+      {
+        "source": "coordinator",
+        "path": "ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md",
+        "sha256": "6a8087e61d78a3392b4405b6808ae7b2f47e0c271bcc0a05b79f874a798cf88c",
+        "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md（不在 git 里，按 sha256 绑定）"
+      }
+    ]
+  },
+  "parent": {
+    "desk_book": "ASHARE_V6_PAPER",
+    "market": "CN",
+    "label_zh": "A 股系统账本（模拟盘）",
+    "counted_once": true,
+    "note_zh": "两块是同一个模拟资金池里的两本账。整池权益只显示一次，不用两块相加；跨市场合计里 A 股也只算一次（FREEZE_1 §3 S-2、S-5）。",
+    "files": [
+      {
+        "source": "coordinator",
+        "path": "ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md",
+        "sha256": "6a8087e61d78a3392b4405b6808ae7b2f47e0c271bcc0a05b79f874a798cf88c",
+        "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md（不在 git 里，按 sha256 绑定）"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "module_id": "CN_A_BROAD_ETF",
+      "order": 1,
+      "label_zh": "宽基 ETF",
+      "book": "INDEX_BOOK",
+      "component": "INDEX",
+      "account_id": "paper-index-sleeve",
+      "research_line": "R-ETF-1",
+      "direction_zh": "网格 / 均值回归",
+      "scope_zh": "指数簿的宽基 5 支：510300、510500、588000、159967、510880。",
+      "production_rule": {
+        "key": "INDEX_SLEEVE",
+        "version": "v5-etf-limit-band-all-funds",
+        "effective_from": "2026-10-20",
+        "rule_zh": "SMA50/200 档位 FULL / HALF / CASH（趋势档位，不是网格）。",
+        "files": [
+          {
+            "source": "Ashare-V6",
+            "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+            "path": "config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json",
+            "sha256": "a6956e4fe1b49f9b39b2f165942c5402f1931c147320198ea6718af06884cd00",
+            "ref": "Ashare-V6@7c951f1f:config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json"
+          },
+          {
+            "source": "coordinator",
+            "path": "ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md",
+            "sha256": "6a8087e61d78a3392b4405b6808ae7b2f47e0c271bcc0a05b79f874a798cf88c",
+            "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md（不在 git 里，按 sha256 绑定）"
+          }
+        ]
+      },
+      "verdicts": [
+        {
+          "id": "R-ETF-1",
+          "title_zh": "宽基 ETF 波动率网格 VG 对现行档位规则 C（R-ETF-1）",
+          "state": "CONCLUDED",
+          "decision": "做",
+          "decision_meaning_zh": "上前向模拟影子，生产规则不变（结果文件 verdict.consequence = FORWARD_PAPER_SHADOW_PRODUCTION_UNCHANGED）。",
+          "statistical_label": "INSUFFICIENT",
+          "sealed_on": "2026-11-05",
+          "read": {
+            "file": "result",
+            "decision": "verdict.decision",
+            "statistical_label": "verdict.verdict",
+            "consequence": "verdict.consequence"
+          },
+          "files": {
+            "result": {
+              "source": "Ashare-V6",
+              "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+              "path": "research/index-grid/r-etf-1/result-r-etf-1.json",
+              "sha256": "6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0",
+              "ref": "Ashare-V6@7c951f1f:research/index-grid/r-etf-1/result-r-etf-1.json",
+              "note_zh": "封存于 84adf8b97268d59318dda22be5363953e7939b6a，经 V6 #55 并入 main，字节相同"
+            },
+            "k2": {
+              "source": "Ashare-V6",
+              "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+              "path": "docs/contracts/drafts/ASHARE_V6_ETF_GRID_R_ETF_1_K2_V1.draft.md",
+              "sha256": "700f8454a76eac367096aefbfc4eaf50241c5091f418c9dbf1cf4bec8aaeb98c",
+              "ref": "Ashare-V6@7c951f1f:docs/contracts/drafts/ASHARE_V6_ETF_GRID_R_ETF_1_K2_V1.draft.md",
+              "note_zh": "冻结于 82900c7ec512acb1c99682d70e3a162bc7468939"
+            },
+            "result_doc": {
+              "source": "Ashare-V6",
+              "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+              "path": "docs/research/ASHARE_ETF_R_ETF_1_RESULT_V1.md",
+              "sha256": "88ebc01abd8ba8a6595ca8194efaf9f9ed9049c10cd503afbc8b1fc4e42295f4",
+              "ref": "Ashare-V6@7c951f1f:docs/research/ASHARE_ETF_R_ETF_1_RESULT_V1.md"
+            },
+            "addendum_1_result": {
+              "source": "Ashare-V6",
+              "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+              "path": "research/index-grid/r-etf-1/result-a1.json",
+              "sha256": "3759a1835c065ba27e980a594dcbd959c4429451a4ed7f1626e8fe21fe020a89",
+              "ref": "Ashare-V6@7c951f1f:research/index-grid/r-etf-1/result-a1.json",
+              "note_zh": "附录 1（510880 刹车读自身全收益序列）封存于 abe9a3fe08b39fe3e6ad94b5fccbf20b31f3e2ec，decision.decision = 做；其中的收盘判定已被 Owner 11-05 17:06 的「一律盘中触发」取代"
+            },
+            "addendum_1_k2": {
+              "source": "Ashare-V6",
+              "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+              "path": "docs/contracts/drafts/ASHARE_V6_ETF_GRID_R_ETF_1_K2_ADDENDUM_1.draft.md",
+              "sha256": "911394d5004eb11d9b098d18a29044f1398c41ca01acdcda802238a6fe86e4f9",
+              "ref": "Ashare-V6@7c951f1f:docs/contracts/drafts/ASHARE_V6_ETF_GRID_R_ETF_1_K2_ADDENDUM_1.draft.md",
+              "note_zh": "冻结于 2b289f48c66c6cff0a7b35d711da41c7ca44caaa"
+            }
+          },
+          "owner_rulings": [
+            {
+              "on": "2026-11-05",
+              "section": "附录 1 §1",
+              "rule_zh": "ETF 默认采用网格 / 均值回归；只有封存回测显示它不如现行档位规则 C 时才保留 C，逐只 ETF 判（网格对 C 的年化差点估计 < 0 算不如）。",
+              "files": [
+                {
+                  "source": "coordinator",
+                  "path": "ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md",
+                  "sha256": "dac37780aa040db14e37d657fa47cb84db71d70e28f811efbe64113ef4a2b8be",
+                  "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md（不在 git 里，按 sha256 绑定）"
+                }
+              ]
+            },
+            {
+              "on": "2026-11-05",
+              "section": "附录 1 §5",
+              "rule_zh": "「可以，先用VG过渡，R-ETF-2出结果再替换」：INDEX_SLEEVE v6（VG 过渡）起草后交 Owner 签字，再上线。",
+              "files": [
+                {
+                  "source": "coordinator",
+                  "path": "ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md",
+                  "sha256": "dac37780aa040db14e37d657fa47cb84db71d70e28f811efbe64113ef4a2b8be",
+                  "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md（不在 git 里，按 sha256 绑定）"
+                }
+              ]
+            },
+            {
+              "on": "2026-11-05",
+              "section": "附录 1 §6",
+              "rule_zh": "所有交易计划一律盘中监控、触发即实施；收盘判定不再作为任何选项（510880 刹车改为 ETF 全收益序列 + 盘中触价）。",
+              "files": [
+                {
+                  "source": "coordinator",
+                  "path": "ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md",
+                  "sha256": "dac37780aa040db14e37d657fa47cb84db71d70e28f811efbe64113ef4a2b8be",
+                  "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md（不在 git 里，按 sha256 绑定）"
+                }
+              ]
+            }
+          ],
+          "per_etf": [
+            {
+              "code": "510500.SH",
+              "reading": "VG",
+              "reading_zh": "网格（VG）"
+            },
+            {
+              "code": "588000.SH",
+              "reading": "VG",
+              "reading_zh": "网格（VG）"
+            },
+            {
+              "code": "510300.SH",
+              "reading": "VG",
+              "reading_zh": "网格（VG）"
+            },
+            {
+              "code": "510880.SH",
+              "reading": "VG",
+              "reading_zh": "网格（VG，刹车读自身全收益序列，盘中触价）"
+            },
+            {
+              "code": "159967.SZ",
+              "reading": "C",
+              "reading_zh": "保留现行档位规则 C"
+            }
+          ],
+          "per_etf_source_zh": "附录 1 §2 按 §1 规则读 R-ETF-1；510880 的刹车按 §6 改为盘中触价。",
+          "runs_as": {
+            "kind": "FORWARD_PAPER_SHADOW",
+            "affects_holdings": false,
+            "stage": "INDEX_ETF_VG_SHADOW",
+            "accounts": [
+              "paper-index-etf-vg-shadow",
+              "paper-index-etf-vg-c-replica",
+              "paper-index-etf-vg-hold"
+            ],
+            "t_start": "2026-11-09",
+            "v6_commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+            "gates_zh": "G0–G5 全过；各门的证据写在 v2 记录的 effectiveFromRule 里。三本账都从现金开始，不回填。",
+            "files": [
+              {
+                "source": "Ashare-V6",
+                "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+                "path": "config/v6/research/index_etf_vg_shadow_v2.json",
+                "sha256": "99d6d0d7e41ee6a19fec945cf754a4296aeba5a13a089bc485dec1fc4be9f429",
+                "ref": "Ashare-V6@7c951f1f:config/v6/research/index_etf_vg_shadow_v2.json"
+              },
+              {
+                "source": "coordinator",
+                "path": "ASHARE_V6_INDEX_ETF_VG_FORWARD_SHADOW_ACCEPTANCE_V1_FREEZE_1.md",
+                "sha256": "b6c1c635a50618bd3724e605e385bd096fddbb6c568ea26ad081b531dd6b0212",
+                "ref": "artifacts/coordinator/ASHARE_V6_INDEX_ETF_VG_FORWARD_SHADOW_ACCEPTANCE_V1_FREEZE_1.md（不在 git 里，按 sha256 绑定）"
+              }
+            ]
+          },
+          "production_change": {
+            "state": "DRAFT_AWAITING_OWNER_SIGNATURE",
+            "title_zh": "INDEX_SLEEVE v6：宽基 ETF 先用网格 VG 过渡",
+            "note_zh": "草案，待 Owner 签字。签字前生产仍是上面的 v5 档位，VG 只在影子里跑，不影响持仓。",
+            "files": [
+              {
+                "source": "coordinator",
+                "path": "INDEX_SLEEVE_V6_AMENDMENT.draft.md",
+                "sha256": "5025c9256e69a33e12c3937b39203518e26968c26b1f699f9a782a4f28de2475",
+                "ref": "artifacts/coordinator/INDEX_SLEEVE_V6_AMENDMENT.draft.md（不在 git 里，按 sha256 绑定）"
+              }
+            ]
+          }
+        }
+      ],
+      "in_progress": [
+        {
+          "id": "R-ETF-2",
+          "title_zh": "宽基 ETF 均值回归波段（R-ETF-2）",
+          "state": "IN_PROGRESS",
+          "state_label_zh": "研究进行中",
+          "expected_by": "2026-11-11",
+          "k2_state": "DRAFT_NOT_FROZEN",
+          "decided_by_zh": "逐只 ETF：R-ETF-2 对 VG′ 的年化差点估计不小于 0 就替换 VG′，否则保留（附录 1 §1、§4）。结论只有「做」或「不做」。",
+          "files": [
+            {
+              "source": "coordinator",
+              "path": "ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md",
+              "sha256": "dac37780aa040db14e37d657fa47cb84db71d70e28f811efbe64113ef4a2b8be",
+              "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_ADDENDUM_1.md（不在 git 里，按 sha256 绑定）"
+            }
+          ]
+        }
+      ],
+      "coverage_gaps": []
+    },
+    {
+      "module_id": "CN_A_STOCK_SECTOR_ETF",
+      "order": 2,
+      "label_zh": "个股 / 行业 ETF",
+      "book": "STOCK_BOOK",
+      "component": "STOCK",
+      "account_prefix": "paper-stock-",
+      "research_line": "R-STK-1",
+      "direction_zh": "趋势跟踪",
+      "scope_zh": "个股簿（单股）。行业 ETF 见 coverage_gaps。",
+      "production_rule": {
+        "key": "STOCK_BOOK_PAPER",
+        "rule_zh": "五段链。",
+        "files": [
+          {
+            "source": "coordinator",
+            "path": "ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md",
+            "sha256": "6a8087e61d78a3392b4405b6808ae7b2f47e0c271bcc0a05b79f874a798cf88c",
+            "ref": "artifacts/coordinator/ASHARE_STRATEGY_SPLIT_V1_FREEZE_1.md（不在 git 里，按 sha256 绑定）"
+          }
+        ]
+      },
+      "verdicts": [],
+      "in_progress": [
+        {
+          "id": "R-STK-1",
+          "title_zh": "A 股单股趋势跟踪（R-STK-1）",
+          "state": "IN_PROGRESS",
+          "state_label_zh": "研究进行中",
+          "expected_by": "2026-11-14",
+          "k2_state": "FROZEN",
+          "k2_frozen_at": "2026-11-07T11:19:13+08:00",
+          "run_zh": "Q0 第 2 阶段结束、Q0 自己的后处理完成后，在 Linux 上先跑 BASELINE_REPRO，再跑各臂（冻结页 §8）；协调会话估计 11-10 前后开跑。",
+          "decided_by_zh": "账户层面配对 g（T − C），T = A_RSTK1_TREND_TOUCH、C = A_TOUCH，按月分块 bootstrap 95% 区间：下界 > 0 → 做；上界 ≤ 0 → 不做；其余（证据不足）→ 做 = 前向影子。另需判定样本里成熟交易与「改变的入场」各 ≥ 30（K2 §3、§5）。",
+          "arm_commit": {
+            "source": "Ashare-V6",
+            "commit": "2643baabd4e335f2feb221a14c1bb1f146e964ed",
+            "branch": "origin/research/r-stk-1-trend"
+          },
+          "inertness": {
+            "state": "INERTNESS_PASS",
+            "written_at": "2026-11-07T11:16:14+08:00",
+            "evidence": {
+              "source": "research-data",
+              "path": "/Volumes/闪迪外挂01/research-data/ashare_v6_qrp_v1/a0/inertness/INERTNESS_rstk1_2643baabd4e3.json",
+              "sha256": "76b4247c8356c059bb17aa470db091f6ee07797aa16d6ec463609732bff4bb14"
+            }
+          },
+          "files": [
+            {
+              "source": "coordinator",
+              "path": "R_STK_1_K2_V1_FREEZE_1.md",
+              "sha256": "6eefdcbbc8b70336cd7accd1c633ed0c7cd3e92dd3e218add1cc0281af05f017",
+              "ref": "artifacts/coordinator/R_STK_1_K2_V1_FREEZE_1.md（不在 git 里，按 sha256 绑定）"
+            },
+            {
+              "source": "coordinator",
+              "path": "R_STK_1_K2_V1_COORDINATOR_RULINGS.md",
+              "sha256": "78bd96fd9d0cf82125039fdeb05d5deaffae46b640087c68a566c4ae663f0d6d",
+              "ref": "artifacts/coordinator/R_STK_1_K2_V1_COORDINATOR_RULINGS.md（不在 git 里，按 sha256 绑定）"
+            }
+          ]
+        }
+      ],
+      "coverage_gaps": [
+        {
+          "id": "CN_A_SECTOR_ETF",
+          "label_zh": "行业 ETF",
+          "state": "NOT_INITIATED",
+          "placeholder_zh": "待交付 · 行业 ETF 研究线",
+          "fact_zh": "行业 ETF 现在在指数簿的行业袖子里交易（INDEX_SLEEVE paperSizing.sectorSleeveFraction 0.25、sectorQuota 3，账户 paper-index-sleeve），不在个股簿。R-ETF-1 只跑了宽基 5 支，R-STK-1 只覆盖单股，还没有登记行业 ETF 的研究线。",
+          "files": [
+            {
+              "source": "Ashare-V6",
+              "commit": "7c951f1f26f847e7c32b213d232e94bd0b2852c8",
+              "path": "config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json",
+              "sha256": "a6956e4fe1b49f9b39b2f165942c5402f1931c147320198ea6718af06884cd00",
+              "ref": "Ashare-V6@7c951f1f:config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "q0": {
+    "applies_to": [
+      "CN_A_BROAD_ETF",
+      "CN_A_STOCK_SECTOR_ETF"
+    ],
+    "title_zh": "Q0：现行规则在历史上的基线回测（V6 原生回放，整本 ASHARE_V6_PAPER）",
+    "state": "IN_PROGRESS",
+    "state_label_zh": "研究进行中",
+    "phase": 2,
+    "expected_end": "2026-11-09T20:45:00+08:00",
+    "expected_range": [
+      "2026-11-09T08:40:00+08:00",
+      "2026-11-10T16:40:00+08:00"
+    ],
+    "policy_lock_zh": "POLICY_LOCK_Q0_V1 475bdc64（R-STK-1 冻结页 §2 引用）",
+    "sealed": false,
+    "source_zh": "Q0 执行会话 2026-11-07 12:40 CST 报告的估计，不是封存文件；Q0 结果封存后才有它的读数。",
+    "files": [
+      {
+        "source": "coordinator",
+        "path": "R_STK_1_K2_V1_FREEZE_1.md",
+        "sha256": "6eefdcbbc8b70336cd7accd1c633ed0c7cd3e92dd3e218add1cc0281af05f017",
+        "ref": "artifacts/coordinator/R_STK_1_K2_V1_FREEZE_1.md（不在 git 里，按 sha256 绑定）"
+      }
+    ]
+  }
+}
