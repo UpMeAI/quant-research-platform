@@ -248,3 +248,14 @@ test('A 股整本账本的接入标签按两个研究模块写（详情页头同
   assert.match(parent.research.label, /^2 个研究模块（宽基 ETF：R-ETF-1 已封存「做」；个股 \/ 行业 ETF：R-STK-1 研究进行中）；Q0 研究进行中$/);
   assert.doesNotMatch(JSON.stringify(parent), /尚未接入/);
 });
+
+test('A 股详情页：没有档案也不写「该策略尚未接入研究」，回测结论写 Q0 进行中与预计时间（取自登记）', async () => {
+  const model = await workspace.readModel({ strategyRef: PARENT });
+  const detail = model.views['strategy-detail'];
+  const q0 = DATA.q0;
+  const expected = `Q0 基线回测${q0.state_label_zh}（第 ${q0.phase} 阶段，预计 ${q0.expected_end.slice(0, 16).replace('T', ' ')}，估计，未封存）；两个研究模块的结论与进度见策略总览`;
+  assert.equal(detail.profile_state, 'NOT_REGISTERED');
+  assert.equal(detail.profile_label, expected);
+  assert.ok(JSON.stringify(detail.backtest).includes(expected));
+  assert.doesNotMatch(JSON.stringify([detail.profile_label, detail.backtest]), /尚未接入/);
+});

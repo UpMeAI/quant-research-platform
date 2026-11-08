@@ -40,6 +40,7 @@ const overseasVerdicts = require('../overseas-sealed-verdicts');
 const stressSupplement = require('../baseline-stress-supplement');
 const researchStage = require('./stage');
 const strategyOverview = require('./strategy-overview');
+const ashareModules = require('../ashare-research-modules');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
@@ -468,6 +469,12 @@ async function readModel({
     || (loop.cases.length === 1 ? loop.cases[0] : null);
   const selectedStrategyRef = strategyRef || selectedRaw?.strategy_ref || directory.current[0]?.strategy_ref || null;
   const selectedStrategy = strategyByRef.get(selectedStrategyRef) || null;
+  // A 股整本账本没有档案，但研究模块与 Q0 已登记：回测结论写 Q0 进行中，不写「尚未接入研究」
+  const moduleRegistry = ashareModules.forDeskBook(selectedStrategyRef);
+  const moduleQ0 = moduleRegistry && moduleRegistry.q0 && moduleRegistry.q0.state === 'IN_PROGRESS' ? moduleRegistry.q0 : null;
+  const notRegisteredLabel = moduleQ0
+    ? `Q0 基线回测${moduleQ0.state_label_zh}（第 ${moduleQ0.phase} 阶段，预计 ${String(moduleQ0.expected_end).slice(0, 16).replace('T', ' ')}，估计，未封存）；两个研究模块的结论与进度见策略总览`
+    : NOT_REGISTERED_LABEL;
   const selectedCurrentCase = selectedRaw?.strategy_ref === selectedStrategyRef ? selectedRaw : null;
   const baselineRelation = loop.cases.find((item) => item.baseline?.strategy_ref === selectedStrategyRef) || null;
   const productByCase = new Map(loop.product_delivery.cases.map((item) => [item.case_ref, item]));
@@ -499,7 +506,7 @@ async function readModel({
   const profileBaselineCase = profileCase || (Boolean(profile) && !selectedCurrentCase && !profiles.isLegacyShape(profile));
   const baselineRead = suppliedBaseline !== undefined ? suppliedBaseline
     : (profileBaselineCase ? baselineEvaluation.readProjection(profile.case_ref)
-      : baselineEvaluation.emptyProjection('NOT_CONNECTED', !profile ? NOT_REGISTERED_LABEL
+      : baselineEvaluation.emptyProjection('NOT_CONNECTED', !profile ? notRegisteredLabel
         : selectedCurrentCase ? '这项策略的基线回测尚未立题' : '这项策略尚未接入 Research，没有回测'));
   // US_V5 Q0 导入规格增补 1 §2：另行封存的压力补充挂在 Q0 卡片压力表那一行下面（只有已导入补充的策略才有；
   // Q0 的主数字、计数、压力评价与采用条件不变）。没有补充时投影原样不动。
@@ -513,7 +520,7 @@ async function readModel({
   const comparisonProjections = (() => {
     if (suppliedComparison !== undefined) return Array.isArray(suppliedComparison) ? suppliedComparison : [suppliedComparison];
     return profileCase ? candidateComparison.readProjections(profile.case_ref)
-      : [candidateComparison.emptyProjection('NOT_CONNECTED', profile ? '这项策略没有候选对比' : NOT_REGISTERED_LABEL)];
+      : [candidateComparison.emptyProjection('NOT_CONNECTED', profile ? '这项策略没有候选对比' : notRegisteredLabel)];
   })();
 
   const adapters = listAdapters();
@@ -739,7 +746,7 @@ async function readModel({
     ].filter(Boolean),
     // 只加在需要的策略上（LEGACY_V1 档案的投影形状不变，US_V5 的 JSON 逐字节冻结，D1）：
     // 没有档案的策略标「该策略尚未接入研究」；页面金额默认按美元写，其他档案带上自己的币种。
-    ...(!profile ? { profile_state: 'NOT_REGISTERED', profile_label: NOT_REGISTERED_LABEL } : {}),
+    ...(!profile ? { profile_state: 'NOT_REGISTERED', profile_label: notRegisteredLabel } : {}),
     ...(profile && !profiles.isLegacyShape(profile) ? { currency: profile.currency } : {}),
     // 增补 1 §1.4：本档案页面上 R 值的小数位（只加在写了 r_digits 的档案上）
     ...(profile && !profiles.isLegacyShape(profile) && profile.q0_reading.r_digits ? { r_digits: profile.q0_reading.r_digits } : {}),
