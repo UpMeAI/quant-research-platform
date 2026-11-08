@@ -1,0 +1,378 @@
+{
+  "_comment": "研究题的层登记（三层分工合同 V1 §2.1「每个研究题立题时登记属于哪一层」；Owner 2026-11-08 要求在策略总览前端展示）。一题一条，按 strategy_ref + id 对上页面里的研究题，id 用各数据源原有的编号（A 股研究模块登记的 id、策略档案研究计划的题号、海外封存结论的 entry_id、M2 轮次的 card_ref、差距分解的 result_id、Desk 回链的 DQ-<questionKey>；轮次带出的成本题没有自己的编号，写 <card_ref>-COST）。layer 只取 layers 里的八个代码：合同 §1 的三层，Note 2 §1 的四个标签（诊断（全策略基线）、诊断、不适用（工程）、不适用（执行）），以及 UNDECIDED（按合同与 Note 2 的读法仍定不下来的题）。reason_zh 一行，写对应合同或 Note 2 的哪一节。deviations 只挂在合同 §3 / Note 1 / Note 2 登记过的不符项上（例如 D11），页面在该题旁写一条小注。classified_by = coordinator-proposal 表示这是实现会话按协调会话的分类指引（含 Note 2）提出的分类，待协调会话核对；核对后由协调会话改写。没有登记的题，页面写「待交付 · 层登记」，不猜。tests/research_layer_register.test.js 校验本文件的形状，并在本机有合同文件时现场核对三份文件的 sha256。",
+  "contract": "QRP_RESEARCH_LAYER_REGISTER_V1",
+  "contract_ref": {
+    "path": "artifacts/coordinator/THREE_LAYER_STRATEGY_FRAMEWORK_V1_FREEZE_1.md",
+    "sha256": "a5437476179bb39eb64e3e072202c39ae33255b4eb2cbe84789f400aea92cd13",
+    "notes": [
+      {
+        "id": "NOTE_1",
+        "path": "artifacts/coordinator/THREE_LAYER_STRATEGY_FRAMEWORK_V1_FREEZE_1_NOTE_1.md",
+        "sha256": "04e8259d7d621f1beb7fccc0455bcf54aa974c06da9d05288cfcab2f1ee2dc15",
+        "topic_zh": "补登记 D10（MARKET_RISK_REGIME v5 SYSTEMIC_STRESS 把上限设为 0）"
+      },
+      {
+        "id": "NOTE_2",
+        "path": "artifacts/coordinator/THREE_LAYER_STRATEGY_FRAMEWORK_V1_FREEZE_1_NOTE_2.md",
+        "sha256": "b61b051f2b93abe72882f89bb88f4bde503aafe4fa680c6dc1547e5f4607f154",
+        "topic_zh": "三层之外的四个标签、分层读法、补登记 D11 与 D12"
+      }
+    ],
+    "ref_zh": "协调会话目录的文件，不在 git 里，按 sha256 绑定"
+  },
+  "registered_at": "2026-11-08T07:30:00+08:00",
+  "registered_by": "QRP 实现会话（协调会话 2026-11-08 派发；按 Note 2 重分；分类待协调会话核对）",
+  "layers": {
+    "SELECTION_TIMING": {
+      "label_zh": "选股择时",
+      "kind": "LAYER",
+      "source_zh": "合同 §1 第二行：主线、量价关系、技术指标；选标的、定入场出场时点和价位（Note 2 §2.1–§2.4 的读法）"
+    },
+    "RISK": {
+      "label_zh": "风控",
+      "kind": "LAYER",
+      "source_zh": "合同 §1 第一行：宏观经济周期、市场情绪、市场结构；只调 k 和上限"
+    },
+    "ACCOUNT": {
+      "label_zh": "账户",
+      "kind": "LAYER",
+      "source_zh": "合同 §1 第三行：净值回撤、亏损预算、连亏、凯利上限；含 Note 2 §2.2 的「表达」（载体、杠杆、期权、闲置现金放哪里）"
+    },
+    "DIAGNOSTIC_BASELINE": {
+      "label_zh": "诊断（全策略基线）",
+      "kind": "TAG",
+      "source_zh": "Note 2 §1：对整套现行策略做基线评价，横跨三层，只出读数（各市场的 Q0）"
+    },
+    "DIAGNOSTIC": {
+      "label_zh": "诊断",
+      "kind": "TAG",
+      "source_zh": "Note 2 §1：差距分解、归因等只读的描述性题"
+    },
+    "NA_ENGINEERING": {
+      "label_zh": "不适用（工程）",
+      "kind": "TAG",
+      "source_zh": "Note 2 §1：工程闸门、数据校准、导入与对账，不是研究题"
+    },
+    "NA_EXECUTION": {
+      "label_zh": "不适用（执行）",
+      "kind": "TAG",
+      "source_zh": "Note 2 §1：下单方式与成交成本（挂单、滑点）；不改买什么、何时买、买多少"
+    },
+    "UNDECIDED": {
+      "label_zh": "待定",
+      "kind": "TAG",
+      "source_zh": "按合同与 Note 2 的读法仍定不下来，待协调会话裁定"
+    }
+  },
+  "entries": [
+    {
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "id": "R-ETF-1",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：宽基 ETF 网格 VG 对现行均线档位 C，读的是 ETF 自己和它跟踪的指数（Note 2 §2.1），定入场、出场时点和价位。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "id": "R-ETF-2",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：宽基 ETF 均值回归波段，读 ETF 自己的价格（Note 2 §2.1），定入场、出场时点。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "id": "R-STK-1",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：单股趋势跟踪；冻结的 T/C 一对同时改了市场状态闸（风控层）和选股，修订 1 用 T_RS 对 C_RS 把选股择时单独隔离出来（§2.4）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "id": "Q0",
+      "layer": "DIAGNOSTIC_BASELINE",
+      "reason_zh": "Note 2 §1「诊断（全策略基线）」：现行整套规则的历史基线回测，横跨三层，只出读数。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "Q0",
+      "layer": "DIAGNOSTIC_BASELINE",
+      "reason_zh": "Note 2 §1「诊断（全策略基线）」：现行整套规则的历史基线回测，横跨三层，只出读数。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "Q1",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「定出场时点」：处于趋势时推迟时间止损。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "Q2",
+      "layer": "ACCOUNT",
+      "reason_zh": "Note 2 §2.2：同一信号换成 1 倍载体是「表达」（载体、杠杆），归仓位与账户层。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "Q3",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「选标的」：随机对照与行业 RS（主线）排序。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "Q4",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「定入场时点」：单个序列开仓后 24 h 不再开，不读市场状态（风控层），也不读回撤、连亏（账户层）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "Q5",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「定出场时点」：两臂都带 A25 冷却，只差推迟时间止损这一项。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "Q6",
+      "layer": "ACCOUNT",
+      "reason_zh": "Note 2 §2.2：闲置现金停放 SPY（M-1）是「闲置现金放在哪里」，归仓位与账户层。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "GAP-0178322ebaf779ca",
+      "layer": "DIAGNOSTIC",
+      "reason_zh": "Note 2 §1「诊断」：差距分解只描述、不出结论。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "US5-X06",
+      "layer": "ACCOUNT",
+      "reason_zh": "合同 §1 账户层「净值回撤」：去风险回看取 45 日读法与锚定读法中更严的一个（KELLY_CAP_ONLY 修订 1）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "US5-N3",
+      "layer": "ACCOUNT",
+      "reason_zh": "合同 §1 账户层（Rule 1 / 1b）与 Note 2 §2.2（闲置现金放哪里）：M-1 进海外桶后能否守住 Rule 1b 桶线。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "US5-N5",
+      "layer": "ACCOUNT",
+      "reason_zh": "合同 §1 账户层「凯利上限」：M-1 下 US_V5 的 m 上限前沿。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "US5-Q6-M1-SHADOW",
+      "layer": "ACCOUNT",
+      "reason_zh": "Note 2 §2.2：Q6（M-1 闲置现金停放 SPY）的前向影子，与 Q6 同层。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "US5-RUE1-VOO",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：MR-V1 均值回归波段，读标的自己或它跟踪的指数价格（Note 2 §2.1），定入场、出场时点。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "id": "US5-RUE1-SPMO",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：MR-V1 均值回归波段，读标的自己或它跟踪的指数价格（Note 2 §2.1），定入场、出场时点。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "Q0",
+      "layer": "DIAGNOSTIC_BASELINE",
+      "reason_zh": "Note 2 §1「诊断（全策略基线）」：现行整套规则的历史基线回测，横跨三层，只出读数。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "DQ-RQK-d8fdad6a84b9c984",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "Note 2 §2.2：VOO 职责对照拿现行择时和职责基准比，检验的是择时本身，归选股择时层（K2 待冻结）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "UC-U08-Q0",
+      "layer": "DIAGNOSTIC_BASELINE",
+      "reason_zh": "Note 2 §1「诊断（全策略基线）」：到价出场加凯利 0.42 之后当前 D 的 Q0 日线近似，只出读数。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "UC-U13-30M",
+      "layer": "DIAGNOSTIC",
+      "reason_zh": "Note 2 §1「诊断」：凯利线的 30 分钟读数，只报不判，不改 m，不触发修订。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "UC-N1",
+      "layer": "ACCOUNT",
+      "reason_zh": "Note 2 §2.2：结论针对闲置现金候选（短债 / 1 倍载体），是「闲置现金放在哪里」；其中的差距分解部分是诊断（§2.5 可拆行）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "UC-X08",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "Note 2 §2.2：长期核心对 3 倍择时是拿择时和买入持有比，检验择时本身，归选股择时层。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "UC-RUE1-SPY",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：MR-V1 均值回归波段，读标的自己或它跟踪的指数价格（Note 2 §2.1），定入场、出场时点。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "id": "UC-RUE1-QQQ",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：MR-V1 均值回归波段，读标的自己或它跟踪的指数价格（Note 2 §2.1），定入场、出场时点。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "Q0",
+      "layer": "DIAGNOSTIC_BASELINE",
+      "reason_zh": "Note 2 §1「诊断（全策略基线）」：现行整套规则的历史基线回测，横跨三层，只出读数。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "R1",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层：组合候选 CAND-S 只主流（选标的）；CAND-D 用 BTC 200 日线管非 BTC 做空，属市场结构（Note 2 §2.1），登记为不符 D11；已冻结，照原判据出（§2.6）。",
+      "classified_by": "coordinator-proposal",
+      "deviations": [
+        {
+          "ref": "D11",
+          "source": "NOTE_2",
+          "label_zh": "D11 不符：市场结构定方向",
+          "note_zh": "CAND-D 在 BTC 位于 200 日线上方时禁止非 BTC 合约做空，等于用市场结构决定方向；只在影子里，不改；结论为做时生产修订必须改成只调 k（Note 2 §3）。"
+        }
+      ]
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "Q4",
+      "layer": "ACCOUNT",
+      "reason_zh": "合同 §1 账户层：熔断与日停、去风险系数、总持仓；其中 30 h 冷却按入场时点读属选股择时层（§2.5 可拆行）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "R1-COST",
+      "layer": "NA_EXECUTION",
+      "reason_zh": "Note 2 §1「不适用（执行）」：执行成本题 EXEC-1（先挂单 60 秒再吃单）+ CAL，是下单方式与成交成本。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "C17-Q4",
+      "layer": "ACCOUNT",
+      "reason_zh": "合同 §1 账户层「熔断」：熔断与日停按凯利后的风险单位重设。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "C17-N2",
+      "layer": "DIAGNOSTIC",
+      "reason_zh": "Note 2 §1「诊断」：当前 D 对 BTC 买入持有的差距分解，只描述。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "C17-N4",
+      "layer": "NA_EXECUTION",
+      "reason_zh": "Note 2 §1「不适用（执行）」：入场与止盈、决策出场改挂单，是下单方式（C17 N4 挂单即该节的例子）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "C17-N4-SHADOW",
+      "layer": "NA_EXECUTION",
+      "reason_zh": "Note 2 §1「不适用（执行）」：挂单前向影子只记成交率与逆向选择，是成交成本记录。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "C17-N6",
+      "layer": "DIAGNOSTIC",
+      "reason_zh": "Note 2 §1「诊断」：空仓缺口按闸门归因；没有闸门准入，组合候选未成立。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "C17-N7",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「定入场时点」与 Note 2 §2.3 组合构建：每月至多开仓一次，不读市场状态和账户状态。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "C17_V2_4000USDT",
+      "id": "C17-N8",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「选标的」：非主流合约保留、收窄还是去掉。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "id": "Q0",
+      "layer": "DIAGNOSTIC_BASELINE",
+      "reason_zh": "Note 2 §1「诊断（全策略基线）」：现行整套规则的历史基线回测，横跨三层，只出读数。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "id": "R1",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「定入场」：组合候选只做空（信号的多单分支不开仓），是策略自己的入场规则，不读宏观、情绪或市场结构。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "id": "Q4",
+      "layer": "ACCOUNT",
+      "reason_zh": "合同 §1 账户层与 Note 2 §2.2：保证金、账本止损、总上限；其中每合约仓数按 Note 2 §2.3 属组合构建（§2.5 可拆行）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "id": "R1-COST",
+      "layer": "NA_EXECUTION",
+      "reason_zh": "Note 2 §1「不适用（执行）」：并入 C17 的执行成本题，QS 作为第二个账本只报不判。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "id": "QS-Q4",
+      "layer": "ACCOUNT",
+      "reason_zh": "合同 §1 账户层「熔断」：熔断与日停按凯利后的风险单位重设（QS 部分）。",
+      "classified_by": "coordinator-proposal"
+    },
+    {
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "id": "QS-N7",
+      "layer": "SELECTION_TIMING",
+      "reason_zh": "合同 §1 选股择时层「定入场时点」与 Note 2 §2.3 组合构建：每月至多开仓一次，不读市场状态和账户状态。",
+      "classified_by": "coordinator-proposal"
+    }
+  ]
+}

@@ -11,9 +11,13 @@
  *     state = CONCLUDED 的 verdicts[].decision，仍在研究的题不写结论，放进「研究进行中」，写数据里的
  *     预计日期和转成做 / 不做的规则。统计标签（INSUFFICIENT 等）只进折叠详情。
  * 数据缺的地方写「待交付 · X」，不写「尚未接入」。上级账本只计一次。
+ *
+ * 层（三层分工合同 V1 §2.1，Owner 2026-11-08）：每个研究题带 layer（代码 + 中文），由 services/research-layer-register
+ * 按 strategy_ref + 题号给出；没有登记的题写「待交付 · 层登记」。总览另给按层计数与那一行字（layer_line_zh）。
  */
 
 const ashareModules = require('../ashare-research-modules');
+const layerRegister = require('../research-layer-register');
 
 const { PENDING_PREFIX } = ashareModules;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -45,7 +49,7 @@ function verdictOf(item) {
   return null;
 }
 
-function researchOf(item) {
+function researchOf(item, layerOf = layerRegister.layerOf) {
   const stage = item.research_stage || null;
   const missing = !stage || stage.code === 'NOT_CONNECTED' || stage.code === 'M4_PENDING';
   const researching = Boolean(stage && (
@@ -61,10 +65,11 @@ function researchOf(item) {
     gaps: [],
     detail: !missing && stage ? { kind: 'STAGE', headline_zh: stage.headline_zh, steps: stage.steps || [] } : null,
     has_insufficient_statistics: Boolean(stage && JSON.stringify(stage).includes('证据不足')),
+    items: (stage && stage.items ? stage.items : []).map((entry) => ({ ...entry, layer: layerOf(item.strategy_ref, entry.id) })),
   };
 }
 
-function ordinaryCard(item) {
+function ordinaryCard(item, layerOf) {
   const verdict = verdictOf(item);
   return {
     kind: 'STRATEGY', module_ref: item.strategy_ref, strategy_ref: item.strategy_ref,
@@ -72,7 +77,7 @@ function ordinaryCard(item) {
     role: item.role, lifecycle: item.lifecycle, mode_label: item.mode_label,
     runtime_zh: runtimeOf(item), rule_zh: null,
     verdict, summary_zh: verdict ? `${verdict.label_zh} · ${verdict.qualifier_zh}` : '研究进行中',
-    research: researchOf(item),
+    research: researchOf(item, layerOf),
   };
 }
 
@@ -115,8 +120,9 @@ function verdictNote(verdict) {
   return parts.length ? parts.join('；') : (verdict.decision_meaning_zh || null);
 }
 
-function verdictDetail(verdict) {
+function verdictDetail(verdict, layer) {
   return {
+    layer,
     id: verdict.id, title_zh: verdict.title_zh, decision: verdict.decision, sealed_on: verdict.sealed_on || null,
     statistical_label: verdict.statistical_label || null,
     statistical_label_zh: verdict.statistical_label
@@ -127,7 +133,8 @@ function verdictDetail(verdict) {
   };
 }
 
-function moduleCard(parent, registry, spec, q0Here) {
+function moduleCard(parent, registry, spec, q0Here, layerOf = layerRegister.layerOf) {
+  const layered = (item) => ({ ...item, layer: layerOf(parent.strategy_ref, item.id) });
   const concluded = spec.verdicts.filter((item) => item.state === 'CONCLUDED' && DECISION_CODES[item.decision]);
   const lineVerdict = concluded.find((item) => item.id === spec.research_line) || null;
   const lineOpen = lineVerdict ? null : spec.in_progress.find((item) => item.id === spec.research_line) || null;
@@ -135,8 +142,10 @@ function moduleCard(parent, registry, spec, q0Here) {
     code: DECISION_CODES[lineVerdict.decision], label_zh: lineVerdict.decision,
     qualifier_zh: verdictNote(lineVerdict), source_ref: lineVerdict.id, sealed_on: lineVerdict.sealed_on || null,
   } : null;
-  const open = spec.in_progress.filter((item) => item !== lineOpen && item.id !== spec.research_line).map((item) => openItem(item));
-  if (q0Here) open.push(openItem(q0Here, 'Q0'));
+  const open = spec.in_progress.filter((item) => item !== lineOpen && item.id !== spec.research_line).map((item) => layered(openItem(item)));
+  if (q0Here) open.push(layered(openItem(q0Here, 'Q0')));
+  const lineLayer = layerOf(parent.strategy_ref, spec.research_line);
+  const lineTitle = (lineVerdict || lineOpen || {}).title_zh || null;
   const rule = spec.production_rule;
   return {
     kind: 'RESEARCH_MODULE', module_ref: spec.module_id, module_id: spec.module_id, order: spec.order,
@@ -159,36 +168,61 @@ function moduleCard(parent, registry, spec, q0Here) {
         id: gap.id, label_zh: gap.label_zh, state: gap.state || null,
         placeholder_zh: isText(gap.placeholder_zh) ? gap.placeholder_zh : `${PENDING_PREFIX}${gap.label_zh}`,
       })),
-      detail: concluded.length ? { kind: 'VERDICTS', verdicts: concluded.map(verdictDetail) } : null,
+      detail: concluded.length ? { kind: 'VERDICTS', verdicts: concluded.map((item) => verdictDetail(item, layerOf(parent.strategy_ref, item.id))) } : null,
       has_insufficient_statistics: concluded.some((item) => item.statistical_label === 'INSUFFICIENT'),
+      // 研究线本身的层（卡片上研究线与方向那一行旁的标签）与本卡的研究题清单
+      layer: lineLayer,
+      items: [{ id: spec.research_line, title_zh: lineTitle, layer: lineLayer }, ...open.map((item) => ({ id: item.id, title_zh: item.title_zh, layer: item.layer }))],
     },
   };
 }
 
-function splitParent(item, registry) {
+function splitParent(item, registry, layerOf = layerRegister.layerOf) {
   const specs = [...registry.modules].sort((a, b) => a.order - b.order);
   const q0 = registry.q0 || null;
   const q0OnParent = Boolean(q0 && specs.every((spec) => q0.applies_to.includes(spec.module_id)));
   const modules = specs.map((spec) => moduleCard(item, registry, spec,
-    q0 && !q0OnParent && q0.applies_to.includes(spec.module_id) ? q0 : null));
+    q0 && !q0OnParent && q0.applies_to.includes(spec.module_id) ? q0 : null, layerOf));
+  const q0Item = q0OnParent ? openItem(q0, 'Q0') : null;
   return {
     strategy_ref: item.strategy_ref, market_label: item.market_label, name: registry.parent.label_zh, desk_name: item.name,
     lifecycle: item.lifecycle, split: true, counted_once: registry.parent.counted_once === true,
     summary_zh: `1 个资金池 · ${modules.length} 个研究模块 · 上级只计一次`,
     note_zh: registry.parent.note_zh || null,
     runtime_zh: runtimeOf(item),
-    in_progress: q0OnParent ? [openItem(q0, 'Q0')] : [],
+    in_progress: q0Item ? [{ ...q0Item, layer: layerOf(item.strategy_ref, q0Item.id) }] : [],
     modules,
   };
 }
 
-function buildOverview(directory, { registryFor = ashareModules.forDeskBook } = {}) {
+/**
+ * 全部研究题（同一 strategy_ref + 题号只列一次）：总览卡片上的题、上级账本的题，加上只在详情页出现的题
+ * （extraItems：strategy_ref → [{ id, title_zh }]，由读模型从海外封存结论、差距分解取出）。每题带层。
+ */
+function researchItemsOf(parents, extraItems, layerOf) {
+  const rows = [];
+  const seen = new Set();
+  const push = (strategyRef, item, where) => {
+    const key = `${strategyRef}\u0000${item.id}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({ strategy_ref: strategyRef, id: item.id, title_zh: item.title_zh || null, where, layer: item.layer || layerOf(strategyRef, item.id) });
+  };
+  for (const parent of parents) {
+    for (const item of parent.in_progress || []) push(parent.strategy_ref, item, 'OVERVIEW');
+    for (const card of parent.modules) for (const item of card.research.items || []) push(card.strategy_ref, item, 'OVERVIEW');
+  }
+  for (const [strategyRef, items] of extraItems) for (const item of items) push(strategyRef, item, 'DETAIL');
+  return rows;
+}
+
+function buildOverview(directory, { registryFor = ashareModules.forDeskBook, layerOf = layerRegister.layerOf, extraItems = new Map() } = {}) {
   const parents = directory.strategies.map((item) => {
     const registry = registryFor(item.strategy_ref);
-    if (registry) return splitParent(item, registry);
+    if (registry) return splitParent(item, registry, layerOf);
     return {
       strategy_ref: item.strategy_ref, market_label: item.market_label, name: item.name,
-      lifecycle: item.lifecycle, split: false, modules: [ordinaryCard(item)],
+      lifecycle: item.lifecycle, split: false, modules: [ordinaryCard(item, layerOf)],
     };
   });
   const cards = parents.flatMap((item) => item.modules);
@@ -197,6 +231,8 @@ function buildOverview(directory, { registryFor = ashareModules.forDeskBook } = 
   }));
   const [doCards, dontCards, researchingCards] = sections.map((section) => section.cards);
   const counts = { do: doCards.length, dont: dontCards.length, researching: researchingCards.length };
+  const researchItems = researchItemsOf(parents, extraItems, layerOf);
+  const layerCounts = layerRegister.countsOf(researchItems);
   const splits = parents.filter((item) => item.split)
     .map((item) => `${item.market_label} 1 个资金池拆为 ${item.modules.length} 个研究模块，父账本只计一次。`).join('');
   return {
@@ -207,8 +243,11 @@ function buildOverview(directory, { registryFor = ashareModules.forDeskBook } = 
     cards,
     sections,
     groups: { do: doCards, dont: dontCards, researching: researchingCards },
+    research_items: researchItems,
+    layer_counts: layerCounts,
+    layer_line_zh: layerRegister.countsLine(layerCounts),
     answer_zh: `Desk 共登记 ${directory.strategies.length} 个系统策略，按研究模块展示 ${cards.length} 项：做 ${counts.do} 项，不做 ${counts.dont} 项${counts.researching ? `，研究进行中 ${counts.researching} 项` : ''}。${splits}`,
   };
 }
 
-module.exports = { PENDING_PREFIX, SECTIONS, verdictOf, researchOf, verdictNote, expectedOf, buildOverview };
+module.exports = { PENDING_PREFIX, SECTIONS, verdictOf, researchOf, verdictNote, expectedOf, researchItemsOf, buildOverview };
