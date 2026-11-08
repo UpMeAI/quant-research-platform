@@ -25,6 +25,7 @@ const adoptionView = require('../research-adoption/overview');
 const detailNotes = require('../strategy-detail-notes');
 const experiments = require('../experiment-orchestrator');
 const m2Rounds = require('../m2-rounds');
+const ashareModules = require('../ashare-research-modules');
 const deskRouting = require('../desk-review-routing');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
@@ -241,8 +242,25 @@ function factsOf(strategyRef, { cases, m4Items }) {
 }
 
 /** 目录里每条策略的研究进度（Map：strategy_ref → stageOf 的结果）。`cases` 取自 runtime-research-loop，`m4Items` 取自它的 platform_m4。 */
+/**
+ * A 股整本账本没有档案，但两个研究模块已登记（config/ashare_research_modules.v1.json）：
+ * 不再写「尚未接入 Research」，改写两块各自的研究状态。只改接入标签，计数（含 has_record）沿用 stageOf。
+ */
+function moduleStage(stage, registry) {
+  if (!registry || stage.has_record) return stage;
+  const parts = [...registry.modules].sort((a, b) => a.order - b.order).map((spec) => {
+    const done = spec.verdicts.find((item) => item.id === spec.research_line && item.state === 'CONCLUDED');
+    const open = spec.in_progress.find((item) => item.id === spec.research_line);
+    const line = done ? `${spec.research_line} 已封存「${done.decision}」` : open ? `${spec.research_line} ${open.state_label_zh}` : `${ashareModules.PENDING_PREFIX}${spec.research_line}`;
+    return `${spec.label_zh}：${line}`;
+  });
+  const q0 = registry.q0 && registry.q0.state === 'IN_PROGRESS' ? `；Q0 ${registry.q0.state_label_zh}` : '';
+  return { ...stage, code: 'MODULES_REGISTERED', headline_zh: `${registry.modules.length} 个研究模块（${parts.join('；')}）${q0}` };
+}
+
 function readStages({ strategies, cases = [], m4Items = [] }) {
-  return new Map(strategies.map((item) => [item.strategy_ref, stageOf(factsOf(item.strategy_ref, { cases, m4Items }))]));
+  return new Map(strategies.map((item) => [item.strategy_ref,
+    moduleStage(stageOf(factsOf(item.strategy_ref, { cases, m4Items })), ashareModules.forDeskBook(item.strategy_ref))]));
 }
 
 /** 页头计数：有研究记录的策略数，按走到的一步细分。 */

@@ -239,3 +239,12 @@ test('队列 #21：页面首层只显示做 / 不做 / 研究进行中，统计�
   assert.equal(sectionOf('宽基 ETF'), 'do');
   assert.equal(sectionOf('个股 / 行业 ETF'), 'researching');
 });
+
+test('A 股整本账本的接入标签按两个研究模块写（详情页头同一句），不写「尚未接入」', async () => {
+  const model = await workspace.readModel();
+  const parent = model.strategy_directory.strategies.find((item) => item.strategy_ref === PARENT);
+  assert.equal(parent.research_stage.code, 'MODULES_REGISTERED');
+  assert.equal(parent.research.label, parent.research_stage.headline_zh);
+  assert.match(parent.research.label, /^2 个研究模块（宽基 ETF：R-ETF-1 已封存「做」；个股 \/ 行业 ETF：R-STK-1 研究进行中）；Q0 研究进行中$/);
+  assert.doesNotMatch(JSON.stringify(parent), /尚未接入/);
+});
