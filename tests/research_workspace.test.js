@@ -46,9 +46,9 @@ test('无真实 case、账本为空时仍显示 Desk 权威策略目录；研究
   assert.ok(model.market_coverage.every((item) => item.state === 'CONNECTED'));
   assert.equal(model.views.strategies.state, 'AVAILABLE');
   assert.equal(model.strategy_directory.strategies.length, 8);
-  // 已登记档案的四条＝已接入、Q0 尚未锁定；列入 M4 范围但没有档案的＝尚未接入；其余未接入
+  // 已登记档案的四条＝已接入、Q0 尚未锁定；列入 M4 范围但没有档案的＝尚未接入；A 股整本按登记的两个研究模块写（队列 #21）；其余未接入
   assert.deepEqual(Object.fromEntries(model.strategy_directory.strategies.map((item) => [item.strategy_ref, item.research.code])), {
-    ASHARE_V6_PAPER: 'NOT_CONNECTED', US_V5_ETF_3000USD: 'CONNECTED', US_CORE_9000USD_3X_GATEOBS: 'CONNECTED', US_V5_ETF_6000USD: 'NOT_CONNECTED',
+    ASHARE_V6_PAPER: 'MODULES_REGISTERED', US_V5_ETF_3000USD: 'CONNECTED', US_CORE_9000USD_3X_GATEOBS: 'CONNECTED', US_V5_ETF_6000USD: 'NOT_CONNECTED',
     US_CORE_6000USD_3X_GATEOBS: 'NOT_CONNECTED', C17_V2_4000USDT: 'CONNECTED', QUICK_SHOT_V3_1000USDT: 'CONNECTED', CARRY_V2_SHADOW_10000USDT: 'M4_PENDING',
   });
   assert.ok(model.strategy_directory.strategies.every((item) => !/Q0 (?:未通过|证据不足|有支持证据)/.test(JSON.stringify(item.research_stage))));
