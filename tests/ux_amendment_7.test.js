@@ -167,7 +167,7 @@ test('J2 每个页签只渲染自己；旧 section= 链接照旧（runtime → �
   assert.equal((runtime.match(/aria-current="page"/g) || []).length, 1);
   // 策略卡片与切换策略：默认进总览
   const list = (await render(model, '#strategies')).html;
-  assert.match(list, /class="strategy-card" href="#strategy-detail\?strategy=US_V5_ETF_3000USD&amp;section=overview"|class="strategy-card" href="#strategy-detail\?strategy=US_V5_ETF_3000USD&section=overview"/);
+  assert.match(list, /class="open-label" href="#strategy-detail\?strategy=US_V5_ETF_3000USD(?:&amp;|&)section=overview">查看完整策略详情/);
 });
 
 // ── J3 对比卡默认折叠成一行 ───────────────────────────────────────────────────────────
