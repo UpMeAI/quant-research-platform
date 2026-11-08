@@ -41,6 +41,7 @@ const stressSupplement = require('../baseline-stress-supplement');
 const researchStage = require('./stage');
 const strategyOverview = require('./strategy-overview');
 const ashareModules = require('../ashare-research-modules');
+const layerRegister = require('../research-layer-register');
 const { listAdapters } = require('../../adapters/registry');
 
 const ACCEPTANCE_REF = 'docs/contracts/CYCLE_RESEARCH_DESK_HUMAN_WORKSPACE_UX_ACCEPTANCE_AMENDMENT_2.md';
@@ -551,7 +552,11 @@ async function readModel({
   const notes = profile ? detailNotes.forStrategy(profile.strategy_ref) : null;
   const deskRows = deskQueueRows(selectedCurrentCase, deskEntries);
   const programQueue = researchQueue(profile, notes, comparisonProjections, program);
-  const queueView = deskRows.length ? { title_zh: '研究队列', rows: [...(programQueue ? programQueue.rows : []), ...deskRows] } : programQueue;
+  const queueRows = deskRows.length ? { title_zh: '研究队列', rows: [...(programQueue ? programQueue.rows : []), ...deskRows] } : programQueue;
+  // 三层分工合同 V1 §2.1：详情页的每个研究题带层（层登记按 strategy_ref + 题号给；没登记写「待交付 · 层登记」）
+  const layerAt = (id) => layerRegister.layerOf(selectedStrategyRef, id);
+  // 表格各行逐字不变（UX 修订 5 E7、复盘闭环修订 6 钉住），层另列一份：题号 + 层，页面写在表格下面
+  const queueView = queueRows ? { ...queueRows, layer_items: queueRows.rows.map((row) => ({ id: row.question_ref, layer: layerAt(row.question_ref) })) } : null;
   // CRYPTO_Q0_RESULT_V1 增补 2：加密 M2 轮次（只有档案写了 m2_rounds、且已导入的轮次才有）
   const roundProjections = profile ? m2Rounds.readProjections(profile, { hk: { shadowRuns } }) : [];
   const latestRound = roundProjections.length ? roundProjections[roundProjections.length - 1] : null;
@@ -572,7 +577,16 @@ async function readModel({
     const stageCounts = researchStage.countsOf(stages.values());
     directory.counts = { ...directory.counts, research_connected: stageCounts.with_record, research_stage: stageCounts };
   }
-  const strategiesOverview = directory.state === 'AVAILABLE' ? strategyOverview.buildOverview(directory) : null;
+  // 只在详情页出现的研究题（海外封存结论、差距分解），总览的按层计数要算上它们
+  const detailOnlyItems = new Map(directory.strategies.map((item) => {
+    const own = profiles.get(item.strategy_ref);
+    if (!own) return [item.strategy_ref, []];
+    return [item.strategy_ref, [
+      ...overseasVerdicts.readProjections(own.strategy_ref).map((row) => ({ id: row.entry_id, title_zh: row.title_zh })),
+      ...gapDecomposition.readProjections(own.case_ref).map((row) => ({ id: row.result_id, title_zh: row.title_zh })),
+    ]];
+  }));
+  const strategiesOverview = directory.state === 'AVAILABLE' ? strategyOverview.buildOverview(directory, { extraItems: detailOnlyItems }) : null;
   if (researchText && selectedStrategy) selectedStrategy.research = { ...selectedStrategy.research, code: 'RESULT_LOCKED', label: researchText };
   // 非 LEGACY 档案已锁 Q0、运行态 case 还没建立：各处说法与上方的回测结论一致，不再写「尚未接入」「不显示研究结论」
   const baselineWithoutCase = !selectedCurrentCase && profileBaselineCase && baselineProjection.state === 'LOCKED_VERIFIED';
@@ -697,6 +711,7 @@ async function readModel({
     comparisons: comparisonProjections.map((projection) => ({
       question: '原版和候选放在同一账户里比，候选有没有更好？',
       ...projection,
+      ...(profile && projection.state !== 'NOT_CONNECTED' && projection.state !== 'NOT_IMPORTED' ? { layer: layerAt(projection.question_ref) } : {}),
       ...(projection.state === 'LOCKED_VERIFIED' && profile ? { adoption: adoptionView.adoptionOf(decisions.get(adoption.keyOf(projection.result_id))) } : {}),
     })),
     recent_run: {
@@ -755,11 +770,11 @@ async function readModel({
     ...(queueView ? { research_queue: queueView } : {}),
     ...(adoptionOverview ? { adoption_overview: adoptionOverview } : {}),
     // 增补 2 §7.3：「研究与对比」里的轮次卡（card=R1）；只加在有已导入轮次的策略上
-    ...(roundProjections.length ? { m2_rounds: roundProjections } : {}),
+    ...(roundProjections.length ? { m2_rounds: roundProjections.map((round) => ({ ...round, layer: layerAt(round.card_ref) })) } : {}),
     // US_V5 Q0 导入规格增补 1 §1.5：Q0 卡片下面的差距分解卡「差距分解（描述，不是结论）」；只加在有已导入差距分解的策略上
-    ...(gapProjections.length ? { gap_decompositions: gapProjections } : {}),
+    ...(gapProjections.length ? { gap_decompositions: gapProjections.map((gap) => ({ ...gap, layer: layerAt(gap.result_id) })) } : {}),
     // 「研究问题与方案对比」里的海外研究封存结论表；只加在有已导入结论的策略上
-    ...(sealedVerdicts.length ? { sealed_verdicts: sealedVerdicts } : {}),
+    ...(sealedVerdicts.length ? { sealed_verdicts: sealedVerdicts.map((row) => ({ ...row, layer: layerAt(row.entry_id) })) } : {}),
     // 修订 7 J1：默认页签「总览」——一句话结论（服务端模板）、关键数字卡、精简一览、现行规则与待办；只加在有档案的策略上
     ...(profile ? { summary: detailSummary.overviewOf({
       strategy: selectedStrategy, caseRec: selectedCurrentCase,
@@ -806,6 +821,8 @@ async function readModel({
         answer: directory.state === 'AVAILABLE'
           ? strategiesOverview.answer_zh
           : 'Desk 权威策略目录暂时不可读取，页面不会用 QRP 工程对象代替。',
+        // 顶部一句下面的按层计数（三层分工合同 V1 §2.1）
+        ...(strategiesOverview ? { layer_line_zh: strategiesOverview.layer_line_zh } : {}),
         next_step: directory.state === 'AVAILABLE' ? '先看做 / 不做；需要时再展开统计与研究详情。' : '恢复 Desk 本地只读源后重试。',
         overview: strategiesOverview,
       },

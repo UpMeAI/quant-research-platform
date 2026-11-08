@@ -148,8 +148,16 @@ function stageOf(facts) {
     },
   ] : [];
 
+  // 研究题清单（编号 + 题名），按 Q0、方案对比、M2 轮次、待研究的顺序；层由 services/research-layer-register 按编号给，这里不判
+  const items = [
+    ...(facts.profile ? [{ id: 'Q0', title_zh: '基线回测' }] : []),
+    ...facts.comparisons.map((card) => ({ id: card.question_ref, title_zh: card.title_zh || null })),
+    ...(round ? [{ id: round.card_ref, title_zh: round.title_zh }] : []),
+    ...facts.open.map((item) => ({ id: item.item_id || item.question_ref || null, title_zh: item.title_zh })),
+  ];
+
   return {
-    code, has_record: hasRecord, headline_zh: headline, steps,
+    code, has_record: hasRecord, headline_zh: headline, steps, items,
     counts: {
       q0_locked: q0Locked, comparisons_locked: locked.length, comparisons_broken: broken.length, rounds: facts.rounds,
       decided: decisions.decided, adopted: decisions.adopted, not_adopted: decisions.not_adopted, pending: decisions.pending, open: openCount,
@@ -202,8 +210,11 @@ function deskQuestions(cases) {
   const entries = open.some((link) => deskRouting.deskOriginOf(link)) ? deskRouting.newestQueueEntries() : null;
   return open.map((link) => {
     const desk = entries ? deskRouting.deskQuestionView(link, entries) : null;
+    const origin = deskRouting.deskOriginOf(link);
     return {
       question_ref: null, phase: 'DESK_LINK', waiting_on: [],
+      // 研究题编号（层登记按它对题）：desk 来的题写 DQ-<questionKey>，与详情页研究队列小表同一编号；其余写回链的研究问题 ID
+      item_id: origin ? `DQ-${origin.questionKey}` : (link.research_question_ref || null),
       title_zh: desk ? desk.title_zh : link.research_question_label || (hypotheses.get(link.research_question_ref) || {}).research_question || '研究问题（名称待登记）',
       ...(desk ? { desk_state_zh: desk.state_zh } : {}),
     };
@@ -226,6 +237,7 @@ function factsOf(strategyRef, { cases, m4Items }) {
   const meta = (question) => (notes && notes.research_queue && notes.research_queue.questions[question]) || {};
   const comparisons = projections.filter((card) => card.state !== 'NOT_IMPORTED' && card.state !== 'NOT_CONNECTED').map((card) => ({
     question_ref: card.question_ref, state: card.state, verdict_label: card.verdict_label, result_id: card.result_id,
+    title_zh: meta(card.question_ref).name_zh || (profile.research_program.queue[card.question_ref] || {}).title || null,
     adoption: adoptionView.adoptionOf(card.state === 'LOCKED_VERIFIED' ? records.get(adoption.keyOf(card.result_id)) : null),
   }));
   const rounds = new Set(comparisons.filter((card) => card.state === 'LOCKED_VERIFIED').map((card) => meta(card.question_ref).round).filter(Number.isInteger));
@@ -234,7 +246,8 @@ function factsOf(strategyRef, { cases, m4Items }) {
     .map((state) => ({ ...state, question_ref: state.question, title_zh: meta(state.question).name_zh || profile.research_program.queue[state.question].title }));
   // 增补 2 §6.3（D7 ★）：校验通过的轮次带来的成本题算一题待研究
   const m2Round = m2Rounds.latestOf(profile);
-  const roundOpen = m2Round && m2Round.state === 'LOCKED_VERIFIED' ? [m2Round.cost_open] : [];
+  // 成本题没有自己的编号：层登记按轮次的 card_ref 加 -COST 对题
+  const roundOpen = m2Round && m2Round.state === 'LOCKED_VERIFIED' ? [{ ...m2Round.cost_open, item_id: `${m2Round.card_ref}-COST` }] : [];
   return {
     ...base, m1: m1Of(profile), q0: q0Of(profile), comparisons, rounds: rounds.size || null, open: [...queued, ...roundOpen, ...base.open],
     ...(m2Round ? { m2_round: m2Round } : {}),
