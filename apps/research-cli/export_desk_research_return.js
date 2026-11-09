@@ -8,6 +8,7 @@
  *
  * --out 必填，没有默认目录（不默认写进 desk checkout）；文件名 QRP_RESEARCH_RETURN_<YYYYMMDDTHHMMZ>.json，同名已存在时拒绝。
  * 由协调会话把它放进 desk 的 docs/review-loop/research-return/ 并随周档提交。
+ * QRP_RETURN_SEALED_VERDICTS=1 时带上 sealedVerdicts[]（desk 修订 8）；默认不带，desk 上线修订 8 之后才能打开。
  */
 const returns = require('../../services/desk-review-routing/return');
 
@@ -17,7 +18,9 @@ try {
   const result = returns.exportReturn({ outDir: argv[1] });
   process.stdout.write(`${JSON.stringify({
     file: result.file, sha256: result.sha256, hash: result.payload.hash,
-    decisions: result.payload.decisions.length, questions: result.payload.questions.length, triage: result.payload.triage.length, production_effect: 'NONE',
+    decisions: result.payload.decisions.length, questions: result.payload.questions.length, triage: result.payload.triage.length,
+    ...(result.payload.sealedVerdicts ? { sealedVerdicts: result.payload.sealedVerdicts.length, sealedNotImported: require('../../services/desk-review-routing/sealed').notImported() } : {}),
+    production_effect: 'NONE',
   })}\n`);
 } catch (error) {
   process.stderr.write(`${error.message}\n`);

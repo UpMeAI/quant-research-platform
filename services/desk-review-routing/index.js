@@ -26,9 +26,11 @@ const QUEUE_FILE = /^REVIEW_LOOP_RESEARCH_QUEUE_(\d{4})-W(\d{2})(?:_R([1-9]\d*))
 const WEEK_FILE = /^REVIEW_LOOP_WEEK_(\d{4})-W(\d{2})(?:_R([1-9]\d*))?\.json$/;
 const QUEUE_CONTRACT = 'REVIEW_LOOP_RESEARCH_QUEUE_V1';
 const QUEUE_CONSTANTS = Object.freeze({
-  schemaVersion: 1, contract: QUEUE_CONTRACT, producer: 'COORDINATOR', routes: 'REVIEW_LOOP_DEFAULT_ROUTES@v1',
+  schemaVersion: 1, contract: QUEUE_CONTRACT, producer: 'COORDINATOR',
   interpretation: 'RESEARCH_INTAKE_FACTS_NOT_ORDERS', realOrder: 0, brokerWrite: false,
 });
+/** desk 的 REVIEW_LOOP_DEFAULT_ROUTES：带 F22 的周（W46 起）是 @v2，更早的周仍是 @v1。 */
+const QUEUE_ROUTES = Object.freeze(['REVIEW_LOOP_DEFAULT_ROUTES@v1', 'REVIEW_LOOP_DEFAULT_ROUTES@v2']);
 const QUESTION_KEY = /^RQK-[0-9a-f]{16}$/;
 const CANDIDATE_ID = /^RLC-(CN|US|CRYPTO)-\d{4}W\d{2}-[1-9]\d*$/;
 const WEEK_ID = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
@@ -113,6 +115,7 @@ function readQueue({ deskRoot, file = null } = {}) {
   try { payload = JSON.parse(bytes.toString('utf8')); } catch { fail('DESK_QUEUE_NOT_JSON', name); }
   need(isObject(payload), 'DESK_QUEUE_NOT_JSON', name);
   for (const [key, value] of Object.entries(QUEUE_CONSTANTS)) need(payload[key] === value, 'DESK_QUEUE_CONTRACT_INVALID', `${key}=${JSON.stringify(payload[key])}`);
+  need(QUEUE_ROUTES.includes(payload.routes), 'DESK_QUEUE_CONTRACT_INVALID', `routes=${JSON.stringify(payload.routes)}`);
   need(WEEK_ID.test(payload.weekId || ''), 'DESK_QUEUE_CONTRACT_INVALID', 'weekId');
   need(HEX64.test(payload.hash || ''), 'DESK_QUEUE_HASH_INVALID', name);
   let recomputed;
