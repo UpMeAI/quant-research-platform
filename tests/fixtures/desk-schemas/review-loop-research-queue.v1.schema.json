@@ -23,7 +23,7 @@
         "hash": { "$ref": "#/$defs/hex64", "description": "The week payload's own hash field." }
       }
     },
-    "routes": { "const": "REVIEW_LOOP_DEFAULT_ROUTES@v1" },
+    "routes": { "enum": ["REVIEW_LOOP_DEFAULT_ROUTES@v1", "REVIEW_LOOP_DEFAULT_ROUTES@v2"] },
     "entries": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
     "interpretation": { "const": "RESEARCH_INTAKE_FACTS_NOT_ORDERS" },
     "realOrder": { "const": 0 },

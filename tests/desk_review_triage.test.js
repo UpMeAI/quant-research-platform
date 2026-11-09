@@ -45,14 +45,14 @@ function entry(candidateId, candidateType, { triageState = 'PENDING', dueBy = '2
     triage: { state: choice ? 'OWNER_DECIDED' : triageState, dueBy: choice ? null : dueBy, outcome: null, reasonCode: null, questionRef: null, mergedInto: null, fixRef: null, recordId: null, recordHash: null },
   };
 }
-function writeQueue(root, weekId, entries) {
+function writeQueue(root, weekId, entries, { routes = 'REVIEW_LOOP_DEFAULT_ROUTES@v1' } = {}) {
   const weekFile = `REVIEW_LOOP_WEEK_${weekId}.json`;
   const week = { schemaVersion: 1, contract: 'REVIEW_LOOP_WEEK_V1', producer: 'COORDINATOR', weekId, revision: 0, fixture: true };
   week.hash = contentHash(week);
   const weekBytes = writeJson(path.join(root, routing.WEEK_DIR, weekFile), week);
   const payload = {
     schemaVersion: 1, contract: 'REVIEW_LOOP_RESEARCH_QUEUE_V1', producer: 'COORDINATOR', weekId, revision: 0, generatedAt: '2000-01-17T02:30:00Z',
-    sourceWeek: { file: weekFile, sha256: sha(weekBytes), hash: week.hash }, routes: 'REVIEW_LOOP_DEFAULT_ROUTES@v1', entries,
+    sourceWeek: { file: weekFile, sha256: sha(weekBytes), hash: week.hash }, routes, entries,
     interpretation: 'RESEARCH_INTAKE_FACTS_NOT_ORDERS', realOrder: 0, brokerWrite: false,
   };
   payload.hash = contentHash(payload);
@@ -132,6 +132,15 @@ test('Q2：只写 QRP 数据目录（var/ 被 .gitignore 忽略）；命令行�
   assert.match(JSON.parse(list.stdout).text_zh, /^Desk 复盘待分诊 3 条，最早 01-24 到期：/);
 });
 
+test('Q1b：W46 起的 @v2 队列也能分诊，记录与待分诊清单照旧', () => {
+  reset();
+  const desk = makeDesk();
+  writeQueue(desk, '2000-W03', ENTRIES(), { routes: 'REVIEW_LOOP_DEFAULT_ROUTES@v2' });
+  const row = record(desk, { candidateId: 'RLC-CRYPTO-2000W01-1', reasonCode: 'PARITY_MATCHED', evidence: [FILE] });
+  assert.deepEqual([row.candidate_id, row.outcome], ['RLC-CRYPTO-2000W01-1', 'CLOSE']);
+  assert.deepEqual(triage.pendingTriage({ deskRoot: desk, now: new Date('2000-01-20T00:00:00Z') }).entries.map((e) => e.candidateId), ['RLC-CN-2000W01-1', 'RLC-CN-2000W01-2', 'RLC-US-2000W01-1']);
+});
+
 test('Q3：回程 triage[] 是账本当前有效行，按 desk 契约；hash 稳定；desk schema 副本校验通过', () => {
   reset();
   const desk = makeDesk();
@@ -142,9 +151,9 @@ test('Q3：回程 triage[] 是账本当前有效行，按 desk 契约；hash 稳
   const b = returns.buildReturn({ generatedAt: '2000-01-18T03:00:00.000Z' });
   assert.equal(a.hash, b.hash);
   assert.deepEqual(a.triage.map((r) => [r.candidateId, r.outcome, r.reasonCode]), [['RLC-CRYPTO-2000W01-1', 'CLOSE', 'PARITY_MATCHED'], ['RLC-US-2000W01-1', 'OPEN_QUESTION', null]]);
-  assert.deepEqual(schema.validate(a, RETURN_SCHEMA), []);
+  assert.deepEqual(schema.validate(RETURN_SCHEMA, a), []);
   const queue = routing.readQueue({ deskRoot: desk });
-  assert.deepEqual(schema.validate(queue.payload, QUEUE_SCHEMA), [], '工程类候选与 triage 块符合 desk 队列 schema');
+  assert.deepEqual(schema.validate(QUEUE_SCHEMA, queue.payload), [], '工程类候选与 triage 块符合 desk 队列 schema');
   assert.equal(a.triage[0].queueSha256, queue.sha256);
 });
 

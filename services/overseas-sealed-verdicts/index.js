@@ -45,6 +45,8 @@ const COMMIT = Object.freeze({
   N8: 'f38045671afd5c31434f36a6ab580dfd3842d34a', N7_RUN: 'a7e74f15c5b526bfe0af61d549a73ce1c43ebcfb',
   N8_RUN: 'b971b05cb95546eb3cc83fe2d86f7dd0166f04a7',
   R_US_ETF_1: 'e41c43c44fd03462040f6e1b039a53729eed1ee3', R_US_ETF_1_RUN: '3a635a49538f84e9b4582393d18e76ef1262d521',
+  D5_V1: 'cf1a0d41af18366e8f6cf67d7f08d036b1b1d4f9', D5_V2: 'ac35eeca3e9fb3a2e3abac2bc965a4245a6e6bdc', D8: 'e2dc109829865f288ed7e09479350e8bf17b6ac1',
+  X05: 'd407ad68f74e379564fefd26c31946da434b13d5', R8: '64b3b82bacb8d97000efb4e510b11fe6791bf42e', X07C: '9330bc89ace6ed2ac1d3c0e00d149954b7fc5714',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -73,6 +75,27 @@ const C17 = 'C17_V2_4000USDT';
 const QS = 'QUICK_SHOT_V3_1000USDT';
 const US5 = 'US_V5_ETF_3000USD';
 const UC = 'US_CORE_9000USD_3X_GATEOBS';
+
+// 修订 3：11-08..11-10 封存的十个单元（结果在 smartflow 研究分支，K2 与冻结记录在协调会话目录）
+const D5_K2 = coord('D5_US_V5_RISK_OFF_K_ONLY_K2_V1.draft.md', '08cd9e7812bae7b8c2f20e4c66cfa04fc46c386fc6df5adf384735789aba3967');
+const D5_FREEZE = coord('D5_US_V5_RISK_OFF_K_ONLY_K2_V1_FREEZE_1.md', 'd7eb207d4bf3e46b7c1499d2c87d37c15bf8282f7459500e9d7cdb1f894796b9');
+const D5V2_K2 = coord('D5_US_V5_RISK_OFF_K_ONLY_K2_V2.draft.md', '3c7d64b3e5e769df60d55b3cf56b184bc81ac575ef9d16c4088d241b84b99091');
+const D5V2_FREEZE = coord('D5_US_V5_RISK_OFF_K_ONLY_K2_V2_FREEZE_1.md', 'f607cd4b6bcf943a766594f8b363bedeafcc07e294094e65ab13be7431c87342');
+const D8_RESULT = sf(COMMIT.D8, 'docs/evidence/crypto-d8-v1/CRYPTO_D8_RISK_K_RESULT_V1.json', '76619654f28190f8fcb9b1030d1855cdb8156d61c9f908b105a7cc66b00fa8b3');
+const D8_K2 = coord('D8_CRYPTO_MARKET_RISK_LAYER_K2_V1.draft.md', '5a3cfee1fbc20be270adecd6063d15e727654484acb6d655324c47a37d3ea4f0');
+const D8_FREEZE = coord('D8_CRYPTO_MARKET_RISK_LAYER_K2_V1_FREEZE_1.md', 'd38f87a9a984d1e647ef5115ef139fa7fe185df5465518be47f1b973f18ff6b8');
+const X05_RESULT = sf(COMMIT.X05, 'docs/evidence/x05-v1/X05_TURN_SENSITIVITY_RESULT_V1.json', '150d136e71c1c6eeb0bede8653aaf0c3d2bfda4a2d4e82017051994acddc762f');
+const X05_K2 = coord('X05_TURN_SENSITIVITY_K2_V1.draft.md', 'c1384d715132e7012f28f61a8332e1c89e4d5aa993e0c13085aa21fec89d95a0');
+const X05_FREEZE = coord('X05_TURN_SENSITIVITY_K2_V1_FREEZE_1.md', '923b7879d465d77f1d48ef2ce28493e0a903db69c3b87ad0fc170563006e9cc3');
+const R8_RESULT = sf(COMMIT.R8, 'docs/evidence/r8-v1/R8_X04_KLINE_VETOES_RESULT_V1.json', '3909482cd8203b81bb9b475d4861cf2e678244855c083ce7dd19dec24630e9ec');
+const R8_K2 = coord('R8_X04_KLINE_VETOES_US_CRYPTO_K2_V1.draft.md', '0a4085b1d920f4e88ee0a1c67a19c89dc3b2a79ec97adceb5b4f1aad62f94e82');
+const R8_FREEZE = coord('R8_X04_KLINE_VETOES_US_CRYPTO_K2_V1_FREEZE_1.md', 'bbedf45ae483e99df97798118420e2fc95e6289cbfbc876faa80cff8d05e924b');
+const X07C_RESULT = sf(COMMIT.X07C, 'docs/evidence/x07c-v1/X07C_PVS_RESULT_V1.json', '36bd6f25f14b9f5b212899ef3363d004f9eb1718c02b6030933910bc8e438a4f');
+const X07C_K2 = coord('X07C_US_CRYPTO_PVS_K2_V1.draft.md', '6d52bca6e7a0b546b2a107bb8b2288dd09695bda4f1752ab72e411b38854344d');
+const X07C_FREEZE = coord('X07C_US_CRYPTO_PVS_K2_V1_FREEZE_1.md', '6373d1cd54128d0223124f2056026e66776d4c32dd98d5469128fb11e5f9a841');
+const unitRead = (unit) => Object.freeze({ decision: `units.${unit}.decision`, strength: `units.${unit}.evidence_zh`, use: `units.${unit}.allowed_use_zh`, text: 'first_paragraph_zh' });
+const d8Read = (i) => Object.freeze({ decision: `verdict_detail.${i}.decision`, strength: `verdict_detail.${i}.evidence_strength_zh`, use: `verdict_detail.${i}.allowed_use_zh`, text: 'first_paragraph_zh' });
+const x05Read = (unit) => Object.freeze({ decision: `decision.${unit}`, state: `decision.${unit}`, strength: `evidence_strength_zh.${unit}`, use: `allowed_use_zh.${unit}`, text: 'first_paragraph_zh' });
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -133,14 +156,14 @@ const ENTRIES = Object.freeze([
     file: sf(COMMIT.X06, 'docs/evidence/kelly-us-drawdown-v1/us5-lookback/KELLY_US5_LOOKBACK_RESULT_V1.json', '97677edb65420a70a9f0047774df7250fea8f118ef53f801a5a15ddd32d1ad59'),
     k2: sf(COMMIT.X06, 'docs/US_V5_45D_LOOKBACK_RESEARCH_K2_DRAFT_V1.md', '9698d490575e1c80e2c1cde7db7bdea0233cf9751673a72419f94a6aeb839170'),
     freeze: sf(COMMIT.X06, 'docs/US_V5_ROUND2_ITEMS_1_4_K2_FREEZE_1.md', 'e4bcc0cc81144327bf983b0d50d47b19eaff997b807ce9beb3d95bb3ed2574e3'),
-    read: Object.freeze({ decision: 'decision.verdict', strength: null, use: null, text: null }), expect: '做',
+    read: Object.freeze({ decision: 'decision.verdict', state: 'decision.reason', strength: null, use: null, text: null }), expect: '做',
     note_zh: '修订已起草，待 Owner 签字（KELLY_CAP_ONLY_AMENDMENT_V1 修订 1）；签字前生产不变。' },
   { id: 'US5-N3', label_zh: 'N3', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: 'M-1 进海外桶的可行性（Rule 1b 桶线）',
     file: sf(COMMIT.N3, 'docs/evidence/bucket-n3-v1/OVERSEAS_BUCKET_N3_M1_FEASIBILITY_RESULT_V1.json', 'c9b473398ef683508cb003c0ab2cbd4fd505ff23af5617b6c2ad352bebefbefb'),
     k2: sf(COMMIT.N3, 'docs/OVERSEAS_BUCKET_N3_M1_FEASIBILITY_K2_DRAFT_V1.md', '309c400e1e5df30a00525ea3780dc419431af973491cbd6494b66b56c7c6aa65'),
     freeze: coord('OVERSEAS_BUCKET_N3_M1_FEASIBILITY_K2_FREEZE_1.md', '39758f3368230a96de6d7838fdf847819afb2c7e1162b511762e5c82790232ba'),
-    read: Object.freeze({ decision: 'verdict.decision', strength: null, use: 'verdict.use_zh', text: 'verdict.text' }), expect: '不做' },
+    read: Object.freeze({ decision: 'verdict.decision', state: 'verdict.text', strength: null, use: 'verdict.use_zh', text: 'verdict.text' }), expect: '不做' },
   { id: 'US5-N5', label_zh: 'N5', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-04',
     title_zh: 'M-1 下 US_V5 的 m 上限前沿',
     file: sf(COMMIT.N5, 'docs/evidence/us-v5-n5-v1/US_V5_N5_MCAP_FRONTIER_RESULT_V1.json', '9416bc71c2b88613d3b6a23c7fd16b5387b960c49c302d50813832b5f729d205'),
@@ -191,6 +214,21 @@ const ENTRIES = Object.freeze([
     '点估计 +0.0036，方向判对的概率只有 56%，接近抛硬币（K2 §9 预先写明）。「做」= 起草第 1 类修订交 Owner 签字；进修订前须补一次 US_V5 账本级的线检查。V5-SPY、V5-QQQ 按勘误 1 不适用（US_V5 不做多这两个序列，在 US_CORE 两袖判）。生产不变。'),
   rue1('US5-RUE1-SPMO', 'R-US-ETF-1 SPMO', US5, 5, '做',
     '弱：窗口内现行 US_V5 在 SPMO 上只成交 3 笔（全部止损），+0.0313 主要是 MR-V1 对近乎现金的差，不是胜过一条活跃的规则；买入持有对 MR-V1 高 0.169 /年。SPMO 按 smartflow #99 的 P-3 表算宽基，#99 合并前「待归类定稿」。「做」= 起草第 1 类修订交 Owner 签字，进修订前须补 US_V5 账本级线检查。生产不变。'),
+  // 修订 3：十个单元，结论只从封存文件读
+  { id: 'US5-D5-V1', label_zh: 'D5', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-09', title_zh: '风险关闭闸改为只调 k（D5 第 1 版）',
+    file: sf(COMMIT.D5_V1, 'docs/evidence/us-v5-d5-v1/US_V5_D5_RISK_K_RESULT_V1.json', '10230fd6bf5849ff2b08f144d00a3ddc05a026c45af409dd02d06eff7cf452d9'), k2: D5_K2, freeze: D5_FREEZE,
+    read: Object.freeze({ decision: 'decision', strength: 'evidence_strength_zh', use: 'allowed_use_zh', text: 'first_paragraph_zh' }), expect: '不做' },
+  { id: 'US5-D5-V2', label_zh: 'D5 V2', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '风险关闭闸改为只调 k（D5 第 2 版，基线换成当前 D）',
+    file: sf(COMMIT.D5_V2, 'docs/evidence/us-v5-d5-v2/US_V5_D5_V2_RISK_K_RESULT_V1.json', 'a3545bb31815253eb04f893fc07678e403bb55efc8e726ef086e88cd292fd3d8'), k2: D5V2_K2, freeze: D5V2_FREEZE,
+    read: Object.freeze({ decision: 'decision', state: 'branch', strength: 'evidence_strength_zh', use: 'allowed_use_zh', text: 'first_paragraph_zh' }), expect: '做' },
+  { id: 'C17-D8', label_zh: 'D8', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-09', title_zh: '加密市场层面状态读数作为风控层 k（C17 单元）', file: D8_RESULT, k2: D8_K2, freeze: D8_FREEZE, read: d8Read(0), expect: '不做' },
+  { id: 'QS-D8', label_zh: 'D8', strategy_ref: QS, kind: 'RESULT', sealed_on: '2026-11-09', title_zh: '加密市场层面状态读数作为风控层 k（QS 单元）', file: D8_RESULT, k2: D8_K2, freeze: D8_FREEZE, read: d8Read(1), expect: '不做' },
+  { id: 'US5-X05', label_zh: 'X05', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '转折灵敏度：见底后的滞后来自哪里（US_V5 单元）', file: X05_RESULT, k2: X05_K2, freeze: X05_FREEZE, read: x05Read('US_V5'), expect: '不做（无候选）' },
+  { id: 'C17-X05', label_zh: 'X05', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '转折灵敏度：见底后的滞后来自哪里（C17 单元）', file: X05_RESULT, k2: X05_K2, freeze: X05_FREEZE, read: x05Read('C17'), expect: '不做（无候选：生产没有市场层闸门）' },
+  { id: 'US5-R8', label_zh: 'R8（X04）', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '保护性 K 线规则是否以收益为代价（US_V5 单元）', file: R8_RESULT, k2: R8_K2, freeze: R8_FREEZE, read: unitRead('US_V5'), expect: '做' },
+  { id: 'C17-R8', label_zh: 'R8（X04）', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '保护性 K 线规则是否以收益为代价（C17 单元）', file: R8_RESULT, k2: R8_K2, freeze: R8_FREEZE, read: unitRead('C17'), expect: '不做' },
+  { id: 'US5-X07C', label_zh: 'X07c', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '价量结构，与 A 股共用 PVS 定义（US_V5 单元）', file: X07C_RESULT, k2: X07C_K2, freeze: X07C_FREEZE, read: unitRead('US_V5'), expect: '不做' },
+  { id: 'C17-X07C', label_zh: 'X07c', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '价量结构，与 A 股共用 PVS 定义（C17 单元）', file: X07C_RESULT, k2: X07C_K2, freeze: X07C_FREEZE, read: unitRead('C17'), expect: '不做' },
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────
@@ -198,7 +236,8 @@ const ENTRIES = Object.freeze([
 const at = (doc, dotted) => {
   if (!dotted) return null;
   let value = doc;
-  for (const key of dotted.split('.')) { if (value === null || typeof value !== 'object' || !(key in value)) return null; value = value[key]; }
+  // 路径里的键本身带点时（例如 510300.SH）写成数组
+  for (const key of Array.isArray(dotted) ? dotted : dotted.split('.')) { if (value === null || typeof value !== 'object' || !(key in value)) return null; value = value[key]; }
   return value;
 };
 const textOf = (value) => (value === null || value === undefined ? null : Array.isArray(value) ? value.join('、') : typeof value === 'object' ? null : String(value));
@@ -207,6 +246,12 @@ const FINAL_ZH = { UNDECIDED: '未判定（转前向）' };
 /** 从封存文件读出结论（RESULT）；DRAFT / STATUS 不读结论。 */
 function readVerdict(entry, doc) {
   if (entry.kind === 'DRAFT' || entry.kind === 'STATUS') return { decision: entry.status_zh, strength: null, use: null, text: null };
+  if (entry.read.pattern) {
+    const grab = (pattern) => { const hit = new RegExp(pattern, 'm').exec(doc.markdown); return hit ? hit[1] : null; };
+    const found = grab(entry.read.pattern);
+    need(found, E('VERDICT_FIELD_MISSING'), `${entry.id}:${entry.read.pattern}`);
+    return { decision: found, raw: found, code: [found], strength: entry.read.strength_pattern ? grab(entry.read.strength_pattern) : null, use: null, text: null };
+  }
   if (entry.read.final) {
     const final = at(doc, entry.read.final);
     need(final && typeof final === 'object', E('VERDICT_FIELD_MISSING'), `${entry.id}:${entry.read.final}`);
@@ -227,13 +272,13 @@ const readsFile = (entry) => entry.kind === 'RESULT' || entry.kind === 'READING'
 const expectHolds = (entry, verdict) => (!readsFile(entry) ? true
   : entry.read.final ? verdict.code.includes(entry.expect) : verdict.raw === entry.expect);
 /** 一题的锁编号：OSV-<题>-<绑定文件 sha256 前 12 位>，登记修订号 rev > 1 时加 -r<rev>（修订 1）。 */
-const resultIdOf = (entry) => `OSV-${entry.id}-${entry.file.sha256.slice(0, 12)}${entry.rev > 1 ? `-r${entry.rev}` : ''}`;
+const resultIdOf = (entry, store = null) => `${store ? store.idPrefix : 'OSV'}-${entry.id}-${entry.file.sha256.slice(0, 12)}${entry.rev > 1 ? `-r${entry.rev}` : ''}`;
 
 const boundFiles = (entry) => [
   { role: 'FILE', spec: entry.file }, ...(entry.also || []).map((spec) => ({ role: 'ALSO', spec })),
   ...(entry.k2 && entry.k2 !== entry.file ? [{ role: 'K2', spec: entry.k2 }] : []), ...(entry.freeze && entry.freeze !== entry.file ? [{ role: 'FREEZE', spec: entry.freeze }] : []),
 ];
-const evidencePath = (dir, spec) => (spec.source === 'smartflow' ? path.join(dir, 'smartflow', spec.commit.slice(0, 12), spec.path) : path.join(dir, 'coordinator', spec.path));
+const evidencePath = (dir, spec) => (spec.source === 'coordinator' ? path.join(dir, 'coordinator', spec.path) : path.join(dir, spec.source, spec.commit.slice(0, 12), spec.path));
 
 function readBound(file, expectSha) {
   if (!fs.existsSync(file)) fail(E('FILE_MISSING'), file);
@@ -246,12 +291,14 @@ function readBound(file, expectSha) {
   return bytes;
 }
 const parseJson = (bytes, where) => { try { return JSON.parse(bytes.toString('utf8')); } catch (error) { return fail(E('RESULT_NOT_JSON'), where); } };
+/** 封存文件的读取形式：JSON，或（read.pattern）封存的文字结论。 */
+const docOf = (entry, bytes) => (entry.read && entry.read.pattern ? { markdown: bytes.toString('utf8') } : parseJson(bytes, entry.id));
 
 // ── 取证据（stage） ──────────────────────────────────────────────────────────────
 
 /** 从钉版 smartflow 提交与协调会话目录取出所有绑定文件，sha256 不符即停；写进 out，带 .sha256 旁注。返回清单。 */
-function stageEvidence({ smartflowRoot, artifactsRoot, out, entries = ENTRIES }) {
-  need(smartflowRoot && artifactsRoot && out, E('STAGE_ARGUMENTS'), 'smartflowRoot, artifactsRoot, out');
+function stageEvidence({ smartflowRoot, artifactsRoot, out, entries = ENTRIES, roots = { smartflow: smartflowRoot }, importProfileId = IMPORT_PROFILE_ID, manifestKind = 'OVERSEAS_SEALED_VERDICTS_STAGE_V1' }) {
+  need(Object.values(roots).every(Boolean) && artifactsRoot && out, E('STAGE_ARGUMENTS'), `${Object.keys(roots).join(', ')}, artifactsRoot, out`);
   const rows = [];
   const seen = new Set();
   for (const entry of entries) {
@@ -259,9 +306,9 @@ function stageEvidence({ smartflowRoot, artifactsRoot, out, entries = ENTRIES })
       const dest = evidencePath(out, spec);
       if (seen.has(dest)) continue;
       seen.add(dest);
-      const bytes = spec.source === 'smartflow'
-        ? execFileSync('git', ['-C', smartflowRoot, 'show', `${spec.commit}:${spec.path}`], { maxBuffer: 1 << 30 })
-        : fs.readFileSync(path.join(artifactsRoot, spec.path));
+      const bytes = spec.source === 'coordinator'
+        ? fs.readFileSync(path.join(artifactsRoot, spec.path))
+        : execFileSync('git', ['-C', roots[spec.source], 'show', `${spec.commit}:${spec.path}`], { maxBuffer: 1 << 30 });
       const actual = sha256(bytes);
       need(actual === spec.sha256, E('STAGE_SHA256_MISMATCH'), `${entry.id}:${role}:${spec.path}:${actual.slice(0, 12)}…≠${spec.sha256.slice(0, 12)}…`);
       fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -270,50 +317,56 @@ function stageEvidence({ smartflowRoot, artifactsRoot, out, entries = ENTRIES })
       rows.push({ path: path.relative(out, dest), ref: spec.ref, sha256: actual, bytes: bytes.length });
     }
   }
-  const manifest = { kind: 'OVERSEAS_SEALED_VERDICTS_STAGE_V1', import_profile_id: IMPORT_PROFILE_ID, entries: entries.map((e) => e.id), files: rows };
+  const manifest = { kind: manifestKind, import_profile_id: importProfileId, entries: entries.map((e) => e.id), files: rows };
   fs.writeFileSync(path.join(out, 'STAGE.json'), `${JSON.stringify(manifest, null, 1)}\n`);
   return manifest;
 }
 
 // ── 锁 ──────────────────────────────────────────────────────────────────────────
 
-function locks(strategyRef = null) {
-  return read(LEDGER()).filter((row) => row.schema === LOCK_SCHEMA && (!strategyRef || row.strategy_ref === strategyRef));
+/** 一本封存结论台账的身份（修订 3：A 股导入用同一套校验，台账和锁模式各自独立）。 */
+const STORE = Object.freeze({
+  ledger: LEDGER, lockSchema: LOCK_SCHEMA, recordType: RECORD_TYPE, importProfileId: IMPORT_PROFILE_ID, idPrefix: 'OSV', commitSource: 'smartflow', commitField: 'smartflow_commit',
+  identityOf: (entry) => { const profile = profiles.mustGet(entry.strategy_ref); return { strategy_ref: profile.strategy_ref, case_ref: profile.case_ref }; },
+});
+
+function locks(strategyRef = null, store = STORE) {
+  return read(store.ledger()).filter((row) => row.schema === store.lockSchema && (!strategyRef || row.strategy_ref === strategyRef));
 }
-function headLock(entryId) {
-  const rows = locks().filter((row) => row.entry_id === entryId);
+function headLock(entryId, store = STORE) {
+  const rows = locks(null, store).filter((row) => row.entry_id === entryId);
   return rows.length ? rows[rows.length - 1] : null;
 }
 
 /** 校验一题（不写）：绑定文件全部在证据目录且 sha256 与旁注一致；RESULT 的结论等于登记的期望值。 */
-function checkEntry(entry, evidenceDir) {
-  const profile = profiles.mustGet(entry.strategy_ref);
+function checkEntry(entry, evidenceDir, store = STORE) {
+  const identity = store.identityOf(entry);
   const refs = boundFiles(entry).map(({ role, spec }) => {
     const file = evidencePath(evidenceDir, spec);
     readBound(file, spec.sha256);
     return { role, ref: spec.ref, sha256: spec.sha256, file_ref: path.resolve(file) };
   });
   const bytes = fs.readFileSync(evidencePath(evidenceDir, entry.file));
-  const verdict = readsFile(entry) ? readVerdict(entry, parseJson(bytes, entry.id)) : readVerdict(entry, null);
+  const verdict = readsFile(entry) ? readVerdict(entry, docOf(entry, bytes)) : readVerdict(entry, null);
   need(expectHolds(entry, verdict), E('VERDICT_NOT_AS_REGISTERED'), `${entry.id}:${verdict.raw}≠${entry.expect}`);
   for (const cited of entry.cites || []) need(typeof cited === 'string' && cited, E('CITE_INVALID'), entry.id);
-  return { profile, refs, verdict };
+  return { identity, refs, verdict };
 }
 
 /**
  * 导入并锁定（命令行，完成权威）。整批先校验，全部通过才写；同一文件重复导入是幂等重放。
  * 某题已有另一份锁时拒绝，除非 supersedes 是那份锁的 result_id 并给出缺陷引用与理由（旧锁保留）。
  */
-function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, supersedes = {}, defectRef = null, reason = null, lockedAt = null } = {}) {
+function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = STORE, supersedes = {}, defectRef = null, reason = null, lockedAt = null } = {}) {
   authority(registeredBy);
   need(evidenceDir && fs.existsSync(evidenceDir), E('EVIDENCE_DIR_MISSING'), evidenceDir);
   const ids = new Set();
   const plan = entries.map((entry) => {
     need(!ids.has(entry.id), E('DUPLICATE_ENTRY'), entry.id);
     ids.add(entry.id);
-    const checked = checkEntry(entry, evidenceDir);
-    const resultId = resultIdOf(entry);
-    const head = headLock(entry.id);
+    const checked = checkEntry(entry, evidenceDir, store);
+    const resultId = resultIdOf(entry, store);
+    const head = headLock(entry.id, store);
     if (head && head.result_id === resultId) return { replay: head };
     if (head) {
       need(supersedes[entry.id] === head.result_id, E('ALREADY_LOCKED'), `${entry.id}:${head.result_id}`);
@@ -326,15 +379,15 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, supersed
     if (step.replay) return { ...step.replay, replayHit: true };
     const { entry, checked, resultId, supersedesRef } = step;
     const body = {
-      schema: LOCK_SCHEMA, record_type: RECORD_TYPE, result_id: resultId, entry_id: entry.id, kind: entry.kind,
-      strategy_ref: checked.profile.strategy_ref, case_ref: checked.profile.case_ref, sealed_on: entry.sealed_on,
+      schema: store.lockSchema, record_type: store.recordType, result_id: resultId, entry_id: entry.id, kind: entry.kind,
+      strategy_ref: checked.identity.strategy_ref, case_ref: checked.identity.case_ref, sealed_on: entry.sealed_on,
       decision: checked.verdict.decision, file_ref: checked.refs[0].file_ref, file_sha256: entry.file.sha256, refs: checked.refs,
-      cites: [...(entry.cites || [])], smartflow_commit: entry.file.source === 'smartflow' ? entry.file.commit : null,
-      import_profile_id: IMPORT_PROFILE_ID, supersedes_ref: supersedesRef, defect_ref: supersedesRef ? defectRef : null,
+      cites: [...(entry.cites || [])], [store.commitField]: entry.file.source === store.commitSource ? entry.file.commit : null,
+      import_profile_id: store.importProfileId, supersedes_ref: supersedesRef, defect_ref: supersedesRef ? defectRef : null,
       supersede_reason: supersedesRef ? reason : null, production_effect: 'NONE', locked_by: registeredBy, locked_at: stamp,
     };
     body.lock_hash = sha256(canonical(body));
-    return append(LEDGER(), body);
+    return append(store.ledger(), body);
   });
 }
 
@@ -356,7 +409,7 @@ function buildProjection(entry, lock) {
     }
     for (const ref of lock.refs) readBound(ref.file_ref, ref.sha256);
     need(lock.file_sha256 === entry.file.sha256, E('LOCK_NOT_REGISTERED_FILE'), entry.id);
-    const verdict = readsFile(entry) ? readVerdict(entry, parseJson(fs.readFileSync(lock.file_ref), entry.id)) : readVerdict(entry, null);
+    const verdict = readsFile(entry) ? readVerdict(entry, docOf(entry, fs.readFileSync(lock.file_ref))) : readVerdict(entry, null);
     need(expectHolds(entry, verdict), E('VERDICT_NOT_AS_REGISTERED'), entry.id);
     const ref = (role) => lock.refs.find((row) => row.role === role) || null;
     const k2 = entry.k2 === entry.file ? ref('FILE') : ref('K2');
@@ -401,7 +454,21 @@ function readProjections(strategyRef, { entries = ENTRIES } = {}) {
 
 const clearCache = () => CACHE.clear();
 
+/**
+ * 回程导出用（复盘闭环修订 8）：现场复验这条锁绑定的每个文件，读出结论。任何不符都抛错，调用方不得跳过。
+ * @returns {{verdict: object, doc: object, state: string|null}} state 是登记的 read.state 读到的文件原文，没登记时为 null
+ */
+function verifiedVerdict(entry, lock, store = STORE) {
+  need(lock.result_id === resultIdOf(entry, store), E('REIMPORT_PENDING'), `${entry.id}:${lock.result_id}`);
+  for (const ref of lock.refs) readBound(ref.file_ref, ref.sha256);
+  need(lock.file_sha256 === entry.file.sha256, E('LOCK_NOT_REGISTERED_FILE'), entry.id);
+  const doc = docOf(entry, fs.readFileSync(lock.file_ref));
+  const verdict = readVerdict(entry, doc);
+  need(expectHolds(entry, verdict), E('VERDICT_NOT_AS_REGISTERED'), entry.id);
+  return { verdict, doc, state: entry.read.state ? textOf(at(doc, entry.read.state)) : null };
+}
+
 module.exports = {
-  LOCK_SCHEMA, RECORD_TYPE, IMPORT_PROFILE_ID, ENTRIES, LEDGER, stageEvidence, importVerdicts, locks, headLock, readProjections, clearCache,
+  LOCK_SCHEMA, RECORD_TYPE, IMPORT_PROFILE_ID, ENTRIES, LEDGER, STORE, stageEvidence, importVerdicts, locks, headLock, readProjections, verifiedVerdict, clearCache,
   internals: { readVerdict, boundFiles, evidencePath, checkEntry, resultIdOf, SHA64 },
 };

@@ -8,7 +8,9 @@
  *   - questions[]：研究计划里还没有封存结果的题（研究进度 stage.js 的 open 清单，状态词同页面：进行中／排队，等谁／待立题）；
  *     desk 研究队列来的题（DQ-…）还没有 QRP 的 K2，挑选状态归 desk，不在这里回传；
  *   - sources[]：四本账本字节的 sha256（文件不存在为 null）与行数；
- *   - triage[]（desk 复盘闭环修订 7 §3.3）：Research 分诊账本 RESEARCH_TRIAGE_V1 里每个候选当前有效的一行，按 desk 契约的字段。
+ *   - triage[]（desk 复盘闭环修订 7 §3.3）：Research 分诊账本 RESEARCH_TRIAGE_V1 里每个候选当前有效的一行，按 desk 契约的字段；
+ *   - sealedVerdicts[]（desk 复盘闭环修订 8，默认关闭）：封存研究结论（./sealed.js）。QRP_RETURN_SEALED_VERDICTS=1 才带上这一块和它的两本台账；
+ *     desk 上线修订 8 之前不得打开（§5），否则周编报 RETURN_SCHEMA。关闭时文件与修订 8 之前逐字节同构。
  * 不改任何锁、判据或采用记录；只写调用方给的输出目录里的一份新文件（已存在就拒绝覆盖）。
  */
 const fs = require('fs');
@@ -17,12 +19,16 @@ const { dataDir, read } = require('../../packages/ledger');
 const { contentHash, sha256 } = require('./canonical');
 const deskRouting = require('./index');
 const deskTriage = require('./triage');
+const deskSealed = require('./sealed');
 
 const CONTRACT = 'QRP_RESEARCH_RETURN_V1';
 const LEDGERS = Object.freeze([
   'research/adoption_decisions.jsonl', 'research/baseline_evaluations.jsonl',
   'research/comparison_evaluations.jsonl', 'runtime-research-loop/links.jsonl',
 ]);
+
+const SEALED_SWITCH = 'QRP_RETURN_SEALED_VERDICTS';
+const sealedEnabled = () => process.env[SEALED_SWITCH] === '1';
 
 class ReturnExportError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
@@ -124,15 +130,17 @@ function asOfOf(rowsByLedger) {
 }
 
 /** 组装回程 payload（不写文件）。`generatedAt` 默认现在。 */
-function buildReturn({ generatedAt = new Date().toISOString() } = {}) {
+function buildReturn({ generatedAt = new Date().toISOString(), sealedVerdicts = sealedEnabled(), sealedStores } = {}) {
   const loop = require('../runtime-research-loop');
   const links = loop.listLinks();
   const cases = new Map(loop.listCases().map((row) => [row.case_id, row]));
-  const sources = LEDGERS.map(sourceOf);
-  const asOf = asOfOf(LEDGERS.map((ledger) => read(dataDir(...ledger.split('/'))))) || generatedAt;
+  const ledgers = sealedVerdicts ? [...LEDGERS, ...deskSealed.LEDGERS] : LEDGERS;
+  const sources = ledgers.map(sourceOf);
+  const asOf = asOfOf(ledgers.map((ledger) => read(dataDir(...ledger.split('/'))))) || generatedAt;
   const payload = {
     schemaVersion: 1, contract: CONTRACT, producer: 'QRP', generatedAt, asOf, sources,
     decisions: decisionRows({ links }), questions: questionRows({ links, cases }), triage: deskTriage.effectiveTriage().map(deskTriage.deskRow),
+    ...(sealedVerdicts ? { sealedVerdicts: deskSealed.sealedRows({ links, ...(sealedStores ? { stores: sealedStores } : {}) }) } : {}),
     interpretation: 'RESEARCH_RESULTS_AND_OWNER_DECISIONS_NOT_ORDERS', realOrder: 0, brokerWrite: false,
   };
   payload.hash = contentHash(payload);
@@ -160,4 +168,4 @@ function exportReturn({ outDir, generatedAt } = {}) {
   return { file, sha256: sha256(bytes), payload };
 }
 
-module.exports = { CONTRACT, LEDGERS, ReturnExportError, buildReturn, exportReturn, fileNameOf };
+module.exports = { CONTRACT, LEDGERS, ReturnExportError, SEALED_SWITCH, buildReturn, exportReturn, fileNameOf, sealedEnabled };

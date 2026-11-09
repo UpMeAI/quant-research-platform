@@ -113,6 +113,20 @@ test('研究队列夹具本身符合 desk 的 REVIEW_LOOP_RESEARCH_QUEUE_V1 sche
   assert.deepEqual(schema.validate(QUEUE_SCHEMA, queue.payload), []);
 });
 
+test('W46 起的 @v2 队列：读取、导入都接受，符合 desk schema 副本；未登记的版本拒收', () => {
+  fresh();
+  const desk = makeDesk({ withSrc: false });
+  const v2 = writeQueue(desk, '2026-W46', [entry()], { mutate: (p) => { p.routes = 'REVIEW_LOOP_DEFAULT_ROUTES@v2'; } });
+  assert.deepEqual(schema.validate(QUEUE_SCHEMA, v2.payload), []);
+  assert.equal(routing.readQueue({ deskRoot: desk }).payload.routes, 'REVIEW_LOOP_DEFAULT_ROUTES@v2');
+  const summary = routing.importQueue({ deskRoot: desk });
+  assert.equal(summary.registered.length, 1);
+  assert.deepEqual(summary.refused, []);
+  const other = makeDesk({ withSrc: false });
+  writeQueue(other, '2026-W46', [entry()], { mutate: (p) => { p.routes = 'REVIEW_LOOP_DEFAULT_ROUTES@v3'; } });
+  assert.throws(() => routing.readQueue({ deskRoot: other }), /DESK_QUEUE_CONTRACT_INVALID/);
+});
+
 test('同一 questionKey 跨两周导入只写一条回链：第二周与重复导入什么也不写；字段取首次出现的队列文件', () => {
   fresh();
   const desk = makeDesk({ withSrc: false });
