@@ -48,6 +48,8 @@ const deskRootOf = (deskRoot = process.env.QRP_DESK_ROOT || DEFAULT_DESK_ROOT) =
 /** 修订 7 §4.4：研究队列与周档的根——显式参数，再是复盘镜像，再是 desk checkout。策略目录不走这里。 */
 const reviewLoopRootOf = (deskRoot) => path.resolve(deskRoot || process.env.QRP_DESK_REVIEW_LOOP_ROOT || process.env.QRP_DESK_ROOT || DEFAULT_DESK_ROOT);
 const RESEARCH_TYPES = Object.freeze(['PARAMETER', 'RULE']);
+/** desk src/review-loop-week.js UNCONCLUDED：候选还没有结论的状态。 */
+const UNCONCLUDED_STATES = Object.freeze(['OPEN', 'PICKED', 'RESEARCH_DRAFTED', 'RESEARCH_SIGNED', 'RESULT']);
 
 /** 按 (年, 周, 修订号) 排序；文件名就是顺序，不看 mtime。 */
 function orderOf(name, pattern) {
@@ -133,8 +135,11 @@ function readQueue({ deskRoot, file = null } = {}) {
 
   need(Array.isArray(payload.entries), 'DESK_QUEUE_CONTRACT_INVALID', 'entries');
   payload.entries.forEach(checkEntry);
-  const keys = payload.entries.map((entry) => entry.questionKey);
-  need(new Set(keys).size === keys.length, 'DESK_QUEUE_ENTRY_INVALID', 'questionKey 重复');
+  const rows = payload.entries.map((entry) => `${entry.questionKey}|${entry.candidateId}`);
+  need(new Set(rows).size === rows.length, 'DESK_QUEUE_ENTRY_INVALID', 'questionKey 重复');
+  // desk 修订 6 §3.3（V1 §5.8 第二点）：键相同的候选已有结论时新开，同一个键可以有几行，但至多一行未结。
+  const live = payload.entries.filter((entry) => entry.deskState === undefined || UNCONCLUDED_STATES.includes(entry.deskState)).map((entry) => entry.questionKey);
+  need(new Set(live).size === live.length, 'DESK_QUEUE_ENTRY_INVALID', 'questionKey 重复');
   return { file: name, path: full, sha256: sha256(bytes), payload };
 }
 

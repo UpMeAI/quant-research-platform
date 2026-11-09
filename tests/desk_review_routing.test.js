@@ -174,6 +174,22 @@ test('文件级核对失败关闭：payload hash 不符、sourceWeek 文件缺�
   assert.equal(fs.existsSync(LINKS()), false);
 });
 
+test('同一 questionKey：旧候选已有结论、新候选未结时整份收下（desk 修订 6 §3.3）；两个未结或同一候选两行照旧拒收', () => {
+  fresh();
+  const code = (fn) => { try { fn(); } catch (error) { return error.code; } return 'NO_ERROR'; };
+  const concluded = { ...entry({ candidateId: 'RLC-US-2000W01-1', firstWeek: '2026-W41' }), deskState: 'NOT_PICKED' };
+  const reopened = entry({ candidateId: 'RLC-US-2000W05-1', firstWeek: '2026-W45' });
+  const accepted = makeDesk({ withSrc: false });
+  writeQueue(accepted, '2026-W45', [concluded, reopened]);
+  assert.deepEqual(routing.readQueue({ deskRoot: accepted }).payload.entries.map((e) => e.candidateId), ['RLC-US-2000W01-1', 'RLC-US-2000W05-1']);
+  const twoOpen = makeDesk({ withSrc: false });
+  writeQueue(twoOpen, '2026-W45', [entry(), reopened]);
+  assert.equal(code(() => routing.readQueue({ deskRoot: twoOpen })), 'DESK_QUEUE_ENTRY_INVALID');
+  const sameCandidate = makeDesk({ withSrc: false });
+  writeQueue(sameCandidate, '2026-W45', [concluded, { ...concluded }]);
+  assert.equal(code(() => routing.readQueue({ deskRoot: sameCandidate })), 'DESK_QUEUE_ENTRY_INVALID');
+});
+
 test('导入只写 QRP_DATA_DIR：desk 根逐文件不变，仓库 git 状态与仓库内 var/ledger 不变', () => {
   fresh();
   const desk = makeDesk({ withSrc: false });
