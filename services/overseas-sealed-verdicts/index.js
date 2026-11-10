@@ -18,6 +18,7 @@ const { execFileSync } = require('child_process');
 const { dataDir, now, append, read } = require('../../packages/ledger');
 const baseline = require('../baseline-evaluation');
 const profiles = require('../strategy-profiles');
+const trialGates = require('../trial-ledger/gates');
 
 const { K3Error, need, sha256, canonical, authority } = baseline.internals;
 
@@ -277,6 +278,8 @@ const resultIdOf = (entry, store = null) => `${store ? store.idPrefix : 'OSV'}-$
 const boundFiles = (entry) => [
   { role: 'FILE', spec: entry.file }, ...(entry.also || []).map((spec) => ({ role: 'ALSO', spec })),
   ...(entry.k2 && entry.k2 !== entry.file ? [{ role: 'K2', spec: entry.k2 }] : []), ...(entry.freeze && entry.freeze !== entry.file ? [{ role: 'FREEZE', spec: entry.freeze }] : []),
+  // 过拟合控制修订 §2.4：G-TRIAL-SEAL 的运行日志（只有登记了 run_log 的题才有，之前的题不变）
+  ...(entry.run_log ? [{ role: 'RUN_LOG', spec: entry.run_log }] : []),
 ];
 const evidencePath = (dir, spec) => (spec.source === 'coordinator' ? path.join(dir, 'coordinator', spec.path) : path.join(dir, spec.source, spec.commit.slice(0, 12), spec.path));
 
@@ -350,7 +353,12 @@ function checkEntry(entry, evidenceDir, store = STORE) {
   const verdict = readsFile(entry) ? readVerdict(entry, docOf(entry, bytes)) : readVerdict(entry, null);
   need(expectHolds(entry, verdict), E('VERDICT_NOT_AS_REGISTERED'), `${entry.id}:${verdict.raw}≠${entry.expect}`);
   for (const cited of entry.cites || []) need(typeof cited === 'string' && cited, E('CITE_INVALID'), entry.id);
-  return { identity, refs, verdict };
+  // 过拟合控制修订 §2.4：原有校验全部通过之后再过 G-TRIAL-PRE / G-TRIAL-SEAL；只对修订生效后冻结的 K2，失败即关，不改结论
+  const trial = trialGates.check(entry, {
+    k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
+    runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null),
+  });
+  return { identity, refs, verdict, trial };
 }
 
 /**
@@ -386,6 +394,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
       import_profile_id: store.importProfileId, supersedes_ref: supersedesRef, defect_ref: supersedesRef ? defectRef : null,
       supersede_reason: supersedesRef ? reason : null, production_effect: 'NONE', locked_by: registeredBy, locked_at: stamp,
     };
+    if (checked.trial.applies) body.trial_gates = checked.trial;
     body.lock_hash = sha256(canonical(body));
     return append(store.ledger(), body);
   });
@@ -395,7 +404,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
 
 const KIND_ZH = { RESULT: '已封存', DRAFT: '草稿（未冻结）', STATUS: '冻结 / 前向影子', READING: '只报读数' };
 const FILE_LABEL_ZH = { RESULT: '封存结果文件', READING: '封存读数文件', DRAFT: 'K2 草稿', STATUS: '影子规格' };
-const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定' };
+const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定', RUN_LOG: '运行日志' };
 const toneOf = (entry, decision) => (entry.kind !== 'RESULT' ? 'NEUTRAL' : decision === '做' ? 'DO' : decision === '不做' ? 'DONT' : 'OTHER');
 const reasonText = (error) => (error instanceof K3Error ? `${error.code}${error.detail ? `（${error.detail}）` : ''}` : error.message);
 
