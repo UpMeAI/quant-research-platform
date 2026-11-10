@@ -310,6 +310,25 @@ const SCHEMAS = Object.freeze({
     _doc: '美股、加密信号登记簿（docs/contracts/SIGNAL_REGISTRY_V1.md）—— 一行 = 一本在跑账本（或其部分）的一条入场信号：命中率、每笔期望、已平笔数及其按市场状态拆分；只读生产方已交付文件，对记分牌 0 差异；事实不是裁决',
     registryVersion: 'n', generatedAt: 's?', contracts: 'o', floors: 'o', books: 'a', rows: 'a', interpretation: 's', productionEffect: 's', hash: 's',
   },
+  RESEARCH_TRIAL_V1: {
+    _doc: '研究框架修订 2026-11-10（过拟合控制）§2.3 —— 全局试验台账一行：一族（strategy_ref）一个配置的登记或结果；row_kind 为 REGISTRATION／RESULT／CORRECTION，按 trial_id 只追加，更正须 supersedes 加缺陷引用；读不到的值写进 unknown{字段: 原因}，不填 0；只存本机 var/ledger/research/trials.jsonl',
+    trial_id: 's', row_kind: 's', family_id: 's', market: 's', shared_mechanism: 's?', study_ref: 's', k2_sha256: 's?', freeze_sha256: 's?',
+    stage: 's', role: 's', registration_mode: 's', rule_config_hash: 's', eval_hash: 's?', config_label: 's', delta_vs_baseline: 'a', baseline_trial_ref: 's?',
+    window: 'o?', segments: 'a', params_tried: 'a', metrics: 'o?', sr_monthly_delta: '*', skew: '*', kurt: '*', t_months: '*', series_ref: 'o?',
+    study_verdict: '*', source_refs: 'a', unknown: 'o', supersedes: 's?', defect_ref: 's?', production_effect: 's', registered_by: 's', registered_at: 's', record_hash: 's',
+  },
+  DATA_SEGMENT_MARK_V1: {
+    _doc: '研究框架修订 2026-11-10（过拟合控制）§4.1 —— 数据段标签：按族、按日期段；UNSEEN／SEEN（seen_kind 沿用 Carry 锁细分）为全族底色，FORWARD_RESERVED／FORWARD_READ 只对 shadow_ref 的候选；没有标签的日期一律当 SEEN；后写的覆盖先写的，更正须 supersedes 加缺陷引用',
+    mark_id: 's', family_id: 's', market: 's', from: 's', to: 's', label: 's', seen_kind: 's?', shadow_ref: 's?', reason: 's', source_refs: 'a',
+    supersedes: 's?', defect_ref: 's?', production_effect: 's', registered_by: 's', registered_at: 's', record_hash: 's',
+  },
+  OVERFIT_DISCLOSURE_V1: {
+    _doc: '研究框架修订 2026-11-10（过拟合控制）§3.6 —— 每个判定的过拟合披露块：族、N（原始计数，是否下限）、N̂、V、SR0、ŜR、γ3、γ4、T、PSR(0)、DSR、PBO 或不适用、所用回退、段标签、本题新增配置数；数值由 services/trial-ledger/overfit.js 在封存 sha 上算出，算不出写 UNKNOWN 与原因；evidence_gate 只可能把「做 · 有支持证据」降为「做 · 证据不足」',
+    disclosure_id: 's', family_id: 's', study_ref: 's', k2_sha256: 's', verdict_trial_ref: 's', sealed_sha256: 's?',
+    n_raw: 'n', n_is_lower_bound: 'b', n_hat: '*', v: '*', sr0: '*', sr_hat: '*', skew: '*', kurt: '*', t_months: '*', psr0: '*', dsr: '*', pbo: '*',
+    fallback: 'o?', segment_labels: 'a', new_configs: 'n', evidence_gate: 'o', inputs: 'o', unknown: 'o', computed_by: 's',
+    supersedes: 's?', defect_ref: 's?', production_effect: 's', registered_by: 's', registered_at: 's', record_hash: 's',
+  },
   SIGNAL_REGISTRY_ROW_V1: {
     _doc: 'SIGNAL_REGISTRY_V1 的一行（rows[] 与 books[].blocks[].rollup）；windows 为 bookSinceStart / currentVersion / previousVersion',
     rowId: 's', ledgerId: 's', market: 's', partId: 's?', signalKey: 's', signalCodes: 'a', ruleRefs: 'a', entries: 'n',
