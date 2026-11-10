@@ -19,6 +19,21 @@ test('WFO fold 切分:train/test 不重叠且滚动前进', () => {
   for (let i = 1; i < folds.length; i++) assert.ok(folds[i].train_from > folds[i - 1].train_from); // 前进
 });
 
+test('WFO anchored fold:train 起点固定、终点扩展，test 紧邻且前进', () => {
+  const dates = Array.from({ length: 120 }, (_, i) => `D${String(i).padStart(3, '0')}`);
+  const folds = planFolds(dates, { train_days: 40, test_days: 20, step_days: 20, anchored: true });
+  assert.deepEqual(folds.slice(0, 3), [
+    { fold: 1, train_from: 'D000', train_to: 'D039', test_from: 'D040', test_to: 'D059' },
+    { fold: 2, train_from: 'D000', train_to: 'D059', test_from: 'D060', test_to: 'D079' },
+    { fold: 3, train_from: 'D000', train_to: 'D079', test_from: 'D080', test_to: 'D099' },
+  ]);
+  for (let i = 1; i < folds.length; i++) {
+    assert.equal(folds[i].train_from, folds[0].train_from);
+    assert.ok(folds[i].train_to > folds[i - 1].train_to);
+    assert.ok(folds[i].test_from > folds[i - 1].test_from);
+  }
+});
+
 test('WFO:只在预注册网格内选参,test 段结果才计入结论;缺配置/缺网格 fail-closed', async () => {
   const noCfg = await setupExperiment({ spec: { sample: { oos_start: '2026-06-01', is_end: '2026-06-01' } } });
   await assert.rejects(async () => experiments.runWalkForward(noCfg.exp.experiment_id), /WFO_MISSING_PREREGISTERED_CONFIG/);

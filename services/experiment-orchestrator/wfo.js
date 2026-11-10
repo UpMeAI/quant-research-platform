@@ -20,12 +20,12 @@ const { getAdapter } = require('../../adapters/registry');
 const WFO_LEDGER = () => path.join(dataDir('research'), 'wfo_reports.jsonl');
 
 /** 从冻结 spec 推导 fold 切分(按交易日序号,非自然日)。 */
-function planFolds(dates, { train_days, test_days, step_days, folds }) {
+function planFolds(dates, { train_days, test_days, step_days, folds, anchored = false }) {
   const plan = [];
   const step = step_days || test_days;
   let start = 0;
   while (plan.length < (folds || Infinity)) {
-    const trainFrom = start;
+    const trainFrom = anchored ? 0 : start;
     const trainTo = start + train_days - 1;
     const testFrom = trainTo + 1;
     const testTo = testFrom + test_days - 1;
