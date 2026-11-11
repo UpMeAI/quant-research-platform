@@ -199,8 +199,8 @@ test('补登记：K2 臂目录给出的题按臂登记，每个臂的 k2_quote �
   const lines = fs.readFileSync(path.join(dir, 'overseas_sealed_verdicts.jsonl'), 'utf8').replace(/3{64}/g, k2);
   fs.writeFileSync(path.join(dir, 'overseas_sealed_verdicts.jsonl'), lines);
   const arms = { studies: [{ study_ref: 'OSV:C17-N9', family_id: 'C17_V2_4000USDT', k2_sha256: k2, k2_file: k2File, arms: [
-    { config_label: 'T', role: 'VERDICT_ARM', stage: 'BOOK', k2_quote: '| `T` | BASE + S_M | 候选 |' },
-    { config_label: 'T_E200', role: 'REPORT_ONLY_VARIANT', stage: 'BOOK', k2_quote: '| `T_E200` | 只报 |' }] }] };
+    { config_label: 'T', role: 'VERDICT_ARM', stage: 'BOOK', line_start: 1, line_end: 1, k2_quote: '| `T` | BASE + S_M | 候选 |' },
+    { config_label: 'T_E200', role: 'REPORT_ONLY_VARIANT', stage: 'BOOK', line_start: 2, line_end: 2, k2_quote: '| `T_E200` | 只报 |' }] }] };
   const out = backRegister.run({ masterTable: mt.file, masterTableSha256: mt.sha, registeredBy: AUTH, arms, dryRun: true });
   const c17 = out.rows.filter((r) => r.family_id === 'C17_V2_4000USDT');
   assert.deepEqual(c17.map((r) => r.config_label).sort(), ['T', 'T_E200']);
@@ -208,6 +208,48 @@ test('补登记：K2 臂目录给出的题按臂登记，每个臂的 k2_quote �
   assert.deepEqual([n.n_raw, n.n_is_lower_bound], [2, false]);
   arms.studies[0].arms[1].k2_quote = '| `T_E300` |';
   assert.throws(() => backRegister.run({ masterTable: mt.file, masterTableSha256: mt.sha, registeredBy: AUTH, arms, dryRun: true }), (e) => e.code === 'TRIAL_LEDGER_BACKREG_ARM_NOT_IN_K2_TEXT');
+});
+
+test('补登记：K2 臂必须钉住有效原文行号，引用只能来自该行段', () => {
+  writeLocks();
+  const mt = writeMaster(ITEMS.filter((i) => i.id !== 'R6'));
+  const k2File = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-k2-lines-')), 'K2.md');
+  fs.writeFileSync(k2File, '标题\n| `T` | 判定候选 |\n| `RO-1` | 只报 |\n');
+  const k2 = sha(fs.readFileSync(k2File));
+  const lockFile = path.join(dataDir('research'), 'overseas_sealed_verdicts.jsonl');
+  fs.writeFileSync(lockFile, fs.readFileSync(lockFile, 'utf8').replace(/3{64}/g, k2));
+  const entry = { study_ref: 'OSV:C17-N9', family_id: 'C17_V2_4000USDT', k2_sha256: k2, k2_file: k2File, arms: [
+    { config_label: 'T', role: 'VERDICT_ARM', stage: 'BOOK', line_start: 2, line_end: 2, k2_quote: '| `T` | 判定候选 |' },
+  ] };
+  assert.doesNotThrow(() => backRegister.run({ masterTable: mt.file, masterTableSha256: mt.sha, registeredBy: AUTH, arms: { studies: [entry] }, dryRun: true }));
+  for (const invalid of [
+    { line_start: 0, line_end: 2, k2_quote: '| `T` | 判定候选 |' },
+    { line_start: 3, line_end: 2, k2_quote: '| `T` | 判定候选 |' },
+    { line_start: 3, line_end: 3, k2_quote: '| `T` | 判定候选 |' },
+  ]) {
+    entry.arms[0] = { ...entry.arms[0], ...invalid };
+    assert.throws(() => backRegister.run({ masterTable: mt.file, masterTableSha256: mt.sha, registeredBy: AUTH, arms: { studies: [entry] }, dryRun: true }), (e) => e.code === 'TRIAL_LEDGER_BACKREG_ARM_SOURCE_LINES_INVALID' || e.code === 'TRIAL_LEDGER_BACKREG_ARM_NOT_IN_SOURCE_LINES');
+  }
+});
+
+test('补登记：读不准的 K2 可显式 REVIEW，但仍复验文件哈希且不提升为已完整臂目录', () => {
+  writeLocks();
+  const mt = writeMaster(ITEMS.filter((i) => i.id !== 'R6'));
+  const k2File = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-k2-review-')), 'K2.md');
+  fs.writeFileSync(k2File, '候选组合边界仍待协调裁定\n');
+  const k2 = sha(fs.readFileSync(k2File));
+  const lockFile = path.join(dataDir('research'), 'overseas_sealed_verdicts.jsonl');
+  fs.writeFileSync(lockFile, fs.readFileSync(lockFile, 'utf8').replace(/3{64}/g, k2));
+  const catalogue = { studies: [{
+    study_ref: 'OSV:C17-N9', family_id: 'C17_V2_4000USDT', k2_sha256: k2, k2_file: k2File,
+    status: 'REVIEW', review_reason: '组合是否构成独立判定臂无法从冻结文本唯一确定',
+  }] };
+  const out = backRegister.run({ masterTable: mt.file, masterTableSha256: mt.sha, registeredBy: AUTH, arms: catalogue, dryRun: true });
+  const row = out.rows.find((r) => r.study_ref === 'OSV:C17-N9');
+  assert.match(row.unknown.arms, /K2_ARMS_NOT_CATALOGUED/);
+  assert.deepEqual(out.catalogueReview, [{ study_ref: 'OSV:C17-N9', family_id: 'C17_V2_4000USDT', reason: '组合是否构成独立判定臂无法从冻结文本唯一确定' }]);
+  catalogue.studies[0].k2_sha256 = '0'.repeat(64);
+  assert.throws(() => backRegister.run({ masterTable: mt.file, masterTableSha256: mt.sha, registeredBy: AUTH, arms: catalogue, dryRun: true }), (e) => e.code === 'TRIAL_LEDGER_BACKREG_ARMS_K2_MISMATCH');
 });
 
 test('命令行：hash、trial-id、count 只读；写命令要完成权威', () => {

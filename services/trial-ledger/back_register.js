@@ -150,23 +150,33 @@ function unitSpec(u, extra = {}) {
   return { ...base, ...extra };
 }
 
-/** K2 臂目录：{ studies: [{ study_ref, family_id, k2_sha256, k2_file?, arms: [{ config_label, role, stage, k2_quote, delta_vs_baseline?, params_tried?, rule_config? }] }] } */
+/** K2 臂目录：{ studies: [{ study_ref, family_id, k2_sha256, k2_file?, arms: [{ config_label, role, stage, line_start, line_end, k2_quote, ... }] }] } */
 function armsSpecs(u, catalogue) {
   const entry = (catalogue && catalogue.studies || []).find((s) => s.study_ref === u.study_ref && s.family_id === u.family_id);
   if (!entry) return null;
+  need(entry.status == null || entry.status === 'OK' || entry.status === 'REVIEW', 'BACKREG_ARMS_STATUS_INVALID', `${u.study_ref}:${entry.status}`);
   need(entry.k2_sha256 && entry.k2_sha256 === u.k2_sha256, 'BACKREG_ARMS_K2_MISMATCH', `${u.study_ref}:${u.family_id}`);
   need(typeof entry.k2_file === 'string' && path.isAbsolute(entry.k2_file), 'BACKREG_ARMS_K2_FILE_REQUIRED', u.study_ref);
   const k2 = fs.readFileSync(entry.k2_file);
   need(sha256(k2) === entry.k2_sha256, 'BACKREG_ARMS_K2_FILE_SHA256_MISMATCH', u.study_ref);
+  if (entry.status === 'REVIEW') {
+    need(typeof entry.review_reason === 'string' && entry.review_reason.trim(), 'BACKREG_ARMS_REVIEW_REASON_REQUIRED', u.study_ref);
+    return null;
+  }
   const text = k2.toString('utf8');
+  const lines = text.split(/\r?\n/);
   need(Array.isArray(entry.arms) && entry.arms.length, 'BACKREG_ARMS_EMPTY', u.study_ref);
   return entry.arms.map((arm) => {
+    need(Number.isInteger(arm.line_start) && Number.isInteger(arm.line_end) && arm.line_start >= 1 && arm.line_end >= arm.line_start && arm.line_end <= lines.length,
+      'BACKREG_ARM_SOURCE_LINES_INVALID', `${u.study_ref}:${arm.config_label}:${arm.line_start}-${arm.line_end}`);
+    const sourceLines = lines.slice(arm.line_start - 1, arm.line_end).join('\n');
     need(typeof arm.k2_quote === 'string' && arm.k2_quote.trim() && text.includes(arm.k2_quote), 'BACKREG_ARM_NOT_IN_K2_TEXT', `${u.study_ref}:${arm.config_label}`);
+    need(sourceLines.includes(arm.k2_quote), 'BACKREG_ARM_NOT_IN_SOURCE_LINES', `${u.study_ref}:${arm.config_label}:${arm.line_start}-${arm.line_end}`);
     const { arms: _a, ...unknown } = UNIT_UNKNOWN;
     return unitSpec(u, {
       stage: arm.stage || u.stage || 'BOOK', role: arm.role, config_label: arm.config_label, delta_vs_baseline: arm.delta_vs_baseline || [], params_tried: arm.params_tried || [],
       rule_config: arm.rule_config || { back_registered_arm: { family_id: u.family_id, study_ref: u.study_ref, config_label: arm.config_label } },
-      unknown, source_refs: [...u.source_refs, { kind: 'K2_TEXT', sha256: entry.k2_sha256, quote: arm.k2_quote }],
+      unknown, source_refs: [...u.source_refs, { kind: 'K2_TEXT', sha256: entry.k2_sha256, line_start: arm.line_start, line_end: arm.line_end, quote: arm.k2_quote }],
     });
   });
 }
@@ -208,8 +218,11 @@ function plan({ masterTable, masterTableSha256, arms = null }) {
     specs.push(...(armsSpecs(unit, arms) || [unitSpec(unit)]));
   }
   for (const m of masterUnits) specs.push(...(armsSpecs({ ...m, role: roleOf(m, m.layer) }, arms) || [unitSpec({ ...m, role: roleOf(m, m.layer) })]));
+  const catalogueReview = (arms && arms.studies || []).filter((entry) => entry.status === 'REVIEW').map((entry) => ({
+    study_ref: entry.study_ref, family_id: entry.family_id, reason: entry.review_reason,
+  }));
   return { specs, segments: SEGMENT_PLAN.map((s) => ({ ...s, source_refs: [{ kind: 'AMENDMENT', ref: 'RESEARCH_FRAMEWORK_AMENDMENT_20261110_OVERFIT_CONTROLS §4.1' }] })),
-    master: { revision: table.revision, sha256: table.sha256 }, pairing, skipped };
+    master: { revision: table.revision, sha256: table.sha256 }, pairing, skipped, catalogueReview };
 }
 
 /** 计数汇总（按族）：用计划出来的行在内存里算，不读台账。 */
