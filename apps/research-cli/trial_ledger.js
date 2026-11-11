@@ -10,6 +10,7 @@
  *   trial_ledger.js correct       --trial-id <TRL-…> --result <result.json> --defect-ref <ref> --registered-by <权威>
  *   trial_ledger.js mark-segment  --spec <marks.json> --registered-by <权威>
  *   trial_ledger.js disclose      --spec <disclosure.json> --registered-by <权威> [--dry-run true]
+ *   trial_ledger.js disclose-na   --spec <disclosure.json> --registered-by <权威> [--dry-run true]   （DSR、PBO 按协调会话裁定写「不适用」，导入规格修订 4）
  *   trial_ledger.js back-register --master-table /abs/RESEARCH_MASTER_TABLE_….json --master-table-sha256 <64 hex> --registered-by <权威> [--arms /abs/arms.json] [--dry-run true]
  *   读：
  *   trial_ledger.js count         --family <strategy_ref> [--as-of <ISO>]
@@ -54,9 +55,10 @@ try {
   } else if (command === 'mark-segment') {
     must(f, 'spec', 'registered-by');
     for (const row of ledger.markSegments(json(f.spec), { registeredBy: f['registered-by'] })) print({ mark_id: row.mark_id, family_id: row.family_id, from: row.from, to: row.to, label: row.label, shadow_ref: row.shadow_ref });
-  } else if (command === 'disclose') {
+  } else if (command === 'disclose' || command === 'disclose-na') {
     must(f, 'spec', 'registered-by');
-    const row = ledger.disclose(json(f.spec), { registeredBy: f['registered-by'], dryRun: dry(f) });
+    const write = command === 'disclose' ? ledger.disclose : ledger.discloseNotApplicable;
+    const row = write(json(f.spec), { registeredBy: f['registered-by'], dryRun: dry(f) });
     const { inputs: _i, ...shown } = row;
     print(shown);
   } else if (command === 'back-register') {
@@ -76,7 +78,7 @@ try {
   } else if (command === 'trial-id') {
     must(f, 'family', 'study', 'label');
     print({ trial_id: ledger.trialIdOf({ family_id: f.family, study_ref: f.study, config_label: f.label }) });
-  } else throw new Error(`UNKNOWN_COMMAND:${command || ''}（register | record | correct | mark-segment | disclose | back-register | count | segments | hash | trial-id）`);
+  } else throw new Error(`UNKNOWN_COMMAND:${command || ''}（register | record | correct | mark-segment | disclose | disclose-na | back-register | count | segments | hash | trial-id）`);
 } catch (error) {
   process.stderr.write(`${error.message}\n`);
   process.exitCode = 1;

@@ -360,12 +360,64 @@ function disclose(spec, { registeredBy, registeredAt = null, dryRun = false } = 
   return dryRun ? body : append(DISCLOSURES(), body);
 }
 
+/** 只有这两个字段可以按裁定写「不适用」（凯利 m 前推门裁定 §2，99203316…）。 */
+const NOT_APPLICABLE_FIELDS = Object.freeze(['dsr', 'pbo']);
+
+/**
+ * 写一条 DSR、PBO「不适用」的 OVERFIT_DISCLOSURE_V1（只追加）：冻结页已裁定本题不比收益、没有收益序列时用。
+ * 必须引用一页按 sha256 绑定的协调会话裁定；只放行 dsr、pbo 两个字段，其余字段照 disclose 的算法：
+ * N（原始计数、是否下限）、本题新增配置数、段标签照算；只能由收益序列算出的 N̂、V、SR0、ŜR、γ3、γ4、T、PSR(0) 写 UNKNOWN 与原因。
+ * 证据闸门照 overfit.overfitColumn 走（「做 · 有支持证据」照样降为「证据不足」），不因不适用而放宽。
+ * spec: { family_id, study_ref, k2_sha256, verdict_trial_id, original_verdict{decision,strength}, sealed_sha256?, as_of?,
+ *         not_applicable: { fields: ['dsr','pbo'], reason_zh, ruling: {ref, sha256}, freeze?: {ref, sha256} } }
+ */
+function discloseNotApplicable(spec, { registeredBy, registeredAt = null, dryRun = false } = {}) {
+  authority(registeredBy);
+  need(isObj(spec) && isText(spec.family_id) && isText(spec.study_ref), 'DISCLOSURE_FIELD_REQUIRED');
+  need(SHA64.test(spec.k2_sha256 || ''), 'SHA256_INVALID', 'k2_sha256');
+  need(isObj(spec.original_verdict), 'DISCLOSURE_NEEDS_ORIGINAL_VERDICT');
+  const na = spec.not_applicable;
+  need(isObj(na) && Array.isArray(na.fields) && [...na.fields].sort().join(',') === NOT_APPLICABLE_FIELDS.join(','), 'DISCLOSURE_NOT_APPLICABLE_FIELDS', 'only dsr, pbo');
+  need(isText(na.reason_zh), 'DISCLOSURE_NOT_APPLICABLE_REASON_REQUIRED');
+  need(isObj(na.ruling) && isText(na.ruling.ref) && SHA64.test(na.ruling.sha256 || ''), 'DISCLOSURE_NOT_APPLICABLE_NEEDS_RULING');
+  if (na.freeze !== undefined && na.freeze !== null) need(isObj(na.freeze) && isText(na.freeze.ref) && SHA64.test(na.freeze.sha256 || ''), 'SHA256_INVALID', 'not_applicable.freeze');
+  const rows = trialRows();
+  const arm = headOf(spec.verdict_trial_id, rows);
+  need(arm && arm.family_id === spec.family_id && arm.k2_sha256 === spec.k2_sha256, 'VERDICT_TRIAL_NOT_IN_STUDY', String(spec.verdict_trial_id));
+  const asOf = spec.as_of || null;
+  const n = count(spec.family_id, { asOf, rows });
+  need(n.n_raw >= 1, 'FAMILY_HAS_NO_COUNTED_TRIAL', spec.family_id);
+  const gate = overfit.overfitColumn(spec.original_verdict, { dsr: 'NOT_APPLICABLE', pbo: 'NOT_APPLICABLE', fallback: null });
+  const studyHashes = new Set([...heads(rows).values()].filter((r) => r.family_id === spec.family_id && r.k2_sha256 === spec.k2_sha256 && COUNTS_IN_N.has(r.role)).map((r) => r.rule_config_hash));
+  const window = arm.window;
+  const unknown = {};
+  for (const key of ['n_hat', 'v', 'sr0', 'sr_hat', 'skew', 'kurt', 't_months', 'psr0']) unknown[key] = 'NO_RETURN_SERIES_DSR_NOT_APPLICABLE';
+  const body = {
+    schema: 'OVERFIT_DISCLOSURE_V1', disclosure_id: `OVD-${sha256(canonicalJson({ f: spec.family_id, k2: spec.k2_sha256, arm: arm.trial_id })).slice(0, 16)}`,
+    family_id: spec.family_id, study_ref: spec.study_ref, k2_sha256: spec.k2_sha256, verdict_trial_ref: arm.trial_id, sealed_sha256: spec.sealed_sha256 || null,
+    n_raw: n.n_raw, n_is_lower_bound: n.n_is_lower_bound, n_hat: overfit.UNKNOWN, v: overfit.UNKNOWN, sr0: overfit.UNKNOWN,
+    sr_hat: overfit.UNKNOWN, skew: overfit.UNKNOWN, kurt: overfit.UNKNOWN, t_months: overfit.UNKNOWN, psr0: overfit.UNKNOWN,
+    dsr: 'NOT_APPLICABLE', pbo: 'NOT_APPLICABLE', fallback: null,
+    segment_labels: window ? segmentLabels(spec.family_id, window.from, window.to) : [], new_configs: studyHashes.size,
+    evidence_gate: { original: gate.original, decision: gate.decision, strength: gate.strength, downgraded: gate.downgraded, applied: gate.applied, failed: gate.failed, label_zh: gate.label_zh || null },
+    inputs: { n_lower_bound_reasons: n.lower_bound_reasons,
+      not_applicable: { fields: [...NOT_APPLICABLE_FIELDS], reason_zh: na.reason_zh, ruling_ref: na.ruling.ref, ruling_sha256: na.ruling.sha256,
+        freeze_ref: na.freeze ? na.freeze.ref : null, freeze_sha256: na.freeze ? na.freeze.sha256 : null } },
+    unknown, computed_by: 'services/trial-ledger/index.js#discloseNotApplicable', supersedes: spec.supersedes || null, defect_ref: spec.defect_ref || null,
+    production_effect: 'NONE', registered_by: registeredBy, registered_at: registeredAt || now(),
+  };
+  const prior = read(DISCLOSURES()).filter((r) => r.disclosure_id === body.disclosure_id);
+  if (prior.length) need(body.supersedes === prior[prior.length - 1].record_hash && isText(body.defect_ref), 'DISCLOSURE_EXISTS_SUPERSEDE_WITH_DEFECT', body.disclosure_id);
+  body.record_hash = recordHash(body);
+  return dryRun ? body : append(DISCLOSURES(), body);
+}
+
 const disclosures = (filter = {}) => read(DISCLOSURES()).filter((r) => r.schema === 'OVERFIT_DISCLOSURE_V1'
   && (!filter.family_id || r.family_id === filter.family_id) && (!filter.k2_sha256 || r.k2_sha256 === filter.k2_sha256));
 
 module.exports = {
   TRIALS, SEGMENTS, DISCLOSURES, ROLES, COUNTS_IN_N, STAGES, BOOK_LEVEL, MODES, LABELS, SEEN_KINDS, METRIC_KEYS, TRIAL_ID, SHA64,
   TrialLedgerError, canonicalJson, ruleConfigHash, evalHash, trialIdOf, recordHash, trialRows, heads, headOf,
-  register, recordResult, correct, count, familySharpes, markSegments, segmentsFor, segmentLabels, disclose, disclosures, seriesStats,
+  register, recordResult, correct, count, familySharpes, markSegments, segmentsFor, segmentLabels, disclose, discloseNotApplicable, NOT_APPLICABLE_FIELDS, disclosures, seriesStats,
   internals: { authority, need, fail, sameRegistration },
 };
