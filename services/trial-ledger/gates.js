@@ -14,6 +14,8 @@
  *   门的裁定（entry.trial_gates_ruling，导入规格修订 4）：一页按 sha256 绑定的协调会话裁定，只放行写明的偏差，事实不成立即关。
  *     PRE 记 DEVIATION_ACCEPTED（不记 PASS，也不记「不适用」），原因码只有 DEVIATION_CODES 两个；
  *     披露行的 DSR、PBO 可以是 NOT_APPLICABLE，但披露行必须引用同一页裁定。其余检查照旧。
+ *   PRE_CONDITIONAL_ID_NOT_CHOSEN（导入规格修订 6，协调会话 11-12 裁定 52f4c897…）：K2 正文写了只在某个 ★ 备选下才登记的条件 id；
+ *     只放行裁定逐个列出的 id，并机器核实 (i) 台账里该 id 没有任何行，(ii) 冻结页对那个 ★ 选的不是这个选项（冻结页按 sha256 复验后读）。
  */
 const ledger = require('./index');
 
@@ -23,7 +25,18 @@ const EFFECTIVE_DATE = '2026-11-11';
 const RUN_LOG_SCHEMA = 'RESEARCH_RUN_LOG_V1';
 const ID_IN_TEXT = /TRL-[0-9a-f]{16}/g;
 /** 裁定可接受的 G-TRIAL-PRE 偏差（凯利 m 前推门裁定 §1）。 */
-const DEVIATION_CODES = Object.freeze(['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN', 'PRE_NO_TRIAL_ID_IN_K2']);
+const DEVIATION_CODES = Object.freeze(['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN', 'PRE_NO_TRIAL_ID_IN_K2', 'PRE_CONDITIONAL_ID_NOT_CHOSEN']);
+const CONDITIONAL = 'PRE_CONDITIONAL_ID_NOT_CHOSEN';
+const TRIAL_ID_ONE = /^TRL-[0-9a-f]{16}$/;
+
+/** 冻结页里每个 ★ 选了哪个选项：「★n → (x)」与「★a–★b → (x)」两种写法；同一个 ★ 读出两个选项即失败关闭。 */
+function starChoices(text) {
+  const chosen = new Map();
+  const put = (n, x) => { need(!chosen.has(n) || chosen.get(n) === x, 'RULING_FACT_NOT_HOLD', `FREEZE_STAR_AMBIGUOUS:★${n}`); chosen.set(n, x); };
+  for (const m of text.matchAll(/★(\d+)\s*[–-]\s*★(\d+)\s*→\s*\(([a-z])\)/g)) for (let n = Number(m[1]); n <= Number(m[2]); n += 1) put(n, m[3]);
+  for (const m of text.matchAll(/★(\d+)\s*→\s*\(([a-z])\)/g)) put(Number(m[1]), m[2]);
+  return chosen;
+}
 
 const { need } = ledger.internals;
 const isoAt = (v) => typeof v === 'string' && /[zZ]|[+-]\d{2}:\d{2}$/.test(v) && Number.isFinite(Date.parse(v));
@@ -41,13 +54,18 @@ function rulingOf(entry, rulingBytes) {
     need(pre.status === 'DEVIATION_ACCEPTED', 'RULING_PRE_STATUS_INVALID', `${entry.id}:${pre.status}`);
     need(Array.isArray(pre.codes) && pre.codes.length && pre.codes.every((c) => DEVIATION_CODES.includes(c)) && new Set(pre.codes).size === pre.codes.length, 'RULING_PRE_CODE_INVALID', entry.id);
     need(isoAt(pre.preregistered_at) && isoAt(pre.first_run_at), 'RULING_TIME_INVALID', entry.id);
+    const cond = pre.conditional_ids;
+    need(pre.codes.includes(CONDITIONAL) === (cond !== undefined), 'RULING_CONDITIONAL_IDS_INVALID', entry.id);
+    if (cond !== undefined) need(Array.isArray(cond) && cond.length && cond.every((c) => c && TRIAL_ID_ONE.test(c.trial_id || '') && Number.isInteger(c.star) && c.star >= 1 && /^[a-z]$/.test(c.option || ''))
+      && new Set(cond.map((c) => c.trial_id)).size === cond.length, 'RULING_CONDITIONAL_IDS_INVALID', entry.id);
   }
   const na = r.disclosure_not_applicable || null;
   if (na) need(Array.isArray(na) && [...na].sort().join(',') === ledger.NOT_APPLICABLE_FIELDS.join(','), 'RULING_DISCLOSURE_FIELDS_INVALID', entry.id);
   const bytes = rulingBytes();
   need(bytes, 'RULING_FILE_MISSING', entry.id);
   const text = bytes.toString('utf8');
-  for (const word of [...(pre ? ['DEVIATION_ACCEPTED', ...pre.codes] : []), ...(na ? ['NOT_APPLICABLE'] : [])]) need(text.includes(word), 'RULING_TEXT_DOES_NOT_STATE', `${entry.id}:${word}`);
+  const condWords = pre && pre.conditional_ids ? pre.conditional_ids.flatMap((c) => [c.trial_id, `★${c.star} (${c.option})`]) : [];
+  for (const word of [...(pre ? ['DEVIATION_ACCEPTED', ...pre.codes] : []), ...(na ? ['NOT_APPLICABLE'] : []), ...condWords]) need(text.includes(word), 'RULING_TEXT_DOES_NOT_STATE', `${entry.id}:${word}`);
   return { sha256: r.spec.sha256, ref: r.spec.ref, pre, disclosureNotApplicable: na };
 }
 
@@ -66,7 +84,7 @@ function applies(entry) {
   return { applies: false, reason: 'SEALED_BEFORE_AMENDMENT' };
 }
 
-function checkPre(entry, k2Bytes, rows, ruling = null) {
+function checkPre(entry, k2Bytes, rows, ruling = null, freezeBytes = () => null) {
   const k2Sha = entry.k2.sha256;
   const named = [...new Set(k2Bytes.toString('utf8').match(ID_IN_TEXT) || [])];
   const codes = ruling && ruling.pre ? ruling.pre.codes : [];
@@ -74,6 +92,20 @@ function checkPre(entry, k2Bytes, rows, ruling = null) {
   const lateOk = codes.includes('PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN');
   if (noIds) need(!named.length, 'RULING_FACT_NOT_HOLD', `${entry.id}:PRE_NO_TRIAL_ID_IN_K2`);
   else need(named.length, 'PRE_NO_TRIAL_ID_IN_K2', entry.id);
+  // PRE_CONDITIONAL_ID_NOT_CHOSEN：裁定列出的条件 id 不要求登记，但两条事实都要在台账与冻结页里成立
+  const cond = codes.includes(CONDITIONAL) ? ruling.pre.conditional_ids : [];
+  if (cond.length) {
+    const fb = freezeBytes();
+    need(fb, 'RULING_FREEZE_MISSING', entry.id);
+    const chosen = starChoices(fb.toString('utf8'));
+    for (const c of cond) {
+      need(named.includes(c.trial_id), 'RULING_FACT_NOT_HOLD', `${entry.id}:${c.trial_id}:NOT_IN_K2`);
+      need(!rows.some((r) => r.trial_id === c.trial_id), 'RULING_FACT_NOT_HOLD', `${entry.id}:${c.trial_id}:HAS_ROWS`);
+      need(chosen.has(c.star), 'RULING_FACT_NOT_HOLD', `${entry.id}:★${c.star}:NOT_RULED_IN_FREEZE`);
+      need(chosen.get(c.star) !== c.option, 'RULING_FACT_NOT_HOLD', `${entry.id}:★${c.star} (${c.option}):CHOSEN_IN_FREEZE`);
+    }
+  }
+  const condIds = new Set(cond.map((c) => c.trial_id));
   const regs = rows.filter((r) => r.row_kind === 'REGISTRATION');
   const frozenAt = Date.parse(entry.k2_frozen_at);
   const firstRunAt = lateOk ? Date.parse(ruling.pre.first_run_at) : null;
@@ -85,6 +117,7 @@ function checkPre(entry, k2Bytes, rows, ruling = null) {
     late += 1;
   };
   for (const id of named) {
+    if (condIds.has(id)) continue;
     const reg = regs.find((r) => r.trial_id === id);
     need(reg, 'PRE_NOT_REGISTERED', `${entry.id}:${id}`);
     need(reg.registration_mode === 'PREREGISTERED', 'PRE_NOT_PREREGISTERED', `${entry.id}:${id}:${reg.registration_mode}`);
@@ -102,7 +135,8 @@ function checkPre(entry, k2Bytes, rows, ruling = null) {
   const lastAt = mine.map((r) => r.registered_at).sort((a, b) => Date.parse(a) - Date.parse(b)).pop();
   need(Date.parse(lastAt) === Date.parse(ruling.pre.preregistered_at), 'RULING_FACT_NOT_HOLD', `${entry.id}:preregistered_at:${lastAt}`);
   return { state: 'DEVIATION_ACCEPTED', ids,
-    deviation: { codes: [...codes], k2_frozen_at: entry.k2_frozen_at, preregistered_at: ruling.pre.preregistered_at, first_run_at: ruling.pre.first_run_at, late_registrations: late } };
+    deviation: { codes: [...codes], k2_frozen_at: entry.k2_frozen_at, preregistered_at: ruling.pre.preregistered_at, first_run_at: ruling.pre.first_run_at, late_registrations: late,
+      ...(cond.length ? { conditional_ids: cond.map((c) => ({ trial_id: c.trial_id, star: c.star, option: c.option })) } : {}) } };
 }
 
 function parseRunLog(entry, bytes) {
@@ -140,9 +174,9 @@ function checkSeal(entry, preIds, runLogBytes, rows, ruling = null) {
 /**
  * 导入器调用：已有校验全部通过之后。不过门的题返回 { applies: false }，导入器照原样写锁（不加任何字段）。
  * @param {object} entry  登记表一题
- * @param {{k2Bytes: () => Buffer, runLogBytes: () => Buffer|null, rulingBytes: () => Buffer|null}} files  按 sha256 复验后取 K2、运行日志与门的裁定字节（只在过门时才读）
+ * @param {{k2Bytes: () => Buffer, runLogBytes: () => Buffer|null, rulingBytes: () => Buffer|null, freezeBytes: () => Buffer|null}} files  按 sha256 复验后取 K2、运行日志、门的裁定与冻结页字节（只在过门时才读；冻结页只在有条件 id 时读）
  */
-function check(entry, { k2Bytes, runLogBytes = () => null, rulingBytes = () => null }) {
+function check(entry, { k2Bytes, runLogBytes = () => null, rulingBytes = () => null, freezeBytes = () => null }) {
   const scope = applies(entry);
   if (!scope.applies) {
     need(!entry.trial_gates_ruling, 'RULING_ON_UNGATED_ENTRY', entry.id);
@@ -150,7 +184,7 @@ function check(entry, { k2Bytes, runLogBytes = () => null, rulingBytes = () => n
   }
   const ruling = rulingOf(entry, rulingBytes);
   const rows = ledger.trialRows();
-  const pre = checkPre(entry, k2Bytes(), rows, ruling);
+  const pre = checkPre(entry, k2Bytes(), rows, ruling, freezeBytes);
   const sealing = entry.kind === 'RESULT' || entry.kind === 'READING';
   const seal = sealing ? checkSeal(entry, pre.ids, runLogBytes(), rows, ruling) : null;
   return { applies: true, effective_from: EFFECTIVE_FROM, k2_frozen_at: entry.k2_frozen_at, pre: pre.state, seal: seal ? 'PASS' : 'NOT_A_SEAL', trial_ids: pre.ids,
@@ -160,4 +194,4 @@ function check(entry, { k2Bytes, runLogBytes = () => null, rulingBytes = () => n
     ...(ruling ? { ruling_ref: ruling.ref, ruling_sha256: ruling.sha256 } : {}) };
 }
 
-module.exports = { EFFECTIVE_FROM, EFFECTIVE_DATE, RUN_LOG_SCHEMA, DEVIATION_CODES, applies, check, internals: { checkPre, checkSeal, parseRunLog, rulingOf } };
+module.exports = { EFFECTIVE_FROM, EFFECTIVE_DATE, RUN_LOG_SCHEMA, DEVIATION_CODES, applies, check, internals: { checkPre, checkSeal, parseRunLog, rulingOf, starChoices } };

@@ -33,7 +33,7 @@ const hashOf = (label) => trials.ruleConfigHash(ARMS.find((a) => a.config_label 
 const months = (c) => Array.from({ length: 30 }, (_, i) => ({ month: `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`, d: 0.01 * Math.sin(i * 1.3) + c }));
 
 /** 合成 smartflow 仓库 + 协调会话目录；K2 里写出 named 这些台账 id；runLog 为 null 时不登记运行日志。 */
-function fixture({ named = ['T', 'T_VAR', 'B'], decision = '做', runs = ['T', 'T_VAR', 'B'], runLog = true, runLogExtra = {}, entryPatch = {} } = {}) {
+function fixture({ named = ['T', 'T_VAR', 'B'], decision = '做', runs = ['T', 'T_VAR', 'B'], runLog = true, runLogExtra = {}, entryPatch = {}, freezeText = 'frozen\n' } = {}) {
   const repo = tmp('qrp-tg-sf-'); const art = tmp('qrp-tg-art-');
   const k2Text = `# R99 K2\n\n## 4 候选\n${named.map((l) => `- ${l}：台账 ${idOf(l)}`).join('\n')}\n`;
   const k2Sha = sha(k2Text);
@@ -46,11 +46,11 @@ function fixture({ named = ['T', 'T_VAR', 'B'], decision = '做', runs = ['T', '
   for (const [rel, body] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true }); fs.writeFileSync(path.join(repo, rel), body); }
   git(repo, 'add', '.'); git(repo, 'commit', '-q', '-m', 'seal');
   const commit = git(repo, 'rev-parse', 'HEAD');
-  fs.writeFileSync(path.join(art, 'R99_FREEZE_1.md'), 'frozen\n');
+  fs.writeFileSync(path.join(art, 'R99_FREEZE_1.md'), freezeText);
   const sf = (rel) => ({ source: 'smartflow', commit, path: `trading-system-v2/${rel}`, sha256: sha(files[`trading-system-v2/${rel}`]), ref: `smartflow@x:${rel}` });
   const entry = {
     id: 'C17-R99', label_zh: 'R99', strategy_ref: FAMILY, kind: 'RESULT', sealed_on: '2026-11-20', title_zh: '合成题', k2_frozen_at: FROZEN,
-    file: sf('docs/evidence/r99/RESULT.json'), k2: sf('docs/R99_K2.md'), freeze: { source: 'coordinator', path: 'R99_FREEZE_1.md', sha256: sha('frozen\n'), ref: 'artifacts/coordinator/R99_FREEZE_1.md' },
+    file: sf('docs/evidence/r99/RESULT.json'), k2: sf('docs/R99_K2.md'), freeze: { source: 'coordinator', path: 'R99_FREEZE_1.md', sha256: sha(freezeText), ref: 'artifacts/coordinator/R99_FREEZE_1.md' },
     run_log: runLog ? sf('docs/evidence/r99/RUN_LOG.json') : undefined,
     read: { decision: 'verdict.decision', strength: 'verdict.evidence_strength', use: 'verdict.allowed_use', text: 'verdict.text_zh' }, expect: decision, ...entryPatch,
   };
@@ -80,13 +80,13 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元和修订 5 的 QS-KDECAY 过门（11-11 冻结），且都带门的裁定；其余都在修订生效前冻结或封存', () => {
+test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY 和修订 6 的两题过门（11-11 冻结），且都带门的裁定；其余都在修订生效前冻结或封存', () => {
   const gated = [...overseas.ENTRIES, ...ashare.ENTRIES].filter((entry) => gates.applies(entry).applies).map((entry) => entry.id);
-  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY']);
+  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK']);
   for (const id of gated.filter((x) => x.includes('KWFO'))) {
     const entry = overseas.ENTRIES.find((e) => e.id === id);
     assert.equal(entry.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
-    assert.deepEqual(entry.trial_gates_ruling.pre.codes, gates.DEVIATION_CODES, id);
+    assert.deepEqual(entry.trial_gates_ruling.pre.codes, ['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN', 'PRE_NO_TRIAL_ID_IN_K2'], id);
     assert.ok(entry.run_log, id);
   }
   // 修订 5：先预登记后冻结，PRE 不放行任何偏差；只有披露行的「不适用」引用 K2 §2
@@ -95,6 +95,15 @@ test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前
   assert.equal(qs.trial_gates_ruling.spec, qs.k2);
   assert.deepEqual([...qs.trial_gates_ruling.disclosure_not_applicable], ['dsr', 'pbo']);
   assert.ok(qs.run_log);
+  // 修订 6：条件 id 按 11-12 裁定（52f4c897…）放行，只用 PRE_CONDITIONAL_ID_NOT_CHOSEN；披露不放行
+  for (const [id, n] of [['C17-COSTSEL', 3], ['UC-ACCTRISK', 1]]) {
+    const e = overseas.ENTRIES.find((x) => x.id === id);
+    assert.equal(e.trial_gates_ruling.spec.sha256, '52f4c897c3878a35a6a89729653b6548572bce4cec3a20fe3819a764175d50f6', id);
+    assert.deepEqual([...e.trial_gates_ruling.pre.codes], ['PRE_CONDITIONAL_ID_NOT_CHOSEN'], id);
+    assert.equal(e.trial_gates_ruling.pre.conditional_ids.length, n, id);
+    assert.equal(e.trial_gates_ruling.disclosure_not_applicable, undefined, id);
+    assert.ok(e.run_log, id);
+  }
   assert.equal(gates.EFFECTIVE_FROM, '2026-11-11T00:00:00+08:00');
 });
 
@@ -281,4 +290,50 @@ test('修订 4：disclose-na 只放行 dsr、pbo，必须引用按 sha256 绑定
   const row = discloseNa(fx.k2Sha, fx.rulingSha, { original_verdict: { decision: '做', strength: 'SUPPORTED' } });
   assert.equal(row.evidence_gate.downgraded, true);
   assert.equal(row.evidence_gate.strength, 'INSUFFICIENT');
+});
+
+// 导入规格修订 6：PRE_CONDITIONAL_ID_NOT_CHOSEN。K2 写了只在 ★2 (b) 下才登记的 C_ALT；冻结页 ★1–★3 → (a)；裁定只列 C_ALT
+const COND_FREEZE = '# R99 冻结\n\n★1–★3 → (a)\n';
+const condText = (extra = '') => `# R99 门的裁定\n\nG-TRIAL-PRE 记 DEVIATION_ACCEPTED：PRE_CONDITIONAL_ID_NOT_CHOSEN。${idOf('C_ALT')} 属 ★2 (b)，未选。${extra}\n`;
+function condRuled({ text = condText(), conditional = [{ trial_id: idOf('C_ALT'), star: 2, option: 'b' }], freezeText = COND_FREEZE, named = ['T', 'T_VAR', 'B', 'C_ALT'] } = {}) {
+  const fx = fixture({ named, freezeText });
+  fs.writeFileSync(path.join(fx.art, 'R99_RULING.md'), text);
+  const spec = { source: 'coordinator', path: 'R99_RULING.md', sha256: sha(text), ref: 'artifacts/coordinator/R99_RULING.md' };
+  fx.entry = { ...fx.entry, trial_gates_ruling: { spec, pre: { status: 'DEVIATION_ACCEPTED', codes: ['PRE_CONDITIONAL_ID_NOT_CHOSEN'], preregistered_at: BEFORE, first_run_at: AFTER, conditional_ids: conditional } } };
+  return fx;
+}
+
+test('修订 6：条件 id 没登记、冻结页没选它的 ★ → PRE 记 DEVIATION_ACCEPTED 并带上条件 id，其余照常', () => {
+  const fx = condRuled(); fullFlow(fx);
+  importOne(fx);
+  const row = locksNow().find((r) => r.entry_id === 'C17-R99');
+  assert.equal(row.trial_gates.pre, 'DEVIATION_ACCEPTED');
+  assert.deepEqual(row.trial_gates.pre_deviation.conditional_ids, [{ trial_id: idOf('C_ALT'), star: 2, option: 'b' }]);
+  assert.equal(row.trial_gates.seal, 'PASS');
+});
+
+test('修订 6：两条事实任一不成立就拒绝；裁定文字、列表、冻结页读不出也拒绝', () => {
+  const rj = (...a) => { reset(); rejects(...a); };
+  // (i) 条件 id 在台账里有行
+  rj(condRuled(), 'RULING_FACT_NOT_HOLD', (fx) => { fullFlow(fx); trials.register([{ family_id: FAMILY, market: 'CRYPTO_USDM_PERP', study_ref: STUDY, k2_sha256: fx.k2Sha, stage: 'BOOK', config_label: 'C_ALT', role: 'REPORT_ONLY_VARIANT', rule_config: { s_m: true, alt: true } }], { registeredBy: AUTH, registeredAt: AFTER }); });
+  // (ii) 冻结页选了它对应的选项，或者冻结页没有裁这个 ★
+  rj(condRuled({ freezeText: '# R99 冻结\n\n★1 → (a)\n★2 → (b)\n★3 → (a)\n' }), 'RULING_FACT_NOT_HOLD', fullFlow);
+  rj(condRuled({ freezeText: '# R99 冻结\n\n全部取 (a)\n' }), 'RULING_FACT_NOT_HOLD', fullFlow);
+  rj(condRuled({ freezeText: '# R99 冻结\n\n★1–★3 → (a)\n★2 → (b)\n' }), 'RULING_FACT_NOT_HOLD', fullFlow);
+  // 裁定列出的 id 不在 K2 里；K2 里另一个没登记的 id 不在裁定里
+  rj(condRuled({ named: ['T', 'T_VAR', 'B'] }), 'RULING_FACT_NOT_HOLD', fullFlow);
+  rj(condRuled({ named: ['T', 'T_VAR', 'B', 'C_ALT', 'C_ALT2'] }), 'PRE_NOT_REGISTERED', fullFlow);
+  // 裁定原文没写 id 或 ★ 选项；码与列表不一致
+  rj(condRuled({ text: '# 裁定\n\nDEVIATION_ACCEPTED PRE_CONDITIONAL_ID_NOT_CHOSEN ★2 (b)\n' }), 'RULING_TEXT_DOES_NOT_STATE', fullFlow);
+  rj(condRuled({ text: `# 裁定\n\nDEVIATION_ACCEPTED PRE_CONDITIONAL_ID_NOT_CHOSEN ${idOf('C_ALT')}\n` }), 'RULING_TEXT_DOES_NOT_STATE', fullFlow);
+  rj(condRuled({ conditional: [] }), 'RULING_CONDITIONAL_IDS_INVALID', fullFlow);
+  rj(condRuled({ conditional: [{ trial_id: idOf('C_ALT'), star: 2, option: 'B' }] }), 'RULING_CONDITIONAL_IDS_INVALID', fullFlow);
+});
+
+test('修订 6：冻结页 ★ 读法', () => {
+  const c = gates.internals.starChoices('★1–★5 → (a)：…；★3 不跑\n');
+  assert.deepEqual([...c.entries()], [[1, 'a'], [2, 'a'], [3, 'a'], [4, 'a'], [5, 'a']]);
+  const u = gates.internals.starChoices('1. ★1 → (a)：x\n2. ★2 → (a)：y\n');
+  assert.deepEqual([...u.entries()], [[1, 'a'], [2, 'a']]);
+  assert.throws(() => gates.internals.starChoices('★1 → (a)\n★1 → (b)\n'), /RULING_FACT_NOT_HOLD/);
 });

@@ -50,6 +50,7 @@ const COMMIT = Object.freeze({
   X05: 'd407ad68f74e379564fefd26c31946da434b13d5', R8: '64b3b82bacb8d97000efb4e510b11fe6791bf42e', X07C: '9330bc89ace6ed2ac1d3c0e00d149954b7fc5714',
   KWFO: 'b0abc9c8015c9cbb4fb5bbcad855061cb2787f6a', KWFO_RUN_LOG: '7e6783e083c76e8d6a4076e81d7d51dc34de260a',
   QSD: '34694ef2465658f7bb537a85e43ac07399821c41', QSD_RUN_LOG: 'f23599084e5c251e727fd2b3611ac80f36612c54',
+  CCS: '35f5f7d77830374081123966fd4129af427de79c', UCR: 'cef860e5d2c13d16ea420c088fc2f51826f9b405',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -127,6 +128,25 @@ const QSD_RUN_LOG = sf(COMMIT.QSD_RUN_LOG, 'docs/evidence/qs-kelly-decay/RESEARC
 const QSD_K2 = coord('QS_KELLY_DECAY_K2_V1.draft.md', 'e5b22ae4c92227b538344583037bfeee292fc2e77a1ddf93ad6cc3d63797c123');
 const QSD_FREEZE = coord('QS_KELLY_DECAY_K2_V1_FREEZE_1.md', 'fe9448ef54d8d30f54940d5bf037b7fcd9a8b5ef22eb0032806e0339f649568c');
 const QSD_RULING = Object.freeze({ spec: QSD_K2, disclosure_not_applicable: Object.freeze(['dsr', 'pbo']) });
+
+// 修订 6：C17_V2 成本与选择（C17-COST-SEL）、US_CORE 账户级风险（UC-ACCT-RISK），各一个单元。实际要跑的行都在冻结前预登记；
+// 两份 K2 §2 还写了只在未选 ★ 下才登记的条件 id，按协调会话 11-12 裁定（52f4c897…）记 PRE_CONDITIONAL_ID_NOT_CHOSEN。
+// 披露行的 DSR 是数值读法（UNKNOWN，族里带 ŜR 的试验太少），不是「不适用」，裁定不放行披露
+const CCS_RESULT = sf(COMMIT.CCS, 'docs/evidence/c17-cost-sel-v1/C17_COST_SELECTION_RESULT_V1.json', '39d2fd67e6313f218f2a20cbe3bb55e16cfc1d8a0fb8aba8d81fde8b4cb5bd82');
+const CCS_RUN_LOG = sf(COMMIT.CCS, 'docs/evidence/c17-cost-sel-v1/RESEARCH_RUN_LOG_V1.json', '983aef77d1e41eedb39d809d2b850e70bb6ad572e97fa24f9eed3bbd1c175c22');
+const CCS_K2 = coord('C17_COST_SELECTION_K2_V1.draft.md', 'e15902b93420b6ee22a16c98ab6603a02798f213dc4e56ec6ba67f275fa8d2e1');
+const CCS_FREEZE = coord('C17_COST_SELECTION_K2_V1_FREEZE_1.md', '085317e0663c4bf353d6391bd2a6ec407f0b4dbce2b6c5d492a4c7ab968fa0e4');
+const UCR_RESULT = sf(COMMIT.UCR, 'docs/evidence/uc-acct-risk-v1/US_CORE_ACCOUNT_RISK_RESULT_V1.json', 'a16163c1eabe38a1f167928fb1b0e0a565b6814ef36487875eeb11a99d840008');
+const UCR_RUN_LOG = sf(COMMIT.UCR, 'docs/evidence/uc-acct-risk-v1/RESEARCH_RUN_LOG_V1.json', 'ed7885441fa24a5d3c4519bb4e95326d0b4a3c2b31453997de150a8c4f3f3739');
+const UCR_K2 = coord('US_CORE_ACCOUNT_RISK_K2_V1.draft.md', '2104095f3f998cceb7b3b20f52453633bf812fcd076c7cdfb8b2369900d50df2');
+const UCR_FREEZE = coord('US_CORE_ACCOUNT_RISK_K2_V1_FREEZE_1.md', 'c10fb6872c2e1ea6ddbfa9e6de43f70da39e2169cae0ad79a4b59841b48d3b5f');
+const R6_RULING = coord('C17_COSTSEL_US_CORE_ACCT_RISK_TRIAL_GATES_RULING_20261112.md', '52f4c897c3878a35a6a89729653b6548572bce4cec3a20fe3819a764175d50f6');
+const cond = (trial_id, star, option) => Object.freeze({ trial_id, star, option });
+const CCS_RULING = Object.freeze({ spec: R6_RULING, pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_CONDITIONAL_ID_NOT_CHOSEN']),
+  preregistered_at: '2026-11-11T15:33:07.894Z', first_run_at: '2026-11-11T15:55:39Z',
+  conditional_ids: Object.freeze([cond('TRL-b42e30d24f319f9c', 3, 'b'), cond('TRL-7c6664a0db2a14fd', 3, 'b'), cond('TRL-5553ab546ff539ca', 5, 'b')]) }) });
+const UCR_RULING = Object.freeze({ spec: R6_RULING, pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_CONDITIONAL_ID_NOT_CHOSEN']),
+  preregistered_at: '2026-11-11T15:53:47.478Z', first_run_at: '2026-11-11T16:10:31Z', conditional_ids: Object.freeze([cond('TRL-01598f92e7d4339b', 1, 'c')]) }) });
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -289,6 +309,23 @@ const ENTRIES = Object.freeze([
       + '原因是波动和活跃度上升，不是优势变小：以 2023-01-01 为界，每日盈亏均值 0.04 → 0.97 USDT（差值区间 [−0.63, +2.91]），日标准差 4.7 → 30.5，每半年持仓天数 4–31 → 50–76。'
       + '2024H1（QS 最赚钱的半年，+1,268 USDT）影响最大：去掉它，零优势读数 0.19 → 0.26，占前推 F3 → F4 那一步的 28%。'
       + '协调会话 11-11 已把收紧候选起草成签字文本交 Owner（推荐 0.12），Owner 签字前生产不变；选股择时层判 QS 优势另立题，进 W46 待研究。来源：smartflow research/qs-kelly-decay-run 的结果文档 QS_KELLY_DECAY_RESULT_V1.md（c5751abe），封存 2026-11-11。' },
+  // 修订 6：C17_V2 成本与选择、US_CORE 账户级风险，结论只从封存文件读
+  { id: 'C17-COSTSEL', label_zh: 'C17 成本与选择', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-12',
+    title_zh: 'C17_V2 成本与选择：实盘成本与选择块的拆分，候选「止损下限生效的信号不进」（BTC/ETH）', file: CCS_RESULT, k2: CCS_K2, freeze: CCS_FREEZE, run_log: CCS_RUN_LOG,
+    k2_frozen_at: '2026-11-11T23:33:43+08:00', trial_gates_ruling: CCS_RULING,
+    read: Object.freeze({ decision: 'decision', strength: 'evidence_strength_short_zh', use: 'allowed_use_zh', text: 'first_paragraph_zh' }), expect: '不做',
+    note_zh: '候选 T = R7 的基线 B + 止损下限生效的信号不进：Δg −6.39 个百分点/年 [−18.78, +5.05]，判定表第 3 行（点估计 ≤ 0）；两条线都过（1.66% / 0.28%）。'
+      + '读法：被挡的那类入场在历史上是赢家。基线 B 里样本外 364 笔每笔净 R +0.121（ATR 止损的 266 笔 +0.031），开发期 85 笔 −0.045；实盘那 21 笔的亏损（−524 USDT）在历史上不成立。'
+      + '成本确实减半（每年 617 → 288 USDT），但收益减得更多。实盘成本 −209.89 = 手续费 89.62 + 建模滑点 128.04 − 资金费收入 7.77，往返 0.170%，与模型一致；'
+      + '选择块 95% 以上亏在非主流入场，非主流不在回放引擎里。来源：smartflow research/c17-cost-sel-run 的结果文档 C17_COST_SELECTION_RESULT_V1.md（35f5f7d7），封存 2026-11-12。' },
+  { id: 'UC-ACCTRISK', label_zh: 'US_CORE 账户级风险', strategy_ref: UC, kind: 'RESULT', sealed_on: '2026-11-12',
+    title_zh: 'US_CORE 账户级风险：按账本自身回撤给敞口上限（45 日回撤刹车，只收紧）', file: UCR_RESULT, k2: UCR_K2, freeze: UCR_FREEZE, run_log: UCR_RUN_LOG,
+    k2_frozen_at: '2026-11-11T23:54:13+08:00', trial_gates_ruling: UCR_RULING,
+    read: Object.freeze({ decision: 'verdict.decision', strength: 'verdict.evidence', use: 'allowed_use_zh', text: 'first_paragraph_zh' }), expect: '不做',
+    note_zh: '45 日回撤刹车（US_V5 已签档位 8% → 0.6、15% → 0.35、22% → 0.15；m = 0.42 × 系数，只减不加）：判定表第 2 行，D-4 没过。'
+      + '样本外最大回撤 20.18% 对 21.64%、最差月份 9.19% 对 11.59%、日 CVaR 5% 2.25% 对 2.64%，但 Δg −1.56 个百分点/年 [−3.46, +0.35]，超出 −1 的收益约束；两条线都过（0.71% / 0.17%）。'
+      + '读法：用每年约 1.5 个百分点换回撤略浅，不划算。现行全栈（凯利 0.42 + 到价出场）样本外回撤 21.6% 本就浅于 SPY 33.7%、QQQ 35.1%；实盘的深回撤来自 11-02 凯利上限之前的 m = 1。'
+      + '来源：smartflow research/us-core-acct-risk-run 的结果文档 US_CORE_ACCOUNT_RISK_RESULT_V1.md（cef860e5），封存 2026-11-12。' },
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────
@@ -419,6 +456,7 @@ function checkEntry(entry, evidenceDir, store = STORE) {
     k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
     runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null),
     rulingBytes: () => (entry.trial_gates_ruling ? readBound(evidencePath(evidenceDir, entry.trial_gates_ruling.spec), entry.trial_gates_ruling.spec.sha256) : null),
+    freezeBytes: () => (entry.freeze ? readBound(evidencePath(evidenceDir, entry.freeze), entry.freeze.sha256) : null),
   });
   return { identity, refs, verdict, trial };
 }
