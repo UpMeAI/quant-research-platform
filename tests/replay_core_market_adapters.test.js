@@ -31,18 +31,31 @@ test('US_EQUITY 与 CRYPTO 两个 replay-core 适配器已注册,合同齐全,ma
     assert.deepEqual(validateAdapter(a).problems, []);
     assert.equal(a.manifest.market_id, m);
     assert.equal(a.manifest.replay_core.core_version_hash, bridge.PIN.core.version_hash);
-    assert.match(a.manifest.execution_model_version, /^REPLAY_CORE_CONTRACT_V1@5a4808b0:/);
+    assert.match(a.manifest.execution_model_version, /^REPLAY_CORE_CONTRACT_V1@81f30428:/);
   }
   assert.deepEqual(Object.keys(getAdapter(US).manifest.replay_core.strategies), ['US_V5']);
   assert.deepEqual(Object.keys(getAdapter(CRYPTO).manifest.replay_core.strategies), ['C17', 'CARRY']);
   assert.deepEqual(listAdapters().map((m) => m.market_id).sort(), ['CN_A', CRYPTO, US]);
 });
 
-test('钉版口径:pin 里每个策略的 profile 与 hooks 版本都在,核心哈希为 5a4808b0 的完整哈希', () => {
+test('钉版口径:smartflow 4d9558e5 与核心 81f30428 完整钉住，既有三策略 profile 与 hooks 不变', () => {
+  assert.equal(bridge.PIN.smartflow.commit, '4d9558e58aa4b94526879c8dcdb2a7ab4ff509d4');
   assert.equal(bridge.PIN.core.version_hash.length, 64);
-  assert.ok(bridge.PIN.core.version_hash.startsWith('5a4808b0'));
+  assert.equal(bridge.PIN.core.version_hash, '81f3042858ef90f423f3c671950a5ee0f7ea31ef5ba0af323990636c8fce544f');
+  assert.equal(bridge.PIN.core.file_count, 15);
+  assert.equal(bridge.PIN.core.last_core_commit, '5d74e6e3000d2a312e5d76db66f22507f9e00349');
+  assert.deepEqual(Object.fromEntries(Object.entries(bridge.PIN.golden_receipts).map(([key, value]) => [key, value.sha256])), {
+    G1: '6d734add271d70491e75e4ec830dedac21cc50f484d51052d75e5fadc5bed7ce',
+    G2: '0782e6fda46e6feb089919795950947c695c5a2b27f9006e2556d36b2dc3adb3',
+    G3: 'f790bcc0fda7f24aeed86c482ab2c38424007eb749be93ec5eb094dfa9f29408',
+  });
   assert.deepEqual(Object.fromEntries(Object.entries(bridge.PIN.strategies).map(([s, v]) => [s, v.profile])),
     { US_V5: 'CLOSE_MARK', C17: 'NEXT_BAR_OPEN', CARRY: 'HOURLY_REBALANCE_BAND' });
+  assert.deepEqual(Object.fromEntries(Object.entries(bridge.PIN.strategies).map(([s, v]) => [s, v.strategy_files_sha256])), {
+    US_V5: 'f005c16ac7e59a1335b76cc2f31235677a19e12b319af7ac5549450bd7a8fc29',
+    C17: 'eb393354eca321b00e8cc8384b8b6bd261de0de2c8f94528bc19a4153cf0b49f',
+    CARRY: 'a3e78c839cf0343c135e1ff8747ded6d9c68cad3a8d07ddf62a271d9ef3a8ac7',
+  });
   for (const v of Object.values(bridge.PIN.strategies)) {
     assert.match(v.hooks_id, /^[a-z0-9-]+-hooks@[0-9a-f]{12}$/);
     assert.match(v.strategy_files_sha256, /^[0-9a-f]{64}$/);
@@ -71,7 +84,7 @@ test('核心哈希不符即拒跑(独立复算,不信任被校验代码自报)',
   fs.writeFileSync(path.join(core, 'index.js'), "'use strict';\nmodule.exports = { coreVersion: () => ({ hash: process.argv[0] }) };\n");
   const cache = tmpDir();
   const job = bridge.writeJob(cache, 'US_V5', { input: {} });
-  assert.throws(() => bridge.runJob(job, cache, { smartflowRoot: root }), /REPLAY_CORE_RUN_FAILED:CORE_VERSION_MISMATCH:pin=5a4808b0:core=/);
+  assert.throws(() => bridge.runJob(job, cache, { smartflowRoot: root }), /REPLAY_CORE_RUN_FAILED:CORE_VERSION_MISMATCH:pin=81f30428:core=/);
   assert.notEqual(coreDirHash(core).hash, bridge.PIN.core.version_hash);
 });
 

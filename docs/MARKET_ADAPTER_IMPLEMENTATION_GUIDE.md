@@ -144,7 +144,7 @@ const { registered, skipped } = await registerConfiguredRemoteMarkets();
 | US_EQUITY | `adapters/us-replay-core` | US_V5 → `CLOSE_MARK`(机械切片:逐 tick 退出、腿记账、权益标记) |
 | CRYPTO | `adapters/crypto-replay-core` | C17(含 C17_V2 研究约束)→ `NEXT_BAR_OPEN`;CARRY → `HOURLY_REBALANCE_BAND` |
 
-- **钉版**:`adapters/replay-core-bridge/pin.json` 记 smartflow 提交、核心目录哈希(完整 sha256,`5a4808b0…`)、
+- **钉版**:`adapters/replay-core-bridge/pin.json` 记 smartflow 提交、核心目录哈希(完整 sha256,当前为 `81f30428…`)、
   各策略 hooks 版本与已加载策略文件哈希。子进程 `runner.js` 独立复算核心目录哈希,再核对核心自报、hooks 版本与策略文件哈希,
   任一不符即拒跑(`CORE_VERSION_MISMATCH` / `HOOKS_VERSION_MISMATCH` / `STRATEGY_FILES_MISMATCH`)。
 - **作业**:`QRP_REPLAY_CORE_JOB_V1`(JSON)指向一份 v8 载荷:US_V5 是去掉 hooks 的 `REPLAY_CORE_INPUT_V1`;
