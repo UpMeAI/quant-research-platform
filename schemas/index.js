@@ -334,6 +334,30 @@ const SCHEMAS = Object.freeze({
     rowId: 's', ledgerId: 's', market: 's', partId: 's?', signalKey: 's', signalCodes: 'a', ruleRefs: 'a', entries: 'n',
     firstEntryAt: 's?', lastEntryAt: 's?', windows: 'o', stateSplit: 'o',
   },
+  ASHARE_Q0_ACCOUNT_RESULT_V1: {
+    _doc: 'Ashare-V6 Q0 未封存账户日导出的只读 QRP 结果投影；账户、成交、权益与规则证据均来自 ASHARE_V6_Q0_ACCOUNT_DAY_V1，不重算交易决定',
+    resultVersion: 'n', market: 's', generatedAt: 's?', source: 'o', account: 'o', executions: 'a', equityCurve: 'a', ruleEvidence: 'a',
+    signalRegistryHash: 's', summary: 'o', productionEffect: 's', hash: 's',
+  },
+  ASHARE_Q0_SIGNAL_REGISTRY_V1: {
+    _doc: 'Ashare-V6 Q0 开仓成交上原样记录的信号登记；没有开仓成交时 rows 为空并显式 NOT_APPLICABLE，不从阻断原因猜信号',
+    registryVersion: 'n', generatedAt: 's?', market: 's', accountId: 's', source: 'o', rowsState: 's', rows: 'a',
+    interpretation: 's', productionEffect: 's', hash: 's',
+  },
+  ASHARE_Q0_SIGNAL_REGISTRY_ROW_V1: {
+    _doc: 'Ashare-V6 Q0 信号登记的一行；一行 = 同一未封存账户开仓成交上的同一组 decision.reasonCodes',
+    rowId: 's', accountId: 's', market: 's', signalKey: 's', signalCodes: 'a', ruleRefs: 'a', entries: 'n',
+    firstEntryAt: 's?', lastEntryAt: 's?', executionRefs: 'a',
+  },
+  SIGNAL_REGISTRY_V2: {
+    _doc: '三市场统一信号登记；只合并各市场权威登记，A 股没有记分牌窗口时绩效保持 NOT_APPLICABLE',
+    registryVersion: 'n', generatedAt: 's?', markets: 'a', sources: 'a', rows: 'a', interpretation: 's', productionEffect: 's', hash: 's',
+  },
+  SIGNAL_REGISTRY_ROW_V2: {
+    _doc: '三市场统一信号登记行；绩效只在来源具备权威记分牌窗口时存在',
+    rowId: 's', ledgerId: 's', market: 's', partId: 's?', signalKey: 's', signalCodes: 'a', ruleRefs: 'a', entries: 'n',
+    firstEntryAt: 's?', lastEntryAt: 's?', performanceState: 's', windows: 'o?', stateSplit: 'o?', sourceRegistryHash: 's',
+  },
 });
 
 const TYPE_CHECK = {

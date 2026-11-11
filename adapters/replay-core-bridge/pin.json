@@ -2,22 +2,22 @@
   "kind": "QRP_REPLAY_CORE_PIN_V1",
   "smartflow": {
     "repo": "wendy926/smartflow",
-    "commit": "8d97cbdec0a775fd9fe8cc75643da34fffebe9bc",
+    "commit": "4d9558e58aa4b94526879c8dcdb2a7ab4ff509d4",
     "package_dir": "trading-system-v2"
   },
   "core": {
     "contract": "REPLAY_CORE_CONTRACT_V1",
     "dir": "scripts/lib/replay-core",
-    "version_hash": "5a4808b0b775335a21a0c8e43de21d57048d5f64d820169b6225e36c95829c7b",
-    "file_count": 14,
-    "last_core_commit": "6ac34ecfd569c6db7be1d76f48921eb05819f07a"
+    "version_hash": "81f3042858ef90f423f3c671950a5ee0f7ea31ef5ba0af323990636c8fce544f",
+    "file_count": 15,
+    "last_core_commit": "5d74e6e3000d2a312e5d76db66f22507f9e00349"
   },
   "strategies": {
     "US_V5": {
       "profile": "CLOSE_MARK",
       "module": "scripts/lib/replay-core-adapters/us-v5.js",
       "hooks_id": "us-v5-hooks@ba8af5fa5ae3",
-      "strategy_files_sha256": "7056fb57613cc79f1a25bac3503d3a33403e967855b7e4d37d11ffcb86e9c256"
+      "strategy_files_sha256": "f005c16ac7e59a1335b76cc2f31235677a19e12b319af7ac5549450bd7a8fc29"
     },
     "C17": {
       "profile": "NEXT_BAR_OPEN",
@@ -33,8 +33,8 @@
     }
   },
   "golden_receipts": {
-    "G1": { "file": "receipts/replay-core-golden-5a4808b0.tier1.G1.json", "sha256": "61ecd0e648b0c2e3529958a033853146e417858b4c63a61dd1660567b525a3ce", "strategy": "C17" },
-    "G2": { "file": "receipts/replay-core-golden-5a4808b0.tier1.G2.json", "sha256": "4ef2adef3e15bdee1ccb27cef8a3021f832a6e3f860846d2fd8f3f56fc61a5a6", "strategy": "CARRY" },
-    "G3": { "file": "receipts/replay-core-golden-5a4808b0.tier1.G3.json", "sha256": "f87e175886925f3041f2d91bb2033f684f3ddd4af8916dad644bdc9aafab19d7", "strategy": "US_V5" }
+    "G1": { "file": "receipts/replay-core-golden-81f30428.tier1.G1.json", "sha256": "6d734add271d70491e75e4ec830dedac21cc50f484d51052d75e5fadc5bed7ce", "strategy": "C17" },
+    "G2": { "file": "receipts/replay-core-golden-81f30428.tier1.G2.json", "sha256": "0782e6fda46e6feb089919795950947c695c5a2b27f9006e2556d36b2dc3adb3", "strategy": "CARRY" },
+    "G3": { "file": "receipts/replay-core-golden-81f30428.tier1.G3.json", "sha256": "f790bcc0fda7f24aeed86c482ab2c38424007eb749be93ec5eb094dfa9f29408", "strategy": "US_V5" }
   }
 }

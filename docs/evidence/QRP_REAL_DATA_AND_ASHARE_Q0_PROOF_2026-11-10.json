@@ -1,0 +1,107 @@
+{
+  "kind": "QRP_REAL_DATA_AND_ASHARE_Q0_PROOF_V1",
+  "production_effect": "NONE",
+  "environment": {
+    "node": "18.20.8",
+    "v8": "10.2.154.26-node.39",
+    "platform": "linux",
+    "arch": "x64",
+    "smartflow_commit": "4d9558e58aa4b94526879c8dcdb2a7ab4ff509d4",
+    "replay_core_hash": "81f3042858ef90f423f3c671950a5ee0f7ea31ef5ba0af323990636c8fce544f"
+  },
+  "golden": {
+    "receipt": "/srv/research-lane/rc-hist/qrp-49-evidence-20261110/golden-proof-81f30428.json",
+    "result": "PASS",
+    "cases": ["G1", "G2", "G3"]
+  },
+  "jobs": [
+    {
+      "source": "C17_AGENT_LIVE",
+      "verdict": "BYTE_IDENTICAL",
+      "identical": 3,
+      "different": 0,
+      "manifest_sha256": "b5dfaad93d93f4092f7b7364f4c58460e5964c78402947957e0c9d96f686d2ca",
+      "receipt_sha256": "edd63830c9f358a5ed705db0009333718c89eafd8272ddab610724b5396b2b93"
+    },
+    {
+      "source": "C17_V2_LIVE",
+      "verdict": "BYTE_IDENTICAL",
+      "identical": 1,
+      "different": 0,
+      "manifest_sha256": "22995edc390b8f7e376cafc919fe7489d4c4c4de80d5ec7d7ba28abc7498fc1d",
+      "receipt_sha256": "c05f617ba5072daeba02fb67cc1008427357f636723f5c8dc3c321984a6a28ee"
+    },
+    {
+      "source": "CARRY",
+      "verdict": "BYTE_IDENTICAL",
+      "identical": 70,
+      "different": 0,
+      "windows": ["IS", "OOS", "W1", "W2", "FULL"],
+      "manifest_sha256": "b4dc7572a78c25da93a3cacec66214e98956b7ef98f93dbe09a14d6a5928e50e",
+      "receipt_sha256": "75de9888a833c0d8f7e63976a5b8e5a8e4ad763e9ff5c325075e4f83efc0cf4f"
+    },
+    {
+      "source": "US_V5_RECORDS",
+      "verdict": "BYTE_IDENTICAL",
+      "identical": 1,
+      "different": 0,
+      "window": "2026-10-08..2026-11-06",
+      "manifest_sha256": "790eeff2ee1e9ab13c34e89cf4fa885c80650042dcce3f3330d0d413f61bb51c",
+      "receipt_sha256": "cd587cd980c77ef4f88565a8616cdb24f22b07af8b9667a07ae8800bba83d0d5"
+    }
+  ],
+  "input_defects": [
+    {
+      "source": "C17_CACHE",
+      "state": "NOT_RUN:SOURCE_PROJECTION_INCOMPLETE",
+      "manifest_sha256": "5ae6e091b93b43a26c012481637a3a42d2c8854fe01cfcc4ce56b58d096e3390",
+      "selected_symbols": 14,
+      "referenced_projection_files": 29,
+      "missing_projection_files": 29,
+      "first_missing": "exchangeInfo.safe.json",
+      "present_files": 57
+    }
+  ],
+  "scoreboard_reconciliation": [
+    {
+      "market": "CRYPTO",
+      "period_to": "2026-11-08",
+      "compared": 414,
+      "differences": 0,
+      "conformance_sha256": "3c3fcb3763b0a2c4f286e13363b7d33a92afabc9e053b9a20e4474f87d4bf2df",
+      "source_divergences": 9
+    },
+    {
+      "market": "US",
+      "period_to": "2026-11-06",
+      "compared": 377,
+      "differences": 0,
+      "conformance_sha256": "84acdf0fc714cb3cd588b4aa5bf318e28d542bf4d77195e87305a96b2feff048",
+      "source_divergences": 2
+    }
+  ],
+  "ashare": {
+    "source": "/srv/research-lane/qrp49-ashare-fixture-20261110/A/c000.jsonl",
+    "source_sha256": "cc051086a379b91ed379c2df29c946c8caf735b3eff18537dc163ecbe2fbcf95",
+    "account_days": 40,
+    "fill_count_source": 0,
+    "fill_count_result": 0,
+    "ending_equity_source": 100000,
+    "ending_equity_result": 100000,
+    "result_hash": "c670354d590044eb9144545ba992a6197dd56cbba4e00955dd1cc8d962b441fe",
+    "registry_hash": "6defb68318b9ae96c449eb8b2be336fbeaeb1dd5932ceaaf768bdd9176b20ca1",
+    "result_file_sha256": "a9b97d92d78e6dc65d24f524d3a2ae2a455f73dce5e44420d44829efe1e23c55",
+    "registry_file_sha256": "8415a38f6558e19f506d2bf05fed2926b544e4ab4fc64b446d1c9f81b780a34d",
+    "registry_state": "NOT_APPLICABLE:NO_ENTRY_FILLS_IN_SOURCE",
+    "result_file": "/srv/research-lane/rc-hist/qrp-49-evidence-20261110/ashare/ASHARE_Q0_ACCOUNT_RESULT_V1-R2.json",
+    "registry_file": "/srv/research-lane/rc-hist/qrp-49-evidence-20261110/ashare/ASHARE_Q0_SIGNAL_REGISTRY_V1-R2.json"
+  },
+  "unified_signal_registry": {
+    "schema": "SIGNAL_REGISTRY_V2",
+    "markets": ["CN_A", "CRYPTO", "US"],
+    "rows": 5,
+    "hash": "efdfb1b79c6b9790a05a40828bed98afbaf19e620aaf83682aa6a9f4c25b4b29",
+    "file_sha256": "7636c745e129399e19ac12caff01c0ce32d8325d17ca74ae4754387cfd49ee38",
+    "file": "/srv/research-lane/rc-hist/qrp-49-evidence-20261110/signal-registry/SIGNAL_REGISTRY_V2.json"
+  }
+}
