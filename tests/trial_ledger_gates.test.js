@@ -33,14 +33,14 @@ const hashOf = (label) => trials.ruleConfigHash(ARMS.find((a) => a.config_label 
 const months = (c) => Array.from({ length: 30 }, (_, i) => ({ month: `${2024 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`, d: 0.01 * Math.sin(i * 1.3) + c }));
 
 /** 合成 smartflow 仓库 + 协调会话目录；K2 里写出 named 这些台账 id；runLog 为 null 时不登记运行日志。 */
-function fixture({ named = ['T', 'T_VAR', 'B'], decision = '做', runs = ['T', 'T_VAR', 'B'], runLog = true, entryPatch = {} } = {}) {
+function fixture({ named = ['T', 'T_VAR', 'B'], decision = '做', runs = ['T', 'T_VAR', 'B'], runLog = true, runLogExtra = {}, entryPatch = {} } = {}) {
   const repo = tmp('qrp-tg-sf-'); const art = tmp('qrp-tg-art-');
   const k2Text = `# R99 K2\n\n## 4 候选\n${named.map((l) => `- ${l}：台账 ${idOf(l)}`).join('\n')}\n`;
   const k2Sha = sha(k2Text);
   const files = {
     'trading-system-v2/docs/evidence/r99/RESULT.json': `${JSON.stringify({ verdict: { decision, evidence_strength: '证据不足', allowed_use: '前向影子', text_zh: '合成' } })}\n`,
     'trading-system-v2/docs/R99_K2.md': k2Text,
-    'trading-system-v2/docs/evidence/r99/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, runs: runs.map((l) => ({ family_id: FAMILY, config_label: l, rule_config_hash: typeof l === 'string' && l.startsWith('raw:') ? l.slice(4) : hashOf(l) })) })}\n`,
+    'trading-system-v2/docs/evidence/r99/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, ...runLogExtra, runs: runs.map((l) => ({ family_id: FAMILY, config_label: l, rule_config_hash: typeof l === 'string' && l.startsWith('raw:') ? l.slice(4) : hashOf(l) })) })}\n`,
   };
   git(repo, 'init', '-q');
   for (const [rel, body] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true }); fs.writeFileSync(path.join(repo, rel), body); }
@@ -80,8 +80,15 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('现行登记表（海外、A 股）全部不过门：都在修订生效前冻结或封存', () => {
-  for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) assert.equal(gates.applies(entry).applies, false, entry.id);
+test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元过门（11-11 冻结），且都带门的裁定；其余都在修订生效前冻结或封存', () => {
+  const gated = [...overseas.ENTRIES, ...ashare.ENTRIES].filter((entry) => gates.applies(entry).applies).map((entry) => entry.id);
+  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR']);
+  for (const id of gated) {
+    const entry = overseas.ENTRIES.find((e) => e.id === id);
+    assert.equal(entry.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
+    assert.deepEqual(entry.trial_gates_ruling.pre.codes, gates.DEVIATION_CODES, id);
+    assert.ok(entry.run_log, id);
+  }
   assert.equal(gates.EFFECTIVE_FROM, '2026-11-11T00:00:00+08:00');
 });
 
@@ -180,4 +187,92 @@ test('A 股导入器走同一套门', () => {
   const out = tmp('qrp-tg-cn-');
   ashare.stageEvidence({ ashareV6Root: repoV6, artifactsRoot: fx.art, out, entries: [cn] });
   assert.throws(() => ashare.importVerdicts(out, { registeredBy: AUTH, entries: [cn] }), (e) => e.code === 'TRIAL_LEDGER_PRE_NOT_REGISTERED');
+});
+
+// ── 导入规格修订 4：门的裁定（凯利 m 前推门裁定，99203316…） ─────────────────────────
+
+const LATE = '2026-11-12T10:20:00+08:00';
+const FIRST_RUN = '2026-11-12T10:30:00+08:00';
+const CODES = ['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN', 'PRE_NO_TRIAL_ID_IN_K2'];
+const RULING_TEXT = '# R99 门的裁定\n\nG-TRIAL-PRE 记 DEVIATION_ACCEPTED：PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN、PRE_NO_TRIAL_ID_IN_K2。披露行 DSR、PBO 写 NOT_APPLICABLE。\n';
+const reset = () => { for (const f of [overseas.LEDGER(), trials.TRIALS(), trials.DISCLOSURES()]) fs.rmSync(f, { force: true }); };
+
+/** 合成题加门的裁定：K2 不写台账 id，冻结后、首次计算前预登记。 */
+function ruled({ text = RULING_TEXT, pre = {}, na = ['dsr', 'pbo'], fixtureOpts = {} } = {}) {
+  const fx = fixture({ named: [], ...fixtureOpts });
+  fs.writeFileSync(path.join(fx.art, 'R99_RULING.md'), text);
+  const spec = { source: 'coordinator', path: 'R99_RULING.md', sha256: sha(text), ref: 'artifacts/coordinator/R99_RULING.md' };
+  fx.rulingSha = spec.sha256;
+  fx.entry = { ...fx.entry, trial_gates_ruling: { spec, pre: { status: 'DEVIATION_ACCEPTED', codes: CODES, preregistered_at: LATE, first_run_at: FIRST_RUN, ...pre }, ...(na ? { disclosure_not_applicable: na } : {}) } };
+  return fx;
+}
+function discloseNa(k2Sha, rulingSha, patch = {}) {
+  return trials.discloseNotApplicable({ family_id: FAMILY, study_ref: STUDY, k2_sha256: k2Sha, verdict_trial_id: idOf('T'), original_verdict: { decision: '做', strength: 'INSUFFICIENT' },
+    not_applicable: { fields: ['dsr', 'pbo'], reason_zh: '不比收益，没有收益序列', ruling: { ref: 'artifacts/coordinator/R99_RULING.md', sha256: rulingSha } }, ...patch }, { registeredBy: AUTH, registeredAt: AFTER });
+}
+const ruledFlow = (fx, { at = LATE } = {}) => { preregister(fx.k2Sha, { at }); results(); discloseNa(fx.k2Sha, fx.rulingSha); };
+
+test('修订 4：K2 没写 id、冻结后首次计算前预登记 → PRE 记 DEVIATION_ACCEPTED（不记 PASS），锁里写裁定页 sha 与三个时刻；披露行 DSR、PBO 不适用', () => {
+  const fx = ruled({ fixtureOpts: { runLogExtra: { first_run_at: FIRST_RUN } } });
+  ruledFlow(fx);
+  const [row] = importOne(fx);
+  assert.equal(row.decision, '做');
+  assert.equal(row.trial_gates.pre, 'DEVIATION_ACCEPTED');
+  assert.equal(row.trial_gates.seal, 'PASS');
+  assert.deepEqual(row.trial_gates.pre_deviation, { codes: CODES, k2_frozen_at: FROZEN, preregistered_at: LATE, first_run_at: FIRST_RUN, late_registrations: 3 });
+  assert.deepEqual(row.trial_gates.disclosure_not_applicable, ['dsr', 'pbo']);
+  assert.equal(row.trial_gates.ruling_sha256, fx.rulingSha);
+  assert.ok(row.refs.some((r) => r.role === 'RULING' && r.sha256 === fx.rulingSha));
+  const [d] = trials.disclosures({ family_id: FAMILY });
+  assert.equal(d.dsr, 'NOT_APPLICABLE');
+  assert.equal(d.pbo, 'NOT_APPLICABLE');
+  assert.equal(d.n_raw, 2, 'T、T_VAR；基线不计');
+  assert.equal(d.new_configs, 2);
+  assert.equal(d.unknown.sr_hat, 'NO_RETURN_SERIES_DSR_NOT_APPLICABLE');
+  assert.equal(d.inputs.not_applicable.ruling_sha256, fx.rulingSha);
+  assert.equal(d.evidence_gate.applied, false, '「做 · 证据不足」本来就不过证据闸门');
+});
+
+test('修订 4：没有裁定时同样的事实照旧拒绝；裁定写的事实不成立、越界或与披露行不一致 → 拒绝', () => {
+  rejects(fixture({ named: [] }), 'PRE_NO_TRIAL_ID_IN_K2', (fx) => { preregister(fx.k2Sha, { at: LATE }); });
+  reset();
+  rejects(fixture(), 'SEAL_DISCLOSURE_NOT_APPLICABLE_WITHOUT_RULING', (fx) => { preregister(fx.k2Sha); results(); discloseNa(fx.k2Sha, 'a'.repeat(64)); });
+  reset();
+  rejects(ruled(), 'PRE_REGISTERED_AFTER_FIRST_RUN', (fx) => ruledFlow(fx, { at: '2026-11-12T10:40:00+08:00' }));
+  reset();
+  rejects(ruled({ fixtureOpts: { named: ['T', 'T_VAR', 'B'] } }), 'RULING_FACT_NOT_HOLD', ruledFlow);
+  reset();
+  rejects(ruled({ pre: { preregistered_at: BEFORE } }), 'RULING_FACT_NOT_HOLD', (fx) => ruledFlow(fx, { at: BEFORE }));
+  reset();
+  rejects(ruled({ pre: { preregistered_at: '2026-11-12T10:21:00+08:00' } }), 'RULING_FACT_NOT_HOLD', ruledFlow);
+  reset();
+  rejects(ruled({ fixtureOpts: { runLogExtra: { first_run_at: '2026-11-12T10:31:00+08:00' } } }), 'RULING_FACT_NOT_HOLD', ruledFlow);
+  reset();
+  rejects(ruled({ text: '# 裁定\n\nDEVIATION_ACCEPTED PRE_NO_TRIAL_ID_IN_K2 NOT_APPLICABLE\n' }), 'RULING_TEXT_DOES_NOT_STATE', ruledFlow);
+  reset();
+  rejects(ruled({ pre: { codes: ['PRE_NOT_REGISTERED'] } }), 'RULING_PRE_CODE_INVALID', ruledFlow);
+  reset();
+  rejects(ruled({ pre: { status: 'PASS' } }), 'RULING_PRE_STATUS_INVALID', ruledFlow);
+  reset();
+  rejects(ruled({ na: null }), 'SEAL_DISCLOSURE_NOT_APPLICABLE_WITHOUT_RULING', ruledFlow);
+  reset();
+  rejects(ruled(), 'SEAL_DISCLOSURE_RULING_MISMATCH', (fx) => { preregister(fx.k2Sha, { at: LATE }); results(); discloseNa(fx.k2Sha, 'f'.repeat(64)); });
+  reset();
+  rejects(ruled({ fixtureOpts: { entryPatch: { k2_frozen_at: '2026-11-09T20:00:00+08:00', sealed_on: '2026-11-10' } } }), 'RULING_ON_UNGATED_ENTRY', () => {});
+});
+
+test('修订 4：disclose-na 只放行 dsr、pbo，必须引用按 sha256 绑定的裁定；「做 · 有支持证据」照样被证据闸门降级', () => {
+  const fx = ruled();
+  preregister(fx.k2Sha, { at: LATE });
+  results();
+  const ruling = { ref: 'artifacts/coordinator/R99_RULING.md', sha256: fx.rulingSha };
+  const bad = (notApplicable, code) => assert.throws(() => discloseNa(fx.k2Sha, fx.rulingSha, { not_applicable: notApplicable }), (e) => e.code === `TRIAL_LEDGER_${code}`, code);
+  bad({ fields: ['dsr', 'pbo', 'n_hat'], reason_zh: 'x', ruling }, 'DISCLOSURE_NOT_APPLICABLE_FIELDS');
+  bad({ fields: ['dsr'], reason_zh: 'x', ruling }, 'DISCLOSURE_NOT_APPLICABLE_FIELDS');
+  bad({ fields: ['dsr', 'pbo'], reason_zh: 'x', ruling: { ref: 'r', sha256: 'abc' } }, 'DISCLOSURE_NOT_APPLICABLE_NEEDS_RULING');
+  bad({ fields: ['dsr', 'pbo'], reason_zh: '', ruling }, 'DISCLOSURE_NOT_APPLICABLE_REASON_REQUIRED');
+  assert.equal(trials.disclosures().length, 0, '失败即关：不写披露行');
+  const row = discloseNa(fx.k2Sha, fx.rulingSha, { original_verdict: { decision: '做', strength: 'SUPPORTED' } });
+  assert.equal(row.evidence_gate.downgraded, true);
+  assert.equal(row.evidence_gate.strength, 'INSUFFICIENT');
 });

@@ -48,6 +48,7 @@ const COMMIT = Object.freeze({
   R_US_ETF_1: 'e41c43c44fd03462040f6e1b039a53729eed1ee3', R_US_ETF_1_RUN: '3a635a49538f84e9b4582393d18e76ef1262d521',
   D5_V1: 'cf1a0d41af18366e8f6cf67d7f08d036b1b1d4f9', D5_V2: 'ac35eeca3e9fb3a2e3abac2bc965a4245a6e6bdc', D8: 'e2dc109829865f288ed7e09479350e8bf17b6ac1',
   X05: 'd407ad68f74e379564fefd26c31946da434b13d5', R8: '64b3b82bacb8d97000efb4e510b11fe6791bf42e', X07C: '9330bc89ace6ed2ac1d3c0e00d149954b7fc5714',
+  KWFO: 'b0abc9c8015c9cbb4fb5bbcad855061cb2787f6a', KWFO_RUN_LOG: '7e6783e083c76e8d6a4076e81d7d51dc34de260a',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -97,6 +98,26 @@ const X07C_FREEZE = coord('X07C_US_CRYPTO_PVS_K2_V1_FREEZE_1.md', '6373d1cd54128
 const unitRead = (unit) => Object.freeze({ decision: `units.${unit}.decision`, strength: `units.${unit}.evidence_zh`, use: `units.${unit}.allowed_use_zh`, text: 'first_paragraph_zh' });
 const d8Read = (i) => Object.freeze({ decision: `verdict_detail.${i}.decision`, strength: `verdict_detail.${i}.evidence_strength_zh`, use: `verdict_detail.${i}.allowed_use_zh`, text: 'first_paragraph_zh' });
 const x05Read = (unit) => Object.freeze({ decision: `decision.${unit}`, state: `decision.${unit}`, strength: `evidence_strength_zh.${unit}`, use: `allowed_use_zh.${unit}`, text: 'first_paragraph_zh' });
+
+// 修订 4：凯利上限 m 的滚动前推（KELLY-M-WFO），七个单元。11-11 08:57 冻结，过两道门；PRE 的偏差与披露行的「不适用」按门的裁定（99203316…）
+const KWFO_RESULT = sf(COMMIT.KWFO, 'docs/evidence/kelly-m-wfo/KELLY_M_WFO_RESULT_V1.json', 'e51343a3f61a27bc262039b74836a925cb17447c91f5da3d8d9426f72f360aae');
+const KWFO_RUN_LOG = sf(COMMIT.KWFO_RUN_LOG, 'docs/evidence/kelly-m-wfo/RESEARCH_RUN_LOG_V1.json', '8aa32f112a8d4ceb05cddac27e4c973fee5b5bdcea8b6ca9ff9e3201f34563bd');
+const KWFO_K2 = coord('KELLY_M_WFO_K2_V1.draft.md', '41fc14999308cad2a6908c6042269c8abb5d128901871742e3b080cf6c09e73c');
+const KWFO_FREEZE = coord('KELLY_M_WFO_K2_V1_FREEZE_1.md', '57be54786f5338601621b51ef923e079319f08c6650e510bc42a27b4116a21f8');
+const KWFO_RULING = Object.freeze({
+  spec: coord('KELLY_M_WFO_K2_V1_TRIAL_GATES_RULING_20261111.md', '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f'),
+  pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN', 'PRE_NO_TRIAL_ID_IN_K2']),
+    preregistered_at: '2026-11-11T01:23:18.582Z', first_run_at: '2026-11-11T01:31:33Z' }),
+  disclosure_not_applicable: Object.freeze(['dsr', 'pbo']),
+});
+// 结果文件 verdicts 的顺序：0 O1 US_V5、1 O2 US_CORE、2 O3 C17_V2、3 O4 QS_V3、4 O5 海外桶、5 O6 加密两本
+const kwfoRead = (i) => Object.freeze({ decision: `verdicts.${i}.verdict`, strength: `verdicts.${i}.evidence` });
+// 回程 verdictState：结果文件对「通过」的对象不写状态字（证据强度为 null），state_zh 取冻结 K2 §5 判定表的原词；O2 的状态照读文件
+const KWFO_PASS_ZH = '通过（无 F1、无 F2）';
+const KWFO_PASS_NO_F2_ZH = '通过（无 F1；F2 不适用）';
+const kwfo = (id, strategy_ref, i, title, expect, note_zh, state_zh = null) => Object.freeze({ id, label_zh: '凯利 m 前推', strategy_ref, kind: 'RESULT', sealed_on: '2026-11-11',
+  title_zh: `凯利上限 m 的滚动前推（WFO）：${title}`, file: KWFO_RESULT, k2: KWFO_K2, freeze: KWFO_FREEZE, run_log: KWFO_RUN_LOG,
+  k2_frozen_at: '2026-11-11T08:57:00+08:00', trial_gates_ruling: KWFO_RULING, read: kwfoRead(i), expect, note_zh, ...(state_zh ? { state_zh } : {}) });
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -230,6 +251,24 @@ const ENTRIES = Object.freeze([
   { id: 'C17-R8', label_zh: 'R8（X04）', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '保护性 K 线规则是否以收益为代价（C17 单元）', file: R8_RESULT, k2: R8_K2, freeze: R8_FREEZE, read: unitRead('C17'), expect: '不做' },
   { id: 'US5-X07C', label_zh: 'X07c', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '价量结构，与 A 股共用 PVS 定义（US_V5 单元）', file: X07C_RESULT, k2: X07C_K2, freeze: X07C_FREEZE, read: unitRead('US_V5'), expect: '不做' },
   { id: 'C17-X07C', label_zh: 'X07c', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-10', title_zh: '价量结构，与 A 股共用 PVS 定义（C17 单元）', file: X07C_RESULT, k2: X07C_K2, freeze: X07C_FREEZE, read: unitRead('C17'), expect: '不做' },
+  // 修订 4：凯利 m 前推，七个单元，结论只从封存文件读
+  kwfo('US5-KWFO', US5, 0, 'US_V5 单本上限（现行 m = 1）', '不做',
+    '7 折的 m_f 都是 2（网格顶）；前推按 min(m_f, 1) = 1 定仓，最大回撤 15.03%，离 L-R1 50% 线 34.97 pp。m 可以更大只披露，不提议（只降不升）。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_ZH),
+  kwfo('UC-KWFO', UC, 1, 'US_CORE 单本上限（现行 0.42）', '做',
+    'F2：后一半折（第 4–7 折）m_f 为 0.41 / 0.41 / 0.42 / 0.43，中位数 0.415 < 现行 0.42，收紧候选 0.415，只低半个二分步长（0.01）；前推不触线（最大回撤 16.68%，离线 33.32 pp）。'
+    + '协调裁定（11-11）：现在不起草收紧修订，上限仍是签字的 0.42；US_V5 的 S8 节奏重新拟合（11-16 之后）会再读含 US_CORE 的联合线，届时一起看；Owner 可推翻。'
+    + '不利事实：第 1、3、4、5 折里现行 0.42 的折内触线概率为 5.29–5.50%，略高于 5% 容差；W-LONG 的 27 折（只报）m_f 为 0.46–0.52，没有一折低于 0.42。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。'),
+  kwfo('C17-KWFO', C17, 2, 'C17_V2 单本上限（现行 0.43）', '不做',
+    '后一半折 m_f 中位数 0.43，等于现行值，极差 0.02；前推最大回撤 22.15%，离 L-R1 线 27.85 pp。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_ZH),
+  kwfo('QS-KWFO', QS, 3, 'QS_V3 单本上限（现行 0.19，L-R1 + L-QS）', '不做',
+    '不利事实：m_f 逐折下降，0.74 → 0.60 → 0.46 → 0.21 → 0.22 → 0.19 → 0.17；最后一折低于现行 0.19，该折在 0.19 下的折内触线概率为 7.53%。F2 没触发，只因为后一半折中位数 0.20 ≥ 0.19，极差 0.05。'
+    + '协调裁定（11-11）：在 11-16 起的 W46 周复盘里登记为「待研究」，不改上限。前推在固定 0.19 下，QS 最大回撤 7.54%（L-QS 线 25%）。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_ZH),
+  kwfo('US5-KWFO-BUCKET', US5, 4, '海外桶联合线（US_V5 为自由项）', '不做',
+    '联合线 L-R1b 40%：US_V5 为自由项（≤ 1），其余三本固定在签字的单本上限。7 折都是 NO_FURTHER_CAP；前推最大回撤 10.46%，离线 29.54 pp。读法照 cap-s22.js 的 45 日回看，比生产的 MIN_OF_BOTH 偏严。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_ZH),
+  kwfo('C17-KWFO-PAIR', C17, 5, '加密两本联合线（C17 单元）', '不做',
+    '联合线 L-A19 2,400 USD：没有自由项；7 折都是 NO_FURTHER_CAP，各折在本折单本上限下的触线概率为 1.06–1.41%；前推离线 1,598.92 USD。F2 不适用（没有逐折的 m_f）。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_NO_F2_ZH),
+  kwfo('QS-KWFO-PAIR', QS, 5, '加密两本联合线（QS 单元）', '不做',
+    '联合线 L-A19 2,400 USD：没有自由项；7 折都是 NO_FURTHER_CAP，各折在本折单本上限下的触线概率为 1.06–1.41%；前推离线 1,598.92 USD。F2 不适用（没有逐折的 m_f）。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_NO_F2_ZH),
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────
@@ -280,6 +319,8 @@ const boundFiles = (entry) => [
   ...(entry.k2 && entry.k2 !== entry.file ? [{ role: 'K2', spec: entry.k2 }] : []), ...(entry.freeze && entry.freeze !== entry.file ? [{ role: 'FREEZE', spec: entry.freeze }] : []),
   // 过拟合控制修订 §2.4：G-TRIAL-SEAL 的运行日志（只有登记了 run_log 的题才有，之前的题不变）
   ...(entry.run_log ? [{ role: 'RUN_LOG', spec: entry.run_log }] : []),
+  // 导入规格修订 4：门的裁定页（只有登记了 trial_gates_ruling 的题才有）
+  ...(entry.trial_gates_ruling ? [{ role: 'RULING', spec: entry.trial_gates_ruling.spec }] : []),
 ];
 const evidencePath = (dir, spec) => (spec.source === 'coordinator' ? path.join(dir, 'coordinator', spec.path) : path.join(dir, spec.source, spec.commit.slice(0, 12), spec.path));
 
@@ -357,6 +398,7 @@ function checkEntry(entry, evidenceDir, store = STORE) {
   const trial = trialGates.check(entry, {
     k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
     runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null),
+    rulingBytes: () => (entry.trial_gates_ruling ? readBound(evidencePath(evidenceDir, entry.trial_gates_ruling.spec), entry.trial_gates_ruling.spec.sha256) : null),
   });
   return { identity, refs, verdict, trial };
 }
@@ -404,7 +446,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
 
 const KIND_ZH = { RESULT: '已封存', DRAFT: '草稿（未冻结）', STATUS: '冻结 / 前向影子', READING: '只报读数' };
 const FILE_LABEL_ZH = { RESULT: '封存结果文件', READING: '封存读数文件', DRAFT: 'K2 草稿', STATUS: '影子规格' };
-const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定', RUN_LOG: '运行日志' };
+const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定', RUN_LOG: '运行日志', RULING: '门的裁定' };
 const toneOf = (entry, decision) => (entry.kind !== 'RESULT' ? 'NEUTRAL' : decision === '做' ? 'DO' : decision === '不做' ? 'DONT' : 'OTHER');
 const reasonText = (error) => (error instanceof K3Error ? `${error.code}${error.detail ? `（${error.detail}）` : ''}` : error.message);
 

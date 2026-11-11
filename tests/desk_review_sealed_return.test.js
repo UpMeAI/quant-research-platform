@@ -32,13 +32,14 @@ function repoWith(files) {
 }
 const CONCLUSION_MD = '# 结论\n\n## 0. 结论\n\n**做。** 读数满足判法。\n\n**按冻结页要求必须写的一句：判法在读数之后改过。** 后文。\n';
 
-function fixture({ x08Spy = '不做', x08Expect = 'V2_SPY:不做' } = {}) {
+function fixture({ x08Spy = '不做', x08Expect = 'V2_SPY:不做', dState = '通过（无 F1、无 F2）' } = {}) {
   const sfFiles = {
     'a.json': `${JSON.stringify({ verdict: { decision: '不做', evidence_strength: '无候选；功效约 7%' } })}\n`,
     'b.json': `${JSON.stringify({ decision: { US_V5: '不做（无候选）' } })}\n`,
     'c.json': `${JSON.stringify({ verdict: { state: 'INSUFFICIENT', reasons: ['CI'] } })}\n`,
     'x08.json': `${JSON.stringify({ final: { V1: { verdict: 'INSUFFICIENT-R2', action: 'UNDECIDED' }, V2_SPY: { verdict: 'DIP_FAIL', action: x08Spy }, V2_SPMO: { verdict: 'INSUFFICIENT-R2', action: 'UNDECIDED' }, V3_E_V: { verdict: 'INSUFFICIENT-R2', action: 'UNDECIDED' }, V3_E_S: { verdict: 'INSUFFICIENT-R2', action: 'UNDECIDED' } } })}\n`,
     'shadow.md': '# shadow\n',
+    'd.json': `${JSON.stringify({ verdicts: [{ verdict: '不做', evidence: null }] })}\n`,
   };
   const sf = repoWith(sfFiles);
   const v6Files = { 'r.json': `${JSON.stringify({ decisions: { '510300.SH': { decision: '不做', reasons: ['BELOW_ZERO', 'BELOW_C'] } } })}\n` };
@@ -53,6 +54,8 @@ function fixture({ x08Spy = '不做', x08Expect = 'V2_SPY:不做' } = {}) {
     { ...common, id: 'T-C', strategy_ref: 'US_CORE_9000USD_3X_GATEOBS', file: s('c.json'), read: { decision: 'verdict.state', strength: 'verdict.reasons', use: null, text: null }, expect: 'INSUFFICIENT', resolve: { INSUFFICIENT: { decision: '做', use_zh: '纸面' } } },
     { ...common, id: 'UC-X08', strategy_ref: 'US_CORE_9000USD_3X_GATEOBS', file: s('x08.json'), read: { final: 'final' }, expect: x08Expect },
     { ...common, id: 'T-SHADOW', kind: 'STATUS', strategy_ref: 'US_V5_ETF_3000USD', file: s('shadow.md'), status_zh: '前向影子运行中' },
+    // 导入规格修订 4：文件对「通过」不写状态字，登记表的 state_zh 补上
+    { ...common, id: 'T-D', strategy_ref: 'QUICK_SHOT_V3_1000USDT', file: s('d.json'), read: { decision: 'verdicts.0.verdict', strength: 'verdicts.0.evidence' }, expect: '不做', ...(dState ? { state_zh: dState } : {}) },
   ];
   const a = (rel) => ({ source: 'ashare-v6', commit: v6.commit, path: rel, sha256: sha(v6Files[rel]), ref: `Ashare-V6@x:${rel}` });
   const ashareEntries = [
@@ -104,11 +107,17 @@ test('打开：只有 RESULT；结论只有做 / 不做，INSUFFICIENT 记做且
   assert.deepEqual([by['T-A'].verdict, by['T-A'].verdictState, by['T-A'].market, by['T-A'].book], ['不做', '无候选；功效约 7%', 'CRYPTO', 'C17_V2_4000USDT']);
   assert.deepEqual([by['T-B'].verdict, by['T-B'].verdictState, by['T-B'].market], ['不做', '不做（无候选）', 'US']);
   assert.deepEqual([by['T-C'].verdict, by['T-C'].verdictState], ['做', 'INSUFFICIENT']);
+  assert.deepEqual([by['T-D'].verdict, by['T-D'].verdictState, by['T-D'].market], ['不做', '通过（无 F1、无 F2）', 'CRYPTO']);
   assert.deepEqual([by['CN-T'].verdict, by['CN-T'].verdictState, by['CN-T'].market, by['CN-T'].book, by['CN-T'].resultFile], ['不做', 'BELOW_ZERO、BELOW_C', 'CN', 'INDEX_BOOK', 'Ashare-V6:r.json']);
   assert.deepEqual([by['CN-MD'].verdict, by['CN-MD'].verdictState, by['CN-MD'].commit, by['CN-MD'].resultFile], ['做', '判法在读数之后改过。', null, 'artifacts/coordinator/CONCLUSION.md']);
   assert.equal(payload.sealedVerdicts.some((r) => r.id.includes('SHADOW')), false, '前向影子不进这一块');
   assert.ok(payload.sealedVerdicts.every((r) => r.origin === 'QRP_PROGRAM' && r.deskLink === null));
   assert.deepEqual(payload.decisions, returns.buildReturn({ generatedAt: AT }).decisions, '不写采用记录');
+});
+
+test('修订 4：文件没有状态字、登记表也没写 state_zh → 拒绝导出（RETURN_SEALED_STATE_MISSING），不写空状态', () => {
+  const fx = imported(fixture({ dState: null }));
+  assert.throws(() => returns.buildReturn({ generatedAt: AT, sealedVerdicts: true, sealedStores: fx.stores }), /RETURN_SEALED_STATE_MISSING:T-D/);
 });
 
 test('修订 8 §4：UC-X08 三行按裁定，两条 V3 不进；文件与裁定不符就拒绝导出', () => {

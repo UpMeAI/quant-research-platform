@@ -34,10 +34,13 @@ function verdictWord(raw, id) {
   return fail('RETURN_SEALED_VERDICT_NOT_DO_OR_DONT', `${id}:${raw}`);
 }
 
-/** 研究原始状态：登记的 read.state；否则结论词之外的统计态（如 INSUFFICIENT）；否则文件写的证据强度。 */
-function stateOf({ state, verdict }, id) {
+/**
+ * 研究原始状态：登记的 read.state；否则结论词之外的统计态（如 INSUFFICIENT）；否则文件写的证据强度；
+ * 都没有时用登记的 state_zh（导入规格修订 4：结果文件对「通过」的对象不写状态字，登记表写冻结 K2 判定表的原词）。
+ */
+function stateOf({ state, verdict }, id, stateZh = null) {
   const raw = verdict.raw;
-  const value = state || (raw && !/^(做|不做)$/.test(raw) ? raw : verdict.strength);
+  const value = state || (raw && !/^(做|不做)$/.test(raw) ? raw : verdict.strength) || stateZh;
   return value || fail('RETURN_SEALED_STATE_MISSING', id);
 }
 
@@ -56,7 +59,7 @@ function rowsOf({ entry, lock, read, market, deskLink }) {
       return { id: `${lock.result_id}:${line}`, ...base, verdict: rule.verdict, verdictState: rule.state || final[line].verdict };
     });
   }
-  return [{ id: lock.result_id, ...base, verdict: verdictWord(read.verdict.decision, entry.id), verdictState: stateOf(read, entry.id) }];
+  return [{ id: lock.result_id, ...base, verdict: verdictWord(read.verdict.decision, entry.id), verdictState: stateOf(read, entry.id, entry.state_zh || null) }];
 }
 
 /** 这个结果当前的 desk 回链（result_hash = 文件 sha256，或 result_ref = QRP:<result_id>:LOCKED）。没有就是 null，不编造。 */
