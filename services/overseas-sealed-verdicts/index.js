@@ -49,6 +49,7 @@ const COMMIT = Object.freeze({
   D5_V1: 'cf1a0d41af18366e8f6cf67d7f08d036b1b1d4f9', D5_V2: 'ac35eeca3e9fb3a2e3abac2bc965a4245a6e6bdc', D8: 'e2dc109829865f288ed7e09479350e8bf17b6ac1',
   X05: 'd407ad68f74e379564fefd26c31946da434b13d5', R8: '64b3b82bacb8d97000efb4e510b11fe6791bf42e', X07C: '9330bc89ace6ed2ac1d3c0e00d149954b7fc5714',
   KWFO: 'b0abc9c8015c9cbb4fb5bbcad855061cb2787f6a', KWFO_RUN_LOG: '7e6783e083c76e8d6a4076e81d7d51dc34de260a',
+  QSD: '34694ef2465658f7bb537a85e43ac07399821c41', QSD_RUN_LOG: 'f23599084e5c251e727fd2b3611ac80f36612c54',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -118,6 +119,14 @@ const KWFO_PASS_NO_F2_ZH = '通过（无 F1；F2 不适用）';
 const kwfo = (id, strategy_ref, i, title, expect, note_zh, state_zh = null) => Object.freeze({ id, label_zh: '凯利 m 前推', strategy_ref, kind: 'RESULT', sealed_on: '2026-11-11',
   title_zh: `凯利上限 m 的滚动前推（WFO）：${title}`, file: KWFO_RESULT, k2: KWFO_K2, freeze: KWFO_FREEZE, run_log: KWFO_RUN_LOG,
   k2_frozen_at: '2026-11-11T08:57:00+08:00', trial_gates_ruling: KWFO_RULING, read: kwfoRead(i), expect, note_zh, ...(state_zh ? { state_zh } : {}) });
+
+// 修订 5：QS_V3 凯利上限读数逐折下降（QS-KELLY-DECAY），一个单元。11-11 13:45:16 冻结，先预登记后冻结（25 行写进 K2），PRE 照常过；
+// 裁定 1（d4e6d4b7…）的复现检查行按 UNPLANNED_RUN 记。披露行的 DSR、PBO「不适用」写在 K2 §2，所以门的裁定页就是 K2 本身（不放行 PRE）
+const QSD_RESULT = sf(COMMIT.QSD, 'docs/evidence/qs-kelly-decay/QS_KELLY_DECAY_RESULT_V1.json', 'dd75b449dd522844fb95a435c182477f8e5369c8bb72506a45f0ff15c49cf68b');
+const QSD_RUN_LOG = sf(COMMIT.QSD_RUN_LOG, 'docs/evidence/qs-kelly-decay/RESEARCH_RUN_LOG_V1.json', 'cf4b4573b4d60cf4211c1eb3bd045b875b0b2aa6a4276ee4c0da33ab94b28053');
+const QSD_K2 = coord('QS_KELLY_DECAY_K2_V1.draft.md', 'e5b22ae4c92227b538344583037bfeee292fc2e77a1ddf93ad6cc3d63797c123');
+const QSD_FREEZE = coord('QS_KELLY_DECAY_K2_V1_FREEZE_1.md', 'fe9448ef54d8d30f54940d5bf037b7fcd9a8b5ef22eb0032806e0339f649568c');
+const QSD_RULING = Object.freeze({ spec: QSD_K2, disclosure_not_applicable: Object.freeze(['dsr', 'pbo']) });
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -269,6 +278,17 @@ const ENTRIES = Object.freeze([
     '联合线 L-A19 2,400 USD：没有自由项；7 折都是 NO_FURTHER_CAP，各折在本折单本上限下的触线概率为 1.06–1.41%；前推离线 1,598.92 USD。F2 不适用（没有逐折的 m_f）。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_NO_F2_ZH),
   kwfo('QS-KWFO-PAIR', QS, 5, '加密两本联合线（QS 单元）', '不做',
     '联合线 L-A19 2,400 USD：没有自由项；7 折都是 NO_FURTHER_CAP，各折在本折单本上限下的触线概率为 1.06–1.41%；前推离线 1,598.92 USD。F2 不适用（没有逐折的 m_f）。来源：smartflow research/kelly-m-wfo-run 的结果文档 KELLY_M_WFO_RESULT_V1.md（78e73fa8），封存 2026-11-11。', KWFO_PASS_NO_F2_ZH),
+  // 修订 5：QS_V3 凯利上限读数逐折下降，结论只从封存文件读
+  { id: 'QS-KDECAY', label_zh: 'QS 凯利读数衰减', strategy_ref: QS, kind: 'RESULT', sealed_on: '2026-11-11',
+    title_zh: 'QS_V3 凯利上限读数逐折下降：来源分解与近期滚动读数（L-QS，现行 0.19）', file: QSD_RESULT, k2: QSD_K2, freeze: QSD_FREEZE, run_log: QSD_RUN_LOG,
+    k2_frozen_at: '2026-11-11T13:45:16+08:00', trial_gates_ruling: QSD_RULING,
+    read: Object.freeze({ decision: 'verdict.verdict', strength: 'verdict.evidence', use: 'verdict.allowedUse' }), expect: '做',
+    cites: ['artifacts/coordinator/QS_KELLY_DECAY_K2_V1_RULING_1_G_ROLL_1.md（d4e6d4b7…，G-ROLL-1 的种子冲突，复现检查行 QSD_R1_F1SEED 按 UNPLANNED_RUN 记）'],
+    note_zh: 'R-A：最近 4 个 3 年滚动窗（止于 2024-12-27 → 2026-09-30）的 L-QS 判定 m 为 0.15 / 0.125 / 0.11 / 0.11，全部低于 0.19，收紧候选 0.1175（中位数）。'
+      + '读法：「做」只来自零优势读数；按样本读数在这 4 个窗是 0.37 / 0.36 / 0.30 / 0.20，0.19 下按样本的触线概率 0.00%–2.98%，都在 5% 容差内。'
+      + '原因是波动和活跃度上升，不是优势变小：以 2023-01-01 为界，每日盈亏均值 0.04 → 0.97 USDT（差值区间 [−0.63, +2.91]），日标准差 4.7 → 30.5，每半年持仓天数 4–31 → 50–76。'
+      + '2024H1（QS 最赚钱的半年，+1,268 USDT）影响最大：去掉它，零优势读数 0.19 → 0.26，占前推 F3 → F4 那一步的 28%。'
+      + '协调会话 11-11 已把收紧候选起草成签字文本交 Owner（推荐 0.12），Owner 签字前生产不变；选股择时层判 QS 优势另立题，进 W46 待研究。来源：smartflow research/qs-kelly-decay-run 的结果文档 QS_KELLY_DECAY_RESULT_V1.md（c5751abe），封存 2026-11-11。' },
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────

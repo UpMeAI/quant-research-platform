@@ -80,15 +80,21 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元过门（11-11 冻结），且都带门的裁定；其余都在修订生效前冻结或封存', () => {
+test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元和修订 5 的 QS-KDECAY 过门（11-11 冻结），且都带门的裁定；其余都在修订生效前冻结或封存', () => {
   const gated = [...overseas.ENTRIES, ...ashare.ENTRIES].filter((entry) => gates.applies(entry).applies).map((entry) => entry.id);
-  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR']);
-  for (const id of gated) {
+  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY']);
+  for (const id of gated.filter((x) => x.includes('KWFO'))) {
     const entry = overseas.ENTRIES.find((e) => e.id === id);
     assert.equal(entry.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
     assert.deepEqual(entry.trial_gates_ruling.pre.codes, gates.DEVIATION_CODES, id);
     assert.ok(entry.run_log, id);
   }
+  // 修订 5：先预登记后冻结，PRE 不放行任何偏差；只有披露行的「不适用」引用 K2 §2
+  const qs = overseas.ENTRIES.find((e) => e.id === 'QS-KDECAY');
+  assert.equal(qs.trial_gates_ruling.pre, undefined);
+  assert.equal(qs.trial_gates_ruling.spec, qs.k2);
+  assert.deepEqual([...qs.trial_gates_ruling.disclosure_not_applicable], ['dsr', 'pbo']);
+  assert.ok(qs.run_log);
   assert.equal(gates.EFFECTIVE_FROM, '2026-11-11T00:00:00+08:00');
 });
 
