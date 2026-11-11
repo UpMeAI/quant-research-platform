@@ -129,8 +129,9 @@ const QSD_K2 = coord('QS_KELLY_DECAY_K2_V1.draft.md', 'e5b22ae4c92227b5383445830
 const QSD_FREEZE = coord('QS_KELLY_DECAY_K2_V1_FREEZE_1.md', 'fe9448ef54d8d30f54940d5bf037b7fcd9a8b5ef22eb0032806e0339f649568c');
 const QSD_RULING = Object.freeze({ spec: QSD_K2, disclosure_not_applicable: Object.freeze(['dsr', 'pbo']) });
 
-// 修订 6：C17_V2 成本与选择（C17-COST-SEL）、US_CORE 账户级风险（UC-ACCT-RISK），各一个单元。都是先预登记后冻结，PRE 照常过；
-// 披露行的 DSR 是数值读法（UNKNOWN，族里带 ŜR 的试验太少），不是「不适用」，所以不带门的裁定
+// 修订 6：C17_V2 成本与选择（C17-COST-SEL）、US_CORE 账户级风险（UC-ACCT-RISK），各一个单元。实际要跑的行都在冻结前预登记；
+// 两份 K2 §2 还写了只在未选 ★ 下才登记的条件 id，按协调会话 11-12 裁定（52f4c897…）记 PRE_CONDITIONAL_ID_NOT_CHOSEN。
+// 披露行的 DSR 是数值读法（UNKNOWN，族里带 ŜR 的试验太少），不是「不适用」，裁定不放行披露
 const CCS_RESULT = sf(COMMIT.CCS, 'docs/evidence/c17-cost-sel-v1/C17_COST_SELECTION_RESULT_V1.json', '39d2fd67e6313f218f2a20cbe3bb55e16cfc1d8a0fb8aba8d81fde8b4cb5bd82');
 const CCS_RUN_LOG = sf(COMMIT.CCS, 'docs/evidence/c17-cost-sel-v1/RESEARCH_RUN_LOG_V1.json', '983aef77d1e41eedb39d809d2b850e70bb6ad572e97fa24f9eed3bbd1c175c22');
 const CCS_K2 = coord('C17_COST_SELECTION_K2_V1.draft.md', 'e15902b93420b6ee22a16c98ab6603a02798f213dc4e56ec6ba67f275fa8d2e1');
@@ -139,6 +140,13 @@ const UCR_RESULT = sf(COMMIT.UCR, 'docs/evidence/uc-acct-risk-v1/US_CORE_ACCOUNT
 const UCR_RUN_LOG = sf(COMMIT.UCR, 'docs/evidence/uc-acct-risk-v1/RESEARCH_RUN_LOG_V1.json', 'ed7885441fa24a5d3c4519bb4e95326d0b4a3c2b31453997de150a8c4f3f3739');
 const UCR_K2 = coord('US_CORE_ACCOUNT_RISK_K2_V1.draft.md', '2104095f3f998cceb7b3b20f52453633bf812fcd076c7cdfb8b2369900d50df2');
 const UCR_FREEZE = coord('US_CORE_ACCOUNT_RISK_K2_V1_FREEZE_1.md', 'c10fb6872c2e1ea6ddbfa9e6de43f70da39e2169cae0ad79a4b59841b48d3b5f');
+const R6_RULING = coord('C17_COSTSEL_US_CORE_ACCT_RISK_TRIAL_GATES_RULING_20261112.md', '52f4c897c3878a35a6a89729653b6548572bce4cec3a20fe3819a764175d50f6');
+const cond = (trial_id, star, option) => Object.freeze({ trial_id, star, option });
+const CCS_RULING = Object.freeze({ spec: R6_RULING, pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_CONDITIONAL_ID_NOT_CHOSEN']),
+  preregistered_at: '2026-11-11T15:33:07.894Z', first_run_at: '2026-11-11T15:55:39Z',
+  conditional_ids: Object.freeze([cond('TRL-b42e30d24f319f9c', 3, 'b'), cond('TRL-7c6664a0db2a14fd', 3, 'b'), cond('TRL-5553ab546ff539ca', 5, 'b')]) }) });
+const UCR_RULING = Object.freeze({ spec: R6_RULING, pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_CONDITIONAL_ID_NOT_CHOSEN']),
+  preregistered_at: '2026-11-11T15:53:47.478Z', first_run_at: '2026-11-11T16:10:31Z', conditional_ids: Object.freeze([cond('TRL-01598f92e7d4339b', 1, 'c')]) }) });
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -304,7 +312,7 @@ const ENTRIES = Object.freeze([
   // 修订 6：C17_V2 成本与选择、US_CORE 账户级风险，结论只从封存文件读
   { id: 'C17-COSTSEL', label_zh: 'C17 成本与选择', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-12',
     title_zh: 'C17_V2 成本与选择：实盘成本与选择块的拆分，候选「止损下限生效的信号不进」（BTC/ETH）', file: CCS_RESULT, k2: CCS_K2, freeze: CCS_FREEZE, run_log: CCS_RUN_LOG,
-    k2_frozen_at: '2026-11-11T23:33:43+08:00',
+    k2_frozen_at: '2026-11-11T23:33:43+08:00', trial_gates_ruling: CCS_RULING,
     read: Object.freeze({ decision: 'decision', strength: 'evidence_strength_short_zh', use: 'allowed_use_zh', text: 'first_paragraph_zh' }), expect: '不做',
     note_zh: '候选 T = R7 的基线 B + 止损下限生效的信号不进：Δg −6.39 个百分点/年 [−18.78, +5.05]，判定表第 3 行（点估计 ≤ 0）；两条线都过（1.66% / 0.28%）。'
       + '读法：被挡的那类入场在历史上是赢家。基线 B 里样本外 364 笔每笔净 R +0.121（ATR 止损的 266 笔 +0.031），开发期 85 笔 −0.045；实盘那 21 笔的亏损（−524 USDT）在历史上不成立。'
@@ -312,7 +320,7 @@ const ENTRIES = Object.freeze([
       + '选择块 95% 以上亏在非主流入场，非主流不在回放引擎里。来源：smartflow research/c17-cost-sel-run 的结果文档 C17_COST_SELECTION_RESULT_V1.md（35f5f7d7），封存 2026-11-12。' },
   { id: 'UC-ACCTRISK', label_zh: 'US_CORE 账户级风险', strategy_ref: UC, kind: 'RESULT', sealed_on: '2026-11-12',
     title_zh: 'US_CORE 账户级风险：按账本自身回撤给敞口上限（45 日回撤刹车，只收紧）', file: UCR_RESULT, k2: UCR_K2, freeze: UCR_FREEZE, run_log: UCR_RUN_LOG,
-    k2_frozen_at: '2026-11-11T23:54:13+08:00',
+    k2_frozen_at: '2026-11-11T23:54:13+08:00', trial_gates_ruling: UCR_RULING,
     read: Object.freeze({ decision: 'verdict.decision', strength: 'verdict.evidence', use: 'allowed_use_zh', text: 'first_paragraph_zh' }), expect: '不做',
     note_zh: '45 日回撤刹车（US_V5 已签档位 8% → 0.6、15% → 0.35、22% → 0.15；m = 0.42 × 系数，只减不加）：判定表第 2 行，D-4 没过。'
       + '样本外最大回撤 20.18% 对 21.64%、最差月份 9.19% 对 11.59%、日 CVaR 5% 2.25% 对 2.64%，但 Δg −1.56 个百分点/年 [−3.46, +0.35]，超出 −1 的收益约束；两条线都过（0.71% / 0.17%）。'
@@ -448,6 +456,7 @@ function checkEntry(entry, evidenceDir, store = STORE) {
     k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
     runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null),
     rulingBytes: () => (entry.trial_gates_ruling ? readBound(evidencePath(evidenceDir, entry.trial_gates_ruling.spec), entry.trial_gates_ruling.spec.sha256) : null),
+    freezeBytes: () => (entry.freeze ? readBound(evidencePath(evidenceDir, entry.freeze), entry.freeze.sha256) : null),
   });
   return { identity, refs, verdict, trial };
 }
