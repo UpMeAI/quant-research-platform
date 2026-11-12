@@ -1,0 +1,27 @@
+{
+  "schema": "RESEARCH_TRIAGE_DRY_RUN_EVIDENCE_V1",
+  "sourceQueue": {
+    "file": "REVIEW_LOOP_RESEARCH_QUEUE_2026-W45.json",
+    "sha256": "1f3d60c52d2c51308b3029c445e59cc0e95f419f8222de0016128f074ed4433c"
+  },
+  "sourceWeek": {
+    "file": "REVIEW_LOOP_WEEK_2026-W45.json",
+    "sha256": "b3596e5344a1df52ababe5cecac921e90ffc854e268e209ed60f25b5d8e01d32"
+  },
+  "mode": "DRY_RUN",
+  "wouldWrite": true,
+  "count": 8,
+  "records": [
+    { "candidateId": "RLC-CN-2026W42-1", "recordId": "RTR-56e4b51d60665a0b", "recordHash": "56e4b51d60665a0bd86ff30c6afe0eec163a2dc84c0bbdf1f7278993dfc9fc00", "outcome": "CLOSE" },
+    { "candidateId": "RLC-CRYPTO-2026W42-1", "recordId": "RTR-ec11b98fe7466ec9", "recordHash": "ec11b98fe7466ec99cf339ca6a71fd77f8c2de22aaf3fa910f5de0b8c503a844", "outcome": "FIX" },
+    { "candidateId": "RLC-CN-2026W43-1", "recordId": "RTR-6942917bcb2d5821", "recordHash": "6942917bcb2d58216bd14db7636fb4e4dbd5e3a608bb4db3ef7053a864b50925", "outcome": "FIX" },
+    { "candidateId": "RLC-US-2026W44-1", "recordId": "RTR-5e1b5186a186cbcd", "recordHash": "5e1b5186a186cbcdb5f2b3b8772dfdfb1d93996fb9feabd0cb91f13a0a6ec420", "outcome": "CLOSE" },
+    { "candidateId": "RLC-US-2026W44-2", "recordId": "RTR-f67f2d70784809ee", "recordHash": "f67f2d70784809eed25a9f79d3b78101ddf69b1d6c53d2e1f9945e8bfb7572bc", "outcome": "FIX" },
+    { "candidateId": "RLC-US-2026W45-1", "recordId": "RTR-12e9f69ffa9ef3bb", "recordHash": "12e9f69ffa9ef3bba29d36b6cff90730f3e17858a53af3c2212e2ddd9f3410ed", "outcome": "FIX" },
+    { "candidateId": "RLC-US-2026W45-2", "recordId": "RTR-d917e58d390080a5", "recordHash": "d917e58d390080a5f0309ed0c68b80573076bf876c02f2353a1f53ac4c1a2fec", "outcome": "FIX" },
+    { "candidateId": "RLC-US-2026W45-4", "recordId": "RTR-971d37cd020d89f5", "recordHash": "971d37cd020d89f575d6fe39e98eb2fde8ddc5d3a20556a912287080ad1b56e5", "outcome": "OPEN_QUESTION" }
+  ],
+  "ledgerCreated": false,
+  "productionEffect": "NONE",
+  "noteZh": "输入的分诊裁定取自 Research 已有台账；本证据只记可公开的候选身份、记录哈希和结果，不记私有依据文本。试跑在空的临时 QRP_DATA_DIR 中完成，未生成 desk_triage.jsonl。"
+}

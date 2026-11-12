@@ -12,7 +12,7 @@
  * desk 编周档时按同样的规则再核一遍（desk ops/review-loop/triage.cjs），不合规的只列为「未采用」，不改候选。
  * 回程导出（return.js）把每个候选当前有效的一行按 desk 契约的字段带到 desk：triage[]。
  */
-const { dataDir, append, read } = require('../../packages/ledger');
+const { dataDir, append, appendMany, read } = require('../../packages/ledger');
 const { contentHash } = require('./canonical');
 const routing = require('./index');
 
@@ -74,8 +74,7 @@ function deskRow(row) {
 function ledgerRows() { return read(LEDGER()).filter((row) => row.schema === SCHEMA); }
 
 /** 每个候选当前有效的一行：没被 supersedes 的、最晚的一行。按分诊时刻排序，同一时刻按记账先后。 */
-function effectiveTriage() {
-  const rows = ledgerRows();
+function effectiveTriage(rows = ledgerRows()) {
   const superseded = new Set(rows.map((row) => row.supersedes).filter(Boolean));
   const latest = new Map();
   rows.forEach((row, index) => { if (!superseded.has(row.record_id)) latest.set(row.candidate_id, { row, index }); });
@@ -114,7 +113,7 @@ function evidenceProblem(input, entry, entries) {
  * @param {object} input  {candidateId, outcome, reasonCode?, questionRef?, mergedInto?, fixRef?, evidence?, basisZh, at, sessionRef?, supersedes?}
  * @returns {object} 写下的账本行
  */
-function recordTriage(input, { deskRoot } = {}) {
+function prepareTriage(input, { deskRoot, existingRows = ledgerRows(), writtenAt = new Date().toISOString() } = {}) {
   const queue = routing.readQueue({ deskRoot });
   const entries = queue.payload.entries;
   const entry = entries.find((e) => e.candidateId === input.candidateId);
@@ -123,7 +122,7 @@ function recordTriage(input, { deskRoot } = {}) {
   const research = RESEARCH_TYPES.includes(entry.candidateType);
   if (!research && !ENGINEERING_TYPES.includes(entry.candidateType)) fail('TRIAGE_BEHAVIOR_IS_OWNERS', entry.candidateType);
   if ((input.outcome === 'OPEN_QUESTION' && !research) || (input.outcome === 'FIX' && research)) fail('TRIAGE_OUTCOME_TYPE_MISMATCH', `${input.outcome}:${entry.candidateType}`);
-  const effective = effectiveTriage().find((row) => row.candidate_id === entry.candidateId) || null;
+  const effective = effectiveTriage(existingRows).find((row) => row.candidate_id === entry.candidateId) || null;
   if (input.supersedes) {
     if (!effective || effective.record_id !== input.supersedes) fail('TRIAGE_SUPERSEDES_NOT_CURRENT', input.supersedes);
   } else {
@@ -159,9 +158,34 @@ function recordTriage(input, { deskRoot } = {}) {
     queue_file: body.queueFile, queue_sha256: body.queueSha256, outcome: body.outcome, reason_code: body.reasonCode, question_ref: body.questionRef,
     strategy_ref: body.strategyRef, merged_into: body.mergedInto, fix_ref: body.fixRef, evidence: body.evidence, basis_zh: body.basisZh,
     recorded_by: 'RESEARCH', session_ref: body.sessionRef, triaged_at: body.at, supersedes: body.supersedes, production_effect: 'NONE',
-    written_at: new Date().toISOString(),
+    written_at: writtenAt,
   };
-  return append(LEDGER(), row);
+  return row;
+}
+
+/** 记一条分诊；构造与核验由 prepareTriage 单一实现，便于只读试跑与真实写入同路径。 */
+function recordTriage(input, options = {}) {
+  return append(LEDGER(), prepareTriage(input, options));
+}
+
+/**
+ * 先在内存中核验整批决定。后一行能看到前一行的虚拟台账状态，因此重复、无效 supersedes 会在任何写入前被拒绝。
+ */
+function prepareTriageBatch(inputs, { deskRoot, writtenAt = new Date().toISOString() } = {}) {
+  if (!Array.isArray(inputs) || inputs.length === 0) fail('TRIAGE_BATCH_EMPTY');
+  const virtualRows = ledgerRows();
+  const prepared = [];
+  for (const input of inputs) {
+    const row = prepareTriage(input, { deskRoot, existingRows: virtualRows, writtenAt });
+    virtualRows.push(row);
+    prepared.push(row);
+  }
+  return prepared;
+}
+
+/** 整批核验通过后才以一次 append 写入；不从候选内容推断 Research 决定。 */
+function recordTriageBatch(inputs, options = {}) {
+  return appendMany(LEDGER(), prepareTriageBatch(inputs, options));
 }
 
 const monthDay = (iso) => new Date(Date.parse(iso) + 8 * 3600 * 1000).toISOString().slice(5, 10);
@@ -185,4 +209,5 @@ function pendingTriage({ deskRoot, now = new Date() } = {}) {
   return { entries: pending, earliestDue, textZh };
 }
 
-module.exports = { CODES, CODE_ZH, FIX_REPOS, LEDGER, OUTCOMES, SCHEMA, TriageError, deskRow, effectiveTriage, monthDay, pendingTriage, recordTriage, waitsForTriage };
+module.exports = { CODES, CODE_ZH, FIX_REPOS, LEDGER, OUTCOMES, SCHEMA, TriageError, deskRow, effectiveTriage, monthDay, pendingTriage,
+  prepareTriage, prepareTriageBatch, recordTriage, recordTriageBatch, waitsForTriage };
