@@ -60,6 +60,16 @@ without consuming the period claim. Disabled legacy `run()` remains unchanged;
 only the explicit runner delivers disabled reports. Facts retain null/missing
 values, source states and slice coverage; weekly comparison is null with availability NOT_IMPLEMENTED.
 
+Daily inbox continuation: `daily-inbox.js` reuses the registered books and reads
+only exact delivered paths for an explicit date. Real local validation of
+11-09..11-12 yielded 6 READY US three-source slices and 22 INPUT_MISSING packs;
+6 fixed fake responses passed checking and 28 report pairs are private/ignored.
+Complete daily readiness is false on all four days: local CN V2/CRYPTO/rule
+artifacts are absent; US NAV/V2 are absent on 11-12; carry NAV is unregistered.
+Related checks: 31/31. Final serial heavy-run: 605 total, 579 pass, zero fail,
+26 existing skips. The cumulative rule-change schema does not bind daily time coverage, so an
+empty/missing snapshot cannot prove no change. See AI_REVIEW_DAILY_INBOX_EVIDENCE.md.
+
 Next exact action: bind actual complete daily producer artifacts and required
 rule/change streams under versioned acceptance before weekly reconciliation.
 Do not invoke a real model, access credentials, install schedules or treat this

@@ -76,3 +76,11 @@ test('runner preflight recovery consumes no claim and budgets remain shared betw
   assert.ok(recovered.every(r => r.result.status === 'ACCEPTED'));
   assert.equal(calls(), 2);
 });
+test('runner preserves producer rejection reasons when unsupported scope is blocked', async t => {
+  const { options, calls } = setup(t);
+  const states = [{ ledger: 'CARRY_V2_SHADOW_10000USDT', status: 'INPUT_MISSING', reason: 'NAV_CONTRACT_NOT_REGISTERED' }];
+  const [row] = await runDailyLedgers({ ...options, packs: [{ ...pack('CARRY_V2_SHADOW_10000USDT'), inputState: 'INPUT_MISSING', states }] });
+  assert.equal(row.result.states[0].reason, 'NAV_CONTRACT_NOT_REGISTERED');
+  assert.equal(row.result.states.at(-1).reason, 'DAILY_SCOPE_INVALID');
+  assert.equal(calls(), 0);
+});

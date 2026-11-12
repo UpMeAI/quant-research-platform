@@ -48,7 +48,7 @@ function readSource({ source, kind, request, book, period, validateContract, now
     // producer's exact per-book decomposition, windows and ruleVersion enter.
     data = { sessionDate: doc.sessionDate, market: doc.market, currency: doc.currency, plan: la.plan, accountBasis: la.accountBasis, book: matches[0] };
   }
-  return { sourceFile: source.file, sourceSha256: source.sha256, sourceContract: KINDS[kind], scope: kind === 'trades' ? 'LEDGER' : 'BOOK', data };
+  return { sourceFile: source.file, sourceSha256: source.sha256, sourcePayloadSha256: doc.hash, sourceContract: KINDS[kind], scope: kind === 'trades' ? 'LEDGER' : 'BOOK', data };
 }
 
 // READY covers only this three-source daily slice. The standalone runner consumes
@@ -84,4 +84,8 @@ function readDeskDailyPacks({ period, requests, validateContract, nowMs }) {
     return pack;
   });
 }
-module.exports = { readDeskDailyPacks, isRegisteredDailyLedger };
+function dailyBookRequests() {
+  return Object.entries(BOOKS).flatMap(([ledgerId, book]) => book.parts.map(partId =>
+    ({ ledgerId, partId, producer: book.producer, market: book.market })));
+}
+module.exports = { readDeskDailyPacks, isRegisteredDailyLedger, dailyBookRequests };

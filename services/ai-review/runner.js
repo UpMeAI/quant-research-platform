@@ -23,7 +23,7 @@ async function runDailyLedgers({ packs, root = path.resolve(__dirname, '../../va
     const ledger = typeof original.ledger === 'string' ? original.ledger : null;
     const valid = isRegisteredDailyLedger(ledger) && original.coverage === 'DESK_DAILY_THREE_SOURCE_SLICE';
     const pack = { ...original, ledger, states: Array.isArray(original.states) ? original.states : [],
-      ...(valid ? {} : { inputState: 'INPUT_MISSING', states: [{ ledger, status: 'INPUT_MISSING', reason: 'DAILY_SCOPE_INVALID' }] }) };
+      ...(valid ? {} : { inputState: 'INPUT_MISSING', states: [...(Array.isArray(original.states) ? original.states : []), { ledger, status: 'INPUT_MISSING', reason: 'DAILY_SCOPE_INVALID' }] }) };
     // No source-controlled path segments, including ledger IDs, enter filesystem paths.
     const namespace = `ledger-${sha256(canonicalJson(ledger))}`;
     const result = await run({ ...options, root, pack, namespace });
