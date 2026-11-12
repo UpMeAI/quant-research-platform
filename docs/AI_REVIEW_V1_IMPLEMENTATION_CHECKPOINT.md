@@ -39,6 +39,25 @@ the all-ledger, decomposition and reconciliation acceptance.
 
 ## Remaining work (release validity false)
 
+Daily adapter checkpoint: `desk-input.js` now binds delivered trades, NAV and
+per-book loss attribution to both byte/payload hashes, schema, producer, session,
+ledger and part. It requires a trusted producer validator; malformed/missing or
+stale books cannot suppress other books. Seven adapter tests plus core/report
+tests pass 18/18 after two red transitions (missing module and null request).
+Synthetic fixtures use an injected validator and do not claim full producer
+schema acceptance. Real Desk validation rejected three incomplete synthetic
+documents as expected. Full real-input acceptance remains pending. Carry is not
+registered in this NAV contract. READY applies only to the explicit
+DESK_DAILY_THREE_SOURCE_SLICE coverage, not complete daily review coverage.
+
+Next exact action: add a per-ledger report runner with namespace isolation and
+persist deterministic reports for budget/input/unavailable states; prove no
+ledger overwrites another and no blocked input causes a fetch. Then bind actual
+complete daily producer artifacts before attempting weekly reconciliation.
+Do not call all packs with the same run() root: its claim/cache key currently
+contains only period and output. Do not invoke a real model, access credentials,
+install schedules or treat these adapters as completed all-ledger acceptance.
+
 Follow-up: Markdown now includes the supplied deterministic facts with their
 provenance and all accepted research-direction fields. Only ACCEPTED notes with
 a passing checker render model text. Report tests first failed at missing module,
