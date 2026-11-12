@@ -21,11 +21,40 @@ const { PIN, sha256Hex, coreDirHash, layout, loadedPackageFiles, assertCore } = 
 const JOB_KIND = 'QRP_REPLAY_CORE_JOB_V1';
 const PAYLOAD_KIND = 'QRP_REPLAY_CORE_PAYLOAD_V1';
 const RECEIPT_KIND = 'QRP_REPLAY_CORE_RUN_RECEIPT_V1';
+const C17_DATASET_REF_KIND = 'QRP_C17_DATASET_REF_V1';
+const C17_DATASET_LOADER_MODULE = 'agent/c17-futures-parity-backtest.js';
 
 // C17 的研究口径里唯一允许的配置叠加:按资产的止盈倍数与冷却(与 smartflow live replay 的 withTakeProfit 同一处配置)。
 // hooks 在运行时比对输入里记录的止盈倍数,叠加不一致即由 hooks 自己拒跑。
 const C17_OVERLAY_FIELDS = Object.freeze(['tpMultiplier', 'cooldown15M']);
 const C17_CONFIG_MODULE = 'agent/v5-agent-config.js';
+
+/**
+ * 大型 C17 缓存不能整体放进 v8 载荷(V8 单对象有长度上限)。真实缓存作业只保存缓存目录和
+ * manifest 哈希；运行端仍调用钉住的 smartflow loader。该 loader 已包含在 C17 的
+ * strategy_files_sha256 中，且它会逐项复核 manifest、原始归档和派生文件的哈希。
+ * 合成测试夹具仍可直接携带 dataset，不走磁盘引用。
+ */
+function resolveC17Dataset(payload, pkgRoot, { loadDataset = null } = {}) {
+  if (payload.datasetRef === undefined) {
+    if (!payload.dataset) throw new Error('C17_DATASET_MISSING');
+    return payload.dataset;
+  }
+  if (payload.dataset) throw new Error('C17_DATASET_REF_AMBIGUOUS');
+  const ref = payload.datasetRef;
+  const valid = ref && ref.kind === C17_DATASET_REF_KIND &&
+    typeof ref.cache_dir === 'string' && path.isAbsolute(ref.cache_dir) &&
+    typeof ref.manifest_file_sha256 === 'string' && /^[0-9a-f]{64}$/.test(ref.manifest_file_sha256) &&
+    Object.keys(ref).every((key) => ['kind', 'cache_dir', 'manifest_file_sha256'].includes(key));
+  if (!valid) throw new Error('C17_DATASET_REF_INVALID');
+  const loader = loadDataset || require(path.join(pkgRoot, C17_DATASET_LOADER_MODULE)).loadFuturesDataset;
+  if (typeof loader !== 'function') throw new Error('C17_DATASET_LOADER_INVALID');
+  const dataset = loader(ref.cache_dir);
+  if (dataset?.manifestFileSha256 !== ref.manifest_file_sha256) {
+    throw new Error('C17_DATASET_MANIFEST_SHA256_MISMATCH');
+  }
+  return dataset;
+}
 
 /** 各策略的输入构造:只调用 smartflow 的导出,不复制其逻辑。 */
 const BUILDERS = Object.freeze({
@@ -48,7 +77,7 @@ const BUILDERS = Object.freeze({
         if (CONFIG.ASSET_PARAMS[asset][field] !== value) throw new Error(`CONFIG_OVERLAY_NOT_APPLIED:${asset}.${field}`);
       }
     }
-    return mod.c17Input(payload.dataset, payload.opts);
+    return mod.c17Input(resolveC17Dataset(payload, pkgRoot), payload.opts);
   },
   CARRY(mod, payload) {
     // legacy:研究跑数器自己的 simulateSleeve 调用参数(layer-2 / 真实缓存作业),由 smartflow 的 carryInputFromLegacy 还原成输入
@@ -137,4 +166,4 @@ function main(argv) {
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
-module.exports = { JOB_KIND, PAYLOAD_KIND, RECEIPT_KIND, C17_OVERLAY_FIELDS };
+module.exports = { JOB_KIND, PAYLOAD_KIND, RECEIPT_KIND, C17_DATASET_REF_KIND, C17_OVERLAY_FIELDS, resolveC17Dataset };

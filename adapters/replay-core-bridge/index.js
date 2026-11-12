@@ -10,7 +10,8 @@
  *   { kind, strategy: 'US_V5'|'C17'|'CARRY', payload_file, payload_sha256, options: { skipInputHash? } }
  * 载荷(QRP_REPLAY_CORE_PAYLOAD_V1,v8 序列化,只是数据):
  *   US_V5 { input }                          REPLAY_CORE_INPUT_V1 去掉 hooks(hooksId 指名 hooks)
- *   C17   { dataset, opts, configOverlay }   c17Input 的参数;configOverlay 只允许 ASSET_PARAMS 的止盈/冷却
+ *   C17   { dataset, opts, configOverlay }   合成夹具的 c17Input 参数
+ *         { datasetRef, opts, configOverlay }真实大缓存的目录 + manifest SHA256;运行端由钉住的 loader 逐项复核
  *   CARRY { data, win, capital, opts }       carryInput 的参数
  *         { legacy: { input, opts } }        或研究跑数器 simulateSleeve 的调用参数(carryInputFromLegacy;真实缓存作业)
  * 真实研究缓存 → 作业:writeCacheJobs(cache_jobs.js,smartflow 自己的 layer-2 入口);runCacheJobs 逐个重跑并与 harness 字节比对。
