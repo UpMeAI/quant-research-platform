@@ -80,9 +80,9 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY 和修订 6 的两题过门（11-11 冻结），且都带门的裁定；其余都在修订生效前冻结或封存', () => {
+test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY、修订 6 的两题和修订 7 的 C17-NMSEL 过门（11-11 起冻结）；修订 4–6 带门的裁定，修订 7 不带；其余都在修订生效前冻结或封存', () => {
   const gated = [...overseas.ENTRIES, ...ashare.ENTRIES].filter((entry) => gates.applies(entry).applies).map((entry) => entry.id);
-  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK']);
+  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK', 'C17-NMSEL']);
   for (const id of gated.filter((x) => x.includes('KWFO'))) {
     const entry = overseas.ENTRIES.find((e) => e.id === id);
     assert.equal(entry.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
@@ -104,6 +104,11 @@ test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前
     assert.equal(e.trial_gates_ruling.disclosure_not_applicable, undefined, id);
     assert.ok(e.run_log, id);
   }
+  // 修订 7：K2 §2 只写实际要跑的 5 行，都在冻结前预登记，PRE 照常过，不带门的裁定；披露的 DSR 是数值读法
+  const nms = overseas.ENTRIES.find((e) => e.id === 'C17-NMSEL');
+  assert.equal(nms.trial_gates_ruling, undefined);
+  assert.equal(nms.k2_frozen_at, '2026-11-12T05:58:36+08:00');
+  assert.ok(nms.run_log);
   assert.equal(gates.EFFECTIVE_FROM, '2026-11-11T00:00:00+08:00');
 });
 

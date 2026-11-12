@@ -51,6 +51,7 @@ const COMMIT = Object.freeze({
   KWFO: 'b0abc9c8015c9cbb4fb5bbcad855061cb2787f6a', KWFO_RUN_LOG: '7e6783e083c76e8d6a4076e81d7d51dc34de260a',
   QSD: '34694ef2465658f7bb537a85e43ac07399821c41', QSD_RUN_LOG: 'f23599084e5c251e727fd2b3611ac80f36612c54',
   CCS: '35f5f7d77830374081123966fd4129af427de79c', UCR: 'cef860e5d2c13d16ea420c088fc2f51826f9b405',
+  NMS: '4d734c4f6f55d02f054ac77e1e7bc8571d4e9bdd',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -147,6 +148,13 @@ const CCS_RULING = Object.freeze({ spec: R6_RULING, pre: Object.freeze({ status:
   conditional_ids: Object.freeze([cond('TRL-b42e30d24f319f9c', 3, 'b'), cond('TRL-7c6664a0db2a14fd', 3, 'b'), cond('TRL-5553ab546ff539ca', 5, 'b')]) }) });
 const UCR_RULING = Object.freeze({ spec: R6_RULING, pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_CONDITIONAL_ID_NOT_CHOSEN']),
   preregistered_at: '2026-11-11T15:53:47.478Z', first_run_at: '2026-11-11T16:10:31Z', conditional_ids: Object.freeze([cond('TRL-01598f92e7d4339b', 1, 'c')]) }) });
+
+// 修订 7：C17_V2 非主流选择（C17-NM-SEL，NARROW-H：非主流最多同时持 1），一个单元。K2 §2 只写了实际要跑的 5 行，都在冻结前预登记，PRE 照常过，
+// 不需要门的裁定。运行里的两份裁定（T-1 原因码、G-CAP 的已持计数）只关运行口径，钉在结果文件的 pins 里。披露行的 DSR 是数值读法（UNKNOWN），同修订 6
+const NMS_RESULT = sf(COMMIT.NMS, 'docs/evidence/c17-nm-trigger-v1/run/C17_NM_SELECTION_RESULT_V1.json', 'e4d311f3d7af7518476795870137d73d42acce29289d71e80780c1bd33beb433');
+const NMS_RUN_LOG = sf(COMMIT.NMS, 'docs/evidence/c17-nm-trigger-v1/run/RESEARCH_RUN_LOG_V1.json', '0bc404dffb4349c263683fd82f0a8bdef9710de9523bb4f93946a689921d2cea');
+const NMS_K2 = coord('C17_NM_SELECTION_K2_V1.draft.md', '83e9c2f1c8c492ee5ec75f0fa36573764cb71a62c1c3b357b00801b42e0474c3');
+const NMS_FREEZE = coord('C17_NM_SELECTION_K2_V1_FREEZE_1.md', '7ee0dabfee705248f6f72e7946e6863f72c519c8a4a678e6b772499f0c22d208');
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -326,6 +334,15 @@ const ENTRIES = Object.freeze([
       + '样本外最大回撤 20.18% 对 21.64%、最差月份 9.19% 对 11.59%、日 CVaR 5% 2.25% 对 2.64%，但 Δg −1.56 个百分点/年 [−3.46, +0.35]，超出 −1 的收益约束；两条线都过（0.71% / 0.17%）。'
       + '读法：用每年约 1.5 个百分点换回撤略浅，不划算。现行全栈（凯利 0.42 + 到价出场）样本外回撤 21.6% 本就浅于 SPY 33.7%、QQQ 35.1%；实盘的深回撤来自 11-02 凯利上限之前的 m = 1。'
       + '来源：smartflow research/us-core-acct-risk-run 的结果文档 US_CORE_ACCOUNT_RISK_RESULT_V1.md（cef860e5），封存 2026-11-12。' },
+  // 修订 7：C17_V2 非主流选择，结论只从封存文件读
+  { id: 'C17-NMSEL', label_zh: 'C17 非主流选择', strategy_ref: C17, kind: 'RESULT', sealed_on: '2026-11-13',
+    title_zh: 'C17_V2 非主流选择：非主流最多同时持 1（NARROW-H，nonMajorMax 3 → 1，账户层）', file: NMS_RESULT, k2: NMS_K2, freeze: NMS_FREEZE, run_log: NMS_RUN_LOG,
+    k2_frozen_at: '2026-11-12T05:58:36+08:00',
+    read: Object.freeze({ decision: 'decision', strength: 'evidence_strength_short_zh', use: 'allowed_use_zh', text: 'first_paragraph_zh' }), expect: '做',
+    note_zh: '候选 T = 当前栈加非主流 + 非主流最多同时持 1：Δg +7.60 个百分点/年 [−2.93, +18.78]，判定表第 4 行（区间跨 0、点估计为正、H-DD 过）；最大回撤 27.73% 对 31.26%；保真 UNKNOWN（PR #141 未合入）。'
+      + '读法：被挡的那批入场在基线里并不亏（开发期 34 笔 +68.66、测试期 40 笔 +265.69 USDT），T 好在风险路径：回撤浅了，熔断 C2 少触发。'
+      + '只开前向影子，生产不变（nonMajorMax 仍是 3）：协调会话裁定 T_start 2026-11-13T00:00:00Z，「本会挡」已平仓满 30 笔或到 2027-06-30 先到为准看数。'
+      + '来源：smartflow research/c17-nm-trigger-k2 的结果文档 C17_NM_SELECTION_RESULT_V1.md（4d734c4f），封存 2026-11-13。' },
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────
