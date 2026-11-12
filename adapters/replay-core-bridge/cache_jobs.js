@@ -23,6 +23,7 @@ const path = require('path');
 const { PIN, sha256Hex, layout, assertCore, loadedPackageFiles } = require('./core_pin');
 const { writeJob } = require('./index');
 const { configTracker } = require('./golden_capture');
+const { C17_DATASET_REF_KIND } = require('./runner');
 
 const MANIFEST_KIND = 'QRP_REPLAY_CORE_CACHE_JOBS_V1';
 const TIER2 = 'scripts/lib/replay-core-golden/tier2.js';
@@ -121,6 +122,23 @@ const harnessRow = (r) => ({
 
 const identityOf = (r) => ({ ...(r.dataManifestSha256 ? { dataManifestSha256: r.dataManifestSha256 } : {}), ...(r.inputIdentity || {}) });
 
+/** 真实 C17_CACHE 只携带钉住的缓存引用；测试注入和其他 C17 来源保持原来的内存数据载荷。 */
+function c17Payload(source, cacheDir, dataset, opts, injected, configOverlay) {
+  if (source !== 'C17_CACHE' || injected) return { dataset, opts, configOverlay };
+  if (!dataset || !/^[0-9a-f]{64}$/.test(String(dataset.manifestFileSha256 || ''))) {
+    throw new Error('C17_DATASET_MANIFEST_SHA256_MISSING');
+  }
+  return {
+    datasetRef: {
+      kind: C17_DATASET_REF_KIND,
+      cache_dir: path.resolve(cacheDir),
+      manifest_file_sha256: dataset.manifestFileSha256,
+    },
+    opts,
+    configOverlay,
+  };
+}
+
 /**
  * 在钉住的 smartflow 上跑一个来源,写作业与清单,返回清单。
  * prepare(req) 只在测试里用:在构造器包好之后加载 smartflow 的合成夹具,返回 { args, inject }。
@@ -153,7 +171,7 @@ function captureCacheJobs(root, source, args, out, { prepare = null } = {}) {
     };
   };
   wrap(mods.US_V5, 'usV5Input', null);
-  wrap(mods.C17, 'c17Input', ([dataset, o]) => ({ dataset, opts: o, configOverlay: overlayNow() }));
+  wrap(mods.C17, 'c17Input', ([dataset, o]) => c17Payload(source, args && args.cache, dataset, o, Boolean(prepare), overlayNow()));
   wrap(mods.CARRY, 'carryInput', ([data, win, capital, o]) => ({ data, win, capital, opts: o }));
   wrap(mods.CARRY, 'carryInputFromLegacy', ([legacy, o]) => ({ legacy: { input: legacy, opts: o } }));
 
@@ -223,4 +241,4 @@ function main(argv) {
 
 if (require.main === module) process.exitCode = main(process.argv.slice(2));
 
-module.exports = { MANIFEST_KIND, SOURCES, manifestFile, checkArgs, assertFresh, verdictOf, usV5Records, captureCacheJobs };
+module.exports = { MANIFEST_KIND, SOURCES, manifestFile, checkArgs, assertFresh, verdictOf, usV5Records, c17Payload, captureCacheJobs };

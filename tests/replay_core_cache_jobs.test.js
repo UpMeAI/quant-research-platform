@@ -10,6 +10,7 @@ const { spawnSync } = require('child_process');
 const { getAdapter } = require('../adapters/registry');
 const bridge = require('../adapters/replay-core-bridge');
 const CacheJobs = require('../adapters/replay-core-bridge/cache_jobs');
+const Runner = require('../adapters/replay-core-bridge/runner');
 
 const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-rc-cache-'));
 const ROOT = process.env[bridge.ROOT_ENV];
@@ -75,6 +76,34 @@ test('runCacheJobs:作业输出与清单记录的 harness 字节不符即判 DIF
   const w = CacheJobs.verdictOf([{ job_file: 'a', harness_output_sha256: 'x' }, { job_file: 'b', harness_output_sha256: 'y' }], (j) => (j.job_file === 'a' ? 'x' : 'z'));
   assert.deepEqual([w.verdict, w.identical, w.different], ['DIFFERENT', 1, 1]);
   assert.equal(CacheJobs.verdictOf([], () => 'x').verdict, 'NO_JOBS');
+});
+
+test('C17_CACHE:真实大缓存只写哈希钉住的引用,重放逐项复核 manifest;不把数据集塞进 v8', () => {
+  const dataset = { manifestFileSha256: 'a'.repeat(64), rows: new Array(100_000).fill({ close: 1 }) };
+  const payload = CacheJobs.c17Payload('C17_CACHE', '/research/c17/cache', dataset, { scenario: 'BASE' }, false, {});
+  assert.equal(payload.dataset, undefined);
+  assert.deepEqual(payload.datasetRef, {
+    kind: Runner.C17_DATASET_REF_KIND,
+    cache_dir: '/research/c17/cache',
+    manifest_file_sha256: 'a'.repeat(64),
+  });
+  assert.ok(require('v8').serialize(payload).byteLength < 4096, '引用载荷不得随数据集大小增长');
+
+  let loaded = 0;
+  const got = Runner.resolveC17Dataset(payload, '/pinned/smartflow/trading-system-v2', {
+    loadDataset(cacheDir) {
+      loaded += 1;
+      assert.equal(cacheDir, '/research/c17/cache');
+      return dataset;
+    },
+  });
+  assert.equal(got, dataset);
+  assert.equal(loaded, 1);
+  assert.throws(() => Runner.resolveC17Dataset({ ...payload, datasetRef: { ...payload.datasetRef,
+    manifest_file_sha256: 'b'.repeat(64) } }, '/pinned/smartflow/trading-system-v2', { loadDataset: () => dataset }),
+  /C17_DATASET_MANIFEST_SHA256_MISMATCH/);
+  assert.throws(() => Runner.resolveC17Dataset({ ...payload, datasetRef: { ...payload.datasetRef, cache_dir: 'relative' } },
+    '/pinned/smartflow/trading-system-v2', { loadDataset: () => dataset }), /C17_DATASET_REF_INVALID/);
 });
 
 test('CARRY:研究归档(carry 跑数器的真实目录格式)→ 每个 sleeve 一个作业,适配器重跑逐字节一致', { skip: SKIP }, () => {
