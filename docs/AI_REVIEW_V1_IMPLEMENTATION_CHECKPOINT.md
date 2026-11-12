@@ -39,6 +39,13 @@ the all-ledger, decomposition and reconciliation acceptance.
 
 ## Remaining work (release validity false)
 
+Follow-up: Markdown now includes the supplied deterministic facts with their
+provenance and all accepted research-direction fields. Only ACCEPTED notes with
+a passing checker render model text. Report tests first failed at missing module,
+then the core plus report suite passed 11/11. Early disabled/budget/input exits
+still need a deterministic report delivery wrapper; this rendering change does
+not claim that delivery or the complete input adapters are implemented.
+
 1. Accept delivered inputs through their authoritative producer contracts;
    build per-ledger daily/weekly packs for every requested ledger, including
    attribution, decomposition, rule changes, NAV and fills. Do not let a missing
