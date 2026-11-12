@@ -27,6 +27,12 @@ const rEtf2 = (code, suffix, name) => Object.freeze({ id: `CN-R-ETF-2-${code}`, 
   title_zh: `宽基 ETF 均值回归波段（R-ETF-2，${code}.${suffix}）`, file: R_ETF_2, k2: R_ETF_2_K2, freeze: null, expect: '不做',
   read: Object.freeze({ decision: ['decisions', `${code}.${suffix}`, 'decision'], state: ['decisions', `${code}.${suffix}`, 'reasons'], strength: null, use: 'consequence', text: null }) });
 
+// 修订 1（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_1.md）：PVS-2、PVS-4 第 1 阶段，一份结果文档两题，结论从 §0 表里各自那一行读。
+// 两份 K2 都在过拟合控制修订（2026-11-11）之前冻结，k2_frozen_at 取冻结页写的分钟段起点（「13:2x」→ 13:20，「09:3x」→ 09:30），G-TRIAL 门不适用。
+const PVS24_RESULT = coord('PVS_2_4_RESULT_V1.md', '1cbfe175f3eccc76810ed2006e2396c981d7db18bea759ffeafba423807af4be');
+const PVS24_NOTE = '判定读法：协调会话 PVS_2_4_RESULT_V1_RULINGS_20261113.md（b2438e63…）裁定 1 (a)，BLOCKED(G1_COUNTER_UNREADABLE) 按 G1_NOT_MET 读；第 1 阶段 2024-01-02 → 2026-09-28；k2_frozen_at 取冻结页分钟段起点。';
+const pvs24Read = (q) => Object.freeze({ pattern: `^\\| \\*\\*PVS-${q}\\*\\* [^|]*\\| [^|]*\\| \\*\\*(做|不做) = `, strength_pattern: `^\\| \\*\\*PVS-${q}\\*\\* [^|]*\\| ([^|]+?) \\|` });
+
 const ENTRIES = Object.freeze([
   { id: 'CN-R-ETF-1', label_zh: 'R-ETF-1', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-05', title_zh: '宽基 ETF 波动率网格 VG 对现行档位规则 C',
     file: v6('84adf8b97268d59318dda22be5363953e7939b6a', 'research/index-grid/r-etf-1/result-r-etf-1.json', '6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0'),
@@ -41,6 +47,16 @@ const ENTRIES = Object.freeze([
     file: coord('PVS_0_CONCLUSION_1.md', 'ddeb4ed7f03c5d2015c73f30ce1f7ab8c7309a604d5321780704882c0a61e5ee'),
     k2: coord('PVS_0_K2_V1.draft.md', '738d06827be7baf28550429cf7a672980de3293e960aa0ad29be733077daaf20'), freeze: coord('PVS_0_FREEZE_1.md', 'aa5321e47a0fe8cce313fa6c53391cd8e05136fa3a48af0d185c43aef23f7251'),
     read: Object.freeze({ pattern: '^\\*\\*(做|不做)。\\*\\*', strength_pattern: '按冻结页要求必须写的一句：(.+?)\\*\\*' }), expect: '做' },
+  { id: 'CN-PVS-2', label_zh: 'PVS-2', strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-13', title_zh: '量能增量（A_PVS2_VOLUME_ON_A 对 A，第 1 阶段）',
+    file: PVS24_RESULT, k2: coord('PVS_2_K2_V1.draft.md', '47802cb56e63528d7465a5006b5b6d7126ab1e6ecbd1ebbf7e1bcd818fd53f51'),
+    freeze: coord('PVS_1_2_3_K2_FREEZE_1.md', '3e9cfd2c7bda7989bb5e099a5546d9eae0638ca0485277e1eecfbd413b7bd85c'), k2_frozen_at: '2026-10-30T13:20:00+08:00',
+    read: pvs24Read(2), expect: '做',
+    note_zh: `${PVS24_NOTE}惰性诊断（结果文档 §3.3）：评估过、从未在能起作用的地方成立 = 真惰性；前向一年仍 0 个改变的决策 → 转「不做（惰性）」。` },
+  { id: 'CN-PVS-4', label_zh: 'PVS-4', strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-13', title_zh: '价位成交分布，用途 (b) 突破质量（A_PVS4_BREAKOUT_QUALITY_ON_A 对 A，第 1 阶段）',
+    file: PVS24_RESULT, k2: coord('PVS_4_K2_V1.draft.md', '1a78c5322d578fd96331c44369ec78c955c9b0d7e69a236ce8d601a41c7373e0'),
+    freeze: coord('PVS_4_5_K2_FREEZE_1.md', '2370748b9d5ec472340312a6625dc6545c6021cd935dfbdb13b005ff373a2884'), k2_frozen_at: '2026-10-31T09:30:00+08:00',
+    read: pvs24Read(4), expect: '做',
+    note_zh: `${PVS24_NOTE}没有事先的 TRL 登记：回补登记依据协调会话 2026-11-11 21:5x 裁定 (a)（按冻结页原样跑，BASE_ARM = A），结果文档 §5.4 披露。` },
 ]);
 
 const locks = (strategyRef = null) => overseas.locks(strategyRef, STORE);
