@@ -4,8 +4,10 @@
 /** Thin CLI over the canonical followup converters.  It exists so the Owner's
  * dry-run and real-run commands differ only by --dry-run true|false. */
 const fs = require('fs');
+const crypto = require('crypto');
 const ledger = require('../services/trial-ledger');
 const followups = require('../services/trial-ledger/followups');
+const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 
 function flags(argv) {
   const out = {};
@@ -16,8 +18,10 @@ function flags(argv) {
   return out;
 }
 
-function run({ mode, inputs, registeredBy, dryRun }) {
-  const source = JSON.parse(fs.readFileSync(inputs, 'utf8'));
+function run({ mode, inputs, inputsSha256, registeredBy, dryRun }) {
+  const bytes = fs.readFileSync(inputs);
+  if (sha256(bytes) !== inputsSha256) throw new Error('FOLLOWUP_INPUT_SHA256_MISMATCH');
+  const source = JSON.parse(bytes.toString('utf8'));
   if (source.schema !== 'QRP_TRIAL_LEDGER_FOLLOWUP_INPUTS_V1') throw new Error('FOLLOWUP_INPUT_SCHEMA_MISMATCH');
   if (mode === 'forward-reserved') {
     const marks = followups.forwardReservedFromRegistry({
@@ -41,9 +45,9 @@ function run({ mode, inputs, registeredBy, dryRun }) {
 
 function main(argv) {
   const f = flags(argv);
-  for (const key of ['mode', 'inputs', 'registered-by', 'dry-run']) if (!f[key]) throw new Error(`MISSING_FLAG:${key}`);
+  for (const key of ['mode', 'inputs', 'inputs-sha256', 'registered-by', 'dry-run']) if (!f[key]) throw new Error(`MISSING_FLAG:${key}`);
   if (f['dry-run'] !== 'true' && f['dry-run'] !== 'false') throw new Error('DRY_RUN_MUST_BE_TRUE_OR_FALSE');
-  const out = run({ mode: f.mode, inputs: f.inputs, registeredBy: f['registered-by'], dryRun: f['dry-run'] === 'true' });
+  const out = run({ mode: f.mode, inputs: f.inputs, inputsSha256: f['inputs-sha256'], registeredBy: f['registered-by'], dryRun: f['dry-run'] === 'true' });
   process.stdout.write(`${JSON.stringify(out)}\n`);
 }
 

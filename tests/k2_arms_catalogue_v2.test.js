@@ -2,7 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 const { V1_SHA256, buildDocument, resolvedArms } = require('../tools/build-k2-arms-catalogue-v2');
+const followupRunner = require('../tools/run-trial-ledger-followup');
 
 const REVIEW = [
   ['OSV:QS-Q4', 'QUICK_SHOT_V3_1000USDT'],
@@ -66,4 +70,8 @@ test('role rulings preserve N semantics: fills are STRESS and PVS rows are SIGNA
 
 test('wrong pinned input hash fails closed', () => {
   assert.throws(() => buildDocument({ schema: 'K2_ARMS_CATALOGUE_V1', studies: [] }, '0'.repeat(64)), /CATALOGUE_V1_SHA256_MISMATCH/);
+  const input = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'q48-followup-')), 'input.json');
+  fs.writeFileSync(input, JSON.stringify({ schema: 'QRP_TRIAL_LEDGER_FOLLOWUP_INPUTS_V1' }));
+  assert.throws(() => followupRunner.run({ mode: 'forward-reserved', inputs: input, inputsSha256: '0'.repeat(64), registeredBy: 'X', dryRun: true }),
+    /FOLLOWUP_INPUT_SHA256_MISMATCH/);
 });
