@@ -11,7 +11,7 @@
  *   trial_ledger.js mark-segment  --spec <marks.json> --registered-by <权威>
  *   trial_ledger.js disclose      --spec <disclosure.json> --registered-by <权威> [--dry-run true]
  *   trial_ledger.js disclose-na   --spec <disclosure.json> --registered-by <权威> [--dry-run true]   （DSR、PBO 按协调会话裁定写「不适用」，导入规格修订 4）
- *   trial_ledger.js back-register --master-table /abs/RESEARCH_MASTER_TABLE_….json --master-table-sha256 <64 hex> --registered-by <权威> [--arms /abs/arms.json] [--dry-run true]
+ *   trial_ledger.js back-register --master-table /abs/RESEARCH_MASTER_TABLE_….json --master-table-sha256 <64 hex> --registered-by <权威> [--arms /abs/arms.json --arms-sha256 <64 hex>] [--dry-run true]
  *   读：
  *   trial_ledger.js count         --family <strategy_ref> [--as-of <ISO>]
  *   trial_ledger.js segments      --family <strategy_ref> --from YYYY-MM-DD --to YYYY-MM-DD
@@ -22,6 +22,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const ledger = require('../../services/trial-ledger');
 const backRegister = require('../../services/trial-ledger/back_register');
 
@@ -35,6 +36,13 @@ function flags(argv) {
 }
 const must = (f, ...keys) => { for (const k of keys) if (!f[k]) throw new Error(`MISSING_FLAG:${k}`); };
 const json = (file) => JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
+const pinnedJson = (file, expectedSha256, label) => {
+  const bytes = fs.readFileSync(path.resolve(file));
+  const actual = crypto.createHash('sha256').update(bytes).digest('hex');
+  if (!/^[0-9a-f]{64}$/.test(expectedSha256 || '')) throw new Error(`${label}_SHA256_INVALID`);
+  if (actual !== expectedSha256) throw new Error(`${label}_SHA256_MISMATCH`);
+  return JSON.parse(bytes.toString('utf8'));
+};
 const print = (v) => process.stdout.write(`${JSON.stringify(v)}\n`);
 const dry = (f) => f['dry-run'] === 'true';
 
@@ -63,7 +71,10 @@ try {
     print(shown);
   } else if (command === 'back-register') {
     must(f, 'master-table', 'master-table-sha256', 'registered-by');
-    const out = backRegister.run({ masterTable: f['master-table'], masterTableSha256: f['master-table-sha256'], arms: f.arms ? json(f.arms) : null, registeredBy: f['registered-by'], dryRun: dry(f) });
+    if (f.arms) must(f, 'arms-sha256');
+    if (!f.arms && f['arms-sha256']) throw new Error('ARMS_SHA256_WITHOUT_ARMS');
+    const arms = f.arms ? pinnedJson(f.arms, f['arms-sha256'], 'ARMS') : null;
+    const out = backRegister.run({ masterTable: f['master-table'], masterTableSha256: f['master-table-sha256'], arms, registeredBy: f['registered-by'], dryRun: dry(f) });
     print({ dry_run: dry(f), master_table: out.master, rows: out.rows.length, new_rows: out.rows.filter((r) => !r.replayHit).length, segment_marks: out.segmentRows.length, skipped: out.skipped, pairing_review: out.pairing.filter((p) => p.confidence === 'REVIEW') });
     for (const c of out.counts) print({ family_id: c.family_id, n_raw: c.n_raw, n_is_lower_bound: c.n_is_lower_bound, lower_bound_reasons: c.lower_bound_reasons, rows: c.rows, studies: c.studies, by_role: c.by_role });
   } else if (command === 'count') {

@@ -262,3 +262,13 @@ test('命令行：hash、trial-id、count 只读；写命令要完成权威', ()
   assert.equal(JSON.parse(execFileSync('node', [cli, 'count', '--family', 'NONE'], { env })).n_raw, 0);
   assert.throws(() => execFileSync('node', [cli, 'register', '--spec', file, '--registered-by', 'x'], { env: { ...env, QRP_PRODUCT_MILESTONE_AUTHORITY: 'y' }, stdio: 'pipe' }), /REGISTERED_BY_NOT_AUTHORIZED/);
 });
+
+test('命令行：back-register 只要带 --arms 就必须钉住 --arms-sha256，缺失或不符都在读总表前关停', () => {
+  const cli = path.join(__dirname, '..', 'apps', 'research-cli', 'trial_ledger.js');
+  const arms = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-cli-arms-')), 'arms.json');
+  fs.writeFileSync(arms, JSON.stringify({ schema: 'K2_ARMS_CATALOGUE_V2', studies: [] }));
+  const common = ['back-register', '--master-table', '/not/read/master.json', '--master-table-sha256', 'a'.repeat(64), '--registered-by', AUTH, '--arms', arms, '--dry-run', 'true'];
+  const env = { ...process.env, QRP_DATA_DIR: dataRoot, QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH };
+  assert.throws(() => execFileSync('node', [cli, ...common], { env, stdio: 'pipe' }), /MISSING_FLAG:arms-sha256/);
+  assert.throws(() => execFileSync('node', [...[cli, ...common.slice(0, -2)], '--arms-sha256', '0'.repeat(64), '--dry-run', 'true'], { env, stdio: 'pipe' }), /ARMS_SHA256_MISMATCH/);
+});
