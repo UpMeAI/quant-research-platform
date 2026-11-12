@@ -59,6 +59,9 @@ function readSource({ source, kind, request, book, period, validateContract, now
 function readDeskDailyPacks({ period, requests, validateContract, nowMs }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(period || '') || !Array.isArray(requests) || !Number.isFinite(nowMs)) throw Error('DESK_INPUT_ARGUMENTS');
   return requests.map(request => {
+    if (!request || typeof request !== 'object' || Array.isArray(request) || typeof request.ledgerId !== 'string') {
+      return { period, output: 'DAILY', ledger: null, facts: [], states: [{ ledger: null, status: 'INPUT_MISSING', reason: 'REQUEST_INVALID' }], inputState: 'INPUT_MISSING', coverage: 'DESK_DAILY_THREE_SOURCE_SLICE' };
+    }
     const partId = request.partId ?? null;
     const ledger = `${request.ledgerId}${partId ? `:${partId}` : ''}`;
     const pack = { period, output: 'DAILY', ledger, facts: [], states: [], inputState: 'INPUT_MISSING', coverage: 'DESK_DAILY_THREE_SOURCE_SLICE' };

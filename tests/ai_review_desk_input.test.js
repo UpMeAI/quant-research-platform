@@ -96,3 +96,10 @@ test('stale and invalid books cannot suppress an independently valid book', (t) 
   assert.equal(packs[1].facts[1].data.ledgerId, us);
   assert.equal(good.calls[0][2].nowMs, Date.parse(`${day}T23:00:00Z`));
 });
+test('malformed request entries do not suppress valid requests', (t) => {
+  const f = setup(t);
+  const packs = f.run({ requests: [null, [], f.request] });
+  assert.deepEqual(packs.map(p => p.inputState), ['INPUT_MISSING', 'INPUT_MISSING', 'READY']);
+  assert.equal(packs[0].states[0].reason, 'REQUEST_INVALID');
+  assert.equal(packs[1].states[0].reason, 'REQUEST_INVALID');
+});
