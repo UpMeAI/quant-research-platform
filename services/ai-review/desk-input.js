@@ -51,11 +51,12 @@ function readSource({ source, kind, request, book, period, validateContract, now
   return { sourceFile: source.file, sourceSha256: source.sha256, sourceContract: KINDS[kind], scope: kind === 'trades' ? 'LEDGER' : 'BOOK', data };
 }
 
-// Returns separate packs, not an aggregate gate: callers must persist/run each
-// pack in a distinct ledger namespace. run() currently claims period+output in
-// its root; passing these packs into the same root would collide. This adapter
-// deliberately does not call run(). Weekly coverage and rule-change streams
-// remain unimplemented, so READY here means only this three-source daily slice.
+// READY covers only this three-source daily slice. The standalone runner consumes
+// these packs independently; weekly and complete reconciliation remain pending.
+function isRegisteredDailyLedger(ledger) {
+  return typeof ledger === 'string' && Object.entries(BOOKS).some(([id, book]) =>
+    book.parts.some(part => ledger === `${id}${part ? `:${part}` : ''}`));
+}
 function readDeskDailyPacks({ period, requests, validateContract, nowMs }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(period || '') || !Array.isArray(requests) || !Number.isFinite(nowMs)) throw Error('DESK_INPUT_ARGUMENTS');
   return requests.map(request => {
@@ -83,4 +84,4 @@ function readDeskDailyPacks({ period, requests, validateContract, nowMs }) {
     return pack;
   });
 }
-module.exports = { readDeskDailyPacks };
+module.exports = { readDeskDailyPacks, isRegisteredDailyLedger };

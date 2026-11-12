@@ -53,18 +53,21 @@ function keyFrom(file) {
   } catch { return null; } finally { if (fd !== undefined) fs.closeSync(fd); }
 }
 function write(file, value) { fs.writeFileSync(file, value, { flag: 'wx', mode: 0o600 }); }
-async function run({ pack, root = path.resolve(__dirname, '../../var/ai-review'), enabled = process.env.AI_REVIEW_ENABLED === '1', keyFile = process.env.AI_REVIEW_DEEPSEEK_API_KEY_FILE || path.join(os.homedir(), '.config/upmeai/ai-review/deepseek_api_key'), budget = null, fetchFn = globalThis.fetch, now = () => new Date() }) {
-  if (!enabled) return { status: 'DISABLED' };
+async function run({ pack, namespace = null, root = path.resolve(__dirname, '../../var/ai-review'), enabled = process.env.AI_REVIEW_ENABLED === '1', keyFile = process.env.AI_REVIEW_DEEPSEEK_API_KEY_FILE || path.join(os.homedir(), '.config/upmeai/ai-review/deepseek_api_key'), budget = null, fetchFn = globalThis.fetch, now = () => new Date() }) {
+  if (!enabled && namespace === null) return { status: 'DISABLED' };
+  if (namespace !== null && !/^ledger-[a-f0-9]{64}$/.test(namespace)) throw Error('NAMESPACE_INVALID');
   if (!pack || !/^\d{4}-\d{2}-\d{2}$/.test(pack.period) || !['DAILY', 'WEEKLY_REVIEW', 'WEEKLY_RECONCILIATION', 'WEEKLY_DIRECTIONS'].includes(pack.output) || !Array.isArray(pack.facts) || new Set(pack.facts.map((f) => f.id)).size !== pack.facts.length) throw Error('INPUT_PACK_INVALID');
   const inputPackSha256 = sha256(canonicalJson(pack));
   const base = { contract: 'AI_REVIEW_NOTE_V1', inputPackSha256, promptVersion: PROMPT_VERSION, promptDigest: sha256(PROMPT), model: MODEL, contextOnly: true, tradeAuthority: false, facts: pack.facts, usage: [], checker: null };
+  if (namespace !== null) Object.assign(base, { ledger: pack.ledger, coverage: pack.coverage, states: pack.states, inputState: pack.inputState, weeklyComparison: null, weeklyComparisonAvailability: 'NOT_IMPLEMENTED' });
+  if (!enabled) return { ...base, status: 'DISABLED' };
   if (pack.inputState !== 'READY' || !pack.facts.length) return { ...base, status: pack.inputState === 'INPUT_STALE' ? 'INPUT_STALE' : 'INPUT_MISSING' };
   if (!budget || ['perCall', 'day', 'month'].some((k) => !Number.isSafeInteger(budget[k]) || budget[k] <= 0)) return { ...base, status: 'BLOCKED:BUDGET', reason: 'BUDGET_UNCONFIGURED' };
   fs.mkdirSync(root, { recursive: true, mode: 0o700 });
   const lock = path.join(root, '.run-lock');
   try { fs.mkdirSync(lock); } catch { return { ...base, status: 'BLOCKED:BUSY' }; }
   try {
-    const dir = path.join(root, pack.period); fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const dir = namespace === null ? path.join(root, pack.period) : path.join(root, pack.period, namespace); fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const out = path.join(dir, `${pack.output}.json`);
     if (fs.existsSync(out)) {
       const cached = JSON.parse(fs.readFileSync(out, 'utf8'));
@@ -86,14 +89,14 @@ async function run({ pack, root = path.resolve(__dirname, '../../var/ai-review')
     const result = { ...base, status: 'BLOCKED:LLM_UNAVAILABLE' };
     for (let attempt = 1; attempt <= 2; attempt++) {
       if (used(date) + budget.perCall > budget.day || used(date.slice(0, 7)) + budget.perCall > budget.month) { result.status = 'BLOCKED:BUDGET'; break; }
-      const reservation = { event: 'RESERVED', date, output: pack.output, period: pack.period, model: MODEL, inputPackSha256, attempt, reservedTokens: budget.perCall };
+      const reservation = { event: 'RESERVED', ...(namespace === null ? {} : { ledger: pack.ledger, namespace }), date, output: pack.output, period: pack.period, model: MODEL, inputPackSha256, attempt, reservedTokens: budget.perCall };
       append(usageFile, reservation); usage.push(reservation);
       try {
         const response = await fetchFn('https://api.deepseek.com/chat/completions', { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(60000), headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: MODEL, temperature: 0, max_tokens: budget.perCall - inputBound, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: PROMPT }, { role: 'user', content: canonicalJson(pack) }] }) });
         if (!response.ok) throw Error('HTTP');
         const body = await response.json();
         if (!body.usage || ['prompt_tokens', 'completion_tokens', 'total_tokens'].some((k) => !Number.isSafeInteger(body.usage[k]) || body.usage[k] < 0)) throw Error('USAGE_MISSING');
-        const accounting = { event: 'ACCOUNTED', date, output: pack.output, period: pack.period, model: MODEL, requestId: typeof body.id === 'string' && /^[\w-]{1,128}$/.test(body.id) ? body.id : null, attempt, promptTokens: body.usage.prompt_tokens, completionTokens: body.usage.completion_tokens, totalTokens: body.usage.total_tokens, cachedTokens: Number.isSafeInteger(body.usage.prompt_cache_hit_tokens) ? body.usage.prompt_cache_hit_tokens : null };
+        const accounting = { event: 'ACCOUNTED', ...(namespace === null ? {} : { ledger: pack.ledger, namespace }), date, output: pack.output, period: pack.period, model: MODEL, requestId: typeof body.id === 'string' && /^[\w-]{1,128}$/.test(body.id) ? body.id : null, attempt, promptTokens: body.usage.prompt_tokens, completionTokens: body.usage.completion_tokens, totalTokens: body.usage.total_tokens, cachedTokens: Number.isSafeInteger(body.usage.prompt_cache_hit_tokens) ? body.usage.prompt_cache_hit_tokens : null };
         append(usageFile, accounting); result.usage.push(accounting);
         const candidate = JSON.parse(body.choices[0].message.content);
         result.checker = check(candidate, pack);
@@ -101,7 +104,7 @@ async function run({ pack, root = path.resolve(__dirname, '../../var/ai-review')
         if (result.checker.ok) result.note = { ...candidate, directions: candidate.directions.map((d) => ({ ...d, status: 'RESEARCH_DIRECTION_CANDIDATE', dedupe: 'DEDUPE_PENDING', triage: 'DRY_RUN' })) };
         else write(path.join(dir, `${pack.output}.quarantine.json`), JSON.stringify({ checker: result.checker, candidate }));
         break;
-      } catch { append(usageFile, { event: 'CALL_FAILED', date, output: pack.output, period: pack.period, attempt, model: MODEL, reason: 'LLM_RESPONSE_UNAVAILABLE' }); }
+      } catch { append(usageFile, { event: 'CALL_FAILED', ...(namespace === null ? {} : { ledger: pack.ledger, namespace }), date, output: pack.output, period: pack.period, attempt, model: MODEL, reason: 'LLM_RESPONSE_UNAVAILABLE' }); }
     }
     write(out, JSON.stringify(result, null, 2));
     write(path.join(dir, `${pack.output}.md`), renderReport(result));

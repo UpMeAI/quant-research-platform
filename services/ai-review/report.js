@@ -10,6 +10,7 @@ function block(value) {
 function renderReport(result) {
   const lines = ['# 复盘研究记录', `状态：${literal(result.status)}`,
     `输入校验：${literal(result.inputPackSha256)}`, '', '## 确定性事实'];
+  if (result.coverage !== undefined) lines.splice(4, 0, `输入覆盖：${literal(result.coverage)}`, `周对账功能：${literal(result.weeklyComparisonAvailability)}`, 'READY 仅表示输入切片齐备，完整复盘与对账尚未完成。', '', block({ ledger: result.ledger, inputState: result.inputState, states: result.states }));
   for (const fact of result.facts || []) lines.push('', block(fact));
   if (result.status !== 'ACCEPTED' || result.checker?.ok !== true || !result.note) {
     lines.push('', '仅保留确定性事实，模型内容不展示。');

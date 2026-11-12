@@ -50,20 +50,28 @@ documents as expected. Full real-input acceptance remains pending. Carry is not
 registered in this NAV contract. READY applies only to the explicit
 DESK_DAILY_THREE_SOURCE_SLICE coverage, not complete daily review coverage.
 
-Next exact action: add a per-ledger report runner with namespace isolation and
-persist deterministic reports for budget/input/unavailable states; prove no
-ledger overwrites another and no blocked input causes a fetch. Then bind actual
-complete daily producer artifacts before attempting weekly reconciliation.
-Do not call all packs with the same run() root: its claim/cache key currently
-contains only period and output. Do not invoke a real model, access credentials,
-install schedules or treat these adapters as completed all-ledger acceptance.
+Ledger delivery slice: `runner.js` now accepts the adapter's daily packs and
+persists `DAILY.report.json/.md` under `<period>/ledger-<sha256(identity)>/`.
+The registered-book check reuses the adapter registry; identity never becomes a
+path segment. Model attempt/cache artifacts use the same per-book namespace;
+root-level locking and usage reservations remain shared. Deterministic snapshots
+are separate from model cache, so missing budgets, keys and inputs can recover
+without consuming the period claim. Disabled legacy `run()` remains unchanged;
+only the explicit runner delivers disabled reports. Facts retain null/missing
+values, source states and slice coverage; weekly comparison is null with availability NOT_IMPLEMENTED.
+
+Next exact action: bind actual complete daily producer artifacts and required
+rule/change streams under versioned acceptance before weekly reconciliation.
+Do not invoke a real model, access credentials, install schedules or treat this
+three-source slice as completed all-ledger/reconciliation acceptance. Related+vocabulary checks: 28/28 pass; final heavy-run full regression:
+602 total, 576 pass, 0 fail, 26 external-input skips. Interrupted
+core locks and multi-file crash consistency remain unverified release work.
 
 Follow-up: Markdown now includes the supplied deterministic facts with their
 provenance and all accepted research-direction fields. Only ACCEPTED notes with
 a passing checker render model text. Report tests first failed at missing module,
-then the core plus report suite passed 11/11. Early disabled/budget/input exits
-still need a deterministic report delivery wrapper; this rendering change does
-not claim that delivery or the complete input adapters are implemented.
+then the core plus report suite passed 11/11. The new explicit runner supplies deterministic delivery for early exits;
+complete input adapters remain pending.
 
 1. Accept delivered inputs through their authoritative producer contracts;
    build per-ledger daily/weekly packs for every requested ledger, including
@@ -72,9 +80,9 @@ not claim that delivery or the complete input adapters are implemented.
    existing forward registration alone is not a delivered forward stream.
 2. Bind sealed-verdict trial evidence and implement deterministic comparison
    projection. Model must not classify or calculate the reconciliation result.
-3. Persist deterministic reports for disabled/unavailable/budget/input states;
-   complete Markdown rendering for directions and differences, safe handling of
-   partial writes and interrupted locks. Enforce canonical source schemas.
+3. Daily runner now delivers deterministic blocked/off reports. Still pending:
+   computed differences, safe handling of partial writes and interrupted locks,
+   and complete canonical source acceptance.
 4. Reuse mechanism lookup when available; otherwise preserve DEDUPE_PENDING.
    Wire alert event to #58 without notification enabled by default.
 5. Provide CLI and uninstalled CST daily/weekly scheduling artifacts. Complete
