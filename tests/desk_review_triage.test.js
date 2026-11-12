@@ -132,6 +132,53 @@ test('Q2：只写 QRP 数据目录（var/ 被 .gitignore 忽略）；命令行�
   assert.match(JSON.parse(list.stdout).text_zh, /^Desk 复盘待分诊 3 条，最早 01-24 到期：/);
 });
 
+test('Q2b：分诊命令 --dry-run 完整核对记录但不写台账，输出与真实写入的内容身份一致', () => {
+  reset();
+  const desk = makeDesk();
+  writeQueue(desk, '2000-W03', ENTRIES());
+  const args = [path.join(ROOT, 'apps', 'research-cli', 'record_desk_triage.js'), '--candidate', 'RLC-CN-2000W01-1', '--outcome', 'FIX',
+    '--fix-repo', 'Ashare-V6', '--fix-ref', 'task:fixture', '--basis', '已定位为数据修复（合成）', '--at', AT, '--desk-root', desk];
+  const dry = spawnSync(process.execPath, [...args, '--dry-run'], { encoding: 'utf8', env: process.env });
+  assert.equal(dry.status, 0, dry.stderr);
+  const preview = JSON.parse(dry.stdout);
+  assert.deepEqual([preview.mode, preview.would_write, preview.production_effect], ['DRY_RUN', true, 'NONE']);
+  assert.equal(fs.existsSync(triage.LEDGER()), false, '只读试跑不建台账文件');
+  const real = spawnSync(process.execPath, args, { encoding: 'utf8', env: process.env });
+  assert.equal(real.status, 0, real.stderr);
+  const written = JSON.parse(real.stdout);
+  assert.deepEqual([written.record_id, written.record_hash, written.candidate_id, written.outcome],
+    [preview.record_id, preview.record_hash, preview.candidate_id, preview.outcome]);
+  assert.equal(triage.effectiveTriage().length, 1);
+});
+
+test('Q2c：批量分诊先核验全部行再一次写入；--dry-run 与中途失败都不写，成功时按输入顺序入账', () => {
+  reset();
+  const desk = makeDesk();
+  writeQueue(desk, '2000-W03', ENTRIES());
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-triage-batch-'));
+  const input = path.join(dir, 'decisions.json');
+  const decisions = [
+    { candidateId: 'RLC-CN-2000W01-1', outcome: 'FIX', fixRef: { repo: 'Ashare-V6', ref: 'task:a' }, evidence: [], basisZh: '已定位为数据修复 A（合成）', at: AT },
+    { candidateId: 'RLC-CRYPTO-2000W01-1', outcome: 'FIX', fixRef: { repo: 'smartflow', ref: 'task:b' }, evidence: [], basisZh: '已定位为数据修复 B（合成）', at: AT },
+  ];
+  fs.writeFileSync(input, `${JSON.stringify({ schema: 'RESEARCH_TRIAGE_BATCH_INPUT_V1', decisions })}\n`);
+  const cli = path.join(ROOT, 'apps', 'research-cli', 'record_desk_triage_batch.js');
+  const dry = spawnSync(process.execPath, [cli, '--input', input, '--desk-root', desk, '--dry-run'], { encoding: 'utf8', env: process.env });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.deepEqual(JSON.parse(dry.stdout).records.map((row) => row.candidate_id), decisions.map((row) => row.candidateId));
+  assert.equal(fs.existsSync(triage.LEDGER()), false);
+  const bad = { ...JSON.parse(fs.readFileSync(input, 'utf8')), decisions: [...decisions, { ...decisions[0], candidateId: 'RLC-CN-2099W40-1' }] };
+  fs.writeFileSync(input, `${JSON.stringify(bad)}\n`);
+  const refused = spawnSync(process.execPath, [cli, '--input', input, '--desk-root', desk, '--confirm-write'], { encoding: 'utf8', env: process.env });
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /TRIAGE_CANDIDATE_NOT_IN_QUEUE/);
+  assert.equal(fs.existsSync(triage.LEDGER()), false, '第三行失败时前两行也不落盘');
+  fs.writeFileSync(input, `${JSON.stringify({ schema: 'RESEARCH_TRIAGE_BATCH_INPUT_V1', decisions })}\n`);
+  const applied = spawnSync(process.execPath, [cli, '--input', input, '--desk-root', desk, '--confirm-write'], { encoding: 'utf8', env: process.env });
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.deepEqual(triage.effectiveTriage().map((row) => row.candidate_id), decisions.map((row) => row.candidateId));
+});
+
 test('Q1b：W46 起的 @v2 队列也能分诊，记录与待分诊清单照旧', () => {
   reset();
   const desk = makeDesk();

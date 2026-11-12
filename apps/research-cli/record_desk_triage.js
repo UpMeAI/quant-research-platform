@@ -14,29 +14,33 @@
  */
 const triage = require('../../services/desk-review-routing/triage');
 
-const KNOWN = ['candidate', 'outcome', 'code', 'question-ref', 'merged-into', 'fix-repo', 'fix-ref', 'evidence', 'basis', 'at', 'session', 'supersedes', 'desk-root'];
+const KNOWN = ['candidate', 'outcome', 'code', 'question-ref', 'merged-into', 'fix-repo', 'fix-ref', 'evidence', 'basis', 'at', 'session', 'supersedes', 'desk-root', 'dry-run'];
 
 try {
   const argv = process.argv.slice(2);
   const f = {};
-  for (let i = 0; i < argv.length; i += 2) {
+  for (let i = 0; i < argv.length;) {
     const key = argv[i];
+    if (key === '--dry-run') { f['dry-run'] = true; i += 1; continue; }
     if (!key.startsWith('--') || argv[i + 1] === undefined) throw new Error(`BAD_ARGUMENTS:${key}`);
     if (!KNOWN.includes(key.slice(2))) throw new Error(`UNKNOWN_FLAG:${key}`);
     f[key.slice(2)] = argv[i + 1];
+    i += 2;
   }
   let evidence = [];
   if (f.evidence) {
     try { evidence = JSON.parse(f.evidence); } catch { throw new Error('TRIAGE_EVIDENCE_NOT_JSON'); }
     if (!Array.isArray(evidence)) throw new Error('TRIAGE_EVIDENCE_NOT_JSON');
   }
-  const row = triage.recordTriage({
+  const input = {
     candidateId: f.candidate, outcome: f.outcome, reasonCode: f.code || null, questionRef: f['question-ref'] || null, mergedInto: f['merged-into'] || null,
     fixRef: f['fix-repo'] || f['fix-ref'] ? { repo: f['fix-repo'], ref: f['fix-ref'] } : null, evidence, basisZh: f.basis, at: f.at,
     sessionRef: f.session || null, supersedes: f.supersedes || null,
-  }, { deskRoot: f['desk-root'] });
-  process.stdout.write(`${JSON.stringify({ record_id: row.record_id, record_hash: row.record_hash, candidate_id: row.candidate_id, outcome: row.outcome,
-    reason_code: row.reason_code, queue_file: row.queue_file, production_effect: 'NONE' })}\n`);
+  };
+  const row = f['dry-run'] ? triage.prepareTriage(input, { deskRoot: f['desk-root'] }) : triage.recordTriage(input, { deskRoot: f['desk-root'] });
+  process.stdout.write(`${JSON.stringify({ mode: f['dry-run'] ? 'DRY_RUN' : 'WRITE', would_write: Boolean(f['dry-run']), record_id: row.record_id,
+    record_hash: row.record_hash, candidate_id: row.candidate_id, outcome: row.outcome, reason_code: row.reason_code, queue_file: row.queue_file,
+    production_effect: 'NONE' })}\n`);
 } catch (error) {
   process.stderr.write(`${error.message}\n`);
   process.exitCode = 1;

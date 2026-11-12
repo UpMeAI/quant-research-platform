@@ -54,6 +54,18 @@ function append(file, rec) {
   return rec;
 }
 
+/**
+ * 批量只追加：先核验全部行，再用一次文件追加写入落盘。
+ * 任一行不合同时，文件不会被创建或修改。
+ */
+function appendMany(file, records) {
+  if (!Array.isArray(records) || records.length === 0) throw new Error('LEDGER_BATCH_EMPTY');
+  records.forEach(_assertContract);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, records.map((rec) => `${JSON.stringify(rec)}\n`).join(''));
+  return records;
+}
+
 function read(file) {
   try {
     return fs.readFileSync(file, 'utf8').trim().split('\n').filter(Boolean)
@@ -68,4 +80,4 @@ function heads(rows, idKey) {
   return m;
 }
 
-module.exports = { ROOT, dataDir, hash, now, uid, append, read, heads, _assertContract };
+module.exports = { ROOT, dataDir, hash, now, uid, append, appendMany, read, heads, _assertContract };
