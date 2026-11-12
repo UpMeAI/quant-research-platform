@@ -167,6 +167,24 @@ test('A 股导入：锁模式登记；幂等重放；非完成权威拒绝；sha
   assert.throws(() => ashare.importVerdicts(out2, { registeredBy: AUTH, entries: wrong }), /VERDICT_NOT_AS_REGISTERED/);
 });
 
+test('A 股修订 1：PVS-2 / PVS-4 从同一份结果文档 §0 各自那一行读出「做」与状态；K2 在 11-11 之前冻结，试验台账门不适用', () => {
+  const gates = require('../services/trial-ledger/gates');
+  // PVS_2_4_RESULT_V1.md（1cbfe175…）§0 的两行，逐字照抄
+  const markdown = ["| 题 | 判定 | 结论 | 规则 |", "| **PVS-2** `A_PVS2_VOLUME_ON_A` 对 `A`（量能增量） | 工具报 `BLOCKED(G1_COUNTER_UNREADABLE)`，按裁定 1 读作 **G1_NOT_MET → INSUFFICIENT** | **做 = 前向记录**（已过惰性诊断：评估过、从未在能起作用的地方成立 = 真惰性，§3.3） | 照 PVS-1 同款：前向一年仍 0 个改变的决策 → 转「不做（惰性）」 |", "| **PVS-4** `A_PVS4_BREAKOUT_QUALITY_ON_A` 对 `A`（价位成交分布，用途 (b)） | 同上，读作 **G1_NOT_MET → INSUFFICIENT** | **做 = 前向记录**；不另建账本、不加账户层影子（同 A_V6_R1_RESULT_V1 对 PVS-1/3/5 的做法） | 前向记录照已有记录器的形状；冻结页 R4-8 已预期「证据不足 → 做」 |"].join('\n');
+  for (const [id, other] of [['CN-PVS-2', 'CN-PVS-4'], ['CN-PVS-4', 'CN-PVS-2']]) {
+    const entry = ashare.ENTRIES.find((e) => e.id === id);
+    const got = overseas.internals.readVerdict(entry, { markdown });
+    assert.equal(got.decision, entry.expect, id);
+    assert.match(got.strength, /G1_NOT_MET → INSUFFICIENT/, id);
+    assert.deepEqual(gates.applies(entry), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' }, id);
+    assert.equal(entry.trial_gates_ruling, undefined, id);
+    // 只读自己那一行：去掉自己那一行后读不出结论（不会读到另一题）
+    const tag = id.replace('CN-', '');
+    const without = markdown.split('\n').filter((l) => !l.startsWith(`| **${tag}**`)).join('\n');
+    assert.throws(() => overseas.internals.readVerdict(entry, { markdown: without }), /VERDICT_FIELD_MISSING/, `${id} vs ${other}`);
+  }
+});
+
 test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（X08 按裁定）；绑定 sha256 合法；A 股没有 Q0 账户', () => {
   for (const entries of [overseas.ENTRIES, ashare.ENTRIES]) {
     const ids = new Set();
@@ -178,7 +196,7 @@ test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（
       assert.ok(['做', '不做'].includes(sealed.verdictWord(word, entry.id)), entry.id);
     }
   }
-  assert.equal(ashare.ENTRIES.length, 8);
+  assert.equal(ashare.ENTRIES.length, 10);
   assert.equal(ashare.ENTRIES.some((entry) => /Q0/i.test(`${entry.id}${entry.file.path}`)), false);
   assert.deepEqual(Object.keys(sealed.X08_LINES).sort(), ['V1', 'V2_SPMO', 'V2_SPY']);
   assert.throws(() => sealed.verdictWord('INSUFFICIENT', 'x'), /RETURN_SEALED_VERDICT_NOT_DO_OR_DONT/);
