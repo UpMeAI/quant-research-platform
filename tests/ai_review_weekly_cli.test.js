@@ -29,3 +29,11 @@ test('weekly CLI retains exact attribution facts while complete coverage remains
  const r=await executeWeekly({argv:f.argv,env:{AI_REVIEW_ENABLED:'1'},planIntake:()=>({accepted:[],rejected:[]}),validateContract:()=>({ok:true}),fetchFn:()=>assert.fail('network')});
  const row=r.reviews.find(x=>x.result.ledger==='US_V5_ETF_3000USD');assert.equal(row.result.facts.length,1);assert.equal(row.result.facts[0].data.window.id,'WEEK');assert.equal(row.result.status,'INPUT_MISSING');assert.equal(r.completeWeeklyReady,false);
 });
+test('weekly CLI retains hash-bound coordinator rule rows as facts without granting complete coverage',async t=>{
+ const f=setup(t),{contentHash,sha256}=require('../services/desk-review-routing/canonical');
+ const doc={schemaVersion:'RULE_CHANGE_LEDGER_V1',producer:'COORDINATOR',generatedAt:'2026-11-09T01:00:00Z',realOrder:0,brokerWrite:false,rows:[{changeId:'RCL-US-20261106-1',ledgerIds:['US_V5_ETF_3000USD'],state:'NO_BASIS',ownerConfirmation:null}]};
+ doc.hash=contentHash(doc);const file=path.join(f.root,'RULE_CHANGE_LEDGER.json');fs.writeFileSync(file,JSON.stringify(doc));
+ fs.writeFileSync(f.manifest,JSON.stringify({period:'2026-11-09',sources:[{file,fileName:'RULE_CHANGE_LEDGER.json',producer:'COORDINATOR',sha256:sha256(fs.readFileSync(file))}],requests:[{ledger:'US_V5_ETF_3000USD',market:'US',from:'2026-11-02',to:'2026-11-06',ruleChangeSourceFile:file}]}));
+ const r=await executeWeekly({argv:f.argv,now:()=>new Date('2026-11-09T01:05Z'),env:{AI_REVIEW_ENABLED:'1'},planIntake:()=>({accepted:[],rejected:[]}),validateContract:()=>({ok:true}),fetchFn:()=>assert.fail('network')});
+ const row=r.reviews.find(x=>x.result.ledger==='US_V5_ETF_3000USD');assert.equal(row.result.facts.length,1);assert.equal(row.result.facts[0].sourceContract,'RULE_CHANGE_LEDGER_V1');assert.deepEqual(row.result.facts[0].data.rows,doc.rows);assert.equal(row.result.status,'INPUT_MISSING');assert.equal(r.completeWeeklyReady,false);
+});

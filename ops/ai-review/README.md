@@ -115,3 +115,10 @@ entry in sources) and `attributionDate`. The existing Desk validator binds the
 source and book, then QRP selects its exact `WEEK` from/to without arithmetic.
 Unknown/partial states remain producer facts. This adds loss-attribution evidence;
 it does not fill missing rule-change or operation-part evidence or open model use.
+
+Weekly request `ruleChangeSourceFile` may select an explicit SHA-bound source from
+`sources`. It must be a coordinator `RULE_CHANGE_LEDGER_V1` accepted by the trusted
+Desk validator. The reader preserves matching producer-ledger rows and separately
+labels unscoped rows as context only. It does not infer rule state, compile a new
+ledger, or infer that a period had no changes. A ledger snapshot alone does not
+certify period completeness; the complete-week gate remains false.

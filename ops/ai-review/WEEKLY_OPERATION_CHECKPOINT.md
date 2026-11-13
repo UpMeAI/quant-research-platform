@@ -81,3 +81,28 @@ infer that no rule changed. Complete weekly coverage remains false.
 Checklist delta: only QRP adapter/CLI/test/doc changes; no source/schema/frozen
 files changed; no production/model calls. No schedule installation. Full regression
 from f513a21 does not cover this diff. Partial checkpoint, not release approval.
+
+## Coordinator rule-ledger consumer
+
+`rule-change-input.js` and weekly CLI now consume an explicitly SHA-bound
+RULE_CHANGE_LEDGER_V1 through Desk's validator. Payload hash, coordinator identity,
+no-order flags and future timestamps are checked before accepting facts. Matching
+ledger rows retain original states/confirmation; unscoped rows remain separately
+marked context. No period slicing or effective-state inference is invented.
+Missing source is RULE_LEDGER_MISSING, not an empty no-change conclusion.
+
+Red: MODULE_NOT_FOUND for rule-change-input. Related22/22 pass uncached under
+heavy-run light. No actual producer ledger has been delivered in inspected local
+sources, so there is no real rule-ledger integration claim. The full640 test run
+belongs to prior3920846 only; this new head has not run full regression.
+
+Checklist delta:1 new consumer/CLI/two tests/docs only;2 existing isolated QRP
+branch;3 missing-module red then green;4 related22/22;5 new-head full pending;
+6 diff-check pass;7 frozen files untouched;8 default-off and complete-coverage
+false retained;9 no production/merge/deploy/install;10 no secrets/real model;
+11 no migration/config/schema/contract edits;12–15 deployment N/A, templates
+uninstalled;16 checkpoint only, not PR_OPEN;17 DEFAULT_A reuse authoritative
+validator and preserve incomplete state. Outstanding: producer delivery, CN book
+operation partition, carry attribution contract, frozen comparison bindings and
+live observation. Do not grant completeDailyReady/completeWeeklyReady from these
+slice tests.

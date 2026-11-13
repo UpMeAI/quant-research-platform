@@ -1,0 +1,14 @@
+'use strict';
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {sha256,contentHash}=require('../services/desk-review-routing/canonical');
+const {readRuleChanges}=require('../services/ai-review/rule-change-input');
+function fixture(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'q70-rule-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+ const row={changeId:'RCL-US-20261106-1',market:'US',ledgerIds:['US_V5_ETF_3000USD'],state:'NO_BASIS',ownerConfirmation:null,effectiveAt:'2026-11-06T00:00:00Z'};
+ const doc={schemaVersion:'RULE_CHANGE_LEDGER_V1',producer:'COORDINATOR',generatedAt:'2026-11-09T01:00:00Z',rows:[row,{...row,changeId:'OTHER',ledgerIds:['OTHER']},{...row,changeId:'UNSCOPED',ledgerIds:[]}],realOrder:0,brokerWrite:false};doc.hash=contentHash(doc);
+ const file=path.join(dir,'RULE_CHANGE_LEDGER.json');fs.writeFileSync(file,JSON.stringify(doc));const source={file,sha256:sha256(fs.readFileSync(file))};
+ const run=(extra={})=>readRuleChanges({ledger:'US_V5_ETF_3000USD',source,nowMs:Date.parse('2026-11-09T01:05Z'),validateContract:(name)=>{assert.equal(name,'RULE_CHANGE_LEDGER_V1');return {ok:true};},...extra});return {run,row,source,doc};}
+test('rule ledger consumes exact producer rows without deriving effective state or weekly absence',t=>{const f=fixture(t),r=f.run();assert.deepEqual(r.fact.data.rows,[f.row]);assert.equal(r.fact.data.rows[0].state,'NO_BASIS');assert.equal(r.coverage,'RULE_CHANGE_LEDGER_SNAPSHOT');assert.equal(r.periodCompletenessCertified,false);assert.equal(r.fact.data.unscopedRows[0].changeId,'UNSCOPED');});
+test('rule ledger missing source stays missing rather than no changes',t=>{const f=fixture(t);assert.equal(f.run({source:null}).state.reason,'RULE_LEDGER_MISSING');assert.equal(f.run({source:null}).fact,null);});
+test('rule ledger requires exact bytes and canonical validator',t=>{const f=fixture(t);assert.equal(f.run({validateContract:null}).state.reason,'CANONICAL_VALIDATOR_MISSING');fs.appendFileSync(f.source.file,' ');assert.equal(f.run().state.reason,'SOURCE_HASH');});
+test('rule ledger preserves canonical rejection and never exposes raw exception',t=>{const f=fixture(t);assert.equal(f.run({validateContract:()=>({ok:false,reason:'RULE_CHANGE_STATE_MISMATCH'})}).state.reason,'RULE_CHANGE_STATE_MISMATCH');assert.equal(f.run({validateContract:()=>{throw Error('private diagnostic');}}).state.reason,'CANONICAL_VALIDATOR_FAILED');});
+test('rule ledger rejects future snapshots and mismatched payload hashes',t=>{const f=fixture(t);assert.equal(f.run({nowMs:Date.parse('2026-11-08T00:00Z')}).state.reason,'RULE_LEDGER_FUTURE');const d={...f.doc,producer:'OTHER'};fs.writeFileSync(f.source.file,JSON.stringify(d));assert.equal(f.run({source:{...f.source,sha256:sha256(fs.readFileSync(f.source.file))}}).state.reason,'PAYLOAD_HASH');});
