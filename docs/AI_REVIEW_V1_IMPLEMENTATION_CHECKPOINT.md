@@ -70,6 +70,17 @@ Related checks: 31/31. Final serial heavy-run: 605 total, 579 pass, zero fail,
 26 existing skips. The cumulative rule-change schema does not bind daily time coverage, so an
 empty/missing snapshot cannot prove no change. See AI_REVIEW_DAILY_INBOX_EVIDENCE.md.
 
+Daily command continuation: `apps/research-cli/ai_review_daily.js` composes the
+existing inbox/runner and persists a coverage manifest. Default date is CST;
+default model is off and budget unconfigured. Complete daily coverage is required
+before model calls, even if a three-source pack is READY. The daily 22:40 CST
+launchd example under `ops/ai-review/` remains disabled/uninstalled, with no
+credentials/budget. Weekly CLI/scheduling and #58 alerts remain unimplemented.
+Related checks: 36/36; plist syntax OK. Full regression did not start because
+heavy-run load gate remained closed; own queue request was cancelled. Full
+regression remains pending. See `ops/ai-review/PRECHECK.md` for the exact rerun
+command, verification and remaining gates.
+
 Next exact action: bind actual complete daily producer artifacts and required
 rule/change streams under versioned acceptance before weekly reconciliation.
 Do not invoke a real model, access credentials, install schedules or treat this
@@ -95,7 +106,8 @@ complete input adapters remain pending.
    and complete canonical source acceptance.
 4. Reuse mechanism lookup when available; otherwise preserve DEDUPE_PENDING.
    Wire alert event to #58 without notification enabled by default.
-5. Provide CLI and uninstalled CST daily/weekly scheduling artifacts. Complete
+5. Daily CLI and disabled/uninstalled CST template now exist. Weekly CLI and
+   scheduling artifacts remain pending. Complete
    all-ledger real-input dry-run and regression evidence; no installation here.
 6. Owner budget approval and deployed 3-trading-day + 1-week observation remain
    external pending gates. No ready PR / PR_OPEN / LIVE claim is appropriate.
