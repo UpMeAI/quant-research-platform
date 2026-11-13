@@ -61,3 +61,26 @@ AI review remains disabled. This is a light scheduled task, not a heavy-run job.
 Weekly Monday 09:05 CST is specified by Q70 BRIEF but remains unimplemented here:
 there is no weekly CLI or schedule that claims a weekly report exists. Queue
 updates, #58 alert delivery, installation and deployed observation remain pending.
+
+## Weekly comparison pending delivery (coordinator 2026-11-14)
+
+```sh
+node apps/research-cli/ai_review_weekly_pending.js \
+  --requests /absolute/requests.json --date 2026-11-14 \
+  --output-root /absolute/qrp/var/ai-review
+```
+
+The request file is an array of `{entryId,resultId,strategyRef}` identities. The
+canonical current-lock registry verifies sources. This entry point always emits
+`WEEKLY_BINDING_PENDING`, preserves source failure separately, and never calls a
+model, reads a key, or computes a comparison. It works independently of the AI
+switch because it only delivers deterministic pending reports. `comparisonReady`
+is always false. Missing or superseded sources remain missing, never replaced.
+
+Each identity gets JSON/Markdown under `<date>/ledger-<identity hash>/`; input
+order does not change that identity's path. The existing daily atomic per-file
+writer is reused. A report pair is not a transactional write and no crash-recovery
+certification is claimed. Exit 0 means pending reports written, not completed
+weekly review, research directions, or comparison. Invalid CLI arguments exit64;
+read/delivery failures exit1 without dumping source exception bodies. No weekly
+schedule is installed by this command.

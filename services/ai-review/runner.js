@@ -27,16 +27,19 @@ async function runDailyLedgers({ packs, root = path.resolve(__dirname, '../../va
     // No source-controlled path segments, including ledger IDs, enter filesystem paths.
     const namespace = `ledger-${sha256(canonicalJson(ledger))}`;
     const result = await run({ ...options, root, pack, namespace });
-    const dir = path.join(root, pack.period, namespace);
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    // Delivery snapshots are separate from immutable model attempts/cache. A missing
-    // budget/key/input can recover; rendering never changes the once-per-period claim.
-    const jsonFile = path.join(dir, 'DAILY.report.json');
-    const markdownFile = path.join(dir, 'DAILY.report.md');
-    replace(markdownFile, renderReport(result));
-    replace(jsonFile, JSON.stringify(result, null, 2));
-    results.push({ result, jsonFile, markdownFile });
+    results.push(persistReport({ root, period: pack.period, namespace, output: 'DAILY', result }));
   }
   return results;
 }
-module.exports = { runDailyLedgers };
+function persistReport({ root, period, namespace, output, result }) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(period) || !/^ledger-[a-f0-9]{64}$/.test(namespace)
+      || !['DAILY', 'WEEKLY_RECONCILIATION'].includes(output)) throw Error('REPORT_PATH_INVALID');
+  const dir = path.join(root, period, namespace);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const jsonFile = path.join(dir, `${output}.report.json`);
+  const markdownFile = path.join(dir, `${output}.report.md`);
+  replace(markdownFile, renderReport(result));
+  replace(jsonFile, JSON.stringify(result, null, 2));
+  return { result, jsonFile, markdownFile };
+}
+module.exports = { runDailyLedgers, persistReport };
