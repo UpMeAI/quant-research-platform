@@ -95,4 +95,4 @@ function notImported({ stores = STORES } = {}) {
   });
 }
 
-module.exports = { LEDGERS, SealedReturnError, UNDECIDED_ZH, X08_LINES, notImported, sealedRows, verdictWord };
+module.exports = { STORES, LEDGERS, SealedReturnError, UNDECIDED_ZH, X08_LINES, notImported, sealedRows, verdictWord };

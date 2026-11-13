@@ -81,6 +81,16 @@ heavy-run load gate remained closed; own queue request was cancelled. Full
 regression remains pending. See `ops/ai-review/PRECHECK.md` for the exact rerun
 command, verification and remaining gates.
 
+Weekly sealed-input slice: `weekly-sealed-input.js` now binds explicit entry,
+current result and registered strategy identities through the existing sealed
+producer registry and verifier. Missing/drifted sources are isolated; only RESULT
+verdict projections become facts, never another unit's full document. All source
+references and sidecars must match. Six synthetic cases plus canonical return and
+vocabulary regression pass 19/19; no heavy/full test ran in the CST forbidden
+window. This is source verification only: weeklyReady=false, comparison=null,
+inputState=INPUT_MISSING until metric/window/sample and delivered-forward bindings
+are authoritative. Exact contract gaps: `ops/ai-review/WEEKLY_SEALED_PRECHECK.md`.
+
 Next exact action: bind actual complete daily producer artifacts and required
 rule/change streams under versioned acceptance before weekly reconciliation.
 Do not invoke a real model, access credentials, install schedules or treat this
@@ -99,8 +109,9 @@ complete input adapters remain pending.
    attribution, decomposition, rule changes, NAV and fills. Do not let a missing
    ledger suppress valid ledgers. Existing routing validates queue/week hashes;
    existing forward registration alone is not a delivered forward stream.
-2. Bind sealed-verdict trial evidence and implement deterministic comparison
-   projection. Model must not classify or calculate the reconciliation result.
+2. Sealed source identities now bind via the existing canonical producer.
+   Unit-specific metric/forward/trial bindings and deterministic comparison remain
+   pending. Model must not classify or calculate the reconciliation result.
 3. Daily runner now delivers deterministic blocked/off reports. Still pending:
    computed differences, safe handling of partial writes and interrupted locks,
    and complete canonical source acceptance.
