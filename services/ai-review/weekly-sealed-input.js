@@ -43,7 +43,7 @@ function readWeeklySealedInputs({ period, requests, stores = STORES }) {
       // The canonical producer verifies every referenced byte/sidecar and applies
       // its registered projection, including the special multi-line X08 ruling.
       const rows = sealedRows({ stores: [{ ...source, entries: [entry], locks: () => [lock] }] });
-      return { ...base, sealedSourceState: 'VERIFIED', reason: 'WEEKLY_COMPARISON_CONTRACT_MISSING',
+      return { ...base, sealedSourceState: 'VERIFIED', reason: 'WEEKLY_BINDING_PENDING',
         facts: rows.map((row, i) => ({ id: `S${i + 1}`, sourceContract: source.store.lockSchema,
           sourceResultId: row.id, sourceEntryId: entry.id, sourceSha256: row.sha256,
           sourceFile: row.resultFile, sourceCommit: row.commit, sealedAt: row.sealedAt,

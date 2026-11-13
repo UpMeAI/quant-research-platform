@@ -27,7 +27,7 @@ test('weekly sealed input reuses canonical verdict but never claims complete com
   const f = setup(t); const [result] = f.run();
   assert.equal(result.sealedSourceState, 'VERIFIED'); assert.equal(result.inputState, 'INPUT_MISSING');
   assert.equal(result.weeklyReady, false); assert.equal(result.comparison, null);
-  assert.equal(result.reason, 'WEEKLY_COMPARISON_CONTRACT_MISSING');
+  assert.equal(result.reason, 'WEEKLY_BINDING_PENDING');
   assert.equal(result.facts[0].data.verdictState, 'INSUFFICIENT');
   assert.equal(result.facts[0].sourceSha256, f.entry.file.sha256);
   assert.equal(JSON.stringify(result).includes('OTHER_UNIT_PRIVATE'), false);
