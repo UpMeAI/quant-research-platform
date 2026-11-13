@@ -37,3 +37,11 @@ test('cumulative rule snapshot cannot certify daily change coverage; invalid per
   assert.equal(result.ruleChanges.reason, 'DAILY_RULE_COVERAGE_UNBOUND');
   assert.throws(() => readDailyInbox({ ...args, period: '../../outside' }), /DAILY_INBOX_ARGUMENTS/);
 });
+test('daily inbox consumes the same verified coordinator rule snapshot as weekly without inventing daily coverage',t=>{
+ const inbox=fs.mkdtempSync(path.join(os.tmpdir(),'q70-rule-daily-'));t.after(()=>fs.rmSync(inbox,{recursive:true,force:true}));
+ const dir=path.join(inbox,'COORDINATOR/rule-changes');fs.mkdirSync(dir,{recursive:true});
+ const row={changeId:'RCL-US-20261112-1',ledgerIds:['US_V5_ETF_3000USD'],state:'NO_BASIS',ownerConfirmation:null};
+ const doc={schemaVersion:'RULE_CHANGE_LEDGER_V1',producer:'COORDINATOR',generatedAt:'2026-11-12T12:00:00Z',rows:[row],realOrder:0,brokerWrite:false};doc.hash=contentHash(doc);fs.writeFileSync(path.join(dir,'RULE_CHANGE_LEDGER.json'),JSON.stringify(doc));
+ let calls=0;const result=readDailyInbox({inbox,period:'2026-11-12',nowMs:Date.parse('2026-11-12T13:00Z'),validateContract:(name)=>{if(name==='RULE_CHANGE_LEDGER_V1')calls++;return {ok:true};}});
+ const pack=result.slicePacks.find(p=>p.ledger==='US_V5_ETF_3000USD'),fact=pack.facts.find(f=>f.sourceContract==='RULE_CHANGE_LEDGER_V1');assert.ok(fact);assert.deepEqual(fact.data.rows,[row]);assert.equal(calls,7);assert.equal(result.completeDailyReady,false);assert.equal(result.ruleChanges.reason,'DAILY_RULE_COVERAGE_UNBOUND');assert.equal(pack.inputState,'INPUT_MISSING');
+});

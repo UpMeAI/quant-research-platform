@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { sha256 } = require('../desk-review-routing/canonical');
 const { readDeskDailyPacks, dailyBookRequests } = require('./desk-input');
+const { readRuleChanges } = require('./rule-change-input');
 function source(file) {
   try { return { file, sha256: sha256(fs.readFileSync(file)) }; }
   catch { return { file, sha256: null }; }
@@ -21,9 +22,17 @@ function readDailyInbox({ inbox, period, nowMs, validateContract }) {
   requests.push({ ledgerId: 'CARRY_V2_SHADOW_10000USDT', sources: {} });
   const ruleFile = path.join(inbox, 'COORDINATOR', 'rule-changes', 'RULE_CHANGE_LEDGER.json');
   const ruleSource = source(ruleFile);
+  const slicePacks=readDeskDailyPacks({ period, requests, nowMs, validateContract });
+  for(const pack of slicePacks){
+    const snapshot=readRuleChanges({ledger:pack.ledger,source:ruleSource,nowMs,validateContract});
+    // inputState still describes the established three-source slice. Snapshot
+    // validation is separate from (unbound) period coverage; complete stays false.
+    pack.states.push({...snapshot.state,sourceContract:'RULE_CHANGE_LEDGER_V1'});
+    if(snapshot.fact)pack.facts.push({...snapshot.fact,id:`F${pack.facts.length+1}`});
+  }
   return {
     period,
-    slicePacks: readDeskDailyPacks({ period, requests, nowMs, validateContract }),
+    slicePacks,
     completeDailyReady: false,
     ruleChanges: {
       status: ruleSource.sha256 === null ? 'INPUT_MISSING' : 'UNBOUND',

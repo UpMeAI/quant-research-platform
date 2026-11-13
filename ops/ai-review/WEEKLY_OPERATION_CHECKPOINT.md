@@ -106,3 +106,17 @@ validator and preserve incomplete state. Outstanding: producer delivery, CN book
 operation partition, carry attribution contract, frozen comparison bindings and
 live observation. Do not grant completeDailyReady/completeWeeklyReady from these
 slice tests.
+
+## Daily reuse of the coordinator snapshot reader
+Daily inbox now reads the documented COORDINATOR/rule-changes path through the
+same rule-change reader and appends original facts with unique local fact ids.
+The existing three-source slice state retains its original meaning; rule snapshot
+validation is separately recorded. Complete period coverage is still unbound.
+A missing ledger does not become a no-change conclusion. Red assertion: expected
+rule fact absent. Green19/19 daily inbox/CLI/rule reader/weekly CLI, uncached light.
+No producer, immutable contract, config or schema changed; no network/model calls.
+New-head full remains pending; previous640 belongs to3920846. Precheck delta:
+1 daily reader/test/checkpoint only;2 same isolated branch;3 red→green;4 19/19;
+5 full pending;6 diff-check pass;7 frozen unchanged;8 default off/complete false;
+9–11 no production/credentials/migrations;12–15 no installation;16 Draft only;
+17 reuse canonical reader. Missing inputs and binding freeze remain external.
