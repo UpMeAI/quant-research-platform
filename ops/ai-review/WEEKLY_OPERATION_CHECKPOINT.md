@@ -56,3 +56,28 @@ reports plus1 directions report, all incomplete, zero fetches. Full new-head
 regression and complete-input integration remain outstanding. Evidence retained
 in Owner queue70/evidence/weekly-us-dryrun-result.json and weekly-incomplete-*.log.
 This historical replay is not production observation or a complete weekly report.
+
+## Weekly attribution integration
+
+Weekly attribution now reuses readDeskDailyPacks' canonical per-book/hash/schema
+validation and selects only the exact producer WEEK from/to. SINCE_OPEN and other
+books cannot substitute. The producer's PARTIAL/UNKNOWN/null and reason codes are
+retained, not converted to zero or inferred values. CLI manifests may explicitly
+select attributionSourceFile and attributionDate per request; trusted validator
+still loads only from startup deskRoot. Evidence provenance is kept in each fact.
+
+Red: new module missing and CLI missing attribution fact. Green:19/19 related,
+HEAVY_RUN_NO_CACHE=1, light serial. Real historical US dry-run now consumes35
+selected source files and gives each US book2 facts (operation + attribution),
+zero model calls. It remains incomplete because the source week lacks11-02 and
+rule-change coverage is unbound. No new-head full run claimed.
+
+Required rule-change producer spec exists at Desk
+ docs/rule-changes/RULE_CHANGE_LEDGER_COMPILER_SPEC.md, but its documented
+RULE_CHANGE_LEDGER.json was not found in the inspected docs or local inbox.
+The compiler spec is not the delivered ledger; do not invent an empty ledger or
+infer that no rule changed. Complete weekly coverage remains false.
+
+Checklist delta: only QRP adapter/CLI/test/doc changes; no source/schema/frozen
+files changed; no production/model calls. No schedule installation. Full regression
+from f513a21 does not cover this diff. Partial checkpoint, not release approval.

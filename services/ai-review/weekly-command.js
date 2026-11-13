@@ -4,6 +4,7 @@ const { cstDate } = require('./daily-command');
 const { dailyBookRequests } = require('./desk-input');
 const { readWeeklyOperations } = require('./weekly-operation-input');
 const { runWeeklyNotes } = require('./weekly-notes-runner');
+const { readWeeklyAttribution } = require('./weekly-attribution-input');
 const { sha256 } = require('../desk-review-routing/canonical');
 function parseArgs(argv, now) {
  const values = {};
@@ -18,7 +19,7 @@ function parseArgs(argv, now) {
  if(!/^\d{4}-\d{2}-\d{2}$/.test(period)||!Number.isFinite(Date.parse(period))||new Date(period).toISOString().slice(0,10)!==period)throw Error('WEEKLY_ARGUMENTS_INVALID');
  return {period,manifest:values['--manifest'],deskRoot:values['--desk-root'],root:values['--output-root']||path.resolve(__dirname,'../../var/ai-review')};
 }
-async function executeWeekly({argv,env=process.env,now=()=>new Date(),planIntake,fetchFn=globalThis.fetch}){
+async function executeWeekly({argv,env=process.env,now=()=>new Date(),planIntake,validateContract,fetchFn=globalThis.fetch}){
  const instant=now(),args=parseArgs(argv,instant);
  let manifestState='MISSING',manifest=null,manifestSha256=null;
  try{
@@ -28,6 +29,7 @@ async function executeWeekly({argv,env=process.env,now=()=>new Date(),planIntake
   else {manifestState='AVAILABLE';manifest=value;}
  }catch{manifestState=fs.existsSync(args.manifest)?'INVALID':'MISSING';}
  if(planIntake===undefined){try{planIntake=require(path.join(args.deskRoot,'src/inbox/intake')).planIntake;}catch{planIntake=null;}}
+ if(validateContract===undefined){try{validateContract=require(path.join(args.deskRoot,'src/validate')).validateContract;}catch{validateContract=null;}}
  const required=dailyBookRequests().map(b=>({ledger:b.ledgerId+(b.partId?`:${b.partId}`:''),market:b.market}));
  required.push({ledger:'CARRY_V2_SHADOW_10000USDT',market:'CRYPTO'});
  const requests=required.map(book=>{
@@ -35,7 +37,14 @@ async function executeWeekly({argv,env=process.env,now=()=>new Date(),planIntake
   return matches.length===1?matches[0]:book;
  });
  const slices=manifest?readWeeklyOperations({period:args.period,sources:manifest.sources,requests,nowMs:instant.getTime(),planIntake}):required.map(book=>({period:args.period,output:'WEEKLY_REVIEW',ledger:book.ledger,facts:[],states:[{ledger:book.ledger,status:manifestState==='STALE'?'INPUT_STALE':'INPUT_MISSING',reason:`WEEKLY_MANIFEST_${manifestState}`}],inputState:manifestState==='STALE'?'INPUT_STALE':'INPUT_MISSING',coverage:'WEEKLY_OPERATION_SLICE'}));
- // Operation facts do not cover required attribution/rule changes. This gate is
+ for(const [index,pack] of slices.entries()){
+  const request=requests[index];
+  const sources=manifest?.sources.filter(s=>s&&s.file===request.attributionSourceFile)||[];
+  const result=readWeeklyAttribution({period:args.period,request:{...request,source:sources.length===1?sources[0]:null},nowMs:instant.getTime(),validateContract});
+  pack.states.push({...result.state,sourceContract:'REVIEW_DECOMPOSITION_V2'});
+  if(result.fact)pack.facts.push({...result.fact,id:`F${pack.facts.length+1}`});
+ }
+ // Operation and attribution facts do not yet cover required rule changes. This gate is
  // canonical code, not an operator manifest assertion. No partial model review.
  const reviewPacks=slices.map(p=>({...p,inputState:p.inputState==='INPUT_STALE'?'INPUT_STALE':'INPUT_MISSING',states:[...p.states,{ledger:p.ledger,status:'INPUT_MISSING',reason:'COMPLETE_WEEKLY_COVERAGE_PENDING'}]}));
  const directionsPack={period:args.period,output:'WEEKLY_DIRECTIONS',ledger:'ALL_LEDGERS',coverage:'WEEKLY_OPERATION_SLICE',inputState:'INPUT_MISSING',facts:slices.flatMap(p=>p.facts).map((f,i)=>({...f,id:`F${i+1}`})),states:[{status:'INPUT_MISSING',reason:'COMPLETE_WEEKLY_COVERAGE_PENDING'}]};

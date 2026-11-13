@@ -109,3 +109,9 @@ Replace all placeholders only after review. It requires an independently deliver
 manifest for the exact current CST report date; it does not manufacture one. No
 KeepAlive, RunAtLoad, key, budget or notification is enabled. The template does not
 certify end-to-end scheduling or complete weekly production.
+
+Weekly manifest requests may additionally select `attributionSourceFile` (an exact
+entry in sources) and `attributionDate`. The existing Desk validator binds the
+source and book, then QRP selects its exact `WEEK` from/to without arithmetic.
+Unknown/partial states remain producer facts. This adds loss-attribution evidence;
+it does not fill missing rule-change or operation-part evidence or open model use.

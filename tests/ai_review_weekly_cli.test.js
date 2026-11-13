@@ -21,3 +21,11 @@ test('weekly arguments reject relative paths and repeated options before reading
  await assert.rejects(executeWeekly({argv:['--manifest','relative','--desk-root','/tmp']}),/WEEKLY_ARGUMENTS_INVALID/);
  await assert.rejects(executeWeekly({argv:['--manifest','/tmp/a','--desk-root','/tmp','--date','2026-02-30']}),/WEEKLY_ARGUMENTS_INVALID/);
 });
+test('weekly CLI retains exact attribution facts while complete coverage remains pending',async t=>{
+ const f=setup(t),{contentHash,sha256}=require('../services/desk-review-routing/canonical');
+ const doc={schemaVersion:2,producer:'SMARTFLOW',market:'US',currency:'USD',sessionDate:'2026-11-06',lossAttribution:{plan:'LOSS_ATTRIBUTION_V1@1',accountBasis:'PAPER_BOOK_IS_THE_ACCOUNT',books:[{ledgerId:'US_V5_ETF_3000USD',windows:[{id:'WEEK',from:'2026-11-02',to:'2026-11-06',status:'PARTIAL',net:{value:null,state:'UNKNOWN'}}]}]}};
+ doc.hash=contentHash(doc);const file=path.join(f.root,'attribution.json');fs.writeFileSync(file,JSON.stringify(doc));
+ fs.writeFileSync(f.manifest,JSON.stringify({period:'2026-11-09',sources:[{file,fileName:'REVIEW_DECOMPOSITION_V2_2026-11-06.json',producer:'SMARTFLOW_US',sha256:sha256(fs.readFileSync(file))}],requests:[{ledger:'US_V5_ETF_3000USD',market:'US',from:'2026-11-02',to:'2026-11-06',attributionDate:'2026-11-06',attributionSourceFile:file}]}));
+ const r=await executeWeekly({argv:f.argv,env:{AI_REVIEW_ENABLED:'1'},planIntake:()=>({accepted:[],rejected:[]}),validateContract:()=>({ok:true}),fetchFn:()=>assert.fail('network')});
+ const row=r.reviews.find(x=>x.result.ledger==='US_V5_ETF_3000USD');assert.equal(row.result.facts.length,1);assert.equal(row.result.facts[0].data.window.id,'WEEK');assert.equal(row.result.status,'INPUT_MISSING');assert.equal(r.completeWeeklyReady,false);
+});
