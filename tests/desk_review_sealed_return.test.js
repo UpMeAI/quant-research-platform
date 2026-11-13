@@ -185,6 +185,25 @@ test('A 股修订 1：PVS-2 / PVS-4 从同一份结果文档 §0 各自那一行
   }
 });
 
+test('A 股修订 2：行业 ETF 左侧埋伏从封存 JSON 的 verdict.state 读 INSUFFICIENT → 做；K2 在 11-11 之后冻结，两道门都过，运行日志按 sha256 绑定', () => {
+  const gates = require('../services/trial-ledger/gates');
+  const entry = ashare.ENTRIES.find((e) => e.id === 'CN-SECTOR-ETF-LEFT-1');
+  // result-sector-etf-left-1.json（77067969…）的 verdict，逐字照抄
+  const doc = { verdict: { pair: 'g(L_LEFT_AMBUSH − CASH)', g: 0.0202, ci95: [0.0031, 0.0434], days: 1759, months: 87, closedEpisodes: 12, g1Min: 30, state: 'INSUFFICIENT', reason: 'G1_NOT_MET', conclusion: '做 = 前向影子' } };
+  const got = overseas.internals.readVerdict(entry, doc);
+  assert.equal(got.raw, entry.expect);
+  assert.equal(got.decision, '做');
+  assert.match(got.strength, /INSUFFICIENT（G1_NOT_MET）/);
+  assert.match(got.use, /前向影子/);
+  // 别的状态不会读成「做」：导入时 VERDICT_NOT_AS_REGISTERED
+  for (const state of ['SUPPORTED', 'NOT_PASSED']) assert.notEqual(overseas.internals.readVerdict(entry, { verdict: { ...doc.verdict, state } }).raw, entry.expect, state);
+  assert.deepEqual(gates.applies(entry), { applies: true, reason: 'FROZEN_AFTER_AMENDMENT' });
+  assert.equal(entry.trial_gates_ruling, undefined);
+  const roles = overseas.internals.boundFiles(entry).map((f) => f.role);
+  assert.deepEqual(roles, ['FILE', 'K2', 'FREEZE', 'RUN_LOG']);
+  assert.equal(entry.strategy_ref, 'INDEX_BOOK');
+});
+
 test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（X08 按裁定）；绑定 sha256 合法；A 股没有 Q0 账户', () => {
   for (const entries of [overseas.ENTRIES, ashare.ENTRIES]) {
     const ids = new Set();
@@ -196,7 +215,7 @@ test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（
       assert.ok(['做', '不做'].includes(sealed.verdictWord(word, entry.id)), entry.id);
     }
   }
-  assert.equal(ashare.ENTRIES.length, 10);
+  assert.equal(ashare.ENTRIES.length, 11);
   assert.equal(ashare.ENTRIES.some((entry) => /Q0/i.test(`${entry.id}${entry.file.path}`)), false);
   assert.deepEqual(Object.keys(sealed.X08_LINES).sort(), ['V1', 'V2_SPMO', 'V2_SPY']);
   assert.throws(() => sealed.verdictWord('INSUFFICIENT', 'x'), /RETURN_SEALED_VERDICT_NOT_DO_OR_DONT/);

@@ -33,6 +33,11 @@ const PVS24_RESULT = coord('PVS_2_4_RESULT_V1.md', '1cbfe175f3eccc76810ed2006e23
 const PVS24_NOTE = '判定读法：协调会话 PVS_2_4_RESULT_V1_RULINGS_20261113.md（b2438e63…）裁定 1 (a)，BLOCKED(G1_COUNTER_UNREADABLE) 按 G1_NOT_MET 读；第 1 阶段 2024-01-02 → 2026-09-28；k2_frozen_at 取冻结页分钟段起点。';
 const pvs24Read = (q) => Object.freeze({ pattern: `^\\| \\*\\*PVS-${q}\\*\\* [^|]*\\| [^|]*\\| \\*\\*(做|不做) = `, strength_pattern: `^\\| \\*\\*PVS-${q}\\*\\* [^|]*\\| ([^|]+?) \\|` });
 
+// 修订 2（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_2.md）：行业 ETF 左侧埋伏。K2 在 2026-11-12 07:58:23 冻结（过拟合控制修订之后），
+// 两道试验台账门都过：7 个预登记行、运行日志（研究分支上，按 sha256 绑定）、披露行。结论从封存 JSON 的 verdict.state 读，INSUFFICIENT 而在前向影子 = 做。
+const SEL1_COMMIT = '933d47ff8b4c81eff83bc7558f6799b8020c33e1';
+const SEL1_RUN_LOG_COMMIT = '0a6ebc730b4a590323105a539692839a228eab6f';
+
 const ENTRIES = Object.freeze([
   { id: 'CN-R-ETF-1', label_zh: 'R-ETF-1', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-05', title_zh: '宽基 ETF 波动率网格 VG 对现行档位规则 C',
     file: v6('84adf8b97268d59318dda22be5363953e7939b6a', 'research/index-grid/r-etf-1/result-r-etf-1.json', '6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0'),
@@ -57,6 +62,19 @@ const ENTRIES = Object.freeze([
     freeze: coord('PVS_4_5_K2_FREEZE_1.md', '2370748b9d5ec472340312a6625dc6545c6021cd935dfbdb13b005ff373a2884'), k2_frozen_at: '2026-10-31T09:30:00+08:00',
     read: pvs24Read(4), expect: '做',
     note_zh: `${PVS24_NOTE}没有事先的 TRL 登记：回补登记依据协调会话 2026-11-11 21:5x 裁定 (a)（按冻结页原样跑，BASE_ARM = A），结果文档 §5.4 披露。` },
+  { id: 'CN-SECTOR-ETF-LEFT-1', label_zh: '行业 ETF 左侧埋伏', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-13',
+    title_zh: '行业 ETF 左侧埋伏：错位初筛加价格低位，到价分批入场（SECTOR_ETF_LEFT_1，L 对 CASH）',
+    file: v6(SEL1_COMMIT, 'research/sector-etf-left-1/result-sector-etf-left-1.json', '77067969408f5f7ee626083188856ee20e8653776beee4884798f2b0c3e3c720'),
+    k2: coord('SECTOR_ETF_LEFT_1_K2_V1.draft.md', '34864588774647c909d59baae185748915c708cf235b2f8eebc1ca5bcd4e8aa5'),
+    freeze: coord('SECTOR_ETF_LEFT_1_K2_V1_FREEZE_1.md', '68bd7e9f8d9b4dde0cd6817ef0e7410cbe790e3fd75e123a292aedd389b4baee'),
+    run_log: v6(SEL1_RUN_LOG_COMMIT, 'research/sector-etf-left-1/RESEARCH_RUN_LOG_V1.json', '42d3ceee9adf6046956a6f926060b5382a9739505457e1d8da42c0e8df61bbfa'),
+    k2_frozen_at: '2026-11-12T07:58:23+08:00',
+    read: Object.freeze({ decision: 'verdict.state', strength: 'verdict.reason', use: null, text: 'verdict.conclusion' }), expect: 'INSUFFICIENT',
+    resolve: Object.freeze({ INSUFFICIENT: Object.freeze({ decision: '做', use_zh: '前向影子：研究账本，同 PV_CN_STOCK_BOOK_TREND_V1 形状，不新开生产账本（Owner 11-09）；指数簿行业袖不变' }) }),
+    note_zh: 'g(L − CASH) +2.02 %/年，95 % [+0.31 %, +4.34 %]，但只有 12 个已平仓回合，不到 G1 = 30 → INSUFFICIENT（G1_NOT_MET）→ 做 = 前向影子，冻结页预期如此。'
+      + '只报：200 次随机入场 L 在第 98.5 百分位；主线入场 T −0.42 %/年。过拟合披露：DSR 未知（已知 ŜR 4 个 < 5），按族 N = 39 的 Bonferroni 回退不过；PBO 0.031（4 个计入配置）；证据不足，校正列不适用。'
+      + '月度序列是封存之后从未改动的封存命令导出的（Ashare-V6 469445ce，7fb3e802…，结果逐字节同封存文件）。'
+      + '来源：Ashare-V6 research/sector-etf-left-1 的结果文件（77067969），结果文档 SECTOR_ETF_LEFT_1_RESULT_V1.md（bd853a6a），封存 2026-11-13。' },
 ]);
 
 const locks = (strategyRef = null) => overseas.locks(strategyRef, STORE);
