@@ -15,7 +15,7 @@ async function runWeeklyNotes({ reviewPacks, directionsPack, root = path.resolve
   if (!Array.isArray(reviewPacks) || !reviewPacks.length || !validPack(directionsPack, 'WEEKLY_DIRECTIONS')
       || directionsPack.ledger !== 'ALL_LEDGERS'
       || reviewPacks.some(p => !validPack(p, 'WEEKLY_REVIEW') || p.period !== directionsPack.period
-        || !(isRegisteredDailyLedger(p.ledger) || (p.ledger === 'CARRY_V2_SHADOW_10000USDT' && p.inputState === 'INPUT_MISSING')))
+        || !(isRegisteredDailyLedger(p.ledger) || (p.ledger === 'CARRY_V2_SHADOW_10000USDT' && ['INPUT_MISSING', 'INPUT_STALE'].includes(p.inputState))))
       || new Set(reviewPacks.map(p => p.ledger)).size !== reviewPacks.length) throw Error('WEEKLY_SCOPE_INVALID');
   const deliver = async pack => {
     const namespace = `ledger-${sha256(canonicalJson(pack.ledger))}`;

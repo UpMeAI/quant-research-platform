@@ -58,9 +58,9 @@ private output/log directories, and review complete-input and budget gates. The
 template has no RunAtLoad, KeepAlive, key, budget or notification configuration;
 AI review remains disabled. This is a light scheduled task, not a heavy-run job.
 
-Weekly Monday 09:05 CST is specified by Q70 BRIEF but remains unimplemented here:
-there is no weekly CLI or schedule that claims a weekly report exists. Queue
-updates, #58 alert delivery, installation and deployed observation remain pending.
+Weekly Monday 09:05 CST now has an uninstalled template and partial-input CLI
+(described below). Complete weekly coverage, alert delivery, installation and
+deployed observation remain pending.
 
 ## Weekly comparison pending delivery (coordinator 2026-11-14)
 
@@ -84,3 +84,28 @@ certification is claimed. Exit 0 means pending reports written, not completed
 weekly review, research directions, or comparison. Invalid CLI arguments exit64;
 read/delivery failures exit1 without dumping source exception bodies. No weekly
 schedule is installed by this command.
+
+## Weekly facts command (coverage incomplete; no model invocation)
+
+`node apps/research-cli/ai_review_weekly.js --manifest /absolute/weekly.json --desk-root /absolute/trusted-desk --date 2026-11-09 --output-root /absolute/output`
+
+The source manifest has exactly `period`, `sources`, `requests`. Sources explicitly
+name `{file,fileName,producer,sha256}` for the weekly review and its bound daily/
+trade dependencies; requests name `{ledger,market,from,to,sourceFile}`. The trusted
+Desk intake is loaded only from the startup `--desk-root`, never from the manifest.
+No scanning, producer execution, alternate week selection or recomputation occurs.
+Missing requested books get their own missing report. The command produces seven
+book reports and one global directions report using the existing writer.
+
+Only operation facts are connected. Attribution/rule changes and CN part-specific
+facts remain incomplete; `completeWeeklyReady=false` and model calls stay blocked
+regardless of a manifest's claims. An invalid/stale manifest stays visibly invalid/
+stale. Exit 0 means reports were written, not that their evidence is complete.
+Reconciliation uses the separate pending command; its binding table is unchanged.
+
+The weekly plist is disabled and uninstalled. For a Los Angeles host it schedules
+Sunday 16:05/17:05, with the existing CST gate selecting Monday 09:05 across DST.
+Replace all placeholders only after review. It requires an independently delivered
+manifest for the exact current CST report date; it does not manufacture one. No
+KeepAlive, RunAtLoad, key, budget or notification is enabled. The template does not
+certify end-to-end scheduling or complete weekly production.

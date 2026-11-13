@@ -21,3 +21,22 @@ Pre-review checkpoint:
 17. DEFAULT_A: canonical intake reused, no duplicate business validation.
 
 Next: trusted weekly source-list/CLI wiring, complete coverage, real intake dry-run, then old-MBP regression and PR update. Tests use a fake intake at the adapter boundary, not proof abbreviated fixtures satisfy the producer schema.
+
+## Weekly command checkpoint
+
+The weekly command now consumes an explicit period-bound SHA manifest and loads
+Desk planIntake only from the trusted startup root. It emits all seven required
+book reports plus one global directions artifact. Missing/stale remain distinct;
+completeWeeklyReady remains false until missing attribution/rule-change and CN
+part facts are connected. Carry stale handling was corrected in the runner after
+the new CLI test exposed a scope rejection; no READY carry model input is enabled.
+
+Checklist delta: (1) added weekly command, CLI, four tests and disabled plist;
+updated existing runner to preserve carry INPUT_STALE and README. (3) missing
+module red and stale-carry integration failure preserved. (4) related13/13 pass,
+0 skip; heavy-run light serial. (5) new-head full not run, old-MBP requirement
+unchanged. (6) diff-check and plutil lint pass. (7–11) no frozen, producer, schema,
+config, production or credential changes. (12–15) plist is placeholder-only,
+disabled, uninstalled; no live scheduling claim, no deployment script. (16) local
+checkpoint only, not PR_OPEN. (17) reuse canonical intake, writer and CST gate.
+The remaining completeness work in the prior checkpoint is still outstanding.
