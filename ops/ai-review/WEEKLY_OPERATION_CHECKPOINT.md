@@ -40,3 +40,19 @@ config, production or credential changes. (12–15) plist is placeholder-only,
 disabled, uninstalled; no live scheduling claim, no deployment script. (16) local
 checkpoint only, not PR_OPEN. (17) reuse canonical intake, writer and CST gate.
 The remaining completeness work in the prior checkpoint is still outstanding.
+
+## Real-source dry-run and producer-readiness correction
+
+A real SMARTFLOW_US week (2026-11-02..06) plus 34 explicitly bound source files
+was read through the actual Desk planIntake, using historical as-of
+2026-11-09T01:05Z. No input was rewritten; no model called. Both US books retained
+one accepted operation fact. Their own readiness says DEGRADED and weekState says
+INCOMPLETE: the 11-02 day file was not delivered. The adapter previously projected
+accepted-but-incomplete facts as slice READY; a red test reproduced this and it now
+preserves the producer's readiness in fact data and returns INPUT_MISSING.
+
+New related run14/14 passes (heavy-run light, serial). Real dry-run emits7 book
+reports plus1 directions report, all incomplete, zero fetches. Full new-head
+regression and complete-input integration remain outstanding. Evidence retained
+in Owner queue70/evidence/weekly-us-dryrun-result.json and weekly-incomplete-*.log.
+This historical replay is not production observation or a complete weekly report.

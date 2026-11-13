@@ -43,7 +43,8 @@ function readWeeklyOperations({ period, sources, requests, nowMs, planIntake }) 
   const rows = Array.isArray(doc.books) ? doc.books.filter(b => b.ledgerId === ledger) : [];
   if (rows.length !== 1) return refuse('WEEKLY_BOOK_BINDING');
   const source = byFile.get(request.sourceFile);
-  pack.facts.push({ id:'F1', ledger, sourceFile:source.file, sourceSha256:source.sha256, sourcePayloadSha256:doc.hash, sourceContract:'OPERATION_REVIEW_V1', data:{period:doc.period,book:rows[0]} });
+  pack.facts.push({ id:'F1', ledger, sourceFile:source.file, sourceSha256:source.sha256, sourcePayloadSha256:doc.hash, sourceContract:'OPERATION_REVIEW_V1', data:{period:doc.period,readiness:doc.week?.readiness ?? null,book:rows[0]} });
+  if (doc.week?.readiness?.state !== 'READY' || rows[0].weekState?.state === 'INCOMPLETE') return refuse('WEEKLY_PRODUCER_INCOMPLETE');
   pack.inputState='READY';pack.states.push({ledger,status:'READY',reason:null});
   return pack;
  });
