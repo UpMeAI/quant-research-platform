@@ -33,7 +33,7 @@ async function runDailyLedgers({ packs, root = path.resolve(__dirname, '../../va
 }
 function persistReport({ root, period, namespace, output, result }) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(period) || !/^ledger-[a-f0-9]{64}$/.test(namespace)
-      || !['DAILY', 'WEEKLY_RECONCILIATION'].includes(output)) throw Error('REPORT_PATH_INVALID');
+      || !['DAILY', 'WEEKLY_REVIEW', 'WEEKLY_RECONCILIATION', 'WEEKLY_DIRECTIONS'].includes(output)) throw Error('REPORT_PATH_INVALID');
   const dir = path.join(root, period, namespace);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const jsonFile = path.join(dir, `${output}.report.json`);

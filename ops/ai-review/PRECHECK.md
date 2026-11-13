@@ -55,3 +55,22 @@ The local heavy-run implementation currently gates load/lock but does not enforc
 clock windows; the operator must monitor queue wait and cancel before a prohibited
 window. Do not bypass its load threshold. This is an observed tool constraint, not
 a request to modify that external tool in this slice.
+
+## Weekly note delivery slice · 2026-11-14 (not release acceptance)
+
+1. Scope: add weekly-notes-runner.js and its tests; extend the existing report output allowlist. No new metric, threshold, projection, or comparison.
+2. Existing isolated codex Q70 worktree / Draft PR77, previous head2662c831; production checkout unchanged.
+3. Red: new test file failed MODULE_NOT_FOUND under heavy-run. Green:12/12 passed; intermediate undefined/null persistence mismatch was fixed without weakening the test.
+4. Related: weekly notes, daily runner and weekly pending runner; 12/12 pass,0fail,0skip (1.017seconds), under heavy-run with concurrency1.
+5. Full regression after this source change: pending on old MBP per01:17 ruling. Earlier595/0/26 result belongs to earlier code only.
+6. git diff --check: pass before staging.
+7. Existing frozen contracts/word lists unchanged; no config edits.
+8. Core budget, key, enabled=0 and checker paths reused unchanged; missing weekly inputs preserved.
+9. No merge/deploy/production writes/model calls.
+10. Tests synthetic; no credential reads beyond fake test fixtures, no secrets committed.
+11. No migration/schema/config contract changes.
+12–15. No deployment/installer/CLI/schedule in this slice. Not authorization to run weekly jobs. Receiver paths hashed, output kinds restricted, default-off core retained.
+16. Keep Draft; do not mark PR_OPEN or task complete.
+17. DEFAULT_A reuse existing run and persistReport; one global directions artifact, maximum3 enforced by existing checker.
+
+Still missing: authoritative complete weekly source assembly and coverage, weekly CLI/schedule, complete daily coverage, binding freeze, real-period acceptance and deployed observation. A successful report writer does not satisfy these.
