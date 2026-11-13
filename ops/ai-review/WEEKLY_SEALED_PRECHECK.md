@@ -68,3 +68,6 @@ remain explicit even when `sealedSourceState=VERIFIED`.
 Daily missing inputs, weekly CLI/scheduling, #58 alerts, interruption recovery and
 real deployed observation remain pending. This slice does not certify recovery;
 no stale-lock ownership rule or retry authority was invented.
+
+## Coordinator amendment 2026-11-14 00:40
+The binding reader and core reconciliation path now explicitly emit WEEKLY_BINDING_PENDING. The core refuses the model path even when a caller labels the weekly pack READY; comparison remains null and source state/reason are retained separately. Disabled behavior remains unchanged. Test first failed INPUT_MISSING != WEEKLY_BINDING_PENDING, then 15 core/binding tests passed, zero model calls. No frozen metric, threshold, source file, production config or scheduling changed. Current draft table remains outside the repository in task #70 for coordinator review; no executable mapping is inferred. Prior full-regression evidence is not represented as a rerun for this amendment.

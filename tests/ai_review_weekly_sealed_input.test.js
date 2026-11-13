@@ -71,7 +71,10 @@ test('weekly input is pure read-only binding with no model path; source errors r
     assert.equal(pack.sealedSourceState, 'VERIFIED');
     const report = await require('../services/ai-review').run({ pack, root: path.join(f.dir, 'reports'), enabled: true,
       keyFile: path.join(f.dir, 'absent-synthetic-key'), budget: { perCall: 10000, day: 10000, month: 10000 }, fetchFn: globalThis.fetch });
-    assert.equal(report.status, 'INPUT_MISSING');
+    assert.equal(report.status, 'WEEKLY_BINDING_PENDING');
+    assert.equal(report.comparison, null);
+    const forcedReady = await require('../services/ai-review').run({ pack: { ...pack, inputState: 'READY' }, enabled: true, fetchFn: globalThis.fetch });
+    assert.equal(forcedReady.status, 'WEEKLY_BINDING_PENDING');
     assert.equal(fs.existsSync(path.join(f.dir, 'reports')), false);
     f.stores[0].locks = () => { throw Error('private-path-secret'); };
     const [bad] = f.run(); assert.equal(bad.reason, 'SEALED_LOCKS_UNAVAILABLE');

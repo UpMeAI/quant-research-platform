@@ -61,6 +61,8 @@ async function run({ pack, namespace = null, root = path.resolve(__dirname, '../
   const base = { contract: 'AI_REVIEW_NOTE_V1', inputPackSha256, promptVersion: PROMPT_VERSION, promptDigest: sha256(PROMPT), model: MODEL, contextOnly: true, tradeAuthority: false, facts: pack.facts, usage: [], checker: null };
   if (namespace !== null) Object.assign(base, { ledger: pack.ledger, coverage: pack.coverage, states: pack.states, inputState: pack.inputState, weeklyComparison: null, weeklyComparisonAvailability: 'NOT_IMPLEMENTED' });
   if (!enabled) return { ...base, status: 'DISABLED' };
+  // Coordinator 2026-11-14: no weekly comparison or model explanation before a frozen binding table.
+  if (pack.output === 'WEEKLY_RECONCILIATION') return { ...base, status: 'WEEKLY_BINDING_PENDING', comparison: null, reason: 'WEEKLY_BINDING_PENDING', sealedSourceState: pack.sealedSourceState ?? null, sourceReason: pack.reason ?? null };
   if (pack.inputState !== 'READY' || !pack.facts.length) return { ...base, status: pack.inputState === 'INPUT_STALE' ? 'INPUT_STALE' : 'INPUT_MISSING' };
   if (!budget || ['perCall', 'day', 'month'].some((k) => !Number.isSafeInteger(budget[k]) || budget[k] <= 0)) return { ...base, status: 'BLOCKED:BUDGET', reason: 'BUDGET_UNCONFIGURED' };
   fs.mkdirSync(root, { recursive: true, mode: 0o700 });
