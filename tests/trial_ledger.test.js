@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 
 const trials = require('../services/trial-ledger');
 const overfit = require('../services/trial-ledger/overfit');
@@ -261,6 +261,54 @@ test('命令行：hash、trial-id、count 只读；写命令要完成权威', ()
   assert.equal(JSON.parse(execFileSync('node', [cli, 'trial-id', '--family', 'F', '--study', 'S', '--label', 'L'], { env })).trial_id, trials.trialIdOf({ family_id: 'F', study_ref: 'S', config_label: 'L' }));
   assert.equal(JSON.parse(execFileSync('node', [cli, 'count', '--family', 'NONE'], { env })).n_raw, 0);
   assert.throws(() => execFileSync('node', [cli, 'register', '--spec', file, '--registered-by', 'x'], { env: { ...env, QRP_PRODUCT_MILESTONE_AUTHORITY: 'y' }, stdio: 'pipe' }), /REGISTERED_BY_NOT_AUTHORIZED/);
+});
+
+test('命令行：每个子命令遇到未声明参数都 fail closed 且不写台账', async (t) => {
+  const cli = path.join(__dirname, '..', 'apps', 'research-cli', 'trial_ledger.js');
+  const env = { ...process.env, QRP_DATA_DIR: dataRoot, QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH };
+  const commands = ['register', 'record', 'correct', 'mark-segment', 'disclose', 'disclose-na', 'back-register', 'count', 'segments', 'hash', 'trial-id'];
+  for (const command of commands) {
+    await t.test(command, () => {
+      const before = ALL_FILES().map((file) => (fs.existsSync(file) ? fs.readFileSync(file) : null));
+      const run = spawnSync(process.execPath, [cli, command, '--not-a-real-flag', 'x'], { env, encoding: 'utf8' });
+      assert.notEqual(run.status, 0);
+      assert.equal(run.stderr.trim(), 'UNKNOWN_FLAG:not-a-real-flag');
+      const after = ALL_FILES().map((file) => (fs.existsSync(file) ? fs.readFileSync(file) : null));
+      assert.deepEqual(after, before);
+    });
+  }
+});
+
+test('命令行：mark-segment --dry-run true 打印含 mark_id 的计划且台账字节不变', () => {
+  const cli = path.join(__dirname, '..', 'apps', 'research-cli', 'trial_ledger.js');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-cli-mark-dry-'));
+  const input = path.join(dir, 'marks.json');
+  fs.writeFileSync(input, JSON.stringify([{ family_id: 'C17_V2_4000USDT', market: 'CRYPTO_USDM_PERP', from: '2026-11-15', to: '2026-11-16', label: 'SEEN', seen_kind: 'SEEN_DATA', reason: 'test dry run' }]));
+  const env = { ...process.env, QRP_DATA_DIR: dataRoot, QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH };
+  const file = trials.SEGMENTS();
+  const before = fs.existsSync(file) ? fs.readFileSync(file) : null;
+  const run = spawnSync(process.execPath, [cli, 'mark-segment', '--spec', input, '--registered-by', AUTH, '--dry-run', 'true'], { env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  const rows = run.stdout.trim().split('\n').filter(Boolean).map(JSON.parse);
+  assert.equal(rows.length, 1);
+  assert.match(rows[0].mark_id, /^SEG-/);
+  const after = fs.existsSync(file) ? fs.readFileSync(file) : null;
+  assert.deepEqual(after, before);
+});
+
+test('命令行：record / correct 不提供 dry run，显式拒绝 --dry-run 且不写台账', async (t) => {
+  const cli = path.join(__dirname, '..', 'apps', 'research-cli', 'trial_ledger.js');
+  const env = { ...process.env, QRP_DATA_DIR: dataRoot, QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH };
+  for (const command of ['record', 'correct']) {
+    await t.test(command, () => {
+      const before = ALL_FILES().map((file) => (fs.existsSync(file) ? fs.readFileSync(file) : null));
+      const run = spawnSync(process.execPath, [cli, command, '--dry-run', 'true'], { env, encoding: 'utf8' });
+      assert.notEqual(run.status, 0);
+      assert.equal(run.stderr.trim(), 'UNKNOWN_FLAG:dry-run');
+      const after = ALL_FILES().map((file) => (fs.existsSync(file) ? fs.readFileSync(file) : null));
+      assert.deepEqual(after, before);
+    });
+  }
 });
 
 test('命令行：back-register 只要带 --arms 就必须钉住 --arms-sha256，缺失或不符都在读总表前关停', () => {
