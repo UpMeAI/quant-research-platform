@@ -204,6 +204,26 @@ test('A 股修订 2：行业 ETF 左侧埋伏从封存 JSON 的 verdict.state �
   assert.equal(entry.strategy_ref, 'INDEX_BOOK');
 });
 
+test('A 股修订 3：X07a 从封存 JSON 的 verdict.code 读 DO_INSUFFICIENT → 做（无收紧候选）；冻结后登记按门的裁定，运行日志、两页记录按 sha256 绑定', () => {
+  const gates = require('../services/trial-ledger/gates');
+  const entry = ashare.ENTRIES.find((e) => e.id === 'CN-X07A');
+  // X07A_ASHARE_KELLY_RESULT_V1.json（b2159735…）的 verdict 与 part2.reading，逐字照抄
+  const doc = { verdict: { code: 'DO_INSUFFICIENT', zh: '做（证据不足）', candidate: null }, part2: { reading: 'F2' } };
+  const got = overseas.internals.readVerdict(entry, doc);
+  assert.equal(got.raw, entry.expect);
+  assert.equal(got.decision, '做');
+  assert.match(got.strength, /DO_INSUFFICIENT（F2）/);
+  assert.match(got.use, /SHADOW_NOT_APPLICABLE_NO_CANDIDATE/);
+  assert.equal(got.text, '做（证据不足）');
+  // 别的读数不会读成期望值：导入时 VERDICT_NOT_AS_REGISTERED
+  for (const code of ['DO_TIGHTEN', 'DONT']) assert.notEqual(overseas.internals.readVerdict(entry, { ...doc, verdict: { ...doc.verdict, code } }).raw, entry.expect, code);
+  assert.deepEqual(gates.applies(entry), { applies: true, reason: 'FROZEN_AFTER_AMENDMENT' });
+  assert.deepEqual(entry.trial_gates_ruling.pre.codes, ['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN']);
+  assert.deepEqual(overseas.internals.boundFiles(entry).map((f) => f.role), ['FILE', 'ALSO', 'ALSO', 'K2', 'RUN_LOG', 'RULING']);
+  assert.equal(entry.k2.sha256, 'c3533cd9af966a8fb7fd7a9d759bf61e06aad202c451ed0b5f8ab60bda0aac87');
+  assert.equal(entry.strategy_ref, 'ASHARE_V6_PAPER');
+});
+
 test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（X08 按裁定）；绑定 sha256 合法；A 股没有 Q0 账户', () => {
   for (const entries of [overseas.ENTRIES, ashare.ENTRIES]) {
     const ids = new Set();
@@ -215,7 +235,7 @@ test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（
       assert.ok(['做', '不做'].includes(sealed.verdictWord(word, entry.id)), entry.id);
     }
   }
-  assert.equal(ashare.ENTRIES.length, 11);
+  assert.equal(ashare.ENTRIES.length, 12);
   assert.equal(ashare.ENTRIES.some((entry) => /Q0/i.test(`${entry.id}${entry.file.path}`)), false);
   assert.deepEqual(Object.keys(sealed.X08_LINES).sort(), ['V1', 'V2_SPMO', 'V2_SPY']);
   assert.throws(() => sealed.verdictWord('INSUFFICIENT', 'x'), /RETURN_SEALED_VERDICT_NOT_DO_OR_DONT/);

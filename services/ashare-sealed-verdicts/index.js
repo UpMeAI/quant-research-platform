@@ -38,6 +38,18 @@ const pvs24Read = (q) => Object.freeze({ pattern: `^\\| \\*\\*PVS-${q}\\*\\* [^|
 const SEL1_COMMIT = '933d47ff8b4c81eff83bc7558f6799b8020c33e1';
 const SEL1_RUN_LOG_COMMIT = '0a6ebc730b4a590323105a539692839a228eab6f';
 
+// 修订 3（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_3.md）：X07a A 股凯利（个股簿）。K2 在 2026-11-14 13:25:47 冻结（过拟合控制修订之后），
+// 13 个台账 id 在冻结后、首次计算前登记 → PRE 按门的裁定记 DEVIATION_ACCEPTED；披露行的 DSR、PBO 不适用，引用同一页裁定。
+// 结果与运行日志在协调会话目录（按 sha256 绑定）：结果同 smartflow research/x07a-ashare-kelly 0f4fc855 的证据文件逐字节相同。
+// K2 绑的就是冻结页（台账行的 k2_sha256 = 冻结页 sha；正文 = 草稿修订 2 db45a25e）；NOTE_1（种子、步 0b 的两道门）与 NOTE_2（运行代码 74d4ae6d）一并绑定。
+const X07A_K2 = coord('X07A_ASHARE_KELLY_K2_V1_FREEZE_1.md', 'c3533cd9af966a8fb7fd7a9d759bf61e06aad202c451ed0b5f8ab60bda0aac87');
+const X07A_RULING = Object.freeze({
+  spec: coord('X07A_ASHARE_KELLY_K2_V1_TRIAL_GATES_RULING_20261114.md', 'aed3659512cf58e4b4f0b0de02872b5315fb4accd32d3c27420c9bf488800b74'),
+  pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN']),
+    preregistered_at: '2026-11-14T05:28:02.950Z', first_run_at: '2026-11-14T05:41:36Z' }),
+  disclosure_not_applicable: Object.freeze(['dsr', 'pbo']),
+});
+
 const ENTRIES = Object.freeze([
   { id: 'CN-R-ETF-1', label_zh: 'R-ETF-1', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-05', title_zh: '宽基 ETF 波动率网格 VG 对现行档位规则 C',
     file: v6('84adf8b97268d59318dda22be5363953e7939b6a', 'research/index-grid/r-etf-1/result-r-etf-1.json', '6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0'),
@@ -75,6 +87,22 @@ const ENTRIES = Object.freeze([
       + '只报：200 次随机入场 L 在第 98.5 百分位；主线入场 T −0.42 %/年。过拟合披露：DSR 未知（已知 ŜR 4 个 < 5），按族 N = 39 的 Bonferroni 回退不过；PBO 0.031（4 个计入配置）；证据不足，校正列不适用。'
       + '月度序列是封存之后从未改动的封存命令导出的（Ashare-V6 469445ce，7fb3e802…，结果逐字节同封存文件）。'
       + '来源：Ashare-V6 research/sector-etf-left-1 的结果文件（77067969），结果文档 SECTOR_ETF_LEFT_1_RESULT_V1.md（bd853a6a），封存 2026-11-13。' },
+  { id: 'CN-X07A', label_zh: 'X07a A 股凯利', strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-14',
+    title_zh: 'A 股个股簿凯利上限：C_RS 对 S16 自峰值 15% 回撤线的锚定扩展窗前推（现行 m = 1，只降不升）',
+    file: coord('X07A_ASHARE_KELLY_RESULT_V1.json', 'b2159735024bfd5cdbba84cd2302a5c517957a11bb142a976c03d6d4dae6cc80'),
+    also: Object.freeze([coord('X07A_ASHARE_KELLY_K2_V1_FREEZE_1_NOTE_1.md', 'c86e1b16b69fe2a7dda104d21e6329f7cacac57b1069b4372e47fa5a1a61e129'),
+      coord('X07A_ASHARE_KELLY_K2_V1_FREEZE_1_NOTE_2.md', '817ad4a11c8a982456c99dc95eb9549e883f10494e3864b1dfbc09453b88b4f8')]),
+    k2: X07A_K2, freeze: null,
+    run_log: coord('X07A_ASHARE_KELLY_RESEARCH_RUN_LOG_V1.json', 'e8328ba960b23419ed10013f29d437017841037ca54ab08ada5463357de7b82b'),
+    k2_frozen_at: '2026-11-14T13:25:47+08:00', trial_gates_ruling: X07A_RULING,
+    read: Object.freeze({ decision: 'verdict.code', strength: 'part2.reading', use: null, text: 'verdict.zh' }), expect: 'DO_INSUFFICIENT',
+    resolve: Object.freeze({ DO_INSUFFICIENT: Object.freeze({ decision: '做',
+      use_zh: '证据不足（参数不稳），没有收紧候选：A 股个股簿 m = 1 不变，不提上限；前向影子 SHADOW_NOT_APPLICABLE_NO_CANDIDATE（生产个股簿即前向记录，Owner 11-09 不另开账本），下次凯利复盘或 D4 / R8 改变个股簿时再看' }) }),
+    note_zh: 'F2 只因后一半折（第 4–6 折）m_f 的极差 0.23 > 0.2：2、2、1.77，全部高于现行 m = 1，中位数 2 不低于 1，只降不升 → 候选为空；'
+      + '前推（m = min(m_f, 1) = 1，2023-06-01 → 2026-09-28）不触 L-S16，最大回撤 7.22%，无 F1。全段拟合只报（复测（已读））：C_RS 判定行 T = 3 年 P(m = 1) = 0，容差 5% 内最大 m 1.77；'
+      + 'A_TOUCH、A 为 2（网格顶）；L-X40 不触。只报的不利事实：三本账全段日收益优势不为正（年化 Sharpe C_RS −1.31、A_TOUCH −1.61、A −1.25，k* = 0，c_0 无定义），凯利本身给不出正的下注比例；'
+      + '15% 线远只因波动小。读数里的 A（Q0 基线）只报，不登记 Q0 账户的结论。过拟合披露：DSR、PBO 不适用（K2 §0，门的裁定同页）。'
+      + '来源：协调会话目录的结果文件（b2159735，旧 MBP 两次独立进程逐字节相同，运行代码 smartflow 74d4ae6d），结论页 X07A_VERDICT_20261114，封存 2026-11-14。' },
 ]);
 
 const locks = (strategyRef = null) => overseas.locks(strategyRef, STORE);

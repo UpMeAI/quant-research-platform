@@ -80,9 +80,9 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY、修订 6 的两题、修订 7 的 C17-NMSEL 和 A 股修订 2 的 CN-SECTOR-ETF-LEFT-1 过门（11-11 起冻结）；修订 4–6 带门的裁定，修订 7 与 A 股修订 2 不带；其余都在修订生效前冻结或封存', () => {
+test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY、修订 6 的两题、修订 7 的 C17-NMSEL 、A 股修订 2 的 CN-SECTOR-ETF-LEFT-1 和 A 股修订 3 的 CN-X07A 过门（11-11 起冻结）；修订 4–6 与 A 股修订 3 带门的裁定，修订 7 与 A 股修订 2 不带；其余都在修订生效前冻结或封存', () => {
   const gated = [...overseas.ENTRIES, ...ashare.ENTRIES].filter((entry) => gates.applies(entry).applies).map((entry) => entry.id);
-  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK', 'C17-NMSEL', 'CN-SECTOR-ETF-LEFT-1']);
+  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK', 'C17-NMSEL', 'CN-SECTOR-ETF-LEFT-1', 'CN-X07A']);
   for (const id of gated.filter((x) => x.includes('KWFO'))) {
     const entry = overseas.ENTRIES.find((e) => e.id === id);
     assert.equal(entry.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
@@ -114,6 +114,13 @@ test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前
   assert.equal(sel1.trial_gates_ruling, undefined);
   assert.equal(sel1.k2_frozen_at, '2026-11-12T07:58:23+08:00');
   assert.equal(sel1.run_log.sha256, '42d3ceee9adf6046956a6f926060b5382a9739505457e1d8da42c0e8df61bbfa');
+  // A 股修订 3：13 行在冻结（13:25:47）后、首次计算（13:41:36）前登记，PRE 按门的裁定；披露行 DSR、PBO 不适用，引用同一页
+  const x07a = ashare.ENTRIES.find((e) => e.id === 'CN-X07A');
+  assert.equal(x07a.k2_frozen_at, '2026-11-14T13:25:47+08:00');
+  assert.deepEqual(x07a.trial_gates_ruling.disclosure_not_applicable, ['dsr', 'pbo']);
+  assert.equal(x07a.trial_gates_ruling.pre.preregistered_at, '2026-11-14T05:28:02.950Z');
+  assert.equal(x07a.trial_gates_ruling.pre.first_run_at, '2026-11-14T05:41:36Z');
+  assert.equal(x07a.run_log.sha256, 'e8328ba960b23419ed10013f29d437017841037ca54ab08ada5463357de7b82b');
   assert.equal(gates.EFFECTIVE_FROM, '2026-11-11T00:00:00+08:00');
 });
 
