@@ -1,0 +1,16 @@
+{
+  "head": "11d5d12a7b6d54b792d1f72ea78f6be2f51029b8",
+  "startedAt": "2026-11-14T01:02:17.425756+08:00",
+  "exitCode": 0,
+  "timeoutSeconds": 900,
+  "concurrency": 1,
+  "counts": {
+    "tests": 621,
+    "pass": 595,
+    "fail": 0,
+    "skipped": 26,
+    "cancelled": 0
+  },
+  "logSha256": "117313ba57fd0695aecc5d5cd777b68b19823377f1b22f25a15bee0d2160c7d8",
+  "logPath": "/Users/kaylame/KaylaProject/artifacts/coordinator/ops/owner-codex-queue/70-ai-review-assistant-v1/evidence/full-20261114-rebase.log"
+}

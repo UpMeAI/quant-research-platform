@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.upmeai.qrp-ai-review-weekly</string>
+  <key>Disabled</key><true/>
+  <key>RunAtLoad</key><false/>
+  <key>ProgramArguments</key><array>
+    <string>__ABS_CST_GATE__</string>
+    <string>--label</string><string>qrp-ai-review-weekly</string>
+    <string>--at</string><string>09:05</string>
+    <string>--late</string><string>60</string>
+    <string>--</string><string>__ABS_NODE__</string>
+    <string>__ABS_QRP__/apps/research-cli/ai_review_weekly.js</string>
+    <string>--manifest</string><string>__ABS_REVIEWED_WEEKLY_SOURCE_MANIFEST__</string>
+    <string>--desk-root</string><string>__ABS_TRUSTED_DESK__</string>
+    <string>--output-root</string><string>__ABS_QRP__/var/ai-review</string>
+  </array>
+  <key>WorkingDirectory</key><string>__ABS_QRP__</string>
+  <key>EnvironmentVariables</key><dict><key>AI_REVIEW_ENABLED</key><string>0</string></dict>
+  <key>StartCalendarInterval</key><array>
+    <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>5</integer></dict>
+    <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>17</integer><key>Minute</key><integer>5</integer></dict>
+  </array>
+  <key>StandardOutPath</key><string>__ABS_QRP__/var/log/ai-review-weekly.out.log</string>
+  <key>StandardErrorPath</key><string>__ABS_QRP__/var/log/ai-review-weekly.err.log</string>
+</dict></plist>
