@@ -8,7 +8,7 @@
  *   trial_ledger.js register      --spec <specs.json> --registered-by <权威> [--mode PREREGISTERED|UNPLANNED_RUN] [--dry-run true]
  *   trial_ledger.js record        --trial-id <TRL-…> --result <result.json> --registered-by <权威>
  *   trial_ledger.js correct       --trial-id <TRL-…> --result <result.json> --defect-ref <ref> --registered-by <权威>
- *   trial_ledger.js mark-segment  --spec <marks.json> --registered-by <权威>
+ *   trial_ledger.js mark-segment  --spec <marks.json> --registered-by <权威> [--dry-run true]
  *   trial_ledger.js disclose      --spec <disclosure.json> --registered-by <权威> [--dry-run true]
  *   trial_ledger.js disclose-na   --spec <disclosure.json> --registered-by <权威> [--dry-run true]   （DSR、PBO 按协调会话裁定写「不适用」，导入规格修订 4）
  *   trial_ledger.js back-register --master-table /abs/RESEARCH_MASTER_TABLE_….json --master-table-sha256 <64 hex> --registered-by <权威> [--arms /abs/arms.json --arms-sha256 <64 hex>] [--dry-run true]
@@ -34,6 +34,25 @@ function flags(argv) {
   }
   return out;
 }
+const ALLOWED_FLAGS = Object.freeze({
+  register: ['spec', 'registered-by', 'mode', 'dry-run'],
+  record: ['trial-id', 'result', 'registered-by'],
+  correct: ['trial-id', 'result', 'defect-ref', 'registered-by'],
+  'mark-segment': ['spec', 'registered-by', 'dry-run'],
+  disclose: ['spec', 'registered-by', 'dry-run'],
+  'disclose-na': ['spec', 'registered-by', 'dry-run'],
+  'back-register': ['master-table', 'master-table-sha256', 'registered-by', 'arms', 'arms-sha256', 'dry-run'],
+  count: ['family', 'as-of'],
+  segments: ['family', 'from', 'to'],
+  hash: ['rule-config'],
+  'trial-id': ['family', 'study', 'label'],
+});
+function rejectUnknownFlags(command, parsed) {
+  const allowed = ALLOWED_FLAGS[command];
+  if (!allowed) return;
+  const known = new Set(allowed);
+  for (const key of Object.keys(parsed)) if (!known.has(key)) throw new Error(`UNKNOWN_FLAG:${key}`);
+}
 const must = (f, ...keys) => { for (const k of keys) if (!f[k]) throw new Error(`MISSING_FLAG:${k}`); };
 const json = (file) => JSON.parse(fs.readFileSync(path.resolve(file), 'utf8'));
 const pinnedJson = (file, expectedSha256, label) => {
@@ -49,6 +68,7 @@ const dry = (f) => f['dry-run'] === 'true';
 try {
   const [command, ...rest] = process.argv.slice(2);
   const f = flags(rest);
+  rejectUnknownFlags(command, f);
   if (command === 'register') {
     must(f, 'spec', 'registered-by');
     for (const row of ledger.register(json(f.spec), { registeredBy: f['registered-by'], mode: f.mode || 'PREREGISTERED', dryRun: dry(f) })) {
@@ -62,7 +82,7 @@ try {
     print({ trial_id: row.trial_id, row_kind: row.row_kind, eval_hash: row.eval_hash, sr_monthly_delta: row.sr_monthly_delta, t_months: row.t_months, segments: row.segments, record_hash: row.record_hash });
   } else if (command === 'mark-segment') {
     must(f, 'spec', 'registered-by');
-    for (const row of ledger.markSegments(json(f.spec), { registeredBy: f['registered-by'] })) print({ mark_id: row.mark_id, family_id: row.family_id, from: row.from, to: row.to, label: row.label, shadow_ref: row.shadow_ref });
+    for (const row of ledger.markSegments(json(f.spec), { registeredBy: f['registered-by'], dryRun: dry(f) })) print({ mark_id: row.mark_id, family_id: row.family_id, from: row.from, to: row.to, label: row.label, shadow_ref: row.shadow_ref });
   } else if (command === 'disclose' || command === 'disclose-na') {
     must(f, 'spec', 'registered-by');
     const write = command === 'disclose' ? ledger.disclose : ledger.discloseNotApplicable;
