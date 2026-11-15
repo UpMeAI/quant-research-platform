@@ -28,7 +28,8 @@ const sha = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 test('补登记：登记表写明所据总表（path、revision、sha256）；每个机制都被引用', () => {
   const src = RAW.sources && RAW.sources.master_table;
   assert.ok(src, 'sources.master_table');
-  assert.equal(src.path, 'artifacts/coordinator/RESEARCH_MASTER_TABLE_20261110.json');
+  // rev 86 起绑定总表的只读副本（master-table-revs/…revNN.json），活文件会随后来的修订移动
+  assert.match(src.path, /^artifacts\/coordinator\/(master-table-revs\/RESEARCH_MASTER_TABLE_20261110\.rev\d+|RESEARCH_MASTER_TABLE_20261110)\.json$/);
   assert.ok(Number.isInteger(src.revision) && src.revision > 0);
   assert.match(src.sha256, /^[0-9a-f]{64}$/);
   const used = new Set(mech.REGISTER.entries.flatMap((e) => e.mechanism_ids));

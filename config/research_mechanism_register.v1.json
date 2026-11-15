@@ -21,14 +21,21 @@
   },
   "sources": {
     "master_table": {
-      "path": "artifacts/coordinator/RESEARCH_MASTER_TABLE_20261110.json",
-      "revision": 85,
-      "sha256": "ab5b668bd9e41e98d10fa5d0a760ecfc8310e145eb19896db8d714020b9e7841"
+      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev86.json",
+      "revision": 86,
+      "sha256": "ce619f239b7828422215726e5db1aac2b9af69a4f48c6e39047aea5ec6952025"
     }
   },
-  "registered_at": "2026-11-16T01:58:48+08:00",
+  "registered_at": "2026-11-16T02:04:17+08:00",
   "registered_by": "QRP 实现会话 mech-registry（RF1112 §4.5 补登记；分类为 coordinator-proposal，待协调会话核对）",
   "mechanisms": [
+    {
+      "mechanism_id": "ACCT.CONCURRENCY.NON_MAJOR_CAP",
+      "title_zh": "非主流同时持仓上限",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "description_zh": "收紧同一时间可持有的非主流合约仓位个数，只收紧已有的持仓上限，不改选哪些合约"
+    },
     {
       "mechanism_id": "ACCT.DERISK.DRAWDOWN_LOOKBACK",
       "layer": "ACCOUNT",
@@ -1399,7 +1406,7 @@
         "SEL.SCREEN.FUNDAMENTAL"
       ],
       "classified_by": "coordinator-proposal",
-      "reason_zh": "§4.2 冻结的只有 (B)：单股杠杆 ETF 底层公司读数为泡沫或恶化时不进新仓，是基本面排除；(A) 指数估值调 k 维持不做、没有读数，不登记；总表记风控层，机制按初筛记，待核；前向影子 2026-11-17 22:30 CST 起运行，届时 shadow_running 改为 true（协调会话 2026-11-16 裁定）",
+      "reason_zh": "§4.2 冻结的只有 (B)：单股杠杆 ETF 底层公司读数为泡沫或恶化时不进新仓，是基本面排除；(A) 指数估值调 k 维持不做、没有读数，不登记；总表记风控层，机制按初筛记，待核；前向影子 2026-11-17 22:30 CST 起运行，届时 shadow_running 改为 true（协调会话 2026-11-16 裁定）；总表 rev 86 已改为选股择时层（初筛）",
       "conclusion": {
         "verdict": "DO_INSUFFICIENT",
         "strength_zh": "前向影子已冻结（只记录不改仓位），无历史判定",
@@ -3308,6 +3315,38 @@
       ],
       "classified_by": "coordinator-proposal",
       "reason_zh": "§4.2 组合候选同时关 K 线入场与出场两个角色、去掉缠论扣留，三个效应都在判定里，分开登记；只关 K 线一项只报；消融题：不做 = 保留现行规则，方向与机制结论相反，不写结论块（§4.3）"
+    },
+    {
+      "item_id": "C17-NMSEL",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.CONCURRENCY.NON_MAJOR_CAP"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 C16 N8 的后续题，账户层只收紧非主流同时持仓的上限，与 C16 的非主流去留（选股择时层）分开登记；总表 rev 86 新行（协调会话 2026-11-16 裁定）；前向影子尚无 T_start 登记，开始后 shadow_running 改为 true（协调会话 2026-11-16 裁定）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "证据不足：Δg 区间跨 0、点估计为正，回撤门过；只开前向影子",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报预登记效应下的功效；已查 smartflow 4d734c4f:trading-system-v2/docs/evidence/c17-nm-trigger-v1/run/C17_NM_SELECTION_RESULT_V1.json（G-POWER 是样本门）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2024-10-04",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-13",
+        "seal_sha256": "e4d311f3d7af7518476795870137d73d42acce29289d71e80780c1bd33beb433",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-NMSEL",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
     }
   ]
 }
