@@ -190,8 +190,18 @@ function parse(bytes) {
 
 const REGISTER = parse(fs.readFileSync(FILE));
 
-/** 封存结论 ENTRIES 里一题的做 / 不做（resolve 的读法同导入器 readVerdict）。 */
-const sealedDecision = (s) => (s.resolve && s.resolve[s.expect] && s.resolve[s.expect].decision) || s.expect;
+/**
+ * 封存结论 ENTRIES 里一题的做 / 不做（resolve 的读法同导入器 readVerdict）。登记的结论常带限定语（「不做（无候选）」「做（证据不足）」），
+ * 按开头归类；开头既不是「不做」也不是「做」的返回 null（交叉核对判不一致）。
+ */
+function sealedDecision(s) {
+  const read = String((s.resolve && s.resolve[s.expect] && s.resolve[s.expect].decision) || s.expect || '');
+  // 一份文件多个单元时，登记写成「<单元>:不做」：按冒号后的结论读
+  const raw = read.replace(/^[A-Z0-9_]+:/, '');
+  if (raw.startsWith('不做')) return '不做';
+  if (raw.startsWith('做')) return '做';
+  return null;
+}
 
 /**
  * 写了 sealed_ref 的结论，与 QRP 已有的封存结论 ENTRIES 交叉核对（E2）：sha256、封存日、做 / 不做三项一致。

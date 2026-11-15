@@ -162,6 +162,18 @@ test('交叉核对：写了 sealed_ref 的结论与 QRP 封存结论 ENTRIES 的
   bad({ verdict: 'DO_SUPPORTED', state: { live: true, as_of: '2026-11-01' } }, /MECHANISM_REGISTER_SEALED_REF_MISMATCH:A01\/CN_A:decision/);
   assert.throws(() => mech.crossCheck(mech.validate(doc([concluded('A01', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-NOPE' } })])), sources), /MECHANISM_REGISTER_SEALED_REF_NOT_FOUND/);
   assert.throws(() => mech.crossCheck(mech.validate(doc([concluded('A01', { seal: SHA_C, sealedOn: '2026-11-02', extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-SYN-3' } })])), sources), /MECHANISM_REGISTER_SEALED_REF_NOT_RESULT/);
+  // 登记里的结论常带限定语（例如「不做（无候选）」「做（证据不足）」）：按开头的「不做」「做」归类；两样都不是就不一致
+  const qualified = { ASHARE_SEALED_VERDICTS: [
+    { id: 'CN-Q-1', kind: 'RESULT', sealed_on: '2026-11-01', file: { sha256: SHA_A }, expect: '不做（无候选）' },
+    { id: 'CN-Q-2', kind: 'RESULT', sealed_on: '2026-11-01', file: { sha256: SHA_B }, expect: '做（证据不足 → 前向影子）' },
+    { id: 'CN-Q-3', kind: 'RESULT', sealed_on: '2026-11-01', file: { sha256: SHA_C }, expect: 'INSUFFICIENT' },
+    { id: 'CN-Q-4', kind: 'RESULT', sealed_on: '2026-11-01', file: { sha256: SHA_A }, expect: 'V2_SPY:不做' }], OVERSEAS_SEALED_VERDICTS: [] };
+  // 单元前缀「<单元>:不做」按冒号后的结论读
+  assert.doesNotThrow(() => mech.crossCheck(mech.validate(doc([concluded('A01', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-4' } })])), qualified));
+  assert.doesNotThrow(() => mech.crossCheck(mech.validate(doc([concluded('A01', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-1' } }),
+    concluded('A02', { verdict: 'DO_INSUFFICIENT', state: { shadow_running: true, as_of: '2026-11-02' }, seal: SHA_B, extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-2' } })])), qualified));
+  assert.throws(() => mech.crossCheck(mech.validate(doc([concluded('A01', { verdict: 'DO_SUPPORTED', state: { live: true, as_of: '2026-11-01' }, extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-1' } })])), qualified), /SEALED_REF_MISMATCH:A01\/CN_A:decision/);
+  assert.throws(() => mech.crossCheck(mech.validate(doc([concluded('A01', { seal: SHA_C, extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-3' } })])), qualified), /SEALED_REF_MISMATCH:A01\/CN_A:decision/);
 });
 
 // ── 3. 路由表（§4.3） ───────────────────────────────────────────────────────────
