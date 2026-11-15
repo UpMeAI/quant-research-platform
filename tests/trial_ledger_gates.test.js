@@ -80,9 +80,9 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY、修订 6 的两题、修订 7 的 C17-NMSEL 、A 股修订 2 的 CN-SECTOR-ETF-LEFT-1 和 A 股修订 3 的 CN-X07A 过门（11-11 起冻结）；修订 4–6 与 A 股修订 3 带门的裁定，修订 7 与 A 股修订 2 不带；其余都在修订生效前冻结或封存', () => {
+test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY、修订 6 的两题、修订 7 的 C17-NMSEL、修订 8 的两个 KELLY-M-S8 单元、A 股修订 2 的 CN-SECTOR-ETF-LEFT-1 和 A 股修订 3 的 CN-X07A 过门（11-11 起冻结）；修订 4–6 与 A 股修订 3 带门的裁定，修订 7 与 A 股修订 2 不带；其余都在修订生效前冻结或封存', () => {
   const gated = [...overseas.ENTRIES, ...ashare.ENTRIES].filter((entry) => gates.applies(entry).applies).map((entry) => entry.id);
-  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK', 'C17-NMSEL', 'CN-SECTOR-ETF-LEFT-1', 'CN-X07A']);
+  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK', 'C17-NMSEL', 'US5-KMS8', 'US5-KMS8-BUCKET', 'CN-SECTOR-ETF-LEFT-1', 'CN-X07A']);
   for (const id of gated.filter((x) => x.includes('KWFO'))) {
     const entry = overseas.ENTRIES.find((e) => e.id === id);
     assert.equal(entry.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
@@ -109,6 +109,17 @@ test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前
   assert.equal(nms.trial_gates_ruling, undefined);
   assert.equal(nms.k2_frozen_at, '2026-11-12T05:58:36+08:00');
   assert.ok(nms.run_log);
+  // 修订 8：K2 写出的 53 行都在冻结（17:32:24）前预登记，PRE 照常过、不放行偏差；O5_PRE 的 4 行按 NOTE_1（5aac49ca…）记 UNPLANNED_RUN，
+  // 不是预登记行，不进 PRE。披露行的 DSR、PBO 不适用，引用凯利 m 前推的门裁定（99203316…），所以门的裁定只放行披露
+  for (const id of ['US5-KMS8', 'US5-KMS8-BUCKET']) {
+    const e = overseas.ENTRIES.find((x) => x.id === id);
+    assert.equal(e.k2_frozen_at, '2026-11-15T17:32:24+08:00', id);
+    assert.equal(e.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
+    assert.equal(e.trial_gates_ruling.pre, undefined, id);
+    assert.deepEqual([...e.trial_gates_ruling.disclosure_not_applicable], ['dsr', 'pbo'], id);
+    assert.equal(e.run_log.sha256, '44d0adb110976e83ec5650d5ed073f494e6897abb1462408a2817fde81f7da2c', id);
+    assert.equal(e.run_log.commit, 'e4b3c60e6c228b3d31edcff290e3c9e243a3fe26', id);
+  }
   // A 股修订 2：K2 §9 的 7 行都在冻结前预登记，PRE 照常过，不带门的裁定；披露的 DSR、PBO 照算法算
   const sel1 = ashare.ENTRIES.find((e) => e.id === 'CN-SECTOR-ETF-LEFT-1');
   assert.equal(sel1.trial_gates_ruling, undefined);
