@@ -1,5 +1,5 @@
 {
-  "_comment": "研究机制登记（研究框架修订 2026-11-12 §4.2；FREEZE_1 c9742ea0，冻结审阅 E1–E18 全取 (a)）。mechanisms[] 一个机制 = 一个效应 + 所在的层 + 作用的决策点，参数、阈值、窗口长短都不算新机制；id 写 <前缀>.<主题>.<变体>，前缀 SEL / RISK / ACCT / EXEC 分别对应层 SELECTION_TIMING / RISK / ACCOUNT / NA_EXECUTION；description_zh 一句泛化写法，不含 Owner 原话和生产风控数字。entries[] 一题一市场一条（item_id = 总表编号或 study_ref；market 只取 CN_A / US_EQUITY / CRYPTO，跨市场的题按读过的市场各登记一条）；conclusion 只给已封存的题写，字段与读法见 services/research-mechanism-register/index.js 与 docs/contracts/RESEARCH_MECHANISM_REGISTER_V1.md，事实从封存文件抄录，写了 sealed_ref 的由测试对 QRP 封存结论交叉核对。classified_by = coordinator-proposal 表示实现会话或 Agent 提出、待协调会话核对。首版两部分都为空：机制 id 与补登记（§4.5）另开 PR 写入，协调会话核对；在那之前每次查询都得 NORMAL_NO_PRIOR，G-MECH 拒收引用未登记 id 的 K2。",
+  "_comment": "研究机制登记（研究框架修订 2026-11-12 §4.2；FREEZE_1 c9742ea0，冻结审阅 E1–E18 全取 (a)）。mechanisms[] 一个机制 = 一个效应 + 所在的层 + 作用的决策点，参数、阈值、窗口长短都不算新机制；id 写 <前缀>.<主题>.<变体>，前缀 SEL / RISK / ACCT / EXEC 分别对应层 SELECTION_TIMING / RISK / ACCOUNT / NA_EXECUTION；description_zh 一句泛化写法，不含 Owner 原话和生产风控数字。entries[] 一题一市场一条（item_id = 总表编号或 study_ref；market 只取 CN_A / US_EQUITY / CRYPTO，跨市场的题按读过的市场各登记一条）；conclusion 只给已封存的题写，字段与读法见 services/research-mechanism-register/index.js 与 docs/contracts/RESEARCH_MECHANISM_REGISTER_V1.md，事实从封存文件抄录，写了 sealed_ref 的由测试对 QRP 封存结论交叉核对。classified_by = coordinator-proposal 表示实现会话或 Agent 提出、待协调会话核对。§4.5 补登记（sources.master_table 所写的那一版总表）：研究层每行至少一条，诊断与工程行不登记（E16）；一行在同一市场有几个封存单元时，按单元各登记一条，item_id 写 <编号>#<单元>；消融题的不做是保留现行规则，不写结论块。分类与抄录为 coordinator-proposal，待协调会话核对。",
   "contract": "QRP_RESEARCH_MECHANISM_REGISTER_V1",
   "contract_ref": {
     "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md",
@@ -19,8 +19,3334 @@
     ],
     "ref_zh": "协调会话目录的文件，不在 git 里，按 sha256 绑定：冻结页 FREEZE_1（2026-11-15T22:47:42+08:00）及它冻结的草稿修订 1、冻结审阅修订 3"
   },
-  "registered_at": "2026-11-15T21:54:57+08:00",
-  "registered_by": "QRP 实现会话（RF1112 机制登记；内容待补登记与协调会话核对）",
-  "mechanisms": [],
-  "entries": []
+  "sources": {
+    "master_table": {
+      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev86.json",
+      "revision": 86,
+      "sha256": "ce619f239b7828422215726e5db1aac2b9af69a4f48c6e39047aea5ec6952025"
+    }
+  },
+  "registered_at": "2026-11-16T02:04:17+08:00",
+  "registered_by": "QRP 实现会话 mech-registry（RF1112 §4.5 补登记；分类为 coordinator-proposal，待协调会话核对）",
+  "mechanisms": [
+    {
+      "mechanism_id": "ACCT.CONCURRENCY.NON_MAJOR_CAP",
+      "title_zh": "非主流同时持仓上限",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "description_zh": "收紧同一时间可持有的非主流合约仓位个数，只收紧已有的持仓上限，不改选哪些合约"
+    },
+    {
+      "mechanism_id": "ACCT.DERISK.DRAWDOWN_LOOKBACK",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "回撤降风险的回看方式",
+      "description_zh": "按账本已实现回撤给降风险系数，比较滚动回看与从起点锚定两种读法（含两者取更严）"
+    },
+    {
+      "mechanism_id": "ACCT.DRAWDOWN_HALT.BUCKET_LINE",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "合并回撤线停新开",
+      "description_zh": "几本账合并的回撤线触线后停新开仓，比较永久停与按条件解除，在保护和错过恢复之间的取舍"
+    },
+    {
+      "mechanism_id": "ACCT.EXPRESSION.LEVERAGE_CARRIER",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "信号的杠杆载体",
+      "description_zh": "同一信号用杠杆载体还是无杠杆载体表达，区分收益来自信号还是来自杠杆"
+    },
+    {
+      "mechanism_id": "ACCT.EXPRESSION.OPTIONS",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "用期权表达信号",
+      "description_zh": "用期权代替 ETF 表达同一信号，看敞口与收益归因的变化"
+    },
+    {
+      "mechanism_id": "ACCT.IDLE_CASH.INDEX_PARKING",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "闲置现金停放宽基",
+      "description_zh": "策略不在场或未用满时，把闲置现金停放在无杠杆宽基指数上"
+    },
+    {
+      "mechanism_id": "ACCT.IDLE_CASH.INDEX_PARKING_IN_TREND",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "趋势内闲置现金停放宽基",
+      "description_zh": "只在择时信号处于趋势内时，把未用满的资金停放在无杠杆宽基指数上",
+      "parent": "ACCT.IDLE_CASH.INDEX_PARKING"
+    },
+    {
+      "mechanism_id": "ACCT.IDLE_CASH.TBILL_PARKING",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "闲置现金停放短期国债",
+      "description_zh": "策略不在场时把闲置现金停放在短期国债或等价物上，取无风险收益"
+    },
+    {
+      "mechanism_id": "ACCT.KELLY.CAP_M",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "凯利上限乘数",
+      "description_zh": "按凯利读数和回撤线触线概率给每本账的仓位乘数设上限，只收紧不放大，并检验上限在重拟合与滚动前推下是否稳定"
+    },
+    {
+      "mechanism_id": "ACCT.LOSS_LOCK.SCALE_WITH_SIZING",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "亏损锁线随风险单位缩放",
+      "description_zh": "账户层的熔断、日停、周锁等亏损锁线按当前仓位缩放后的风险单位重设，而不是固定金额"
+    },
+    {
+      "mechanism_id": "ACCT.TOTAL_LINE.COMBINED_DRAWDOWN",
+      "layer": "ACCOUNT",
+      "decision_point": "SIZING",
+      "title_zh": "跨市场总账户回撤线",
+      "description_zh": "把各市场账本合并成总账户读回撤，按回撤分档给全部账本的仓位上限"
+    },
+    {
+      "mechanism_id": "EXEC.ORDER.MAKER_FIRST",
+      "layer": "NA_EXECUTION",
+      "decision_point": "COST",
+      "title_zh": "先挂单后吃单",
+      "description_zh": "入场与非保护性出场先按决策价挂限价单，超时未成交再转市价，降低手续费与滑点；不改买什么、何时买、买多少"
+    },
+    {
+      "mechanism_id": "RISK.POLICY_SECTOR.SECTOR_K",
+      "layer": "RISK",
+      "decision_point": "SIZING",
+      "title_zh": "政策行业单独调 k",
+      "description_zh": "政策敏感行业不再在升档时被扣留，改为在风控层给该行业单独的仓位系数"
+    },
+    {
+      "mechanism_id": "RISK.REGIME.DIRECTION_GATE",
+      "layer": "RISK",
+      "decision_point": "DIRECTION",
+      "title_zh": "市场状态定方向",
+      "description_zh": "用大盘或主流币的趋势状态禁止某一交易方向；属市场结构定方向，登记为与三层合同不符的现行或候选做法"
+    },
+    {
+      "mechanism_id": "RISK.REGIME.STATE_K",
+      "layer": "RISK",
+      "decision_point": "SIZING",
+      "title_zh": "市场状态读数调 k",
+      "description_zh": "用市场层面的状态读数（趋势、宽度、波动、利率或资金费等）给仓位系数分档，只调仓位，不决定方向和开不开仓"
+    },
+    {
+      "mechanism_id": "RISK.REGIME.TURN_LAG",
+      "layer": "RISK",
+      "decision_point": "SIZING",
+      "title_zh": "转折处风控层的滞后",
+      "description_zh": "大盘见底后风控层多快放行开仓或恢复仓位系数，衡量它在错过领涨里占的份额"
+    },
+    {
+      "mechanism_id": "RISK.TOTAL_BUDGET.DRAWDOWN_BAND_K",
+      "layer": "RISK",
+      "decision_point": "SIZING",
+      "title_zh": "总风险预算按基准回撤分档",
+      "description_zh": "按各市场基准价格离近期高点的回撤与长期均线位置分档，给该市场账本统一的仓位系数上限，多个市场同时走弱时互相约束"
+    },
+    {
+      "mechanism_id": "SEL.CARRY.FUNDING_BASIS",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "资金费基差套利",
+      "description_zh": "以永续资金费率和基差为开仓信号，做现货与永续对冲、收取资金费"
+    },
+    {
+      "mechanism_id": "SEL.CHAN.HOLDBACK",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "缠论结构扣留",
+      "description_zh": "按缠论的笔、段结构暂缓或扣留本该入场的候选"
+    },
+    {
+      "mechanism_id": "SEL.CONFIRM.BAR_TIMEFRAME",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "信号确认 K 线周期",
+      "description_zh": "信号确认层读哪一周期的已收盘 K 线、多久判一次"
+    },
+    {
+      "mechanism_id": "SEL.CONFIRM.MTF_RELAX",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "放宽多周期确认",
+      "description_zh": "放宽多周期一致的要求，只需日线加一个较短周期确认即可入场"
+    },
+    {
+      "mechanism_id": "SEL.CORE_ROLE.TIMING_VS_HOLD",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "择时对买入持有",
+      "description_zh": "用择时承担长期核心仓位的职责，对比直接买入持有宽基，检验择时本身有没有增量"
+    },
+    {
+      "mechanism_id": "SEL.DIRECTION.SCORE_SYMMETRY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "DIRECTION",
+      "title_zh": "方向分对称",
+      "description_zh": "方向打分里的强度加减随趋势方向镜像，使同等强度的下跌也能给出做空方向"
+    },
+    {
+      "mechanism_id": "SEL.DIRECTION.SHORT_ONLY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "DIRECTION",
+      "title_zh": "只做空",
+      "description_zh": "策略自身规则只执行空头分支，多头信号不开仓，不按市场状态切换"
+    },
+    {
+      "mechanism_id": "SEL.EXIT.BREAKEVEN_DELAY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "EXIT",
+      "title_zh": "推迟保本",
+      "description_zh": "推迟把止损移到保本价的时点，给盈利仓更多回撤空间"
+    },
+    {
+      "mechanism_id": "SEL.EXIT.NO_PROGRESS_EXIT",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "EXIT",
+      "title_zh": "早期失败离场",
+      "description_zh": "入场后一段时间内价格没有走出预定幅度就提前离场"
+    },
+    {
+      "mechanism_id": "SEL.EXIT.TIME_STOP_DEFER",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "EXIT",
+      "title_zh": "趋势中推迟时间止损",
+      "description_zh": "仓位或标的处于趋势、或已进入跟踪阶段时，推迟或免除按持有时长的时间止损"
+    },
+    {
+      "mechanism_id": "SEL.FREQUENCY.ENTRY_THROTTLE",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "限制开仓频率",
+      "description_zh": "对开仓频率设限（同一序列开仓后冷却一段时间，或每本账每个周期至多开仓若干次），不读市场状态和账户状态"
+    },
+    {
+      "mechanism_id": "SEL.KLINE.ENTRY_VETO",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "K 线形态否决入场",
+      "description_zh": "出现与入场方向相反的 K 线形态时否决新入场"
+    },
+    {
+      "mechanism_id": "SEL.KLINE.EXIT_PROTECT",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "EXIT",
+      "title_zh": "K 线形态保护持仓",
+      "description_zh": "持仓期间出现反向 K 线形态时收紧止损、减仓或离场"
+    },
+    {
+      "mechanism_id": "SEL.KLINE.LOCATION_GATE",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "K 线规则的位置闸",
+      "description_zh": "K 线规则只在结构位附近生效（摆动点、趋势均线、未回补缺口等），其他位置的触发不执行"
+    },
+    {
+      "mechanism_id": "SEL.LEFT_SIDE.TIERED_DIP_ENTRY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "低位分档左侧买入",
+      "description_zh": "价格处于低位或回落时分几档逐步买入，而不是等右侧确认"
+    },
+    {
+      "mechanism_id": "SEL.MAINLINE.LEADER_LED_ADMISSION",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "龙头先行的主线准入",
+      "description_zh": "行业里的龙头先走强时提前把该行业准入主线，而不是等行业整体达标"
+    },
+    {
+      "mechanism_id": "SEL.MAINLINE.STRENGTH_THRESHOLD",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "主线门槛的强度读法",
+      "description_zh": "主线准入门槛改为以较长窗口的行业强度为主"
+    },
+    {
+      "mechanism_id": "SEL.MAINLINE.UNIT_DEFINITION",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "主线的行业单位",
+      "description_zh": "用哪一种行业或概念单位来定义主线，例如更细的行业层级或概念资金排名单位"
+    },
+    {
+      "mechanism_id": "SEL.MEANREV.SWING_BAND",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "宽基 ETF 均值回归波段",
+      "description_zh": "宽基 ETF 价格偏离到低位时分批买入、回归时卖出的波段仓，读标的自身或其跟踪指数"
+    },
+    {
+      "mechanism_id": "SEL.MEANREV.VOL_GRID",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "波动率间距网格",
+      "description_zh": "宽基 ETF 按自身波动率定间距的网格档位入场出场，配合确认熊市时的刹车，替代均线档位"
+    },
+    {
+      "mechanism_id": "SEL.PORTFOLIO.CONCENTRATION",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "组合集中度",
+      "description_zh": "组合构建中持仓在行业或袖之间集中还是分散，例如按一级行业分散或合并为单一袖"
+    },
+    {
+      "mechanism_id": "SEL.PVS.LOW_VOLUME_PULLBACK",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "缩量回踩入场",
+      "description_zh": "上升趋势中价格缩量回踩时入场"
+    },
+    {
+      "mechanism_id": "SEL.PVS.SPRING_ENTRY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "弹簧入场",
+      "description_zh": "价格跌破支撑后迅速收回时入场，可带或不带趋势前置条件"
+    },
+    {
+      "mechanism_id": "SEL.PVS.STRUCTURE_STATE",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "价格结构状态",
+      "description_zh": "按序列自身的摆动结构把行情分为上升、下降、区间，并据此允许或拒绝与结构方向不一致的入场"
+    },
+    {
+      "mechanism_id": "SEL.PVS.VOLUME_AT_PRICE",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "价位成交分布",
+      "description_zh": "用价位成交分布的密集节点判断回踩支撑或突破质量，上方近处有密集节点时不入场"
+    },
+    {
+      "mechanism_id": "SEL.PVS.WAVE_VOLUME",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "分波段量价",
+      "description_zh": "比较顺向与逆向波段的成交量，以及放量与价格结果是否匹配（吸筹或派发），据此确认或拒绝入场"
+    },
+    {
+      "mechanism_id": "SEL.SCREEN.FUNDAMENTAL",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "基本面初筛",
+      "description_zh": "用质量、盈利、估值等基本面读数只做排除，不参与排序和择时，读数恶化或泡沫的标的不进"
+    },
+    {
+      "mechanism_id": "SEL.SECTOR_CYCLE.ADVERSE_PRICE_HIGH",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "不利错位初筛的价格高位条件",
+      "description_zh": "行业不利错位初筛只在行业价格仍处长期高位时才排除，检验这一价格条件本身"
+    },
+    {
+      "mechanism_id": "SEL.SECTOR_CYCLE.FAVORABLE_DIVERGENCE",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "有利错位选行业",
+      "description_zh": "行业经营周期相对宏观处于有利错位时把该行业列为候选"
+    },
+    {
+      "mechanism_id": "SEL.SECTOR_CYCLE.INVENTORY_CLOCK",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "库存周期初筛",
+      "description_zh": "用行业库存周期只决定行业能否进短名单（过或不过），不参与排序"
+    },
+    {
+      "mechanism_id": "SEL.SECTOR_RS.RANK",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "行业相对强弱排序",
+      "description_zh": "按行业近期相对强弱或涨幅给候选排序，或只取排名靠前的行业"
+    },
+    {
+      "mechanism_id": "SEL.SENSITIVITY.EARLIER_ENTRY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "提前入场的灵敏度放宽",
+      "description_zh": "放宽超买上沿或触发条件，让强势领涨标的更早触发入场，减少错过的涨幅"
+    },
+    {
+      "mechanism_id": "SEL.TECH.BOLLINGER_VOLUME",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "布林带与量能信号",
+      "description_zh": "用布林带位置与成交量能的组合给出入场信号"
+    },
+    {
+      "mechanism_id": "SEL.TREND.LONG_MA_GATE",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "长期均线入场闸",
+      "description_zh": "价格相对长期均线的位置决定是否允许入场"
+    },
+    {
+      "mechanism_id": "SEL.TREND.SINGLE_STOCK_TREND",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "单股趋势跟踪",
+      "description_zh": "对单只股票按自身趋势入场、趋势破坏离场"
+    },
+    {
+      "mechanism_id": "SEL.UNIVERSE.NON_MAJOR_DISCOVERY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "非主流合约发现",
+      "description_zh": "按领涨分档、成交额门槛等规则把非主流合约纳入可交易范围"
+    },
+    {
+      "mechanism_id": "SEL.UNIVERSE.NON_MAJOR_SCOPE",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "非主流合约的去留",
+      "description_zh": "交易范围保留、收窄还是去掉非主流合约，只做主流是其中一端"
+    },
+    {
+      "mechanism_id": "SEL.WHIPSAW.FRICTION_BAND",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "择时摩擦带",
+      "description_zh": "在择时信号切换处加缓冲带或确认天数，减少来回切换"
+    }
+  ],
+  "entries": [
+    {
+      "item_id": "A06",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MAINLINE.LEADER_LED_ADMISSION"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 领涨先行准入对 v4 主通道，只改主线准入这一选标的环节，效应是龙头先行时提前准入；已在纸面生产运行，state 只记影子（§4.3 E9）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足：成熟交易 20/21，改变的入场 5）；g −0.18%/年 [−0.94%, +0.32%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Linux scratch/q0-post-x10/p1lx/ASHARE_V6_Q0_ARMS_PAIRED_EVALUATION_V1.json（questions[] 无功效字段） A_V6_R1_C1"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "cc6abbffb608d8fd938c79cddf1024310ab93edaae9c0a79b442af8b48d0b884",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A07",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.SECTOR_RS.RANK"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 领涨先行通道里的 L5 排序改按行业近期涨幅，效应是按行业相对强弱排序，与美股 A23 行业 RS 同一机制（不同市场）；窗口是参数",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（功效检查判 G1 不可达：官方段 E_5 上限 4.762 < 30），C2 配对未跑",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "只报 G1 可达性（E_5 上限 4.762 < 阈值 30），没有功效概率",
+          "source_zh": "Linux scratch/q0-post-x10/p1lx/power-check.json .decision"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2025-08-13",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "78127a286730e188b64ae1e15f316c304c8574b993696423d64899ea93c9bfb6",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A09",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MAINLINE.STRENGTH_THRESHOLD"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 分解臂 (2) 只改主线门槛的强度读法；臂 (3) 对臂 (2) 的单位效应只报，本行按门槛读法登记"
+    },
+    {
+      "item_id": "A10",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MAINLINE.STRENGTH_THRESHOLD",
+        "SEL.MAINLINE.UNIT_DEFINITION"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 判定臂 (3) 同时改门槛读法与主线单位（申万三级），两个效应都在比较里，登记两个 id",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足：改变的入场 25 < 30）；g +1.19%/年 [+0.28%, +2.25%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Linux scratch/q0-post-x10/p1lx/ASHARE_V6_Q0_ARMS_PAIRED_EVALUATION_V1.json（questions[] 无功效字段） A_V6_R1_C3"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "cc6abbffb608d8fd938c79cddf1024310ab93edaae9c0a79b442af8b48d0b884",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A11",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MAINLINE.UNIT_DEFINITION"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 臂 (4) 在臂 (3) 之上再加概念资金排名单位，新增的是主线单位的定义；数据源与排名口径是参数"
+    },
+    {
+      "item_id": "A13",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.PVS.STRUCTURE_STATE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-0 结构分类的稳定性门，服务 PVS-1..5 的结构读法，与 X07c 的 S1 结构一致入场闸同为价格结构状态机制；稳定性核对不是优势证据，不写结论块（协调会话 2026-11-16 裁定）"
+    },
+    {
+      "item_id": "A14",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.PVS.LOW_VOLUME_PULLBACK"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-1 C1 上升趋势中缩量回踩入场，单一入场效应",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足：改变的入场 0，g 恰为 0）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Linux scratch/q0-post-x10/p1lx/ASHARE_V6_Q0_ARMS_PAIRED_EVALUATION_V1.json（questions[] 无功效字段） PVS1_C1"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "cc6abbffb608d8fd938c79cddf1024310ab93edaae9c0a79b442af8b48d0b884",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A15",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.PVS.SPRING_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-1 C2 弹簧入场（不带趋势前置）；趋势前置只算条件参数，与 A16 同一机制",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足：改变的入场 0，g 恰为 0）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Linux scratch/q0-post-x10/p1lx/ASHARE_V6_Q0_ARMS_PAIRED_EVALUATION_V1.json（questions[] 无功效字段） PVS1_C2"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "cc6abbffb608d8fd938c79cddf1024310ab93edaae9c0a79b442af8b48d0b884",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A16",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.PVS.SPRING_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-1 带趋势前置的弹簧入场前向影子，与 A15 同一入场效应，趋势前置是参数",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "预登记 INSUFFICIENT_POWER → 做 = 前向影子（只记弹簧 HIT）",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 冻结页 R1-1 预先记 INSUFFICIENT_POWER，未报数值",
+          "source_zh": "artifacts/coordinator/PVS_1_2_3_K2_FREEZE_1.md R1-1"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": null,
+        "sealed_on": "2026-10-30",
+        "seal_sha256": "3e9cfd2c7bda7989bb5e099a5546d9eae0638ca0485277e1eecfbd413b7bd85c",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A18",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.PVS.WAVE_VOLUME"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-2 固定结构下的量价组合（分波段量、吸筹派发、力气与结果）都属分波段量价确认入场这一效应，与 X07c 的 V1 同一机制",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（工具 BLOCKED G1_COUNTER_UNREADABLE，按裁定 1 读作 G1_NOT_MET；g 恰为 0）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 artifacts/coordinator/PVS_2_4_RESULT_V1.md（只引 C2 的 power-check，照抄不判）"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-13",
+        "seal_sha256": "1cbfe175f3eccc76810ed2006e2396c981d7db18bea759ffeafba423807af4be",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-PVS-2",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A20",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.EXIT.NO_PROGRESS_EXIT"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-3 入场后一段时间未走出预定幅度提前离场，出场时点效应，与 X07c 的 F1 同一机制；天数与幅度是参数",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足：早期失败离场 2 < 30）；g +0.009%/年 [−0.003%, +0.030%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Linux scratch/q0-post-x10/p1lx/ASHARE_V6_Q0_ARMS_PAIRED_EVALUATION_V1.json（questions[] 无功效字段） PVS3"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "cc6abbffb608d8fd938c79cddf1024310ab93edaae9c0a79b442af8b48d0b884",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A21",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.PVS.VOLUME_AT_PRICE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-4 价位成交分布的两种用途按规则只取一种（突破质量），节点参数已冻结，不另立机制",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1_NOT_MET：成熟交易 20/17）；g +0.047%/年 [−0.387%, +0.429%]，不稳定",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 artifacts/coordinator/PVS_2_4_RESULT_V1.md"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-13",
+        "seal_sha256": "1cbfe175f3eccc76810ed2006e2396c981d7db18bea759ffeafba423807af4be",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-PVS-4",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A22",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.KLINE.LOCATION_GATE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 PVS-5 给全部已签 K 线规则加结构位位置闸，同时作用于入场否决与持仓保护两类规则，单列为位置闸机制",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足：成熟交易 20/20，g 恰为 0，压掉触发 314）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Linux scratch/q0-post-x10/p1lx/ASHARE_V6_Q0_ARMS_PAIRED_EVALUATION_V1.json（questions[] 无功效字段） PVS5"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2024-01-02",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "cc6abbffb608d8fd938c79cddf1024310ab93edaae9c0a79b442af8b48d0b884",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A24",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.PORTFOLIO.CONCENTRATION"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 SEL-1 主线按一级行业分散，是组合构建里的集中度效应（Note 2 §2.3）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "v3 有效样本 5 天，离门槛（n_req 98.9、≥ 30 个 ISO 周）很远",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 aa7d18ef:docs/evidence/sel1-mainline-l1-diversity-2026-10-14/RESULT.md（只报样本门槛）"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": null,
+        "sealed_on": "2026-10-14",
+        "seal_sha256": "de87b4177acfbe8e864f63fd31274be554068fd7976c37c6c3e7f9a6a4f999f3",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A25",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.TECH.BOLLINGER_VOLUME"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 布林带与量能第 2 轮，主读个股池（指数与 ETF 池无数据，INDEX_BOOK 部分不另登记）；信号组合是一个入场效应"
+    },
+    {
+      "item_id": "A27",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MEANREV.VOL_GRID"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R-ETF-1 波动率间距网格加确认熊市刹车对现行均线档位，作为一个网格档位入场出场机制登记，刹车是候选的组成部分",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT：5 槽合并 VG 对 C +0.57 pp [−2.55, +3.55]（补充 1 VG′ +1.43 pp [−1.61, +4.42]）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 84adf8b9:research/index-grid/r-etf-1/result-r-etf-1.json"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": {
+          "from": "2007-11-14",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-R-ETF-1",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "A28#T_RS_VS_C_RS",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.TREND.SINGLE_STOCK_TREND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R-STK-1 定生产的 T_RS 对 C_RS 两边风控层相同，只读单股趋势跟踪；附录里只调 k 的读数属风控层，没有总表行，不并入本条；封存单元 T_RS_VS_C_RS（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "NOT_PASSED：U_g ≤ 0，g −3.14%/年 [−5.60%, −0.67%]，G1 满足（192/140，改变的入场 280）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 SanDisk research-data/r_stk_1_v1/verdict-20261111/R_STK_1_RESULT_V1.json（judged.T_RS_VS_C_RS 无功效字段）"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2020-06-01",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "dee48f0790645b99bd3ee1df582b719626ca68aee65097d645dfaf64fb445934"
+      }
+    },
+    {
+      "item_id": "A28#T_VS_C",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.TREND.SINGLE_STOCK_TREND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R-STK-1 定生产的 T_RS 对 C_RS 两边风控层相同，只读单股趋势跟踪；附录里只调 k 的读数属风控层，没有总表行，不并入本条；封存单元 T_VS_C（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT：CI 跨零，g −1.42%/年 [−5.81%, +3.04%]，G1 满足（153/42）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 R_STK_1_RESULT_V1.json judged.T_VS_C"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2020-06-01",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "dee48f0790645b99bd3ee1df582b719626ca68aee65097d645dfaf64fb445934",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U02",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.EXIT.TIME_STOP_DEFER"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 Q1 处于趋势时推迟时间止损（T3），出场时点效应；已在纸面生产运行，state 只记影子（§4.3 E9）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足、CI 跨零）；g +2.76%/年 [−5.60%, +11.99%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 QRP var/evidence 本机 Q1 结果文件（grep 无 power/功效/MDE）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2023-01-03",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-10-25",
+        "seal_sha256": "52d8296ffb10626bdd60366d4ceb84f78deb4a52b2f0ac53ba94f03fb33645d8",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U03",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.EXPRESSION.LEVERAGE_CARRIER"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 Q2 同一信号换成无杠杆载体，检验的是表达用的杠杆（Note 2 §2.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "INSUFFICIENT（G1 不满足，CI 跨零）；采用决定 NOT_ADOPTED 10-26",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 QRP fb287e1:var/evidence/us-v5-m2-q2-2026-10-25/US_V5_M2_Q2_RESULT_V1.json verdict/全文"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2023-01-03",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-10-25",
+        "seal_sha256": "02796a4366aa02639b53c7300f3bcead003693345577bd71358753550a586412"
+      }
+    },
+    {
+      "item_id": "U04",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.SECTOR_RS.RANK"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 Q3b 行业 RS 排序层是主效应；Q3 随机对照是同一选择层的基准，不另立机制",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "INSUFFICIENT（同窗复测，CI 跨零，偏负：g −3.96%/年 [−8.86%, +0.56%]）；采用决定 NOT_ADOPTED 10-26",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 QRP var/evidence/us-v5-m2-q3-2026-10-26/US_V5_M2_Q3_RESULT_V1.json（gitignored 本机文件，锁 Q3-0892bfe4891c0a37）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2023-01-03",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-10-26",
+        "seal_sha256": "0892bfe4891c0a37b3ad39b788116e2aac65b0777c427df29a9a53f7fc26c45e"
+      }
+    },
+    {
+      "item_id": "U05",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.FREQUENCY.ENTRY_THROTTLE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 Q4 冷却只在开仓时启动（A25），按开仓计时限制再开仓，与加密 N7 同属开仓频率机制；冷却时长是参数；已在纸面生产运行，state 只记影子（§4.3 E9）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（CI 跨零）；g +4.40%/年 [−2.11%, +12.24%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 QRP var/evidence 本机 Q4 结果文件（grep 无 power/功效/MDE）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2023-01-03",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-10-26",
+        "seal_sha256": "b6873221019ec16765097a36c1d1e6ec53ae23e9b515428dc766a8704097f89e",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U06",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.EXIT.TIME_STOP_DEFER"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 Q5 两臂都带 A25，只差推迟时间止损（T3），与 U02 同一机制；已在纸面生产运行，state 只记影子（§4.3 E9）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（CI 跨零）；g +2.89%/年 [−3.78%, +9.27%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 QRP var/evidence 本机 Q5 结果文件（grep 无 power/功效/MDE）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2023-01-03",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-10-26",
+        "seal_sha256": "c91993f5b8206271b3274b5687ee13fb82a645f8e993d68de33168bc2b8bd5ec",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U17",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.IDLE_CASH.INDEX_PARKING"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 第二轮差距分解只准入 M-1（闲置现金停 SPY），候选效应是闲置现金停放宽基；分解本身是诊断，层登记的 GAP 行对到本行",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "差距分解：组合候选 M-1 过 1.96、不过 2.80（边界）；oos_reuse true",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 QRP var/evidence/us-v5-m2-r2-gap-2026-11-03/US_V5_M2_R2_GAP_DECOMPOSITION_V1.json（.power 只有分块 SE）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2023-01-03",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-11-03",
+        "seal_sha256": "0178322ebaf779ca0a3401318824c8cff7e7de35df6bb33c6a410cd6a3a683ee",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U20",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.IDLE_CASH.INDEX_PARKING"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 第 2 步组合验证当前 D 加 M-1 对当前 D，只差闲置现金停放宽基；层登记的 Q6 与 US5-Q6-M1-SHADOW 都对到本行",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "有支持证据（受选择影响）：paired g +11.15%/年 [+0.49%, +21.77%]，z 2.03",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 判定门槛 δ_g = 0；MDE80 0.149/年（天花板 0.145 < MDE80）",
+          "source_zh": "QRP var/evidence/us-v5-m2-q6-2026-11-03/US_V5_M2_R2_STEP2_COMBINED_V1.json .power_first"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2023-01-03",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-11-03",
+        "seal_sha256": "0510c7da07196bb2527df613c873527bc427032610d7b94f5486444ddb06777c",
+        "state": {
+          "live": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U21",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.IDLE_CASH.TBILL_PARKING",
+        "ACCT.IDLE_CASH.INDEX_PARKING_IN_TREND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 N1 两个闲置现金候选：Y 停短债，E 只在趋势内停无杠杆宽基（宽基停放的窄变体），分开登记；差距分解部分是诊断",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "硬约束不过：H1 24.79%、H2 6.72% > 5%",
+        "power": {
+          "value": 0.67,
+          "ge_80": false,
+          "effect_zh": "候选 E（A2 块）按 IS 观测 g 4.30%/年 推到 OOS 的功效（1.96 门槛，R-N1-3 先写功效）",
+          "source_zh": "smartflow 833737db:trading-system-v2/docs/evidence/us-core-n1-v1/US_CORE_N1_RESULT_V1.json .power.E.power_1_96 = 0.6695（Y 臂 0.985）"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2018-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-04",
+        "seal_sha256": "0fe7c5976eceecc1d29da5ac3fef2cc93a6bc9b24b2e3eff7fbdca6f4569a6f4",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:UC-N1"
+      }
+    },
+    {
+      "item_id": "U22#UC-SPY",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R-US-ETF-1 MR-V1 宽基均值回归波段；主族取题面先列的 US_CORE（UC-SPY、UC-QQQ），US_V5 的 V5-VOO、V5-SPMO 单元同一机制，熊市刹车是候选组成部分；封存单元 UC-SPY（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "判定表第 4 行：Δg −7.57%/年 [−13.63%, −0.76%]，区间在 0 以下，IS/OOS 同号",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 按点估计判，判定门槛 = 0；US_CORE 袖全窗 80% 功效 MDE 6.25–9.17 pp/年",
+          "source_zh": "封存结果按 sha 绑定功效文件 00dc959e；数值读自同提交 prior/R_US_ETF_1_PRIOR_POWER.json .units.US_CORE_sleeve"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2010-02-11",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "406a061b1c181331252cb4683c02cb9c653ab77d5b3f1b21aed3d41c980625af",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:UC-RUE1-SPY"
+      }
+    },
+    {
+      "item_id": "U22#UC-QQQ",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R-US-ETF-1 MR-V1 宽基均值回归波段；主族取题面先列的 US_CORE（UC-SPY、UC-QQQ），US_V5 的 V5-VOO、V5-SPMO 单元同一机制，熊市刹车是候选组成部分；封存单元 UC-QQQ（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "判定表第 4 行：Δg −11.62%/年 [−19.78%, −2.48%]，区间在 0 以下",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 按点估计判，判定门槛 = 0；US_CORE 袖全窗 80% 功效 MDE 6.25–9.17 pp/年",
+          "source_zh": "封存结果按 sha 绑定功效文件 00dc959e；数值读自同提交 prior/R_US_ETF_1_PRIOR_POWER.json .units.US_CORE_sleeve"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2010-02-11",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "406a061b1c181331252cb4683c02cb9c653ab77d5b3f1b21aed3d41c980625af",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:UC-RUE1-QQQ"
+      }
+    },
+    {
+      "item_id": "U22#V5-VOO",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R-US-ETF-1 MR-V1 宽基均值回归波段；主族取题面先列的 US_CORE（UC-SPY、UC-QQQ），US_V5 的 V5-VOO、V5-SPMO 单元同一机制，熊市刹车是候选组成部分；封存单元 V5-VOO（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "判定表第 3 行（点估计规则）：Δg +0.36%/年 [−5.05%, +4.47%]，区间跨 0，判对 56%",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 按点估计判，判定门槛 = 0；US_V5 槽 80% 功效 MDE 8.62–14.37 pp/年",
+          "source_zh": "封存结果按 sha 绑定功效文件 00dc959e；数值读自同提交 prior/R_US_ETF_1_PRIOR_POWER.json .units.US_V5_slot"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "406a061b1c181331252cb4683c02cb9c653ab77d5b3f1b21aed3d41c980625af",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-RUE1-VOO",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U22#V5-SPMO",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R-US-ETF-1 MR-V1 宽基均值回归波段；主族取题面先列的 US_CORE（UC-SPY、UC-QQQ），US_V5 的 V5-VOO、V5-SPMO 单元同一机制，熊市刹车是候选组成部分；封存单元 V5-SPMO（§4.2）",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "判定表第 3 行：Δg +3.13%/年 [+1.34%, +5.32%]，区间在 0 以上",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 按点估计判，判定门槛 = 0；US_V5 槽 80% 功效 MDE 8.62–14.37 pp/年",
+          "source_zh": "封存结果按 sha 绑定功效文件 00dc959e；数值读自同提交 prior/R_US_ETF_1_PRIOR_POWER.json .units.US_V5_slot"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "406a061b1c181331252cb4683c02cb9c653ab77d5b3f1b21aed3d41c980625af",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-RUE1-SPMO",
+        "state": {
+          "live": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U09#BAND_075",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.WHIPSAW.FRICTION_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 摩擦带四个候选（两种带宽、确认天数、单档）都是择时切换处的缓冲，带宽与天数是参数；封存单元 BAND_075（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT-R2（未判定，不是否决）：G −0.159，98.75% 区间 [−0.489, +0.155]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "PASS-R2 要 L(G) > 0，判定门槛 = 0；MDE 0.430（同表，G 单位）",
+          "source_zh": "smartflow a91f8f4e:trading-system-v2/docs/US_CORE_WHIPSAW_R2_RESULT_V1.md §0 与 MDE 表"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "1971-11-18",
+          "to": "1993-01-28"
+        },
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "11bf16c511f58fb7cc5200f43b5659b1842b96938a8624ef367bfbc6f57c0e45",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U09#BAND_150",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.WHIPSAW.FRICTION_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 摩擦带四个候选（两种带宽、确认天数、单档）都是择时切换处的缓冲，带宽与天数是参数；封存单元 BAND_150（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT-R2（未判定，不是否决）：G −0.139，98.75% 区间 [−0.630, +0.335]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "PASS-R2 要 L(G) > 0，判定门槛 = 0；MDE 0.635（同表，G 单位）",
+          "source_zh": "smartflow a91f8f4e:trading-system-v2/docs/US_CORE_WHIPSAW_R2_RESULT_V1.md §0 与 MDE 表"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "1971-11-18",
+          "to": "1993-01-28"
+        },
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "11bf16c511f58fb7cc5200f43b5659b1842b96938a8624ef367bfbc6f57c0e45",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U09#CONFIRM_5",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.WHIPSAW.FRICTION_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 摩擦带四个候选（两种带宽、确认天数、单档）都是择时切换处的缓冲，带宽与天数是参数；封存单元 CONFIRM_5（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT-R2（未判定，不是否决）：G −0.186，98.75% 区间 [−0.659, +0.296]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "PASS-R2 要 L(G) > 0，判定门槛 = 0；MDE 0.631（同表，G 单位）",
+          "source_zh": "smartflow a91f8f4e:trading-system-v2/docs/US_CORE_WHIPSAW_R2_RESULT_V1.md §0 与 MDE 表"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "1971-11-18",
+          "to": "1993-01-28"
+        },
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "11bf16c511f58fb7cc5200f43b5659b1842b96938a8624ef367bfbc6f57c0e45",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U09#TIER_1X",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.WHIPSAW.FRICTION_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 摩擦带四个候选（两种带宽、确认天数、单档）都是择时切换处的缓冲，带宽与天数是参数；封存单元 TIER_1X（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT-R2（未判定，不是否决）：G −0.252，98.75% 区间 [−1.105, +0.346]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "PASS-R2 要 L(G) > 0，判定门槛 = 0；MDE 0.966（同表，G 单位）",
+          "source_zh": "smartflow a91f8f4e:trading-system-v2/docs/US_CORE_WHIPSAW_R2_RESULT_V1.md §0 与 MDE 表"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "1971-11-18",
+          "to": "1993-01-28"
+        },
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "11bf16c511f58fb7cc5200f43b5659b1842b96938a8624ef367bfbc6f57c0e45",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U10",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.CORE_ROLE.TIMING_VS_HOLD"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 现承担者（杠杆择时）对买入持有宽基，检验择时本身（Note 2 §2.2）；层登记的 DQ-RQK 行对到本行",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "职责适配区间跨界（STRADDLE，判定表第 4 行 做（影子））",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 662fdcb0:…/us-core-role-vs-voo-v1/US_CORE_ROLE_VS_VOO_RESULT_V1.json（只有 power_check_sha256 引用）"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2018-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-28",
+        "seal_sha256": "3ec623e26cef92a040cea6f24d0b28a750ad4bdaeebe00e636bc4492267a0270",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U11",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.SCREEN.FUNDAMENTAL"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 冻结的只有 (B)：单股杠杆 ETF 底层公司读数为泡沫或恶化时不进新仓，是基本面排除；(A) 指数估值调 k 维持不做、没有读数，不登记；总表记风控层，机制按初筛记，待核；前向影子 2026-11-17 22:30 CST 起运行，届时 shadow_running 改为 true（协调会话 2026-11-16 裁定）；总表 rev 86 已改为选股择时层（初筛）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "前向影子已冻结（只记录不改仓位），无历史判定",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "前向影子规格，无封存结果；已查 artifacts/coordinator/US_ETF_VALUATION_GATE_B_SHADOW_K2_V1_FREEZE_1.md"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": null,
+        "sealed_on": "2026-11-14",
+        "seal_sha256": "1bd9355a124b3471ad1a6a45c0e9a461da4ee802e80a6f7a3aaaaa12fa1ec6ce",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U12#PART_B",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.EXPRESSION.OPTIONS"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 IX1 用期权表达 ETF 信号（Note 2 §2.2），Part A 归因只描述；族照试验台账补登记记 US_CORE；封存单元 PART_B（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "不可行：1 张平值 SPY 合约敞口超过 US_V5 每笔风险与 US_CORE 每腿敞口；分辨 0.25 R 要 4 年以上前向",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "不适用",
+          "source_zh": "协调会话冻结裁定，不是统计检验；已查 artifacts/coordinator/RESEARCH_DRAFTS_20261027_FREEZE_1.md F2"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": null,
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "6143eb609b643068c9b7365cb84a96bda8e2fd970bb9520bfcc8158e43c23652"
+      }
+    },
+    {
+      "item_id": "U13#US_V5",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 凯利与回撤线 K2 给各本账设上限乘数；美股读 US_V5、US_CORE 与海外桶线，主族取题面先列的 US_V5；封存单元 US_V5（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "L-R1 触线概率 0.93% 在容差内（m 1，最大 m 1.29）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 02f3e2be:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/KELLY_US_DRAWDOWN_SIZING_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "282fb3383433c7437c655f3839d80e9e934924655a8d1f6376fe93c2550cf2af"
+      }
+    },
+    {
+      "item_id": "U13#US_CORE",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 凯利与回撤线 K2 给各本账设上限乘数；美股读 US_V5、US_CORE 与海外桶线，主族取题面先列的 US_V5；封存单元 US_CORE（§4.2）",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "L-R1 触线概率 73.6% 超容差 → 降上限到 m 0.42（触线读数，非收益检验）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 02f3e2be:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/KELLY_US_DRAWDOWN_SIZING_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "282fb3383433c7437c655f3839d80e9e934924655a8d1f6376fe93c2550cf2af",
+        "state": {
+          "live": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U13#C17_V2",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一凯利上限机制；加密读 C17、QS 与加密两本的合并线，主族取 C17；封存单元 C17_V2（§4.2）",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "L-R1 触线概率 68% 超容差 → 最大 m 0.29（触线读数）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 02f3e2be:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/KELLY_US_DRAWDOWN_SIZING_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "282fb3383433c7437c655f3839d80e9e934924655a8d1f6376fe93c2550cf2af",
+        "state": {
+          "live": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U13#QS_V3",
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一凯利上限机制；加密读 C17、QS 与加密两本的合并线，主族取 C17；封存单元 QS_V3（§4.2）",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "L-R1 60.0%、L-QS 93.5% 超容差 → 最大 m 0.19（L-QS）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 02f3e2be:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/KELLY_US_DRAWDOWN_SIZING_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "QUICK_SHOT_V3_1000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "282fb3383433c7437c655f3839d80e9e934924655a8d1f6376fe93c2550cf2af",
+        "state": {
+          "live": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U14#US_V5",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 凯利 K2 附录 1 叠加生产去风险规则后重拟合上限，同一凯利上限机制；美股读 US_V5、US_CORE 与海外桶，主族取 US_V5；封存单元 US_V5（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "叠加去风险后 L-R1 在容差内（最大 m 1.31）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 016174bf:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/addendum-1/KELLY_US_DRAWDOWN_OVERLAY_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-28",
+        "seal_sha256": "0072cb21dbd07d71d48aa1494efe2f94acc5dbaef7ef21c719d97d04868e701a"
+      }
+    },
+    {
+      "item_id": "U14#US_CORE",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 凯利 K2 附录 1 叠加生产去风险规则后重拟合上限，同一凯利上限机制；美股读 US_V5、US_CORE 与海外桶，主族取 US_V5；封存单元 US_CORE（§4.2）",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "继承 K2 封存读数：L-R1 超容差，m 0.42（触线读数）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 016174bf:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/addendum-1/KELLY_US_DRAWDOWN_OVERLAY_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-28",
+        "seal_sha256": "0072cb21dbd07d71d48aa1494efe2f94acc5dbaef7ef21c719d97d04868e701a",
+        "state": {
+          "live": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U14#C17_V2",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一机制；加密读 C17、QS 两本与加密合并线，主族取 C17；封存单元 C17_V2（§4.2）",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "叠加 HK 档位后 L-R1 57.96% 超容差 → m 0.43（触线读数）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 016174bf:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/addendum-1/KELLY_US_DRAWDOWN_OVERLAY_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-28",
+        "seal_sha256": "0072cb21dbd07d71d48aa1494efe2f94acc5dbaef7ef21c719d97d04868e701a",
+        "state": {
+          "live": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U14#QS_V3",
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一机制；加密读 C17、QS 两本与加密合并线，主族取 C17；封存单元 QS_V3（§4.2）",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "L-R1 不做（m 2，在容差内）；L-QS 超容差 → m 0.19",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 016174bf:trading-system-v2/docs/evidence/kelly-us-drawdown-v1/addendum-1/KELLY_US_DRAWDOWN_OVERLAY_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "QUICK_SHOT_V3_1000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-28",
+        "seal_sha256": "0072cb21dbd07d71d48aa1494efe2f94acc5dbaef7ef21c719d97d04868e701a",
+        "state": {
+          "live": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "U15",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.DRAWDOWN_HALT.BUCKET_LINE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R1B-1 海外桶合并回撤线触线后永久停新开是保护还是错过恢复；海外桶只含美股两本账（US_V5、US_CORE），只登记美股",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "NOT_ADOPT：C1 保护不劣不成立（C2 恢复成立）；题目已被 A27 取代",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow f5470dd5:trading-system-v2/docs/evidence/r1b-1/pass2/R1B_1_RESULT_V1.json 与同提交 docs/OVERSEAS_BUCKET_R1B_1_RESULT_V1.md"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2010-02-11",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "f84d537318302fe05caf4f6f986d77bdacaef9fce9218ca51d48a4deb67f5016"
+      }
+    },
+    {
+      "item_id": "U15",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.DRAWDOWN_HALT.BUCKET_LINE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R1B-1 海外桶合并回撤线触线后永久停新开是保护还是错过恢复；海外桶只含美股两本账（US_V5、US_CORE），只登记美股；封存结果同样读了加密两本，按市场另登记一条（§4.2 E8）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "NOT_ADOPT：C1 保护不劣不成立（C2 恢复成立）；题目已被 A27 取代",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow f5470dd5:trading-system-v2/docs/evidence/r1b-1/pass2/R1B_1_RESULT_V1.json 与同提交 docs/OVERSEAS_BUCKET_R1B_1_RESULT_V1.md"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2010-02-11",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "f84d537318302fe05caf4f6f986d77bdacaef9fce9218ca51d48a4deb67f5016"
+      }
+    },
+    {
+      "item_id": "U19",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 上限生效后重算海外桶线触线概率与 US_V5 要不要加上限，同一凯利上限机制；美股主族 US_V5，另读 US_CORE",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "海外桶 L-R1b 在三本账上限下 0.77% ≤ 5%，NO_FURTHER_CAP：US_V5 m 保持 1",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow a5dd5967:trading-system-v2/docs/evidence/kelly-cap-s22-recompute/KELLY_CAP_S22_RECOMPUTE_RESULT_V1.json .headline（无功效字段）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-03",
+        "seal_sha256": "bf80509dcd4a0643628d978e770666d3f4ad9d064813e3ec57d099c2dd838beb"
+      }
+    },
+    {
+      "item_id": "U19",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一机制；加密重算两本的合并线，主族取 C17，另含 QS",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "加密两本 A19 线 1.52%（7 日块）/ 1.04%（30 日块）≤ 5%，NO_FURTHER_CAP",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow a5dd5967:trading-system-v2/docs/evidence/kelly-cap-s22-recompute/KELLY_CAP_S22_RECOMPUTE_RESULT_V1.json .headline（无功效字段）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-03",
+        "seal_sha256": "bf80509dcd4a0643628d978e770666d3f4ad9d064813e3ec57d099c2dd838beb"
+      }
+    },
+    {
+      "item_id": "C02",
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.DIRECTION.SHORT_ONLY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 QS M2 R1 只做空是策略自身的方向规则，不按市场状态切换；层登记 QS R1 对到本行",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "前向影子未到查看日（3/60）；功效 L > 0 约需 2,735 笔",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "结果只报分量 MDE80，非候选判定功效",
+          "source_zh": "QRP fb287e1:var/evidence/qs-v3-m2-r1-2026-10-27/QS_V3_M2_R1_RESULT_V1.json .components[].dg_mde80"
+        },
+        "family_id": "QUICK_SHOT_V3_1000USDT",
+        "data_window": null,
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "c679d4c92c2d67a1b95a7a9bcc56e1872e96b331657d8a4e3a092f7bb158aa25",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C04",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.UNIVERSE.NON_MAJOR_SCOPE",
+        "RISK.REGIME.DIRECTION_GATE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 组合候选两部分：CAND-S 只做主流（标的范围）与 CAND-D 按 BTC 长期均线禁非 BTC 做空（市场结构定方向，层登记不符 D11），分开登记",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "前向影子未到查看日（≤ 2/60）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "差距分解只报分量 MDE80，非候选判定功效",
+          "source_zh": "QRP fb287e1:var/evidence/c17-v2-m2-r1-2026-10-27/C17_V2_M2_R1_GAP_DECOMPOSITION_V1.json .power"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2023-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "229940c24a2246bcebe3ce73ba148f4ce3532924d040f4fb418afd95169de64d",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C05",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "EXEC.ORDER.MAKER_FIRST"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 EXEC-1 入场先挂单、超时再吃单，是下单方式（Note 2 §1）；CAL 只校准成交成本读数，不另立机制；QS 作第二账本只报",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "前向记录未到查看日（完整主流入场 2/60），无历史判定",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "前向实验，无封存结果；已查 artifacts/coordinator/CRYPTO_M2_R1_K2_FREEZE_1.md（Q2）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": null,
+        "sealed_on": "2026-10-27",
+        "seal_sha256": "28a3f559b7f41ba093a34ae263e7ae3f8b1cdf425fb5d552bece1b0b6dab0d08",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C06",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.UNIVERSE.NON_MAJOR_DISCOVERY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 U1–U4 非主流发现影子，效应是按规则把非主流合约纳入交易范围",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "U1–U4 都 INSUFFICIENT（Q0 UNDECIDED）",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 δ* = 10 pp/年；账本分辨率 74–82 pp/年",
+          "source_zh": "smartflow e0341493:trading-system-v2/docs/C17_V2_NON_MAJOR_DISCOVERY_RESEARCH_RESULT_V1.md 第 16 行"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": null,
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "079a30382ce4efdef8835a37cf84136fd7906a1fef7d71f70c5df5d5593597e6",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C07",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.SENSITIVITY.EARLIER_ENTRY",
+        "SEL.UNIVERSE.NON_MAJOR_DISCOVERY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 U4 更早触发是入场灵敏度，U5 非主流领涨分档（放宽成交额门槛）是非主流发现，两个效应分开登记"
+    },
+    {
+      "item_id": "C08",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 加密凯利定仓可行性是凯利上限机制的第一步，读 C17、QS 两本账，主族取 C17",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT：单笔净 R 区间含 0，样本门槛 G-N 未到；做 = §8 前向定仓投影",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "只报 80% 功效所需 n_eff，未报功效概率",
+          "source_zh": "artifacts/coordinator/CRYPTO_KELLY_SIZING_FEASIBILITY_2026-10-19.md 表头第 28 行"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": null,
+        "sealed_on": "2026-10-19",
+        "seal_sha256": "ffa8d1ee08d1a9e2dd1a4f80f0c4a9012eabf157efcade9cd16e85bc765c22c5",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C09",
+      "strategy_ref": "CARRY_V2_SHADOW_10000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.CARRY.FUNDING_BASIS"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 资金费是 Carry 自己的开仓信号（Note 2 §2.4），与拿资金费调 C17、QS 的 k 不是同一机制",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "已看数据上 INSUFFICIENT，前向验证 (a)(b)，查看日 2027-12-31",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 8d56d4bb:trading-system-v2/docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_RESULT_V2.md（grep 无功效）"
+        },
+        "family_id": "CARRY_V2_SHADOW_10000USDT",
+        "data_window": null,
+        "sealed_on": "2026-10-02",
+        "seal_sha256": "a43ecd5e704dbeb798a6987aaa98df55b862f49450cfd80b0448fc7ab2f42537",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C11#C17",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.LOSS_LOCK.SCALE_WITH_SIZING"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 风控维度 Q4 唯一候选是熔断与日停按凯利后的风险单位重设；QS 不设候选，冷却与集中度没有候选，不登记；层登记的 C17、QS 四条 Q4 行都对到本行；封存单元 C17（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "证据不足：历史只能否决；Δg −3.48%/年 [−7.61%, +0.39%]，G1 不满足（改变的入场 10）；做的依据是机制与无害检查",
+        "power": {
+          "value": 0.06,
+          "ge_80": false,
+          "effect_zh": "K2 §1 预先声明的功效约 6%（结果未写对应效应量）",
+          "source_zh": "smartflow 91d9d7de:trading-system-v2/docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json .verdict.power_zh"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2023-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-11-04",
+        "seal_sha256": "baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-Q4",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C11#QS",
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.LOSS_LOCK.SCALE_WITH_SIZING"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 风控维度 Q4 唯一候选是熔断与日停按凯利后的风险单位重设；QS 不设候选，冷却与集中度没有候选，不登记；层登记的 C17、QS 四条 Q4 行都对到本行；封存单元 QS（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "不设候选（NO_CANDIDATE，描述性）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 91d9d7de:trading-system-v2/docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json .verdict.qs"
+        },
+        "family_id": "QUICK_SHOT_V3_1000USDT",
+        "data_window": null,
+        "sealed_on": "2026-11-04",
+        "seal_sha256": "baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:QS-Q4"
+      }
+    },
+    {
+      "item_id": "C13",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "EXEC.ORDER.MAKER_FIRST"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 N4 入场与止盈、决策出场改挂单（超时转市价），与 EXEC-1 同一先挂后吃机制；层登记的 C17-N4-SHADOW 前向影子对到本行",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "有支持证据：样本外 Δg +9.07%/年 [+2.86%, +15.50%]；H1 4.92%，样本外已复用",
+        "power": {
+          "value": 0.4,
+          "ge_80": false,
+          "effect_zh": "候选 ab 按开发期观测 Δg +2.81%/年 推到 OOS 的功效（1.96；2.80 为 0.14）",
+          "source_zh": "smartflow 51aac8ff:trading-system-v2/docs/evidence/c17-n4-v1/C17_N4_FEE_SLIPPAGE_RESULT_V1.json .power.doc.projection.step2_by_composition.ab"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2023-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-11-04",
+        "seal_sha256": "83fda6e7d4d9405d3c600b0cf13f8d8c03f9a3225fa992d0ace0c6c9f59a9f8d",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-N4",
+        "state": {
+          "live": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "C15#C17",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.FREQUENCY.ENTRY_THROTTLE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 N7 每本账每月至多开仓一次，是开仓频率限制；读 C17 与 QS 两本账，主族取 C17；封存单元 C17（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "P1、P2 都不成立：样本外 Δg −16.5%/年 [−45.9%, +7.9%]，开发期 −2.6%/年",
+        "power": {
+          "value": 0.06,
+          "ge_80": false,
+          "effect_zh": "开发期观测 Δg −2.63%/年 推到样本外的功效（1.96；2.80 为 0.006）",
+          "source_zh": "smartflow a7e74f15:trading-system-v2/docs/evidence/crypto-n7-v1/CRYPTO_N7_TRADE_FREQUENCY_RESULT_V1.json .power.C17.doc.projection.power_at_1_96 = 0.0556"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "469a0d86e441b75dd617f8e0f9882ff4aac2d7780e4b2c74bdbabac1c48c5c97",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-N7"
+      }
+    },
+    {
+      "item_id": "C15#QS",
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.FREQUENCY.ENTRY_THROTTLE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 N7 每本账每月至多开仓一次，是开仓频率限制；读 C17 与 QS 两本账，主族取 C17；封存单元 QS（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "P1、P2 都不成立：样本外 Δg −7.4%/年 [−21.9%, +3.9%]，开发期 −0.5%/年",
+        "power": {
+          "value": 0.07,
+          "ge_80": false,
+          "effect_zh": "开发期观测 Δg −0.52%/年 推到样本外的功效（1.96；2.80 为 0.009）",
+          "source_zh": "smartflow a7e74f15:trading-system-v2/docs/evidence/crypto-n7-v1/CRYPTO_N7_TRADE_FREQUENCY_RESULT_V1.json .power.QS.doc.projection.power_at_1_96 = 0.0695"
+        },
+        "family_id": "QUICK_SHOT_V3_1000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "469a0d86e441b75dd617f8e0f9882ff4aac2d7780e4b2c74bdbabac1c48c5c97",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:QS-N7"
+      }
+    },
+    {
+      "item_id": "C16",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.UNIVERSE.NON_MAJOR_SCOPE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 N8 非主流合约保留、收窄还是去掉（候选只做主流），与 C04 的 CAND-S 同一标的范围机制",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "历史判不出：测试段 Δg −0.037 [−0.559, +0.383]（P1 不成立），开发期 +0.418",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 §8 预登记的判定效应（期望效应不超过 0.171/年）",
+          "source_zh": "K2 §8：MDE80 0.56，远大于期望效应，K2 指定前向影子（到 2027-04-30）为证据；结果文件里的 0.92 是开发期观测效应推到测试段的投影，不是预登记效应下的功效（协调会话 2026-11-16 裁定）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2024-10-04",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-05",
+        "seal_sha256": "7aacf521398d2fc1f0aa3ed3a2b4daf4c81eacad497e1f2269e9673cb946b3fb",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-N8"
+      }
+    },
+    {
+      "item_id": "X03a",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "RISK.TOTAL_BUDGET.DRAWDOWN_BAND_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 L1 总风险预算按基准回撤与长期均线分档只调 k，规则覆盖三个市场；A 股由 V6 执行影子，主族取个股簿，另含 INDEX_BOOK"
+    },
+    {
+      "item_id": "X03a",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "RISK.TOTAL_BUDGET.DRAWDOWN_BAND_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一总风险预算分档机制；美股由 smartflow 执行影子，主族取 US_V5，另含 US_CORE"
+    },
+    {
+      "item_id": "X03a",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "RISK.TOTAL_BUDGET.DRAWDOWN_BAND_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一总风险预算分档机制；加密主族取 C17，另含 QS"
+    },
+    {
+      "item_id": "X03b",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "ACCT.TOTAL_LINE.COMBINED_DRAWDOWN"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 总账户线把三个市场合并读回撤给仓位上限，属账户层（总表由 X03 拆出，Note 2 §2.5）；A 股主族取个股簿，另含 INDEX_BOOK"
+    },
+    {
+      "item_id": "X03b",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.TOTAL_LINE.COMBINED_DRAWDOWN"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一总账户线机制；美股主族取 US_V5，另含 US_CORE"
+    },
+    {
+      "item_id": "X03b",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.TOTAL_LINE.COMBINED_DRAWDOWN"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一总账户线机制；加密主族取 C17，另含 QS"
+    },
+    {
+      "item_id": "X04",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.KLINE.ENTRY_VETO",
+        "SEL.KLINE.EXIT_PROTECT"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R8 美股部分：K1 入场否决与 K3 收紧、减半两类保护性 K 线规则一起检验，登记两个 id；US_CORE 的 K4 只显示，不改交易；消融题：不做 = 保留现行规则，方向与机制结论相反，不写结论块（§4.3）"
+    },
+    {
+      "item_id": "X04",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.KLINE.ENTRY_VETO",
+        "SEL.KLINE.EXIT_PROTECT"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 R8 加密部分：C17 的 K5 入场否决与 K7 收紧、减半；QS 的 K9 只记录；A 股部分见 R8-ASHARE；消融题：不做 = 保留现行规则，方向与机制结论相反，不写结论块（§4.3）"
+    },
+    {
+      "item_id": "X05",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "RISK.REGIME.TURN_LAG"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 转折灵敏度量的是大盘见底后风控层放行的滞后，没有候选；美股读 US_V5",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "无候选（诊断）：风控层占滞后 7.27% < 15%，第 2 步 TK-V1 不开",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow d407ad68:trading-system-v2/docs/evidence/x05-v1/X05_TURN_SENSITIVITY_RESULT_V1.json"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "150d136e71c1c6eeb0bede8653aaf0c3d2bfda4a2d4e82017051994acddc762f",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-X05"
+      }
+    },
+    {
+      "item_id": "X05#C17",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "RISK.REGIME.TURN_LAG"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一机制；C17 生产没有市场层闸门，QS 只报；封存单元 C17（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "无候选（诊断）：生产没有市场层闸门",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 X05_TURN_SENSITIVITY_RESULT_V1.json .c17"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "150d136e71c1c6eeb0bede8653aaf0c3d2bfda4a2d4e82017051994acddc762f",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-X05"
+      }
+    },
+    {
+      "item_id": "X06",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.DERISK.DRAWDOWN_LOOKBACK"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 降风险系数的回撤回看窗口对锚定读法（两者取更严），只读 US_V5 与海外桶线，只登记美股",
+      "conclusion": {
+        "verdict": "DO_SUPPORTED",
+        "strength_zh": "实质：US_V5 一线过 ★4 门槛（MIN_OF_BOTH 45 日回看，触线概率 0.94% → 0）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 215b2bab:…/kelly-us-drawdown-v1/us5-lookback/KELLY_US5_LOOKBACK_RESULT_V1.json"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-04",
+        "seal_sha256": "97677edb65420a70a9f0047774df7250fea8f118ef53f801a5a15ddd32d1ad59",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-X06",
+        "state": {
+          "live": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "X07a",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 A 股凯利是同一凯利上限机制，读个股簿的三本账",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "证据不足：F2 后段折 m 2/2/1.77，极差 0.23 > 0.2；无收紧候选",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 artifacts/coordinator/X07A_ASHARE_KELLY_RESULT_V1.json"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": {
+          "from": "2020-06-01",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-14",
+        "seal_sha256": "b2159735024bfd5cdbba84cd2302a5c517957a11bb142a976c03d6d4dae6cc80",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-X07A",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "X07b",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "ACCT.LOSS_LOCK.SCALE_WITH_SIZING"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 A 股风控维度的候选是账户层日、周锁线按 k 缩放，与加密 Q4 熔断日停按风险单位重设同一机制"
+    },
+    {
+      "item_id": "X07c",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.PVS.STRUCTURE_STATE",
+        "SEL.PVS.WAVE_VOLUME",
+        "SEL.EXIT.NO_PROGRESS_EXIT"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 与 A 股共用定义：S1 结构一致、V1 分波段成交量、F1 早期失败离场三项都在美股判定里，登记三个 id",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "点估计 ≤ 0：Δg −0.91 pp/年 [−4.39, +2.32]；F1 从未触发",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 判定门槛 = 0；零信息模拟 80% 功效 MDE 4.15 pp/年",
+          "source_zh": "smartflow 9330bc89:trading-system-v2/docs/evidence/x07c-v1/X07C_PVS_RESULT_V1.json .units.US_V5.power.null_simulation.mde80"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "36bd6f25f14b9f5b212899ef3363d004f9eb1718c02b6030933910bc8e438a4f",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-X07C"
+      }
+    },
+    {
+      "item_id": "X07c",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.PVS.STRUCTURE_STATE",
+        "SEL.PVS.WAVE_VOLUME"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 加密只判 S1 与 V1（C17 持仓太短，F1 不触发）；QS 结构分组只报",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "点估计 ≤ 0：Δg −0.58 pp/年 [−12.66, +10.84]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 判定门槛 = 0；零信息模拟 80% 功效 MDE 10.94 pp/年",
+          "source_zh": "X07C_PVS_RESULT_V1.json .units.C17.power.null_simulation.mde80"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "36bd6f25f14b9f5b212899ef3363d004f9eb1718c02b6030933910bc8e438a4f",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-X07C"
+      }
+    },
+    {
+      "item_id": "X08#V1",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.CORE_ROLE.TIMING_VS_HOLD",
+        "SEL.LEFT_SIDE.TIERED_DIP_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 长期核心买入持有对杠杆择时，检验择时本身；V2 逢低分批对平价分批是低位分档买入，分开登记；核心标的选哪只是参数；层登记 UC-X08 对到本行；封存单元 V1（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT-R2（代理校准未通过 R0.6 PROXY_FAIL，第二轮封顶）",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "第一轮 δ* 0.109；第一轮 MDE 0.819、第二轮 MDE 1.010（g 和统计量）",
+          "source_zh": "smartflow 0b876ab0（同 312faa96）:trading-system-v2/research/us-longterm-vs-timing/result-v1.json .round1.V1.g.MDE / .deltaStar、.round2.lines.V1.g.MDE"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "1993-02-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "14e8f567c623e9435f96aa1f1bf24dad2cb52078e9eb04073bfc58455c9f18da",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "X08#V2-SPY",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.CORE_ROLE.TIMING_VS_HOLD",
+        "SEL.LEFT_SIDE.TIERED_DIP_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 长期核心买入持有对杠杆择时，检验择时本身；V2 逢低分批对平价分批是低位分档买入，分开登记；核心标的选哪只是参数；层登记 UC-X08 对到本行；封存单元 V2-SPY（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "DIP_FAIL（弱数据）：g −0.032 [−0.056, −0.005]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "δ* 0.0199；MDE 0.0361",
+          "source_zh": "smartflow 0b876ab0（同 312faa96）:trading-system-v2/research/us-longterm-vs-timing/result-v1.json .round1.V2.SPY.g.MDE / .deltaStar"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": null,
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "14e8f567c623e9435f96aa1f1bf24dad2cb52078e9eb04073bfc58455c9f18da",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:UC-X08"
+      }
+    },
+    {
+      "item_id": "X08#V2-SPMO",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.CORE_ROLE.TIMING_VS_HOLD",
+        "SEL.LEFT_SIDE.TIERED_DIP_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 长期核心买入持有对杠杆择时，检验择时本身；V2 逢低分批对平价分批是低位分档买入，分开登记；核心标的选哪只是参数；层登记 UC-X08 对到本行；封存单元 V2-SPMO（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT-R2：第二轮代理 g −0.036 [−0.062, −0.006]，代理校准未通过",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "V2 δ* 0.0199；第二轮 MDE 0.0404（第一轮只报 0.0406）",
+          "source_zh": "smartflow 0b876ab0（同 312faa96）:trading-system-v2/research/us-longterm-vs-timing/result-v1.json .round2.lines.V2_SPMO.g.MDE、.round1.V2.SPMO_round1_reportOnly.deltaStar"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "1993-02-01",
+          "to": "2015-10-09"
+        },
+        "sealed_on": "2026-10-06",
+        "seal_sha256": "14e8f567c623e9435f96aa1f1bf24dad2cb52078e9eb04073bfc58455c9f18da",
+        "state": {
+          "shadow_running": true,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "X11",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.IDLE_CASH.INDEX_PARKING"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 N3 检验 M-1 闲置现金停放宽基进海外桶后的桶线可行性，机制同 U20；桶线是约束，不另立机制",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "不可行：桶线 8.28% > 5%（M-1 在现行上限下）",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow 5104c3b9:trading-system-v2/docs/evidence/bucket-n3-v1/OVERSEAS_BUCKET_N3_M1_FEASIBILITY_RESULT_V1.json（可行性检查）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-04",
+        "seal_sha256": "c9b473398ef683508cb003c0ab2cbd4fd505ff23af5617b6c2ad352bebefbefb",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-N3"
+      }
+    },
+    {
+      "item_id": "X12",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M",
+        "ACCT.IDLE_CASH.INDEX_PARKING"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 N5 在 M-1 之下拟合 US_V5 的上限乘数前沿，候选同时带上限与闲置现金停放、对当前 US_V5，登记两个 id",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "线过但 Δg 不显著：OOS 配对 Δg +0.70%/年 [−6.03%, +7.40%]（m* 0.50）",
+        "power": {
+          "value": 0.07,
+          "ge_80": false,
+          "effect_zh": "m* 处配对 Δg 按开发期观测 +2.68%/年 推到 OOS 的功效（1.96 门槛；2.80 门槛 0.011）",
+          "source_zh": "smartflow 2a6dbfef:trading-system-v2/docs/evidence/us-v5-n5-v1/US_V5_N5_MCAP_FRONTIER_RESULT_V1.json .comparison.power.power_at_1_96 = 0.0719"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-10-23"
+        },
+        "sealed_on": "2026-11-04",
+        "seal_sha256": "9416bc71c2b88613d3b6a23c7fd16b5387b960c49c302d50813832b5f729d205",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-N5"
+      }
+    },
+    {
+      "item_id": "D4",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.SCREEN.FUNDAMENTAL"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 质量、盈利、估值从加权分移到初筛门槛，只排除不排序，是基本面初筛效应（合同修订 1 §3）"
+    },
+    {
+      "item_id": "D8#C17",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "RISK.REGIME.STATE_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 加密市场层状态读数（BTC 趋势、资金费、宽度）给 C17、QS 调 k，只调仓位；主族取 C17；封存单元 C17（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "弱：对 C_ū 四条 D-1..D-4 全没过；Δg −0.0058 [−0.050, +0.039]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow e2dc1098:trading-system-v2/docs/evidence/crypto-d8-v1/CRYPTO_D8_RISK_K_RESULT_V1.json（只报零信息 P(做) 5.1%，不是功效）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-07-19",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-09",
+        "seal_sha256": "76619654f28190f8fcb9b1030d1855cdb8156d61c9f908b105a7cc66b00fa8b3",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-D8"
+      }
+    },
+    {
+      "item_id": "D8#QS",
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "RISK.REGIME.STATE_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 加密市场层状态读数（BTC 趋势、资金费、宽度）给 C17、QS 调 k，只调仓位；主族取 C17；封存单元 QS（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "弱：对 C_ū D-2、D-3 没过；Δg +0.0001 [−0.010, +0.011]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 CRYPTO_D8_RISK_K_RESULT_V1.json verdict_detail[QS]（只报零信息 P(做) 1.9%）"
+        },
+        "family_id": "QUICK_SHOT_V3_1000USDT",
+        "data_window": {
+          "from": "2020-07-19",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-09",
+        "seal_sha256": "76619654f28190f8fcb9b1030d1855cdb8156d61c9f908b105a7cc66b00fa8b3",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:QS-D8"
+      }
+    },
+    {
+      "item_id": "D5#V2",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "RISK.REGIME.STATE_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 去掉市场状态定方向的闸、改为风险关闭时只调 k，被替换的方向闸与新的调 k 都在比较里，登记两个 id；方向仍读信号序列自身，不是新机制；封存单元 V2（§4.2）；只登记 STATE_K；V1 的不做是保留方向闸，方向与机制结论相反，不登记（协调会话 2026-11-16 裁定）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "证据不足：D-4 Δg −1.18%/年 [−3.20%, +0.68%] 没过，改变的入场 21 < 30 走证据不足一支",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow ac35eeca:trading-system-v2/docs/evidence/us-v5-d5-v2/US_V5_D5_V2_RISK_K_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "a3545bb31815253eb04f893fc07678e403bb55efc8e726ef086e88cd292fd3d8",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-D5-V2",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "D2",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.SECTOR_CYCLE.INVENTORY_CLOCK"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 核对库存钟只作行业初筛（过或不过）、不参与排序；代码在指数簿，族取 INDEX_BOOK（试验台账按保守口径记个股簿，待核）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "不需要改：代码核对，库存钟只决定 sectorEligible，不参与排序",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "不适用",
+          "source_zh": "代码核对，不是统计检验；已查 artifacts/coordinator/THREE_LAYER_STRATEGY_FRAMEWORK_V1_FREEZE_1_NOTE_9.mdD2 关闭节"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": null,
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "11ad16774e93b021e07ff5bfb8ba90d1d05c3fe0b55c8fe77dddb45306f6c7fa"
+      }
+    },
+    {
+      "item_id": "D3",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "RISK.POLICY_SECTOR.SECTOR_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 指数簿升档时的政策行业扣留改为该行业单独调 k，移到风控层；按签字的规则修订处理，不是研究读数"
+    },
+    {
+      "item_id": "R-ETF-2#510300",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 候选在现行网格底仓上加低位分批的均值回归波段仓，增量是波段仓而不是网格本身，与 R-US-ETF-1 同一机制；封存单元 510300（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "按点估计判（K2 事先写定）：Δ(MR,现行) −0.13 pp、Δ(MR,C) −0.63 pp，90% 区间都跨 0",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 d62dde22:research/index-grid/r-etf-2/result-r-etf-2.json perEtf.510300"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": {
+          "from": "2013-03-21",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "d45595910e4235b3f2075daccc82aa11f71699e09dd8feff6bf542e39fb17518",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-R-ETF-2-510300"
+      }
+    },
+    {
+      "item_id": "R-ETF-2#510500",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 候选在现行网格底仓上加低位分批的均值回归波段仓，增量是波段仓而不是网格本身，与 R-US-ETF-1 同一机制；封存单元 510500（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "按点估计判（K2 事先写定）：Δ(MR,现行) < 0（点估计），90% 区间跨 0",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 d62dde22:research/index-grid/r-etf-2/result-r-etf-2.json perEtf.510500"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": {
+          "from": "2014-01-10",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "d45595910e4235b3f2075daccc82aa11f71699e09dd8feff6bf542e39fb17518",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-R-ETF-2-510500"
+      }
+    },
+    {
+      "item_id": "R-ETF-2#588000",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 候选在现行网格底仓上加低位分批的均值回归波段仓，增量是波段仓而不是网格本身，与 R-US-ETF-1 同一机制；封存单元 588000（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "按点估计判（K2 事先写定）：Δ(MR,现行) < 0（点估计），90% 区间跨 0",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 d62dde22:research/index-grid/r-etf-2/result-r-etf-2.json perEtf.588000"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": {
+          "from": "2021-09-06",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "d45595910e4235b3f2075daccc82aa11f71699e09dd8feff6bf542e39fb17518",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-R-ETF-2-588000"
+      }
+    },
+    {
+      "item_id": "R-ETF-2#159967",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 候选在现行网格底仓上加低位分批的均值回归波段仓，增量是波段仓而不是网格本身，与 R-US-ETF-1 同一机制；封存单元 159967（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "按点估计判（K2 事先写定）：Δ(MR,现行) < 0、Δ(MR,C) < 0；对 C 差 5.55 pp",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 d62dde22:research/index-grid/r-etf-2/result-r-etf-2.json perEtf.159967"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": {
+          "from": "2020-05-12",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "d45595910e4235b3f2075daccc82aa11f71699e09dd8feff6bf542e39fb17518",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-R-ETF-2-159967"
+      }
+    },
+    {
+      "item_id": "R-ETF-2#510880",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MEANREV.SWING_BAND"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 候选在现行网格底仓上加低位分批的均值回归波段仓，增量是波段仓而不是网格本身，与 R-US-ETF-1 同一机制；封存单元 510880（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "按点估计判（K2 事先写定）：Δ(MR,现行) < 0（点估计），90% 区间跨 0",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 d62dde22:research/index-grid/r-etf-2/result-r-etf-2.json perEtf.510880"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": {
+          "from": "2007-11-14",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "d45595910e4235b3f2075daccc82aa11f71699e09dd8feff6bf542e39fb17518",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-R-ETF-2-510880"
+      }
+    },
+    {
+      "item_id": "R6",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.DIRECTION.SCORE_SYMMETRY",
+        "SEL.TREND.LONG_MA_GATE"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 方向分对称化是方向效应；EMA200 修不修单独成对、单独下结论，按长期均线入场闸另登一个 id",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "硬约束线不过（LT30_NO）：US_V5 线 16.98% / 海外桶 2.02%",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 判定门槛 = 0；零信息模拟 80% 功效 Δg 4.25 pp/年",
+          "source_zh": "smartflow 6bac8cee:trading-system-v2/docs/evidence/r6-v1/R6_DIRECTION_SCORE_RESULT_V1.json .us_v5.power.null.delta_g_for_80pct_power"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "defe6bf238d63a328fe689c2a193b16133e9fe7bc5be4bebb3fcdec9265d5c65"
+      }
+    },
+    {
+      "item_id": "R6",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.DIRECTION.SCORE_SYMMETRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 C17 只判方向分对称化，EMA200 一项只针对 US_V5",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "Δg 点估计 ≤ 0：−6.67 pp/年 [−16.47, +1.85]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 判定门槛 = 0；零信息模拟 80% 功效 Δg 6.08 pp/年",
+          "source_zh": "R6_DIRECTION_SCORE_RESULT_V1.json .c17.power_null.delta_g_for_80pct_power"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "defe6bf238d63a328fe689c2a193b16133e9fe7bc5be4bebb3fcdec9265d5c65"
+      }
+    },
+    {
+      "item_id": "R7",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "SEL.EXIT.BREAKEVEN_DELAY",
+        "SEL.EXIT.TIME_STOP_DEFER"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 一个组合候选改两处：推迟保本，已进入跟踪的仓免时间止损；两个出场效应分开登记",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "点估计 > 0 但 H1 线不过（13.70%，判定表第 3 行）",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 判定表无预设效应量，判定门槛 = 0（点估计 > 0 / L > 0）；80% 功效 MDE Δg 8.9–13.4 pp/年（s 0.8 / 1.2）",
+          "source_zh": "smartflow ba3fc2b3:trading-system-v2/docs/evidence/r7-v1/C17_R7_EXITS_RESULT_V1.json .power.rows[].delta_g_80pct"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-10-24"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "3591b0b3cdff72a8134915d844ec18987aa7e295f57c8def851a01cbc6ede9fd"
+      }
+    },
+    {
+      "item_id": "W45-4",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.PORTFOLIO.CONCENTRATION"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 C_BROAD 去掉一袖、资金归入另一袖，是组合构建的集中度效应；第 1 部分是诊断",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "判定表第 6 行：对 D_TK 的 Δg 区间整体 < 0（Δg −4.25 pp），对 VOO 区间跨 0",
+        "power": {
+          "value": 0.09,
+          "ge_80": false,
+          "effect_zh": "C_BROAD 对 D_TK 的 Δg 按 IS 观测 −0.86%/年 推到 OOS 的功效（1.96；对 VOO 为 0.21）",
+          "source_zh": "smartflow 59b30bdf:trading-system-v2/docs/evidence/w45-4-v1/RLC_US_2026W45_4_US_CORE_ROLE_RESULT_V1.json .power.dg_c_vs_d_tk.power_1_96 = 0.0890"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2018-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "625be3dba64edd707a68c2df8f45604a695e84b0b8927545d2448d140ed143e4"
+      }
+    },
+    {
+      "item_id": "ABL-1",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.KLINE.ENTRY_VETO",
+        "SEL.SECTOR_RS.RANK",
+        "ACCT.DERISK.DRAWDOWN_LOOKBACK",
+        "SEL.CONFIRM.MTF_RELAX",
+        "SEL.SENSITIVITY.EARLIER_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 逐步消融五项现行规则，按被拿掉的规则登记：E-2（K 线入场否决读空头）、A23（行业 RS）、MIN_OF_BOTH（账户层降风险回看）、U2(b)（放宽多周期确认）、U3（领涨行业超买上沿放宽）；消融题：不做 = 保留现行规则，方向与机制结论相反，不写结论块（§4.3）"
+    },
+    {
+      "item_id": "BAR-1",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.CONFIRM.BAR_TIMEFRAME"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 只改确认层读哪根 K 线、多久判一次，不改买什么、买多少；风控层固定只调 k",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "硬约束不过（GE30_NO）：C30 US_V5 线 19.41% / 海外桶 2.00%；Δg −1.33 pp/年 [−6.11, +3.43]",
+        "power": {
+          "value": null,
+          "ge_80": false,
+          "effect_zh": "K2 判定门槛 = 0（L > 0），无预设效应量；全窗 80% 功效 MDE 约 8.9–10.2 pp/年（样本外 11.9–13.7）",
+          "source_zh": "smartflow a691c1ca:trading-system-v2/docs/evidence/us-v5-signal-bar-30m-v1/US_V5_SIGNAL_BAR_30M_RESULT_V1.json .unit.power_zh §9"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-10",
+        "seal_sha256": "c61b6b0f0032a217c8c4d73035381a35ef50386d990ac5c09c76c1f9be0e7783"
+      }
+    },
+    {
+      "item_id": "S3-PH-1",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.SECTOR_CYCLE.ADVERSE_PRICE_HIGH"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 S3 不利错位初筛的价格高位条件对不加价格条件的对照臂，窗口长短是参数；S3 只作用于指数簿的行业 ETF"
+    },
+    {
+      "item_id": "R-Q6-S8",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.CONFIRM.MTF_RELAX",
+        "SEL.SENSITIVITY.EARLIER_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 在新节奏上重判 U2(b) 与 U3 一起关的那一臂，与 ABL-1 的这两项同一机制；消融题：不做 = 保留现行规则，方向与机制结论相反，不写结论块（§4.3）"
+    },
+    {
+      "item_id": "KELLY-WFO#US_V5",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 上限乘数的滚动前推稳定性，同一凯利上限机制；美股读 US_V5、US_CORE 与海外桶，主族取题面先列的 US_V5；封存单元 US_V5（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "7 折 m_f 都是 2（现行 1），F1 前推不触线",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow b0abc9c8:trading-system-v2/docs/evidence/kelly-m-wfo/KELLY_M_WFO_RESULT_V1.json verdicts[O1]"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "e51343a3f61a27bc262039b74836a925cb17447c91f5da3d8d9426f72f360aae",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-KWFO"
+      }
+    },
+    {
+      "item_id": "KELLY-WFO#US_CORE",
+      "strategy_ref": "US_CORE_9000USD_3X_GATEOBS",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 上限乘数的滚动前推稳定性，同一凯利上限机制；美股读 US_V5、US_CORE 与海外桶，主族取题面先列的 US_V5；封存单元 US_CORE（§4.2）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "证据不足（参数不稳）：后一半折中位数 0.415 < 现行 0.42",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow b0abc9c8:trading-system-v2/docs/evidence/kelly-m-wfo/KELLY_M_WFO_RESULT_V1.json verdicts[O2]"
+        },
+        "family_id": "US_CORE_9000USD_3X_GATEOBS",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "e51343a3f61a27bc262039b74836a925cb17447c91f5da3d8d9426f72f360aae",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:UC-KWFO",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "KELLY-WFO#BUCKET",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 上限乘数的滚动前推稳定性，同一凯利上限机制；美股读 US_V5、US_CORE 与海外桶，主族取题面先列的 US_V5；封存单元 BUCKET（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "海外桶 US_V5 自由项 1，不触线",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow b0abc9c8:trading-system-v2/docs/evidence/kelly-m-wfo/KELLY_M_WFO_RESULT_V1.json verdicts[O5]"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "e51343a3f61a27bc262039b74836a925cb17447c91f5da3d8d9426f72f360aae",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-KWFO-BUCKET"
+      }
+    },
+    {
+      "item_id": "KELLY-WFO#C17_V2",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一机制；加密读 C17_V2、QS_V3 与加密两本的合并线，主族取 C17；封存单元 C17_V2（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "中位数 0.43 = 现行，极差 0.02",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow b0abc9c8:trading-system-v2/docs/evidence/kelly-m-wfo/KELLY_M_WFO_RESULT_V1.json verdicts[O3]"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "e51343a3f61a27bc262039b74836a925cb17447c91f5da3d8d9426f72f360aae",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-KWFO"
+      }
+    },
+    {
+      "item_id": "KELLY-WFO#QS_V3",
+      "strategy_ref": "QUICK_SHOT_V3_1000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一机制；加密读 C17_V2、QS_V3 与加密两本的合并线，主族取 C17；封存单元 QS_V3（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "中位数 0.20，极差 0.05",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow b0abc9c8:trading-system-v2/docs/evidence/kelly-m-wfo/KELLY_M_WFO_RESULT_V1.json verdicts[O4]"
+        },
+        "family_id": "QUICK_SHOT_V3_1000USDT",
+        "data_window": {
+          "from": "2020-01-01",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "e51343a3f61a27bc262039b74836a925cb17447c91f5da3d8d9426f72f360aae",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:QS-KWFO"
+      }
+    },
+    {
+      "item_id": "KELLY-WFO#CRYPTO_PAIR",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 同一机制；加密读 C17_V2、QS_V3 与加密两本的合并线，主族取 C17；封存单元 CRYPTO_PAIR（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "加密两本 L-A19 无自由项",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow b0abc9c8:trading-system-v2/docs/evidence/kelly-m-wfo/KELLY_M_WFO_RESULT_V1.json verdicts[O6]"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-11",
+        "seal_sha256": "e51343a3f61a27bc262039b74836a925cb17447c91f5da3d8d9426f72f360aae",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-KWFO-PAIR"
+      }
+    },
+    {
+      "item_id": "A-V6-R1-C3-FWD",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.MAINLINE.STRENGTH_THRESHOLD",
+        "SEL.MAINLINE.UNIT_DEFINITION"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 C3 的前向题，比较与 A10 相同（门槛读法加申万三级单位），登记同样两个 id",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "前向题已冻结（判据照补充 2 K2 G1），无历史判定",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "前向题，无封存结果；已查 artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1_FREEZE_1.md"
+        },
+        "family_id": "ASHARE_V6_PAPER",
+        "data_window": null,
+        "sealed_on": "2026-11-14",
+        "seal_sha256": "54e6e5a8a6db3eb61ff65118299e1b91468aa4d757e671f14029e2c410bf10e2",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "SECTOR-ETF-LEFT-1",
+      "strategy_ref": "INDEX_BOOK",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.SECTOR_CYCLE.FAVORABLE_DIVERGENCE",
+        "SEL.LEFT_SIDE.TIERED_DIP_ENTRY"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 行业有利错位选行业（初筛）加价格低位分档左侧买入，两个效应分开登记；买的是行业 ETF",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "INSUFFICIENT（G1 不满足：12 个回合 / 30）；g +2.02%/年 [+0.31%, +4.34%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 Ashare-V6 933d47ff:research/sector-etf-left-1/result-sector-etf-left-1.json"
+        },
+        "family_id": "INDEX_BOOK",
+        "data_window": {
+          "from": "2019-07-01",
+          "to": "2026-09-28"
+        },
+        "sealed_on": "2026-11-13",
+        "seal_sha256": "77067969408f5f7ee626083188856ee20e8653776beee4884798f2b0c3e3c720",
+        "sealed_ref": "ASHARE_SEALED_VERDICTS:CN-SECTOR-ETF-LEFT-1",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    },
+    {
+      "item_id": "KELLY-M-S8#US_V5",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 新节奏账本上重拟合 US_V5 的上限乘数，同一凯利上限机制；海外桶成员换成新节奏账本；封存单元 US_V5（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "R 全窗 m_S8 = 2（网格顶端，m = 1 触线 0.00%）；F1 前推不触线（最大回撤 22.75%）；F2 后一半折 m_f 都是 2",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow bd1e125f:trading-system-v2/docs/evidence/kelly-m-s8/KELLY_M_S8_RESULT_V1.json（.power 只有 PW 闸门状态）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-15",
+        "seal_sha256": "405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9"
+      }
+    },
+    {
+      "item_id": "KELLY-M-S8#BUCKET",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "ACCT.KELLY.CAP_M"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 新节奏账本上重拟合 US_V5 的上限乘数，同一凯利上限机制；海外桶成员换成新节奏账本；封存单元 BUCKET（§4.2）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "O5S 海外桶在签字上限下 4.13% ≤ 5%，NO_FURTHER_CAP",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow bd1e125f:trading-system-v2/docs/evidence/kelly-m-s8/KELLY_M_S8_RESULT_V1.json（.power 只有 PW 闸门状态）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-15",
+        "seal_sha256": "405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9"
+      }
+    },
+    {
+      "item_id": "R8-ASHARE",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.KLINE.ENTRY_VETO",
+        "SEL.KLINE.EXIT_PROTECT",
+        "SEL.CHAN.HOLDBACK"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 组合候选同时关 K 线入场与出场两个角色、去掉缠论扣留，三个效应都在判定里，分开登记；只关 K 线一项只报；消融题：不做 = 保留现行规则，方向与机制结论相反，不写结论块（§4.3）"
+    },
+    {
+      "item_id": "C17-NMSEL",
+      "strategy_ref": "C17_V2_4000USDT",
+      "market": "CRYPTO",
+      "mechanism_ids": [
+        "ACCT.CONCURRENCY.NON_MAJOR_CAP"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 C16 N8 的后续题，账户层只收紧非主流同时持仓的上限，与 C16 的非主流去留（选股择时层）分开登记；总表 rev 86 新行（协调会话 2026-11-16 裁定）；前向影子尚无 T_start 登记，开始后 shadow_running 改为 true（协调会话 2026-11-16 裁定）",
+      "conclusion": {
+        "verdict": "DO_INSUFFICIENT",
+        "strength_zh": "证据不足：Δg 区间跨 0、点估计为正，回撤门过；只开前向影子",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报预登记效应下的功效；已查 smartflow 4d734c4f:trading-system-v2/docs/evidence/c17-nm-trigger-v1/run/C17_NM_SELECTION_RESULT_V1.json（G-POWER 是样本门）"
+        },
+        "family_id": "C17_V2_4000USDT",
+        "data_window": {
+          "from": "2024-10-04",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-13",
+        "seal_sha256": "e4d311f3d7af7518476795870137d73d42acce29289d71e80780c1bd33beb433",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:C17-NMSEL",
+        "state": {
+          "shadow_running": false,
+          "as_of": "2026-11-16"
+        }
+      }
+    }
+  ]
 }
