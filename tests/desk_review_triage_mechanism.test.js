@@ -1,6 +1,6 @@
 'use strict';
 /**
- * 机制查询接进 Research 分诊（研究框架修订 2026-11-12 FREEZE_1 E11；desk 码表 @v2 草稿 REVIEW_LOOP_ACCEPTANCE_V1_ADDENDUM_7_CODES_V2，★T1–T5 取 (a)）：
+ * 机制查询接进 Research 分诊（研究框架修订 2026-11-12 FREEZE_1 E11；desk 证据码冻结页 REVIEW_LOOP_A7_CODES_V2_FREEZE_1（f90232d6…），★T1–T5 取 (a)）：
  *   - 码表 RESEARCH_TRIAGE_CODES@v2 = @v1 + MECHANISM_SETTLED（判不做），与 desk 同表；
  *   - 研究类候选在 FREEZE_1 生效之后（按记录时刻）立题，必须带机制查询；读数 NOT_DO_SETTLED 时拒绝立题（Owner 点名除外）；
  *   - 判不做 MECHANISM_SETTLED：QRP 用给定提交的登记表、在分诊时刻重算查询，读数必须是 NOT_DO_SETTLED，证据的表 hash 与登记表提交都要对上；
@@ -99,7 +99,7 @@ const REGISTER_REPO = (commit = COMMIT) => ({ kind: 'REPO', repo: 'quant-researc
 
 // ── 码表 ──────────────────────────────────────────────────────────────────────
 
-test('码表 @v2：@v1 七个码不变，加 MECHANISM_SETTLED（判不做）；与 desk 草稿同表', () => {
+test('码表 @v2：@v1 七个码不变，加 MECHANISM_SETTLED（判不做）；与 desk 冻结的 @v2 同表', () => {
   assert.equal(triage.CODES_VERSION, 'RESEARCH_TRIAGE_CODES@v2');
   assert.deepEqual(Object.keys(triage.CODES_V1).sort(), ['ALREADY_FIXED', 'AS_DESIGNED', 'COVERED_BY_CANDIDATE', 'COVERED_BY_QUESTION', 'NO_RECURRENCE', 'PARITY_MATCHED', 'SUBJECT_RETIRED']);
   assert.deepEqual(Object.keys(triage.CODES).sort(), [...Object.keys(triage.CODES_V1), 'MECHANISM_SETTLED'].sort());

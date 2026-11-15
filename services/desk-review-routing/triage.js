@@ -12,7 +12,7 @@
  * desk 编周档时按同样的规则再核一遍（desk ops/review-loop/triage.cjs），不合规的只列为「未采用」，不改候选。
  * 回程导出（return.js）把每个候选当前有效的一行按 desk 契约的字段带到 desk：triage[]。
  *
- * 码表 @v2 与机制查询（研究框架修订 2026-11-12 FREEZE_1 E11；desk 草稿 REVIEW_LOOP_ACCEPTANCE_V1_ADDENDUM_7_CODES_V2，★T1–T5 取 (a)）：
+ * 码表 @v2 与机制查询（研究框架修订 2026-11-12 FREEZE_1 E11；desk 证据码冻结页 REVIEW_LOOP_A7_CODES_V2_FREEZE_1（f90232d6…，2026-11-16T00:58:56+08:00），★C1、★C2、★T1–T5 取 (a)）：
  *   - @v2 = @v1 + MECHANISM_SETTLED（判不做：机制分诊查询读数 NOT_DO_SETTLED），与 desk triage.cjs 同表；
  *   - 研究类候选在 FREEZE_1 生效之后（按记录时刻 written_at，不按自报的 at）立题，必须带 mechanism{ids, market, ownerNamed?, registerCommit}；
  *     查询读数 NOT_DO_SETTLED 时拒绝立题（Owner 点名的题读数是 NORMAL_OWNER_NAMED，放行）；
