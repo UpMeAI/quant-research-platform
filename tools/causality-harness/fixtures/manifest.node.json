@@ -1,0 +1,428 @@
+{
+ "schema": "CAUSALITY_MANIFEST_V1",
+ "study_ref": "GCAUSAL_HARNESS_SELF_TEST_NODE",
+ "k2_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+ "code_repo": "qrp",
+ "fixture_dir": "data",
+ "label_fields": [
+  "fwd_ret_5d"
+ ],
+ "functions": [
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "participationFullDay",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "keep_fields": [
+      "day"
+     ]
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "participationPriorDays",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "keep_fields": [
+      "day"
+     ]
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "fractalAtPeak",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_zigzag.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   },
+   "segment_boundaries": [
+    "2025-02-03T00:00:00+08:00"
+   ]
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "fractalAtConfirmation",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_zigzag.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   },
+   "segment_boundaries": [
+    "2025-02-03T00:00:00+08:00"
+   ]
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "nextBarDirectionWithFallback",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "priorBarDirection",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "expandingMeanWithCache",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "expandingMeanFixtureParams",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "centeredMeanAt",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ],
+    "at": {
+     "position": 1,
+     "value": "INDEX"
+    }
+   },
+   "output": {
+    "align": "AT_POINT",
+    "to": "bars"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "trailingMeanAt",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ],
+    "at": {
+     "position": 1,
+     "value": "INDEX"
+    }
+   },
+   "output": {
+    "align": "AT_POINT",
+    "to": "bars"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "rankByFullSampleZ",
+   "inputs": [
+    {
+     "name": "panel",
+     "file": "panel.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "key_fields": [
+      "code"
+     ]
+    }
+   ],
+   "call": {
+    "order": [
+     "panel"
+    ]
+   },
+   "output": {
+    "align": "KEYED",
+    "time_field": "date",
+    "key_fields": [
+     "code"
+    ],
+    "availability": {
+     "rule": "DATE_AT",
+     "field": "date",
+     "time": "15:00",
+     "tz": "+08:00"
+    }
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "rankByDailyReturn",
+   "inputs": [
+    {
+     "name": "panel",
+     "file": "panel.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "key_fields": [
+      "code"
+     ]
+    }
+   ],
+   "call": {
+    "order": [
+     "panel"
+    ]
+   },
+   "output": {
+    "align": "KEYED",
+    "time_field": "date",
+    "key_fields": [
+     "code"
+    ],
+    "availability": {
+     "rule": "DATE_AT",
+     "field": "date",
+     "time": "15:00",
+     "tz": "+08:00"
+    }
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "memoCenteredMean",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "tools/causality-harness/fixtures/node/features.js",
+   "entry": "globalMemoCenteredMean",
+   "inputs": [
+    {
+     "name": "bars",
+     "file": "daily_trend.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "bars"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "bars"
+   }
+  }
+ ]
+}
