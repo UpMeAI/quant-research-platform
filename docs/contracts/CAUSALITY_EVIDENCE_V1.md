@@ -21,11 +21,12 @@
     "runner": "node | python", "path": "src/…/f.js", "entry": "导出名（可用点号）",
     "inputs": [{ "name": "bars", "file": "bars.json", "availability": { … }, "intraday": false, "key_fields": [], "keep_fields": [] }],
     "call": { "style": "positional | object", "order": ["bars"], "params": [], "at": { "position": 1, "value": "INDEX | FIELD", "field": "closeTime", "key": "asOf" } },
+    // at 也可以是数组，依次注入，例如先把 asOf 写进参数对象、再插入行号：f(bars, i, { asOf })
     "output": { "align": "ALIGNED | KEYED | AT_POINT", "to": "bars", "select": "可选点号路径",
                 "time_field": "date", "key_fields": ["code"], "availability": { … } },
     "session": { "open": "09:30", "close": "15:00", "tz": "+08:00" },
     "segment_boundaries": ["2025-01-01T00:00:00+08:00"],
-    "static_reads": ["config/…/params.json"],
+    "static_reads": ["config/…/params.json", "config/…/research"],
     "frames": { "bars": "pandas" }
   }]
 }
@@ -37,7 +38,7 @@
 |---|---|---|
 | `ALIGNED` | `f(X)`，返回与主输入（`to`）逐行对齐的数组 | 按主输入行号 |
 | `KEYED` | `f(panel)`，返回记录数组 | 按 `key_fields` 加输出的可得时点（`output.availability`，规则写在 `time_field` 上） |
-| `AT_POINT` | `f(X, t)` 或 `f(X, { asOf })` | 对主输入每一行调用一次；`t` 取行号（`INDEX`）或该行字段（`FIELD`）。`key` 给出时，把值写进第 `position` 个参数对象的这个键 |
+| `AT_POINT` | `f(X, t)` 或 `f(X, { asOf })` | 对主输入每一行调用一次；`t` 取行号（`INDEX`）或该行字段（`FIELD`）。`key` 给出时，把值写进第 `position` 个参数对象的这个键。`at` 写成数组时依次注入多个值 |
 
 可得时点规则（§3.3「按可知时点截断，不按业务日期」）：
 
@@ -74,8 +75,14 @@
 
 | 阶段 | 可读 | 不许 |
 |---|---|---|
-| 加载被测模块 | 代码根下的代码文件与 `.json`、夹具目录 | 写文件、联网（含 Unix 套接字，即数据库）、子进程、线程 |
-| 调用被测函数 | 夹具目录、清单声明的 `static_reads`（sha256 记进证据）、按需加载的代码文件 | 同上，另加代码根下的其他文件 |
+| 加载被测模块 | 代码文件；库目录（`node_modules`、`site-packages`、解释器自带）里的文件；夹具目录；`static_reads` | 仓库自己的数据文件（含加载时 `require` 的 `.json`）不声明就不许读；写文件、联网（含 Unix 套接字，即数据库）、子进程、线程 |
+| 调用被测函数 | 夹具目录、`static_reads`、按需加载的代码文件 | 同上，另加库目录与代码根下的其他文件 |
+
+- `static_reads` 写代码根下的文件或目录。文件记 sha256；目录逐个文件记 sha256，再对清单取 sha256（`kind: "DIR"`，记文件数）。
+- 两个阶段都可以列目录，只得到文件名。
+- 加载时读了哪些非代码文件，逐条记进 `load_reads`。
+- 为什么加载段也要声明：模块加载时读进全量历史表，前缀与全段都读同一份文件，T-C1、T-C2 都看不出，只有 T-C3 拦得住。
+- Node 权限模型的读权限只留最外层路径。Node 23.11 上，子目录排在父目录前面时，父目录本身会被拒（实测）。权限模型只是第二道防线，判 T-C3 的是桩。
 
 每一次越界都先记下再抛错。被测函数吞掉异常、改走别的路，T-C3 照样 FAIL。
 
@@ -89,6 +96,11 @@
 - 数值按 IEEE 754 位型，-0 与 +0 不同，NaN 按位型比；
 - Python 的 int 与 float 不同；
 - 对象键排序；undefined 与缺键不同。
+
+**读数不能只有一种值。** 整段调用的读数只有一种值（全为空、全报错、恒定）时，T-C1 判 FAIL（`DEGENERATE_OUTPUT`）：这种「相等」证明不了什么，夹具要能让读数变化。
+- T-C2 照常跑：换掉未来之后读数若变了，说明函数读了未来。单边行情上的前视就是这样看出来的。
+- 证据逐函数记 `readings_summary`：读数个数、不同值个数、空或报错的个数。
+- 例：防前视的过滤按 `date` 写，行里只有 `trade_date`，过滤后每个点都是空。T-C1 与 T-C2 都「相等」，靠这一条才判不过。
 
 **结果。**
 - 只有 PASS / FAIL 两种。工具层面的问题一律记 FAIL，原因写进 `fail_reasons`。这类问题包括：运行器起不来、输出没对齐、可得时点算不出。
@@ -108,10 +120,12 @@
   - 输入：`inputs[]`，每项含 `name`、`file`、`file_sha256`、`rows`、`availability`、`intraday`、`key_fields`、`keep_fields`；
   - 调用：`call`、`output`、`static_reads[]`（`path`、`sha256`）、`session?`、`segment_boundaries`；
   - 运行：`cut_points[]`、`calls`、`isolation`、`sandbox{mode, runtime}`；
-  - 结果：`t_c1`、`t_c2`、`t_c3`、`fail_reasons{}`、`mismatch_counts`、`mismatches[]`（≤ 20）、`forbidden_attempts[]`（≤ 20）、`load_reads[]`。
+  - 结果：`t_c1`、`t_c2`、`t_c3`、`fail_reasons{}`、`readings_summary`、`mismatch_counts`、`mismatches[]`（≤ 20）、`forbidden_attempts[]`（≤ 20）、`load_reads[]`。
 - `record_hash` = sha256(规范 JSON（键排序），不含 `record_hash` 本身)，与试验台账同一写法（`services/trial-ledger` 的 `canonicalJson`）。
 
 ## 4. K2 怎么写
+
+证据的 `k2_sha256` 必须等于导入登记里 `entry.k2` 绑定的那一份。冻结页逐字收录正文、草稿也在时，以登记绑定的为准。
 
 在 K2 §0 写明范围，二选一：
 
@@ -165,7 +179,7 @@ node tools/causality-harness/run.js --manifest <清单> --registered-by <会话>
 
 ## 7. 范围之外与已知限制
 
-- 只读末根的函数（例如只看最后一根 K 线的分类）：因果性靠调用方切片，对它跑 T-C1、T-C2 必然相等。清单应写它的调用方。
+- 只读末根的函数（例如只看最后一根 K 线、要求末根等于业务日的读数）：因果性靠调用方切片。对它跑 T-C1、T-C2，要么必然相等，要么因末根对不上而全报「缺当日」（形状不符，不是前视）。清单应写它的调用方。
 - 前复权：对已经复权的数组做切片，看不出复权本身的前视。复权这一步应作为被测函数，喂原始价加带可得时点的复权因子。
 - `call.params` 不截断，原样记进证据。参数不得是时间序列（例如带未来日期的交易日历之外的数据），由清单作者负责。
 - 一份证据只对应一个代码仓库。函数跨仓库的题，需要协调会话的裁定。

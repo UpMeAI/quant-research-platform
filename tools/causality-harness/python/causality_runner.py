@@ -1,8 +1,10 @@
 """Python 运行器（子进程），供统计车道用。协议、阶段与 Node 运行器（../lib/node-runner.js）相同。
 
 T-C3 用审计钩子（sys.addaudithook，装上就卸不掉）：
-  LOAD：可读代码根与解释器目录下的文件、夹具目录；
-  CALL：只可读夹具目录；代码根与解释器目录下只允许按需加载代码文件（.py/.pyc/.so/.pyd），不允许读数据文件。
+  LOAD：可读代码文件、解释器与库目录（标准库、site-packages）里的文件、夹具目录、清单声明的 static_reads；
+        仓库自己的数据文件不声明就不许读；
+  CALL：只可读夹具目录与 static_reads；代码根与解释器目录下只允许按需加载代码文件（.py/.pyc/.so/.pyd）。
+  两个阶段都可以列目录（只得到文件名）。
 两个阶段都不许写文件、访问网络（含 Unix 套接字，即数据库）、起子进程、打开 sqlite。
 每一次越界都先记下再抛错：被测函数吞掉异常、改走别的路，T-C3 照样判 FAIL。
 
@@ -11,11 +13,13 @@ numpy 标量按 .item()，ndarray / Series 按 .tolist()，DataFrame 按逐行�
 """
 import json
 import os
+import re
 import struct
 import sys
 
 MARK = '@@CAUSALITY@@'
 CODE_EXT = ('.py', '.pyc', '.so', '.pyd')
+LIBRARY = re.compile(r'[\\/](site-packages|dist-packages|node_modules)[\\/]')
 DENIED = 'CAUSALITY_SANDBOX_DENIED'
 
 _proto = sys.stdout
@@ -59,15 +63,21 @@ def make_sandbox(fixture_dir, code_roots, static_reads=()):
         state['attempts'].append({'phase': state['phase'], 'kind': kind, 'target': target})
         raise Denied('%s:%s:%s' % (DENIED, kind, target))
 
+    def declared(p):
+        return any(inside(p, s) for s in statics)  # 声明的文件，或声明的目录之下
+
+    def in_library(p):
+        return any(inside(p, r) for r in prefixes) or bool(LIBRARY.search(p))
+
     def read_ok(p):
-        if inside(p, fixture) or p in statics:
+        if inside(p, fixture) or declared(p):
             return True
-        code_place = any(inside(p, r) for r in roots) or any(inside(p, r) for r in prefixes)
-        if not code_place:
+        if not (any(inside(p, r) for r in roots) or any(inside(p, r) for r in prefixes)):
             return False
-        if state['phase'] == 'LOAD':
-            return True
-        return p.endswith(CODE_EXT) or os.path.isdir(p)
+        if p.endswith(CODE_EXT) or os.path.isdir(p):
+            return True  # 代码文件；目录只列文件名
+        # 加载段只放行解释器与库目录里的数据（标准库、site-packages）；仓库自己的数据文件要声明
+        return state['phase'] == 'LOAD' and in_library(p)
 
     def hook(event, args):
         if event == 'open':
@@ -227,7 +237,8 @@ def main():
           'runtime': {'python': sys.version.split()[0], 'audit_hook': True}})
     del state['attempts'][:]
     call = init.get('call') or {}
-    at = call.get('at')
+    ats = call.get('at') or []
+    ats = ats if isinstance(ats, list) else [ats]
     output = init['output']
     first = True
     for job in lines:
@@ -245,12 +256,13 @@ def main():
                 rows = job['inputs'][output['to']]
                 values = []
                 for i in range(len(rows)):
-                    v = i if at['value'] == 'INDEX' else rows[i][at['field']]
                     args = list(base_args)
-                    if at.get('key'):
-                        args[at['position']] = dict(args[at['position']] or {}, **{at['key']: v})
-                    else:
-                        args.insert(at['position'], v)
+                    for at in ats:
+                        v = i if at['value'] == 'INDEX' else rows[i][at['field']]
+                        if at.get('key'):
+                            args[at['position']] = dict(args[at['position']] or {}, **{at['key']: v})
+                        else:
+                            args.insert(at['position'], v)
                     try:
                         values.append(canon(select(fn(*args, **kwargs), output.get('select'))))
                     except Denied:

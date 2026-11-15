@@ -139,7 +139,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -165,7 +165,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -191,7 +191,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -217,7 +217,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -243,7 +243,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -273,7 +273,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -379,7 +379,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -408,7 +408,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",
@@ -437,7 +437,7 @@
    "inputs": [
     {
      "name": "bars",
-     "file": "daily_trend.json",
+     "file": "daily_swing.json",
      "availability": {
       "rule": "DATE_AT",
       "field": "date",

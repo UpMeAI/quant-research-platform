@@ -42,7 +42,7 @@ function fractalAtConfirmation(bars) {
 
 // ── T-C2：截断看不出、换掉未来才看得出 ──────────────────────────────────────────
 
-/** 红：下一根的方向；最后一根退回本根阴阳。单边上涨、根根收阳的夹具上两者一致，T-C1 看不出。 */
+/** 红：下一根的方向；最后一根退回本根阴阳。在「本根阴阳 = 下一根方向」的夹具上两者一致，T-C1 看不出。 */
 function nextBarDirectionWithFallback(bars) {
   return bars.map((b, i) => (bars[i + 1] ? Math.sign(bars[i + 1].close - b.close) : Math.sign(b.close - b.open)));
 }

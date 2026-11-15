@@ -179,7 +179,13 @@ function replaceFuture(input, c, variant, tag) {
 
 // ── 运行器 ──────────────────────────────────────────────────────────────────────
 
-function permissionFlags(allow) {
+/**
+ * Node 权限模型的读权限。嵌套的路径只留最外层：Node 23.11 上，子目录排在父目录前面时，父目录本身会被拒（实测）。
+ * 权限模型只是第二道防线，判 T-C3 的是 sandbox.js 的桩。
+ */
+function permissionFlags(paths) {
+  const sorted = [...new Set(paths)].sort((a, b) => a.length - b.length || (a < b ? -1 : 1));
+  const allow = sorted.filter((p, i) => !sorted.slice(0, i).some((q) => inside(p, q)));
   const flags = process.allowedNodeEnvironmentFlags;
   const flag = flags.has('--permission') ? '--permission' : flags.has('--experimental-permission') ? '--experimental-permission' : null;
   return flag ? { mode: 'PERMISSION_MODEL+STUBS', args: [flag, ...allow.map((p) => `--allow-fs-read=${p}`)] } : { mode: 'STUBS_ONLY', args: [] };
@@ -274,17 +280,23 @@ function runFunction(spec, ctx) {
   const primary = output.align !== 'KEYED' ? inputs.find((i) => i.name === output.to) : null;
   if (output.align !== 'KEYED') need(primary, 'OUTPUT_SPEC_INVALID', `${fid}:to names the input the readings align to`);
   if (output.align === 'AT_POINT') {
-    const at = (spec.call || {}).at;
-    need(at && Number.isInteger(at.position) && at.position >= 0 && (at.value === 'INDEX' || (at.value === 'FIELD' && typeof at.field === 'string')), 'OUTPUT_SPEC_INVALID', `${fid}:AT_POINT needs call.at {position, value: INDEX|FIELD}`);
+    const ats = [].concat((spec.call || {}).at || []);
+    need(ats.length && ats.every((at) => at && Number.isInteger(at.position) && at.position >= 0 && (at.value === 'INDEX' || (at.value === 'FIELD' && typeof at.field === 'string'))), 'OUTPUT_SPEC_INVALID', `${fid}:AT_POINT needs call.at {position, value: INDEX|FIELD} (or a list of them)`);
   }
   if (output.align === 'KEYED') need(typeof output.time_field === 'string' && output.availability && output.availability.field === output.time_field, 'OUTPUT_SPEC_INVALID', `${fid}:KEYED needs time_field and availability on it`);
   const outAvail = output.align === 'KEYED' ? availabilityOf(output.availability, `${fid}:output`) : null;
   const sourceFile = path.join(ctx.codeRoot, spec.path);
   need(fs.existsSync(sourceFile), 'FUNCTION_FILE_MISSING', fid);
+  // 静态文件或目录：文件记 sha256；目录逐个文件（相对路径排序）记 sha256，再对清单取 sha256
   const staticReads = (spec.static_reads || []).map((rel) => {
     const abs = path.resolve(ctx.codeRoot, rel);
     need(fs.existsSync(abs) && inside(real(abs), ctx.codeRoot), 'STATIC_READ_INVALID', `${fid}:${rel}`);
-    return { path: rel, abs: real(abs), sha256: sha256(fs.readFileSync(abs)) };
+    if (!fs.statSync(abs).isDirectory()) return { path: rel, abs: real(abs), kind: 'FILE', sha256: sha256(fs.readFileSync(abs)) };
+    const files = [];
+    const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const f = path.join(dir, e.name); if (e.isDirectory()) walk(f); else if (e.isFile()) files.push(f); } };
+    walk(abs);
+    const listing = files.map((f) => `${path.relative(abs, f)}\0${sha256(fs.readFileSync(f))}`).sort().join('\n');
+    return { path: rel, abs: real(abs), kind: 'DIR', files: files.length, sha256: sha256(listing) };
   });
   const callCtx = { ...ctx, staticReads: staticReads.map((x) => x.abs) };
 
@@ -327,10 +339,20 @@ function runFunction(spec, ctx) {
   const counts = { t_c1: 0, t_c2: 0 };
   const full = results.get('full');
   let fullMap = null;
+  let summary = null;
   if (full.error || !full.result.ok) block(`FULL_CALL_FAILED:${clip(full.error || full.result.error, 160)}`);
   else {
     const r = readings(spec, full.result.out, primary, outAvail);
-    if (r.error) block(r.error); else fullMap = r.map;
+    if (r.error) block(r.error);
+    else {
+      fullMap = r.map;
+      // 读数只有一种值（全空、全报错、恒定）时，T-C1 的「相等」证明不了什么：T-C1 判不过，夹具要能让读数变化。
+      // T-C2 照常跑——换掉未来之后读数若变了，正好说明函数读了未来（单边行情上的前视就是这样被看出来的）
+      const values = [...fullMap.values()].map((x) => x.value);
+      const distinct = new Set(values).size;
+      summary = { count: values.length, distinct, null_or_error: values.filter((v) => v === 'n' || v === 'u' || v.startsWith('x:')).length };
+      if (distinct < 2) reasons.t_c1 = reasons.t_c1 || `DEGENERATE_OUTPUT:${distinct}_distinct_of_${values.length}`;
+    }
   }
   if (fullMap) {
     const firstErr = { t_c1: null, t_c2: null };
@@ -358,10 +380,10 @@ function runFunction(spec, ctx) {
   return {
     function_id: fid, path: spec.path, entry: spec.entry, runner, file_sha256: sha256(fs.readFileSync(sourceFile)),
     inputs: inputs.map((i) => ({ name: i.name, file: i.file, file_sha256: i.file_sha256, rows: i.rows.length, availability: i.availability, intraday: i.intraday, key_fields: i.key_fields, keep_fields: i.keep_fields })),
-    call: spec.call || {}, output, static_reads: staticReads.map(({ path: p, sha256: h }) => ({ path: p, sha256: h })), ...(spec.session ? { session: spec.session } : {}), segment_boundaries: spec.segment_boundaries || [],
+    call: spec.call || {}, output, static_reads: staticReads.map(({ abs: _a, ...rest }) => rest), ...(spec.session ? { session: spec.session } : {}), segment_boundaries: spec.segment_boundaries || [],
     cut_points: cuts.map(iso), calls: jobs.length, isolation: ctx.isolation, sandbox: { mode, runtime },
     t_c1: status('t_c1'), t_c2: status('t_c2'), t_c3: status('t_c3'), fail_reasons: reasons,
-    mismatch_counts: counts, mismatches: mismatches.slice(0, gate.MAX_MISMATCHES), forbidden_attempts: forbidden.slice(0, 20), load_reads: [...loadReads].sort(),
+    readings_summary: summary, mismatch_counts: counts, mismatches: mismatches.slice(0, gate.MAX_MISMATCHES), forbidden_attempts: forbidden.slice(0, 20), load_reads: [...loadReads].sort(),
   };
 }
 

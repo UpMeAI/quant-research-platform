@@ -58,7 +58,7 @@ async function main() {
   }
   emit({ id: 'init', ok: true, attempts: sandbox.takeAttempts(), load_reads: sandbox.loadReads(), runtime: { node: process.version, permission: Boolean(process.permission) } });
   const call = init.call || {};
-  const at = call.at || null;
+  const ats = call.at ? [].concat(call.at) : [];
   let first = true;
   for (const job of lines) {
     try {
@@ -73,10 +73,12 @@ async function main() {
         const rows = job.inputs[init.output.to];
         const values = [];
         for (let i = 0; i < rows.length; i += 1) {
-          const v = at.value === 'INDEX' ? i : rows[i][at.field];
           const args = base.slice();
-          if (at.key) args[at.position] = { ...(args[at.position] || {}), [at.key]: v };
-          else args.splice(at.position, 0, v);
+          for (const at of ats) { // 依次注入：行号或该行的字段；写进参数对象的键，或插在第 position 个位置
+            const v = at.value === 'INDEX' ? i : rows[i][at.field];
+            if (at.key) args[at.position] = { ...(args[at.position] || {}), [at.key]: v };
+            else args.splice(at.position, 0, v);
+          }
           try {
             let r = fn(...args);
             if (r && typeof r.then === 'function') r = await r;

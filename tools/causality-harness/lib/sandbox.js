@@ -4,9 +4,10 @@
  * T-C3「只读给定输入」的 Node 沙箱（修订草稿 §3.3）：注入的桩，叠加子进程的 Node 权限模型（--permission，见 core.js）。
  *
  * 两个阶段：
- *   LOAD（加载被测模块）：可读代码根下的代码文件与 .json（模块自带的静态表），夹具目录；
- *   CALL（调用被测函数）：只可读夹具目录与清单声明的静态文件（static_reads，sha256 记进证据）；代码根下只允许按需加载
- *     代码文件（.js/.cjs/.mjs/.node），不允许读别的数据文件。
+ *   LOAD（加载被测模块）：可读代码根下的代码文件、库目录（node_modules）里的文件、夹具目录、清单声明的 static_reads；
+ *     仓库自己的数据文件（含 .json）不声明就不许读——加载时读进全量历史表，三项测试都看不出来；
+ *   CALL（调用被测函数）：只可读夹具目录与 static_reads（sha256 记进证据）；代码根下只允许按需加载代码文件（.js/.cjs/.mjs/.node）。
+ *   两个阶段都可以列目录（只得到文件名）。
  * 两个阶段都不许写文件、访问网络（含 Unix 套接字，即数据库）、起子进程或线程。
  * 每一次越界都先记下再抛错：被测函数吞掉异常、改走别的路，T-C3 照样判 FAIL。
  */
@@ -15,6 +16,7 @@ const path = require('path');
 const { fileURLToPath } = require('url');
 
 const CODE_EXT = /\.(c?js|mjs|node)$/;
+const LIBRARY = /[\\/](node_modules|site-packages|dist-packages)[\\/]/;
 const DENIED = 'CAUSALITY_SANDBOX_DENIED';
 
 function createSandbox({ fixtureDir, codeRoots, staticReads = [] }) {
@@ -24,7 +26,7 @@ function createSandbox({ fixtureDir, codeRoots, staticReads = [] }) {
   const real = (p) => { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } };
   const fixture = real(fixtureDir);
   const roots = codeRoots.map(real);
-  const statics = new Set(staticReads.map(real)); // 清单声明、已记 sha256 的静态文件（参数表），调用阶段也可读
+  const statics = new Set(staticReads.map(real)); // 清单声明、已记 sha256 的静态文件或目录（参数表），两个阶段都可读
   const inside = (abs, dir) => abs === dir || abs.startsWith(dir + path.sep);
   const display = (abs) => {
     if (inside(abs, fixture)) return `<fixture>/${path.relative(fixture, abs)}`;
@@ -48,17 +50,20 @@ function createSandbox({ fixtureDir, codeRoots, staticReads = [] }) {
     e.code = DENIED;
     throw e;
   };
+  const statOrig = fs.statSync.bind(fs);
+  const isDir = (abs) => { try { return statOrig(abs).isDirectory(); } catch { return false; } };
+  const declared = (abs) => [...statics].some((s) => inside(abs, s)); // 声明的文件，或声明的目录之下
   const readAllowed = (abs) => {
-    if (inside(abs, fixture) || statics.has(abs)) return true;
+    if (inside(abs, fixture) || declared(abs)) return true;
     if (!roots.some((r) => inside(abs, r))) return false;
-    if (CODE_EXT.test(abs)) return true;
-    return phase === 'LOAD' && abs.endsWith('.json');
+    if (CODE_EXT.test(abs) || isDir(abs)) return true; // 代码文件；目录只列文件名
+    return phase === 'LOAD' && LIBRARY.test(abs); // 加载段只放行库目录里的数据（node_modules）；仓库自己的数据文件要声明
   };
   const checkRead = (p, kind = 'FS_READ') => {
     const abs = toPath(p);
     if (abs === null) return;
     if (!readAllowed(abs)) deny(kind, display(abs));
-    if (phase === 'LOAD' && !inside(abs, fixture) && !CODE_EXT.test(abs)) loadReads.push(display(abs));
+    if (phase === 'LOAD' && !inside(abs, fixture) && !CODE_EXT.test(abs) && !isDir(abs)) loadReads.push(display(abs));
   };
   const writeFlags = (flags) => (typeof flags === 'string' ? /[wa+]/.test(flags) : typeof flags === 'number' ? (flags & (fs.constants.O_WRONLY | fs.constants.O_RDWR | fs.constants.O_CREAT | fs.constants.O_APPEND)) !== 0 : false);
 

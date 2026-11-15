@@ -56,8 +56,8 @@ test('Node 运行器：14 个合成夹具先红后绿——草稿点名的全天
   // 不一致记前 20 处：函数、t、c、两边的值；每处都在 t ≤ c
   for (const m of f.fractalAtPeak.mismatches) assert.ok(Date.parse(m.t) <= Date.parse(m.c) && m.full !== m.other, JSON.stringify(m));
   assert.ok(f.participationFullDay.mismatches.length === gate.MAX_MISMATCHES);
-  // T-C2 只能由随机游走拦住：单边上涨的夹具上打乱行序看不出
-  assert.ok(f.nextBarDirectionWithFallback.mismatches.every((m) => m.test === 'T-C2' && m.variant === 'WALK'));
+  // 截断看不出，只有换掉未来才看得出：不一致全在 T-C2
+  assert.ok(f.nextBarDirectionWithFallback.mismatches.length && f.nextBarDirectionWithFallback.mismatches.every((m) => m.test === 'T-C2'));
   // T-C3：读夹具目录外的缓存、连数据库端口，都被记下（函数吞掉了异常也一样）
   const kinds = f.expandingMeanWithCache.forbidden_attempts.map((a) => `${a.phase}:${a.kind}`);
   assert.ok(kinds.includes('CALL:FS_READ') && kinds.includes('CALL:NET_CONNECT'), kinds.join(','));
@@ -107,7 +107,7 @@ test('截点由编排端按 sha256(种子|函数|…) 选出，两个运行器�
 test('隔离：跨调用的模块缓存在同一进程里会让 T-C1 假通过；MODULE_RELOAD 与 PROCESS_PER_CALL 都把它判 FAIL', () => {
   // 同一进程里连调：前缀调用读到整段调用留下的值，看起来「前缀等价」
   const features = require('../tools/causality-harness/fixtures/node/features');
-  const bars = JSON.parse(fs.readFileSync(path.join(FIX, 'data', 'daily_trend.json'), 'utf8'));
+  const bars = JSON.parse(fs.readFileSync(path.join(FIX, 'data', 'daily_swing.json'), 'utf8'));
   const fullOut = features.memoCenteredMean(bars);
   const prefixOut = features.memoCenteredMean(bars.slice(0, 30));
   assert.deepEqual(prefixOut, fullOut.slice(0, 30));
@@ -160,14 +160,22 @@ test('可得时点失败即关：算不出可得时点的行、输入里带标�
   assert.match(noEntry.fail_reasons.t_c3, /^INIT_FAILED/);
 });
 
-test('T-C3 加载段与调用段：加载时读模块自带的 .json 可以；调用时读代码根里的数据文件不行，清单声明的 static_reads（记 sha256）可以；写文件一律不行', () => {
+test('T-C3 加载段与调用段：仓库自己的数据文件（含加载时 require 的 .json）不声明就判 FAIL，声明进 static_reads（记 sha256，文件或目录）才可读；列目录可以；写文件一律不行', () => {
   const lazy = `const fs = require('fs'); const path = require('path');
     let cfg = null; module.exports.f = (bars) => { cfg = cfg || JSON.parse(fs.readFileSync(path.join(__dirname, 'cfg.json'), 'utf8')); return bars.map((b) => b.close * cfg.k); };`;
   const atLoad = `const cfg = require('./cfg.json'); module.exports.f = (bars) => bars.map((b) => b.close * cfg.k);`;
+  // 加载时读进「全量历史」：不声明的话，三项测试里只有 T-C3 拦得住（前缀与全段都读同一份文件，T-C1、T-C2 看不出）
+  const history = `const hist = require('./cfg.json'); module.exports.f = (bars) => bars.map((b) => b.close * hist.k);`;
+  const dirRead = `const fs = require('fs'); const path = require('path'); const dir = path.join(__dirname, 'conf');
+    module.exports.f = (bars) => { const k = fs.readdirSync(dir).sort().map((n) => JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8')).k).reduce((a, b) => a + b, 0); return bars.map((b) => b.close * k); };`;
+  const listOnly = `const fs = require('fs'); module.exports.f = (bars) => { const n = fs.readdirSync(__dirname).length; return bars.map((b) => b.close + n * 0); };`;
   const writes = `const fs = require('fs'); module.exports.f = (bars) => { try { fs.writeFileSync(require('os').tmpdir() + '/cg-x', 'x'); } catch {} return bars.map((b) => b.close); };`;
   const go = (fn, extra = {}) => {
     const m = mini({ rows: days(8), fn, extra });
     fs.writeFileSync(path.join(m.dir, 'cfg.json'), '{"k":2}');
+    fs.mkdirSync(path.join(m.dir, 'conf'));
+    fs.writeFileSync(path.join(m.dir, 'conf', 'a.json'), '{"k":1}');
+    fs.writeFileSync(path.join(m.dir, 'conf', 'b.json'), '{"k":3}');
     return core.runManifest(m.file, { registeredBy: 'TEST', k: 3 }).functions[0];
   };
   const lazyFail = go(lazy);
@@ -175,28 +183,55 @@ test('T-C3 加载段与调用段：加载时读模块自带的 .json 可以；�
   assert.equal(lazyFail.fail_reasons.t_c3, 'FS_READ:<code>/cfg.json');
   const declared = go(lazy, { static_reads: ['cfg.json'] });
   assert.equal(states(declared), 'PASS PASS PASS');
-  assert.deepEqual(declared.static_reads.map((x) => x.path), ['cfg.json']);
-  assert.equal(declared.static_reads[0].sha256, require('crypto').createHash('sha256').update('{"k":2}').digest('hex'));
+  assert.deepEqual(declared.static_reads, [{ path: 'cfg.json', kind: 'FILE', sha256: require('crypto').createHash('sha256').update('{"k":2}').digest('hex') }]);
   const loaded = go(atLoad);
-  assert.equal(states(loaded), 'PASS PASS PASS');
-  assert.deepEqual(loaded.load_reads, ['<code>/cfg.json']);
+  assert.equal(states(loaded), 'FAIL FAIL FAIL');
+  assert.deepEqual(loaded.forbidden_attempts.map((a) => `${a.phase}:${a.kind}:${a.target}`), ['LOAD:FS_READ:<code>/cfg.json']);
+  const hist = go(history, { static_reads: ['cfg.json'] });
+  assert.equal(states(hist), 'PASS PASS PASS');
+  assert.deepEqual(hist.load_reads, ['<code>/cfg.json']); // 声明过的加载期读取照样逐条披露
+  assert.equal(states(go(dirRead)), 'FAIL FAIL FAIL');
+  const dir = go(dirRead, { static_reads: ['conf'] });
+  assert.equal(states(dir), 'PASS PASS PASS');
+  assert.deepEqual([dir.static_reads[0].kind, dir.static_reads[0].files], ['DIR', 2]);
+  assert.equal(states(go(listOnly)), 'PASS PASS PASS'); // 列目录只得到文件名，不算读数据
   const w = go(writes);
   assert.equal(w.t_c3, 'FAIL');
   assert.match(w.fail_reasons.t_c3, /^FS_WRITE:/);
 });
 
-test('逐时点函数的 FIELD 写法（smartflow 的 ctx.asOf）：t 取主输入该行的字段，写进参数对象的键', () => {
+test('读数只有一种值（全空、全报错、恒定）判不过：过滤字段与行不符、读数全为空的「防线看起来在」也拦得住', () => {
+  const one = (fn, rows = days(8)) => core.runManifest(mini({ rows, fn }).file, { registeredBy: 'TEST', k: 3 }).functions[0];
+  const constant = one('module.exports.f = (bars) => bars.map(() => 1);');
+  assert.equal(states(constant), 'FAIL PASS PASS');
+  assert.equal(constant.fail_reasons.t_c1, 'DEGENERATE_OUTPUT:1_distinct_of_8');
+  // 守卫按 date 过滤，行里只有 trade_date：每个点都过滤成空，读数全为 null
+  const inert = `module.exports.f = (bars) => bars.map((b, i) => { const seen = bars.slice(0, i + 1).filter((r) => r.date <= b.trade_date); return seen.length ? seen[seen.length - 1].close : null; });`;
+  const rows = days(8).map((r) => ({ trade_date: r.date, close: r.close, date: undefined }));
+  const res = core.runManifest(mini({ rows: rows.map(({ date: _d, ...r }) => r), fn: inert, input: { availability: { rule: 'DATE_AT', field: 'trade_date', time: '15:00', tz: '+08:00' } } }).file, { registeredBy: 'TEST', k: 3 }).functions[0];
+  assert.equal(res.fail_reasons.t_c1, 'DEGENERATE_OUTPUT:1_distinct_of_8');
+  assert.deepEqual(res.readings_summary, { count: 8, distinct: 1, null_or_error: 8 });
+  const ok = one('module.exports.f = (bars) => bars.map((b) => b.close);');
+  assert.deepEqual(ok.readings_summary, { count: 8, distinct: 8, null_or_error: 0 });
+});
+
+test('逐时点函数的 FIELD 写法（smartflow 的 ctx.asOf）：t 取主输入该行的字段，写进参数对象的键；可同时注入行号与字段', () => {
   const fn = `module.exports.f = (bars, ctx) => { const seen = bars.filter((b) => b.closeTime <= ctx.asOf); return seen.length ? seen[seen.length - 1].close : null; };
-    module.exports.leaky = (bars, ctx) => { const i = bars.findIndex((b) => b.closeTime === ctx.asOf); return bars[Math.min(i + 1, bars.length - 1)].close; };`;
+    module.exports.leaky = (bars, ctx) => { const i = bars.findIndex((b) => b.closeTime === ctx.asOf); return bars[Math.min(i + 1, bars.length - 1)].close; };
+    module.exports.both = (bars, i, ctx) => (bars[i].closeTime <= ctx.asOf ? bars[i].close / bars[Math.max(0, i - 1)].close : null);
+    module.exports.bothLeaky = (bars, i, ctx) => (bars[i].closeTime <= ctx.asOf ? bars[Math.min(i + 1, bars.length - 1)].close : null);`;
   const rows = days(10).map((r) => ({ closeTime: Date.parse(`${r.date}T16:00:00-05:00`), close: r.close }));
   const shape = { call: { order: ['bars'], params: [{ market: 'US' }], at: { position: 1, value: 'FIELD', field: 'closeTime', key: 'asOf' } }, output: { align: 'AT_POINT', to: 'bars' } };
   const m = mini({ rows, fn, input: { availability: { rule: 'FIELD', field: 'closeTime' } }, extra: shape });
   const manifest = JSON.parse(fs.readFileSync(m.file, 'utf8'));
-  manifest.functions.push({ ...manifest.functions[0], entry: 'leaky' });
+  const two = { ...manifest.functions[0], call: { order: ['bars'], params: [{ market: 'US' }], at: [{ position: 1, value: 'FIELD', field: 'closeTime', key: 'asOf' }, { position: 1, value: 'INDEX' }] } }; // 依次：先把 asOf 写进 ctx，再在 1 号位插入行号 → f(bars, i, ctx)
+  manifest.functions.push({ ...manifest.functions[0], entry: 'leaky' }, { ...two, entry: 'both' }, { ...two, entry: 'bothLeaky' });
   fs.writeFileSync(m.file, JSON.stringify(manifest));
   const f = byEntry(core.runManifest(m.file, { registeredBy: 'TEST', k: 4 }));
   assert.equal(states(f.f), 'PASS PASS PASS');
   assert.equal(f.leaky.t_c1, 'FAIL');
+  assert.equal(states(f.both), 'PASS PASS PASS');
+  assert.equal(f.bothLeaky.t_c1, 'FAIL');
 });
 
 test('证据：record_hash 由门的同一函数复算；改一个字节就不认；写一次不改，旁边写 .sha256；命令行退出码 2 表示有 FAIL', () => {
@@ -260,4 +295,9 @@ test('扰动：受保护的列（可得时点、key_fields、keep_fields）不�
     });
     assert.ok(out.some((row, i) => input.avail[i] > c && (row.close !== input.rows[i].close || row.vol !== input.rows[i].vol)), v);
   }
+  // 为什么要两种扰动：单边上涨的序列上，打乱未来行序后未来仍然都高于截点（「下一根方向」类前视看不出），随机游走才会走到截点之下
+  const up = { name: 'b', rows: Array.from({ length: 40 }, (_, i) => ({ date: `d${i}`, close: 100 + i })), availability: { field: 'date' }, key_fields: [], keep_fields: [] };
+  up.avail = up.rows.map((_, i) => i);
+  const below = (v) => [...Array(20).keys()].some((c) => core.internals.replaceFuture(up, c, v, `t${c}`)[c + 1].close < up.rows[c].close);
+  assert.deepEqual([below('SHUFFLE'), below('WALK')], [false, true]);
 });
