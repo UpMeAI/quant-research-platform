@@ -216,7 +216,8 @@ const months = (c) => Array.from({ length: 30 }, (_, i) => ({ month: `${2024 + M
 function importFixture({ k2Lines = {}, study }) {
   const repo = tmp('qrp-mg-sf-'); const art = tmp('qrp-mg-art-');
   const tableBytes = tableFor();
-  const text = k2Text({ tableSha: sha(tableBytes), lines: k2Lines, trialIds: ['T', 'B'].map((l) => idOf(l, study)) });
+  // K2 在修订生效之后冻结，G-CAUSAL（§3）也过门：这道题不新增或重算特征，§0 写明不适用（G12）
+  const text = `${k2Text({ tableSha: sha(tableBytes), lines: k2Lines, trialIds: ['T', 'B'].map((l) => idOf(l, study)) })}G-CAUSAL N/A: DESCRIPTIVE_NO_PERFORMANCE\n`;
   const k2Sha = sha(text);
   const files = {
     'trading-system-v2/docs/evidence/rm/RESULT.json': `${JSON.stringify({ verdict: { decision: '不做', evidence_strength: '有反对证据', allowed_use: '不进生产', text_zh: '合成' } })}\n`,
