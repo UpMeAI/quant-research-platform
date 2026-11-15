@@ -224,6 +224,48 @@ test('A 股修订 3：X07a 从封存 JSON 的 verdict.code 读 DO_INSUFFICIENT �
   assert.equal(entry.strategy_ref, 'ASHARE_V6_PAPER');
 });
 
+test('A 股修订 4：R8 A 股部分从封存 JSON 的 judged.verdict_zh 读不做（U_G_AT_OR_BELOW_ZERO）；冻结前预登记，PRE 照常过、不带门的裁定；RF1112 两道门不适用，去掉 k2_frozen_at 就拒绝', () => {
+  const gates = require('../services/trial-ledger/gates');
+  const mech = require('../services/research-mechanism-register/gate');
+  const causality = require('../services/causality-gate');
+  const entry = ashare.ENTRIES.find((e) => e.id === 'CN-R8');
+  assert.ok(entry, 'CN-R8 缺');
+  // R8_RESULT.json（cfa6c0cb…）的 judged 判定字段，逐字照抄
+  const doc = { judged: { id: 'T_KC_K_VS_B_K', trial_id: 'TRL-fb2aace30e935a98', state: 'NOT_PASSED', reason_code: 'U_G_AT_OR_BELOW_ZERO', verdict_zh: '不做' } };
+  const got = overseas.internals.readVerdict(entry, doc);
+  assert.equal(got.raw, '不做');
+  assert.equal(got.raw, entry.expect);
+  assert.equal(got.decision, '不做');
+  // 别的读数不会读成期望值：导入时 VERDICT_NOT_AS_REGISTERED
+  for (const word of ['做', '做（证据不足）']) assert.notEqual(overseas.internals.readVerdict(entry, { judged: { ...doc.judged, verdict_zh: word } }).raw, entry.expect, word);
+  assert.deepEqual(entry.read, { decision: 'judged.verdict_zh', state: 'judged.reason_code', strength: null, use: null, text: null });
+  assert.equal(entry.strategy_ref, 'ASHARE_V6_PAPER');
+  assert.equal(entry.kind, 'RESULT');
+  assert.equal(entry.sealed_on, '2026-11-15');
+  assert.equal(entry.file.sha256, 'cfa6c0cbe7bb95b1fe9a27816de9c6ee0aa13650bc44bed139061d242f0acca3');
+  assert.equal(entry.file.path, 'R8_X04_KLINE_CHAN_ASHARE_RESULT_V1.json');
+  // K2 绑冻结的草稿本身（台账行的 k2_sha256 = 草稿 sha），冻结页另绑
+  assert.equal(entry.k2.sha256, '299473b0bfc3ed15c6075459b96f57b257afdefbc69bf64a6b89c660fd8b4f1c');
+  assert.equal(entry.freeze.sha256, '4d30527ee89f94753a38501297e6f7b64b2486249f2b8a15d6b5b002aba2b153');
+  assert.equal(entry.run_log.sha256, '60e2a6a94038d92661af569803c154f426eb92e54fa61ac5ede33ef51a8f4e16');
+  assert.deepEqual(overseas.internals.boundFiles(entry).map((f) => f.role), ['FILE', 'K2', 'FREEZE', 'RUN_LOG']);
+  // 过拟合控制修订之后冻结：G-TRIAL 两道门都过；7 行在冻结（22:28:56）前登记，不带门的裁定
+  assert.equal(entry.k2_frozen_at, '2026-11-11T22:28:56+08:00');
+  assert.deepEqual(gates.applies(entry), { applies: true, reason: 'FROZEN_AFTER_AMENDMENT' });
+  assert.equal(entry.trial_gates_ruling, undefined);
+  // K2 在 RF1112 生效（2026-11-15T22:47:42+08:00）之前冻结：G-MECH、G-CAUSAL 都不适用（G-CAUSAL N/A: PRE_EFFECTIVE_K2），锁行不加字段
+  assert.deepEqual(mech.applies(entry, mech.EFFECTIVE_FROM), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' });
+  assert.deepEqual(causality.applies(entry), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' });
+  assert.equal(entry.causality_evidence, undefined);
+  assert.equal(entry.causality_ruling, undefined);
+  assert.equal(entry.mechanism_prior_table, undefined);
+  // 封存在生效日当天、却没写 k2_frozen_at 的拒绝
+  const { k2_frozen_at: _drop, ...bare } = entry;
+  assert.throws(() => gates.applies(bare), /K2_FROZEN_AT_MISSING/);
+  assert.throws(() => mech.applies(bare, mech.EFFECTIVE_FROM), /MECHANISM_GATE_K2_FROZEN_AT_MISSING/);
+  assert.throws(() => causality.applies(bare), /CAUSALITY_K2_FROZEN_AT_MISSING/);
+});
+
 test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（X08 按裁定）；绑定 sha256 合法；A 股没有 Q0 账户', () => {
   for (const entries of [overseas.ENTRIES, ashare.ENTRIES]) {
     const ids = new Set();
@@ -235,7 +277,7 @@ test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（
       assert.ok(['做', '不做'].includes(sealed.verdictWord(word, entry.id)), entry.id);
     }
   }
-  assert.equal(ashare.ENTRIES.length, 12);
+  assert.equal(ashare.ENTRIES.length, 13);
   assert.equal(ashare.ENTRIES.some((entry) => /Q0/i.test(`${entry.id}${entry.file.path}`)), false);
   assert.deepEqual(Object.keys(sealed.X08_LINES).sort(), ['V1', 'V2_SPMO', 'V2_SPY']);
   assert.throws(() => sealed.verdictWord('INSUFFICIENT', 'x'), /RETURN_SEALED_VERDICT_NOT_DO_OR_DONT/);
