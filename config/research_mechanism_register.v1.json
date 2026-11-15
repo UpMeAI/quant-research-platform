@@ -26,7 +26,7 @@
       "sha256": "ce619f239b7828422215726e5db1aac2b9af69a4f48c6e39047aea5ec6952025"
     }
   },
-  "registered_at": "2026-11-16T02:04:17+08:00",
+  "registered_at": "2026-11-16T02:16:03+08:00",
   "registered_by": "QRP 实现会话 mech-registry（RF1112 §4.5 补登记；分类为 coordinator-proposal，待协调会话核对）",
   "mechanisms": [
     {
@@ -2639,6 +2639,34 @@
       }
     },
     {
+      "item_id": "D5#V1",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "RISK.REGIME.STATE_K"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "§4.2 去掉市场状态定方向的闸、改为风险关闭时只调 k，方向仍读信号序列自身，不是新机制；封存单元 V1（§4.2）；只登记 STATE_K：V1 检验的是风险关闭闸改为只调 k，它的不做是对 STATE_K 的有效结论（协调会话 2026-11-16 裁定）",
+      "conclusion": {
+        "verdict": "DONT",
+        "strength_zh": "D-1、D-2 没过（最大回撤、最差月份 T > C）；Δg −0.58%/年 [−1.92%, +0.74%]",
+        "power": {
+          "value": null,
+          "ge_80": null,
+          "effect_zh": "—",
+          "source_zh": "封存结果未报功效；已查 smartflow cf1a0d41:trading-system-v2/docs/evidence/us-v5-d5-v1/US_V5_D5_RISK_K_RESULT_V1.json（grep 无 power/功效）"
+        },
+        "family_id": "US_V5_ETF_3000USD",
+        "data_window": {
+          "from": "2020-01-02",
+          "to": "2026-09-30"
+        },
+        "sealed_on": "2026-11-09",
+        "seal_sha256": "10230fd6bf5849ff2b08f144d00a3ddc05a026c45af409dd02d06eff7cf452d9",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-D5-V1"
+      }
+    },
+    {
       "item_id": "D5#V2",
       "strategy_ref": "US_V5_ETF_3000USD",
       "market": "US_EQUITY",
@@ -2646,7 +2674,7 @@
         "RISK.REGIME.STATE_K"
       ],
       "classified_by": "coordinator-proposal",
-      "reason_zh": "§4.2 去掉市场状态定方向的闸、改为风险关闭时只调 k，被替换的方向闸与新的调 k 都在比较里，登记两个 id；方向仍读信号序列自身，不是新机制；封存单元 V2（§4.2）；只登记 STATE_K；V1 的不做是保留方向闸，方向与机制结论相反，不登记（协调会话 2026-11-16 裁定）",
+      "reason_zh": "§4.2 去掉市场状态定方向的闸、改为风险关闭时只调 k，方向仍读信号序列自身，不是新机制；封存单元 V2（§4.2）；只登记 STATE_K（协调会话 2026-11-16 裁定）",
       "conclusion": {
         "verdict": "DO_INSUFFICIENT",
         "strength_zh": "证据不足：D-4 Δg −1.18%/年 [−3.20%, +0.68%] 没过，改变的入场 21 < 30 走证据不足一支",
@@ -3274,7 +3302,8 @@
           "to": "2026-09-30"
         },
         "sealed_on": "2026-11-15",
-        "seal_sha256": "405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9"
+        "seal_sha256": "405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-KMS8"
       }
     },
     {
@@ -3301,7 +3330,8 @@
           "to": "2026-09-30"
         },
         "sealed_on": "2026-11-15",
-        "seal_sha256": "405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9"
+        "seal_sha256": "405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9",
+        "sealed_ref": "OVERSEAS_SEALED_VERDICTS:US5-KMS8-BUCKET"
       }
     },
     {
