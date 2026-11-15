@@ -176,7 +176,8 @@ test('G-MECH：先前结论表的六种失败各报对应的码', () => {
 // ── AI 输入（§2.4 / §5 第 4 行） ─────────────────────────────────────────────
 
 test('AI 输入：缺字段、形状不对、类别不是 EXTRACTED_FACT、与第 4 行不一致', () => {
-  assert.throws(() => run(unit({ aiInputs: undefined })), /AI_ROLE_INPUTS_MISSING/);
+  // entryPatch 才能真的去掉字段（aiInputs: undefined 会落到默认值 []）
+  assert.throws(() => run(unit({ entryPatch: { ai_inputs: undefined } })), /AI_ROLE_INPUTS_MISSING/);
   assert.throws(() => run(unit({ aiInputs: 'none' })), /AI_ROLE_INPUTS_MISSING/);
   assert.throws(() => run(unit({ aiInputs: [{ category: 'EXTRACTED_FACT' }], k2: { lines: { 4: '**AI 输入**：EXTRACTED_FACT 一项' } } })), /AI_ROLE_INPUT_INVALID/);
   assert.throws(() => run(unit({ aiInputs: [{ category: 'MODEL_SUMMARY', ref: 'r', desc_zh: '模型归纳' }], k2: { lines: { 4: '**AI 输入**：MODEL_SUMMARY 一项' } } })), /AI_ROLE_CATEGORY_NOT_ALLOWED/);

@@ -260,6 +260,7 @@ test('多条结论、多个 id、父子 id、Owner 点名（冻结审阅 E5、E6
   // E10：Owner 点名 → 永远正常分诊，列表照附
   const named = ask([concluded('A01')], { ownerNamed: true });
   assert.equal(named.route, 'NORMAL_OWNER_NAMED');
+  assert.equal(named.by_id[0].route, 'NORMAL_OWNER_NAMED', '每个 id 的去向也是正常分诊');
   assert.equal(named.by_id[0].conclusions.length, 1);
   assert.deepEqual(named.cite_seal_sha256, []);
   // 在研的同 id 题列出、不影响路由
