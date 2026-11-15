@@ -66,7 +66,7 @@ test('登记表：每题绑定的 sha256 都是 64 位小写十六进制，id �
     // 修订 1：页面结论只写做 / 不做；INSUFFICIENT 必须有 resolve
     if (entry.kind === 'RESULT' && entry.expect === 'INSUFFICIENT') assert.ok(entry.resolve && entry.resolve.INSUFFICIENT, entry.id);
   }
-  assert.equal(verdicts.ENTRIES.length, 42); // 修订 1 加 C17-N8；R-US-ETF-1 加 4 个单元；修订 3 加 10 个单元；修订 4 加 7 个单元（凯利 m 前推）；修订 5 加 QS-KDECAY；修订 6 加 C17-COSTSEL、UC-ACCTRISK；修订 7 加 C17-NMSEL
+  assert.equal(verdicts.ENTRIES.length, 44); // 修订 1 加 C17-N8；R-US-ETF-1 加 4 个单元；修订 3 加 10 个单元；修订 4 加 7 个单元（凯利 m 前推）；修订 5 加 QS-KDECAY；修订 6 加 C17-COSTSEL、UC-ACCTRISK；修订 7 加 C17-NMSEL；修订 8 加 US5-KMS8、US5-KMS8-BUCKET
 });
 
 test('stage + import：一题一条锁，结论原样读自文件；重复导入是幂等重放，台账旧字节不变', () => {
@@ -197,4 +197,39 @@ test('修订 1：草稿题冻结后改为 STATUS，绑定冻结裁定（文件�
   assert.equal(view.k2_sha256, entries[1].k2.sha256);
   assert.equal(view.result_sha256, null);
   assert.equal(view.source.files[0].label_zh, '冻结裁定');
+});
+
+test('修订 8：KELLY-M-S8 两个单元（US_V5 单本、海外桶）绑同一份结果与 K2，写 k2_frozen_at；RF1112 两道门（G-MECH、G-CAUSAL）都不适用，去掉 k2_frozen_at 就拒绝', () => {
+  const mech = require('../services/research-mechanism-register/gate');
+  const causality = require('../services/causality-gate');
+  const units = ['US5-KMS8', 'US5-KMS8-BUCKET'].map((id) => verdicts.ENTRIES.find((e) => e.id === id));
+  for (const e of units) {
+    assert.ok(e, 'KELLY-M-S8 单元缺');
+    assert.equal(e.strategy_ref, 'US_V5_ETF_3000USD', e.id);
+    assert.equal(e.kind, 'RESULT', e.id);
+    assert.equal(e.sealed_on, '2026-11-15', e.id);
+    assert.equal(e.expect, '不做', e.id);
+    assert.equal(e.file.sha256, '405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9', e.id);
+    assert.equal(e.file.commit, 'bd1e125f1f35cee56472a8850b59dd120eb6778d', e.id);
+    assert.equal(e.k2.sha256, 'aa9c1a523fee6395221ae706ab8fe567d52a0b81de875bb6a11b0f2334dc7e50', e.id);
+    assert.equal(e.freeze.sha256, 'b10f2f3de5d1199e44578c45f8f6763da1c71eac72400ce84ce9ee4f22dfe55a', e.id);
+    assert.equal(e.k2_frozen_at, '2026-11-15T17:32:24+08:00', e.id);
+    // 结果文件对「通过」的对象不写证据强度：verdictState 取冻结 K2 §5 判定表「通过」行（同修订 4）
+    assert.equal(e.state_zh, '通过（无 R、无 F1、无 F2）', e.id);
+    // NOTE_1（O5_PRE 补登记，裁定 (a)）作为附带文件按 sha256 绑定
+    assert.deepEqual(e.also.map((spec) => spec.sha256), ['5aac49ca5ce7bc6fa28f271d55143231678b17604b467892031740f9f1fe58c8'], e.id);
+    assert.deepEqual(verdicts.internals.boundFiles(e).map((f) => f.role), ['FILE', 'ALSO', 'K2', 'FREEZE', 'RUN_LOG', 'RULING'], e.id);
+    // K2 在 RF1112 生效（2026-11-15T22:47:42+08:00）之前冻结：两道门都不适用（G-CAUSAL N/A: PRE_EFFECTIVE_K2），锁行不加字段
+    assert.deepEqual(mech.applies(e, mech.EFFECTIVE_FROM), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' }, e.id);
+    assert.deepEqual(causality.applies(e), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' }, e.id);
+    assert.equal(e.causality_evidence, undefined, e.id);
+    assert.equal(e.causality_ruling, undefined, e.id);
+    assert.equal(e.mechanism_prior_table, undefined, e.id);
+    // E13 / G14：封存在生效日当天、却没写 k2_frozen_at 的拒绝
+    const { k2_frozen_at: _drop, ...bare } = e;
+    assert.throws(() => mech.applies(bare, mech.EFFECTIVE_FROM), /MECHANISM_GATE_K2_FROZEN_AT_MISSING/);
+    assert.throws(() => causality.applies(bare), /CAUSALITY_K2_FROZEN_AT_MISSING/);
+  }
+  assert.deepEqual(units.map((e) => [e.read.decision, e.read.strength, e.read.use]),
+    [['objects.O1S.verdict', 'objects.O1S.evidence', 'verdict.allowedUse'], ['objects.O5S.verdict', 'objects.O5S.evidence', 'verdict.allowedUse']]);
 });
