@@ -210,7 +210,9 @@ test('命令行：--mechanism-id（可重复）、--market、--register-commit�
     '--at', AT, '--desk-root', root, '--dry-run', ...extra], { encoding: 'utf8', env: process.env });
   // 现在（生效之后）不带机制 → 拒
   assert.match(run([]).stderr, /TRIAGE_MECHANISM_REQUIRED/);
-  // 带了：真实登记表（HEAD 那一版，首版为空）里没有这个 id → 查询失败即关，说明字段一路传到了查询
+  // 带了：真实登记表（HEAD 那一版）里没有这两个合成 id → 查询失败即关，说明字段一路传到了查询
+  const real = mech.parse(execFileSync('git', ['-C', ROOT, 'show', `${head}:${mech.REGISTER_PATH}`]));
+  assert.equal(real.mechanisms.some((m) => [ID, 'RISK.MARKET_STATE.DIRECTION_SWITCH'].includes(m.mechanism_id)), false, '合成 id 不在真实登记表里');
   const out = run(['--mechanism-id', ID, '--mechanism-id', 'RISK.MARKET_STATE.DIRECTION_SWITCH', '--market', 'US_EQUITY', '--register-commit', head, '--owner-named', 'false']);
   assert.notEqual(out.status, 0);
   assert.match(out.stderr, /MECHANISM_ID_NOT_REGISTERED/);
