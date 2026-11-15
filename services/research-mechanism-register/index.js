@@ -196,12 +196,14 @@ const REGISTER = parse(fs.readFileSync(FILE));
  */
 function sealedDecision(s) {
   const read = String((s.resolve && s.resolve[s.expect] && s.resolve[s.expect].decision) || s.expect || '');
-  // 一份文件多个单元时，登记写成「<单元>:不做」：按冒号后的结论读
-  const raw = read.replace(/^[A-Z0-9_]+:/, '');
-  if (raw.startsWith('不做')) return '不做';
-  if (raw.startsWith('做')) return '做';
-  return null;
+  // 一份文件多个单元时，登记写成「<单元>:不做」：按冒号后的结论读，单元前缀另交给交叉核对比对 entry 的 #单元
+  const m = /^([A-Z0-9_]+):/.exec(read);
+  const raw = m ? read.slice(m[0].length) : read;
+  const decision = raw.startsWith('不做') ? '不做' : raw.startsWith('做') ? '做' : null;
+  return { decision, unit: m ? m[1] : null };
 }
+/** 单元名比较：大小写、- 与 _ 不计（登记写 V2_SPY，entry 写 X08#V2-SPY）。 */
+const unitKey = (unit) => String(unit).toUpperCase().replace(/[^A-Z0-9]/g, '_');
 
 /**
  * 写了 sealed_ref 的结论，与 QRP 已有的封存结论 ENTRIES 交叉核对（E2）：sha256、封存日、做 / 不做三项一致。
@@ -225,7 +227,12 @@ function crossCheck(register = REGISTER, sources = null) {
     need(sealed.kind === 'RESULT', 'MECHANISM_REGISTER_SEALED_REF_NOT_RESULT', `${where}:${c.sealed_ref}:${sealed.kind}`);
     need(sealed.file && sealed.file.sha256 === c.seal_sha256, 'MECHANISM_REGISTER_SEALED_REF_MISMATCH', `${where}:seal_sha256`);
     need(sealed.sealed_on === c.sealed_on, 'MECHANISM_REGISTER_SEALED_REF_MISMATCH', `${where}:sealed_on`);
-    need(sealedDecision(sealed) === (c.verdict === 'DONT' ? '不做' : '做'), 'MECHANISM_REGISTER_SEALED_REF_MISMATCH', `${where}:decision`);
+    const read = sealedDecision(sealed);
+    need(read.decision === (c.verdict === 'DONT' ? '不做' : '做'), 'MECHANISM_REGISTER_SEALED_REF_MISMATCH', `${where}:decision`);
+    if (read.unit) {
+      const unit = e.item_id.includes('#') ? e.item_id.slice(e.item_id.indexOf('#') + 1) : null;
+      need(unit !== null && unitKey(unit) === unitKey(read.unit), 'MECHANISM_REGISTER_SEALED_REF_MISMATCH', `${where}:unit`);
+    }
     checked += 1;
   }
   return { checked };

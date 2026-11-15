@@ -168,8 +168,10 @@ test('交叉核对：写了 sealed_ref 的结论与 QRP 封存结论 ENTRIES 的
     { id: 'CN-Q-2', kind: 'RESULT', sealed_on: '2026-11-01', file: { sha256: SHA_B }, expect: '做（证据不足 → 前向影子）' },
     { id: 'CN-Q-3', kind: 'RESULT', sealed_on: '2026-11-01', file: { sha256: SHA_C }, expect: 'INSUFFICIENT' },
     { id: 'CN-Q-4', kind: 'RESULT', sealed_on: '2026-11-01', file: { sha256: SHA_A }, expect: 'V2_SPY:不做' }], OVERSEAS_SEALED_VERDICTS: [] };
-  // 单元前缀「<单元>:不做」按冒号后的结论读
-  assert.doesNotThrow(() => mech.crossCheck(mech.validate(doc([concluded('A01', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-4' } })])), qualified));
+  // 单元前缀「<单元>:不做」按冒号后的结论读，且前缀必须等于 entry 的 #单元（大小写、- 与 _ 不计）
+  assert.doesNotThrow(() => mech.crossCheck(mech.validate(doc([concluded('A01#V2-SPY', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-4' } })])), qualified));
+  assert.throws(() => mech.crossCheck(mech.validate(doc([concluded('A01', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-4' } })])), qualified), /SEALED_REF_MISMATCH:A01\/CN_A:unit/);
+  assert.throws(() => mech.crossCheck(mech.validate(doc([concluded('A01#V2-SPMO', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-4' } })])), qualified), /SEALED_REF_MISMATCH:A01#V2-SPMO\/CN_A:unit/);
   assert.doesNotThrow(() => mech.crossCheck(mech.validate(doc([concluded('A01', { extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-1' } }),
     concluded('A02', { verdict: 'DO_INSUFFICIENT', state: { shadow_running: true, as_of: '2026-11-02' }, seal: SHA_B, extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-2' } })])), qualified));
   assert.throws(() => mech.crossCheck(mech.validate(doc([concluded('A01', { verdict: 'DO_SUPPORTED', state: { live: true, as_of: '2026-11-01' }, extra: { sealed_ref: 'ASHARE_SEALED_VERDICTS:CN-Q-1' } })])), qualified), /SEALED_REF_MISMATCH:A01\/CN_A:decision/);
