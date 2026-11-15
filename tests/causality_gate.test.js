@@ -55,13 +55,16 @@ function direct({ k2Text = K2_DEFAULT, doc, docFn, entryPatch = {}, log = runLog
 
 test('冻结页绑定：EFFECTIVE_FROM 取 FREEZE_1 的时刻（与 G-MECH 同一个常量）；现行海外与 A 股登记表都在此前冻结或封存，没有一题过门、也没有一题绑证据，锁行不加字段', () => {
   assert.equal(gate.EFFECTIVE_FROM, '2026-11-15T22:47:42+08:00');
-  assert.deepEqual([gate.FREEZE.ref, gate.FREEZE.sha256_prefix, gate.FREEZE.draft_sha256_prefix, gate.FREEZE.review_sha256_prefix],
-    ['artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md', 'c9742ea0', 'd7f85a87', 'd943d342']);
+  const amendment = require('../services/research-framework-amendment-20261112');
+  assert.equal(gate.FREEZE, amendment.FREEZE);
+  assert.equal(gate.EFFECTIVE_FROM, amendment.EFFECTIVE_FROM);
+  assert.deepEqual([gate.FREEZE.path, gate.FREEZE.sha256.slice(0, 8), gate.FREEZE.state, gate.FREEZE.texts.map((t) => `${t.id}:${t.sha256.slice(0, 8)}`)],
+    ['artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md', 'c9742ea0', 'FREEZE_1', ['DRAFT_REV_1:d7f85a87', 'FREEZE_REVIEW_REV_3:d943d342']]);
   assert.equal(gate.CONTRACT_REF, 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md@c9742ea0');
-  // E13 / G14 是同一个常量：机制门（PR #84）在场时两者必须相等
+  // E13 / G14 是同一个常量：机制门（PR #84）在场时也必须读同一处
   let mech = null;
   try { mech = require('../services/research-mechanism-register/gate'); } catch { /* #84 未合并 */ }
-  if (mech && mech.EFFECTIVE_FROM !== null) assert.equal(mech.EFFECTIVE_FROM, gate.EFFECTIVE_FROM);
+  if (mech) assert.equal(mech.EFFECTIVE_FROM, gate.EFFECTIVE_FROM);
   const reasons = new Set();
   for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) {
     const scope = gate.applies(entry);

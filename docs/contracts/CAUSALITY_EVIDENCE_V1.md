@@ -3,8 +3,8 @@
 - 依据：研究框架修订 2026-11-12 §3，**已冻结**。
   - 冻结页 `artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md`（sha256 `c9742ea0…`，协调会话 2026-11-15T22:47:42+08:00）；
   - 冻结的文本：草稿修订 1（`d7f85a87…`）加上冻结审阅 rev 3（`d943d342…`）。§3 的 G1–G20 全部取 (a)，本合同按此写。
-- 生效：`EFFECTIVE_FROM = 2026-11-15T22:47:42+08:00`，与 G-MECH（E13）共用同一个常量。此刻及之后冻结的 K2 过门，此前已冻结的不追溯。
-- 代码常量绑定冻结页：`services/causality-gate` 的 `FREEZE` 写路径与 sha256 前缀（E1）。证据写出 `contract_ref` = `<冻结页路径>@c9742ea0`，过门时核对。
+- 生效：`EFFECTIVE_FROM = 2026-11-15T22:47:42+08:00`，与 G-MECH（E13）共用同一个常量，定义在 `services/research-framework-amendment-20261112`。此刻及之后冻结的 K2 过门，此前已冻结的不追溯。
+- 代码常量绑定冻结页：共用模块的 `FREEZE` 写冻结页与两份冻结文本的路径和 sha256（E1），`services/causality-gate` 从那里读。证据写出 `contract_ref` = `<冻结页路径>@c9742ea0`，过门时核对。
 - 性质：只改研究流程，不改交易、风控、账户规则，不改生产。门只会拒绝导入，从不改写结论，也不会因此判「不做」。
 - 实现不造表达式语言（§3.5）：对每个函数做确定性测试，一套工具、两个运行器（Node，Python）。
 

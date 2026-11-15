@@ -18,22 +18,20 @@
  *       RULED_LAG（§3.3「裁定写明滞后规则」）的输入也只能出自同一页裁定。
  *   不过门的题：照原样导入，锁行不加字段。绑了证据的（§3.6 补跑、§3.7 上线前核对）只核完整性，结果原样记进锁（只报，不拒绝 FAIL）。
  *
- * 生效时刻取冻结页（E13 / G14 同一个常量，与 G-MECH 共用）：此刻及之后冻结的 K2 过门，此前已冻结的不追溯。
+ * 生效时刻取冻结页（E13 / G14 同一个常量，在 services/research-framework-amendment-20261112，与 G-MECH 共用）：此刻及之后冻结的 K2 过门，此前已冻结的不追溯。
  * 证据要写出 contract_ref（本冻结页的路径 + sha256 前缀），过门时核对。
  */
 const crypto = require('crypto');
 const { validateRecord } = require('../../schemas');
 const { canonicalJson } = require('../trial-ledger');
+const amendment = require('../research-framework-amendment-20261112');
 
 const SCHEMA = 'CAUSALITY_EVIDENCE_V1';
-/** 冻结页（E1：路径 + sha256 前缀写进代码常量）。 */
-const FREEZE = Object.freeze({
-  ref: 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md', sha256_prefix: 'c9742ea0',
-  draft_sha256_prefix: 'd7f85a87', review_sha256_prefix: 'd943d342', effective_from: '2026-11-15T22:47:42+08:00',
-});
-const CONTRACT_REF = `${FREEZE.ref}@${FREEZE.sha256_prefix}`;
+/** 冻结页（E1：path + sha256）与生效时刻，都从共用模块读：G-MECH（E13）与 G-CAUSAL（G14）是同一个常量，不各自另写。 */
+const { FREEZE } = amendment;
+const CONTRACT_REF = `${FREEZE.path}@${FREEZE.sha256.slice(0, 8)}`;
 /** 修订生效时刻（K2 冻结不早于它才过门）。 */
-const EFFECTIVE_FROM = FREEZE.effective_from;
+const EFFECTIVE_FROM = amendment.EFFECTIVE_FROM;
 /** ★3 (a)：每个函数 20 个截点，种子 20261112。 */
 const SEED = 20261112;
 const CUT_POINTS = 20;
