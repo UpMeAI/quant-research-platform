@@ -54,6 +54,7 @@ const COMMIT = Object.freeze({
   QSD: '34694ef2465658f7bb537a85e43ac07399821c41', QSD_RUN_LOG: 'f23599084e5c251e727fd2b3611ac80f36612c54',
   CCS: '35f5f7d77830374081123966fd4129af427de79c', UCR: 'cef860e5d2c13d16ea420c088fc2f51826f9b405',
   NMS: '4d734c4f6f55d02f054ac77e1e7bc8571d4e9bdd',
+  KMS8: 'bd1e125f1f35cee56472a8850b59dd120eb6778d', KMS8_RUN_LOG: 'e4b3c60e6c228b3d31edcff290e3c9e243a3fe26',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -157,6 +158,26 @@ const NMS_RESULT = sf(COMMIT.NMS, 'docs/evidence/c17-nm-trigger-v1/run/C17_NM_SE
 const NMS_RUN_LOG = sf(COMMIT.NMS, 'docs/evidence/c17-nm-trigger-v1/run/RESEARCH_RUN_LOG_V1.json', '0bc404dffb4349c263683fd82f0a8bdef9710de9523bb4f93946a689921d2cea');
 const NMS_K2 = coord('C17_NM_SELECTION_K2_V1.draft.md', '83e9c2f1c8c492ee5ec75f0fa36573764cb71a62c1c3b357b00801b42e0474c3');
 const NMS_FREEZE = coord('C17_NM_SELECTION_K2_V1_FREEZE_1.md', '7ee0dabfee705248f6f72e7946e6863f72c519c8a4a678e6b772499f0c22d208');
+
+// 修订 8：US_V5 凯利上限 m 在 S8 节奏下重新拟合（KELLY-M-S8），两个单元（US_V5 单本 O1S、海外桶 O5S），同一份结果。11-15 17:32:24 冻结。
+// K2 写出的 53 行都在冻结前预登记，PRE 照常过；O5_PRE 复现检查的 4 行按 NOTE_1（5aac49ca…，裁定 (a)）记 UNPLANNED_RUN（偏差码
+// PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN 写在结果文件 deviations 里，它们不是预登记行，不进 PRE），NOTE_1 作附带文件绑定。
+// 披露行的 DSR、PBO「不适用」引用凯利 m 前推的门裁定（99203316…），所以门的裁定只放行披露（同修订 5 的写法）。
+// K2 冻结早于 RF1112 生效（2026-11-15T22:47:42+08:00）：G-MECH、G-CAUSAL 都不适用（G-CAUSAL N/A: PRE_EFFECTIVE_K2），不绑因果证据；
+// 机制 id 在 QRP #87 回填里是 ACCT.KELLY.CAP_M（条目 KELLY-M-S8#US_V5、KELLY-M-S8#BUCKET），门不读，这里不另写字段
+const KMS8_RESULT = sf(COMMIT.KMS8, 'docs/evidence/kelly-m-s8/KELLY_M_S8_RESULT_V1.json', '405508d8a58c6466f18b0fe9774f5a804c91c73cd59d8b2713b2c92479fd2ae9');
+const KMS8_RUN_LOG = sf(COMMIT.KMS8_RUN_LOG, 'docs/evidence/kelly-m-s8/RESEARCH_RUN_LOG_V1.json', '44d0adb110976e83ec5650d5ed073f494e6897abb1462408a2817fde81f7da2c');
+const KMS8_K2 = coord('KELLY_M_S8_REFIT_K2_V1.draft.md', 'aa9c1a523fee6395221ae706ab8fe567d52a0b81de875bb6a11b0f2334dc7e50');
+const KMS8_FREEZE = coord('KELLY_M_S8_REFIT_K2_V1_FREEZE_1.md', 'b10f2f3de5d1199e44578c45f8f6763da1c71eac72400ce84ce9ee4f22dfe55a');
+const KMS8_NOTE_1 = coord('KELLY_M_S8_REFIT_K2_V1_FREEZE_1_NOTE_1.md', '5aac49ca5ce7bc6fa28f271d55143231678b17604b467892031740f9f1fe58c8');
+const KMS8_RULING = Object.freeze({ spec: KWFO_RULING.spec, disclosure_not_applicable: Object.freeze(['dsr', 'pbo']) });
+// 结果文件对「通过」的对象不写证据强度（evidence 为 null）：state_zh 取冻结 K2 §5 判定表「通过」行（都没有 → 不做）
+const KMS8_PASS_ZH = '通过（无 R、无 F1、无 F2）';
+const kms8Read = (key) => Object.freeze({ decision: `objects.${key}.verdict`, strength: `objects.${key}.evidence`, use: 'verdict.allowedUse' });
+const KMS8_SOURCE_ZH = '来源：smartflow research/kelly-m-s8-run 的结果文档 KELLY_M_S8_RESULT_V1.md（bd1e125f；QRP 回执 e4b3c60e），封存 2026-11-15。';
+const kms8 = (id, key, title, note_zh) => Object.freeze({ id, label_zh: '凯利 m · S8 重拟合', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-15',
+  title_zh: `US_V5 凯利上限 m 在 S8 节奏下重新拟合：${title}`, file: KMS8_RESULT, also: Object.freeze([KMS8_NOTE_1]), k2: KMS8_K2, freeze: KMS8_FREEZE, run_log: KMS8_RUN_LOG,
+  k2_frozen_at: '2026-11-15T17:32:24+08:00', trial_gates_ruling: KMS8_RULING, read: kms8Read(key), expect: '不做', state_zh: KMS8_PASS_ZH, note_zh });
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -345,6 +366,14 @@ const ENTRIES = Object.freeze([
       + '读法：被挡的那批入场在基线里并不亏（开发期 34 笔 +68.66、测试期 40 笔 +265.69 USDT），T 好在风险路径：回撤浅了，熔断 C2 少触发。'
       + '只开前向影子，生产不变（nonMajorMax 仍是 3）：协调会话裁定 T_start 2026-11-13T00:00:00Z，「本会挡」已平仓满 30 笔或到 2027-06-30 先到为准看数。'
       + '来源：smartflow research/c17-nm-trigger-k2 的结果文档 C17_NM_SELECTION_RESULT_V1.md（4d734c4f），封存 2026-11-13。' },
+  // 修订 8：KELLY-M-S8，两个单元，结论只从封存文件读；US_V5 的结论按 ★4 (a) 取两者中更严的一个（两者都是不做，无候选）
+  kms8('US5-KMS8', 'O1S', 'US_V5 单本上限（L-R1，现行 m = 1）',
+    'R：全窗口 m_S8 = 2（网格顶端）；m = 1 时触线概率 0.00%，m = 2 时按样本 0.26%、零优势 1.41%。F1：前推不触线，最大回撤 22.75%（第 5 折），离 L-R1 50% 线 27.25 pp。'
+    + 'F2：7 折 m_f 都是 2，后一半折中位数 2、极差 0。证据强度分开写：R 是样本内的机械读数，F1 是一条已实现路径，F2 是证据不足（参数不稳）。m 可以更大只披露，不提议（只降不升）。'
+    + '只报：S8 下叠加读法与 SEALED 账本在前推窗差得多（最大回撤 22.75% 对 10.68%）。' + KMS8_SOURCE_ZH),
+  kms8('US5-KMS8-BUCKET', 'O5S', '海外桶联合线（L-R1b，US_V5 换成 S8 账本、为自由项）',
+    'R：签字上限下判定值 4.13% ≤ 5%（S8 之前 0.77%），NO_FURTHER_CAP；离 5% 容差只剩 0.87 pp。F1：前推不触线，最大回撤 11.93%，离 L-R1b 40% 线 28.07 pp。'
+    + 'F2：7 折都是 1，中位数 1、极差 0；各折本折上限下的读数从 1.76% 到 3.35%，第 7 折最高，几乎全部来自零优势读数。' + KMS8_SOURCE_ZH),
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────
