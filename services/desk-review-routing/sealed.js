@@ -22,6 +22,22 @@ const UNDECIDED_ZH = '未判定（转前向）';
 const X08_LINES = Object.freeze({ V1: Object.freeze({ action: 'UNDECIDED', verdict: '做', state: UNDECIDED_ZH }), V2_SPMO: Object.freeze({ action: 'UNDECIDED', verdict: '做', state: UNDECIDED_ZH }),
   V2_SPY: Object.freeze({ action: '不做', verdict: '不做', state: null }) });
 
+/**
+ * W46 L6 的裁定（协调会话 2026-11-15 17:51 CST，queue.log「W46 L6_WORDING_RULING」，按上面 X08 的先例）：R_US_ETF_1 四个单元的
+ * verdictState 写结论词＋证据强度标签（K2 §5.2：区间跨 0 的写「点估计，区间跨 0」），不引封存原文里「方向判对的概率」那半句：
+ * desk 的 L6 拒收预测用词（portfolio-desk src/decision-contracts.js PREDICTIVE_TERMS），整周停在 LOOP_CHECK。
+ * 封存文件不动：原文仍在行的 resultFile（sha256 不变）里 verdict_detail.<detail>.evidence_strength_zh。导出时现场核对裁定与
+ * 封存文件一致（单元 id、结论词、95% 区间是否跨 0、登记的读取路径），不符就拒绝导出，不回退到原文。
+ */
+const RUE1_RULED = Object.freeze({
+  'UC-RUE1-SPY': Object.freeze({ detail: 0, unit: 'UC-SPY', verdict: '不做', crossesZero: false }),
+  'UC-RUE1-QQQ': Object.freeze({ detail: 1, unit: 'UC-QQQ', verdict: '不做', crossesZero: false }),
+  'US5-RUE1-VOO': Object.freeze({ detail: 4, unit: 'V5-VOO', verdict: '做', crossesZero: true }),
+  'US5-RUE1-SPMO': Object.freeze({ detail: 5, unit: 'V5-SPMO', verdict: '做', crossesZero: false }),
+});
+const STRENGTH_LABEL_ZH = Object.freeze({ CROSSES_ZERO: '点估计，区间跨 0', CLEAR_OF_ZERO: '95% 区间不跨 0' });
+const ruledStateText = (rule) => `${rule.verdict}（${rule.crossesZero ? STRENGTH_LABEL_ZH.CROSSES_ZERO : STRENGTH_LABEL_ZH.CLEAR_OF_ZERO}）`;
+
 class SealedReturnError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
 }
@@ -44,6 +60,17 @@ function stateOf({ state, verdict }, id, stateZh = null) {
   return value || fail('RETURN_SEALED_STATE_MISSING', id);
 }
 
+/** RUE1_RULED 的一行，对着封存文件现场核对；一处不符就拒绝（RETURN_SEALED_STATE_NOT_AS_RULED）。 */
+function ruledState(entry, read) {
+  const rule = RUE1_RULED[entry.id];
+  const at = `verdict_detail.${rule.detail}`;
+  const unit = read.doc && Array.isArray(read.doc.verdict_detail) ? read.doc.verdict_detail[rule.detail] : null;
+  const ci = unit && Array.isArray(unit.ci95) && unit.ci95.length === 2 && unit.ci95.every(Number.isFinite) ? unit.ci95 : null;
+  const holds = entry.read.decision === `${at}.decision` && entry.read.strength === `${at}.evidence_strength_zh`
+    && unit !== null && unit.id === rule.unit && unit.decision === rule.verdict && ci !== null && (ci[0] <= 0 && ci[1] >= 0) === rule.crossesZero;
+  return holds ? ruledStateText(rule) : fail('RETURN_SEALED_STATE_NOT_AS_RULED', entry.id);
+}
+
 function resultFileOf(spec) {
   return spec.source === 'coordinator' ? `artifacts/coordinator/${spec.path}` : `${spec.source === 'smartflow' ? 'smartflow' : 'Ashare-V6'}:${spec.path}`;
 }
@@ -59,7 +86,8 @@ function rowsOf({ entry, lock, read, market, deskLink }) {
       return { id: `${lock.result_id}:${line}`, ...base, verdict: rule.verdict, verdictState: rule.state || final[line].verdict };
     });
   }
-  return [{ id: lock.result_id, ...base, verdict: verdictWord(read.verdict.decision, entry.id), verdictState: stateOf(read, entry.id, entry.state_zh || null) }];
+  const verdictState = Object.hasOwn(RUE1_RULED, entry.id) ? ruledState(entry, read) : stateOf(read, entry.id, entry.state_zh || null);
+  return [{ id: lock.result_id, ...base, verdict: verdictWord(read.verdict.decision, entry.id), verdictState }];
 }
 
 /** 这个结果当前的 desk 回链（result_hash = 文件 sha256，或 result_ref = QRP:<result_id>:LOCKED）。没有就是 null，不编造。 */
@@ -95,4 +123,4 @@ function notImported({ stores = STORES } = {}) {
   });
 }
 
-module.exports = { LEDGERS, SealedReturnError, UNDECIDED_ZH, X08_LINES, notImported, sealedRows, verdictWord };
+module.exports = { LEDGERS, RUE1_RULED, SealedReturnError, UNDECIDED_ZH, X08_LINES, notImported, ruledStateText, sealedRows, verdictWord };
