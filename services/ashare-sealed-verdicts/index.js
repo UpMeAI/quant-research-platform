@@ -50,6 +50,17 @@ const X07A_RULING = Object.freeze({
   disclosure_not_applicable: Object.freeze(['dsr', 'pbo']),
 });
 
+// 修订 4（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_4.md）：R8 的 A 股部分（K 线否决与缠论扣留，个股簿）。K2 在 2026-11-11 22:28:56 冻结（过拟合控制修订之后），
+// K2 §14 的 7 行在冻结前预登记（14:27:51.030Z），两道试验台账门照常过、不带门的裁定；披露行 OVD-f62f0cc373e0122b 的 DSR 照算法记 UNKNOWN。
+// 结果与运行日志在协调会话目录（按 sha256 绑定）：结果文件是 Linux 封存 scratch/r8-sealed-20261115 里 R8_RESULT.json 的逐字节副本（SanDisk 镜像同 sha）。
+// K2 绑冻结的草稿本身（台账行的 k2_sha256 = 草稿 299473b0），冻结页 4d30527e 另绑。
+// K2 冻结早于 RF1112 生效（2026-11-15T22:47:42+08:00）：G-MECH、G-CAUSAL 都不适用（G-CAUSAL N/A: PRE_EFFECTIVE_K2），不绑因果证据；
+// 机制 id 在 QRP #87 回填里是 SEL.KLINE.ENTRY_VETO、SEL.KLINE.EXIT_PROTECT、SEL.CHAN.HOLDBACK（条目 R8-ASHARE，消融题，§4.3 不写结论块），门不读，这里不另写字段
+const R8_RESULT = coord('R8_X04_KLINE_CHAN_ASHARE_RESULT_V1.json', 'cfa6c0cbe7bb95b1fe9a27816de9c6ee0aa13650bc44bed139061d242f0acca3');
+const R8_RUN_LOG = coord('R8_X04_KLINE_CHAN_ASHARE_RESEARCH_RUN_LOG_V1.json', '60e2a6a94038d92661af569803c154f426eb92e54fa61ac5ede33ef51a8f4e16');
+const R8_K2 = coord('R8_X04_KLINE_CHAN_ASHARE_K2_V1.draft.md', '299473b0bfc3ed15c6075459b96f57b257afdefbc69bf64a6b89c660fd8b4f1c');
+const R8_FREEZE = coord('R8_X04_KLINE_CHAN_ASHARE_K2_V1_FREEZE_1.md', '4d30527ee89f94753a38501297e6f7b64b2486249f2b8a15d6b5b002aba2b153');
+
 const ENTRIES = Object.freeze([
   { id: 'CN-R-ETF-1', label_zh: 'R-ETF-1', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-05', title_zh: '宽基 ETF 波动率网格 VG 对现行档位规则 C',
     file: v6('84adf8b97268d59318dda22be5363953e7939b6a', 'research/index-grid/r-etf-1/result-r-etf-1.json', '6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0'),
@@ -103,6 +114,16 @@ const ENTRIES = Object.freeze([
       + 'A_TOUCH、A 为 2（网格顶）；L-X40 不触。只报的不利事实：三本账全段日收益优势不为正（年化 Sharpe C_RS −1.31、A_TOUCH −1.61、A −1.25，k* = 0，c_0 无定义），凯利本身给不出正的下注比例；'
       + '15% 线远只因波动小。读数里的 A（Q0 基线）只报，不登记 Q0 账户的结论。过拟合披露：DSR、PBO 不适用（K2 §0，门的裁定同页）。'
       + '来源：协调会话目录的结果文件（b2159735，旧 MBP 两次独立进程逐字节相同，运行代码 smartflow 74d4ae6d），结论页 X07A_VERDICT_20261114，封存 2026-11-14。' },
+  { id: 'CN-R8', label_zh: 'R8 A 股 K 线与缠论', strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-15',
+    title_zh: '个股簿：同时关 K 线入场否决与出场保护、去掉缠论扣留（T_KC_K）对现行规则 C_RS，两阶段合并（2020-06-01 → 2026-09-28）',
+    file: R8_RESULT, k2: R8_K2, freeze: R8_FREEZE, run_log: R8_RUN_LOG, k2_frozen_at: '2026-11-11T22:28:56+08:00',
+    read: Object.freeze({ decision: 'judged.verdict_zh', state: 'judged.reason_code', strength: null, use: null, text: null }), expect: '不做',
+    note_zh: '不做（U_G_AT_OR_BELOW_ZERO）：T_KC_K 对 C_RS 两阶段合并 g −2.47 %/年，95 % [−4.29 %, −0.65 %]，1537 个会话、76 个月；G1 满足（成熟交易 355、改变的入场 397）。'
+      + '上限条件 T_KC_PROD 对 A_TOUCH −1.05 %/年 [−2.58 %, +0.41 %]，点估计为负。只报：T_C_K（只去缠论扣留）−1.35 %/年 [−2.34 %, −0.39 %]；分阶段复测（已读）只报。'
+      + '规则不变：保留现行 K 线入场否决、出场保护与缠论扣留，不开前向影子。指数簿升档闸未跑（缺引擎，FREEZE_1 ★6），是缺口，不是证据不足，进 2027-02 季度消融。'
+      + 'G-CF（A_NOKLINE 对封存 A，两阶段 873 + 664 个会话）PASS，只作对照；Q0 基线账 A 只在这一道门里比对，登记表不登记任何 Q0 账户的结论。'
+      + '过拟合披露 OVD-f62f0cc373e0122b：N 42（下界），DSR 未知，PBO 0.045，按族 N 的 Bonferroni 回退；§3.5 的校正条件只加在「有支持证据」上，本题不适用。'
+      + '来源：Linux 封存 scratch/r8-sealed-20261115（SHA256SUMS 8e92a3a5，SEAL_MANIFEST 33ed445d；SanDisk research-data/r8_ashare_v1/verdict-20261115 同 sha），研究分支 Ashare-V6 research/r8-ashare-kline-chan 0069dd8e（NEVER MERGE），封存 2026-11-15。' },
 ]);
 
 const locks = (strategyRef = null) => overseas.locks(strategyRef, STORE);
