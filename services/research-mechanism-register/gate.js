@@ -4,8 +4,8 @@
  * G-MECH、K2 §0 四行、AI 输入检查 —— 研究框架修订 2026-11-12 §4.4、§5、§2.4（冻结审阅 E12–E15 取 (a)），
  * 接进海外与 A 股封存结论导入器（同一套 importVerdicts，在 G-TRIAL 之后）。
  *
- * 只对修订冻结之后才冻结的 K2 生效：entry.k2_frozen_at ≥ EFFECTIVE_FROM。修订冻结之前 EFFECTIVE_FROM = null，门不适用，
- * 导入器照原样写锁（锁行逐字节不变）。门只拒绝导入（失败即关），从不改写结论，也不替代导入器已有的校验。
+ * 只对修订冻结之后才冻结的 K2 生效：entry.k2_frozen_at ≥ EFFECTIVE_FROM（FREEZE_1：2026-11-15T22:47:42+08:00，此前冻结的不追溯）。
+ * 不适用的题导入器照原样写锁（锁行逐字节不变）。门只拒绝导入（失败即关），从不改写结论，也不替代导入器已有的校验。
  *
  *   K2 §0 四行（§5）：K2 正文（导入器按 sha256 复验后的字节）里四个固定标签都在、标签后不为空（K2_SECTION0_LINE_MISSING:<n>）；
  *     第 2、3 行只是披露，内容不评价。
@@ -20,9 +20,10 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const mech = require('./index');
 const { MARKET } = require('../trial-ledger/back_register');
+const amendment = require('../research-framework-amendment-20261112');
 
-/** 修订冻结时刻（冻结页记下的读钟时刻，ISO + 08:00）。冻结之前为 null：门不生效（冻结审阅 E13 (a)）。 */
-const EFFECTIVE_FROM = null;
+/** 修订冻结时刻：冻结页 FREEZE_1 写出的唯一常量，与 G-CAUSAL 共用（E13 / G14），不在这里另写。 */
+const EFFECTIVE_FROM = amendment.EFFECTIVE_FROM;
 const LINE_LABELS = Object.freeze(['**机制**：', '**预期失效方式**：', '**可能被哪条现行规则解释**：', '**AI 输入**：']);
 const AI_CATEGORIES = Object.freeze(['EXTRACTED_FACT']);
 const ID_IN_LINE = /(?:SEL|RISK|ACCT|EXEC)\.[A-Z0-9_]+\.[A-Z0-9_]+/g;

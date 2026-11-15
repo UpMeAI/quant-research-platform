@@ -1,11 +1,23 @@
 {
-  "_comment": "研究机制登记（研究框架修订 2026-11-12 §4.2；冻结审阅 E1–E18 取 (a)）。mechanisms[] 一个机制 = 一个效应 + 所在的层 + 作用的决策点，参数、阈值、窗口长短都不算新机制；id 写 <前缀>.<主题>.<变体>，前缀 SEL / RISK / ACCT / EXEC 分别对应层 SELECTION_TIMING / RISK / ACCOUNT / NA_EXECUTION；description_zh 一句泛化写法，不含 Owner 原话和生产风控数字。entries[] 一题一市场一条（item_id = 总表编号或 study_ref；market 只取 CN_A / US_EQUITY / CRYPTO，跨市场的题按读过的市场各登记一条）；conclusion 只给已封存的题写，字段与读法见 services/research-mechanism-register/index.js 与 docs/contracts/RESEARCH_MECHANISM_REGISTER_V1.md，事实从封存文件抄录，写了 sealed_ref 的由测试对 QRP 封存结论交叉核对。classified_by = coordinator-proposal 表示实现会话或 Agent 提出、待协调会话核对。首版两部分都为空：机制 id 由协调会话在修订冻结时定稿，补登记（§4.5）另开 PR 写入；在那之前每次查询都得 NORMAL_NO_PRIOR，G-MECH 拒收引用未登记 id 的 K2。",
+  "_comment": "研究机制登记（研究框架修订 2026-11-12 §4.2；FREEZE_1 c9742ea0，冻结审阅 E1–E18 全取 (a)）。mechanisms[] 一个机制 = 一个效应 + 所在的层 + 作用的决策点，参数、阈值、窗口长短都不算新机制；id 写 <前缀>.<主题>.<变体>，前缀 SEL / RISK / ACCT / EXEC 分别对应层 SELECTION_TIMING / RISK / ACCOUNT / NA_EXECUTION；description_zh 一句泛化写法，不含 Owner 原话和生产风控数字。entries[] 一题一市场一条（item_id = 总表编号或 study_ref；market 只取 CN_A / US_EQUITY / CRYPTO，跨市场的题按读过的市场各登记一条）；conclusion 只给已封存的题写，字段与读法见 services/research-mechanism-register/index.js 与 docs/contracts/RESEARCH_MECHANISM_REGISTER_V1.md，事实从封存文件抄录，写了 sealed_ref 的由测试对 QRP 封存结论交叉核对。classified_by = coordinator-proposal 表示实现会话或 Agent 提出、待协调会话核对。首版两部分都为空：机制 id 与补登记（§4.5）另开 PR 写入，协调会话核对；在那之前每次查询都得 NORMAL_NO_PRIOR，G-MECH 拒收引用未登记 id 的 K2。",
   "contract": "QRP_RESEARCH_MECHANISM_REGISTER_V1",
   "contract_ref": {
-    "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_CAUSALITY_MECHANISM_AI_ROLE.draft.md",
-    "sha256": "d7f85a876303dec1744cd4cba2d49d997a29b4c5bec6bada003a63d18277bd25",
-    "state": "DRAFT_REV_1",
-    "ref_zh": "协调会话目录的文件，不在 git 里，按 sha256 绑定；修订冻结后改绑冻结页"
+    "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md",
+    "sha256": "c9742ea070770c7f968e4ef46d3d10efae21a2e88e409290d74a7dc1110c5abc",
+    "state": "FREEZE_1",
+    "texts": [
+      {
+        "id": "DRAFT_REV_1",
+        "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_CAUSALITY_MECHANISM_AI_ROLE.draft.md",
+        "sha256": "d7f85a876303dec1744cd4cba2d49d997a29b4c5bec6bada003a63d18277bd25"
+      },
+      {
+        "id": "FREEZE_REVIEW_REV_3",
+        "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_REVIEW.md",
+        "sha256": "d943d3422fea29e25572a0dc98f68266dca36a864a16cd3f89915cc2ba3338ff"
+      }
+    ],
+    "ref_zh": "协调会话目录的文件，不在 git 里，按 sha256 绑定：冻结页 FREEZE_1（2026-11-15T22:47:42+08:00）及它冻结的草稿修订 1、冻结审阅修订 3"
   },
   "registered_at": "2026-11-15T21:54:57+08:00",
   "registered_by": "QRP 实现会话（RF1112 机制登记；内容待补登记与协调会话核对）",

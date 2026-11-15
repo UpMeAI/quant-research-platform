@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * 机制登记与分诊查询（QRP_RESEARCH_MECHANISM_REGISTER_V1；研究框架修订 2026-11-12 §4，冻结审阅 E1–E18 取 (a)）。
+ * 机制登记与分诊查询（QRP_RESEARCH_MECHANISM_REGISTER_V1；研究框架修订 2026-11-12 §4，FREEZE_1 c9742ea0：冻结审阅 E1–E18 全取 (a)）。
  *
  * 事实来源是 `config/research_mechanism_register.v1.json`，格式照层登记（../research-layer-register）：require 时校验，缺字段就抛错。
  *   - mechanisms[]：一个机制 = 一个效应 + 所在的层 + 作用的决策点；参数、阈值、窗口长短都不算新机制（★6）。
@@ -24,16 +24,18 @@ const fs = require('fs');
 const path = require('path');
 const { read } = require('../../packages/ledger');
 const trials = require('../trial-ledger');
+const { FREEZE } = require('../research-framework-amendment-20261112');
 
 const FILE = path.join(__dirname, '..', '..', 'config', 'research_mechanism_register.v1.json');
 const REGISTER_PATH = 'config/research_mechanism_register.v1.json';
 const CONTRACT = 'QRP_RESEARCH_MECHANISM_REGISTER_V1';
 const TABLE_SCHEMA = 'MECHANISM_PRIOR_TABLE_V1';
-/** 绑定的修订文本（冻结审阅 E1 (a)）：修订冻结之前绑草稿修订 1；冻结后改成冻结页的 path、sha 前缀与 state。 */
+/** 绑定的修订文本（冻结审阅 E1 (a)）：冻结页 FREEZE_1（path + sha256 前缀），加上它冻结的两份文本（草稿修订 1、冻结审阅修订 3）。 */
 const AMENDMENT = Object.freeze({
-  path: 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_CAUSALITY_MECHANISM_AI_ROLE.draft.md',
-  sha_prefix: 'd7f85a87',
-  state: 'DRAFT_REV_1',
+  path: FREEZE.path,
+  sha_prefix: FREEZE.sha256.slice(0, 8),
+  state: FREEZE.state,
+  texts: Object.freeze(FREEZE.texts.map((t) => Object.freeze({ id: t.id, path: t.path, sha_prefix: t.sha256.slice(0, 8) }))),
 });
 /** 前缀 → 层（层代码同 research-layer-register；诊断、工程、待定不登记机制，E16）。 */
 const PREFIX_LAYER = Object.freeze({ SEL: 'SELECTION_TIMING', RISK: 'RISK', ACCT: 'ACCOUNT', EXEC: 'NA_EXECUTION' });
@@ -167,6 +169,11 @@ function validate(doc) {
   need(isObject(ref) && ref.path === AMENDMENT.path, 'MECHANISM_REGISTER_FIELD', 'contract_ref.path');
   need(SHA64.test(ref.sha256 || '') && ref.sha256.startsWith(AMENDMENT.sha_prefix), 'MECHANISM_REGISTER_FIELD', 'contract_ref.sha256');
   need(ref.state === AMENDMENT.state, 'MECHANISM_REGISTER_FIELD', 'contract_ref.state');
+  need(Array.isArray(ref.texts) && ref.texts.length === AMENDMENT.texts.length, 'MECHANISM_REGISTER_FIELD', 'contract_ref.texts');
+  for (const want of AMENDMENT.texts) {
+    const got = ref.texts.find((t) => isObject(t) && t.id === want.id);
+    need(got && got.path === want.path && SHA64.test(got.sha256 || '') && got.sha256.startsWith(want.sha_prefix), 'MECHANISM_REGISTER_FIELD', `contract_ref.texts.${want.id}`);
+  }
   text(doc, 'registered_at', 'register');
   text(doc, 'registered_by', 'register');
   const ids = validateMechanisms(doc.mechanisms);

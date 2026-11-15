@@ -1,9 +1,9 @@
 # 研究机制登记 · QRP_RESEARCH_MECHANISM_REGISTER_V1
 
 - 依据：研究框架修订 2026-11-12 §4（机制登记与去重）、§5（K2 §0 加四行）、§2.4（AI 输入检查）。协调会话目录的文件，按 sha256 绑定。
-  - 现在绑的是草稿修订 1（`d7f85a87…`），修订**还没冻结**；
-  - 实现按冻结审阅（`RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_REVIEW.md`）E1–E19 的 (a) 写；
-  - 冻结文本若有不同，照冻结文本改。
+  - 绑定冻结页 `RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md`（`c9742ea0…`，2026-11-15T22:47:42+08:00）；
+  - 它冻结草稿修订 1（`d7f85a87…`）与冻结审阅修订 3（`d943d342…`），E1–E19、G1–G20 全取 (a)；
+  - 绑定与生效时刻只写在 `services/research-framework-amendment-20261112/index.js` 一处，本门与 G-CAUSAL 共用。
 - 代码：
   - `services/research-mechanism-register/index.js`：登记表、校验、交叉核对、分诊查询；
   - `services/research-mechanism-register/gate.js`：G-MECH、K2 §0、AI 输入；
@@ -48,7 +48,7 @@
 | `sealed_ref` | 可选：`ASHARE_SEALED_VERDICTS:<id>` 或 `OVERSEAS_SEALED_VERDICTS:<id>`。写了的，测试拿 QRP 封存结论 `ENTRIES` 核对 sha256、封存日、做 / 不做（`crossCheck`） |
 | `state` | 状态会变，所以写明 `as_of`，由协调会话改写。`DO_INSUFFICIENT` 写 `{ shadow_running, as_of }`，`DO_SUPPORTED` 写 `{ live, as_of }`，`DONT` 不写 |
 
-首版两部分都为空。机制 id 在修订冻结时定稿，补登记（§4.5）另开 PR 写入。
+首版两部分都为空。机制 id 与补登记（§4.5）另开 PR 写入，协调会话核对。
 
 ## 2. 分诊查询（§4.3）
 
@@ -88,7 +88,7 @@
 
 **适用范围**：
 - 只对 `entry.k2_frozen_at ≥ EFFECTIVE_FROM` 的题生效。
-- `EFFECTIVE_FROM` 是修订冻结时刻；**冻结之前为 `null`，门不生效**。
+- `EFFECTIVE_FROM` = 冻结页写出的生效时刻 `2026-11-15T22:47:42+08:00`（E13 / G14 同一个常量）；此前冻结的 K2 不追溯。
 - 封存在生效日及以后、却没写 `k2_frozen_at` 的题，拒绝。
 - 不适用的题照原样写锁，锁行逐字节不变；适用且通过时，锁行加 `mechanism_gate{}`。
 - 门只拒绝导入，不改结论。

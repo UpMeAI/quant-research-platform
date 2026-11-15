@@ -18,6 +18,8 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const mech = require('../services/research-mechanism-register');
+const amendment = require('../services/research-framework-amendment-20261112');
+const ashare = require('../services/ashare-sealed-verdicts');
 const gate = require('../services/research-mechanism-register/gate');
 const overseas = require('../services/overseas-sealed-verdicts');
 const trials = require('../services/trial-ledger');
@@ -42,7 +44,8 @@ const COMMIT = 'e'.repeat(40);
 const REGISTER_DOC = {
   _comment: '合成夹具',
   contract: mech.CONTRACT,
-  contract_ref: { path: mech.AMENDMENT.path, sha256: `${mech.AMENDMENT.sha_prefix}${'0'.repeat(64 - mech.AMENDMENT.sha_prefix.length)}`, state: mech.AMENDMENT.state, ref_zh: '合成' },
+  contract_ref: { path: mech.AMENDMENT.path, sha256: `${mech.AMENDMENT.sha_prefix}${'0'.repeat(64 - mech.AMENDMENT.sha_prefix.length)}`, state: mech.AMENDMENT.state,
+    texts: mech.AMENDMENT.texts.map((t) => ({ id: t.id, path: t.path, sha256: `${t.sha_prefix}${'0'.repeat(56)}` })), ref_zh: '合成' },
   registered_at: '2026-11-16T22:00:00+08:00',
   registered_by: '测试',
   mechanisms: [
@@ -88,10 +91,22 @@ const run = (fx, o = opts) => gate.check(fx.entry, fx.files, o);
 
 // ── 适用范围 ──────────────────────────────────────────────────────────────────
 
-test('适用范围：修订未冻结（EFFECTIVE_FROM = null）时不适用；K2 早于生效时刻不适用；草稿不适用；生效日之后封存却没写冻结时刻 → 拒绝', () => {
-  assert.equal(gate.EFFECTIVE_FROM, null, '修订冻结之前常量必须为 null');
+test('适用范围：生效时刻取冻结页的唯一常量（与 G-CAUSAL 共用）；早于它不适用、等于它适用；草稿不适用；生效日之后封存却没写冻结时刻 → 拒绝', () => {
+  assert.equal(gate.EFFECTIVE_FROM, '2026-11-15T22:47:42+08:00', 'FREEZE_1 写出的生效时刻');
+  assert.equal(gate.EFFECTIVE_FROM, amendment.EFFECTIVE_FROM, '门不另写常量');
+  assert.equal(amendment.FREEZE.path, 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md');
+  assert.ok(amendment.FREEZE.sha256.startsWith('c9742ea0'));
   const fx = unit();
-  assert.deepEqual(gate.check(fx.entry, fx.files), { applies: false, reason: 'AMENDMENT_NOT_FROZEN' });
+  assert.deepEqual(gate.check(fx.entry, fx.files, { effectiveFrom: null }), { applies: false, reason: 'AMENDMENT_NOT_FROZEN' });
+  // 默认常量：早一秒不适用；恰好在生效时刻适用（≥）
+  const early = unit({ entryPatch: { k2_frozen_at: '2026-11-15T22:47:41+08:00' } });
+  assert.deepEqual(gate.check(early.entry, early.files), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' });
+  const onTime = unit({ entryPatch: { k2_frozen_at: '2026-11-15T22:47:42+08:00' }, table: { asOf: '2026-11-15T22:47:00+08:00' } });
+  assert.equal(gate.check(onTime.entry, onTime.files, { registerAt, marks: [] }).applies, true);
+  // 回归：QRP 现有的 A 股、海外封存结论都在生效之前冻结，门一条也不适用，也不报错（锁行逐字节不变）
+  for (const entry of [...ashare.ENTRIES, ...overseas.ENTRIES]) {
+    assert.equal(gate.applies(entry, gate.EFFECTIVE_FROM).applies, false, `${entry.id} 不应过门`);
+  }
   assert.deepEqual(run(unit({ entryPatch: { k2_frozen_at: '2026-11-16T11:59:59+08:00' } })), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' });
   assert.deepEqual(run(unit({ entryPatch: { kind: 'DRAFT' } })), { applies: false, reason: 'DRAFT_NOT_FROZEN' });
   assert.deepEqual(run(unit({ entryPatch: { k2: null } })), { applies: false, reason: 'NO_K2' });
@@ -233,7 +248,7 @@ function importFixture({ k2Lines = {}, study }) {
   return { entry, out, tableBytes };
 }
 
-test('导入器：修订未冻结时照原样锁（没有 mechanism_gate 字段）；注入生效时刻后过门，锁行带 mechanism_gate，结论不变；不过门就整批不写', () => {
+test('导入器：门不适用时照原样锁（没有 mechanism_gate 字段）；按冻结页的生效时刻过门，锁行带 mechanism_gate，结论不变；不过门就整批不写', () => {
   const fx = importFixture({ study: 'RM-1' });
   // 先在生效时刻注入、第 2 行缺失时拒收，什么也不写
   const broken = importFixture({ k2Lines: { 2: null }, study: 'RM-0' });
@@ -241,15 +256,16 @@ test('导入器：修订未冻结时照原样锁（没有 mechanism_gate 字段�
   const before = read(overseas.LEDGER()).length;
   assert.throws(() => overseas.importVerdicts(broken.out, { registeredBy: AUTH, entries: [broken.entry], mechanismGate: opts }), /K2_SECTION0_LINE_MISSING:2/);
   assert.equal(read(overseas.LEDGER()).length, before);
-  // 修订未冻结：门不适用，锁行不加字段；先前结论表照样作为绑定文件复验并列进 refs
-  const [plain] = overseas.importVerdicts(fx.out, { registeredBy: AUTH, entries: [fx.entry], lockedAt: '2026-11-25T10:00:00+08:00' });
+  // 门不适用（注入 null）：锁行不加字段；先前结论表照样作为绑定文件复验并列进 refs
+  const [plain] = overseas.importVerdicts(fx.out, { registeredBy: AUTH, entries: [fx.entry], lockedAt: '2026-11-25T10:00:00+08:00', mechanismGate: { effectiveFrom: null } });
   assert.equal(plain.decision, '不做');
   assert.equal(plain.mechanism_gate, undefined);
   assert.ok(plain.refs.some((r) => r.role === 'MECH_PRIOR' && r.sha256 === sha(fx.tableBytes)));
-  // 生效后（另一份证据、同一题换 id 以免撞锁）：过门
+  // 默认生效时刻（冻结页常量，只注入登记表读法与空标签）：K2 在它之后冻结 → 过门（另一份证据、换 id 以免撞锁）
   const fx2 = importFixture({ study: 'RM-2' });
   fx2.entry.id = 'C17-RM-2';
-  const [gated] = overseas.importVerdicts(fx2.out, { registeredBy: AUTH, entries: [fx2.entry], mechanismGate: opts, lockedAt: '2026-11-25T10:00:00+08:00' });
+  const [gated] = overseas.importVerdicts(fx2.out, { registeredBy: AUTH, entries: [fx2.entry], mechanismGate: { registerAt, marks: [] }, lockedAt: '2026-11-25T10:00:00+08:00' });
+  assert.equal(gated.mechanism_gate.effective_from, '2026-11-15T22:47:42+08:00');
   assert.equal(gated.decision, '不做');
   assert.equal(gated.mechanism_gate.applies, true);
   assert.deepEqual(gated.mechanism_gate.mechanism_ids, [ID_A]);

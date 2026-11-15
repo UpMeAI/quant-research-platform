@@ -35,7 +35,8 @@ function doc(entries = [], patch = (d) => d) {
   const d = {
     _comment: '合成夹具',
     contract: mech.CONTRACT,
-    contract_ref: { path: mech.AMENDMENT.path, sha256: `${mech.AMENDMENT.sha_prefix}${'0'.repeat(64 - mech.AMENDMENT.sha_prefix.length)}`, state: mech.AMENDMENT.state, ref_zh: '合成' },
+    contract_ref: { path: mech.AMENDMENT.path, sha256: `${mech.AMENDMENT.sha_prefix}${'0'.repeat(64 - mech.AMENDMENT.sha_prefix.length)}`, state: mech.AMENDMENT.state,
+      texts: mech.AMENDMENT.texts.map((t) => ({ id: t.id, path: t.path, sha256: `${t.sha_prefix}${'0'.repeat(56)}` })), ref_zh: '合成' },
     registered_at: '2026-11-15T22:00:00+08:00',
     registered_by: '测试',
     mechanisms: [
@@ -74,13 +75,19 @@ const ask = (entries, { ids = ['SEL.KLINE_VETO.AT_LEVEL'], market = 'CN_A', owne
 
 // ── 1. 登记表形状 ─────────────────────────────────────────────────────────────
 
-test('登记表：真实文件通过校验；绑定修订文本的 path 与 sha 前缀；本机有那份文件时现场核对 sha256', () => {
+test('登记表：真实文件通过校验；绑定冻结页 FREEZE_1 与它冻结的两份文本（E1）；本机有那些文件时现场核对 sha256', () => {
   assert.equal(mech.REGISTER.contract, 'QRP_RESEARCH_MECHANISM_REGISTER_V1');
-  assert.equal(RAW.contract_ref.path, mech.AMENDMENT.path);
-  assert.ok(RAW.contract_ref.sha256.startsWith(mech.AMENDMENT.sha_prefix));
-  assert.equal(RAW.contract_ref.state, mech.AMENDMENT.state);
-  const local = path.join(ROOT, '..', RAW.contract_ref.path);
-  if (fs.existsSync(local)) assert.equal(sha(fs.readFileSync(local)), RAW.contract_ref.sha256, '本机修订文本的 sha256 与登记不一致');
+  // 冻结页（协调会话 2026-11-15T22:47:42+08:00）：字面写死，代码常量与登记表都要对上
+  assert.equal(RAW.contract_ref.path, 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md');
+  assert.ok(RAW.contract_ref.sha256.startsWith('c9742ea0'));
+  assert.equal(RAW.contract_ref.state, 'FREEZE_1');
+  assert.equal(mech.AMENDMENT.path, RAW.contract_ref.path);
+  assert.equal(mech.AMENDMENT.sha_prefix, 'c9742ea0');
+  assert.deepEqual(RAW.contract_ref.texts.map((t) => [t.id, t.sha256.slice(0, 8)]), [['DRAFT_REV_1', 'd7f85a87'], ['FREEZE_REVIEW_REV_3', 'd943d342']]);
+  for (const ref of [RAW.contract_ref, ...RAW.contract_ref.texts]) {
+    const local = path.join(ROOT, '..', ref.path);
+    if (fs.existsSync(local)) assert.equal(sha(fs.readFileSync(local)), ref.sha256, `本机 ${ref.path} 的 sha256 与登记不一致`);
+  }
   // 首版（冻结审阅 E17 (a)）：机制与条目都由补登记另行写入
   assert.ok(Array.isArray(RAW.mechanisms) && Array.isArray(RAW.entries));
   // 公开仓库：登记表只写泛化的一句话，没有 Owner 原话的引号
@@ -94,6 +101,9 @@ test('登记表：合成登记表通过；逐项打坏一个字段，各报对�
     ['contract', (d) => { d.contract = 'X'; }, /MECHANISM_REGISTER_CONTRACT_INVALID/],
     ['contract_ref.path', (d) => { d.contract_ref.path = 'x.md'; }, /MECHANISM_REGISTER_FIELD:contract_ref\.path/],
     ['contract_ref.sha256', (d) => { d.contract_ref.sha256 = SHA_A; }, /MECHANISM_REGISTER_FIELD:contract_ref\.sha256/],
+    ['contract_ref.state', (d) => { d.contract_ref.state = 'DRAFT_REV_1'; }, /MECHANISM_REGISTER_FIELD:contract_ref\.state/],
+    ['contract_ref.texts 缺审阅', (d) => { d.contract_ref.texts = d.contract_ref.texts.slice(0, 1); }, /MECHANISM_REGISTER_FIELD:contract_ref\.texts/],
+    ['contract_ref.texts sha', (d) => { d.contract_ref.texts[1].sha256 = SHA_A; }, /MECHANISM_REGISTER_FIELD:contract_ref\.texts\.FREEZE_REVIEW_REV_3/],
     ['id 写法', (d) => { d.mechanisms[0].mechanism_id = 'sel.kline'; }, /MECHANISM_REGISTER_ID_FORMAT/],
     ['前缀与层不符', (d) => { d.mechanisms[0].layer = 'RISK'; }, /MECHANISM_REGISTER_LAYER_PREFIX/],
     ['层不在四个可登记层里', (d) => { d.mechanisms[0].layer = 'DIAGNOSTIC'; }, /MECHANISM_REGISTER_LAYER_PREFIX/],
