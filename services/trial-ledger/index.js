@@ -275,9 +275,10 @@ function markSegments(specs, { registeredBy, registeredAt = null, dryRun = false
  * 一族在 [from, to] 上的段：底色（UNSEEN / SEEN，后写的覆盖先写的；没标的日期一律 SEEN）加前向保留（只对 shadow_ref 的候选）。
  * @returns {{pieces: {from,to,label,seen_kind,source}[], reservations: {from,to,label,shadow_ref}[]}}
  */
-function segmentsFor(familyId, from, to) {
+function segmentsFor(familyId, from, to, { marks: given = null } = {}) {
   need(DATE.test(from || '') && DATE.test(to || '') && from <= to, 'SEGMENT_RANGE_INVALID', `${from}..${to}`);
-  const marks = read(SEGMENTS()).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1' && r.family_id === familyId);
+  // given：调用方给定的标签行（机制查询按 as_of 过滤后传入，研究框架修订 2026-11-12 §4.3）；默认读本机台账
+  const marks = (given || read(SEGMENTS())).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1' && r.family_id === familyId);
   const days = [];
   for (let d = from; d <= to; d = addDay(d)) days.push({ d, label: 'SEEN', seen_kind: null, source: 'UNMARKED_DEFAULT_SEEN' });
   for (const m of marks) {
@@ -296,8 +297,8 @@ function segmentsFor(familyId, from, to) {
 }
 
 /** 写进试验行 segments[] 的标签：底色标签去重；本试验是某影子的候选时，其保留段写成 FORWARD_RESERVED:<shadow>。 */
-function segmentLabels(familyId, from, to, { shadowRef = null } = {}) {
-  const { pieces, reservations } = segmentsFor(familyId, from, to);
+function segmentLabels(familyId, from, to, { shadowRef = null, marks = null } = {}) {
+  const { pieces, reservations } = segmentsFor(familyId, from, to, { marks });
   const labels = [...new Set(pieces.map((p) => (p.seen_kind ? `${p.label}:${p.seen_kind}` : p.label)))];
   for (const r of reservations) if (r.label === 'FORWARD_RESERVED' && r.shadow_ref === shadowRef) labels.push(`FORWARD_RESERVED:${r.shadow_ref}`);
   return labels;

@@ -19,6 +19,7 @@ const { dataDir, now, append, read } = require('../../packages/ledger');
 const baseline = require('../baseline-evaluation');
 const profiles = require('../strategy-profiles');
 const trialGates = require('../trial-ledger/gates');
+const mechanismGate = require('../research-mechanism-register/gate');
 
 const { K3Error, need, sha256, canonical, authority } = baseline.internals;
 
@@ -395,6 +396,8 @@ const boundFiles = (entry) => [
   ...(entry.run_log ? [{ role: 'RUN_LOG', spec: entry.run_log }] : []),
   // 导入规格修订 4：门的裁定页（只有登记了 trial_gates_ruling 的题才有）
   ...(entry.trial_gates_ruling ? [{ role: 'RULING', spec: entry.trial_gates_ruling.spec }] : []),
+  // 研究框架修订 2026-11-12 §4.4：G-MECH 的先前结论表（只有登记了 mechanism_prior_table 的题才有，之前的题不变）
+  ...(entry.mechanism_prior_table ? [{ role: 'MECH_PRIOR', spec: entry.mechanism_prior_table }] : []),
 ];
 const evidencePath = (dir, spec) => (spec.source === 'coordinator' ? path.join(dir, 'coordinator', spec.path) : path.join(dir, spec.source, spec.commit.slice(0, 12), spec.path));
 
@@ -457,7 +460,7 @@ function headLock(entryId, store = STORE) {
 }
 
 /** 校验一题（不写）：绑定文件全部在证据目录且 sha256 与旁注一致；RESULT 的结论等于登记的期望值。 */
-function checkEntry(entry, evidenceDir, store = STORE) {
+function checkEntry(entry, evidenceDir, store = STORE, mechanismGateOptions = {}) {
   const identity = store.identityOf(entry);
   const refs = boundFiles(entry).map(({ role, spec }) => {
     const file = evidencePath(evidenceDir, spec);
@@ -475,21 +478,26 @@ function checkEntry(entry, evidenceDir, store = STORE) {
     rulingBytes: () => (entry.trial_gates_ruling ? readBound(evidencePath(evidenceDir, entry.trial_gates_ruling.spec), entry.trial_gates_ruling.spec.sha256) : null),
     freezeBytes: () => (entry.freeze ? readBound(evidencePath(evidenceDir, entry.freeze), entry.freeze.sha256) : null),
   });
-  return { identity, refs, verdict, trial };
+  // 研究框架修订 2026-11-12 §4.4、§5、§2.4：G-TRIAL 之后再过 G-MECH、K2 §0 四行与 AI 输入检查；只对修订冻结之后冻结的 K2，失败即关，不改结论
+  const mechanism = mechanismGate.check(entry, {
+    k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
+    priorTableBytes: () => (entry.mechanism_prior_table ? readBound(evidencePath(evidenceDir, entry.mechanism_prior_table), entry.mechanism_prior_table.sha256) : null),
+  }, mechanismGateOptions);
+  return { identity, refs, verdict, trial, mechanism };
 }
 
 /**
  * 导入并锁定（命令行，完成权威）。整批先校验，全部通过才写；同一文件重复导入是幂等重放。
  * 某题已有另一份锁时拒绝，除非 supersedes 是那份锁的 result_id 并给出缺陷引用与理由（旧锁保留）。
  */
-function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = STORE, supersedes = {}, defectRef = null, reason = null, lockedAt = null } = {}) {
+function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = STORE, supersedes = {}, defectRef = null, reason = null, lockedAt = null, mechanismGate: mechanismGateOptions = {} } = {}) {
   authority(registeredBy);
   need(evidenceDir && fs.existsSync(evidenceDir), E('EVIDENCE_DIR_MISSING'), evidenceDir);
   const ids = new Set();
   const plan = entries.map((entry) => {
     need(!ids.has(entry.id), E('DUPLICATE_ENTRY'), entry.id);
     ids.add(entry.id);
-    const checked = checkEntry(entry, evidenceDir, store);
+    const checked = checkEntry(entry, evidenceDir, store, mechanismGateOptions);
     const resultId = resultIdOf(entry, store);
     const head = headLock(entry.id, store);
     if (head && head.result_id === resultId) return { replay: head };
@@ -512,6 +520,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
       supersede_reason: supersedesRef ? reason : null, production_effect: 'NONE', locked_by: registeredBy, locked_at: stamp,
     };
     if (checked.trial.applies) body.trial_gates = checked.trial;
+    if (checked.mechanism.applies) body.mechanism_gate = checked.mechanism;
     body.lock_hash = sha256(canonical(body));
     return append(store.ledger(), body);
   });
@@ -521,7 +530,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
 
 const KIND_ZH = { RESULT: '已封存', DRAFT: '草稿（未冻结）', STATUS: '冻结 / 前向影子', READING: '只报读数' };
 const FILE_LABEL_ZH = { RESULT: '封存结果文件', READING: '封存读数文件', DRAFT: 'K2 草稿', STATUS: '影子规格' };
-const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定', RUN_LOG: '运行日志', RULING: '门的裁定' };
+const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定', RUN_LOG: '运行日志', RULING: '门的裁定', MECH_PRIOR: '机制先前结论表' };
 const toneOf = (entry, decision) => (entry.kind !== 'RESULT' ? 'NEUTRAL' : decision === '做' ? 'DO' : decision === '不做' ? 'DONT' : 'OTHER');
 const reasonText = (error) => (error instanceof K3Error ? `${error.code}${error.detail ? `（${error.detail}）` : ''}` : error.message);
 
