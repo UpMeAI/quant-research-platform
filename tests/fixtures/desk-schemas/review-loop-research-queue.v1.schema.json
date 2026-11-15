@@ -142,7 +142,7 @@
             "dueBy": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/instant" }] },
             "outcome": { "enum": [null, "OPEN_QUESTION", "FIX", "MERGE", "CLOSE"] },
             "reasonCode": {
-              "enum": [null, "NO_RECURRENCE", "PARITY_MATCHED", "AS_DESIGNED", "ALREADY_FIXED", "SUBJECT_RETIRED", "COVERED_BY_QUESTION", "COVERED_BY_CANDIDATE"]
+              "enum": [null, "NO_RECURRENCE", "PARITY_MATCHED", "AS_DESIGNED", "ALREADY_FIXED", "SUBJECT_RETIRED", "COVERED_BY_QUESTION", "COVERED_BY_CANDIDATE", "MECHANISM_SETTLED"]
             },
             "questionRef": { "$ref": "#/$defs/nullableText" },
             "mergedInto": { "$ref": "#/$defs/nullableText" },

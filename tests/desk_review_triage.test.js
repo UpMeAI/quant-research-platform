@@ -67,7 +67,10 @@ const ENTRIES = () => [
   entry('RLC-CRYPTO-2000W01-1', 'DATA'),
   entry('RLC-CRYPTO-1999W52-1', 'EXECUTION', { choice: 'RESEARCH' }),
 ];
-const record = (desk, over) => triage.recordTriage({ outcome: 'CLOSE', evidence: [], basisZh: '依据见所引文件（合成）', at: AT, ...over }, { deskRoot: desk });
+// 这些夹具是研究框架修订 2026-11-12 FREEZE_1 生效之前的分诊（记录时刻早于 EFFECTIVE_FROM）：立题不要求机制查询。
+// 生效之后的规则见 tests/desk_review_triage_mechanism.test.js。
+const PRE_AMENDMENT = '2026-11-15T14:00:00.000Z';
+const record = (desk, over) => triage.recordTriage({ outcome: 'CLOSE', evidence: [], basisZh: '依据见所引文件（合成）', at: AT, ...over }, { deskRoot: desk, writtenAt: PRE_AMENDMENT });
 
 test('Q1：判不做带登记码与证据才记；码未登记、证据缺、不在队列、结果与类型不配、不在待分诊、依据有指令词，一律拒收且不写', () => {
   reset();

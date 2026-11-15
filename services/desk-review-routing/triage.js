@@ -11,23 +11,40 @@
  * 判不做与并入必须带 RESEARCH_TRIAGE_CODES@v1 的码和证据；码表里没有「样本不足」一类（Owner 10-02、10-12：样本不足不能当不做的理由）。
  * desk 编周档时按同样的规则再核一遍（desk ops/review-loop/triage.cjs），不合规的只列为「未采用」，不改候选。
  * 回程导出（return.js）把每个候选当前有效的一行按 desk 契约的字段带到 desk：triage[]。
+ *
+ * 码表 @v2 与机制查询（研究框架修订 2026-11-12 FREEZE_1 E11；desk 草稿 REVIEW_LOOP_ACCEPTANCE_V1_ADDENDUM_7_CODES_V2，★T1–T5 取 (a)）：
+ *   - @v2 = @v1 + MECHANISM_SETTLED（判不做：机制分诊查询读数 NOT_DO_SETTLED），与 desk triage.cjs 同表；
+ *   - 研究类候选在 FREEZE_1 生效之后（按记录时刻 written_at，不按自报的 at）立题，必须带 mechanism{ids, market, ownerNamed?, registerCommit}；
+ *     查询读数 NOT_DO_SETTLED 时拒绝立题（Owner 点名的题读数是 NORMAL_OWNER_NAMED，放行）；
+ *   - MECHANISM_SETTLED：用 registerCommit 那一版登记表、以 at 为 as_of 重算查询，读数必须是 NOT_DO_SETTLED；证据 FILE 的 hash = 表的 sha256，
+ *     REPO 指向 QRP 登记表那个提交；
+ *   - 机制读数记在本机账本行的 mechanism_query，不进 record_hash 的正文（desk 按回程字段复算 record_hash），回程 triage[] 字段不变。
  */
+const crypto = require('crypto');
 const { dataDir, append, appendMany, read } = require('../../packages/ledger');
 const { contentHash } = require('./canonical');
 const routing = require('./index');
+const mech = require('../research-mechanism-register');
+const mechanismGate = require('../research-mechanism-register/gate');
+const amendment = require('../research-framework-amendment-20261112');
 
 const SCHEMA = 'RESEARCH_TRIAGE_V1';
 const LEDGER = () => dataDir('research', 'desk_triage.jsonl');
 const OUTCOMES = Object.freeze(['OPEN_QUESTION', 'FIX', 'MERGE', 'CLOSE']);
-/** RESEARCH_TRIAGE_CODES@v1：码 → 所属结果（与 desk ops/review-loop/triage.cjs 同表）。 */
-const CODES = Object.freeze({
+/** RESEARCH_TRIAGE_CODES@v1：码 → 所属结果（冻结时的原表，原样保留）。 */
+const CODES_V1 = Object.freeze({
   NO_RECURRENCE: 'CLOSE', PARITY_MATCHED: 'CLOSE', AS_DESIGNED: 'CLOSE', ALREADY_FIXED: 'CLOSE', SUBJECT_RETIRED: 'CLOSE',
   COVERED_BY_QUESTION: 'MERGE', COVERED_BY_CANDIDATE: 'MERGE',
 });
+/** RESEARCH_TRIAGE_CODES@v2 = @v1 + MECHANISM_SETTLED（与 desk ops/review-loop/triage.cjs 同表）。 */
+const CODES = Object.freeze({ ...CODES_V1, MECHANISM_SETTLED: 'CLOSE' });
+const CODES_VERSION = 'RESEARCH_TRIAGE_CODES@v2';
 const CODE_ZH = Object.freeze({
   NO_RECURRENCE: '之后的扫描没有再出现', PARITY_MATCHED: '对账重跑已一致', AS_DESIGNED: '契约本来如此', ALREADY_FIXED: '别处已修好',
   SUBJECT_RETIRED: '账本或规则已退役', COVERED_BY_QUESTION: '已有研究问题覆盖', COVERED_BY_CANDIDATE: '已有复盘候选覆盖',
+  MECHANISM_SETTLED: '机制已判不做（同机制同市场的先前结论是不做、功效 ≥ 80%、之后没有新数据）',
 });
+const QRP_REPO = 'quant-research-platform';
 const FIX_REPOS = Object.freeze(['Ashare-V6', 'smartflow', 'portfolio-desk']);
 const RESEARCH_TYPES = Object.freeze(['PARAMETER', 'RULE']);
 const ENGINEERING_TYPES = Object.freeze(['DATA', 'EXECUTION']);
@@ -51,6 +68,8 @@ const isRepo = (e, { needPath = false, clause = false } = {}) => e && e.kind ===
   && (!needPath || text(e.path)) && (!clause || text(e.clause));
 const isFile = (e) => e && e.kind === 'FILE' && text(e.file) && HEX64.test(e.hash || '') && text(e.path);
 const isScan = (e) => e && e.kind === 'SCAN' && /^\d{4}-W\d{2}$/.test(e.weekId || '') && text(e.file) && HEX64.test(e.hash || '');
+const isRegisterRepo = (e, commit) => isRepo(e, { needPath: true }) && e.repo === QRP_REPO && e.path === mech.REGISTER_PATH && e.commit === commit;
+const sha256 = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 
 /** 一条证据按 desk 契约的形状（缺的字段补 null，多的字段不带）。 */
 function evidenceItem(e) {
@@ -101,6 +120,9 @@ function evidenceProblem(input, entry, entries) {
     case 'ALREADY_FIXED': return has((e) => isRepo(e)) && has(isFile) ? null : 'EVIDENCE';
     case 'SUBJECT_RETIRED': return has((e) => isRepo(e, { needPath: true })) ? null : 'EVIDENCE';
     case 'COVERED_BY_QUESTION': return text(input.mergedInto) && has((e) => isRepo(e, { needPath: true })) ? null : 'EVIDENCE';
+    // @v2：表的 sha256 与登记表提交都要对上（读数本身在 prepareTriage 里已经重算核过）
+    case 'MECHANISM_SETTLED': return has((e) => isFile(e) && e.hash === input.mechanismReading.query.table_sha256)
+      && has((e) => isRegisterRepo(e, input.mechanismReading.query.register_commit)) ? null : 'EVIDENCE';
     default: {
       if (!CANDIDATE_ID.test(input.mergedInto || '') || input.mergedInto === entry.candidateId) return 'MERGE_TARGET';
       return entries.some((e) => e.candidateId === input.mergedInto) ? null : 'MERGE_TARGET';
@@ -109,11 +131,31 @@ function evidenceProblem(input, entry, entries) {
 }
 
 /**
+ * 机制分诊查询（E11）：按 registerCommit 读那一版登记表，以分诊时刻 at 为 as_of 重算；返回表与要记进账本行的 mechanism_query。
+ * 只给研究类候选；字段不全、提交找不到、id 没登记（查询本身失败即关）一律拒收。
+ */
+function mechanismReading(input, entry, { registerAt = mechanismGate.internals.gitRegisterAt, marks = null } = {}) {
+  const m = input.mechanism;
+  const ok = m && typeof m === 'object' && !Array.isArray(m) && Array.isArray(m.ids) && m.ids.length && m.ids.every(text) && text(m.market)
+    && HEX40.test(m.registerCommit || '') && (m.ownerNamed === undefined || typeof m.ownerNamed === 'boolean');
+  if (!ok) fail('TRIAGE_MECHANISM_INVALID', JSON.stringify(m === undefined ? null : m));
+  if (!RESEARCH_TYPES.includes(entry.candidateType)) fail('TRIAGE_MECHANISM_NOT_RESEARCH', `${entry.candidateId}:${entry.candidateType}`);
+  const registerBytes = registerAt(m.registerCommit);
+  if (!registerBytes) fail('TRIAGE_MECHANISM_REGISTER_NOT_FOUND', m.registerCommit);
+  const table = mech.query({ mechanism_ids: m.ids, market: m.market, owner_named: m.ownerNamed === true }, { registerBytes, registerCommit: m.registerCommit, marks, asOf: input.at });
+  return {
+    table,
+    query: { mechanism_ids: table.query.mechanism_ids, market: table.query.market, owner_named: table.query.owner_named, register_commit: m.registerCommit,
+      register_sha256: table.register.sha256, table_sha256: sha256(mech.tableBytes(table)), route: table.route },
+  };
+}
+
+/**
  * 记一条分诊（失败关闭：任何一项不合规就拒收，什么也不写）。读最新一份 desk 研究队列（复盘镜像或 desk checkout）。
  * @param {object} input  {candidateId, outcome, reasonCode?, questionRef?, mergedInto?, fixRef?, evidence?, basisZh, at, sessionRef?, supersedes?}
  * @returns {object} 写下的账本行
  */
-function prepareTriage(input, { deskRoot, existingRows = ledgerRows(), writtenAt = new Date().toISOString() } = {}) {
+function prepareTriage(input, { deskRoot, existingRows = ledgerRows(), writtenAt = new Date().toISOString(), mechanism: mechanismOptions = {} } = {}) {
   const queue = routing.readQueue({ deskRoot });
   const entries = queue.payload.entries;
   const entry = entries.find((e) => e.candidateId === input.candidateId);
@@ -134,16 +176,28 @@ function prepareTriage(input, { deskRoot, existingRows = ledgerRows(), writtenAt
   if (directive) fail('TRIAGE_WORDING', directive);
   if (!BEIJING.test(String(input.at || '')) || !Number.isFinite(Date.parse(input.at))) fail('TRIAGE_AT_NOT_BEIJING_TIME', input.at);
   const evidence = (input.evidence || []).map(evidenceItem);
+  // E11 ★T1：FREEZE_1 生效之后（按记录时刻）研究类立题必须带机制查询；带了就重算并记下读数
+  const effectiveFrom = mechanismOptions.effectiveFrom === undefined ? amendment.EFFECTIVE_FROM : mechanismOptions.effectiveFrom;
+  const gated = Boolean(effectiveFrom) && Date.parse(writtenAt) >= Date.parse(effectiveFrom);
+  const reading = input.mechanism === undefined || input.mechanism === null ? null : mechanismReading(input, entry, mechanismOptions);
   let reasonCode = null;
   if (input.outcome === 'OPEN_QUESTION') {
     if (!text(input.questionRef)) fail('TRIAGE_QUESTION_REF_MISSING');
+    if (gated && !reading) fail('TRIAGE_MECHANISM_REQUIRED', entry.candidateId);
+    // ★T3：已判不做的机制不再立题，只能用 MECHANISM_SETTLED 判不做（Owner 点名的读数是 NORMAL_OWNER_NAMED）
+    if (reading && reading.table.route === 'NOT_DO_SETTLED') fail('TRIAGE_MECHANISM_SETTLED', `${entry.candidateId}:${reading.table.cite_seal_sha256.join(',')}`);
   } else if (input.outcome === 'FIX') {
     if (!input.fixRef || !FIX_REPOS.includes(input.fixRef.repo) || !text(input.fixRef.ref)) fail('TRIAGE_FIX_REF_INVALID', JSON.stringify(input.fixRef || null));
   } else {
     reasonCode = input.reasonCode;
     if (!Object.prototype.hasOwnProperty.call(CODES, reasonCode || '')) fail('TRIAGE_CODE_NOT_REGISTERED', reasonCode);
     if (CODES[reasonCode] !== input.outcome) fail('TRIAGE_CODE_OUTCOME', `${reasonCode}:${input.outcome}`);
-    const problem = evidenceProblem({ ...input, evidence }, entry, entries);
+    if (reasonCode === 'MECHANISM_SETTLED') {
+      if (!RESEARCH_TYPES.includes(entry.candidateType)) fail('TRIAGE_MECHANISM_NOT_RESEARCH', `${entry.candidateId}:${entry.candidateType}`);
+      if (!reading) fail('TRIAGE_MECHANISM_REQUIRED', entry.candidateId);
+      if (reading.table.route !== 'NOT_DO_SETTLED') fail('TRIAGE_MECHANISM_NOT_SETTLED', reading.table.route);
+    }
+    const problem = evidenceProblem({ ...input, evidence, mechanismReading: reading }, entry, entries);
     if (problem) fail(`TRIAGE_${problem}`, reasonCode);
   }
   const body = {
@@ -160,6 +214,8 @@ function prepareTriage(input, { deskRoot, existingRows = ledgerRows(), writtenAt
     recorded_by: 'RESEARCH', session_ref: body.sessionRef, triaged_at: body.at, supersedes: body.supersedes, production_effect: 'NONE',
     written_at: writtenAt,
   };
+  // ★T4：机制读数只记在本机账本行（不进 record_hash 的正文；没有机制查询的行形状不变）
+  if (reading) row.mechanism_query = reading.query;
   return row;
 }
 
@@ -171,12 +227,12 @@ function recordTriage(input, options = {}) {
 /**
  * 先在内存中核验整批决定。后一行能看到前一行的虚拟台账状态，因此重复、无效 supersedes 会在任何写入前被拒绝。
  */
-function prepareTriageBatch(inputs, { deskRoot, writtenAt = new Date().toISOString() } = {}) {
+function prepareTriageBatch(inputs, { deskRoot, writtenAt = new Date().toISOString(), mechanism = {} } = {}) {
   if (!Array.isArray(inputs) || inputs.length === 0) fail('TRIAGE_BATCH_EMPTY');
   const virtualRows = ledgerRows();
   const prepared = [];
   for (const input of inputs) {
-    const row = prepareTriage(input, { deskRoot, existingRows: virtualRows, writtenAt });
+    const row = prepareTriage(input, { deskRoot, existingRows: virtualRows, writtenAt, mechanism });
     virtualRows.push(row);
     prepared.push(row);
   }
@@ -209,5 +265,5 @@ function pendingTriage({ deskRoot, now = new Date() } = {}) {
   return { entries: pending, earliestDue, textZh };
 }
 
-module.exports = { CODES, CODE_ZH, FIX_REPOS, LEDGER, OUTCOMES, SCHEMA, TriageError, deskRow, effectiveTriage, monthDay, pendingTriage,
-  prepareTriage, prepareTriageBatch, recordTriage, recordTriageBatch, waitsForTriage };
+module.exports = { CODES, CODES_V1, CODES_VERSION, CODE_ZH, FIX_REPOS, LEDGER, OUTCOMES, QRP_REPO, SCHEMA, TriageError, deskRow, effectiveTriage, mechanismReading, monthDay,
+  pendingTriage, prepareTriage, prepareTriageBatch, recordTriage, recordTriageBatch, waitsForTriage };

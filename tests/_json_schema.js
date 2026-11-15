@@ -2,7 +2,7 @@
 /**
  * 测试用的 JSON Schema（2020-12）子集校验器，不引入依赖：type、const、enum、pattern、minLength、minimum、format date-time、
  * required、properties、additionalProperties: false、items、minItems、anyOf、$ref（#/$defs/…）。
- * 用来核对回程文件与研究队列夹具符合 desk 的两份 schema（tests/fixtures/desk-schemas/，取自 portfolio-desk ea31a3e，只有字段形状）。
+ * 用来核对回程文件与研究队列夹具符合 desk 的两份 schema（tests/fixtures/desk-schemas/，取自 portfolio-desk ea31a3e，只有字段形状；研究队列那份按 desk #117 9371d7f 更新：reasonCode 枚举加 RESEARCH_TRIAGE_CODES@v2 的 MECHANISM_SETTLED）。
  */
 const TYPES = {
   string: (v) => typeof v === 'string', number: (v) => typeof v === 'number' && Number.isFinite(v), integer: (v) => Number.isInteger(v),
