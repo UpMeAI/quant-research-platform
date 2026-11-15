@@ -15,7 +15,7 @@ const { read } = require('../packages/ledger');
 
 /**
  * G-CAUSAL（研究框架修订 2026-11-12 草稿 rev 1 §3.4）：导入器的因果门。先红后绿，只用合成登记与合成证据。
- * 门只会拒绝导入，从不改写结论；修订未冻结（EFFECTIVE_FROM = null）时不对任何题强制，测试注入生效时刻。
+ * 门只会拒绝导入，从不改写结论；生效时刻取冻结页 FREEZE_1（2026-11-15T22:47:42+08:00），单元测试另行注入生效时刻。
  */
 const AUTH = 'TEST_CAUSALITY_AUTHORITY';
 const EFF = '2026-11-16T00:00:00+08:00';
@@ -33,7 +33,7 @@ function fnRecord(id, patch = {}) {
     cut_points: ['2025-01-10T07:00:00.000Z'], t_c1: 'PASS', t_c2: 'PASS', t_c3: 'PASS', fail_reasons: {}, mismatches: [], ...patch };
 }
 function evidence({ k2Sha, functions = [fnRecord(FN)], patch = {} }) {
-  const doc = { schema: 'CAUSALITY_EVIDENCE_V1', study_ref: 'R99_K2_V1', k2_sha256: k2Sha, code_repo: 'smartflow', code_sha: CODE, harness_version: '1.0.0',
+  const doc = { schema: 'CAUSALITY_EVIDENCE_V1', contract_ref: gate.CONTRACT_REF, study_ref: 'R99_K2_V1', k2_sha256: k2Sha, code_repo: 'smartflow', code_sha: CODE, harness_version: '1.0.0',
     harness_sha256: 'a'.repeat(64), seed: gate.SEED, cut_points_per_function: gate.CUT_POINTS, manifest_sha256: 'd'.repeat(64), functions, unknown: {},
     production_effect: 'NONE', registered_by: 'TEST', registered_at: '2026-11-15T14:00:00Z', ...patch };
   doc.record_hash = gate.recordHash(doc);
@@ -53,13 +53,27 @@ function direct({ k2Text = K2_DEFAULT, doc, docFn, entryPatch = {}, log = runLog
   return gate.check(entry, { k2Bytes: () => k2, evidenceBytes: () => evBytes, runLogBytes: () => log, rulingBytes: () => (ruling ? Buffer.from(ruling) : null) }, { effectiveFrom });
 }
 
-test('修订未冻结：EFFECTIVE_FROM 为 null，现行海外与 A 股登记表没有一题过门、也没有一题绑证据，锁行不加字段', () => {
-  assert.equal(gate.EFFECTIVE_FROM, null);
+test('冻结页绑定：EFFECTIVE_FROM 取 FREEZE_1 的时刻（与 G-MECH 同一个常量）；现行海外与 A 股登记表都在此前冻结或封存，没有一题过门、也没有一题绑证据，锁行不加字段', () => {
+  assert.equal(gate.EFFECTIVE_FROM, '2026-11-15T22:47:42+08:00');
+  assert.deepEqual([gate.FREEZE.ref, gate.FREEZE.sha256_prefix, gate.FREEZE.draft_sha256_prefix, gate.FREEZE.review_sha256_prefix],
+    ['artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md', 'c9742ea0', 'd7f85a87', 'd943d342']);
+  assert.equal(gate.CONTRACT_REF, 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md@c9742ea0');
+  // E13 / G14 是同一个常量：机制门（PR #84）在场时两者必须相等
+  let mech = null;
+  try { mech = require('../services/research-mechanism-register/gate'); } catch { /* #84 未合并 */ }
+  if (mech && mech.EFFECTIVE_FROM !== null) assert.equal(mech.EFFECTIVE_FROM, gate.EFFECTIVE_FROM);
+  const reasons = new Set();
   for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) {
-    assert.equal(gate.applies(entry).applies, false, entry.id);
+    const scope = gate.applies(entry);
+    assert.equal(scope.applies, false, entry.id);
+    reasons.add(scope.reason);
     assert.equal(entry.causality_evidence, undefined, entry.id);
     assert.equal(entry.causality_ruling, undefined, entry.id);
   }
+  assert.deepEqual([...reasons].sort(), ['FROZEN_BEFORE_AMENDMENT', 'NO_K2', 'SEALED_BEFORE_AMENDMENT']);
+  assert.equal(gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) }, k2_frozen_at: '2026-11-15T22:47:42+08:00' }).applies, true);
+  assert.equal(gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) }, k2_frozen_at: '2026-11-15T22:47:41+08:00' }).applies, false);
+  assert.throws(() => gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) }, sealed_on: '2026-11-15' }), /CAUSALITY_K2_FROZEN_AT_MISSING/);
   // 注入生效时刻后，只有封存导入（RESULT / READING）且 K2 冻结不早于生效时刻的题过门
   const e = { id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) } };
   assert.deepEqual(gate.applies({ ...e, k2_frozen_at: '2026-11-17T00:00:00+08:00' }, EFF), { applies: true, reason: 'FROZEN_AFTER_AMENDMENT' });
@@ -105,6 +119,7 @@ test('证据失败即关：没绑、与 K2 不符、改过字节、unknown 非�
   assert.throws(() => direct({ doc: evidence({ k2Sha: sha(k2), patch: { cut_points_per_function: 5 } }) }), /CAUSALITY_EVIDENCE_PARAMS_NOT_FROZEN/);
   assert.throws(() => direct({ doc: evidence({ k2Sha: sha(k2), patch: { harness_version: '0.9.0' } }) }), /CAUSALITY_HARNESS_VERSION_UNKNOWN/);
   assert.throws(() => direct({ doc: evidence({ k2Sha: sha(k2), patch: { production_effect: 'LIVE' } }) }), /CAUSALITY_EVIDENCE_PRODUCTION_EFFECT_INVALID/);
+  assert.throws(() => direct({ doc: evidence({ k2Sha: sha(k2), patch: { contract_ref: 'draft@d7f85a87' } }) }), /CAUSALITY_EVIDENCE_CONTRACT_MISMATCH/);
   assert.throws(() => direct({ docFn: [fnRecord(FN2)] }), /CAUSALITY_FUNCTION_NOT_IN_EVIDENCE/);
   assert.throws(() => direct({ docFn: [fnRecord(FN), fnRecord(FN2)] }), /CAUSALITY_FUNCTION_NOT_IN_K2/);
   assert.throws(() => direct({ docFn: [fnRecord(FN), fnRecord(FN)] }), /CAUSALITY_EVIDENCE_FUNCTION_DUPLICATE/);
@@ -208,7 +223,7 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('导入器：没绑证据、修订未冻结的题照原样导入，锁行不带 causality_gate；绑了证据的题证据进 refs，锁里记只报结果', () => {
+test('导入器：修订前冻结、没绑证据的题照原样导入，锁行不带 causality_gate；绑了证据的题证据进 refs，锁里记只报结果', () => {
   const plain = importerFixture({ withEvidence: false });
   const [row] = overseas.importVerdicts(plain.out, { registeredBy: AUTH, entries: [plain.entry] });
   assert.equal(row.causality_gate, undefined);
@@ -218,7 +233,8 @@ test('导入器：没绑证据、修订未冻结的题照原样导入，锁行�
   const [lock] = overseas.importVerdicts(bound.out, { registeredBy: AUTH, entries: [bound.entry] });
   assert.equal(lock.decision, '做'); // 门不改结论
   assert.ok(lock.refs.some((r) => r.role === 'CAUSALITY_EVIDENCE' && r.sha256 === bound.entry.causality_evidence.sha256));
-  assert.deepEqual([lock.causality_gate.applies, lock.causality_gate.report_only, lock.causality_gate.code_sha_matches_run_log], [false, true, true]);
+  assert.deepEqual([lock.causality_gate.applies, lock.causality_gate.report_only, lock.causality_gate.reason, lock.causality_gate.code_sha_matches_run_log], [false, true, 'FROZEN_BEFORE_AMENDMENT', true]);
+  assert.equal(lock.causality_gate.contract_ref, gate.CONTRACT_REF);
   assert.equal(read(overseas.LEDGER()).length, 1);
 });
 

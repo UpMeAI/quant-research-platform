@@ -330,8 +330,8 @@ const SCHEMAS = Object.freeze({
     supersedes: 's?', defect_ref: 's?', production_effect: 's', registered_by: 's', registered_at: 's', record_hash: 's',
   },
   CAUSALITY_EVIDENCE_V1: {
-    _doc: '研究框架修订 2026-11-12（草稿 rev 1，d7f85a87）§3.4 —— G-CAUSAL 因果证据：一份 K2 一次运行，逐函数记 T-C1 前缀等价、T-C2 未来替换、T-C3 只读给定输入（PASS／FAIL）与前 20 处不一致；由 tools/causality-harness 写出，写一次不改（更正写新文件）；按 sha256 绑定进导入登记（entry.causality_evidence）；读不到的事实写进 unknown{字段: 原因}',
-    study_ref: 's', k2_sha256: 's', code_repo: 's', code_sha: 's?', harness_version: 's', harness_sha256: 's', seed: 'n', cut_points_per_function: 'n',
+    _doc: '研究框架修订 2026-11-12（FREEZE_1 c9742ea0）§3.4 —— G-CAUSAL 因果证据：一份 K2 一次运行，逐函数记 T-C1 前缀等价、T-C2 未来替换、T-C3 只读给定输入（PASS／FAIL）与前 20 处不一致；由 tools/causality-harness 写出，写一次不改（更正写新文件）；按 sha256 绑定进导入登记（entry.causality_evidence）；读不到的事实写进 unknown{字段: 原因}',
+    contract_ref: 's', study_ref: 's', k2_sha256: 's', code_repo: 's', code_sha: 's?', harness_version: 's', harness_sha256: 's', seed: 'n', cut_points_per_function: 'n',
     manifest_sha256: 's', functions: 'a', unknown: 'o', production_effect: 's', registered_by: 's', registered_at: 's', record_hash: 's',
   },
   SIGNAL_REGISTRY_ROW_V1: {

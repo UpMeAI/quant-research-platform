@@ -1,10 +1,10 @@
 # CAUSALITY_EVIDENCE_V1 · G-CAUSAL 因果门（工具、证据、导入）
 
-- 依据：研究框架修订 2026-11-12 草稿修订 1 §3（协调会话目录 `RESEARCH_FRAMEWORK_AMENDMENT_20261112_CAUSALITY_MECHANISM_AI_ROLE.draft.md`，sha256 `d7f85a87…`）。
-- 状态：**修订未冻结**，按草稿实现。
-  - `services/causality-gate` 的 `EFFECTIVE_FROM` 为 `null`，门不对任何题强制。
-  - 冻结页写出生效时刻后改这一个常量；冻结页若选了非 (a) 的选项，照改。
-  - 草稿没写明、实现时取了推荐 (a) 的地方，逐条交冻结审阅（编号 G1–G17）。
+- 依据：研究框架修订 2026-11-12 §3，**已冻结**。
+  - 冻结页 `artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md`（sha256 `c9742ea0…`，协调会话 2026-11-15T22:47:42+08:00）；
+  - 冻结的文本：草稿修订 1（`d7f85a87…`）加上冻结审阅 rev 3（`d943d342…`）。§3 的 G1–G20 全部取 (a)，本合同按此写。
+- 生效：`EFFECTIVE_FROM = 2026-11-15T22:47:42+08:00`，与 G-MECH（E13）共用同一个常量。此刻及之后冻结的 K2 过门，此前已冻结的不追溯。
+- 代码常量绑定冻结页：`services/causality-gate` 的 `FREEZE` 写路径与 sha256 前缀（E1）。证据写出 `contract_ref` = `<冻结页路径>@c9742ea0`，过门时核对。
 - 性质：只改研究流程，不改交易、风控、账户规则，不改生产。门只会拒绝导入，从不改写结论，也不会因此判「不做」。
 - 实现不造表达式语言（§3.5）：对每个函数做确定性测试，一套工具、两个运行器（Node，Python）。
 
@@ -111,7 +111,7 @@
 一份 K2 一次运行一份 JSON。由 `tools/causality-harness` 写出，写一次不改：目标已存在就拒绝，旁边写 `.sha256`。更正写新文件，并换新绑定。schema 登记在 `schemas/index.js`。
 
 - **顶层：**
-  - `study_ref`、`k2_sha256`、`code_repo`；
+  - `contract_ref`（本冻结页，见上）、`study_ref`、`k2_sha256`、`code_repo`；
   - `code_sha`：被测文件都已跟踪、已跟踪文件没有改动时为 HEAD，否则为 null，原因写进 `unknown.code_sha`；
   - `harness_version`、`harness_sha256`（工具源文件的 sha256）、`seed`、`cut_points_per_function`、`manifest_sha256`；
   - `functions[]`、`unknown{}`、`production_effect: "NONE"`、`registered_by`、`registered_at`、`record_hash`。
@@ -150,7 +150,7 @@
    - 结构与 `record_hash` 复算一致；
    - `k2_sha256` 等于这份 K2；
    - `unknown` 为空；
-   - 种子、截点数是冻结值；
+   - 种子、截点数是冻结值，`contract_ref` 是本冻结页；
    - 工具版本在认可列表里。
 3. `code_sha` 等于运行日志的 `<code_repo 的 - 换成 _>_run_commit`，例如 `ashare_v6_run_commit`、`smartflow_run_commit`：
    - 日志缺失 → `CAUSALITY_RUN_LOG_MISSING`；

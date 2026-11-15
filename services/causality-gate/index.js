@@ -1,7 +1,8 @@
 'use strict';
 
 /**
- * G-CAUSAL 因果门 —— 研究框架修订（2026-11-12，草稿 rev 1，sha256 d7f85a87…）§3.4；合同 docs/contracts/CAUSALITY_EVIDENCE_V1.md。
+ * G-CAUSAL 因果门 —— 研究框架修订（2026-11-12）§3.4，按 FREEZE_1（c9742ea0…，2026-11-15T22:47:42+08:00）冻结：草稿修订 1（d7f85a87…）
+ * 加冻结审阅 rev 3（d943d342…）的 G1–G20，全部取 (a)。合同 docs/contracts/CAUSALITY_EVIDENCE_V1.md。
  *
  * 接进海外与 A 股封存结论导入器（同一套 importVerdicts），在原有校验与 G-TRIAL 门之后运行。
  * 门只会拒绝导入（失败即关，错误码 CAUSALITY_*），从不改写结论，也不会因此判「不做」。
@@ -17,15 +18,22 @@
  *       RULED_LAG（§3.3「裁定写明滞后规则」）的输入也只能出自同一页裁定。
  *   不过门的题：照原样导入，锁行不加字段。绑了证据的（§3.6 补跑、§3.7 上线前核对）只核完整性，结果原样记进锁（只报，不拒绝 FAIL）。
  *
- * 修订尚未冻结：EFFECTIVE_FROM 为 null，门不对任何题强制；冻结页写出生效时刻后改这一个常量（RF1112 FROZEN）。
+ * 生效时刻取冻结页（E13 / G14 同一个常量，与 G-MECH 共用）：此刻及之后冻结的 K2 过门，此前已冻结的不追溯。
+ * 证据要写出 contract_ref（本冻结页的路径 + sha256 前缀），过门时核对。
  */
 const crypto = require('crypto');
 const { validateRecord } = require('../../schemas');
 const { canonicalJson } = require('../trial-ledger');
 
 const SCHEMA = 'CAUSALITY_EVIDENCE_V1';
-/** 修订生效时刻（K2 冻结不早于它才过门）。null = 修订未冻结。 */
-const EFFECTIVE_FROM = null;
+/** 冻结页（E1：路径 + sha256 前缀写进代码常量）。 */
+const FREEZE = Object.freeze({
+  ref: 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md', sha256_prefix: 'c9742ea0',
+  draft_sha256_prefix: 'd7f85a87', review_sha256_prefix: 'd943d342', effective_from: '2026-11-15T22:47:42+08:00',
+});
+const CONTRACT_REF = `${FREEZE.ref}@${FREEZE.sha256_prefix}`;
+/** 修订生效时刻（K2 冻结不早于它才过门）。 */
+const EFFECTIVE_FROM = FREEZE.effective_from;
 /** ★3 (a)：每个函数 20 个截点，种子 20261112。 */
 const SEED = 20261112;
 const CUT_POINTS = 20;
@@ -89,6 +97,7 @@ function parseEvidence(bytes, where = 'evidence') {
   need(v.ok, 'EVIDENCE_SCHEMA_INVALID', `${where}:${v.problems.join(',')}`);
   need(doc.record_hash === recordHash(doc), 'EVIDENCE_RECORD_HASH_MISMATCH', where);
   need(doc.production_effect === 'NONE', 'EVIDENCE_PRODUCTION_EFFECT_INVALID', where);
+  need(isText(doc.contract_ref), 'EVIDENCE_SCHEMA_INVALID', `${where}:contract_ref`);
   need(isText(doc.study_ref) && SHA64.test(doc.k2_sha256) && SHA64.test(doc.manifest_sha256) && SHA64.test(doc.harness_sha256), 'EVIDENCE_SCHEMA_INVALID', `${where}:sha256`);
   need(REPO.test(doc.code_repo), 'EVIDENCE_SCHEMA_INVALID', `${where}:code_repo`);
   need(doc.code_sha === null ? isText(doc.unknown.code_sha) : SHA40.test(doc.code_sha), 'EVIDENCE_CODE_SHA_INVALID', where);
@@ -111,7 +120,7 @@ function declaration(k2Text) {
 
 const sealing = (entry) => entry.kind === 'RESULT' || entry.kind === 'READING';
 
-/** 这一题是否过门。effectiveFrom 为 null（修订未冻结）时没有题过门。 */
+/** 这一题是否过门。effectiveFrom 默认取冻结页的生效时刻；传 null（只在测试里）时没有题过门。 */
 function applies(entry, effectiveFrom = EFFECTIVE_FROM) {
   if (!entry.k2 || entry.kind === 'DRAFT') return { applies: false, reason: entry.k2 ? 'DRAFT_NOT_FROZEN' : 'NO_K2' };
   if (!sealing(entry)) return { applies: false, reason: 'NOT_A_SEAL' };
@@ -186,7 +195,7 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
     // §3.6 补跑 / §3.7 上线前核对：只核完整性，结果原样记下，FAIL 不拒绝导入
     const doc = evidence();
     const log = runLogCommit(entry, runLogBytes, doc.code_repo);
-    return { applies: false, reason: scope.reason, report_only: true, evidence_sha256: entry.causality_evidence.sha256, evidence_record_hash: doc.record_hash,
+    return { applies: false, reason: scope.reason, report_only: true, evidence_sha256: entry.causality_evidence.sha256, evidence_record_hash: doc.record_hash, contract_ref: doc.contract_ref,
       harness_version: doc.harness_version, code_repo: doc.code_repo, code_sha: doc.code_sha, code_sha_matches_run_log: log.present && log.value ? log.value === doc.code_sha : null,
       unknown_keys: Object.keys(doc.unknown).sort(), functions: summary(doc) };
   }
@@ -202,6 +211,7 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
   for (const id of cf) need(FUNCTION_ID.test(id), 'K2_FUNCTION_ID_INVALID', `${entry.id}:${id}`);
   need(bound, 'EVIDENCE_MISSING', entry.id);
   const doc = evidence();
+  need(doc.contract_ref === CONTRACT_REF, 'EVIDENCE_CONTRACT_MISMATCH', `${entry.id}:${doc.contract_ref}`);
   need(doc.seed === SEED && doc.cut_points_per_function === CUT_POINTS, 'EVIDENCE_PARAMS_NOT_FROZEN', `${entry.id}:seed=${doc.seed},k=${doc.cut_points_per_function}`);
   need(HARNESS_VERSIONS.includes(doc.harness_version), 'HARNESS_VERSION_UNKNOWN', `${entry.id}:${doc.harness_version}`);
   const unknownKeys = Object.keys(doc.unknown);
@@ -237,12 +247,12 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
     }
   }
   return { applies: true, state: used.length ? 'DEVIATION_ACCEPTED' : 'PASS', effective_from: effectiveFrom, evidence_sha256: entry.causality_evidence.sha256,
-    evidence_record_hash: doc.record_hash, harness_version: doc.harness_version, code_repo: doc.code_repo, code_sha: doc.code_sha, functions: summary(doc),
+    evidence_record_hash: doc.record_hash, contract_ref: doc.contract_ref, harness_version: doc.harness_version, code_repo: doc.code_repo, code_sha: doc.code_sha, functions: summary(doc),
     ...(used.length ? { deviations: used } : {}), ...(ruling ? { ruling_ref: ruling.ref, ruling_sha256: ruling.sha256 } : {}) };
 }
 
 module.exports = {
-  SCHEMA, EFFECTIVE_FROM, SEED, CUT_POINTS, HARNESS_VERSIONS, TESTS, TEST_LABEL, STATUSES, RUNNERS, AVAILABILITY_RULES, NOT_APPLICABLE_CODES,
+  SCHEMA, FREEZE, CONTRACT_REF, EFFECTIVE_FROM, SEED, CUT_POINTS, HARNESS_VERSIONS, TESTS, TEST_LABEL, STATUSES, RUNNERS, AVAILABILITY_RULES, NOT_APPLICABLE_CODES,
   FUNCTION_ID, SHA64, SHA40, MAX_MISMATCHES, CausalityGateError, recordHash, runCommitKey, parseEvidence, declaration, applies, check,
   internals: { rulingOf, runLogCommit },
 };

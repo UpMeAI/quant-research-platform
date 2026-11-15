@@ -237,6 +237,7 @@ test('逐时点函数的 FIELD 写法（smartflow 的 ctx.asOf）：t 取主输�
 test('证据：record_hash 由门的同一函数复算；改一个字节就不认；写一次不改，旁边写 .sha256；命令行退出码 2 表示有 FAIL', () => {
   const doc = run(path.join(FIX, 'manifest.node.json'));
   assert.equal(doc.schema, 'CAUSALITY_EVIDENCE_V1');
+  assert.equal(doc.contract_ref, 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md@c9742ea0');
   assert.equal(doc.harness_version, core.HARNESS_VERSION);
   assert.equal(doc.harness_sha256, core.harnessSha256());
   assert.equal(doc.seed, gate.SEED);

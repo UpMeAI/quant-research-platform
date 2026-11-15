@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * G-CAUSAL 公用工具（修订草稿 §3.3、§3.5）：读清单（CAUSALITY_MANIFEST_V1），对每个函数跑三项测试，写 CAUSALITY_EVIDENCE_V1。
+ * G-CAUSAL 公用工具（研究框架修订 2026-11-12 §3.3、§3.5；FREEZE_1 c9742ea0，G1–G20 取 (a)）：读清单（CAUSALITY_MANIFEST_V1），对每个函数跑三项测试，写 CAUSALITY_EVIDENCE_V1。
  *
  *   T-C1 前缀等价：每个截点 c，f(X) 与 f(X[≤c]) 在所有 t ≤ c 上的输出逐字节相等（规范串相等，见 canon.js）；
  *   T-C2 未来替换：X 中可得时点 > c 的行换成扰动数据（SHUFFLE 打乱行内容、WALK 同列随机游走，种子固定），t ≤ c 的输出不变；
@@ -436,7 +436,7 @@ function runManifest(manifestFile, opts = {}) {
   const code = codeShaOf(codeRoot, m.functions.map((f) => f.path));
   if (code.unknown) unknown.code_sha = code.unknown;
   const doc = {
-    schema: gate.SCHEMA, study_ref: m.study_ref, k2_sha256: m.k2_sha256, code_repo: m.code_repo, code_sha: code.sha,
+    schema: gate.SCHEMA, contract_ref: gate.CONTRACT_REF, study_ref: m.study_ref, k2_sha256: m.k2_sha256, code_repo: m.code_repo, code_sha: code.sha,
     harness_version: HARNESS_VERSION, harness_sha256: harnessSha256(), seed: ctx.seed, cut_points_per_function: ctx.k, manifest_sha256: manifestSha,
     functions, unknown, production_effect: 'NONE', registered_by: opts.registeredBy, registered_at: opts.registeredAt || new Date().toISOString(),
   };
