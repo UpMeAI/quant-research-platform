@@ -18,7 +18,7 @@ const pv = require('../services/shadow-control/paper-validation');
 const shadow = require('../services/shadow-control');
 const experiments = require('../services/experiment-orchestrator');
 const controlPlane = require('../services/strategy-control-plane');
-const { setupExperiment } = require('./_fixture');
+const { setupExperiment, trialRef } = require('./_fixture');
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const code = (re) => (e) => { assert.match(e.message, re); return true; };
@@ -216,7 +216,7 @@ async function promotable() {
 test('晋级门进 PROMOTION_CANDIDATE_V1（带赛马清单引用）：不足量、净值低于冠军、护栏违约、运行不健康 → 拒绝；全过才写', async () => {
   const fx = await promotable();
   const base = { release_candidate_ref: fx.chalRef, market: 'CN_A', experiment_ref: fx.exp.experiment_id,
-    research_evidence_refs: ['ev1'], shadow_forward_refs: [fx.shadowId], rollback_ref: fx.champRef };
+    research_evidence_refs: ['ev1'], shadow_forward_refs: [fx.shadowId], rollback_ref: fx.champRef, trial_refs: [trialRef(fx.exp.experiment_id)] };
   const route = (forward, asOf) => {
     const reg = registered({ shadow_ref: fx.shadowId });
     if (forward) pv.recordEvaluation(reg.validation_id, forward, { asOf });

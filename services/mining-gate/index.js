@@ -29,18 +29,17 @@ const FROZEN = 'FROZEN';
 const SHA64 = /^[0-9a-f]{64}$/;
 const BEIJING = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?\+08:00$/;
 
-/** ★e：草稿 §4 第 3–5、7 项的建议值。冻结前不得用来放行任何候选。 */
-const THRESHOLDS = Object.freeze({
-  state: PENDING_FREEZE,
-  source: Object.freeze({ path: factorLib.CONTRACT_REF.path, sha256: factorLib.CONTRACT_REF.sha256, section: '§4 ★e' }),
-  frozen_ref: null,
-  ic_mean_min: 0.02,
-  icir_min: 0.3,
-  monotonicity_min: 0.9,
-  decay_ratio_min: 0.5,
-  marginal_ir_delta_min: 0,
-  marginal_intercept_t_min: 2,
-});
+/**
+ * ★e：草稿 §4 第 3–5、7 项的建议值。冻结前不得用来放行任何候选。唯一出处是 QRP git 里钉住的 config/mining_gate_thresholds.v1.json
+ * （挖掘轮次的逐候选记录也只读它）；转 FROZEN 只经协调会话审过的 PR（协调会话 2026-11-17）。
+ */
+const THRESHOLDS_FILE = require('path').join(__dirname, '..', '..', 'config', 'mining_gate_thresholds.v1.json');
+const THRESHOLDS = (() => {
+  const d = JSON.parse(require('fs').readFileSync(THRESHOLDS_FILE, 'utf8'));
+  return Object.freeze({ state: d.state, source: Object.freeze({ ...d.source }), frozen_ref: d.frozen_ref ? Object.freeze({ ...d.frozen_ref }) : null,
+    ic_mean_min: d.ic_mean_min, icir_min: d.icir_min, monotonicity_min: d.monotonicity_min, decay_ratio_min: d.decay_ratio_min,
+    marginal_ir_delta_min: d.marginal_ir_delta_min, marginal_intercept_t_min: d.marginal_intercept_t_min });
+})();
 const THRESHOLD_KEYS = Object.freeze(['ic_mean_min', 'icir_min', 'monotonicity_min', 'decay_ratio_min', 'marginal_ir_delta_min', 'marginal_intercept_t_min']);
 
 /** 第 6 项的口径（草稿 §4 第 6 项与附录 1 §2.4，不是 ★e 新数）。 */
@@ -245,7 +244,7 @@ function evaluate(candidate, ctx = {}) {
 }
 
 module.exports = {
-  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLD_KEYS, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
+  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLD_KEYS, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
   thresholdState, bookFactorIds, evaluate,
   checkDsr, checkPbo, checkIcIcir, checkMonotonicity, checkDecay, checkNetOfCost, checkMarginal, checkCorrelation, checkMechanism,
 };
