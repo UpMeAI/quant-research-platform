@@ -1,0 +1,1078 @@
+{
+ "schema": "CAUSALITY_EVIDENCE_V1",
+ "contract_ref": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md@c9742ea0",
+ "study_ref": "MINING_OPERATORS_V1",
+ "k2_sha256": "fd22876f6a690b52b07429f333d2545d8fedb5d285dccd3fd3f5a1ecd9f00c80",
+ "code_repo": "qrp",
+ "code_sha": "9fa730e2e6cc652de79f24b030ea056488fe8e5d",
+ "harness_version": "1.0.0",
+ "harness_sha256": "cf7e716d8a7ff8bfd5483cba66b5e1f43bbd58cfc8ee8abf9917f1d1522291c5",
+ "seed": 20261112,
+ "cut_points_per_function": 20,
+ "manifest_sha256": "c7da7a9bd2e19a3bdbbbe2adfbcdf835801c51993974910d1f1b3021ec6a796d",
+ "functions": [
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.ts_mean",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.ts_mean",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "series",
+     "file": "series.json",
+     "file_sha256": "3c74cb40cab878f89cb5bb91e4c968c8bffb6be17eb7563c098f7343be487334",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "series"
+    ],
+    "params": [
+     20
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "series"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-10T07:00:00.000Z",
+    "2025-01-14T07:00:00.000Z",
+    "2025-03-25T07:00:00.000Z",
+    "2025-04-17T07:00:00.000Z",
+    "2025-05-29T07:00:00.000Z",
+    "2025-06-20T07:00:00.000Z",
+    "2025-06-24T07:00:00.000Z",
+    "2025-07-02T07:00:00.000Z",
+    "2025-07-10T07:00:00.000Z",
+    "2025-07-17T07:00:00.000Z",
+    "2025-07-23T07:00:00.000Z",
+    "2025-07-24T07:00:00.000Z",
+    "2025-08-01T07:00:00.000Z",
+    "2025-08-06T07:00:00.000Z",
+    "2025-08-20T07:00:00.000Z",
+    "2025-09-05T07:00:00.000Z",
+    "2025-10-21T07:00:00.000Z",
+    "2025-12-15T07:00:00.000Z",
+    "2025-12-19T07:00:00.000Z",
+    "2025-12-25T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 242,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.ts_std",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.ts_std",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "series",
+     "file": "series.json",
+     "file_sha256": "3c74cb40cab878f89cb5bb91e4c968c8bffb6be17eb7563c098f7343be487334",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "series"
+    ],
+    "params": [
+     20
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "series"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-09T07:00:00.000Z",
+    "2025-02-11T07:00:00.000Z",
+    "2025-02-13T07:00:00.000Z",
+    "2025-03-27T07:00:00.000Z",
+    "2025-04-03T07:00:00.000Z",
+    "2025-04-08T07:00:00.000Z",
+    "2025-05-22T07:00:00.000Z",
+    "2025-05-26T07:00:00.000Z",
+    "2025-05-30T07:00:00.000Z",
+    "2025-06-18T07:00:00.000Z",
+    "2025-06-23T07:00:00.000Z",
+    "2025-07-02T07:00:00.000Z",
+    "2025-07-10T07:00:00.000Z",
+    "2025-07-28T07:00:00.000Z",
+    "2025-10-03T07:00:00.000Z",
+    "2025-10-21T07:00:00.000Z",
+    "2025-10-27T07:00:00.000Z",
+    "2025-10-29T07:00:00.000Z",
+    "2025-11-28T07:00:00.000Z",
+    "2025-12-24T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 242,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.ts_delta",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.ts_delta",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "series",
+     "file": "series.json",
+     "file_sha256": "3c74cb40cab878f89cb5bb91e4c968c8bffb6be17eb7563c098f7343be487334",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "series"
+    ],
+    "params": [
+     5
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "series"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-16T07:00:00.000Z",
+    "2025-01-20T07:00:00.000Z",
+    "2025-01-28T07:00:00.000Z",
+    "2025-02-28T07:00:00.000Z",
+    "2025-04-09T07:00:00.000Z",
+    "2025-04-24T07:00:00.000Z",
+    "2025-05-13T07:00:00.000Z",
+    "2025-05-23T07:00:00.000Z",
+    "2025-06-02T07:00:00.000Z",
+    "2025-06-06T07:00:00.000Z",
+    "2025-07-15T07:00:00.000Z",
+    "2025-07-28T07:00:00.000Z",
+    "2025-08-13T07:00:00.000Z",
+    "2025-09-12T07:00:00.000Z",
+    "2025-09-15T07:00:00.000Z",
+    "2025-09-30T07:00:00.000Z",
+    "2025-10-17T07:00:00.000Z",
+    "2025-10-27T07:00:00.000Z",
+    "2025-11-06T07:00:00.000Z",
+    "2025-12-17T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 252,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.ts_rank",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.ts_rank",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "series",
+     "file": "series.json",
+     "file_sha256": "3c74cb40cab878f89cb5bb91e4c968c8bffb6be17eb7563c098f7343be487334",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "series"
+    ],
+    "params": [
+     20
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "series"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-03T07:00:00.000Z",
+    "2025-03-03T07:00:00.000Z",
+    "2025-03-05T07:00:00.000Z",
+    "2025-03-26T07:00:00.000Z",
+    "2025-04-30T07:00:00.000Z",
+    "2025-05-28T07:00:00.000Z",
+    "2025-05-30T07:00:00.000Z",
+    "2025-07-03T07:00:00.000Z",
+    "2025-07-15T07:00:00.000Z",
+    "2025-08-07T07:00:00.000Z",
+    "2025-09-08T07:00:00.000Z",
+    "2025-09-15T07:00:00.000Z",
+    "2025-09-17T07:00:00.000Z",
+    "2025-09-25T07:00:00.000Z",
+    "2025-10-02T07:00:00.000Z",
+    "2025-10-21T07:00:00.000Z",
+    "2025-11-07T07:00:00.000Z",
+    "2025-12-19T07:00:00.000Z",
+    "2025-12-24T07:00:00.000Z",
+    "2025-12-30T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 21,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.ts_corr",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.ts_corr",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "series",
+     "file": "series.json",
+     "file_sha256": "3c74cb40cab878f89cb5bb91e4c968c8bffb6be17eb7563c098f7343be487334",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "series"
+    ],
+    "params": [
+     20
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "series"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-03T07:00:00.000Z",
+    "2025-01-10T07:00:00.000Z",
+    "2025-02-07T07:00:00.000Z",
+    "2025-02-18T07:00:00.000Z",
+    "2025-02-28T07:00:00.000Z",
+    "2025-04-07T07:00:00.000Z",
+    "2025-04-09T07:00:00.000Z",
+    "2025-05-05T07:00:00.000Z",
+    "2025-05-12T07:00:00.000Z",
+    "2025-05-30T07:00:00.000Z",
+    "2025-07-07T07:00:00.000Z",
+    "2025-07-21T07:00:00.000Z",
+    "2025-07-30T07:00:00.000Z",
+    "2025-08-05T07:00:00.000Z",
+    "2025-09-04T07:00:00.000Z",
+    "2025-09-15T07:00:00.000Z",
+    "2025-10-21T07:00:00.000Z",
+    "2025-11-04T07:00:00.000Z",
+    "2025-12-01T07:00:00.000Z",
+    "2025-12-17T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 242,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.rank",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.rank",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "panel",
+     "file": "panel.json",
+     "file_sha256": "7b8337ea986f23e698f9a6fa5d69e996fc47a4afc2f0d9e692a032723e2a35a8",
+     "rows": 480,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [
+      "code"
+     ],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "panel"
+    ]
+   },
+   "output": {
+    "align": "KEYED",
+    "key_fields": [
+     "code"
+    ],
+    "time_field": "date",
+    "availability": {
+     "rule": "DATE_AT",
+     "field": "date",
+     "time": "15:00",
+     "tz": "+08:00"
+    }
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-03-04T07:00:00.000Z",
+    "2025-03-05T07:00:00.000Z",
+    "2025-03-07T07:00:00.000Z",
+    "2025-03-10T07:00:00.000Z",
+    "2025-03-11T07:00:00.000Z",
+    "2025-03-14T07:00:00.000Z",
+    "2025-03-17T07:00:00.000Z",
+    "2025-03-18T07:00:00.000Z",
+    "2025-03-19T07:00:00.000Z",
+    "2025-04-09T07:00:00.000Z",
+    "2025-04-10T07:00:00.000Z",
+    "2025-04-14T07:00:00.000Z",
+    "2025-04-17T07:00:00.000Z",
+    "2025-04-22T07:00:00.000Z",
+    "2025-04-24T07:00:00.000Z",
+    "2025-05-14T07:00:00.000Z",
+    "2025-05-19T07:00:00.000Z",
+    "2025-05-20T07:00:00.000Z",
+    "2025-05-21T07:00:00.000Z",
+    "2025-05-22T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 480,
+    "distinct": 480,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.zscore",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.zscore",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "panel",
+     "file": "panel.json",
+     "file_sha256": "7b8337ea986f23e698f9a6fa5d69e996fc47a4afc2f0d9e692a032723e2a35a8",
+     "rows": 480,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [
+      "code"
+     ],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "panel"
+    ]
+   },
+   "output": {
+    "align": "KEYED",
+    "key_fields": [
+     "code"
+    ],
+    "time_field": "date",
+    "availability": {
+     "rule": "DATE_AT",
+     "field": "date",
+     "time": "15:00",
+     "tz": "+08:00"
+    }
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-03-04T07:00:00.000Z",
+    "2025-03-07T07:00:00.000Z",
+    "2025-03-10T07:00:00.000Z",
+    "2025-03-11T07:00:00.000Z",
+    "2025-03-12T07:00:00.000Z",
+    "2025-03-25T07:00:00.000Z",
+    "2025-03-27T07:00:00.000Z",
+    "2025-04-01T07:00:00.000Z",
+    "2025-04-02T07:00:00.000Z",
+    "2025-04-04T07:00:00.000Z",
+    "2025-04-08T07:00:00.000Z",
+    "2025-04-14T07:00:00.000Z",
+    "2025-04-16T07:00:00.000Z",
+    "2025-04-17T07:00:00.000Z",
+    "2025-04-22T07:00:00.000Z",
+    "2025-04-25T07:00:00.000Z",
+    "2025-05-08T07:00:00.000Z",
+    "2025-05-12T07:00:00.000Z",
+    "2025-05-16T07:00:00.000Z",
+    "2025-05-22T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 480,
+    "distinct": 480,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.neutralize_industry",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.neutralize_industry",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "panel",
+     "file": "panel.json",
+     "file_sha256": "7b8337ea986f23e698f9a6fa5d69e996fc47a4afc2f0d9e692a032723e2a35a8",
+     "rows": 480,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [
+      "code"
+     ],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "panel"
+    ]
+   },
+   "output": {
+    "align": "KEYED",
+    "key_fields": [
+     "code"
+    ],
+    "time_field": "date",
+    "availability": {
+     "rule": "DATE_AT",
+     "field": "date",
+     "time": "15:00",
+     "tz": "+08:00"
+    }
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-03-04T07:00:00.000Z",
+    "2025-03-05T07:00:00.000Z",
+    "2025-03-06T07:00:00.000Z",
+    "2025-03-13T07:00:00.000Z",
+    "2025-03-20T07:00:00.000Z",
+    "2025-03-31T07:00:00.000Z",
+    "2025-04-02T07:00:00.000Z",
+    "2025-04-03T07:00:00.000Z",
+    "2025-04-15T07:00:00.000Z",
+    "2025-04-17T07:00:00.000Z",
+    "2025-04-23T07:00:00.000Z",
+    "2025-04-25T07:00:00.000Z",
+    "2025-04-29T07:00:00.000Z",
+    "2025-04-30T07:00:00.000Z",
+    "2025-05-01T07:00:00.000Z",
+    "2025-05-02T07:00:00.000Z",
+    "2025-05-06T07:00:00.000Z",
+    "2025-05-14T07:00:00.000Z",
+    "2025-05-15T07:00:00.000Z",
+    "2025-05-20T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 480,
+    "distinct": 480,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.neutralize_size",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.neutralize_size",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "panel",
+     "file": "panel.json",
+     "file_sha256": "7b8337ea986f23e698f9a6fa5d69e996fc47a4afc2f0d9e692a032723e2a35a8",
+     "rows": 480,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [
+      "code"
+     ],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "panel"
+    ]
+   },
+   "output": {
+    "align": "KEYED",
+    "key_fields": [
+     "code"
+    ],
+    "time_field": "date",
+    "availability": {
+     "rule": "DATE_AT",
+     "field": "date",
+     "time": "15:00",
+     "tz": "+08:00"
+    }
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-03-04T07:00:00.000Z",
+    "2025-03-05T07:00:00.000Z",
+    "2025-03-06T07:00:00.000Z",
+    "2025-03-11T07:00:00.000Z",
+    "2025-03-17T07:00:00.000Z",
+    "2025-03-25T07:00:00.000Z",
+    "2025-03-28T07:00:00.000Z",
+    "2025-04-08T07:00:00.000Z",
+    "2025-04-11T07:00:00.000Z",
+    "2025-04-28T07:00:00.000Z",
+    "2025-04-29T07:00:00.000Z",
+    "2025-04-30T07:00:00.000Z",
+    "2025-05-02T07:00:00.000Z",
+    "2025-05-07T07:00:00.000Z",
+    "2025-05-08T07:00:00.000Z",
+    "2025-05-09T07:00:00.000Z",
+    "2025-05-12T07:00:00.000Z",
+    "2025-05-14T07:00:00.000Z",
+    "2025-05-15T07:00:00.000Z",
+    "2025-05-21T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 480,
+    "distinct": 480,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.sign",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.sign",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "returns",
+     "file": "returns.json",
+     "file_sha256": "89726663248caf4604b29bb07a920c0f9eabf2fa56038e51d95ba5729563c02e",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "returns"
+    ],
+    "params": []
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "returns"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-09T07:00:00.000Z",
+    "2025-01-10T07:00:00.000Z",
+    "2025-02-10T07:00:00.000Z",
+    "2025-03-06T07:00:00.000Z",
+    "2025-03-27T07:00:00.000Z",
+    "2025-04-04T07:00:00.000Z",
+    "2025-05-29T07:00:00.000Z",
+    "2025-07-21T07:00:00.000Z",
+    "2025-07-24T07:00:00.000Z",
+    "2025-08-21T07:00:00.000Z",
+    "2025-09-01T07:00:00.000Z",
+    "2025-09-05T07:00:00.000Z",
+    "2025-09-24T07:00:00.000Z",
+    "2025-10-08T07:00:00.000Z",
+    "2025-10-14T07:00:00.000Z",
+    "2025-10-23T07:00:00.000Z",
+    "2025-11-13T07:00:00.000Z",
+    "2025-12-10T07:00:00.000Z",
+    "2025-12-11T07:00:00.000Z",
+    "2025-12-25T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 3,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.abs",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.abs",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "series",
+     "file": "series.json",
+     "file_sha256": "3c74cb40cab878f89cb5bb91e4c968c8bffb6be17eb7563c098f7343be487334",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "series"
+    ],
+    "params": []
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "series"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-07T07:00:00.000Z",
+    "2025-01-14T07:00:00.000Z",
+    "2025-01-16T07:00:00.000Z",
+    "2025-01-17T07:00:00.000Z",
+    "2025-01-30T07:00:00.000Z",
+    "2025-02-21T07:00:00.000Z",
+    "2025-03-03T07:00:00.000Z",
+    "2025-05-21T07:00:00.000Z",
+    "2025-07-14T07:00:00.000Z",
+    "2025-07-31T07:00:00.000Z",
+    "2025-08-29T07:00:00.000Z",
+    "2025-09-18T07:00:00.000Z",
+    "2025-09-30T07:00:00.000Z",
+    "2025-10-21T07:00:00.000Z",
+    "2025-10-24T07:00:00.000Z",
+    "2025-10-28T07:00:00.000Z",
+    "2025-11-07T07:00:00.000Z",
+    "2025-11-12T07:00:00.000Z",
+    "2025-12-25T07:00:00.000Z",
+    "2025-12-29T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 260,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:services/mining-sandbox/evaluator/operators.js#ROWS.log",
+   "path": "services/mining-sandbox/evaluator/operators.js",
+   "entry": "ROWS.log",
+   "runner": "node",
+   "role": "FEATURE",
+   "file_sha256": "e64accaf9d55b592a0eb50410a592ebd89b34953f301edea04055be9b2606e25",
+   "inputs": [
+    {
+     "name": "series",
+     "file": "series.json",
+     "file_sha256": "3c74cb40cab878f89cb5bb91e4c968c8bffb6be17eb7563c098f7343be487334",
+     "rows": 260,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "series"
+    ],
+    "params": []
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "series"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-01-07T07:00:00.000Z",
+    "2025-01-16T07:00:00.000Z",
+    "2025-01-28T07:00:00.000Z",
+    "2025-02-05T07:00:00.000Z",
+    "2025-03-04T07:00:00.000Z",
+    "2025-03-26T07:00:00.000Z",
+    "2025-04-04T07:00:00.000Z",
+    "2025-04-24T07:00:00.000Z",
+    "2025-06-16T07:00:00.000Z",
+    "2025-08-18T07:00:00.000Z",
+    "2025-09-11T07:00:00.000Z",
+    "2025-09-25T07:00:00.000Z",
+    "2025-10-03T07:00:00.000Z",
+    "2025-10-10T07:00:00.000Z",
+    "2025-10-14T07:00:00.000Z",
+    "2025-11-06T07:00:00.000Z",
+    "2025-11-25T07:00:00.000Z",
+    "2025-12-18T07:00:00.000Z",
+    "2025-12-25T07:00:00.000Z",
+    "2025-12-30T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 260,
+    "distinct": 260,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  }
+ ],
+ "unknown": {},
+ "production_effect": "NONE",
+ "registered_by": "AQuA",
+ "registered_at": "2026-11-16T18:49:45.141Z",
+ "record_hash": "c09f6c4789e2432d91f4c06804cd5665c490a17eb9380f0df92c16121d301c52"
+}

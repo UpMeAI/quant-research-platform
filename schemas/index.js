@@ -356,6 +356,10 @@ const SCHEMAS = Object.freeze({
     horizon: 'o', economic_logic_zh: 's', origin: 's', mining: 'o?', status: 's', mechanism_id: 's?', rule_ref: 'o?', weight_in_rule: 'o?', composite: 'o?',
     correlation: 'o', dedupe: 'o', evidence: 'o', source: 'o?', code_refs: 'a', unverified: 'a',
   },
+  MINING_SPACE_V1: {
+    _doc: '研究框架修订 2026-11-16 §3.2（RF1116，签字 fd22876f / 39f8c17c）—— 每轮开跑前冻结的挖掘搜索空间：已登记的读数（各写 PIT 可得时刻）、白名单算子的子集（每个都要有 role FEATURE、三项 PASS 的因果证据）、常数网格、回看窗口（≤ 250）、持有期、记号 ≤ 20、嵌套 ≤ 5；冻结页写出清单 sha256，台账行与轮次清单引用它（services/mining-sandbox/space.js）',
+    space_ref: 's', market: 's', readings: 'a', operators: 'a', constants: 'a', lookbacks: 'a', holding_periods: 'a', max_tokens: 'n', max_depth: 'n', operator_evidence: 'o',
+  },
   RACE_MANIFEST_V1: {
     _doc: '研究框架修订 2026-11-16 §4.3（RF1116，签字 fd22876f / 39f8c17c）—— 赛马清单：一个市场、一个分区（层）、冠军与挑战者、同一引擎 / 窗口 / 成本模型、主指标、护栏、晋级名额（≤ 2）；协调会话冻结（冻结页写出清单 sha256 与 FROZEN），清单 sha 写进每个参赛者的试验台账行（k2_sha256）',
     race_ref: 's', market: 's', partition: 's', periods_per_year: 'n', seed: 'n', engine: 'o', window: 'o', cost_model: 'o', primary_metric: 's', guardrails: 'o',
