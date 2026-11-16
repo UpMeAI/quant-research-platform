@@ -112,8 +112,20 @@ const SCHEMAS = Object.freeze({
     challenger_signals: '*', champion_signals: '*',
     challenger_forward: 'o?', champion_forward: 'o?', recordedAt: 's',
   },
+  PAPER_VALIDATION_V1: {
+    _doc: '研究框架修订 2026-11-16 §5（RF1116，签字 fd22876f / 39f8c17c）④ 样本外模拟盘的登记：起始日、最小样本、晋级门、撤回、到期、冠军、配对方式，开跑前冻结（record_hash）。kind NEW = 赛马晋级者，用 §5.3 建议值（赛马关闭后下一个交易日起、不追溯；max(60 交易日, 20 持有期) + 离散交易 ≥ 30 笔；1.5 倍回撤停止；12 个月不足量关闭）；kind EXISTING = §5.4 的五个现有前向影子，每项是封存或冻结页的原文摘句 + 出处 sha256，没写的记「未写」。台账 shadow/paper_validations.jsonl，不动 shadow_runs',
+    validation_id: 's', kind: 's', shadow_key: 's', market: 's', shadow_ref: 's?', book_ref: 's?', run_by: 's?', race: 'o?', registered_on: 's',
+    start: 'o', min_sample: 'o', promotion_gate: 'o', withdrawal: 'o', expiry: 'o', champion: 'o', pairing: 'o', reading: 'o?', holding_period: 'o?',
+    sources: 'a', unverified: 'a', signed: 'o', registeredAt: 's', record_hash: 's',
+  },
+  PAPER_VALIDATION_EVALUATION_V1: {
+    _doc: 'PAPER_VALIDATION_V1（NEW）的一次 §5.3 判定：状态（PENDING_START / RUNNING_DESCRIBE_ONLY / PAUSED_RUN_FAULT / CLAIM_ELIGIBLE / STOPPED_NEGATIVE / CLOSED_INSUFFICIENT）、计入与作废的样本、前向回撤对 1.5 倍上限、同期配对净值、晋级门；输入只读记录器的行（input_sha256）；终态之后不再记',
+    validation_id: 's', as_of: 's', state: 's', claim_status: 's', terminal_on: 's?', reasons: 'a', counted: 'o', voided_sessions: 'n', paused_sessions: 'n',
+    ignored_pre_start_sessions: 'n', forward_mdd: 'n', forward_mdd_limit: 'n', paired_nav: 'o', guardrail_breaches: 'a', promotion_gate: 'o',
+    registration_hash: 's', input_ref: 's', input_sha256: 's', evaluated_at: 's', record_hash: 's',
+  },
   PROMOTION_CANDIDATE_V1: {
-    _doc: '§8 PromotionCandidate —— 研究/影子双 Gate + 兼容性 + 回滚锚',
+    _doc: '§8 PromotionCandidate —— 研究/影子双 Gate + 兼容性 + 回滚锚。RF1116 §5 / §8.2：赛马路径另带 race_manifest_ref（RACE_V2 race_id + 清单 sha256）、paper_validation_refs 与 paper_validation_gate（每条模拟盘登记最近一次判定的晋级门都过才写）；旧路径（不带赛马引用）行形不变',
     candidate_id: 's', market: 's', release_candidate_ref: 's', experiment_ref: 's',
     research_evidence_refs: 'a', shadow_forward_refs: 'a', compatibility_result: 'o?',
     risk_impact: '*', unresolved_gaps: 'a', migration_policy: 's',
