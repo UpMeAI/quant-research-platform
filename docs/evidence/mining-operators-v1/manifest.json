@@ -1,0 +1,399 @@
+{
+  "schema": "CAUSALITY_MANIFEST_V1",
+  "study_ref": "MINING_OPERATORS_V1",
+  "k2_sha256": "fd22876f6a690b52b07429f333d2545d8fedb5d285dccd3fd3f5a1ecd9f00c80",
+  "code_repo": "qrp",
+  "fixture_dir": "data",
+  "functions": [
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.ts_mean",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": [
+          20
+        ]
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.ts_std",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": [
+          20
+        ]
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.ts_delta",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": [
+          5
+        ]
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.ts_rank",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": [
+          20
+        ]
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.ts_corr",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": [
+          20
+        ]
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.rank",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "panel",
+          "file": "panel.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          },
+          "key_fields": [
+            "code"
+          ]
+        }
+      ],
+      "call": {
+        "order": [
+          "panel"
+        ]
+      },
+      "output": {
+        "align": "KEYED",
+        "key_fields": [
+          "code"
+        ],
+        "time_field": "date",
+        "availability": {
+          "rule": "DATE_AT",
+          "field": "date",
+          "time": "15:00",
+          "tz": "+08:00"
+        }
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.zscore",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "panel",
+          "file": "panel.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          },
+          "key_fields": [
+            "code"
+          ]
+        }
+      ],
+      "call": {
+        "order": [
+          "panel"
+        ]
+      },
+      "output": {
+        "align": "KEYED",
+        "key_fields": [
+          "code"
+        ],
+        "time_field": "date",
+        "availability": {
+          "rule": "DATE_AT",
+          "field": "date",
+          "time": "15:00",
+          "tz": "+08:00"
+        }
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.neutralize_industry",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "panel",
+          "file": "panel.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          },
+          "key_fields": [
+            "code"
+          ]
+        }
+      ],
+      "call": {
+        "order": [
+          "panel"
+        ]
+      },
+      "output": {
+        "align": "KEYED",
+        "key_fields": [
+          "code"
+        ],
+        "time_field": "date",
+        "availability": {
+          "rule": "DATE_AT",
+          "field": "date",
+          "time": "15:00",
+          "tz": "+08:00"
+        }
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.neutralize_size",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "panel",
+          "file": "panel.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          },
+          "key_fields": [
+            "code"
+          ]
+        }
+      ],
+      "call": {
+        "order": [
+          "panel"
+        ]
+      },
+      "output": {
+        "align": "KEYED",
+        "key_fields": [
+          "code"
+        ],
+        "time_field": "date",
+        "availability": {
+          "rule": "DATE_AT",
+          "field": "date",
+          "time": "15:00",
+          "tz": "+08:00"
+        }
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.sign",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": []
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.abs",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": []
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    },
+    {
+      "runner": "node",
+      "path": "services/mining-sandbox/evaluator/operators.js",
+      "entry": "ROWS.log",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": []
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    }
+  ]
+}

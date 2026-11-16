@@ -1,0 +1,39 @@
+{
+  "schema": "CAUSALITY_MANIFEST_V1",
+  "study_ref": "MINING_OPERATORS_V1_NEGATIVE",
+  "k2_sha256": "fd22876f6a690b52b07429f333d2545d8fedb5d285dccd3fd3f5a1ecd9f00c80",
+  "code_repo": "qrp",
+  "fixture_dir": "data",
+  "functions": [
+    {
+      "runner": "node",
+      "path": "tests/fixtures/mining-sandbox/peek/peeking.js",
+      "entry": "ROWS.ts_lead",
+      "role": "FEATURE",
+      "inputs": [
+        {
+          "name": "series",
+          "file": "series.json",
+          "availability": {
+            "rule": "DATE_AT",
+            "field": "date",
+            "time": "15:00",
+            "tz": "+08:00"
+          }
+        }
+      ],
+      "call": {
+        "order": [
+          "series"
+        ],
+        "params": [
+          1
+        ]
+      },
+      "output": {
+        "align": "ALIGNED",
+        "to": "series"
+      }
+    }
+  ]
+}
