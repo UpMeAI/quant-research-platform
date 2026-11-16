@@ -178,6 +178,14 @@
       "description_zh": "放宽多周期一致的要求，只需日线加一个较短周期确认即可入场"
     },
     {
+      "mechanism_id": "SEL.CONFIRM.INTRADAY_TOUCH_ENTRY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "ENTRY",
+      "title_zh": "预写触发价盘中触价入场",
+      "description_zh": "信号层先把入场触发价写进计划，盘中价格触及即入场，不等 K 线收盘确认",
+      "parent": "SEL.CONFIRM.BAR_TIMEFRAME"
+    },
+    {
       "mechanism_id": "SEL.CORE_ROLE.TIMING_VS_HOLD",
       "layer": "SELECTION_TIMING",
       "decision_point": "ENTRY",
@@ -3387,6 +3395,16 @@
       ],
       "classified_by": "overseas-research-proposal",
       "reason_zh": "§4.2 DIAG-XM-1 封存 c703c4ec 后协调会话 11-17 立题：A 股个股本与指数本的闲置现金停放货币 ETF 或短债 ETF，与现金比，是闲置现金停放短期国债或等价物在 A 股的载体（标的不另立机制）；指数本（族 INDEX_BOOK）同题同机制，记在本条"
+    },
+    {
+      "item_id": "R-US-ENTRY-TOUCH-1",
+      "strategy_ref": "US_V5_ETF_3000USD",
+      "market": "US_EQUITY",
+      "mechanism_ids": [
+        "SEL.CONFIRM.INTRADAY_TOUCH_ENTRY"
+      ],
+      "classified_by": "overseas-research-proposal",
+      "reason_zh": "§4.1 Owner 11-17 立题：US_V5 入场由已收盘 1 小时线确认改为预写触发价、盘中 60 秒观测触价入场；不是换一个已收盘 K 线周期（BAR-1 的 30 分钟对 1 小时），所以登记为 SEL.CONFIRM.BAR_TIMEFRAME 的子机制"
     }
   ]
 }
