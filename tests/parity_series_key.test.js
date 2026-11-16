@@ -6,8 +6,8 @@
  *     重复按（数据集, 序列）判；锁行带 series；非混合记号的锁行逐字节不变。
  *   - 历史：pitSemanticsBySeries 进 FINGERPRINT_FIELDS（旧版本没有不算变）。
  *   - parseSpace：读数的 dataset_id 要在钉住的登记表里，pit_available_at 要以登记表的 PIT 记号开头；混合数据集要写 series。
- * 登记表：夹具 tests/fixtures/dataset-registry-kg369 是 KG #369 审阅之前的分支头 a8c272a5 的 1.14.0（f734f995…，pre-review bytes）；
- * 合并后的真 1.14.0（a738d3b5，c5aabf57…）由 #104 钉在 config/dataset-registry。序列级的检查对夹具和真钉着的那份都跑一遍。
+ * 登记表：用例都对真钉着的 1.14.0（#104 合并后，config/dataset-registry，KG a738d3b5，c5aabf57…）跑。
+ * tests/fixtures/dataset-registry-kg369 是 KG #369 审阅之前的分支头 a8c272a5 的 1.14.0（f734f995…）——pre-review bytes，只留作对照（第一条用例）。
  */
 require('./_env');
 const test = require('node:test');
@@ -24,9 +24,10 @@ const ROOT = path.join(__dirname, '..');
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const BYTES = fs.readFileSync(path.join(__dirname, 'fixtures', 'dataset-registry-kg369', 'datasets.v1.json'));
 const DOC = JSON.parse(BYTES.toString('utf8'));
-/** 1.14.0 夹具，形状同 datasetRegistry.pinned()。 */
-const REG = Object.freeze({ repository: 'wendy926/knowledge-graph', commit: 'a8c272a5'.padEnd(40, '0'), registry_version: DOC.version, registry_sha256: sha(BYTES),
-  datasets: new Map(DOC.datasets.map((d) => [d.id, d])), registry: DOC, pit_semantics: [...DOC.pitSemantics], production_pins: [] });
+/** KG #369 审阅之前的分支头 a8c272a5 的 1.14.0（pre-review bytes），只留作对照：#104 合并后真钉着的是 a738d3b5 的 1.14.0。 */
+const FIXTURE_REG = Object.freeze({ registry_version: DOC.version, registry_sha256: sha(BYTES), datasets: new Map(DOC.datasets.map((d) => [d.id, d])), registry: DOC });
+/** 下面的用例都对真钉着的 1.14.0（config/dataset-registry，KG a738d3b5，c5aabf57…）跑。 */
+const REG = datasetRegistry.pinned();
 const V = `@${REG.registry_version}#${REG.registry_sha256}`;
 const code = (re) => (e) => { assert.match(e.message, re); return true; };
 const refuses = (fn, c, detail) => assert.throws(fn, (e) => e.code === `PARITY_${c}` && (!detail || String(e.detail).includes(detail)), `${c} ${detail || ''}`);
@@ -35,11 +36,15 @@ function direct(lines, registry = REG) {
   return gate.check({ id: 'SERIES', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: '2026-11-17T10:00:00+08:00' }, { k2Bytes: () => k2 }, { registry, history: new Map() });
 }
 
-test('夹具：1.14.0（KG #369 分支头），三个混合数据集没有 pitSemantics（不写或 null）、带 pitSemanticsBySeries；两个新数据集 OBSERVED_AT', () => {
-  assert.deepEqual([REG.registry_version, REG.registry_sha256], ['1.14.0', 'f734f9950c167b23d9ec8bbbbde86fa6a580160770cd7840a80164350ce43852']);
-  const mixed = DOC.datasets.filter((d) => (d.pitSemantics === null || d.pitSemantics === undefined) && d.pitSemanticsBySeries && Object.keys(d.pitSemanticsBySeries).length).map((d) => d.id).sort();
-  assert.deepEqual(mixed, ['CN_MARKET_PSYCHOLOGY', 'MACRO_CN_OFFICIAL', 'US_MARKET_PSYCHOLOGY']);
+test('真钉着的 1.14.0：三个混合数据集没有 pitSemantics（不写或 null）、带 pitSemanticsBySeries；两个新数据集 OBSERVED_AT。审阅前的夹具与它只差历史时钟、producedBy 与顶层清单，序列表一样', () => {
+  assert.deepEqual([REG.commit, REG.registry_version, REG.registry_sha256], ['a738d3b52f552f48ae62017712b72c82c9365d2c', '1.14.0', 'c5aabf570888b15eb6cb3f24e40e6e9364bbb0024bd8a217e9f8918b5775f209']);
+  const mixedOf = (reg) => [...reg.datasets.values()].filter((d) => (d.pitSemantics === null || d.pitSemantics === undefined) && d.pitSemanticsBySeries && Object.keys(d.pitSemanticsBySeries).length).map((d) => d.id).sort();
+  assert.deepEqual(mixedOf(REG), ['CN_MARKET_PSYCHOLOGY', 'MACRO_CN_OFFICIAL', 'US_MARKET_PSYCHOLOGY']);
   assert.deepEqual(['V6_CN_STOCK_DAILY_BARS', 'V6_CN_STOCK_DAILY_BASIC'].map((id) => REG.datasets.get(id).pitSemantics), ['OBSERVED_AT', 'OBSERVED_AT']);
+  // 审阅前的夹具（a8c272a5，f734f995…）：混合数据集与序列表和合并后的一样；差别只在 pitHistoricalClock（夹具里没有）、两个 V6 数据集的 producedBy、顶层 PIT 清单多的两个时钟
+  assert.deepEqual([FIXTURE_REG.registry_version, FIXTURE_REG.registry_sha256], ['1.14.0', 'f734f9950c167b23d9ec8bbbbde86fa6a580160770cd7840a80164350ce43852']);
+  assert.deepEqual(mixedOf(FIXTURE_REG), mixedOf(REG));
+  for (const id of mixedOf(REG)) assert.deepEqual(FIXTURE_REG.datasets.get(id).pitSemanticsBySeries, REG.datasets.get(id).pitSemanticsBySeries, id);
 });
 
 test('G-PARITY 混合数据集：没写 series → SERIES_REQUIRED；序列不在表里 → SERIES_UNKNOWN；PIT 按序列核（sf_month 要 END_OF_FOLLOWING_MONTH_CONSERVATIVE）；锁行带 series', () => {
@@ -70,7 +75,7 @@ test('G-PARITY 非混合数据集：写 series → DATA_INPUT_INVALID；不写 s
   assert.equal(JSON.stringify(r.data_inputs[0]), JSON.stringify({ dataset_id: 'V6_CN_STOCK_DAILY_BARS', registry_version: '1.14.0', registry_sha256: REG.registry_sha256, pit_semantics: 'OBSERVED_AT',
     vendor: 'Tushare', price_basis: 'PRICE/RAW', pin_check: 'CURRENT', pit_check: 'CHECKED', basis_check: 'CHECKED', vendor_check: 'MATCH' }));
   refuses(() => direct([`\`DATA:V6_CN_STOCK_DAILY_BARS${V}|PIT=BAR_CLOSE|VENDOR=Tushare|BASIS=PRICE/RAW\``]), 'PIT_SEMANTICS_MISMATCH', 'BAR_CLOSE≠OBSERVED_AT');
-  // 真钉着的那份（1.14.0）上的非混合记号：与改动前的锁行一样（没有 series 键）
+  // 不写 series 的非混合记号：没有 series 键
   const cur = datasetRegistry.pinned();
   const row = direct([`\`DATA:SMARTFLOW_US_1M@${cur.registry_version}#${cur.registry_sha256}|PIT=BAR_CLOSE|VENDOR=Yahoo\``], cur).data_inputs[0];
   assert.equal('series' in row, false);
@@ -120,16 +125,4 @@ test('协调会话的空间草稿 MINING_SPACE_V1_CN_A_R1（DRAFT_3，bee978ed�
   assert.equal(s.space_ref, 'MINING_SPACE_V1:CN_A:R1:DRAFT_3');
   assert.ok(s.readings.every((r) => r.pit_available_at.startsWith('OBSERVED_AT ')));
   assert.deepEqual([...new Set(s.readings.map((r) => r.dataset_id))].sort(), ['V6_CN_STOCK_DAILY_BARS', 'V6_CN_STOCK_DAILY_BASIC']);
-});
-
-test('真钉着的 1.14.0（a738d3b5，c5aabf57…，#104）：混合数据集与夹具一样要 series、按序列核 PIT；空间草稿 DRAFT_3 也过', (t) => {
-  const real = datasetRegistry.pinned();
-  assert.deepEqual([real.commit, real.registry_version, real.registry_sha256], ['a738d3b52f552f48ae62017712b72c82c9365d2c', '1.14.0', 'c5aabf570888b15eb6cb3f24e40e6e9364bbb0024bd8a217e9f8918b5775f209']);
-  assert.notEqual(real.registry_sha256, REG.registry_sha256); // 夹具是审阅之前的字节
-  const v = `@${real.registry_version}#${real.registry_sha256}`;
-  refuses(() => direct([`\`DATA:MACRO_CN_OFFICIAL${v}|PIT=OBSERVED_AT|VENDOR=NBS\``], real), 'SERIES_REQUIRED');
-  const r = direct([`\`DATA:MACRO_CN_OFFICIAL#series=sf_month${v}|PIT=END_OF_FOLLOWING_MONTH_CONSERVATIVE|VENDOR=PBOC\``], real);
-  assert.deepEqual([r.state, r.data_inputs[0].series, r.data_inputs[0].pit_check], ['PASS', 'sf_month', 'CHECKED']);
-  if (!fs.existsSync(DRAFT)) { t.diagnostic(`DRAFT_ABSENT: ${path.basename(DRAFT)}`); return; }
-  assert.equal(space.parseSpace(fs.readFileSync(DRAFT), PROOF).space_ref, 'MINING_SPACE_V1:CN_A:R1:DRAFT_3');
 });
