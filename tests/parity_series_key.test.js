@@ -6,7 +6,8 @@
  *     重复按（数据集, 序列）判；锁行带 series；非混合记号的锁行逐字节不变。
  *   - 历史：pitSemanticsBySeries 进 FINGERPRINT_FIELDS（旧版本没有不算变）。
  *   - parseSpace：读数的 dataset_id 要在钉住的登记表里，pit_available_at 要以登记表的 PIT 记号开头；混合数据集要写 series。
- * 登记表用 KG #369 分支头 a8c272a5 的 1.14.0（tests/fixtures/dataset-registry-kg369，sha256 f734f995…）作夹具；#369 合并、#104 重钉之前生产不钉它。
+ * 登记表：夹具 tests/fixtures/dataset-registry-kg369 是 KG #369 审阅之前的分支头 a8c272a5 的 1.14.0（f734f995…，pre-review bytes）；
+ * 合并后的真 1.14.0（a738d3b5，c5aabf57…）由 #104 钉在 config/dataset-registry。序列级的检查对夹具和真钉着的那份都跑一遍。
  */
 require('./_env');
 const test = require('node:test');
@@ -69,7 +70,7 @@ test('G-PARITY 非混合数据集：写 series → DATA_INPUT_INVALID；不写 s
   assert.equal(JSON.stringify(r.data_inputs[0]), JSON.stringify({ dataset_id: 'V6_CN_STOCK_DAILY_BARS', registry_version: '1.14.0', registry_sha256: REG.registry_sha256, pit_semantics: 'OBSERVED_AT',
     vendor: 'Tushare', price_basis: 'PRICE/RAW', pin_check: 'CURRENT', pit_check: 'CHECKED', basis_check: 'CHECKED', vendor_check: 'MATCH' }));
   refuses(() => direct([`\`DATA:V6_CN_STOCK_DAILY_BARS${V}|PIT=BAR_CLOSE|VENDOR=Tushare|BASIS=PRICE/RAW\``]), 'PIT_SEMANTICS_MISMATCH', 'BAR_CLOSE≠OBSERVED_AT');
-  // 现在钉的（1.13.0）上的非混合记号：与改动前的锁行一样（没有 series 键）
+  // 真钉着的那份（1.14.0）上的非混合记号：与改动前的锁行一样（没有 series 键）
   const cur = datasetRegistry.pinned();
   const row = direct([`\`DATA:SMARTFLOW_US_1M@${cur.registry_version}#${cur.registry_sha256}|PIT=BAR_CLOSE|VENDOR=Yahoo\``], cur).data_inputs[0];
   assert.equal('series' in row, false);
@@ -104,8 +105,9 @@ test('parseSpace：读数的数据集要在钉住的登记表里；pit_available
   assert.throws(() => ok([{ ...macro, series: 'cn_rent' }]), code(/MINE_SPACE_READING_SERIES_UNKNOWN:sf:cn_rent/));
   assert.throws(() => ok([{ ...macro, pit_available_at: 'OBSERVED_AT' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:sf/));
   assert.throws(() => ok([{ ...bars, series: 'close' }]), code(/MINE_SPACE_READING_SERIES_NOT_ALLOWED:close_hfq/));
-  // 不传 registry → 用钉住的登记表（现在是 1.13.0，没有 V6_CN_STOCK_DAILY_BARS）
-  assert.throws(() => space.parseSpace(spaceOf([bars]), PROOF), code(/MINE_SPACE_READING_UNREGISTERED:V6_CN_STOCK_DAILY_BARS/));
+  // 不传 registry → 用真钉着的登记表（#104 之后是 1.14.0，a738d3b5）：同样的读数照样过，没登记的照样拒
+  assert.equal(space.parseSpace(spaceOf([bars]), PROOF).readings[0].dataset_id, 'V6_CN_STOCK_DAILY_BARS');
+  assert.throws(() => space.parseSpace(spaceOf([{ ...bars, dataset_id: 'TUSHARE_DAILY_UNREGISTERED' }]), PROOF), code(/MINE_SPACE_READING_UNREGISTERED:TUSHARE_DAILY_UNREGISTERED@1\.14\.0/));
 });
 
 const COORDINATOR_DIR = path.resolve(process.env.QRP_COORDINATOR_DIR || path.join(ROOT, '..', 'artifacts', 'coordinator'));
@@ -118,4 +120,16 @@ test('协调会话的空间草稿 MINING_SPACE_V1_CN_A_R1（DRAFT_3，bee978ed�
   assert.equal(s.space_ref, 'MINING_SPACE_V1:CN_A:R1:DRAFT_3');
   assert.ok(s.readings.every((r) => r.pit_available_at.startsWith('OBSERVED_AT ')));
   assert.deepEqual([...new Set(s.readings.map((r) => r.dataset_id))].sort(), ['V6_CN_STOCK_DAILY_BARS', 'V6_CN_STOCK_DAILY_BASIC']);
+});
+
+test('真钉着的 1.14.0（a738d3b5，c5aabf57…，#104）：混合数据集与夹具一样要 series、按序列核 PIT；空间草稿 DRAFT_3 也过', (t) => {
+  const real = datasetRegistry.pinned();
+  assert.deepEqual([real.commit, real.registry_version, real.registry_sha256], ['a738d3b52f552f48ae62017712b72c82c9365d2c', '1.14.0', 'c5aabf570888b15eb6cb3f24e40e6e9364bbb0024bd8a217e9f8918b5775f209']);
+  assert.notEqual(real.registry_sha256, REG.registry_sha256); // 夹具是审阅之前的字节
+  const v = `@${real.registry_version}#${real.registry_sha256}`;
+  refuses(() => direct([`\`DATA:MACRO_CN_OFFICIAL${v}|PIT=OBSERVED_AT|VENDOR=NBS\``], real), 'SERIES_REQUIRED');
+  const r = direct([`\`DATA:MACRO_CN_OFFICIAL#series=sf_month${v}|PIT=END_OF_FOLLOWING_MONTH_CONSERVATIVE|VENDOR=PBOC\``], real);
+  assert.deepEqual([r.state, r.data_inputs[0].series, r.data_inputs[0].pit_check], ['PASS', 'sf_month', 'CHECKED']);
+  if (!fs.existsSync(DRAFT)) { t.diagnostic(`DRAFT_ABSENT: ${path.basename(DRAFT)}`); return; }
+  assert.equal(space.parseSpace(fs.readFileSync(DRAFT), PROOF).space_ref, 'MINING_SPACE_V1:CN_A:R1:DRAFT_3');
 });
