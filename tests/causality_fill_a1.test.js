@@ -24,6 +24,8 @@ const core = require('../tools/causality-harness/lib/core');
  */
 const AUTH = 'TEST_A1_AUTHORITY';
 const BOUND = Object.freeze({ path: 'artifacts/coordinator/SYNTH_ADDENDUM_FREEZE_1.md', sha256: 'a'.repeat(64), state: 'FREEZE_1', texts: [{ id: 'DRAFT_REV_1', sha256: 'b'.repeat(64) }] });
+/** 合成的未绑定冻结页（附录 1 冻结前的形状；冻结后模块已绑定，失败即关仍要测）。 */
+const UNBOUND = Object.freeze({ path: addendum.FREEZE.path, sha256: addendum.PENDING, state: addendum.PENDING, texts: [{ id: 'DRAFT_REV_1', sha256: addendum.PENDING }] });
 const FAMILY = 'C17_V2_4000USDT';
 const STUDY = 'R99-A1-SYNTH';
 const CODE = 'c'.repeat(40);
@@ -105,16 +107,16 @@ test('A1 范围内：CF 函数在证据里没有一个标 role: FILL → 拒绝 
 });
 
 test('A1 范围内：附录 1 冻结页未绑定（PENDING_FREEZE）→ 失败即关 FREEZE_UNBOUND，哪怕 K2 与证据都对', () => {
-  refuses(() => a1({ lines: [`\`CF:${FILL}\``], functions: [fnRecord(FILL, { role: 'FILL' })], freeze: addendum.FREEZE }), 'FREEZE_UNBOUND');
-  refuses(() => a1({ lines: ['G-CAUSAL N/A: COST_EXECUTION'], freeze: addendum.FREEZE }), 'FREEZE_UNBOUND');
+  refuses(() => a1({ lines: [`\`CF:${FILL}\``], functions: [fnRecord(FILL, { role: 'FILL' })], freeze: UNBOUND }), 'FREEZE_UNBOUND');
+  refuses(() => a1({ lines: ['G-CAUSAL N/A: COST_EXECUTION'], freeze: UNBOUND }), 'FREEZE_UNBOUND');
 });
 
 test('A1 范围外，与今天逐字节相同：K2 早于附录 1 生效、门内没有行（全是只看信号）、READING；冻结页未绑定也不影响', () => {
-  const na = (o) => a1({ lines: ['G-CAUSAL N/A: COST_EXECUTION'], freeze: addendum.FREEZE, ...o });
+  const na = (o) => a1({ lines: ['G-CAUSAL N/A: COST_EXECUTION'], freeze: UNBOUND, ...o });
   assert.deepEqual(na({ frozenAt: BEFORE }), { applies: true, state: 'NOT_APPLICABLE', effective_from: gate.EFFECTIVE_FROM, not_applicable_code: 'COST_EXECUTION' });
   assert.deepEqual(na({ runs: SIGNAL_RUNS }), { applies: true, state: 'NOT_APPLICABLE', effective_from: gate.EFFECTIVE_FROM, not_applicable_code: 'COST_EXECUTION' });
   assert.deepEqual(na({ kind: 'READING' }), { applies: true, state: 'NOT_APPLICABLE', effective_from: gate.EFFECTIVE_FROM, not_applicable_code: 'COST_EXECUTION' });
-  const cf = a1({ lines: [`\`CF:${FEAT}\``], functions: [fnRecord(FEAT)], frozenAt: BEFORE, freeze: addendum.FREEZE });
+  const cf = a1({ lines: [`\`CF:${FEAT}\``], functions: [fnRecord(FEAT)], frozenAt: BEFORE, freeze: UNBOUND });
   assert.equal(cf.state, 'PASS');
   assert.equal(cf.fill_scope, undefined);
   assert.deepEqual(Object.keys(cf).sort(), ['applies', 'code_repo', 'code_sha', 'contract_ref', 'effective_from', 'evidence_record_hash', 'evidence_sha256', 'functions', 'harness_version', 'state']);
