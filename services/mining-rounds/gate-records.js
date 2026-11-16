@@ -1,0 +1,100 @@
+'use strict';
+
+/**
+ * G-MINE 逐候选记录 MINING_GATE_RECORD_V1（RF1116 §3.6；协调会话 2026-11-17 裁定 3 与其补充）。G-MINE 求值这条路自己写：
+ *   recordGateResult 在这里调用 G-MINE（services/mining-gate 的 evaluate）求值，再写一行记录；调用方给的只是候选结果对象，
+ *   「过没过」由门算，不收调用方报的数。过 = 门判 pass 且九项全过。
+ *   门的 ctx 全由这里定，不收调用方的：门槛只读 QRP git 里钉住的 config/mining_gate_thresholds.v1.json（调用方给门槛 →
+ *   MINE_GATE_RECORD_THRESHOLDS_FROM_CALLER，给别的 ctx 键 → MINE_GATE_RECORD_CTX_NOT_ACCEPTED）；本族 N 取试验台账的累计数；
+ *   数据段标记取试验台账；因子库、机制登记表用仓库里钉住的那份（门的默认）。记录写下门槛文件的 sha256 与用到的数。
+ * 每轮每个候选一行、只追加：挂本轮这个候选的试验台账行（trial_id + record_hash）和留出段开启记录（record_hash）；
+ * 只有本轮已开留出段（状态 SCORING）、且候选在开启记录里，才能记；同一候选第二次 → MINE_GATE_RECORD_DUPLICATE。
+ * 关轮（./index.js closeRound）只从这些记录数「过了几个」。台账 research/mining_gate_records.jsonl。
+ */
+const crypto = require('crypto');
+const path = require('path');
+const { dataDir, now, append, read } = require('../../packages/ledger');
+const { validateRecord } = require('../../schemas');
+const trials = require('../trial-ledger');
+
+const SCHEMA = 'MINING_GATE_RECORD_V1';
+const fs = require('fs');
+const THRESHOLDS_REL = 'config/mining_gate_thresholds.v1.json';
+const THRESHOLD_KEYS = Object.freeze(['ic_mean_min', 'icir_min', 'monotonicity_min', 'decay_ratio_min', 'marginal_ir_delta_min', 'marginal_intercept_t_min']);
+let thresholdsFile = path.join(__dirname, '..', '..', THRESHOLDS_REL);
+const LEDGER = () => path.join(dataDir('research'), 'mining_gate_records.jsonl');
+const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
+
+class GateRecordError extends Error {
+  constructor(code, detail) { super(detail === undefined ? code : `${code}:${detail}`); this.code = code; this.detail = detail; }
+}
+const need = (c, code, detail) => { if (!c) throw new GateRecordError(code, detail); };
+
+const realGate = () => require('../mining-gate');
+let evaluateGate = (candidate, ctx) => realGate().evaluate(candidate, ctx);
+
+/** 钉住的门槛文件：字节的 sha256 与门要用的那几项（结构不对 → 不记）。 */
+function pinnedThresholds() {
+  const bytes = fs.readFileSync(thresholdsFile);
+  let d = null;
+  try { d = JSON.parse(bytes.toString('utf8')); } catch { /* 下面拒绝 */ }
+  const okRef = (r) => r === null || (r && typeof r.path === 'string' && /^[0-9a-f]{64}$/.test(r.sha256 || ''));
+  need(d && d.schema === 'MINING_GATE_THRESHOLDS_V1' && ['PENDING_FREEZE', 'FROZEN'].includes(d.state) && okRef(d.frozen_ref)
+    && THRESHOLD_KEYS.every((k) => typeof d[k] === 'number' && Number.isFinite(d[k])), 'MINE_GATE_RECORD_THRESHOLDS_FILE_INVALID', THRESHOLDS_REL);
+  const used = { state: d.state, frozen_ref: d.frozen_ref, ...Object.fromEntries(THRESHOLD_KEYS.map((k) => [k, d[k]])) };
+  return { file: { path: THRESHOLDS_REL, sha256: sha256(bytes) }, used, thresholds: { ...used, source: d.source || null } };
+}
+
+const recordsOf = (roundId) => read(LEDGER()).filter((r) => r.schema === SCHEMA && r.round_id === roundId);
+
+/**
+ * 求值并记一行。
+ * @param {{round_id: string, candidate_id: string, candidate: object, recordedAt?: string}} o  不收 ctx：给了任何键都拒绝
+ */
+function recordGateResult({ round_id: roundId, candidate_id: candidateId, candidate, ctx = undefined, recordedAt = null } = {}) {
+  if (ctx !== undefined) {
+    need(!(ctx && Object.prototype.hasOwnProperty.call(ctx, 'thresholds')), 'MINE_GATE_RECORD_THRESHOLDS_FROM_CALLER', `${roundId}:${candidateId}`);
+    const keys = ctx && typeof ctx === 'object' ? Object.keys(ctx) : ['(not an object)'];
+    need(!keys.length, 'MINE_GATE_RECORD_CTX_NOT_ACCEPTED', keys.join(','));
+  }
+  const rounds = require('./index');
+  const vault = require('../holdout-vault');
+  const r = rounds.roundHead(roundId);
+  need(r, 'MINE_GATE_RECORD_ROUND_NOT_FOUND', roundId);
+  need(r.status === 'SCORING', 'MINE_GATE_RECORD_ROUND_NOT_SCORING', `${roundId}:${r.status}`);
+  const [open] = vault.openLog(roundId);
+  need(open && open.candidate_ids.includes(candidateId), 'MINE_GATE_RECORD_NOT_OPENED', `${roundId}:${candidateId}`);
+  const trial = [...trials.heads().values()].find((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId && t.mining.candidate_id === candidateId);
+  need(trial, 'MINE_GATE_RECORD_TRIAL_MISSING', `${roundId}:${candidateId}`);
+  need(!recordsOf(roundId).some((x) => x.candidate_id === candidateId), 'MINE_GATE_RECORD_DUPLICATE', `${roundId}:${candidateId}`);
+  const pinned = pinnedThresholds();
+  const familyTrialCount = trials.count(trial.family_id).n_raw;
+  const result = evaluateGate(candidate, { thresholds: pinned.thresholds, familyTrialCount, marks: read(trials.SEGMENTS()) });
+  const items = (result.items || []).map((i) => ({ item: i.item, key: i.key, pass: i.pass === true }));
+  const pass = result.pass === true && items.length === realGate().ITEMS.length && items.every((i) => i.pass);
+  const body = {
+    schema: SCHEMA, round_id: roundId, candidate_id: candidateId, trial_id: trial.trial_id, trial_record_hash: trial.record_hash, holdout_open_hash: open.record_hash,
+    gate_result_sha256: sha256(trials.canonicalJson(result)), thresholds_file: pinned.file, thresholds_used: pinned.used, family_trial_count: familyTrialCount,
+    pass, codes: [...(result.codes || [])], items, recorded_at: recordedAt || now(),
+  };
+  const rec = { ...body, record_hash: trials.recordHash(body) };
+  const v = validateRecord(rec, SCHEMA);
+  need(v.ok, 'MINE_GATE_RECORD_SCHEMA_INVALID', v.problems.join(','));
+  return append(LEDGER(), rec);
+}
+
+/** 只给测试用：临时换掉钉住的门槛文件路径（冻结 / 改过的合成文件），回调结束还原。 */
+function withThresholdsFile(file, cb) {
+  const prior = thresholdsFile;
+  thresholdsFile = file;
+  try { return cb(); } finally { thresholdsFile = prior; }
+}
+
+/** 只给测试用：临时换掉 G-MINE 的求值（合成九项结果），回调结束还原。 */
+function withGate(fn, cb) {
+  const prior = evaluateGate;
+  evaluateGate = fn;
+  try { return cb(); } finally { evaluateGate = prior; }
+}
+
+module.exports = { SCHEMA, LEDGER, THRESHOLDS_REL, GateRecordError, recordGateResult, recordsOf, internals: { withGate, withThresholdsFile, pinnedThresholds } };

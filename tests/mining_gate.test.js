@@ -51,7 +51,7 @@ function candidate() {
     candidate_id: 'R001-C017', factor_id: 'CN_A.MINED.R001_C017', market: 'CN_A', layer: 'SELECTION_CROSS_SECTION', origin: 'AI_MINED_GP',
     round_id: 'R001', family_id: 'CN_A.SELECTION_CROSS_SECTION.H20', horizon_trading_days: 20, status: 'CANDIDATE',
     overfit: { dsr: 0.97, n_trials: N_FAMILY, pbo: 0.31, pbo_scope: 'ROUND_CANDIDATE_SET' },
-    holdout: { scored_at: '2026-12-01T10:00:00+08:00', ic_mean: 0.035, icir: 0.42, icir_non_overlapping: true, ic_double_horizon: 0.022,
+    holdout: { scored_at: '2026-12-01T10:00:00+08:00', neutralization: { industry: 'APPLIED', size: 'APPLIED' }, ic_mean: 0.035, icir: 0.42, icir_non_overlapping: true, ic_double_horizon: 0.022,
       quintile_mean_returns: [-0.01, -0.002, 0.003, 0.008, 0.015] },
     net_of_cost: { long_only: true, top_fraction: 0.2, cost: { commission_bps: 2.5, slippage_bps: 10, stamp_duty_on_sell: true },
       benchmark: 'EQUAL_WEIGHT_UNIVERSE', annualized_excess: 0.031 },
@@ -188,15 +188,16 @@ test('成本下限读 cost-gate 的 FLOORS（CN_A 佣金 2.5、滑点 10 bps）�
   assert.ok(itemOf(gate.evaluate(c, ctx()), 'NET_OF_COST').codes.includes('MINE_NET_COST_BELOW_FLOOR'));
 });
 
-test('P0 不接任何导入器：除测试外没有模块 require mining-gate', () => {
+test('不接任何导入器：除测试外只有挖掘轮次的逐候选记录（P1）require mining-gate', () => {
   const hits = [];
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) { if (!['node_modules', 'var', '.git', 'tests'].includes(e.name)) walk(p); }
       else if (e.name.endsWith('.js') && !p.includes(`${path.sep}mining-gate${path.sep}`) && /mining-gate/.test(fs.readFileSync(p, 'utf8'))) hits.push(path.relative(ROOT, p));
+      // P1（协调会话 2026-11-17 裁定 3）：G-MINE 的唯一使用方是挖掘轮次的逐候选记录（求值并记一行）；仍不接任何导入器
     }
   };
   for (const d of ['services', 'apps', 'packages', 'adapters', 'tools']) if (fs.existsSync(path.join(ROOT, d))) walk(path.join(ROOT, d));
-  assert.deepEqual(hits, []);
+  assert.deepEqual(hits, ['services/mining-rounds/gate-records.js']);
 });

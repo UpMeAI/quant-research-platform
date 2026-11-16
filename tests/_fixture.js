@@ -96,4 +96,22 @@ async function setupExperiment(overrides = {}) {
   return { ...b, hyp, snap, exp, oosStart };
 }
 
-module.exports = { CHALLENGER_VARIANT, seedData, setupBundles, setupExperiment };
+/**
+ * 晋级候选必填的 trial_refs（RF1116 P1，协调会话裁定 1）：登记一条合成的 SIGNAL_TEST 试验，返回它的 trial_id。
+ * 试验台账要产品里程碑权限；没设就临时设一个合成值，登记完还原（不影响测这个环境变量的用例）。
+ */
+function trialRef(label = 'FIXTURE') {
+  const trials = require('../services/trial-ledger');
+  const prior = process.env.QRP_PRODUCT_MILESTONE_AUTHORITY;
+  const auth = prior || 'TEST_FIXTURE_TRIAL_AUTHORITY';
+  process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = auth;
+  try {
+    const [row] = trials.register([{ family_id: 'FIXTURE_PROMOTION', market: 'CN_A', study_ref: `FIXTURE-${label}`, config_label: label, stage: 'SIGNAL', role: 'SIGNAL_TEST',
+      k2_sha256: require('crypto').createHash('sha256').update(`fixture-k2-${label}`).digest('hex'), rule_config: { fixture: label } }], { registeredBy: auth });
+    return row.trial_id;
+  } finally {
+    if (prior === undefined) delete process.env.QRP_PRODUCT_MILESTONE_AUTHORITY; else process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = prior;
+  }
+}
+
+module.exports = { CHALLENGER_VARIANT, seedData, setupBundles, setupExperiment, trialRef };

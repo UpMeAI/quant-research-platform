@@ -39,6 +39,7 @@ UpMeAI/Ashare-V5 `services/phase2` 领域抽取(Domain Extraction),按新设计�
 ```bash
 npm test                 # 治理/流水线测试(含跨仓反分叉守卫与真实 HTTP 传输面)
 npm run mvp:ashare       # §16.3 十二步端到端闭环(样本数据,自动种子)
+                         # 每次在新的 mktemp -d 目录里跑;绝不能对着真的研究数据目录(var/ledger)跑(MVP_DEMO_DATA_DIR_NOT_DEMO)
 node schemas/validate.js # 台账 × §8 域对象 Schema 一致性(退出码 0 = 无漂移)
 npm run web              # 只读研究工作台(默认 127.0.0.1:4310；QRP_PORT 可覆盖)
 ```

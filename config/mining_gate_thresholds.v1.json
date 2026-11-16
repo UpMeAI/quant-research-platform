@@ -1,0 +1,13 @@
+{
+  "schema": "MINING_GATE_THRESHOLDS_V1",
+  "doc_zh": "G-MINE ★e 门槛（研究框架修订 2026-11-16 §3.6，签字 fd22876f / 39f8c17c）。唯一出处：services/mining-gate 的 THRESHOLDS 与挖掘轮次的逐候选记录都只读这份文件。PENDING_FREEZE 期间门一律失败即关（MINE_THRESHOLDS_UNFROZEN）；转 FROZEN 只经协调会话审过的 PR，同时写 frozen_ref（★e 冻结页 path + sha256）。",
+  "state": "PENDING_FREEZE",
+  "source": { "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261116_SIGNATURE_1.md", "sha256": "39f8c17cd569f8eadf7bd18102997cc19b421959aec36fae98c1b1a20fbcd3fb", "section": "§4 ★e" },
+  "frozen_ref": null,
+  "ic_mean_min": 0.02,
+  "icir_min": 0.3,
+  "monotonicity_min": 0.9,
+  "decay_ratio_min": 0.5,
+  "marginal_ir_delta_min": 0,
+  "marginal_intercept_t_min": 2
+}

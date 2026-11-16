@@ -10,7 +10,24 @@
  *   - 数据为 SAMPLE_SYNTHETIC(确定性合成),演示平台治理与流水线,不构成任何经济结论;
  *   - Runtime 为内置 stub(生产 Runtime = Ashare-V5,以同一 pull 协议对接);
  *   - real_order=0,无 broker 凭证,MVP 只发布到 PAPER。
+ *
+ * 数据目录守卫（协调会话 2026-11-17，失败即关）:QRP_DATA_DIR 必须设,且真实路径在系统临时目录或 demo / demo-* 目录之下;
+ * 没设或指向 <repo>/var/ledger(真的研究台账)一律不开跑(MVP_DEMO_DATA_DIR_NOT_DEMO)。npm run mvp:ashare 每次给一个新的 mktemp -d 目录。
+ * 守卫在加载任何会碰数据目录的模块之前就跑。
  */
+const demoGuard = require('./mvp_demo_guard');
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log('usage: QRP_DATA_DIR=<temp or demo dir> QRP_PRODUCT_MILESTONE_AUTHORITY=<demo authority> node apps/research-cli/run_ashare_mvp.js');
+  console.log(`  ${demoGuard.HELP_LINE}`);
+  process.exit(0);
+}
+try {
+  demoGuard.checkDemoDataDir(process.env);
+} catch (e) {
+  console.error(`❌ ${e.message}\n   ${demoGuard.HELP_LINE}`);
+  process.exit(1);
+}
+
 const pit = require('../../adapters/ashare-local/pit_store');
 const { generateSampleBars } = require('../../adapters/ashare-local/sample_data');
 const { CHAMPION_VARIANT } = require('../../adapters/ashare-local/strategy_vpq');
@@ -20,6 +37,7 @@ const experiments = require('../../services/experiment-orchestrator');
 const races = require('../../services/race-orchestrator');
 const shadow = require('../../services/shadow-control');
 const controlPlane = require('../../services/strategy-control-plane');
+const trials = require('../../services/trial-ledger');
 const runtimeStub = require('../../adapters/ashare-local/paper_runtime_stub');
 const { RUNTIME_ID } = require('../../adapters/ashare-local/market_facts');
 
@@ -205,11 +223,17 @@ async function main() {
   console.log(`  ${shd.shadow_id}: ${suff.forward_sample_count}/${suff.min_required} 个前向样本(分歧 ${disagreements})→ ${suff.claim_status}`);
 
   step(10, 'PromotionCandidate → Compatibility → Immutable Release');
+  // 晋级候选要 trial_refs（RF1116 P1，协调会话裁定 1）：演示登记一条 UNPLANNED_RUN 试验（合成数据），要产品里程碑权限
+  const authority = process.env.QRP_PRODUCT_MILESTONE_AUTHORITY;
+  if (!authority) throw new Error('QRP_PRODUCT_MILESTONE_AUTHORITY 未设置：晋级候选必须带 trial_refs，MVP 演示要先登记一条试验');
+  const [trial] = trials.register([{ family_id: 'MVP_DEMO_CN_A', market: MARKET, study_ref: `MVP-${RUN_TAG}`, config_label: chalRef, stage: 'SIGNAL', role: 'SIGNAL_TEST',
+    rule_config: { experiment_ref: exp.experiment_id, challenger: chalRef }, notes_zh: 'MVP 演示（SAMPLE_SYNTHETIC），不构成经济结论' }], { registeredBy: authority, mode: 'UNPLANNED_RUN' });
   const cand = await controlPlane.createPromotionCandidate({
     release_candidate_ref: chalRef, market: MARKET, experiment_ref: exp.experiment_id,
     research_evidence_refs: [artifact.result_hash, closed.result.result_hash],
     shadow_forward_refs: [shd.shadow_id],
     rollback_ref: champRef,
+    trial_refs: [trial.trial_id],
   });
   const compat = await controlPlane.runCompatibilityCheck(cand.candidate_id);
   if (!compat.compatibility.compatible) throw new Error(`兼容性失败:${compat.compatibility.reasons.join(';')}`);

@@ -12,16 +12,16 @@ or `virtual_ledger`, so existing shadows (`SHD-…`) behave as before.
 | kind | who | rules |
 |---|---|---|
 | `NEW` | an entrant promoted by a closed `RACE_V2` race | §5.3 defaults below |
-| `EXISTING` | the five forward shadows of §5.4 | copied from each shadow's own seal or freeze page (`existing-shadows.v1.json`): every field is a verbatim quote with source path + sha256, or 「未写」; no defaults are filled in, and §5.3 evaluation does not apply. Recorders keep running; QRP only reads their records. |
+| `EXISTING` | the five forward shadows of §5.4 | copied from each shadow's own seal or freeze page (`existing-shadows.v1.json`): every field is a verbatim quote with source path + sha256, or 「未写」; no defaults are filled in, and §5.3 evaluation does not apply. Recorders keep running; QRP only reads their records. Updates are append-only. A purely additive change appends a row with `supersedes` (the old `record_hash`), `supersede_changes` and `superseded_at`, and leaves the old row byte-identical. Additive means: existing quotes kept byte for byte as a prefix, 未写 filled with a quote, a new source added, or `unverified` changed. Editing or removing an existing quote or source, or changing the shadow's identity, is refused (`EXISTING_REGISTRATION_CHANGED`). A source whose title still says 草稿 can carry `freeze_record`: the `## 冻结` sentence, checked byte for byte, plus the coordinator queue line, checked for presence because the log is append-only. |
 
 ## §5.3 defaults (NEW only)
 
 | item | rule | code |
 |---|---|---|
-| start | next trading day after the race closes (market-local date of `closed_at`, against the given calendar); a start before the registration date is refused | `START_NOT_NEXT_TRADING_DAY_AFTER_RACE_CLOSE`, `START_BEFORE_REGISTRATION` |
+| start | next trading day after the race closes (market-local date of `closed_at`, against the given calendar). Pre-registration is read literally: registering on the start day at or after that session's open (A-share 09:30 +08, US 09:30 America/New_York, crypto 00:00 UTC) moves the start to the next trading day and records `start.shift {reason: START_SHIFTED_REGISTERED_AFTER_OPEN, original_date, open_at}`; registering on a later date is refused | `START_NOT_NEXT_TRADING_DAY_AFTER_RACE_CLOSE`, `START_BEFORE_REGISTRATION` |
 | minimum sample | sessions ≥ max(60, 20 × holding period in trading days); discrete-trade books also need fills ≥ 30. Below that: `DESCRIBE_ONLY` | `RUNNING_DESCRIBE_ONLY` |
 | run fault (lookahead, data contamination, run error) | pause; counted samples are voided; counting restarts on the fix date | `PAUSED_RUN_FAULT` |
-| economic falsification | forward max drawdown of the counted sessions > 1.5 × the entrant's backtest max drawdown (from the race outcome), or the registered mechanism is falsified → stop, negative result | `STOPPED_NEGATIVE` |
+| economic falsification | forward max drawdown of the counted sessions > 1.5 × the entrant's backtest max drawdown (from the race outcome), or the registered mechanism is falsified → stop, negative result. A backtest drawdown of 0 is refused at registration | `STOPPED_NEGATIVE`, `BACKTEST_DRAWDOWN_ZERO` |
 | expiry | start + 12 months; not enough sample by then (or at any later time) → close, 证据不足, no extension | `CLOSED_INSUFFICIENT` |
 | promotion gate | `CLAIM_ELIGIBLE` AND paired forward NAV over the same counted sessions not below the champion AND no guardrail breach since start AND run healthy | blockers `NOT_CLAIM_ELIGIBLE`, `NAV_BELOW_CHAMPION`, `GUARDRAIL_BREACH`, `RUN_NOT_HEALTHY` |
 

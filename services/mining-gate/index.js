@@ -29,18 +29,17 @@ const FROZEN = 'FROZEN';
 const SHA64 = /^[0-9a-f]{64}$/;
 const BEIJING = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?\+08:00$/;
 
-/** ★e：草稿 §4 第 3–5、7 项的建议值。冻结前不得用来放行任何候选。 */
-const THRESHOLDS = Object.freeze({
-  state: PENDING_FREEZE,
-  source: Object.freeze({ path: factorLib.CONTRACT_REF.path, sha256: factorLib.CONTRACT_REF.sha256, section: '§4 ★e' }),
-  frozen_ref: null,
-  ic_mean_min: 0.02,
-  icir_min: 0.3,
-  monotonicity_min: 0.9,
-  decay_ratio_min: 0.5,
-  marginal_ir_delta_min: 0,
-  marginal_intercept_t_min: 2,
-});
+/**
+ * ★e：草稿 §4 第 3–5、7 项的建议值。冻结前不得用来放行任何候选。唯一出处是 QRP git 里钉住的 config/mining_gate_thresholds.v1.json
+ * （挖掘轮次的逐候选记录也只读它）；转 FROZEN 只经协调会话审过的 PR（协调会话 2026-11-17）。
+ */
+const THRESHOLDS_FILE = require('path').join(__dirname, '..', '..', 'config', 'mining_gate_thresholds.v1.json');
+const THRESHOLDS = (() => {
+  const d = JSON.parse(require('fs').readFileSync(THRESHOLDS_FILE, 'utf8'));
+  return Object.freeze({ state: d.state, source: Object.freeze({ ...d.source }), frozen_ref: d.frozen_ref ? Object.freeze({ ...d.frozen_ref }) : null,
+    ic_mean_min: d.ic_mean_min, icir_min: d.icir_min, monotonicity_min: d.monotonicity_min, decay_ratio_min: d.decay_ratio_min,
+    marginal_ir_delta_min: d.marginal_ir_delta_min, marginal_intercept_t_min: d.marginal_intercept_t_min });
+})();
 const THRESHOLD_KEYS = Object.freeze(['ic_mean_min', 'icir_min', 'monotonicity_min', 'decay_ratio_min', 'marginal_ir_delta_min', 'marginal_intercept_t_min']);
 
 /** 第 6 项的口径（草稿 §4 第 6 项与附录 1 §2.4，不是 ★e 新数）。 */
@@ -102,14 +101,20 @@ function checkIcIcir(c, ctx = {}) {
   if (!isNum(ic)) codes.push('MINE_IC_INPUT'); else if (!(ic >= t.ic_mean_min)) codes.push('MINE_IC_BELOW_MIN');
   if (!isNum(icir)) codes.push('MINE_ICIR_INPUT'); else if (!(icir >= t.icir_min)) codes.push('MINE_ICIR_BELOW_MIN');
   if (at(h, 'icir_non_overlapping') !== true) codes.push('MINE_ICIR_OVERLAPPING');
+  if (notNeutralized(c)) codes.push('MINE_NOT_NEUTRALIZED');
   return result(3, 'IC_ICIR', codes, { ic_mean: isNum(ic) ? ic : null, icir: isNum(icir) ? icir : null });
 }
+
+/** §3.6「先中性化」（§8.3 第 12 条）：IC 类读数（IC、ICIR、单调性、衰减）必须取自按行业与市值中性化后的因子值——留出段结果要写 neutralization { industry: 'APPLIED', size: 'APPLIED' }（挖掘沙箱求值器的 neutralizeForScoring 写的就是这个），否则拒绝。 */
+const NEUTRALIZED = Object.freeze({ industry: 'APPLIED', size: 'APPLIED' });
+const notNeutralized = (c) => { const n = at(at(c, 'holdout'), 'neutralization'); return !(isObject(n) && n.industry === NEUTRALIZED.industry && n.size === NEUTRALIZED.size); };
 
 /** 4 单调性：门自己从五组平均收益算 Spearman，不读候选自报的数。 */
 function checkMonotonicity(c, ctx = {}) {
   const pending = frozenOr(4, 'MONOTONICITY', ctx); if (pending) return pending;
   const q = at(at(c, 'holdout'), 'quintile_mean_returns');
   if (!Array.isArray(q) || q.length !== QUINTILES || !q.every(isNum)) return result(4, 'MONOTONICITY', ['MINE_MONOTONICITY_INPUT']);
+  if (notNeutralized(c)) return result(4, 'MONOTONICITY', ['MINE_NOT_NEUTRALIZED']);
   const rho = corr.spearman(q.map((_, i) => i + 1), q);
   const codes = rho === null ? ['MINE_MONOTONICITY_INPUT'] : rho >= ctx.thresholds.monotonicity_min ? [] : ['MINE_MONOTONICITY_BELOW_MIN'];
   return result(4, 'MONOTONICITY', codes, { spearman: rho });
@@ -122,6 +127,7 @@ function checkDecay(c, ctx = {}) {
   const ic = at(h, 'ic_mean'); const ic2 = at(h, 'ic_double_horizon');
   if (!isNum(ic) || !isNum(ic2)) return result(5, 'DECAY', ['MINE_DECAY_INPUT']);
   if (!(ic > 0)) return result(5, 'DECAY', ['MINE_DECAY_BASE_NOT_POSITIVE']);
+  if (notNeutralized(c)) return result(5, 'DECAY', ['MINE_NOT_NEUTRALIZED']);
   return result(5, 'DECAY', ic2 >= ctx.thresholds.decay_ratio_min * ic ? [] : ['MINE_DECAY_BELOW_HALF'], { ratio: ic2 / ic });
 }
 
@@ -238,7 +244,7 @@ function evaluate(candidate, ctx = {}) {
 }
 
 module.exports = {
-  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLD_KEYS, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS,
+  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLD_KEYS, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
   thresholdState, bookFactorIds, evaluate,
   checkDsr, checkPbo, checkIcIcir, checkMonotonicity, checkDecay, checkNetOfCost, checkMarginal, checkCorrelation, checkMechanism,
 };
