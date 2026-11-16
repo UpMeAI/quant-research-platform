@@ -91,7 +91,7 @@ node services/factor-library/build.js --write    # 全部绑定 MATCH 才写
 | 8 | 覆盖库内同市场每个因子；|ρ| ≤ 0.7，或冲突的都已正交化且计入 N | 因子库 `DEDUPE` | `MINE_CORRELATION_ABOVE_MAX` / `_LIBRARY_INCOMPLETE` / `_UNKNOWN` / `_ORTHOGONALISED_NOT_COUNTED` |
 | 9 | 机制已登记、写了经济逻辑与失效方式、写成早于留出段打分；G-MECH 分诊不是 `NOT_DO_SETTLED` | 机制登记表 | `MINE_MECHANISM_UNKNOWN` / `_FIELDS` / `_AFTER_HOLDOUT` / `_NOT_DO_SETTLED` |
 
-★e 的数（第 3–5、7 项）在 `THRESHOLDS` 一个常量块里，`state = PENDING_FREEZE`。冻结前 `evaluate()` 一律返回 `MINE_THRESHOLDS_UNFROZEN`，一项都不跑；写了 `FROZEN` 却缺冻结页 path + sha256 或数不是有限数，返回 `MINE_THRESHOLDS_INVALID`。冻结由协调会话在第一轮之前做，届时以冻结页 sha256 绑定，换掉这个块。
+★e 的数（第 3–5、7 项）在 `THRESHOLDS` 一个常量块里，`state = PENDING_FREEZE`。冻结前 `evaluate()` 一律返回 `MINE_THRESHOLDS_UNFROZEN`，一项都不跑；写了 `FROZEN` 却缺冻结页 path + sha256 或数不是有限数，返回 `MINE_THRESHOLDS_INVALID`。冻结由协调会话在第一轮之前做，届时以冻结页 sha256 绑定，换掉这个块。（RF1116 P1 起出处是 `config/mining_gate_thresholds.v1.json`；★e 冻结 PR 把它转 `FROZEN`，`frozen_ref` 指向仓库里的冻结页副本 `docs/freeze/`，门核这一页的 sha、FROZEN 与六个数，不对 → `MINE_THRESHOLDS_FREEZE_REF_INVALID`，见 MINING_ROUNDS_V1。）
 
 ## 6. P0 不做的（草稿 §7.1）
 

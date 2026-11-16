@@ -7,6 +7,7 @@
  *   门的 ctx 全由这里定，不收调用方的：门槛只读 QRP git 里钉住的 config/mining_gate_thresholds.v1.json（调用方给门槛 →
  *   MINE_GATE_RECORD_THRESHOLDS_FROM_CALLER，给别的 ctx 键 → MINE_GATE_RECORD_CTX_NOT_ACCEPTED）；本族 N 取试验台账的累计数；
  *   数据段标记取试验台账；因子库、机制登记表用仓库里钉住的那份（门的默认）。记录写下门槛文件的 sha256 与用到的数。
+ *   FROZEN 的门槛总要核仓库里的冻结页（services/mining-gate 的 verifyFreezeRef），核不过整条记不过（MINE_THRESHOLDS_FREEZE_REF_INVALID）。
  * 每轮每个候选一行、只追加：挂本轮这个候选的试验台账行（trial_id + record_hash）和留出段开启记录（record_hash）；
  * 只有本轮已开留出段（状态 SCORING）、且候选在开启记录里，才能记；同一候选第二次 → MINE_GATE_RECORD_DUPLICATE。
  * 关轮（./index.js closeRound）只从这些记录数「过了几个」。台账 research/mining_gate_records.jsonl。
@@ -69,7 +70,8 @@ function recordGateResult({ round_id: roundId, candidate_id: candidateId, candid
   need(!recordsOf(roundId).some((x) => x.candidate_id === candidateId), 'MINE_GATE_RECORD_DUPLICATE', `${roundId}:${candidateId}`);
   const pinned = pinnedThresholds();
   const familyTrialCount = trials.count(trial.family_id).n_raw;
-  const result = evaluateGate(candidate, { thresholds: pinned.thresholds, familyTrialCount, marks: read(trials.SEGMENTS()) });
+  // checkFreeze：FROZEN 时核仓库里的冻结页（docs/freeze/，sha 与 frozen_ref 一致、写着 FROZEN 与六个数），不过 → MINE_THRESHOLDS_FREEZE_REF_INVALID
+  const result = evaluateGate(candidate, { thresholds: pinned.thresholds, familyTrialCount, marks: read(trials.SEGMENTS()), checkFreeze: true });
   const items = (result.items || []).map((i) => ({ item: i.item, key: i.key, pass: i.pass === true }));
   const pass = result.pass === true && items.length === realGate().ITEMS.length && items.every((i) => i.pass);
   const body = {

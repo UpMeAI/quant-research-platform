@@ -71,7 +71,8 @@ test('开过留出段的候选只要有一个没有 G-MINE 记录 → 不许关�
   // 真门（门槛没冻结）：记录写进来，不过
   const s = scoredRound('US', '2027-02-02T02:00:00Z', 1);
   const real = records.recordGateResult({ round_id: s.r.round_id, candidate_id: s.ids[0], candidate: {} });
-  assert.deepEqual([real.pass, real.codes], [false, ['MINE_THRESHOLDS_UNFROZEN']]);
+  // ★e 冻结 PR 起文件是 FROZEN，但仓库里的冻结页还是草稿占位（DRAFT）→ 失败即关，记不过
+  assert.deepEqual([real.pass, real.codes], [false, ['MINE_THRESHOLDS_FREEZE_REF_INVALID']]);
 });
 
 test('暂停只看记录：连续 3 轮记录里 0 个过 → 暂停；同样 3 轮里有 1 个记录过 → 不暂停', () => {
@@ -110,17 +111,23 @@ const frozenFile = (patch = {}) => {
 };
 
 test('记录的门槛只来自钉住的文件：调用方给的门槛（哪怕写着 FROZEN）或别的改判定的 ctx 都拒绝；冻结文件的数照用并记下；没冻结的照旧不过；文件变了记录里的 sha 跟着变', () => {
-  const { r, ids } = scoredRound('CN_A', '2027-06-02T02:00:00Z', 4);
+  const { r, ids } = scoredRound('CN_A', '2027-06-02T02:00:00Z', 5);
   const lenient = { state: 'FROZEN', frozen_ref: { path: 'x', sha256: 'b'.repeat(64) }, ic_mean_min: -1, icir_min: -1, monotonicity_min: -1, decay_ratio_min: 0, marginal_ir_delta_min: -1, marginal_intercept_t_min: -9 };
   assert.throws(() => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {}, ctx: { thresholds: lenient } }), code(/MINE_GATE_RECORD_THRESHOLDS_FROM_CALLER/));
   for (const k of ['familyTrialCount', 'library', 'registerBytes', 'marks', 'asOf']) {
     assert.throws(() => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {}, ctx: { [k]: 1 } }), code(new RegExp(`MINE_GATE_RECORD_CTX_NOT_ACCEPTED:${k}`)), k);
   }
-  // 仓库里的文件：PENDING_FREEZE → 门失败即关，记不过；记录写出文件 sha 与用到的数
+  // 仓库里的文件：FROZEN，冻结页还是草稿占位 → 门失败即关（FREEZE_REF_INVALID），记不过；记录写出文件 sha 与用到的数
   const repoSha = sha(fs.readFileSync(THRESHOLDS_PATH));
   const unfrozen = records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {} });
-  assert.deepEqual([unfrozen.pass, unfrozen.codes, unfrozen.thresholds_file.sha256, unfrozen.thresholds_used.state], [false, ['MINE_THRESHOLDS_UNFROZEN'], repoSha, 'PENDING_FREEZE']);
+  assert.deepEqual([unfrozen.pass, unfrozen.codes, unfrozen.thresholds_file.sha256, unfrozen.thresholds_used.state], [false, ['MINE_THRESHOLDS_FREEZE_REF_INVALID'], repoSha, 'FROZEN']);
   assert.equal(unfrozen.family_trial_count, trials.count(`MINE:CN_A:H5`).n_raw);
+  // 没冻结的情形：临时的 PENDING 副本 → MINE_THRESHOLDS_UNFROZEN
+  const pendingDoc = { ...JSON.parse(fs.readFileSync(THRESHOLDS_PATH, 'utf8')), state: 'PENDING_FREEZE', frozen_ref: null };
+  const pendingPath = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mine-thr-p-')), 'mining_gate_thresholds.v1.json');
+  fs.writeFileSync(pendingPath, `${JSON.stringify(pendingDoc, null, 2)}\n`);
+  const pend = records.internals.withThresholdsFile(pendingPath, () => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[3], candidate: {} }));
+  assert.deepEqual([pend.pass, pend.codes, pend.thresholds_used.state], [false, ['MINE_THRESHOLDS_UNFROZEN'], 'PENDING_FREEZE']);
   // 冻结的文件：照它的数判，数记进记录
   const a = frozenFile({ ic_mean_min: 0.05 });
   const withA = records.internals.withThresholdsFile(a.p, () => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[1], candidate: {} }));
@@ -133,13 +140,14 @@ test('记录的门槛只来自钉住的文件：调用方给的门槛（哪怕�
   assert.equal(withB.thresholds_used.ic_mean_min, 0.03);
   // 文件写坏了 → 不记
   const bad = frozenFile({ icir_min: 'lenient' });
-  assert.throws(() => records.internals.withThresholdsFile(bad.p, () => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[3], candidate: {} })), code(/MINE_GATE_RECORD_THRESHOLDS_FILE_INVALID/));
+  assert.throws(() => records.internals.withThresholdsFile(bad.p, () => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[4], candidate: {} })), code(/MINE_GATE_RECORD_THRESHOLDS_FILE_INVALID/));
 });
 
-test('G-MINE 的 THRESHOLDS 与记录用的是同一个文件（一个生产者）：数一样、状态 PENDING_FREEZE、出处是签字页', () => {
+test('G-MINE 的 THRESHOLDS 与记录用的是同一个文件（一个生产者）：数一样、状态 FROZEN（冻结页在 docs/freeze/）、出处是签字页', () => {
   const gate = require('../services/mining-gate');
   const doc = JSON.parse(fs.readFileSync(THRESHOLDS_PATH, 'utf8'));
-  assert.deepEqual([doc.schema, doc.state, doc.frozen_ref], ['MINING_GATE_THRESHOLDS_V1', 'PENDING_FREEZE', null]);
+  assert.deepEqual([doc.schema, doc.state, doc.frozen_ref.path], ['MINING_GATE_THRESHOLDS_V1', 'FROZEN', 'docs/freeze/RF1116_GMINE_THRESHOLDS_FREEZE_1.md']);
+  assert.deepEqual(gate.THRESHOLDS.frozen_ref, doc.frozen_ref);
   for (const k of gate.THRESHOLD_KEYS) assert.equal(gate.THRESHOLDS[k], doc[k], k);
   assert.deepEqual([gate.THRESHOLDS.state, gate.THRESHOLDS.source.path, gate.THRESHOLDS.source.sha256], [doc.state, doc.source.path, doc.source.sha256]);
   assert.deepEqual([doc.source.path, doc.source.sha256], [require('../services/factor-library').CONTRACT_REF.path, require('../services/factor-library').CONTRACT_REF.sha256]);
