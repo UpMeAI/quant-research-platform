@@ -17,11 +17,13 @@ const { read } = require('../packages/ledger');
 
 /**
  * G-COST（研究框架修订 2026-11-12 附录 1 §2；docs/contracts/COST_MODEL_GATE_V1.md）：不计成本的回放不得作判定。先红后绿，只用合成登记与合成运行日志。
- * 门只会拒绝导入，从不改写结论。附录 1 未冻结（PENDING_FREEZE）：单元测试注入生效时刻与一页合成的已绑定冻结页，冻结前的失败即关另测。
+ * 门只会拒绝导入，从不改写结论。附录 1 已冻结（FREEZE_1，冻结页 a3329481…）：单元测试注入生效时刻与一页合成的已绑定冻结页；冻结页未绑定时的失败即关，用一页合成的 PENDING_FREEZE 冻结页另测。
  */
 const AUTH = 'TEST_COST_GATE_AUTHORITY';
 const EFF = '2026-11-01T00:00:00+08:00';
 const BOUND = Object.freeze({ path: 'artifacts/coordinator/SYNTH_ADDENDUM_FREEZE_1.md', sha256: 'a'.repeat(64), state: 'FREEZE_1', texts: [{ id: 'DRAFT_REV_1', sha256: 'b'.repeat(64) }] });
+/** 合成的未绑定冻结页（冻结前的形状）：在范围内的题必须失败即关。 */
+const UNBOUND = Object.freeze({ path: addendum.FREEZE.path, sha256: addendum.PENDING, state: addendum.PENDING, texts: [{ id: 'DRAFT_REV_1', sha256: addendum.PENDING }] });
 const FAMILY = 'C17_V2_4000USDT';
 const STUDY = 'R99-COST-SYNTH';
 const GROSS = 'REPLAY_CORE_COSTS_NONE(CLOSE_MARK:按记录 tick 价退出,不另计费用)';
@@ -73,15 +75,17 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('冻结页绑定与目录：生效时刻与冻结页只在附录 1 模块写一处（未冻结 PENDING_FREEZE）；门内角色与阶段按 §2.2；目录里 REPLAY_CORE_COSTS_NONE 是毛收益；现行登记表没有一题过门', () => {
+test('冻结页绑定与目录：生效时刻与冻结页只在附录 1 模块写一处（FREEZE_1：冻结页 a3329481…、草稿修订 1 d64e88af…）；门内角色与阶段按 §2.2；目录里 REPLAY_CORE_COSTS_NONE 是毛收益；现行登记表没有一题过门', () => {
   assert.equal(addendum.EFFECTIVE_FROM, '2026-11-17T00:00:00+08:00');
   assert.equal(gate.EFFECTIVE_FROM, addendum.EFFECTIVE_FROM);
   assert.equal(gate.FREEZE, addendum.FREEZE);
   assert.deepEqual([gate.FREEZE.path, gate.FREEZE.sha256, gate.FREEZE.state, gate.FREEZE.texts.map((t) => `${t.id}:${t.sha256}`)],
-    ['artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_ADDENDUM_1_FREEZE_1.md', 'PENDING_FREEZE', 'PENDING_FREEZE', ['DRAFT_REV_1:PENDING_FREEZE']]);
+    ['artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_ADDENDUM_1_FREEZE_1.md', 'a33294818b799f67c5d0c23008d0434735e9e0ce7516d8028816e7c307de43c1', 'FREEZE_1',
+      ['DRAFT_REV_1:d64e88afa4fb5a5206d6beceaa073362d5e4dcc0d4835393bfffee2607d5aee0']]);
   assert.equal(gate.FREEZE.texts[0].path, 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_ADDENDUM_1_FILL_COST.draft.md');
-  assert.equal(addendum.isBound(), false);
+  assert.equal(addendum.isBound(), true);
   assert.equal(addendum.isBound(BOUND), true);
+  assert.equal(addendum.isBound(UNBOUND), false);
   assert.deepEqual([[...gate.IN_SCOPE_ROLES], [...gate.IN_SCOPE_STAGES]], [['VERDICT_ARM', 'BASELINE', 'WFO_FOLD', 'STRESS'], ['BOOK', 'ABLATION', 'WFO', 'FORWARD']]);
   const none = gate.CATALOGUE.get('REPLAY_CORE_COSTS_NONE');
   assert.deepEqual([none.source, none.counts_costs, none.not_modelled], ['adapters/us-replay-core', false, ['commission', 'slippage']]);
@@ -93,11 +97,24 @@ test('冻结页绑定与目录：生效时刻与冻结页只在附录 1 模块�
   assert.equal(at('2026-11-16T23:59:59+08:00'), false);
 });
 
-test('冻结前（PENDING_FREEZE）：在范围内的题一律拒绝 FREEZE_UNBOUND，哪怕成本全对；不在范围内的题照常放过', () => {
+/** 协调会话目录：默认是本仓库的上一级（KaylaProject）；QRP_COORDINATOR_ROOT 可覆盖。目录不在（别的机器、CI）就跳过。 */
+const COORD_ROOT = process.env.QRP_COORDINATOR_ROOT || path.resolve(__dirname, '..', '..');
+const coordFile = (rel) => path.join(COORD_ROOT, rel);
+const coordPresent = [addendum.FREEZE.path, ...addendum.FREEZE.texts.map((t) => t.path)].every((rel) => fs.existsSync(coordFile(rel)));
+
+test('冻结页与冻结文本：按文件重算 sha256，与绑定一致（协调会话目录在时）', { skip: coordPresent ? false : `coordinator files not found under ${COORD_ROOT}` }, () => {
+  assert.equal(sha(fs.readFileSync(coordFile(addendum.FREEZE.path))), addendum.FREEZE.sha256);
+  for (const t of addendum.FREEZE.texts) assert.equal(sha(fs.readFileSync(coordFile(t.path))), t.sha256, t.id);
+  const page = fs.readFileSync(coordFile(addendum.FREEZE.path), 'utf8');
+  assert.ok(page.includes(addendum.FREEZE.texts[0].sha256), 'freeze page names the frozen text sha256');
+  assert.ok(page.includes(`EFFECTIVE_FROM = ${addendum.EFFECTIVE_FROM}`), 'freeze page states EFFECTIVE_FROM');
+});
+
+test('冻结页未绑定（PENDING_FREEZE）：在范围内的题一律拒绝 FREEZE_UNBOUND，哪怕成本全对；不在范围内的题照常放过', () => {
   preregister();
-  refuses(() => direct({ freeze: gate.FREEZE }), 'FREEZE_UNBOUND');
-  refuses(() => gate.check({ id: 'x', kind: 'RESULT', strategy_ref: FAMILY, k2: { sha256: K2_SHA }, k2_frozen_at: '2026-11-17T10:00:00+08:00' }, { runLogBytes: () => runLog(COSTED_RUNS()) }), 'FREEZE_UNBOUND');
-  assert.deepEqual(direct({ freeze: gate.FREEZE, entryPatch: { k2_frozen_at: '2026-10-31T23:59:59+08:00' } }), { applies: false, reason: 'FROZEN_BEFORE_EFFECTIVE' });
+  refuses(() => direct({ freeze: UNBOUND }), 'FREEZE_UNBOUND');
+  refuses(() => gate.check({ id: 'x', kind: 'RESULT', strategy_ref: FAMILY, k2: { sha256: K2_SHA }, k2_frozen_at: '2026-11-17T10:00:00+08:00' }, { runLogBytes: () => runLog(COSTED_RUNS()) }, { freeze: UNBOUND }), 'FREEZE_UNBOUND');
+  assert.deepEqual(direct({ freeze: UNBOUND, entryPatch: { k2_frozen_at: '2026-10-31T23:59:59+08:00' } }), { applies: false, reason: 'FROZEN_BEFORE_EFFECTIVE' });
   assert.deepEqual(gate.check({ id: 'x', kind: 'RESULT', k2: { sha256: K2_SHA }, k2_frozen_at: '2026-11-16T10:00:00+08:00' }, {}), { applies: false, reason: 'FROZEN_BEFORE_EFFECTIVE' });
 });
 
@@ -236,7 +253,7 @@ test('导入器：默认读法下（K2 早于 11-17）毛收益题照原样导�
   fs.rmSync(overseas.LEDGER());
   const opts = (fx) => ({ registeredBy: AUTH, entries: [fx.entry] });
   const ok = importerFixture({ runs: [...COSTED_RUNS(), run('T_VAR', GROSS), run('S_IC', GROSS)] });
-  assert.throws(() => gated(() => overseas.importVerdicts(ok.out, opts(ok)), { effectiveFrom: EFF }), /COST_MODEL_FREEZE_UNBOUND/);
+  assert.throws(() => gated(() => overseas.importVerdicts(ok.out, opts(ok)), { effectiveFrom: EFF, freeze: UNBOUND }), /COST_MODEL_FREEZE_UNBOUND/);
   assert.throws(() => gated(() => overseas.importVerdicts(gross.out, opts(gross))), /COST_MODEL_GROSS_VERDICT/);
   assert.equal(count(overseas.LEDGER()), 0);
   const [lock] = gated(() => overseas.importVerdicts(ok.out, opts(ok)));

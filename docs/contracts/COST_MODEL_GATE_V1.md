@@ -5,8 +5,9 @@
   - 冻结页：`artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_ADDENDUM_1_FREEZE_1.md`。
 - 起因：`adapters/us-replay-core` 声明 `REPLAY_CORE_COSTS_NONE(CLOSE_MARK…)`，成本拆分写明佣金、滑点 `NOT_MODELLED_CLOSE_MARK`，「收益是毛收益」。此前导入器从没拦过用它判出的「做 / 不做」。
 - 冻结页绑定（§2.5）：`services/research-framework-amendment-20261112-addendum-1` 写冻结页 `FREEZE`（path + sha256 + state，以及它冻结的草稿修订 1 的 sha256）和 `EFFECTIVE_FROM`，做法同 `services/research-framework-amendment-20261112`。`services/cost-gate` 从那里读，自己不写常量；A1 以后读同一个常量。
-  - 现在 `sha256` 与 `state` 都是 `PENDING_FREEZE`：在范围内的题一律拒绝（`COST_MODEL_FREEZE_UNBOUND`），不在范围内的不受影响。
-  - `EFFECTIVE_FROM = 2026-11-17T00:00:00+08:00`：协调会话裁定，冻结若在此刻之前完成取此刻，否则取冻结时刻。冻结后补一次提交写入两处 sha256、state 与 `EFFECTIVE_FROM`。
+  - 已绑定（2026-11-16T22:07:39+08:00 冻结，`state = FREEZE_1`）：冻结页 sha256 `a33294818b799f67c5d0c23008d0434735e9e0ce7516d8028816e7c307de43c1`，冻结的草稿修订 1 sha256 `d64e88afa4fb5a5206d6beceaa073362d5e4dcc0d4835393bfffee2607d5aee0`。`tests/cost_gate.test.js` 在协调会话目录存在时按文件重算两处 sha256。
+  - 冻结页没绑定（`PENDING_FREEZE`）时，在范围内的题一律拒绝（`COST_MODEL_FREEZE_UNBOUND`），不在范围内的不受影响。
+  - `EFFECTIVE_FROM = 2026-11-17T00:00:00+08:00`：冻结页写定（冻结在此刻之前完成）。
 - 性质：只改研究导入，不改交易、风控、账户规则，不改生产。门只会拒绝导入（失败即关），从不改写结论，也不会因此判「不做」。没有裁定放行的路径。
 - 位置：海外与 A 股封存结论导入器共用的 `checkEntry`，一处调用，在原有校验、G-TRIAL、G-MECH、G-CAUSAL 之后运行。过门的题锁里多一个 `cost_gate` 块；不过门的不加字段，现有锁逐字节不变。
 
