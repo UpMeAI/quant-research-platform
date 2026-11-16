@@ -16,7 +16,7 @@
  *     空数组 ⇔ 第 4 行写「无」，否则第 4 行里两种类别记号的个数 = 项数，且不写别的类别（AI_ROLE_*）。
  *   AI_MINED_CANDIDATE（RF1116 §2.4、§6 第 2 条，签字 fd22876f；P1）：项要写 candidate_id 与 round_id，第 4 行写出这两个编号；
  *     entry.factor_refs 里有挖掘因子（因子库 origin AI_MINED_*）时，每个挖掘因子都要有一项 AI_MINED_CANDIDATE（候选编号与轮次和因子库的 mining 一致），
- *     否则 AI_ROLE_MINED_CANDIDATE_MISSING；没有 factor_refs 的题照旧。
+ *     否则 AI_ROLE_MINED_CANDIDATE_MISSING；协调会话裁定 2：另扫 K2 正文，出现挖掘因子编号、挖掘候选或轮次编号（按记号边界）而没有对应项 → 同一拒绝。
  */
 const crypto = require('crypto');
 const path = require('path');
@@ -119,7 +119,19 @@ function checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks
   return { mechanism_ids: want, prior_table_sha256: spec.sha256, register_commit: table.register.commit, register_sha256: table.register.sha256, route: table.route };
 }
 
-function checkAiInputs(entry, line4, factorLibrary = () => require('../factor-library').LIBRARY) {
+/** 记号边界（协调会话裁定 2）：编号前后一个字符都不是 A–Z a–z 0–9 _ : - 才算出现；所以 C042 不算出现在 XC042、C0421、C042-b、R:C042 里。 */
+const TOKEN_CHAR = /[A-Za-z0-9_:-]/;
+function mentions(text, id) {
+  for (let i = text.indexOf(id); i >= 0; i = text.indexOf(id, i + 1)) {
+    const before = i > 0 ? text[i - 1] : ''; const after = text[i + id.length] || '';
+    if (!(before && TOKEN_CHAR.test(before)) && !(after && TOKEN_CHAR.test(after))) return true;
+  }
+  return false;
+}
+const defaultLibrary = () => require('../factor-library').LIBRARY;
+const defaultMinedTrials = () => [...require('../trial-ledger').heads().values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining);
+
+function checkAiInputs(entry, line4, { factorLibrary = defaultLibrary, minedTrials = defaultMinedTrials, text = line4 } = {}) {
   const items = entry.ai_inputs;
   need(Array.isArray(items), 'AI_ROLE_INPUTS_MISSING', entry.id);
   items.forEach((item, i) => {
@@ -142,6 +154,20 @@ function checkAiInputs(entry, line4, factorLibrary = () => require('../factor-li
         'AI_ROLE_MINED_CANDIDATE_MISSING', `${entry.id}:${id}:${f.mining.candidate_id}@${f.mining.round_id}`);
     }
   }
+  // 协调会话裁定 2：扫 K2 正文——出现挖掘因子编号（因子库 origin AI_MINED_*）、挖掘候选编号或轮次编号（试验台账 MINED_CANDIDATE 行），
+  // 没有对应的 AI_MINED_CANDIDATE 项就拒绝，不管写没写 factor_refs
+  const minedItems = items.filter((it) => it.category === MINED);
+  for (const f of (factorLibrary().factors || []).filter((x) => String(x.origin).startsWith('AI_MINED_'))) {
+    if (!mentions(text, f.factor_id)) continue;
+    need(minedItems.some((it) => it.candidate_id === f.mining.candidate_id && it.round_id === f.mining.round_id),
+      'AI_ROLE_MINED_CANDIDATE_MISSING', `${entry.id}:K2_TEXT:${f.factor_id}:${f.mining.candidate_id}@${f.mining.round_id}`);
+  }
+  for (const t of minedTrials()) {
+    if (mentions(text, t.mining.candidate_id)) {
+      need(minedItems.some((it) => it.candidate_id === t.mining.candidate_id && it.round_id === t.mining.round_id), 'AI_ROLE_MINED_CANDIDATE_MISSING', `${entry.id}:K2_TEXT:${t.mining.candidate_id}`);
+    }
+    if (mentions(text, t.mining.round_id)) need(minedItems.some((it) => it.round_id === t.mining.round_id), 'AI_ROLE_MINED_CANDIDATE_MISSING', `${entry.id}:K2_TEXT:${t.mining.round_id}`);
+  }
   // 第 4 行里写出的候选编号与轮次（可能带 CN_A 这类大写片段）不当作类别记号
   const scan = items.filter((it) => it.category === MINED).reduce((t, it) => t.split(it.candidate_id).join(' ').split(it.round_id).join(' '), line4);
   const other = (scan.match(CATEGORY_TOKEN) || []).filter((token) => !AI_CATEGORIES.includes(token));
@@ -156,15 +182,15 @@ function checkAiInputs(entry, line4, factorLibrary = () => require('../factor-li
  * 导入器调用：已有校验与 G-TRIAL 之后。不过门的题返回 { applies: false, reason }，导入器照原样写锁。
  * @param {object} entry
  * @param {{k2Bytes: () => Buffer, priorTableBytes: () => Buffer|null}} files  按 sha256 复验后的 K2 与先前结论表字节（只在过门时才读）
- * @param {{effectiveFrom?: string|null, registerAt?: (commit: string) => Buffer|null, marks?: object[]|null, factorLibrary?: () => object}} options  factorLibrary 只给测试用
+ * @param {{effectiveFrom?: string|null, registerAt?: (commit: string) => Buffer|null, marks?: object[]|null, factorLibrary?: () => object, minedTrials?: () => object[]}} options  factorLibrary、minedTrials 只给测试用
  */
-function check(entry, { k2Bytes, priorTableBytes = () => null }, { effectiveFrom = EFFECTIVE_FROM, registerAt = gitRegisterAt, marks = null, factorLibrary } = {}) {
+function check(entry, { k2Bytes, priorTableBytes = () => null }, { effectiveFrom = EFFECTIVE_FROM, registerAt = gitRegisterAt, marks = null, factorLibrary, minedTrials } = {}) {
   const scope = applies(entry, effectiveFrom);
   if (!scope.applies) return { applies: false, reason: scope.reason };
   const text = k2Bytes().toString('utf8');
   const [line1, , , line4] = section0(text);
   const mechanism = checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks });
-  const aiInputs = checkAiInputs(entry, line4, factorLibrary);
+  const aiInputs = checkAiInputs(entry, line4, { factorLibrary, minedTrials, text });
   return { applies: true, reason: scope.reason, effective_from: effectiveFrom, section0: 'PRESENT', ...mechanism, ai_inputs: aiInputs };
 }
 
