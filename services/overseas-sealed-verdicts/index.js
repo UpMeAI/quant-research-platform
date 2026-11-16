@@ -181,7 +181,7 @@ const kms8 = (id, key, title, note_zh) => Object.freeze({ id, label_zh: '凯利 
   k2_frozen_at: '2026-11-15T17:32:24+08:00', trial_gates_ruling: KMS8_RULING, read: kms8Read(key), expect: '不做', state_zh: KMS8_PASS_ZH, note_zh });
 
 // 修订 9：US_CORE 职责对照 VOO（desk 候选 RLC-US-2026W42-1，题 DQ-RQK-d8fdad6a84b9c984），一个单元。10-28 封存，早于过拟合控制修订（11-11）
-// 与 RF1112（11-15），三道门按封存日都不适用，不写 k2_frozen_at（冻结页写「02:4x」，文件写于 02:22:51 CST、封存提交 02:30:54 CST，只披露）。
+// 与 RF1112（11-15），三道门按封存日都不适用，不写 k2_frozen_at。冻结时刻取冻结页文件的写入时刻 2026-10-28 02:22:51 CST，早于封存提交 02:30:54 CST（协调会话 11-16 裁定：照文件时刻与提交时刻写）。
 // K2 绑冻结页写的提交 e0b5c2d0 上的草稿（封存提交上字节相同）；RUN_SEAL 记 A、B 两次运行逐字节相同，作附带文件。
 // 机制登记表 U10（SEL.CORE_ROLE.TIMING_VS_HOLD）已记这份结果（seal_sha256 相同）
 const UCV_RESULT = sf(COMMIT.UCV, 'docs/evidence/us-core-role-vs-voo-v1/US_CORE_ROLE_VS_VOO_RESULT_V1.json', '3ec623e26cef92a040cea6f24d0b28a750ad4bdaeebe00e636bc4492267a0270');
@@ -391,6 +391,7 @@ const ENTRIES = Object.freeze([
     note_zh: '判定表 §7 第 4 条：D（3x）最大回撤 46.08% 大于职责基准，C1（同规则 1x）的职责适配 R-FIT 区间跨界（界：BPR 上界 ≤ 1.00，Δg 下界 ≥ −0.02/年）：C1 前瞻影子，D 不变。'
       + 'OOS 2018-01-02 → 2026-09-30：VOO g 0.1348、回撤 33.72%；D Δg +0.0850 [−0.1275, +0.2905]；C1 Δg −0.0128 [−0.0814, +0.0537]、回撤 21.34%、熊市保护比 0.633 [0.484, 1.280]。'
       + '规则版本 a8601cd3（趋势档收盘低于均线）；Owner 10-28 的盘中到价改造落地后如要重判，另写附录。披露：C1 的 SPY、QQQ 腿不含分红，VOO 是总收益。'
+      + '冻结：冻结页文件写于 2026-10-28 02:22:51 CST，K2 草稿提交 02:19:50、封存提交 02:30:54，冻结在运行之前。'
       + '来源：smartflow research/us-core-role-vs-voo-k2 的结果文档 US_CORE_ROLE_VS_VOO_RESEARCH_RESULT_V1.md（662fdcb0），封存 2026-10-28。' },
 ]);
 
