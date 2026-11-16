@@ -18,8 +18,12 @@ const TRIALS = () => path.join(dataDir('research'), 'trials.jsonl');
 const SEGMENTS = () => path.join(dataDir('research'), 'data_segments.jsonl');
 const DISCLOSURES = () => path.join(dataDir('research'), 'overfit_disclosures.jsonl');
 
-const ROLES = Object.freeze(['VERDICT_ARM', 'REPORT_ONLY_VARIANT', 'DIAGNOSTIC_ARM', 'SIGNAL_TEST', 'STRESS', 'BASELINE', 'REPRO', 'NULL_DRAW', 'WFO_FOLD', 'UNCOUNTED_HISTORY']);
-const COUNTS_IN_N = Object.freeze(new Set(['VERDICT_ARM', 'REPORT_ONLY_VARIANT', 'DIAGNOSTIC_ARM', 'SIGNAL_TEST'])); // §2.2
+const ROLES = Object.freeze(['VERDICT_ARM', 'REPORT_ONLY_VARIANT', 'DIAGNOSTIC_ARM', 'SIGNAL_TEST', 'STRESS', 'BASELINE', 'REPRO', 'NULL_DRAW', 'WFO_FOLD', 'UNCOUNTED_HISTORY', 'MINED_CANDIDATE']);
+// §2.2；MINED_CANDIDATE：RF1116 §3.3（签字 fd22876f）挖掘沙箱每个算过分的候选，阶段 SIGNAL，计入 N（本族 = 市场 × 持有期，所有轮次累计，从不按轮清零）
+const COUNTS_IN_N = Object.freeze(new Set(['VERDICT_ARM', 'REPORT_ONLY_VARIANT', 'DIAGNOSTIC_ARM', 'SIGNAL_TEST', 'MINED_CANDIDATE']));
+/** RF1116 §3.3：挖掘候选的族 = MINE:<市场>:H<持有期交易日>；行要写轮次、空间 sha、候选编号、公式 sha、生成方式。 */
+const MINED_FAMILY = /^MINE:(CN_A|US|CRYPTO):H([1-9]\d*)$/;
+const MINED_GENERATORS = Object.freeze(['AI_MINED_LLM', 'AI_MINED_GP']);
 const STAGES = Object.freeze(['SIGNAL', 'BOOK', 'ABLATION', 'WFO', 'FORWARD']);
 const BOOK_LEVEL = Object.freeze(new Set(['BOOK', 'ABLATION'])); // §3.1：进方差 V 的账本级试验
 const MODES = Object.freeze(['PREREGISTERED', 'UNPLANNED_RUN', 'BACK_REGISTERED']);
@@ -98,6 +102,14 @@ function validateSpec(spec, mode) {
   need(spec.rule_config !== undefined || SHA64.test(spec.rule_config_hash || ''), 'RULE_CONFIG_REQUIRED', spec.config_label);
   for (const k of ['delta_vs_baseline', 'params_tried', 'source_refs', 'segments']) need(spec[k] === undefined || Array.isArray(spec[k]), 'SPEC_FIELD_NOT_ARRAY', k);
   need(spec.unknown === undefined || isObj(spec.unknown), 'SPEC_FIELD_NOT_OBJECT', 'unknown');
+  if (spec.role === 'MINED_CANDIDATE') {
+    need(spec.stage === 'SIGNAL', 'MINED_CANDIDATE_STAGE_SIGNAL', String(spec.stage));
+    const fam = MINED_FAMILY.exec(spec.family_id);
+    need(fam && fam[1] === spec.market, 'MINED_CANDIDATE_FAMILY', `${spec.family_id}@${spec.market}`);
+    const m = spec.mining;
+    need(isObj(m) && isText(m.round_id) && isText(m.candidate_id) && SHA64.test(m.space_sha256 || '') && SHA64.test(m.formula_sha256 || '') && MINED_GENERATORS.includes(m.generator),
+      'MINED_CANDIDATE_NEEDS_MINING', spec.config_label);
+  } else need(spec.mining === undefined, 'MINING_ONLY_FOR_MINED_CANDIDATE', spec.config_label);
 }
 
 function registrationBody(spec, mode, registeredBy, registeredAt) {
@@ -116,6 +128,8 @@ function registrationBody(spec, mode, registeredBy, registeredAt) {
   if (spec.rule_config !== undefined) body.rule_config = spec.rule_config;
   if (spec.role === 'UNCOUNTED_HISTORY') body.uncounted_lower_bound = spec.uncounted_lower_bound;
   if (spec.notes_zh) body.notes_zh = spec.notes_zh;
+  if (spec.role === 'MINED_CANDIDATE') body.mining = { round_id: spec.mining.round_id, candidate_id: spec.mining.candidate_id, space_sha256: spec.mining.space_sha256,
+    formula_sha256: spec.mining.formula_sha256, generator: spec.mining.generator };
   body.record_hash = recordHash(body);
   return body;
 }
@@ -439,7 +453,7 @@ const disclosures = (filter = {}) => read(DISCLOSURES()).filter((r) => r.schema 
   && (!filter.family_id || r.family_id === filter.family_id) && (!filter.k2_sha256 || r.k2_sha256 === filter.k2_sha256));
 
 module.exports = {
-  TRIALS, SEGMENTS, DISCLOSURES, ROLES, COUNTS_IN_N, STAGES, BOOK_LEVEL, MODES, LABELS, SEEN_KINDS, METRIC_KEYS, TRIAL_ID, SHA64,
+  TRIALS, SEGMENTS, DISCLOSURES, ROLES, COUNTS_IN_N, MINED_FAMILY, MINED_GENERATORS, STAGES, BOOK_LEVEL, MODES, LABELS, SEEN_KINDS, METRIC_KEYS, TRIAL_ID, SHA64,
   TrialLedgerError, canonicalJson, ruleConfigHash, evalHash, trialIdOf, recordHash, trialRows, heads, headOf,
   register, recordResult, correct, count, countMarket, familySharpes, marketSharpes, markSegments, segmentsFor, segmentLabels, disclose, discloseNotApplicable, NOT_APPLICABLE_FIELDS, disclosures, seriesStats,
   internals: { authority, need, fail, sameRegistration },

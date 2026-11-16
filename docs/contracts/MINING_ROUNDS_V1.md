@@ -1,0 +1,47 @@
+# MINING_ROUNDS_V1 — rounds, cumulative N, holdout vault, AI_MINED_CANDIDATE, mined-lineage promotion (RF1116 §3.3–3.4, P1 part 2)
+
+Source: the signed RF1116 text (`fd22876f…`, signature page `39f8c17c…`), §2.4, §3.3, §3.4, §6 item 2, §8.1 row P1, §8.2, and §8.3 items 8–10. It also covers the coordinator's addition of 2026-11-17 (mined lineage needs the race route).
+
+QRP side only. The sandbox process writes no ledger (see `MINING_SANDBOX_V1`). Round manifests, candidate trial rows and holdout custody all go through these services.
+
+## Trial ledger: `MINED_CANDIDATE`
+
+- **Role rules.** The role is `MINED_CANDIDATE` and the stage is always `SIGNAL`. The role counts in N. The family is `MINE:<market>:H<holding trading days>`, one family per market × holding period.
+- **Mining block.** Each row carries a `mining` block: `round_id`, `candidate_id`, `space_sha256`, `formula_sha256` and `generator` (`AI_MINED_LLM` or `AI_MINED_GP`). Other roles cannot carry `mining`.
+- **N never resets.** N is the existing `count(family)`: distinct rule configs, accumulated across every round. Dedupe-rejected and orthogonalized versions are written as rows of their own, so they count too.
+
+## Rounds `MINING_ROUND_V1` (`services/mining-rounds`, ledger `research/mining_rounds.jsonl`)
+
+| rule | refusal |
+|---|---|
+| The manifest is the pre-registration: frozen space (sha + freeze page), holding periods, generator (LLM model and knowledge cutoff, or GP seed), cap ≤ 200, holdout window | `MINE_ROUND_*_INVALID`, `MINE_ROUND_SPACE_NOT_FROZEN` |
+| For LLM rounds, the holdout must start after the model's knowledge cutoff | `MINE_ROUND_HOLDOUT_BEFORE_CUTOFF` |
+| The holdout is frozen by the market's first round and never moves | `MINE_ROUND_HOLDOUT_MOVED` |
+| One open round per market | `MINE_ROUND_ALREADY_OPEN` |
+| At most 2 rounds per market per month (Beijing time) | `MINE_ROUND_MONTHLY_CAP` |
+| Every scored candidate becomes one trial row. Candidate 201 is not scored and stops the round (`CAP_REACHED`), with no top-up | `MINE_ROUND_CAP_REACHED` |
+| 3 consecutive closed rounds without a G-MINE pass pause the market. It reopens only with a frozen space not used in those rounds; N keeps accumulating while paused | `MINE_MARKET_PAUSED` |
+
+Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more candidates) → `CLOSED`. `CLOSED` records `gmine_passes`, which only the pause rule uses.
+
+**Generator view** (`generatorView`): the space, mining-segment scores and the formulas already tried in this market. It exposes nothing from validation folds, the holdout, races or paper trading, and nothing about G-MINE pass or fail.
+
+## Holdout vault (`services/holdout-vault`, ledger `research/holdout_vault.jsonl`)
+
+- **`seal`.** One seal per round. Its window must equal the round's holdout, and only the data reference and its sha256 are recorded.
+- **`open`.** One open per round (`MINE_HOLDOUT_ALREADY_OPENED`), after generation ends. Rules:
+  - candidates must be unique (each is read once);
+  - candidates must be this round's `MINED_CANDIDATE` rows;
+  - every open is logged;
+  - opening moves the round to `SCORING`.
+
+## `ai_inputs` `AI_MINED_CANDIDATE` (G-MECH gate)
+
+- **New category.** `AI_MINED_CANDIDATE` joins `EXTRACTED_FACT`. An item carries `candidate_id` and `round_id`, and K2 §0 line 4 must state both ids.
+- **Mined factors need it.** When `entry.factor_refs` names a factor whose library origin is `AI_MINED_*`, the entry needs a matching `AI_MINED_CANDIDATE` item, with the same candidate and round as the library's `mining`. Otherwise it gets `AI_ROLE_MINED_CANDIDATE_MISSING`.
+- **Unchanged.** Entries without `factor_refs` behave as before.
+
+## Promotion: mined lineage needs race and paper validation
+
+- **Refusal.** `createPromotionCandidate` takes an optional `trial_refs` list. Its lineage is those trials plus the TRL ids in their `source_refs`, followed recursively. If the lineage contains a `MINED_CANDIDATE`, the candidate must carry both `race_manifest_ref` and `paper_validation_refs`, otherwise `PROMOTION_MINED_REQUIRES_RACE_AND_PAPER`. When both are present, they then pass through the existing PAPER_VALIDATION_V1 gate.
+- **Unchanged without mined lineage.** A candidate with no mined lineage is byte-identical to the legacy record: `trial_refs` is left out of the record and of the id hash.

@@ -12,8 +12,11 @@
  *   G-MECH（§4.4）：第 1 行写出的 id 集合 = entry.mechanism_ids；entry.mechanism_prior_table 按 sha256 绑定一份
  *     MECHANISM_PRIOR_TABLE_V1，且这个 sha256 写在 K2 正文里；表的 as_of 不晚于 K2 冻结；表写的登记表提交在 QRP git 里，
  *     那一版登记表的 sha256 与表一致，id 都在那一版里；用那一版登记表加 as_of 之前登记的数据段标签重算，逐字节相同（MECHANISM_*）。
- *   AI 输入（§2.4、§5 第 4 行）：entry.ai_inputs 必须有；每项 { category, ref, desc_zh }，类别只有 EXTRACTED_FACT；
- *     空数组 ⇔ 第 4 行写「无」，否则第 4 行里 EXTRACTED_FACT 的个数 = 项数，且不写别的类别（AI_ROLE_*）。
+ *   AI 输入（§2.4、§5 第 4 行）：entry.ai_inputs 必须有；每项 { category, ref, desc_zh }，类别只有 EXTRACTED_FACT 与 AI_MINED_CANDIDATE；
+ *     空数组 ⇔ 第 4 行写「无」，否则第 4 行里两种类别记号的个数 = 项数，且不写别的类别（AI_ROLE_*）。
+ *   AI_MINED_CANDIDATE（RF1116 §2.4、§6 第 2 条，签字 fd22876f；P1）：项要写 candidate_id 与 round_id，第 4 行写出这两个编号；
+ *     entry.factor_refs 里有挖掘因子（因子库 origin AI_MINED_*）时，每个挖掘因子都要有一项 AI_MINED_CANDIDATE（候选编号与轮次和因子库的 mining 一致），
+ *     否则 AI_ROLE_MINED_CANDIDATE_MISSING；没有 factor_refs 的题照旧。
  */
 const crypto = require('crypto');
 const path = require('path');
@@ -25,7 +28,8 @@ const amendment = require('../research-framework-amendment-20261112');
 /** 修订冻结时刻：冻结页 FREEZE_1 写出的唯一常量，与 G-CAUSAL 共用（E13 / G14），不在这里另写。 */
 const EFFECTIVE_FROM = amendment.EFFECTIVE_FROM;
 const LINE_LABELS = Object.freeze(['**机制**：', '**预期失效方式**：', '**可能被哪条现行规则解释**：', '**AI 输入**：']);
-const AI_CATEGORIES = Object.freeze(['EXTRACTED_FACT']);
+const AI_CATEGORIES = Object.freeze(['EXTRACTED_FACT', 'AI_MINED_CANDIDATE']);
+const MINED = 'AI_MINED_CANDIDATE';
 const ID_IN_LINE = /(?:SEL|RISK|ACCT|EXEC)\.[A-Z0-9_]+\.[A-Z0-9_]+/g;
 const CATEGORY_TOKEN = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
 const QRP_ROOT = path.join(__dirname, '..', '..');
@@ -115,18 +119,35 @@ function checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks
   return { mechanism_ids: want, prior_table_sha256: spec.sha256, register_commit: table.register.commit, register_sha256: table.register.sha256, route: table.route };
 }
 
-function checkAiInputs(entry, line4) {
+function checkAiInputs(entry, line4, factorLibrary = () => require('../factor-library').LIBRARY) {
   const items = entry.ai_inputs;
   need(Array.isArray(items), 'AI_ROLE_INPUTS_MISSING', entry.id);
   items.forEach((item, i) => {
     need(isObject(item) && isText(item.category), 'AI_ROLE_INPUT_INVALID', `${entry.id}[${i}]`);
     need(AI_CATEGORIES.includes(item.category), 'AI_ROLE_CATEGORY_NOT_ALLOWED', `${entry.id}[${i}]:${item.category}`);
     need(isText(item.ref) && isText(item.desc_zh), 'AI_ROLE_INPUT_INVALID', `${entry.id}[${i}]`);
+    if (item.category === MINED) {
+      need(isText(item.candidate_id) && isText(item.round_id), 'AI_ROLE_INPUT_INVALID', `${entry.id}[${i}]:AI_MINED_CANDIDATE needs candidate_id and round_id`);
+      need(line4.includes(item.candidate_id) && line4.includes(item.round_id), 'AI_ROLE_K2_LINE_MISMATCH', `${entry.id}:K2 line 4 lacks ${item.candidate_id} / ${item.round_id}`);
+    }
   });
-  const other = (line4.match(CATEGORY_TOKEN) || []).filter((token) => !AI_CATEGORIES.includes(token));
+  // 测挖掘因子的 K2：每个挖掘因子都要写 AI_MINED_CANDIDATE（RF1116 §8.3 第 10 条）
+  if (Array.isArray(entry.factor_refs) && entry.factor_refs.length) {
+    const lib = factorLibrary();
+    for (const id of entry.factor_refs) {
+      const f = (lib.factors || []).find((x) => x.factor_id === id);
+      need(f, 'AI_ROLE_FACTOR_UNKNOWN', `${entry.id}:${id}`);
+      if (!String(f.origin).startsWith('AI_MINED_')) continue;
+      need(items.some((it) => it.category === MINED && it.candidate_id === f.mining.candidate_id && it.round_id === f.mining.round_id),
+        'AI_ROLE_MINED_CANDIDATE_MISSING', `${entry.id}:${id}:${f.mining.candidate_id}@${f.mining.round_id}`);
+    }
+  }
+  // 第 4 行里写出的候选编号与轮次（可能带 CN_A 这类大写片段）不当作类别记号
+  const scan = items.filter((it) => it.category === MINED).reduce((t, it) => t.split(it.candidate_id).join(' ').split(it.round_id).join(' '), line4);
+  const other = (scan.match(CATEGORY_TOKEN) || []).filter((token) => !AI_CATEGORIES.includes(token));
   need(!other.length, 'AI_ROLE_CATEGORY_NOT_ALLOWED', `${entry.id}:K2:${other.join(',')}`);
   const none = /^无[。.]?$/.test(line4);
-  const listed = (line4.match(/EXTRACTED_FACT/g) || []).length;
+  const listed = (line4.match(/EXTRACTED_FACT|AI_MINED_CANDIDATE/g) || []).length;
   need(items.length === 0 ? none : !none && listed === items.length, 'AI_ROLE_K2_LINE_MISMATCH', `${entry.id}:${items.length}≠${none ? '无' : listed}`);
   return items.length;
 }
@@ -135,16 +156,16 @@ function checkAiInputs(entry, line4) {
  * 导入器调用：已有校验与 G-TRIAL 之后。不过门的题返回 { applies: false, reason }，导入器照原样写锁。
  * @param {object} entry
  * @param {{k2Bytes: () => Buffer, priorTableBytes: () => Buffer|null}} files  按 sha256 复验后的 K2 与先前结论表字节（只在过门时才读）
- * @param {{effectiveFrom?: string|null, registerAt?: (commit: string) => Buffer|null, marks?: object[]|null}} options
+ * @param {{effectiveFrom?: string|null, registerAt?: (commit: string) => Buffer|null, marks?: object[]|null, factorLibrary?: () => object}} options  factorLibrary 只给测试用
  */
-function check(entry, { k2Bytes, priorTableBytes = () => null }, { effectiveFrom = EFFECTIVE_FROM, registerAt = gitRegisterAt, marks = null } = {}) {
+function check(entry, { k2Bytes, priorTableBytes = () => null }, { effectiveFrom = EFFECTIVE_FROM, registerAt = gitRegisterAt, marks = null, factorLibrary } = {}) {
   const scope = applies(entry, effectiveFrom);
   if (!scope.applies) return { applies: false, reason: scope.reason };
   const text = k2Bytes().toString('utf8');
   const [line1, , , line4] = section0(text);
   const mechanism = checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks });
-  const aiInputs = checkAiInputs(entry, line4);
+  const aiInputs = checkAiInputs(entry, line4, factorLibrary);
   return { applies: true, reason: scope.reason, effective_from: effectiveFrom, section0: 'PRESENT', ...mechanism, ai_inputs: aiInputs };
 }
 
-module.exports = { EFFECTIVE_FROM, LINE_LABELS, AI_CATEGORIES, MechanismGateError, applies, section0, check, internals: { gitRegisterAt, marketOf } };
+module.exports = { EFFECTIVE_FROM, LINE_LABELS, AI_CATEGORIES, MechanismGateError, applies, section0, check, internals: { gitRegisterAt, marketOf, checkAiInputs } };
