@@ -18,7 +18,8 @@ const { read } = require('../packages/ledger');
  * 起因：第一份过 G-PARITY 的 K2（R_US_ENTRY_TOUCH_1_K2_V1）冻结在 DATA: 写法之前，记号写在冻结附注里；KG #368（登记表 1.13.0）把没有的字段写成 null。
  */
 const AUTH = 'TEST_PARITY_NOTES_AUTHORITY';
-const REG = datasetRegistry.pinned();
+// 记号与 withFields 按没有这几个字段的 1.11.0 写（KG 12afd2fc，从 config/dataset-registry/history 读）；不传 registry 的调用走现在钉的 1.13.0，1.11.0 的记号经历史放行。
+const REG = [...datasetRegistry.history().values()].find((h) => h.registry_version === '1.11.0');
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const tok = (id, { pit = 'BAR_CLOSE', vendor = 'Alpaca', basis, version = REG.registry_version } = {}) =>

@@ -1,14 +1,22 @@
 {
   "repository": "wendy926/knowledge-graph",
-  "commit": "12afd2fcb23f274630e01aad13d84f26f6c407f4",
+  "commit": "322ff69b28bf05efa3ef7b9ed75cb31504ac35f9",
   "note": "QRP pin of the KG dataset registry (RESEARCH_LIVE_PARITY_V1 ★5 (a), signature page f0fe8e5c, signed text ceb35505). Pinned copies of data/registry/datasets.v1.json and scripts/registry/dataset-registry-scan.cjs, same commit and sha256 as the production pins below. Re-pin: copy both files from the knowledge-graph commit, update the sha256 values, registry_version and production_pins here.",
-  "registry_version": "1.11.0",
+  "registry_version": "1.13.0",
   "files": {
-    "datasets.v1.json": "d8a17a3ee6e23e59494176eb818d7dc46fde382da032878eeb729af0855ba687",
+    "datasets.v1.json": "1e32a26ca509d5dd82ad6123665ed8bb13495fd1f832b78d29b70f5450f8d94d",
     "dataset-registry-scan.cjs": "461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af"
   },
   "production_pins": [
-    { "repository": "ashare-v6", "commit": "83ab3af185c86cd2a21269ce918e49017f8876b3", "path": "test/fixtures/dataset-registry/PIN.json" },
-    { "repository": "smartflow", "commit": "3b25fb61ceffb0ed3437a6f6746ed66bf7150955", "path": "trading-system-v2/tests/fixtures/dataset-registry/PIN.json" }
+    {
+      "repository": "ashare-v6",
+      "commit": "83ab3af185c86cd2a21269ce918e49017f8876b3",
+      "path": "test/fixtures/dataset-registry/PIN.json"
+    },
+    {
+      "repository": "smartflow",
+      "commit": "2e9585434853cbd6dc97769e32687ee530125f1c",
+      "path": "trading-system-v2/tests/fixtures/dataset-registry/PIN.json"
+    }
   ]
 }

@@ -10,11 +10,11 @@
 
 ## 1. QRP 钉住 KG 数据集登记表（★5 (a)）
 
-- `config/dataset-registry/`：KG（`wendy926/knowledge-graph`）提交 `12afd2fc` 的 `data/registry/datasets.v1.json`（sha256 `d8a17a3e…`，版本 1.11.0，24 个数据集）与 `scripts/registry/dataset-registry-scan.cjs`（`461611f5…`）原样副本，`PIN.json` 写提交、两份 sha256、`registry_version`，以及生产两端的钉版（Ashare-V6 `83ab3af1` 的 `test/fixtures/dataset-registry/PIN.json`、smartflow `3b25fb61` 的 `trading-system-v2/tests/fixtures/dataset-registry/PIN.json`，同一个提交、同一组 sha256）。
+- `config/dataset-registry/`：KG（`wendy926/knowledge-graph`）提交 `322ff69b`（KG #368 的分支头；合并提交 993e713a 字节相同，PIN 跟生产钉同一个提交）的 `data/registry/datasets.v1.json`（sha256 `1e32a26c…`，版本 1.13.0，35 个数据集）与 `scripts/registry/dataset-registry-scan.cjs`（`461611f5…`）原样副本，`PIN.json` 写提交、两份 sha256、`registry_version`，以及生产两端的钉版（smartflow `2e958543` 的 `trading-system-v2/tests/fixtures/dataset-registry/PIN.json`，同一个提交、同一组 sha256；Ashare-V6 仍记 `83ab3af1` 的 `test/fixtures/dataset-registry/PIN.json`（1.11.0），V6 #119 合并后改成它的合并提交）。此前钉的是 `12afd2fc`（1.11.0，`d8a17a3e…`，24 个数据集），留在历史里。
 - `services/dataset-registry` 的 `pinned()` 每次读都复验字节：漂移 → `DATASET_REGISTRY_PIN_DRIFT`，缺文件 → `DATASET_REGISTRY_FILE_MISSING`，登记表版本与 PIN 不符 → `DATASET_REGISTRY_VERSION_MISMATCH`。G-PARITY 以它为「生产的 PIN」。
-- 守卫测试 `tests/dataset_registry_guard.test.js`（`DRQ-*`，同 smartflow 的 `DRS-*`）：DRQ-0 钉版与 sha256；DRQ-1 登记表有效；DRQ-2 QRP 还不是登记表里的系统（KG 消费方登记的 PR 合并、重钉之后改为扫描 QRP 仓库）；DRQ-3 副本漂移即拒。
-- 重钉：`tools/dataset-registry-repin/repin.js --kg-root <KG 仓库> --commit <KG 提交> [--production-pin <仓库>=<提交>:<路径>]…`。从 KG 提交拷两个文件、改 `PIN.json`；换下来的那一份原样留进历史，新的那一份也记进历史。生产两端的钉版没给就照旧，并提醒。
-- **历史**（协调会话 2026-11-17 01:2x 裁定）：每一份钉过的登记表都按 sha 留在 `config/dataset-registry/history/<版本>-<sha 前 8 位>/`（`datasets.v1.json` 与扫描器），`history/HISTORY.json`（`DATASET_REGISTRY_HISTORY_V1`）列出版本、KG 提交与两份 sha256。从 1.11.0 起，历史总包含现在钉的这一份。`services/dataset-registry` 的 `history()` 逐个文件复验，漂移或缺 `HISTORY.json` 即失败即关（DRQ-4）。历史里的条目只加不改、不删。
+- 守卫测试 `tests/dataset_registry_guard.test.js`（`DRQ-*`，同 smartflow 的 `DRS-*`）：DRQ-0 钉版与 sha256；DRQ-1 登记表有效；DRQ-2 扫描 QRP 仓库（1.13.0 起 QRP 是登记表里的系统，有扫描根；同 smartflow 的 DRS-2，结果必须为空）；DRQ-3 副本漂移即拒。
+- 重钉：`tools/dataset-registry-repin/repin.js --kg-root <KG 仓库> --commit <KG 提交> [--production-pin <仓库>=<提交>:<路径>]…`。从 KG 提交拷两个文件、改 `PIN.json`；换下来的那一份原样留进历史，新的那一份也记进历史。生产两端的钉版没给就照旧，并提醒。写入顺序（协调会话 2026-11-17 02:0x）：先读齐不写；新的一份进历史（文件、再 HISTORY.json 一条）→ 核对换下来的那份在历史里 → 两个现行文件 → 最后 `PIN.json`；每个文件先写临时文件再改名。写到现行文件一半时崩掉，读登记表失败即关（PIN 漂移），同一提交再跑一次补完。
+- **历史**（协调会话 2026-11-17 01:2x 裁定）：每一份钉过的登记表都按 sha 留在 `config/dataset-registry/history/<版本>-<sha 前 8 位>/`（`datasets.v1.json` 与扫描器），`history/HISTORY.json`（`DATASET_REGISTRY_HISTORY_V1`）列出版本、KG 提交与两份 sha256（扫描器的 sha256 每条必填，缺了读历史即拒）。从 1.11.0 起，历史总包含现在钉的这一份。`services/dataset-registry` 的 `history()` 逐个文件复验，漂移或缺 `HISTORY.json` 即失败即关（DRQ-4）。历史里的条目只加不改、不删。
 
 ## 2. K2 §0「数据输入」一行（§1 第 2 条）
 
@@ -69,7 +69,7 @@ K2 §0 在 RF1112 §5 的四行之后加一行，每个数据集一个记号，�
   - `pitSemantics`：数据集（按现在钉的登记表）写了就核（`pit_check: CHECKED`），没写或为 `null` 记 `PENDING_REGISTRY_FIELD`。
   - `priceBasis`（BASIS）与 `vendor`：只对钉在有这两个字段的版本上的记号核（那一版的数据集带 `priceBasis` / `vendor` 键，KG 1.13.0 起）。钉在更早版本上的记号只核登记与 PIT，两项记 `NOT_APPLICABLE_PRE_FIELD`。版本有字段而这个数据集没写或为 `null`，记 `PENDING_REGISTRY_FIELD`。
   - BASIS 写了就核（`basis_check: CHECKED`，缺 → `PARITY_PRICE_BASIS_MISSING`，不符 → `PARITY_PRICE_BASIS_MISMATCH`）；VENDOR 只记（`MATCH` / `MISMATCH`）。
-  - QRP 现在钉的是 1.11.0（三项都没有）。KG #368（1.13.0）合并、重钉之后，钉在 1.11.0 的记号（例如 R_US_ENTRY_TOUCH_1 的冻结附注）照样能过：历史里有 1.11.0，一致性字段没变，BASIS、VENDOR 不适用。
+  - QRP 现在钉的是 1.13.0（KG 322ff69b）。钉在 1.11.0 的记号（例如 R_US_ENTRY_TOUCH_1 的冻结附注）照样能过：历史里有 1.11.0，一致性字段没变（`pin_check: HISTORY_UNCHANGED`），BASIS、VENDOR 不适用。
 - 锁里记：`parity_gate{ applies, state: PASS, effective_from, signature{path, sha256}, registry{commit, registry_version, registry_sha256}, data_inputs[{dataset_id, registry_version, registry_sha256, pit_semantics, vendor, price_basis?, pin_check, pit_check, basis_check, vendor_check, registry_vendor?}], ai_inputs[{ref, archive_ref, archive_sha256, ai_logic_pin_sha256}], k2_notes?[{path, sha256}] }`。
 
 **不过门的题**：照原样导入，锁行不加字段。现行海外与 A 股登记表的每一题都在生效之前冻结或封存，没有一题过门。

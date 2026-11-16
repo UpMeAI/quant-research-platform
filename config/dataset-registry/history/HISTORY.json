@@ -10,6 +10,15 @@
         "datasets.v1.json": "d8a17a3ee6e23e59494176eb818d7dc46fde382da032878eeb729af0855ba687",
         "dataset-registry-scan.cjs": "461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af"
       }
+    },
+    {
+      "version": "1.13.0",
+      "commit": "322ff69b28bf05efa3ef7b9ed75cb31504ac35f9",
+      "dir": "1.13.0-1e32a26c",
+      "files": {
+        "datasets.v1.json": "1e32a26ca509d5dd82ad6123665ed8bb13495fd1f832b78d29b70f5450f8d94d",
+        "dataset-registry-scan.cjs": "461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af"
+      }
     }
   ]
 }

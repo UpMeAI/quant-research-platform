@@ -14,15 +14,16 @@ const { repin } = require('../tools/dataset-registry-repin/repin');
 
 /**
  * 登记表的历史与逐数据集的一致性字段（协调会话 2026-11-17 01:2x 裁定；RESEARCH_LIVE_PARITY_V1，签字文本 ceb35505、签字页 f0fe8e5c）。先红后绿。
- * 现行登记表在测试里是 KG #368 的 1.13.0（head b1f29ce9 的 datasets.v1.json，作为测试夹具拷在 tests/fixtures/dataset-registry-kg368/；#368 未合并，生产不钉它）：
- * 用真的重钉工具把 config/dataset-registry 的临时副本从 1.11.0 重钉到它，历史里留下 1.11.0。
+ * 夹具测试：tests/fixtures/dataset-registry-kg368/ 是 KG #368 修正之前的分支头 b1f29ce9 的 1.13.0（datasets.v1.json sha256 6f61b39c…，
+ * 「pre-fix fixture」）；它与合并进 KG 的登记表（322ff69b，1e32a26c…，QRP 从本 PR 起钉的那份）字节不同，夹具测试照旧，只测机制：
+ * 从 1.11.0 时的配置（由历史里的 1.11.0 那份重建）用真的重钉工具重钉到夹具，历史里留下 1.11.0。
+ * 真实情况另测：R_US_ENTRY_TOUCH_1 NOTE_1 对现在真钉着的 1.13.0（config/dataset-registry，不经夹具）。
  */
 const ROOT = path.join(__dirname, '..');
 const FIXTURE = path.join(__dirname, 'fixtures', 'dataset-registry-kg368');
 const COORDINATOR_DIR = path.resolve(process.env.QRP_COORDINATOR_DIR || path.join(ROOT, '..', 'artifacts', 'coordinator'));
 const NOTE = path.join(COORDINATOR_DIR, 'R_US_ENTRY_TOUCH_1_K2_V1_FREEZE_1_NOTE_1.md');
 const NOTE_SHA = '93b064b595582cb53e05c0f0931d2ea065c4c27f35fa1ba80c1c28019ab1b538';
-const OLD = datasetRegistry.pinned();
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 
@@ -36,12 +37,22 @@ function kg() {
   fs.copyFileSync(path.join(FIXTURE, 'dataset-registry-scan.cjs'), path.join(root, 'scripts', 'registry', 'dataset-registry-scan.cjs'));
   return { root, commit: (bytes) => { fs.writeFileSync(path.join(root, 'data', 'registry', 'datasets.v1.json'), bytes); git('add', '.'); git('commit', '-q', '-m', 'registry'); return git('rev-parse', 'HEAD'); } };
 }
-/** config/dataset-registry 的临时副本（含历史）。 */
+/** 重钉到 1.13.0 之前的 config/dataset-registry（钉 1.11.0；由历史里的 1.11.0 那份与现在的 PIN.json 重建，HISTORY.json 只有那一条）。 */
 function copyConfig() {
   const dir = tmp('qrp-dr-');
-  fs.cpSync(datasetRegistry.DIR, dir, { recursive: true });
+  const hist = JSON.parse(fs.readFileSync(path.join(datasetRegistry.DIR, 'history', 'HISTORY.json'), 'utf8'));
+  const e = hist.entries.find((x) => x.version === '1.11.0');
+  fs.mkdirSync(path.join(dir, 'history', e.dir), { recursive: true });
+  for (const f of Object.keys(e.files)) {
+    fs.copyFileSync(path.join(datasetRegistry.DIR, 'history', e.dir, f), path.join(dir, f));
+    fs.copyFileSync(path.join(datasetRegistry.DIR, 'history', e.dir, f), path.join(dir, 'history', e.dir, f));
+  }
+  fs.writeFileSync(path.join(dir, 'history', 'HISTORY.json'), `${JSON.stringify({ ...hist, entries: [e] }, null, 2)}\n`);
+  const pin = JSON.parse(fs.readFileSync(path.join(datasetRegistry.DIR, 'PIN.json'), 'utf8'));
+  fs.writeFileSync(path.join(dir, 'PIN.json'), `${JSON.stringify({ ...pin, commit: e.commit, registry_version: e.version, files: e.files }, null, 2)}\n`);
   return dir;
 }
+const OLD = datasetRegistry.pinned({ dir: copyConfig() }); // 1.11.0（12afd2fc，d8a17a3e…）
 const FIXTURE_BYTES = fs.readFileSync(path.join(FIXTURE, 'datasets.v1.json'));
 const FIXTURE_SHA = sha(FIXTURE_BYTES);
 /** 重钉到 1.13.0（夹具）之后的登记表与历史。 */
@@ -64,7 +75,7 @@ test('重钉工具：换下来的 1.11.0 原样留在历史里，新的 1.13.0 �
   assert.deepEqual([r.outgoing, r.incoming], [`1.11.0-${OLD.registry_sha256.slice(0, 8)}`, `1.13.0-${FIXTURE_SHA.slice(0, 8)}`]);
   assert.deepEqual([registry.commit, registry.registry_version, registry.registry_sha256], [commit, '1.13.0', FIXTURE_SHA]);
   assert.deepEqual([...history.keys()], [`1.11.0#${OLD.registry_sha256}`, `1.13.0#${FIXTURE_SHA}`]);
-  assert.deepEqual(fs.readFileSync(path.join(dir, 'history', `1.11.0-${OLD.registry_sha256.slice(0, 8)}`, 'datasets.v1.json')), fs.readFileSync(path.join(datasetRegistry.DIR, 'datasets.v1.json')));
+  assert.deepEqual(fs.readFileSync(path.join(dir, 'history', `1.11.0-${OLD.registry_sha256.slice(0, 8)}`, 'datasets.v1.json')), fs.readFileSync(path.join(datasetRegistry.DIR, 'history', `1.11.0-${OLD.registry_sha256.slice(0, 8)}`, 'datasets.v1.json')));
   assert.deepEqual(registry.production_pins, OLD.production_pins);
   // 历史里的一份被改了字节 → 读历史即失败即关
   fs.appendFileSync(path.join(dir, 'history', `1.11.0-${OLD.registry_sha256.slice(0, 8)}`, 'datasets.v1.json'), ' ');
@@ -86,6 +97,30 @@ test('R_US_ENTRY_TOUCH_1 的真实冻结附注 NOTE_1：三个记号钉在 1.11.
       ['L1_RISK_BUDGET_BANDS', '1.11.0', 'HISTORY_UNCHANGED', 'CHECKED', 'NOT_APPLICABLE_PRE_FIELD', 'NOT_APPLICABLE_PRE_FIELD'],
     ]);
     assert.deepEqual(r.registry, { commit: registry.commit, registry_version: '1.13.0', registry_sha256: FIXTURE_SHA });
+  });
+
+test('真实情况：R_US_ENTRY_TOUCH_1 NOTE_1 的三个 1.11.0 记号对真钉着的 1.13.0（KG 322ff69b，config/dataset-registry，不经夹具）→ 通过，pin_check HISTORY_UNCHANGED',
+  { skip: fs.existsSync(NOTE) ? false : `协调会话目录里没有 ${path.basename(NOTE)}（QRP_COORDINATOR_DIR=${COORDINATOR_DIR}）` }, () => {
+    const bytes = fs.readFileSync(NOTE);
+    assert.equal(sha(bytes), NOTE_SHA);
+    const registry = datasetRegistry.pinned();
+    const history = datasetRegistry.history();
+    assert.deepEqual([registry.commit, registry.registry_version, registry.registry_sha256],
+      ['322ff69b28bf05efa3ef7b9ed75cb31504ac35f9', '1.13.0', '1e32a26ca509d5dd82ad6123665ed8bb13495fd1f832b78d29b70f5450f8d94d']);
+    assert.notEqual(registry.registry_sha256, FIXTURE_SHA); // 不是修正之前的夹具
+    const k2 = Buffer.from('# R_US_ENTRY_TOUCH_1_K2_V1（合成的 K2 正文；记号只在冻结附注里）\n');
+    const r = gate.check({ id: 'US-R-ENTRY-TOUCH-1', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: '2026-11-17T10:00:00+08:00',
+      k2_notes: [{ source: 'coordinator', path: path.basename(NOTE), sha256: NOTE_SHA }] }, { k2Bytes: () => k2, noteBytes: () => [bytes] }, { registry, history });
+    assert.equal(r.state, 'PASS');
+    assert.deepEqual(r.data_inputs.map((d) => [d.dataset_id, d.registry_version, d.registry_sha256, d.pit_semantics, d.pin_check, d.pit_check, d.basis_check, d.vendor_check]), [
+      ['ALPACA_1M_HISTORY', '1.11.0', OLD.registry_sha256, 'BAR_CLOSE', 'HISTORY_UNCHANGED', 'CHECKED', 'NOT_APPLICABLE_PRE_FIELD', 'NOT_APPLICABLE_PRE_FIELD'],
+      ['SMARTFLOW_US_1M', '1.11.0', OLD.registry_sha256, 'BAR_CLOSE', 'HISTORY_UNCHANGED', 'CHECKED', 'NOT_APPLICABLE_PRE_FIELD', 'NOT_APPLICABLE_PRE_FIELD'],
+      ['L1_RISK_BUDGET_BANDS', '1.11.0', OLD.registry_sha256, 'OBSERVED_AT', 'HISTORY_UNCHANGED', 'CHECKED', 'NOT_APPLICABLE_PRE_FIELD', 'NOT_APPLICABLE_PRE_FIELD'],
+    ]);
+    assert.deepEqual(r.registry, { commit: registry.commit, registry_version: '1.13.0', registry_sha256: registry.registry_sha256 });
+    // 1.11.0 到 1.13.0 之间这三个数据集的一致性字段都没变
+    const old = history.get(`1.11.0#${OLD.registry_sha256}`);
+    for (const id of ['ALPACA_1M_HISTORY', 'SMARTFLOW_US_1M', 'L1_RISK_BUDGET_BANDS']) assert.deepEqual(datasetRegistry.changedFields(old.datasets.get(id), registry.datasets.get(id)), [], id);
   });
 
 test('数据集变了（两版之间 pitSemantics 改了）→ PARITY_PIN_MISMATCH「DATASET_CHANGED:pitSemantics」；那一版没写的字段不算变', () => {
