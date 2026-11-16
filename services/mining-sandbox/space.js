@@ -75,10 +75,10 @@ function parseSpace(bytes, proof, { registry = null } = {}) {
 
 /**
  * 读数要在钉住的数据集登记表里（协调会话 2026-11-17）：dataset_id 已登记；pit_available_at 的开头记号（之后不能再接 A–Z a–z 0–9 _）
- * 只能是下面两种之一，别的一律 READING_PIT_MISMATCH：
- *   - 实时 PIT：非混合数据集取 pitSemantics；混合数据集（没有 pitSemantics、有 pitSemanticsBySeries）取 pitSemanticsBySeries[series]，series 必写；
- *   - 历史时钟（KG 1.14.0 起 pitHistoricalClock，挖掘只用次日开盘、历史按它定时点；协调会话审阅意见）：{ rule } 取 rule；
- *     { bySeries } 取 bySeries[series]，series 必写。
+ * 按数据集有没有历史时钟（KG 1.14.0 起 pitHistoricalClock）二选一，别的一律 READING_PIT_MISMATCH：
+ *   - 没有历史时钟：实时 PIT——非混合数据集取 pitSemantics；混合数据集（没有 pitSemantics、有 pitSemanticsBySeries）取 pitSemanticsBySeries[series]，series 必写；
+ *   - 有历史时钟（协调会话裁定 2026-11-17：沙箱只用历史、P-14 次日开盘）：只收历史时钟——{ rule } 取 rule；{ bySeries } 取 bySeries[series]，
+ *     series 必写；声明实时 PIT → READING_LIVE_CLOCK_IN_HISTORY。
  * 多序列读数（例：后复权价 = daily × adj_factor）：series 可以写成数组（只在实时 PIT 只有一个、历史时钟按序列分的数据集上），
  *   声明的历史时钟必须是这些序列里最保守（最晚可用）的那个；序之间没有定义先后的组合拒绝（READING_CLOCK_ORDER_UNDEFINED）。
  */
@@ -118,20 +118,27 @@ function checkReadingRegistered(r, reg) {
   const live = mixed ? [bySeries[series[0]]] : (absentField(ds.pitSemantics) ? [] : [].concat(ds.pitSemantics));
   const head = /^([A-Z][A-Z0-9_]*)(?![A-Za-z0-9_])/.exec(r.pit_available_at);
   const token = head ? head[1] : r.pit_available_at.slice(0, 24);
-  if (head && live.includes(token)) return;
-  // 不是实时 PIT：只能是历史时钟
+  const histClocks = histRule ? [histRule] : (histBySeries ? [...new Set(Object.values(histBySeries))] : []);
+  // 没有历史时钟的数据集：照旧只收实时 PIT
+  if (!histClocks.length) {
+    need(head && live.includes(token), 'READING_PIT_MISMATCH', `${r.name}:${token}≠${live.join(' or ') || 'nothing registered'}`);
+    return;
+  }
+  // 有历史时钟的数据集（协调会话裁定 2026-11-17：沙箱只用历史、P-14 次日开盘）：只收历史时钟，声明实时 PIT → LIVE_CLOCK_IN_HISTORY
+  need(!(head && live.includes(token) && !histClocks.includes(token)), 'READING_LIVE_CLOCK_IN_HISTORY',
+    `${r.name}:${token} is the live PIT; history needs ${histRule || `pitHistoricalClock.bySeries (${histClocks.join(' / ')})`}`);
   let want = histRule;
   if (want === null && histBySeries) {
     if (!series.length) {
       // 开头是某个序列的历史时钟却没写 series → 要写；什么都不是 → PIT 不符
-      need(!(head && Object.values(histBySeries).includes(token)), 'READING_SERIES_REQUIRED', `${r.name}:${r.dataset_id}:pitHistoricalClock.bySeries`);
-      fail('READING_PIT_MISMATCH', `${r.name}:${token}≠${[...live, ...new Set(Object.values(histBySeries))].join(' or ')}`);
+      need(!(head && histClocks.includes(token)), 'READING_SERIES_REQUIRED', `${r.name}:${r.dataset_id}:pitHistoricalClock.bySeries`);
+      fail('READING_PIT_MISMATCH', `${r.name}:${token}≠${histClocks.join(' or ')}`);
     }
     for (const x of series) need(has(histBySeries, x), 'READING_SERIES_UNKNOWN', `${r.name}:${x}`);
     want = mostConservative(series.map((x) => histBySeries[x]));
     need(want !== null, 'READING_CLOCK_ORDER_UNDEFINED', `${r.name}:${series.map((x) => `${x}=${histBySeries[x]}`).join(',')}`);
   }
-  need(head && want !== null && token === want, 'READING_PIT_MISMATCH', `${r.name}:${token}≠${[...live, ...(want ? [want] : [])].join(' or ') || 'nothing registered'}`);
+  need(head && token === want, 'READING_PIT_MISMATCH', `${r.name}:${token}≠${want}`);
 }
 
 /** 冻结页核对：页上写出清单 sha256、MINING_SPACE_V1 与 FROZEN（同 RACE_MANIFEST_V1 的冻结写法）。 */

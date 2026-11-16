@@ -35,11 +35,14 @@ All refusals happen at parse time. `parse()` returns the tree, a canonical form 
   - **Dataset:** each `dataset_id` must be in the pinned KG dataset registry (`services/dataset-registry`), otherwise `MINE_SPACE_READING_UNREGISTERED`.
   - **PIT token:** `pit_available_at` must start with the registry's PIT token for that dataset, a whole token (e.g. `OBSERVED_AT …`), otherwise `MINE_SPACE_READING_PIT_MISMATCH`. A dataset with no PIT in the registry is refused the same way.
   - **Mixed datasets** (no `pitSemantics`, a `pitSemanticsBySeries` map): the reading must carry a `series` from the map, and the PIT is checked against that series. A missing series gives `MINE_SPACE_READING_SERIES_REQUIRED` and an unknown one `…_SERIES_UNKNOWN`. A `series` on a non-mixed dataset gives `…_SERIES_NOT_ALLOWED`.
-  - **Live PIT or historical clock** (registry 1.14.0 `pitHistoricalClock`; coordinator review note). Mining is next-open only and history is dated by the historical clock, so the head token of `pit_available_at` may be either the live token above or the dataset's historical clock:
-    - `{rule}`: the rule;
-    - `{bySeries}`: `bySeries[series]`, with `series` required. For example, `V6_CN_STOCK_DAILY_BARS` maps `daily` → `BAR_CLOSE` and `adj_factor` → `CLOSE_DATED_NEXT_OPEN_USABLE`.
+  - **History only on datasets with a historical clock** (coordinator ruling, 2026-11-17: the sandbox uses history only, and decisions are next-open under P-14).
+    - **Datasets with a historical clock** (registry 1.14.0 `pitHistoricalClock`): the head token of `pit_available_at` must be that clock:
+      - `{rule}`: the rule;
+      - `{bySeries}`: `bySeries[series]`, with `series` required. For example, `V6_CN_STOCK_DAILY_BARS` maps `daily` → `BAR_CLOSE` and `adj_factor` → `CLOSE_DATED_NEXT_OPEN_USABLE`.
 
-    Anything else gives `MINE_SPACE_READING_PIT_MISMATCH`.
+      Declaring the live PIT instead (e.g. `OBSERVED_AT` on the two V6 stock datasets) gives **`MINE_SPACE_READING_LIVE_CLOCK_IN_HISTORY`**. Any other token gives `MINE_SPACE_READING_PIT_MISMATCH`.
+    - **Datasets without a historical clock** keep the live-PIT rule above, unchanged.
+    - **Drafts:** the coordinator's DRAFT_3 (all `OBSERVED_AT`) is refused; DRAFT_4 (historical clocks, `0d3556fa…`) passes.
   - **Readings built from several series.** `series` may be an array of two or more series, on a dataset whose live PIT is single and whose historical clock is per series (e.g. back-adjusted prices = `daily` × `adj_factor`). The declared clock must be the most conservative (latest usable) of those series' clocks. Arrays are not allowed on live-mixed datasets.
   - **Clock order** (only orders that can be justified; earlier → later usable):
     - `BAR_CLOSE` → `CLOSE_DATED_NEXT_OPEN_USABLE`: usable at the bar's close, versus usable only at the next open;

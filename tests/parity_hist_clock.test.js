@@ -99,19 +99,20 @@ test('parseSpace（协调会话审阅意见）：读数的 PIT 开头可以是�
   const ok = (r, registry) => space.parseSpace(spaceOf([r]), PROOF, registry ? { registry } : {});
   // DAILY_BASIC：rule = CLOSE_DATED_NEXT_OPEN_USABLE
   assert.equal(ok({ name: 'turnover_f', dataset_id: 'V6_CN_STOCK_DAILY_BASIC', pit_available_at: 'CLOSE_DATED_NEXT_OPEN_USABLE (backfill convention)' }).readings[0].name, 'turnover_f');
-  assert.throws(() => ok({ name: 'turnover_f', dataset_id: 'V6_CN_STOCK_DAILY_BASIC', pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_PIT_MISMATCH:turnover_f:BAR_CLOSE≠OBSERVED_AT or CLOSE_DATED_NEXT_OPEN_USABLE/));
+  assert.throws(() => ok({ name: 'turnover_f', dataset_id: 'V6_CN_STOCK_DAILY_BASIC', pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_PIT_MISMATCH:turnover_f:BAR_CLOSE≠CLOSE_DATED_NEXT_OPEN_USABLE/));
   assert.throws(() => ok({ name: 'turnover_f', dataset_id: 'V6_CN_STOCK_DAILY_BASIC', series: 'daily', pit_available_at: 'CLOSE_DATED_NEXT_OPEN_USABLE' }), code(/MINE_SPACE_READING_SERIES_NOT_ALLOWED:turnover_f/));
   // BARS：按序列；ret_1d 只用 daily
   const bars = { dataset_id: 'V6_CN_STOCK_DAILY_BARS' };
   assert.equal(ok({ ...bars, name: 'ret_1d', series: 'daily', pit_available_at: 'BAR_CLOSE (prices_daily.known_at)' }).readings[0].series, 'daily');
   assert.throws(() => ok({ ...bars, name: 'ret_1d', pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_SERIES_REQUIRED:ret_1d/));
-  assert.throws(() => ok({ ...bars, name: 'ret_1d', series: 'adj_factor', pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_PIT_MISMATCH:ret_1d:BAR_CLOSE≠OBSERVED_AT or CLOSE_DATED_NEXT_OPEN_USABLE/));
+  assert.throws(() => ok({ ...bars, name: 'ret_1d', series: 'adj_factor', pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_PIT_MISMATCH:ret_1d:BAR_CLOSE≠CLOSE_DATED_NEXT_OPEN_USABLE/));
   assert.throws(() => ok({ ...bars, name: 'ret_1d', series: 'minute', pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_SERIES_UNKNOWN:ret_1d:minute/));
   // 后复权价 = daily × adj_factor：最保守的是 CLOSE_DATED_NEXT_OPEN_USABLE
   const hfq = { ...bars, name: 'close_hfq', series: ['daily', 'adj_factor'] };
   assert.deepEqual(ok({ ...hfq, pit_available_at: 'CLOSE_DATED_NEXT_OPEN_USABLE (adj factor usable at the next open)' }).readings[0].series, ['daily', 'adj_factor']);
-  assert.throws(() => ok({ ...hfq, pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_PIT_MISMATCH:close_hfq:BAR_CLOSE≠OBSERVED_AT or CLOSE_DATED_NEXT_OPEN_USABLE/));
-  assert.equal(ok({ ...hfq, pit_available_at: 'OBSERVED_AT (live ingest)' }).readings[0].name, 'close_hfq'); // 实时 PIT 照样可以
+  assert.throws(() => ok({ ...hfq, pit_available_at: 'BAR_CLOSE' }), code(/MINE_SPACE_READING_PIT_MISMATCH:close_hfq:BAR_CLOSE≠CLOSE_DATED_NEXT_OPEN_USABLE/));
+  // 协调会话裁定（2026-11-17）之后：有历史时钟的数据集不收实时 PIT（见 mining_space_history_clock）
+  assert.throws(() => ok({ ...hfq, pit_available_at: 'OBSERVED_AT (live ingest)' }), code(/MINE_SPACE_READING_LIVE_CLOCK_IN_HISTORY:close_hfq/));
   assert.throws(() => ok({ ...hfq, series: ['daily'] }), code(/MINE_SPACE_READING_INVALID/)); // 数组至少两个
   assert.throws(() => ok({ ...hfq, series: ['daily', 'daily'] }), code(/MINE_SPACE_READING_INVALID/));
   // 混合数据集上不许写数组
@@ -127,6 +128,6 @@ test('parseSpace（协调会话审阅意见）：读数的 PIT 开头可以是�
 
 const COORDINATOR_DIR = path.resolve(process.env.QRP_COORDINATOR_DIR || path.join(ROOT, '..', 'artifacts', 'coordinator'));
 const DRAFT = path.join(COORDINATOR_DIR, 'MINING_SPACE_V1_CN_A_R1.draft.bee978ed.json');
-test('空间草稿 DRAFT_3（全是 OBSERVED_AT）照样过', { skip: fs.existsSync(DRAFT) ? false : `协调会话目录里没有 ${path.basename(DRAFT)}` }, () => {
-  assert.equal(space.parseSpace(fs.readFileSync(DRAFT), PROOF).space_ref, 'MINING_SPACE_V1:CN_A:R1:DRAFT_3');
+test('空间草稿 DRAFT_3（全是 OBSERVED_AT）在协调会话裁定之后被拒（LIVE_CLOCK_IN_HISTORY）', { skip: fs.existsSync(DRAFT) ? false : `协调会话目录里没有 ${path.basename(DRAFT)}` }, () => {
+  assert.throws(() => space.parseSpace(fs.readFileSync(DRAFT), PROOF), code(/MINE_SPACE_READING_LIVE_CLOCK_IN_HISTORY/));
 });
