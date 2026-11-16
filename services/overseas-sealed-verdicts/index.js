@@ -441,6 +441,8 @@ const resultIdOf = (entry, store = null) => `${store ? store.idPrefix : 'OSV'}-$
 const boundFiles = (entry) => [
   { role: 'FILE', spec: entry.file }, ...(entry.also || []).map((spec) => ({ role: 'ALSO', spec })),
   ...(entry.k2 && entry.k2 !== entry.file ? [{ role: 'K2', spec: entry.k2 }] : []), ...(entry.freeze && entry.freeze !== entry.file ? [{ role: 'FREEZE', spec: entry.freeze }] : []),
+  // G-PARITY：K2 的冻结附注（只有登记了 k2_notes 的题才有，之前的题不变）
+  ...(entry.k2_notes || []).map((spec) => ({ role: 'K2_NOTE', spec })),
   // 过拟合控制修订 §2.4：G-TRIAL-SEAL 的运行日志（只有登记了 run_log 的题才有，之前的题不变）
   ...(entry.run_log ? [{ role: 'RUN_LOG', spec: entry.run_log }] : []),
   // 导入规格修订 4：门的裁定页（只有登记了 trial_gates_ruling 的题才有）
@@ -545,7 +547,8 @@ function checkEntry(entry, evidenceDir, store = STORE, { mechanismGate: mechanis
   // G-COST（docs/contracts/COST_MODEL_GATE_V1.md）：最后过成本门；生效时刻之后冻结的 K2 的 RESULT，判定用的运行出自毛收益模型即拒绝，失败即关，不改结论
   const cost = require('../cost-gate').check(entry, { runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null) });
   // G-PARITY（RESEARCH_LIVE_PARITY_V1 §3，docs/contracts/G_PARITY_V1.md）：G-COST 之后；签字之后冻结的 K2，数据输入、PIN、PIT 语义、AI 钉值与生产不一致即拒绝，不改结论
-  const parity = require('../parity-gate').check(entry, { k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256) });
+  const parity = require('../parity-gate').check(entry, { k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
+    noteBytes: () => (entry.k2_notes || []).map((n) => readBound(evidencePath(evidenceDir, n), n.sha256)) });
   return { identity, refs, verdict, trial, mechanism, causality, cost, parity };
 }
 
@@ -596,7 +599,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
 
 const KIND_ZH = { RESULT: '已封存', DRAFT: '草稿（未冻结）', STATUS: '冻结 / 前向影子', READING: '只报读数' };
 const FILE_LABEL_ZH = { RESULT: '封存结果文件', READING: '封存读数文件', DRAFT: 'K2 草稿', STATUS: '影子规格' };
-const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', FREEZE: '冻结裁定', RUN_LOG: '运行日志', RULING: '门的裁定', MECH_PRIOR: '机制先前结论表', CAUSALITY_EVIDENCE: '因果证据', CAUSALITY_RULING: '因果门的裁定' };
+const ROLE_LABEL_ZH = { ALSO: '同题另一封存文件', K2: '研究规格（K2）', K2_NOTE: 'K2 冻结附注', FREEZE: '冻结裁定', RUN_LOG: '运行日志', RULING: '门的裁定', MECH_PRIOR: '机制先前结论表', CAUSALITY_EVIDENCE: '因果证据', CAUSALITY_RULING: '因果门的裁定' };
 const toneOf = (entry, decision) => (entry.kind !== 'RESULT' ? 'NEUTRAL' : decision === '做' ? 'DO' : decision === '不做' ? 'DONT' : 'OTHER');
 const reasonText = (error) => (error instanceof K3Error ? `${error.code}${error.detail ? `（${error.detail}）` : ''}` : error.message);
 

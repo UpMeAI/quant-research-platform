@@ -20,14 +20,18 @@
 K2 §0 在 RF1112 §5 的四行之后加一行，每个数据集一个记号，写法同 G-CAUSAL 的 `` `CF:…` ``（门从 K2 全文抽出这些记号）：
 
 ```
-**数据输入**：`DATA:<登记表 id>@<登记表版本>#<登记表 sha256>|PIT=<PIT 语义>|VENDOR=<供应方>`；`DATA:…`
+**数据输入**：`DATA:<登记表 id>@<登记表版本>#<登记表 sha256>|PIT=<PIT 语义>|VENDOR=<供应方>[|BASIS=<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>]`；`DATA:…`
 ```
+
+- 记号里 `|键=值` 的键只有 `PIT`（必填）、`VENDOR`（必填）、`BASIS`（可选），每个键写一次，顺序不限；值不能含 `|` 与反引号。
+- `BASIS` 的两段取登记表的 `priceBasisVocabulary`（KG 1.13.0 是对象，`format` 写两组可选值）；登记表没有这项时用默认两组 `PRICE|TOTAL_RETURN` 与 `RAW|SPLIT_ADJ|FULL_ADJ`。写法不合 → `PARITY_DATA_INPUT_INVALID`。
+- **冻结附注 `k2_notes`：** K2 冻结在 `DATA:` 写法之前的（例如 R_US_ENTRY_TOUCH_1_K2_V1），记号写在协调会话的冻结附注里，题的登记写 `k2_notes: [{ source, path, sha256, ref }]`（同别的绑定文件，角色 `K2_NOTE`，暂存与锁的 `refs` 都带上）。导入器按 sha256 复验（`readBound`，同 K2）后，把附注字节按列出的顺序交给门；门把 K2 与附注里的记号取并集。同一数据集在不同文件里写得不一样 → `PARITY_DATA_INPUTS_CONFLICT`；列了附注却没读到 → `PARITY_K2_NOTES_UNREAD`。没有 `k2_notes` 的题照旧，锁里不带附注。
 
 例：`` `DATA:V6_CSI300_INDEX_DAILY@1.11.0#d8a17a3ee6e23e59494176eb818d7dc46fde382da032878eeb729af0855ba687|PIT=BAR_CLOSE|VENDOR=Tushare` ``。
 
 - **选 K2 正文，不选 `entry.data_inputs`：** K2 由协调会话冻结、按 sha256 绑定，是研究判定的冻结来源；登记表字段由导入规格写，不在冻结的文本里。
 - PIT 语义的枚举：`OBSERVED_AT`、`ANNOUNCEMENT_NEXT_OPEN`、`ACCEPTANCE_TIME`、`BAR_CLOSE`、`NEXT_OPEN_SESSION_CLOSE`。新的语义只能先进登记表（登记表级字段 `pitSemantics` 的清单），门才认。
-- 供应方写原名（Tushare、Yahoo、Alpaca、SEC EDGAR、东财、Binance 等）；登记表还没有供应方字段，门只记不核。
+- 供应方写登记表 `vendor` 里的原名（Tushare、Yahoo、Alpaca、SEC EDGAR、东财、Binance 等），逐字对上；登记表没写供应方时门只记不核。
 
 ## 3. `AI_LOGIC_PIN_V1`（§2）
 
@@ -51,11 +55,16 @@ K2 §0 在 RF1112 §5 的四行之后加一行，每个数据集一个记号，�
 | `PARITY_DATA_INPUT_INVALID` | `DATA:` 写法不对，或同一数据集写了两次 |
 | `PARITY_DATASET_UNREGISTERED` | 数据集不在 QRP 钉住的 KG 登记表里 |
 | `PARITY_PIN_MISMATCH` | 写的登记表版本或 sha256 与 QRP 钉的不同（QRP 钉的 = 生产两端钉的） |
-| `PARITY_PIT_SEMANTICS_MISMATCH` | PIT 语义不在枚举里、也不是登记表登记过的新语义；或登记表的数据集写了 `pitSemantics` 而与它不同 |
+| `PARITY_DATA_INPUTS_CONFLICT` | 同一数据集在 K2 与冻结附注（或两份附注）里写得不一样 |
+| `PARITY_K2_NOTES_UNREAD` | 登记了 `k2_notes`，门却没读到附注字节 |
+| `PARITY_PIT_SEMANTICS_MISMATCH` | PIT 语义不在枚举里、也不是登记表登记过的新语义；或登记表的数据集写了 `pitSemantics`（字符串或列表）而记号不是其中之一 |
+| `PARITY_PRICE_BASIS_MISSING` | 登记表的数据集写了 `priceBasis`，记号没带 `BASIS` |
+| `PARITY_PRICE_BASIS_MISMATCH` | 记号的 `BASIS` 不是数据集 `priceBasis`（字符串或列表）里的一项 |
+| `PARITY_VENDOR_MISMATCH` | 记号的 `VENDOR` 不是数据集 `vendor` 按逗号拆开、去空白后的一项 |
 | `PARITY_AI_LOGIC_MISMATCH` | AI 输入没带或带了不完整的 `AI_LOGIC_PIN_V1`；没有 `production_archive` 可核；与存档的钉值不同 |
 
-- **PIT 语义的核对待登记表字段：** KG 登记表 1.11.0 的数据集还没有 PIT 语义字段。数据集写了 `pitSemantics` 时门按它核（`pit_check: CHECKED`）；还没写时只核枚举，记 `pit_check: PENDING_REGISTRY_FIELD`。字段名 `pitSemantics` 是本合同的假设，KG 加字段时如用别的名字，改一处常量（`REGISTRY_PIT_FIELD`、`REGISTRY_PIT_LIST_FIELD`）。
-- 锁里记：`parity_gate{ applies, state: PASS, effective_from, signature{path, sha256}, registry{commit, registry_version, registry_sha256}, data_inputs[{dataset_id, registry_version, registry_sha256, pit_semantics, vendor, pit_check}], ai_inputs[{ref, archive_ref, archive_sha256, ai_logic_pin_sha256}] }`。
+- **登记表字段的核对：** 数据集的 `pitSemantics`、`priceBasis`、`vendor`（KG 1.13.0 起有）写了就核，记 `pit_check` / `basis_check` / `vendor_check: CHECKED`；没写或为 `null`（KG #368 把没有的字段写成 null）都当没写，记 `PENDING_REGISTRY_FIELD`，只报不拒。QRP 现在钉的是 1.11.0（三项都没有），重钉到 1.13.0 之后这三项才真的核。
+- 锁里记：`parity_gate{ applies, state: PASS, effective_from, signature{path, sha256}, registry{commit, registry_version, registry_sha256}, data_inputs[{dataset_id, registry_version, registry_sha256, pit_semantics, vendor, price_basis?, pit_check, basis_check, vendor_check}], ai_inputs[{ref, archive_ref, archive_sha256, ai_logic_pin_sha256}], k2_notes?[{path, sha256}] }`。
 
 **不过门的题**：照原样导入，锁行不加字段。现行海外与 A 股登记表的每一题都在生效之前冻结或封存，没有一题过门。
 

@@ -10,9 +10,14 @@
  *     封存日期在生效日及以后、却没写 k2_frozen_at → 拒绝。
  *   K2「数据输入」（§1 第 2 条）：从 K2 正文（导入器按 sha256 复验后的字节）里抽 `DATA:<登记表 id>@<登记表版本>#<登记表 sha256>|PIT=<语义>|VENDOR=<供应方>`，
  *     写法同 G-CAUSAL 的 `CF:`。一个都没有 → PARITY_DATA_INPUTS_MISSING；写法不对 → PARITY_DATA_INPUT_INVALID。
+ *     K2 冻结时还没有 DATA: 写法的，记号写在冻结附注里：entry.k2_notes（按 sha256 绑定，导入器同样复验）按列出的顺序和 K2 一起读，取并集；
+ *     同一个数据集在不同文件里写得不一样 → PARITY_DATA_INPUTS_CONFLICT；列了附注却没读到 → PARITY_K2_NOTES_UNREAD。
  *     每个数据集：在 QRP 钉住的 KG 登记表（../dataset-registry，= 生产两端钉的）里 → 否则 PARITY_DATASET_UNREGISTERED；
  *     版本与 sha256 等于 QRP 钉的 → 否则 PARITY_PIN_MISMATCH；PIT 语义在枚举里（或登记表登记过的新语义）→ 否则 PARITY_PIT_SEMANTICS_MISMATCH；
- *     登记表的数据集写了 PIT 语义（字段 pitSemantics）时必须相同 → 否则 PARITY_PIT_SEMANTICS_MISMATCH；还没写时记 PENDING_REGISTRY_FIELD（只报）。
+ *     登记表的数据集写了 PIT 语义（字段 pitSemantics，字符串或列表）时必须是其中之一 → 否则 PARITY_PIT_SEMANTICS_MISMATCH；
+ *     可选的 |BASIS=<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>（登记表的 priceBasisVocabulary）：数据集写了 priceBasis（字符串或列表）时记号必须带 BASIS
+ *     （否则 PARITY_PRICE_BASIS_MISSING）且是其中之一（否则 PARITY_PRICE_BASIS_MISMATCH）；VENDOR 必须是数据集 vendor 按逗号拆开、去空白后的一项
+ *     （否则 PARITY_VENDOR_MISMATCH）。登记表字段没有或为 null 的，记 PENDING_REGISTRY_FIELD（只报，不拒）。
  *   AI 输入（§2）：entry.ai_inputs 每一项带 ai_logic_pin（AI_LOGIC_PIN_V1）与 production_archive{ref, sha256, ai_logic_pin}（实盘存档输出的钉值）；
  *     缺钉值、钉值不完整、没有存档可核、与存档的钉值不同 → PARITY_AI_LOGIC_MISMATCH。
  *   不过门的题：照原样导入，锁行不加字段。
@@ -25,11 +30,20 @@ const { canonicalJson } = require('../trial-ledger');
 const EFFECTIVE_FROM = parity.EFFECTIVE_FROM;
 /** §1 第 2 条的 PIT 语义枚举；新的语义先进登记表（登记表级的 pitSemantics 清单）。 */
 const PIT_SEMANTICS = Object.freeze(['OBSERVED_AT', 'ANNOUNCEMENT_NEXT_OPEN', 'ACCEPTANCE_TIME', 'BAR_CLOSE', 'NEXT_OPEN_SESSION_CLOSE']);
-/** 登记表数据集上的 PIT 语义字段（KG 还没有；有了以后按它核）。 */
+/** 登记表数据集上的字段（KG 1.13.0 起有；没有或为 null 时只记「待登记表字段」）。 */
 const REGISTRY_PIT_FIELD = 'pitSemantics';
+const REGISTRY_BASIS_FIELD = 'priceBasis';
+const REGISTRY_VENDOR_FIELD = 'vendor';
+/** 登记表级的价格口径说明（KG 1.13.0：对象，format = '<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>; …'）；没有时用同样的默认两组。 */
+const REGISTRY_BASIS_VOCAB_FIELD = 'priceBasisVocabulary';
+const DEFAULT_BASIS_GROUPS = Object.freeze([Object.freeze(['PRICE', 'TOTAL_RETURN']), Object.freeze(['RAW', 'SPLIT_ADJ', 'FULL_ADJ'])]);
+const PENDING = 'PENDING_REGISTRY_FIELD';
+const CHECKED = 'CHECKED';
 const AI_PIN_SCHEMA = 'AI_LOGIC_PIN_V1';
 const DATA_TOKEN = /`DATA:([^`]*)`/g;
-const DATA_BODY = /^([A-Z0-9][A-Z0-9_]*)@(\d+\.\d+\.\d+)#([0-9a-f]{64})\|PIT=([A-Z][A-Z0-9_]*)\|VENDOR=([^|]*[^|\s][^|]*)$/;
+const DATA_HEAD = /^([A-Z0-9][A-Z0-9_]*)@(\d+\.\d+\.\d+)#([0-9a-f]{64})((?:\|[A-Z]+=[^|]*)+)$/;
+const DATA_FIELDS = Object.freeze({ PIT: true, VENDOR: true, BASIS: false }); // 键 → 是否必填
+const PIT_VALUE = /^[A-Z][A-Z0-9_]*$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 
 class ParityGateError extends Error {
@@ -41,6 +55,15 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isoAt = (v) => typeof v === 'string' && /[zZ]|[+-]\d{2}:\d{2}$/.test(v) && Number.isFinite(Date.parse(v));
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
+/** 登记表字段：没有或为 null 都当「没写」。 */
+const absent = (v) => v === undefined || v === null;
+const listOf = (v) => (Array.isArray(v) ? v : [v]);
+/** 价格口径的两组可选值：取登记表 priceBasisVocabulary.format 的 <A|B>/<C|D|E>，读不出时用默认两组。 */
+function basisGroups(reg) {
+  const vocab = reg && reg.registry ? reg.registry[REGISTRY_BASIS_VOCAB_FIELD] : undefined;
+  const m = vocab && typeof vocab.format === 'string' ? /^<([A-Z_|]+)>\/<([A-Z_|]+)>/.exec(vocab.format) : null;
+  return m ? [m[1].split('|'), m[2].split('|')] : DEFAULT_BASIS_GROUPS;
+}
 
 /** AI_LOGIC_PIN_V1（§2 第 1 条）：供应方、模型名、模型版本、提示词或代码 sha256（至少一个）、输出结构版本、调用参数。 */
 function validPin(p) {
@@ -73,11 +96,21 @@ function applies(entry, effectiveFrom = DEFAULTS.effectiveFrom) {
 function dataInputs(entry, text) {
   const out = [];
   for (const m of text.matchAll(DATA_TOKEN)) {
-    const hit = DATA_BODY.exec(m[1]);
+    const hit = DATA_HEAD.exec(m[1]);
     need(hit, 'DATA_INPUT_INVALID', `${entry.id}:${m[1]}`);
-    const [, dataset_id, registry_version, registry_sha256, pit_semantics, vendor] = hit;
+    const [, dataset_id, registry_version, registry_sha256, tail] = hit;
+    const fields = {};
+    for (const part of tail.slice(1).split('|')) {
+      const eq = part.indexOf('=');
+      const key = part.slice(0, eq);
+      const value = part.slice(eq + 1).trim();
+      need(key in DATA_FIELDS && !(key in fields) && value, 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:${key}`);
+      fields[key] = value;
+    }
+    for (const [key, required] of Object.entries(DATA_FIELDS)) need(!required || key in fields, 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:${key} missing`);
+    need(PIT_VALUE.test(fields.PIT), 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:PIT`);
     need(!out.some((d) => d.dataset_id === dataset_id), 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:duplicate`);
-    out.push({ dataset_id, registry_version, registry_sha256, pit_semantics, vendor: vendor.trim() });
+    out.push({ dataset_id, registry_version, registry_sha256, pit_semantics: fields.PIT, vendor: fields.VENDOR, ...(fields.BASIS ? { price_basis: fields.BASIS } : {}) });
   }
   return out;
 }
@@ -94,20 +127,43 @@ function checkAi(entry) {
   });
 }
 
+/** K2 与冻结附注里的数据输入：每个文件内照旧（重复即 INVALID）；跨文件同一数据集写法相同取一次，不同即 CONFLICT。顺序：K2 在前，附注按列出的顺序。 */
+function mergedInputs(entry, sources) {
+  const out = [];
+  const from = new Map();
+  for (const { source, text } of sources) {
+    for (const d of dataInputs(entry, text)) {
+      const prior = out.find((x) => x.dataset_id === d.dataset_id);
+      if (prior) {
+        need(canonicalJson(prior) === canonicalJson(d), 'DATA_INPUTS_CONFLICT', `${entry.id}:${d.dataset_id}:${from.get(d.dataset_id)}≠${source}`);
+        continue;
+      }
+      out.push(d);
+      from.set(d.dataset_id, source);
+    }
+  }
+  return out;
+}
+
 /**
  * 导入器调用：原有校验与 G-TRIAL、G-MECH、G-CAUSAL、G-COST 都通过之后。
  * @param {object} entry 登记表一题
- * @param {{k2Bytes: () => Buffer}} files 按 sha256 复验后的 K2 字节（只在过门时才读）
+ * @param {{k2Bytes: () => Buffer, noteBytes?: () => Buffer[]}} files 按 sha256 复验后的 K2 字节与冻结附注字节（entry.k2_notes 的顺序；只在过门时才读）
  * @param {{effectiveFrom?: string, registry?: object}} [opts] 只给测试用；导入器不传，取签字页的生效时刻与 QRP 钉住的登记表
  */
-function check(entry, { k2Bytes } = {}, { effectiveFrom = DEFAULTS.effectiveFrom, registry = null } = {}) {
+function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = DEFAULTS.effectiveFrom, registry = null } = {}) {
   const scope = applies(entry, effectiveFrom);
   if (!scope.applies) return { applies: false, reason: scope.reason };
   need(parity.isBound(), 'SIGNATURE_UNBOUND', parity.SIGNATURE.path);
   const reg = registry || datasetRegistry.pinned();
-  const inputs = dataInputs(entry, k2Bytes().toString('utf8'));
+  const listed = Array.isArray(entry.k2_notes) ? entry.k2_notes : [];
+  const notes = listed.length ? noteBytes() : [];
+  need(Array.isArray(notes) && notes.length === listed.length && notes.every(Boolean), 'K2_NOTES_UNREAD', `${entry.id}:${listed.length}`);
+  const inputs = mergedInputs(entry, [{ source: 'K2', text: k2Bytes().toString('utf8') },
+    ...notes.map((b, i) => ({ source: `K2_NOTE[${i}]:${listed[i].path}`, text: b.toString('utf8') }))]);
   need(inputs.length, 'DATA_INPUTS_MISSING', entry.id);
   const allowed = new Set([...PIT_SEMANTICS, ...(reg.pit_semantics || [])]);
+  const [basisA, basisB] = basisGroups(reg);
   const rows = inputs.map((d) => {
     const at = `${entry.id}:${d.dataset_id}`;
     const ds = reg.datasets.get(d.dataset_id);
@@ -115,13 +171,28 @@ function check(entry, { k2Bytes } = {}, { effectiveFrom = DEFAULTS.effectiveFrom
     need(d.registry_version === reg.registry_version && d.registry_sha256 === reg.registry_sha256, 'PIN_MISMATCH',
       `${at}:${d.registry_version}#${d.registry_sha256.slice(0, 8)}≠${reg.registry_version}#${reg.registry_sha256.slice(0, 8)}`);
     need(allowed.has(d.pit_semantics), 'PIT_SEMANTICS_MISMATCH', `${at}:${d.pit_semantics}:NOT_IN_ENUM_OR_REGISTRY`);
-    const registered = ds[REGISTRY_PIT_FIELD];
-    if (registered !== undefined) need(d.pit_semantics === registered, 'PIT_SEMANTICS_MISMATCH', `${at}:${d.pit_semantics}≠${registered}`);
-    return { ...d, pit_check: registered !== undefined ? 'CHECKED' : 'PENDING_REGISTRY_FIELD' };
+    const pit = ds[REGISTRY_PIT_FIELD];
+    if (!absent(pit)) need(listOf(pit).includes(d.pit_semantics), 'PIT_SEMANTICS_MISMATCH', `${at}:${d.pit_semantics}≠${listOf(pit).join(',')}`);
+    if (d.price_basis !== undefined) {
+      const [a, b, extra] = d.price_basis.split('/');
+      need(extra === undefined && basisA.includes(a) && basisB.includes(b), 'DATA_INPUT_INVALID', `${at}:BASIS=${d.price_basis}`);
+    }
+    const basis = ds[REGISTRY_BASIS_FIELD];
+    if (!absent(basis)) {
+      need(d.price_basis !== undefined, 'PRICE_BASIS_MISSING', `${at}:registry ${listOf(basis).join(',')}`);
+      need(listOf(basis).includes(d.price_basis), 'PRICE_BASIS_MISMATCH', `${at}:${d.price_basis}≠${listOf(basis).join(',')}`);
+    }
+    const vendor = ds[REGISTRY_VENDOR_FIELD];
+    if (!absent(vendor)) {
+      const vendors = listOf(vendor).flatMap((v) => String(v).split(',')).map((v) => v.trim()).filter(Boolean);
+      need(vendors.includes(d.vendor), 'VENDOR_MISMATCH', `${at}:${d.vendor}≠${vendors.join(',')}`);
+    }
+    return { ...d, pit_check: absent(pit) ? PENDING : CHECKED, basis_check: absent(basis) ? PENDING : CHECKED, vendor_check: absent(vendor) ? PENDING : CHECKED };
   });
   const ai = checkAi(entry);
   return { applies: true, state: 'PASS', effective_from: effectiveFrom, signature: { path: parity.SIGNATURE.path, sha256: parity.SIGNATURE.sha256 },
-    registry: { commit: reg.commit, registry_version: reg.registry_version, registry_sha256: reg.registry_sha256 }, data_inputs: rows, ai_inputs: ai };
+    registry: { commit: reg.commit, registry_version: reg.registry_version, registry_sha256: reg.registry_sha256 }, data_inputs: rows, ai_inputs: ai,
+    ...(listed.length ? { k2_notes: listed.map((n) => ({ path: n.path, sha256: n.sha256 })) } : {}) };
 }
 
 /** 测试用：临时替换门的默认读法（导入器那处调用不带选项），返回还原函数。 */
@@ -135,5 +206,5 @@ function withDefaults(patch, fn) {
   try { return fn(); } finally { restore(); }
 }
 
-module.exports = { EFFECTIVE_FROM, PIT_SEMANTICS, REGISTRY_PIT_FIELD, AI_PIN_SCHEMA, ParityGateError, applies, check, validPin, pinHash,
-  internals: { dataInputs, checkAi, setDefaults, withDefaults } };
+module.exports = { EFFECTIVE_FROM, PIT_SEMANTICS, REGISTRY_PIT_FIELD, REGISTRY_BASIS_FIELD, REGISTRY_VENDOR_FIELD, REGISTRY_BASIS_VOCAB_FIELD, DEFAULT_BASIS_GROUPS, AI_PIN_SCHEMA, ParityGateError, applies, check, validPin, pinHash,
+  internals: { dataInputs, mergedInputs, checkAi, setDefaults, withDefaults } };
