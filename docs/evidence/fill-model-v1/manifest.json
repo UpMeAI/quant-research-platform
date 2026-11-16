@@ -1,0 +1,369 @@
+{
+ "schema": "CAUSALITY_MANIFEST_V1",
+ "study_ref": "FILL_MODEL_LIBRARY_V1",
+ "k2_sha256": "90814c6075b7c7e3609b87f6a7e8fac3fd34698a5f32ee250c174fd602e062ac",
+ "code_repo": "qrp",
+ "fixture_dir": "data",
+ "functions": [
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "NEXT_OPEN",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "daily",
+     "file": "daily.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "daily"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "daily"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "GAP_THROUGH_LEVEL_AT_OPEN",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "daily",
+     "file": "daily.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "daily"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "daily"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "SAME_BAR_STOP_FIRST",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "LIMIT_CROSS_ONE_TICK",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "PREV_DAY_VOLUME_CAP",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "daily",
+     "file": "daily.json",
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     }
+    }
+   ],
+   "call": {
+    "order": [
+     "daily"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "daily"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "TOUCH_MINUTE_CLOSE",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "TICKER_LAST_PLUS_SLIPPAGE",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "ticks",
+     "file": "ticks.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "ticks"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "ticks"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "MARKET_AFTER_POLL",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "TIERED_LIMIT_STOP",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "POLL_EVERY",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "ticks",
+     "file": "ticks.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "ticks"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "ticks"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "FORMING_BAR_AS_OF_POLL",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  },
+  {
+   "runner": "node",
+   "path": "packages/fill-model/series.js",
+   "entry": "SCAN_SCHEDULE",
+   "role": "FILL",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   }
+  }
+ ]
+}
