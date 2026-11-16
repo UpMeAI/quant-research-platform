@@ -37,7 +37,8 @@ function repo() {
   git(dir, 'commit', '-q', '-m', 'seal');
   return { dir, commit: git(dir, 'rev-parse', 'HEAD') };
 }
-const READ = Object.freeze({ decision: 'part_b.verdict.conclusionZh', strength: null, use: 'part_b.verdict.basisZh', text: null });
+// 回程行要一个状态字：结论词是裸的「做」「不做」时取证据强度，所以合成文件的证据强度读 basisZh
+const READ = Object.freeze({ decision: 'part_b.verdict.conclusionZh', strength: 'part_b.verdict.basisZh', use: 'part_b.verdict.basisZh', text: null });
 
 function fixture() {
   process.env.QRP_DATA_DIR = tmp('qrp-link-sealed-data-');
