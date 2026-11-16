@@ -48,7 +48,8 @@ function direct({ k2Text = K2_DEFAULT, doc, docFn, entryPatch = {}, log = runLog
   const k2 = Buffer.from(k2Text);
   const ev = doc !== undefined ? doc : evidence({ k2Sha: sha(k2), ...(docFn ? { functions: docFn } : {}) });
   const evBytes = ev === null ? null : Buffer.from(JSON.stringify(ev));
-  const entry = { id: 'C17-R99', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: '2026-11-17T10:00:00+08:00',
+  // K2 冻结在注入的生效时刻之后、附录 1（A1，11-17）之前：只测 G-CAUSAL 本身；A1 另见 tests/causality_fill_a1.test.js
+  const entry = { id: 'C17-R99', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: '2026-11-16T10:00:00+08:00',
     ...(evBytes ? { causality_evidence: { sha256: sha(evBytes) } } : {}), ...entryPatch };
   return gate.check(entry, { k2Bytes: () => k2, evidenceBytes: () => evBytes, runLogBytes: () => log, rulingBytes: () => (ruling ? Buffer.from(ruling) : null) }, { effectiveFrom });
 }

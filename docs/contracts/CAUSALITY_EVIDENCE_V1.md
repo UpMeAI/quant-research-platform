@@ -18,7 +18,7 @@
   "study_ref": "<K2 名>", "k2_sha256": "<64 位>", "code_repo": "ashare-v6 | smartflow | qrp | …",
   "fixture_dir": "<相对清单的夹具目录>", "label_fields": ["fwd_ret_5d"],
   "functions": [{
-    "runner": "node | python", "path": "src/…/f.js", "entry": "导出名（可用点号）",
+    "runner": "node | python", "path": "src/…/f.js", "entry": "导出名（可用点号）", "role": "可选：SIGNAL | FEATURE | SCORE | FILTER | FILL",
     "inputs": [{ "name": "bars", "file": "bars.json", "availability": { … }, "intraday": false, "key_fields": [], "keep_fields": [] }],
     "call": { "style": "positional | object", "order": ["bars"], "params": [], "at": { "position": 1, "value": "INDEX | FIELD", "field": "closeTime", "key": "asOf" } },
     // at 也可以是数组，依次注入，例如先把 asOf 写进参数对象、再插入行号：f(bars, i, { asOf })
@@ -116,7 +116,8 @@
   - `harness_version`、`harness_sha256`（工具源文件的 sha256）、`seed`、`cut_points_per_function`、`manifest_sha256`；
   - `functions[]`、`unknown{}`、`production_effect: "NONE"`、`registered_by`、`registered_at`、`record_hash`。
 - **`functions[]`：**
-  - 身份：`function_id`（`<code_repo>:<path>#<entry>`）、`path`、`entry`、`runner`、`file_sha256`；
+  - 身份：`function_id`（`<code_repo>:<path>#<entry>`）、`path`、`entry`、`runner`、`role?`、`file_sha256`；
+  - `role`（可选，附录 1 §1.1 起）：`SIGNAL`、`FEATURE`、`SCORE`、`FILTER`（修订 §3.2 列的四类）或 `FILL`（成交函数：成交价、成交数量与量上限、滑点读数、跳空穿越止损或目标价的成交价、同一根 K 线止损与止盈谁先触发）。清单里写了就原样记进证据；不写就没有这个键，现有证据照旧有效；写了不认得的值 → 工具报 `FUNCTION_ROLE_INVALID`，门报 `CAUSALITY_EVIDENCE_FUNCTION_ROLE_INVALID`；
   - 输入：`inputs[]`，每项含 `name`、`file`、`file_sha256`、`rows`、`availability`、`intraday`、`key_fields`、`keep_fields`；
   - 调用：`call`、`output`、`static_reads[]`（`path`、`sha256`）、`session?`、`segment_boundaries`；
   - 运行：`cut_points[]`、`calls`、`isolation`、`sandbox{mode, runtime}`；
@@ -131,6 +132,7 @@
 
 - 每个新增或重算的函数写成 `` `CF:<code_repo>:<path>#<entry>` ``，例如 `` `CF:ashare-v6:src/research/pvs/volume.js#volumeReading` ``。门从 K2 全文里抽出这些 id，写法同台账 id `TRL-…`。
 - 不适用写一行 `G-CAUSAL N/A: <码>`。码只有五个（§3.2）：`RISK_K_OR_ACCOUNT_LAYER`、`ABLATION`、`COST_EXECUTION`、`DEFECT_OR_ENGINEERING`、`DESCRIPTIVE_NO_PERFORMANCE`。
+- 附录 1（A1）范围内的 K2（§5.1）不能写 `G-CAUSAL N/A: COST_EXECUTION`；该引擎的成交函数写成 `CF:` 行，证据里标 `role: FILL`。
 
 ## 5. 导入器（海外与 A 股封存结论，同一套 `checkEntry`）
 
@@ -162,6 +164,17 @@
    - 放行的测试在证据里确实是 FAIL，否则 `RULING_FACT_NOT_HOLD`；
    - 通过时锁里记 `DEVIATION_ACCEPTED`，不记 PASS。
    - `RULED_LAG` 的输入要在同一页裁定的 `lag_rules` 里，裁定原文写出 `RULED_LAG`。
+
+### 5.1 A1：成交函数（研究框架修订 2026-11-12 附录 1 §1、§1.1）
+
+- **范围：** 上面过门的题里，`kind = RESULT`、`k2_frozen_at ≥` 附录 1 的 `EFFECTIVE_FROM`（`services/research-framework-amendment-20261112-addendum-1`，与 G-COST 同一个常量；G-CAUSAL 自己的 FREEZE_1 生效时刻不变），且 G-COST 门内至少一行（台账登记行的角色与阶段，判断用 `services/cost-gate` 的 `costGatedScope`，不另写）。
+- **规则：**
+  - 附录 1 冻结页未绑定（`PENDING_FREEZE`）→ `CAUSALITY_FREEZE_UNBOUND`；
+  - K2 写 `G-CAUSAL N/A: COST_EXECUTION` → `CAUSALITY_SCOPE_FILL_NOT_EXEMPT`；
+  - K2 的 `CF:` 函数在证据里没有一个标 `role: FILL` → `CAUSALITY_FILL_FUNCTIONS_MISSING`。标得对不对、成交函数有没有列全，由协调会话冻结 K2 时核对，代码不另建按引擎的清单。
+- **锁：** 范围内的题，`causality_gate` 多一个 `fill_scope`：`{ applies, effective_from, freeze_sha256, cost_gated_runs, fill_functions? }`。
+- **范围之外**（K2 早于附录 1 生效、门内没有行、全是只看信号、READING）：返回值与锁逐字节不变。
+- K2 写其他不适用码（例如 `RISK_K_OR_ACCOUNT_LAYER`，附录 1 §1「不适用：风控层调 k、账户层」）：§1.1 只拒绝 `COST_EXECUTION`，照原样记 `NOT_APPLICABLE`，另记 `fill_scope`。
 
 **不过门的题：**
 - 照原样导入，锁行逐字节不变。
