@@ -334,6 +334,16 @@ const SCHEMAS = Object.freeze({
     contract_ref: 's', study_ref: 's', k2_sha256: 's', code_repo: 's', code_sha: 's?', harness_version: 's', harness_sha256: 's', seed: 'n', cut_points_per_function: 'n',
     manifest_sha256: 's', functions: 'a', unknown: 'o', production_effect: 's', registered_by: 's', registered_at: 's', record_hash: 's',
   },
+  FACTOR_LIBRARY_V1: {
+    _doc: '研究框架修订 2026-11-16（因子库与 AI 自动挖掘因子）草稿 ddeb2eea §2，P0 —— 因子库文件 config/research_factor_library.v1.json：只由 services/factor-library 写出（不手改）；按 sha256 绑定修订草稿；factors[] 每条是 FACTOR_LIBRARY_ENTRY_V1；not_registered[] 列出列举到但不是因子的字段与理由；docs/contracts/FACTOR_LIBRARY_V1.md',
+    schema: 's', contract_ref: 'o', producer: 's', registered_at: 's', registered_by: 's', sources: 'a', dedupe: 'o', factors: 'a', not_registered: 'a', production_effect: 's',
+  },
+  FACTOR_LIBRARY_ENTRY_V1: {
+    _doc: 'FACTOR_LIBRARY_V1 的一条因子（§2.2）：层只开 SELECTION_CROSS_SECTION；class 八类（OTHER 写理由）；formula 在 P0 只收 CF:<repo>:<path>#<entry>（DSL 留给 P1）；mechanism_id 必须已在机制登记表；LEGACY_RULE 绑定钉版源文件（repo、commit、path、sha256、extract），不重新判定；读不到的写进 unverified[]',
+    factor_id: 's', market: 's', universe: 'o', layer: 's', class: 's', class_reason_zh: 's?', definition_zh: 's', formula: 's', inputs: 'a', pit_available_at: 's',
+    horizon: 'o', economic_logic_zh: 's', origin: 's', mining: 'o?', status: 's', mechanism_id: 's?', rule_ref: 'o?', weight_in_rule: 'o?', composite: 'o?',
+    correlation: 'o', dedupe: 'o', evidence: 'o', source: 'o?', code_refs: 'a', unverified: 'a',
+  },
   SIGNAL_REGISTRY_ROW_V1: {
     _doc: 'SIGNAL_REGISTRY_V1 的一行（rows[] 与 books[].blocks[].rollup）；windows 为 bookSinceStart / currentVersion / previousVersion',
     rowId: 's', ledgerId: 's', market: 's', partId: 's?', signalKey: 's', signalCodes: 'a', ruleRefs: 'a', entries: 'n',
