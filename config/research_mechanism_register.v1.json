@@ -21,9 +21,9 @@
   },
   "sources": {
     "master_table": {
-      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev86.json",
-      "revision": 86,
-      "sha256": "ce619f239b7828422215726e5db1aac2b9af69a4f48c6e39047aea5ec6952025"
+      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev88.json",
+      "revision": 88,
+      "sha256": "a73bfdb00aafc2d7f383e26305b6e86592b1c60e948fdd868b27385d956d4915"
     }
   },
   "registered_at": "2026-11-16T02:16:03+08:00",
