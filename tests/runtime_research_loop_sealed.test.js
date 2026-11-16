@@ -151,3 +151,16 @@ test('拒绝：hash 不符、锁不存在、case 不同、不是 DQ 题、文件
   fs.writeFileSync(dLock.file_ref, verdictDoc('做'));
   assert.throws(() => loop.linkSealedVerdict(dont.link_id, bind(dLock), { stores: fx.stores }), /OVERSEAS_VERDICT_SHA256_MISMATCH/);
 });
+
+test('CLI link_sealed_verdict.js：缺参数与未知回链都失败关闭（退出码 1，账本不动）', () => {
+  fixture();
+  const cli = path.join(__dirname, '..', 'apps', 'research-cli', 'link_sealed_verdict.js');
+  const run = (args) => { try { execFileSync(process.execPath, [cli, ...args], { env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }); return { code: 0 }; } catch (error) { return { code: error.status, err: String(error.stderr) }; } };
+  const missing = run(['--link-id', 'RRL-0000000000000000', '--result-id', 'OSV-X-000000000000']);
+  assert.equal(missing.code, 1);
+  assert.match(missing.err, /MISSING_FLAG:expected-file-sha256/);
+  const unknown = run(['--link-id', 'RRL-0000000000000000', '--result-id', 'OSV-X-000000000000', '--expected-file-sha256', 'c'.repeat(64), '--dry-run', '1']);
+  assert.equal(unknown.code, 1);
+  assert.match(unknown.err, /LOOP_LINK_NOT_FOUND/);
+  assert.equal(fs.existsSync(loop.LINKS_LEDGER()), false);
+});
