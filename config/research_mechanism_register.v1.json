@@ -3377,6 +3377,16 @@
           "as_of": "2026-11-16"
         }
       }
+    },
+    {
+      "item_id": "R-XM-1",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "ACCT.IDLE_CASH.TBILL_PARKING"
+      ],
+      "classified_by": "overseas-research-proposal",
+      "reason_zh": "§4.2 DIAG-XM-1 封存 c703c4ec 后协调会话 11-17 立题：A 股个股本与指数本的闲置现金停放货币 ETF 或短债 ETF，与现金比，是闲置现金停放短期国债或等价物在 A 股的载体（标的不另立机制）；指数本（族 INDEX_BOOK）同题同机制，记在本条"
     }
   ]
 }
