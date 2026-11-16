@@ -33,7 +33,7 @@ for fam, label, rel, a, b in LIVE:
 for fam, rel, a, b in REPLAY:
     base = {"diag": "DIAG-XM-1", "series": "SEALED_DAILY_EQUITY", "source_sha256": SUMS[rel], "alignment": "PREREG_V1_S4"}
     add(fam, "XM1_REPLAY", "REPRO", "BOOK", rel, a, b, {**base, "l1": "NONE"}, "封存回放逐日权益原样读入。诊断，只报")
-    l1 = {"l1_engine": "KG@518d178:bands.ts", "timing": "PREREG_V1_S6_2_S6_3", "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND"}
+    l1 = {"l1_engine": "KG@518d178:bands.ts", "l1_reading_rule": "PREREG_V1_S6_2_S6_3", "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND"}
     add(fam, "XM1_REPLAY_L1_BANDS", "DIAGNOSTIC_ARM", "BOOK", rel, a, b, {**base, **l1, "l1": "BANDS"},
         "L1 只按本市场档位 k 缩放日收益（不含联动），一阶上限。诊断，只报", [dict(KG_REF)])
     add(fam, "XM1_REPLAY_L1_LINK", "DIAGNOSTIC_ARM", "BOOK", rel, a, b, {**base, **l1, "l1": "BANDS_LINK"},

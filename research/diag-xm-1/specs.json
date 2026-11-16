@@ -255,7 +255,7 @@
    "source_sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS"
   },
@@ -294,7 +294,7 @@
    "source_sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS_LINK"
   },
@@ -365,7 +365,7 @@
    "source_sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS"
   },
@@ -404,7 +404,7 @@
    "source_sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS_LINK"
   },
@@ -475,7 +475,7 @@
    "source_sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS"
   },
@@ -514,7 +514,7 @@
    "source_sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS_LINK"
   },
@@ -585,7 +585,7 @@
    "source_sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS"
   },
@@ -624,7 +624,7 @@
    "source_sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS_LINK"
   },
@@ -695,7 +695,7 @@
    "source_sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS"
   },
@@ -734,7 +734,7 @@
    "source_sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e",
    "alignment": "PREREG_V1_S4",
    "l1_engine": "KG@518d178:bands.ts",
-   "timing": "PREREG_V1_S6_2_S6_3",
+   "l1_reading_rule": "PREREG_V1_S6_2_S6_3",
    "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
    "l1": "BANDS_LINK"
   },
