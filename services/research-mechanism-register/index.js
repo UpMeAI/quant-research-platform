@@ -355,10 +355,13 @@ function query(input, { registerBytes = null, registerCommit = null, marks = nul
   };
 }
 
+/** 机制 id 是否已登记（因子库 FACTOR_LIBRARY_V1 的 mechanism_id 引用检查，研究框架修订 2026-11-16 草稿 §2.1、§7.2）。 */
+const isRegistered = (id, register = REGISTER) => isText(id) && register.mechanisms.some((m) => m.mechanism_id === id);
+
 /** 表的规范字节（键排序的 JSON 加换行）：命令行写出、K2 绑定、G-MECH 重算比较都用它。 */
 const tableBytes = (table) => Buffer.from(`${trials.canonicalJson(table)}\n`);
 
 module.exports = {
   FILE, REGISTER_PATH, CONTRACT, TABLE_SCHEMA, AMENDMENT, PREFIX_LAYER, DECISION_POINTS, MARKETS, MARKET_ALIAS, VERDICTS, POWER_THRESHOLD, ROUTES, ID, REGISTER,
-  MechanismRegisterError, validate, parse, crossCheck, normalizeMarket, query, tableBytes,
+  MechanismRegisterError, validate, parse, crossCheck, normalizeMarket, query, tableBytes, isRegistered,
 };
