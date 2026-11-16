@@ -22,7 +22,13 @@ QRP side only. The sandbox process writes no ledger (see `MINING_SANDBOX_V1`). R
 | Every scored candidate becomes one trial row. Candidate 201 is not scored and stops the round (`CAP_REACHED`), with no top-up | `MINE_ROUND_CAP_REACHED` |
 | 3 consecutive closed rounds without a G-MINE pass pause the market. It reopens only with a frozen space not used in those rounds; N keeps accumulating while paused | `MINE_MARKET_PAUSED` |
 
-Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more candidates) → `CLOSED`. `CLOSED` records `gmine_passes`, which only the pause rule uses.
+Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more candidates) → `CLOSED`.
+
+**G-MINE records and closing** (coordinator ruling 3, 2026-11-17):
+- **The count is derived, never passed in.** `closeRound` takes no pass count; passing one is refused with `MINE_ROUND_GMINE_PASSES_NOT_A_PARAMETER`. The count comes from the per-candidate records `MINING_GATE_RECORD_V1` (`research/mining_gate_records.jsonl`), and the round row keeps the basis in `gmine_basis`.
+- **Records are written by the G-MINE evaluation path.** `services/mining-rounds/gate-records.js` runs G-MINE on the candidate result itself and appends one record per candidate per round, linked to the trial row and the holdout open. A candidate passes only if the gate passes and all nine items pass. A record requires a round in `SCORING` with the candidate in the open log; duplicates are refused.
+- **Missing results block the close.** Any opened candidate without a record → `MINE_ROUND_GMINE_RESULT_MISSING`. A round closed without opening the holdout records 0.
+- **The pause rule counts only these records.**
 
 **Generator view** (`generatorView`): the space, mining-segment scores and the formulas already tried in this market. It exposes nothing from validation folds, the holdout, races or paper trading, and nothing about G-MINE pass or fail.
 
@@ -39,9 +45,17 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 
 - **New category.** `AI_MINED_CANDIDATE` joins `EXTRACTED_FACT`. An item carries `candidate_id` and `round_id`, and K2 §0 line 4 must state both ids.
 - **Mined factors need it.** When `entry.factor_refs` names a factor whose library origin is `AI_MINED_*`, the entry needs a matching `AI_MINED_CANDIDATE` item, with the same candidate and round as the library's `mining`. Otherwise it gets `AI_ROLE_MINED_CANDIDATE_MISSING`.
-- **Unchanged.** Entries without `factor_refs` behave as before.
+- **The K2 text is scanned too** (coordinator ruling 2). If the K2 bytes contain a mined factor id (library origin `AI_MINED_*`), or a `MINED_CANDIDATE` candidate or round id (trial ledger), with no matching `AI_MINED_CANDIDATE` item, the result is `AI_ROLE_MINED_CANDIDATE_MISSING`, whether or not `factor_refs` is declared.
+  - **Token boundary:** the character before and after a match must not be one of `A–Z a–z 0–9 _ : -`. So `C042` is not found inside `XC042`, `C0421`, `C042-b` or `R:C042`. Backticks, brackets, CJK punctuation and a trailing `.` count as boundaries.
+  - **Candidate ids are globally unique,** written as `<round_id>:<id>`.
 
 ## Promotion: mined lineage needs race and paper validation
 
 - **Refusal.** `createPromotionCandidate` takes an optional `trial_refs` list. Its lineage is those trials plus the TRL ids in their `source_refs`, followed recursively. If the lineage contains a `MINED_CANDIDATE`, the candidate must carry both `race_manifest_ref` and `paper_validation_refs`, otherwise `PROMOTION_MINED_REQUIRES_RACE_AND_PAPER`. When both are present, they then pass through the existing PAPER_VALIDATION_V1 gate.
-- **Unchanged without mined lineage.** A candidate with no mined lineage is byte-identical to the legacy record: `trial_refs` is left out of the record and of the id hash.
+- **`trial_refs` is required** (coordinator ruling 1). Every new candidate must carry a non-empty `trial_refs`, otherwise `PROMOTION_TRIAL_REFS_REQUIRED`, so the lineage walk always runs. Existing ledger rows are not rewritten.
+- **Non-mined candidates.** The record is the legacy record plus `trial_refs`, which non-mined records now carry too. `trial_refs` stays out of the id hash, so `candidate_id` is unchanged.
+
+## P2 requirements (coordinator ruling, 2026-11-17)
+
+- **Container.** The round runner runs only inside the research lane's rootless container, with read-only data mounts and network egress to the model API only.
+- **Only producer of holdout results.** The round runner is the only producer of holdout results, and it produces them through `neutralizeForScoring` (`services/mining-sandbox/evaluator`). Its per-candidate G-MINE results go through `recordGateResult`.

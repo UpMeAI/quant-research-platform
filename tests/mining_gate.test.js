@@ -188,15 +188,16 @@ test('成本下限读 cost-gate 的 FLOORS（CN_A 佣金 2.5、滑点 10 bps）�
   assert.ok(itemOf(gate.evaluate(c, ctx()), 'NET_OF_COST').codes.includes('MINE_NET_COST_BELOW_FLOOR'));
 });
 
-test('P0 不接任何导入器：除测试外没有模块 require mining-gate', () => {
+test('不接任何导入器：除测试外只有挖掘轮次的逐候选记录（P1）require mining-gate', () => {
   const hits = [];
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const p = path.join(dir, e.name);
       if (e.isDirectory()) { if (!['node_modules', 'var', '.git', 'tests'].includes(e.name)) walk(p); }
       else if (e.name.endsWith('.js') && !p.includes(`${path.sep}mining-gate${path.sep}`) && /mining-gate/.test(fs.readFileSync(p, 'utf8'))) hits.push(path.relative(ROOT, p));
+      // P1（协调会话 2026-11-17 裁定 3）：G-MINE 的唯一使用方是挖掘轮次的逐候选记录（求值并记一行）；仍不接任何导入器
     }
   };
   for (const d of ['services', 'apps', 'packages', 'adapters', 'tools']) if (fs.existsSync(path.join(ROOT, d))) walk(path.join(ROOT, d));
-  assert.deepEqual(hits, []);
+  assert.deepEqual(hits, ['services/mining-rounds/gate-records.js']);
 });

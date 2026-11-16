@@ -11,7 +11,7 @@
  *     - 连续 3 轮没有候选过 G-MINE → 暂停该市场（MINE_MARKET_PAUSED），直到用一份新的、不在那 3 轮里用过的冻结空间开轮。
  *   记候选：每个算过分的候选写一行试验台账（role MINED_CANDIDATE，stage SIGNAL，族 MINE:<市场>:H<持有期>，计入 N，从不按轮清零）；
  *     第 201 个不算分、不入账，本轮停止（MINE_ROUND_CAP_REACHED，状态 CAP_REACHED，不补）。去重被拒的、正交化的版本照样各记一行。
- *   关轮：写 G-MINE 过了几个（只给暂停规则用）。
+ *   关轮：G-MINE 过了几个由逐候选的 G-MINE 记录数出来（./gate-records.js；不收调用方报的数），只给暂停规则用。
  *   生成方能看到的（generatorView）：搜索空间、挖掘段分数、已试过的公式；看不到验证折、留出段、赛马、模拟盘的结果，也看不到 G-MINE 过没过。
  * 错误码 MINE_ROUND_* / MINE_MARKET_*；台账 research/mining_rounds.jsonl 与试验台账（只追加）。
  */
@@ -92,13 +92,13 @@ function openRound(o = {}) {
     holding_periods: [...o.holding_periods], family_ids: o.holding_periods.map((h) => `MINE:${o.market}:H${h}`),
     generator: { mode: g.mode, model: g.model || null, model_knowledge_cutoff: g.model_knowledge_cutoff || null, gp_seed: g.mode === 'AI_MINED_GP' ? g.gp_seed : null },
     holdout: { from: o.holdout.from, to: o.holdout.to }, cap, resumed_after_pause: pause.paused ? pause.failed_rounds : [],
-    status: 'OPEN', candidates_scored: 0, gmine_passes: null, opened_at: openedAt, closed_at: null,
+    status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, opened_at: openedAt, closed_at: null,
   };
   return write(body);
 }
 
 /** 本轮的清单 sha（预登记：候选的试验台账行把它写成 k2_sha256）。 */
-const manifestSha = (round) => trials.recordHash({ ...round, status: 'OPEN', candidates_scored: 0, gmine_passes: null, closed_at: null, record_hash: undefined });
+const manifestSha = (round) => trials.recordHash({ ...round, status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, closed_at: null, record_hash: undefined });
 
 /**
  * 记一个算过分的候选：写一行试验台账（MINED_CANDIDATE）。到上限即停：第 cap + 1 个不入账，本轮转 CAP_REACHED。
@@ -110,6 +110,8 @@ function recordCandidate(roundId, c = {}, { registeredBy, registeredAt = null } 
   if (r.status === 'CAP_REACHED') fail('MINE_ROUND_CAP_REACHED', `${roundId}:${r.candidates_scored}`);
   need(r.status === 'OPEN', 'MINE_ROUND_NOT_OPEN', `${roundId}:${r.status}`);
   need(isText(c.candidate_id) && isText(c.formula_canonical) && c.formula_sha256 === sha256(c.formula_canonical), 'MINE_ROUND_CANDIDATE_INVALID', c.candidate_id);
+  // 候选编号全局唯一：<轮次编号>:<本轮编号>（K2 正文按记号边界扫它，协调会话裁定 2）
+  need(c.candidate_id.startsWith(`${roundId}:`) && /^[A-Za-z0-9_:-]+$/.test(c.candidate_id) && c.candidate_id.length > roundId.length + 1, 'MINE_ROUND_CANDIDATE_ID_FORMAT', c.candidate_id);
   need(r.holding_periods.includes(c.holding_period), 'MINE_ROUND_HOLDING_PERIOD_NOT_IN_ROUND', `${c.candidate_id}:${c.holding_period}`);
   if (r.candidates_scored >= r.cap) { write({ ...r, status: 'CAP_REACHED' }); fail('MINE_ROUND_CAP_REACHED', `${roundId}:${r.candidates_scored}`); }
   const [row] = trials.register([{
@@ -131,13 +133,29 @@ function beginScoring(roundId) {
   return write({ ...r, status: 'SCORING' });
 }
 
-/** 关轮：写 G-MINE 过了几个（只给暂停规则用；生成方看不到）。 */
-function closeRound(roundId, { gmine_passes: passes, closedAt = null } = {}) {
+/**
+ * 关轮（协调会话裁定 3）：「过了几个」不是参数——从本轮逐候选的 G-MINE 记录（./gate-records.js）数出来，过 = 九项全过。
+ * 开过留出段的候选只要有一个没有记录 → MINE_ROUND_GMINE_RESULT_MISSING，不许关。没开留出段就关的轮，没有候选到过 G-MINE，记 0。
+ * 只给暂停规则用；生成方看不到。
+ */
+function closeRound(roundId, opts = {}) {
+  need(!Object.prototype.hasOwnProperty.call(opts, 'gmine_passes'), 'MINE_ROUND_GMINE_PASSES_NOT_A_PARAMETER', roundId);
+  const { closedAt = null } = opts;
   const r = roundHead(roundId);
   need(r, 'MINE_ROUND_NOT_FOUND', roundId);
   need(['OPEN', 'CAP_REACHED', 'SCORING'].includes(r.status), 'MINE_ROUND_NOT_OPEN', `${roundId}:${r.status}`);
-  need(Number.isInteger(passes) && passes >= 0 && passes <= r.candidates_scored, 'MINE_ROUND_PASSES_INVALID', passes);
-  return write({ ...r, status: 'CLOSED', gmine_passes: passes, closed_at: closedAt || now() });
+  const [open] = require('../holdout-vault').openLog(roundId);
+  let passes = 0; let basis = { holdout_open_hash: null, records: 0, record_hashes: [] };
+  if (open) {
+    const recs = require('./gate-records').recordsOf(roundId);
+    const byCandidate = new Map(recs.map((x) => [x.candidate_id, x]));
+    const missing = open.candidate_ids.filter((id) => !byCandidate.has(id));
+    need(!missing.length, 'MINE_ROUND_GMINE_RESULT_MISSING', `${roundId}:${missing.length}`);
+    const used = open.candidate_ids.map((id) => byCandidate.get(id));
+    passes = used.filter((x) => x.pass === true).length;
+    basis = { holdout_open_hash: open.record_hash, records: used.length, record_hashes: used.map((x) => x.record_hash) };
+  }
+  return write({ ...r, status: 'CLOSED', gmine_passes: passes, gmine_basis: basis, closed_at: closedAt || now() });
 }
 
 /** 本族累计 N（所有轮次，从不清零；口径同试验台账 count）。 */

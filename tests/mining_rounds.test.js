@@ -17,6 +17,8 @@ const mechGate = require('../services/research-mechanism-register/gate');
 const experiments = require('../services/experiment-orchestrator');
 const shadow = require('../services/shadow-control');
 const controlPlane = require('../services/strategy-control-plane');
+const gateRecords = require('../services/mining-rounds/gate-records');
+const { hash } = require('../packages/ledger');
 const { setupExperiment } = require('./_fixture');
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
@@ -28,7 +30,7 @@ const HOLDOUT = { from: '2026-07-01', to: '2026-10-31' };
 const open = (market, openedAt, patch = {}) => rounds.openRound({ market, space: space(), holding_periods: [5, 10], generator: LLM, holdout: HOLDOUT, openedAt, ...patch });
 const cand = (r, i, h = 5, extra = {}) => {
   const f = `rank(ts_mean(close,${i}))`;
-  return rounds.recordCandidate(r.round_id, { candidate_id: `C${String(i).padStart(3, '0')}`, formula_canonical: f, formula_sha256: sha(f), holding_period: h, mining_score: i / 1000, ...extra },
+  return rounds.recordCandidate(r.round_id, { candidate_id: `${r.round_id}:C${String(i).padStart(3, '0')}`, formula_canonical: f, formula_sha256: sha(f), holding_period: h, mining_score: i / 1000, ...extra },
     { registeredBy: AUTH, registeredAt: r.opened_at });
 };
 
@@ -54,12 +56,12 @@ test('轮次（§8.3 第 8 条）：第 201 个不算分、本轮停止；同市
   assert.equal(rounds.roundHead(r1.round_id).candidates_scored, 200);
   assert.equal(rounds.familyN('CN_A', 5), 200);
   assert.throws(() => open('CN_A', '2026-12-02T02:00:00Z'), code(/MINE_ROUND_ALREADY_OPEN/));
-  rounds.closeRound(r1.round_id, { gmine_passes: 1, closedAt: '2026-12-05T02:00:00Z' });
+  rounds.closeRound(r1.round_id, { closedAt: '2026-12-05T02:00:00Z' }); // 没开留出段：G-MINE 过 0 个
   const r2 = open('CN_A', '2026-12-10T02:00:00Z');
   cand(r2, 1001); // 去重被拒的候选：一样算过分，一样记
   cand(r2, 1002, 5, { rule_config: { formula: 'rank(ts_mean(close,1002))', orthogonalized_against: ['F_EXISTING'] } }); // 正交化版本
   cand(r2, 1003, 10);
-  rounds.closeRound(r2.round_id, { gmine_passes: 0 });
+  rounds.closeRound(r2.round_id);
   assert.equal(rounds.familyN('CN_A', 5), 202);
   assert.equal(rounds.familyN('CN_A', 10), 1);
   assert.throws(() => open('CN_A', '2026-12-20T02:00:00Z'), code(/MINE_ROUND_MONTHLY_CAP:CN_A:2026-12/));
@@ -73,7 +75,7 @@ test('暂停：某市场连续 3 轮没有候选过 G-MINE → 暂停；用那�
   for (const m of months) {
     const r = open('CRYPTO', `${m}-02T02:00:00Z`);
     used.push(r.space);
-    cand(r, 1, 5); rounds.closeRound(r.round_id, { gmine_passes: 0 });
+    cand(r, 1, 5); rounds.closeRound(r.round_id);
   }
   const p = rounds.pauseState('CRYPTO');
   assert.equal(p.paused, true);
@@ -89,23 +91,27 @@ test('留出段：起点不晚于大模型知识截止日 → 轮次清单被拒
   assert.throws(() => open('US', '2027-02-02T02:00:00Z', { holdout: { from: '2026-06-30', to: '2026-10-31' } }), code(/MINE_ROUND_HOLDOUT_BEFORE_CUTOFF/));
   assert.throws(() => open('US', '2027-02-02T02:00:00Z', { holdout: { from: '2026-08-01', to: '2026-10-31' } }), code(/MINE_ROUND_HOLDOUT_MOVED/));
   const prior = rounds.roundsOf('US').at(-1);
-  rounds.closeRound(prior.round_id, { gmine_passes: 0 });
+  rounds.closeRound(prior.round_id);
   const r = open('US', '2027-02-02T02:00:00Z', { generator: { mode: 'AI_MINED_GP', gp_seed: 20261116 } });
   cand(r, 1); cand(r, 2); cand(r, 3);
   const data = { round_id: r.round_id, segment: HOLDOUT, data_ref: 'lane:/holdout/US/2026-07-01..2026-10-31', data_sha256: sha('holdout-bytes'), sealedBy: 'VAULT' };
-  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: ['C001'], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_NOT_SEALED/));
+  const id = (k) => `${r.round_id}:C${String(k).padStart(3, '0')}`;
+  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: [id(1)], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_NOT_SEALED/));
   assert.throws(() => vault.seal({ ...data, segment: { from: '2026-07-01', to: '2026-11-30' } }), code(/MINE_HOLDOUT_SEGMENT_MISMATCH/));
   vault.seal(data);
   assert.throws(() => vault.seal(data), code(/MINE_HOLDOUT_ALREADY_SEALED/));
-  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: ['C001', 'C001'], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_CANDIDATE_READ_TWICE/));
-  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: ['C999'], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_CANDIDATE_UNKNOWN/));
-  const got = vault.open({ round_id: r.round_id, candidate_ids: ['C001', 'C003'], openedBy: 'SELECTOR' });
-  assert.deepEqual([got.data_sha256, got.candidate_ids], [data.data_sha256, ['C001', 'C003']]);
+  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: [id(1), id(1)], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_CANDIDATE_READ_TWICE/));
+  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: [id(999)], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_CANDIDATE_UNKNOWN/));
+  const got = vault.open({ round_id: r.round_id, candidate_ids: [id(1), id(3)], openedBy: 'SELECTOR' });
+  assert.deepEqual([got.data_sha256, got.candidate_ids], [data.data_sha256, [id(1), id(3)]]);
   assert.equal(vault.openLog(r.round_id).length, 1);
-  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: ['C002'], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_ALREADY_OPENED/));
+  assert.throws(() => vault.open({ round_id: r.round_id, candidate_ids: [id(2)], openedBy: 'SELECTOR' }), code(/MINE_HOLDOUT_ALREADY_OPENED/));
   assert.throws(() => cand(r, 4), code(/MINE_ROUND_NOT_OPEN/));
   assert.equal(rounds.roundHead(r.round_id).status, 'SCORING');
-  rounds.closeRound(r.round_id, { gmine_passes: 1 });
+  // 关轮要每个开过留出段的候选都有 G-MINE 记录（真门；门槛没冻结 → 不过）
+  assert.throws(() => rounds.closeRound(r.round_id), code(/MINE_ROUND_GMINE_RESULT_MISSING/));
+  for (const k of [1, 3]) gateRecords.recordGateResult({ round_id: r.round_id, candidate_id: id(k), candidate: {} });
+  assert.equal(rounds.closeRound(r.round_id).gmine_passes, 0);
 });
 
 test('生成方的接口（§8.3 第 9 条）：只有搜索空间、挖掘段分数与已试公式；读不到验证折、留出段、赛马、模拟盘的结果，也读不到 G-MINE 过没过', () => {
@@ -120,23 +126,48 @@ test('生成方的接口（§8.3 第 9 条）：只有搜索空间、挖掘段�
   assert.equal(typeof vault.open, 'function'); // 留出段只在保管服务里，生成方的视图里没有它的任何东西
 });
 
+const ROUND = 'MR-CN_A-2026-12-aaaa';
+const CID = `${ROUND}:C042`;
 const LIB = { factors: [
-  { factor_id: 'F_MINED_1', origin: 'AI_MINED_LLM', mining: { round_id: 'MR-CN_A-2026-12-aaaa', candidate_id: 'C042' } },
+  { factor_id: 'F_MINED_1', origin: 'AI_MINED_LLM', mining: { round_id: ROUND, candidate_id: CID } },
   { factor_id: 'F_HUMAN_1', origin: 'HUMAN', mining: null },
 ] };
+const MINED_TRIALS = [{ role: 'MINED_CANDIDATE', mining: { round_id: 'MR-US-2027-01-bbbb', candidate_id: 'MR-US-2027-01-bbbb:C007' } }];
 
 test('AI 输入（§8.3 第 10 条）：测挖掘因子的 K2 没写 AI_MINED_CANDIDATE → 拒绝；写了要带候选编号与轮次，且第 4 行写出这两个编号；不测挖掘因子的题照旧', () => {
-  const ai = (entry, line4) => mechGate.internals.checkAiInputs({ id: 'T', ...entry }, line4, () => LIB);
-  const mined = { category: 'AI_MINED_CANDIDATE', ref: 'factor:F_MINED_1', desc_zh: '挖掘候选', candidate_id: 'C042', round_id: 'MR-CN_A-2026-12-aaaa' };
-  assert.throws(() => ai({ factor_refs: ['F_MINED_1'], ai_inputs: [] }, '无'), code(/AI_ROLE_MINED_CANDIDATE_MISSING:T:F_MINED_1:C042@MR-CN_A-2026-12-aaaa/));
-  assert.throws(() => ai({ factor_refs: ['F_MINED_1'], ai_inputs: [{ ...mined, candidate_id: 'C043' }] }, 'AI_MINED_CANDIDATE C043 MR-CN_A-2026-12-aaaa'), code(/AI_ROLE_MINED_CANDIDATE_MISSING/));
-  assert.throws(() => ai({ factor_refs: ['F_MINED_1'], ai_inputs: [{ ...mined, round_id: undefined }] }, 'AI_MINED_CANDIDATE C042'), code(/AI_ROLE_INPUT_INVALID/));
+  const ai = (entry, line4, text = line4) => mechGate.internals.checkAiInputs({ id: 'T', ...entry }, line4, { factorLibrary: () => LIB, minedTrials: () => MINED_TRIALS, text });
+  const mined = { category: 'AI_MINED_CANDIDATE', ref: 'factor:F_MINED_1', desc_zh: '挖掘候选', candidate_id: CID, round_id: ROUND };
+  assert.throws(() => ai({ factor_refs: ['F_MINED_1'], ai_inputs: [] }, '无'), code(new RegExp(`AI_ROLE_MINED_CANDIDATE_MISSING:T:F_MINED_1:${CID}@${ROUND}`)));
+  assert.throws(() => ai({ factor_refs: ['F_MINED_1'], ai_inputs: [{ ...mined, candidate_id: `${ROUND}:C043` }] }, `AI_MINED_CANDIDATE ${ROUND}:C043 ${ROUND}`), code(/AI_ROLE_MINED_CANDIDATE_MISSING/));
+  assert.throws(() => ai({ factor_refs: ['F_MINED_1'], ai_inputs: [{ ...mined, round_id: undefined }] }, `AI_MINED_CANDIDATE ${CID}`), code(/AI_ROLE_INPUT_INVALID/));
   assert.throws(() => ai({ factor_refs: ['F_MINED_1'], ai_inputs: [mined] }, 'AI_MINED_CANDIDATE（候选 C042）'), code(/AI_ROLE_K2_LINE_MISMATCH/));
-  assert.equal(ai({ factor_refs: ['F_MINED_1'], ai_inputs: [mined] }, 'AI_MINED_CANDIDATE：候选 C042，轮次 MR-CN_A-2026-12-aaaa'), 1);
+  assert.equal(ai({ factor_refs: ['F_MINED_1'], ai_inputs: [mined] }, `AI_MINED_CANDIDATE：候选 ${CID}，轮次 ${ROUND}`), 1);
   assert.throws(() => ai({ factor_refs: ['F_NOPE'], ai_inputs: [] }, '无'), code(/AI_ROLE_FACTOR_UNKNOWN/));
   assert.equal(ai({ factor_refs: ['F_HUMAN_1'], ai_inputs: [] }, '无'), 0);
   assert.equal(ai({ ai_inputs: [{ category: 'EXTRACTED_FACT', ref: 'r', desc_zh: 'd' }] }, 'EXTRACTED_FACT 一项'), 1);
   assert.deepEqual([...mechGate.AI_CATEGORIES], ['EXTRACTED_FACT', 'AI_MINED_CANDIDATE']);
+});
+
+test('G-MECH 扫 K2 正文（协调会话裁定 2）：正文里出现挖掘因子编号、挖掘候选编号或轮次编号，没有对应的 AI_MINED_CANDIDATE → 拒绝，不管写没写 factor_refs；按记号边界匹配', () => {
+  const ai = (entry, text, line4 = '无') => mechGate.internals.checkAiInputs({ id: 'T', ai_inputs: [], ...entry }, line4, { factorLibrary: () => LIB, minedTrials: () => MINED_TRIALS, text });
+  const k2 = (body) => `# 合成 K2\n\n## 0\n**AI 输入**：无\n\n## 1\n${body}\n`;
+  // 挖掘因子编号出现在正文里、没声明 factor_refs → 拒绝
+  assert.throws(() => ai({}, k2('本题测 `F_MINED_1` 的十日持有期。')), code(new RegExp(`AI_ROLE_MINED_CANDIDATE_MISSING:T:K2_TEXT:F_MINED_1:${CID}@${ROUND}`)));
+  // 挖掘候选编号、轮次编号出现在正文里 → 拒绝
+  assert.throws(() => ai({}, k2('候选 MR-US-2027-01-bbbb:C007 的读数。')), code(/AI_ROLE_MINED_CANDIDATE_MISSING:T:K2_TEXT:MR-US-2027-01-bbbb:C007/));
+  assert.throws(() => ai({}, k2('来自轮次 MR-US-2027-01-bbbb。')), code(/AI_ROLE_MINED_CANDIDATE_MISSING:T:K2_TEXT:MR-US-2027-01-bbbb/));
+  // 写了对应的 AI_MINED_CANDIDATE → 过
+  const item = { category: 'AI_MINED_CANDIDATE', ref: 'factor:F_MINED_1', desc_zh: '挖掘候选', candidate_id: CID, round_id: ROUND };
+  const line4 = `AI_MINED_CANDIDATE：候选 ${CID}，轮次 ${ROUND}`;
+  assert.equal(ai({ ai_inputs: [item] }, k2(`本题测 F_MINED_1（${CID}）。`), line4), 1);
+  const item2 = { ...item, ref: 'trial', candidate_id: 'MR-US-2027-01-bbbb:C007', round_id: 'MR-US-2027-01-bbbb' };
+  assert.equal(ai({ ai_inputs: [item2] }, k2('候选 MR-US-2027-01-bbbb:C007。'), 'AI_MINED_CANDIDATE MR-US-2027-01-bbbb:C007 MR-US-2027-01-bbbb'), 1);
+  // 没有挖掘编号 → 照旧
+  assert.equal(ai({}, k2('本题测 F_HUMAN_1 与 C042、C007。')), 0);
+  // 只是别的记号的一部分，不算：F_MINED_10、XF_MINED_1、F_MINED_1_V2、MR-US-2027-01-bbbbb、MR-US-2027-01-bbbb:C0071
+  assert.equal(ai({}, k2('F_MINED_10、XF_MINED_1、F_MINED_1_V2、F_MINED_1-b、MR-US-2027-01-bbbbb、MR-US-2027-01-bbbb:C0071。')), 0);
+  // 记号边界之外的标点（反引号、括号、中文标点、句点）都算边界
+  for (const t of ['`F_MINED_1`', '(F_MINED_1)', '「F_MINED_1」', 'F_MINED_1.', 'F_MINED_1，']) assert.throws(() => ai({}, k2(t)), code(/AI_ROLE_MINED_CANDIDATE_MISSING/), t);
 });
 
 test('晋级：试验谱系里有 MINED_CANDIDATE 的候选，没有赛马清单引用与模拟盘登记 → PROMOTION_MINED_REQUIRES_RACE_AND_PAPER；没有挖掘谱系的照旧（逐字节）', async () => {
@@ -160,10 +191,15 @@ test('晋级：试验谱系里有 MINED_CANDIDATE 的候选，没有赛马清单
   await assert.rejects(controlPlane.createPromotionCandidate({ ...base, trial_refs: [arm.trial_id], race_manifest_ref: { race_id: 'X', manifest_sha256: 'e'.repeat(64) }, paper_validation_refs: ['PV-X'] }),
     code(/PROMOTION_RACE_NOT_CLOSED/));
   await assert.rejects(controlPlane.createPromotionCandidate({ ...base, trial_refs: ['TRL-0000000000000000'] }), code(/PROMOTION_TRIAL_REF_UNKNOWN/));
-  // 没有挖掘谱系：与不带 trial_refs 的候选逐字节相同（createdAt 除外）
-  const plain = await controlPlane.createPromotionCandidate({ ...base });
+  // 协调会话裁定 1：trial_refs 必填（缺或空 → 拒绝）；谱系检查因此总会跑
+  await assert.rejects(controlPlane.createPromotionCandidate({ ...base }), code(/PROMOTION_TRIAL_REFS_REQUIRED/));
+  await assert.rejects(controlPlane.createPromotionCandidate({ ...base, trial_refs: [] }), code(/PROMOTION_TRIAL_REFS_REQUIRED/));
+  // 没有挖掘谱系：与以前的行逐字节相同，只多了必填的 trial_refs；编号照旧（trial_refs 不进编号）
   const withHuman = await controlPlane.createPromotionCandidate({ ...base, trial_refs: [human.trial_id] });
-  const strip = ({ createdAt: _c, ...rest }) => JSON.stringify(rest);
-  assert.equal(strip(withHuman), strip(plain));
+  assert.equal(withHuman.candidate_id, `PC-${hash(base)}`);
+  assert.deepEqual(Object.keys(withHuman), ['schema', 'candidate_id', 'market', 'release_candidate_ref', 'experiment_ref', 'research_evidence_refs', 'shadow_forward_refs',
+    'compatibility_result', 'risk_impact', 'unresolved_gaps', 'migration_policy', 'effective_from_candidate', 'rollback_ref', 'review_status', 'createdAt', 'trial_refs']);
+  assert.deepEqual(withHuman.trial_refs, [human.trial_id]);
+  assert.equal('mined_lineage' in withHuman, false);
   assert.ok(dataRoot);
 });
