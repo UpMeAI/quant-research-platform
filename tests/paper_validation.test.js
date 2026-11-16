@@ -33,7 +33,7 @@ const CALENDAR = { ref: 'calendar:synthetic-weekdays', days: CAL };
 
 let raceN = 0;
 /** 合成一行已关闭的 RACE_V2（记录哈希照真实算法），C1 晋级（回测 MDD 0.10），C2 淘汰。 */
-function closedRace({ market = 'CN_A', closedAt = '2026-11-20T08:00:00Z', status = 'CLOSED', tamper = false } = {}) {
+function closedRace({ market = 'CN_A', closedAt = '2026-11-20T08:00:00Z', status = 'CLOSED', tamper = false, mdd = 0.10 } = {}) {
   raceN += 1;
   const manifestSha = sha(`manifest-${raceN}`);
   const body = {
@@ -41,7 +41,7 @@ function closedRace({ market = 'CN_A', closedAt = '2026-11-20T08:00:00Z', status
     manifest_sha256: manifestSha, freeze: { path: 'synthetic', sha256: sha('freeze') }, manifest: { champion: { entrant_id: 'CHAMP', book_ref: 'ACCOUNT' } },
     signed: raceV2.SIGNED, entry: [], cost_model: { ref: 'synthetic' },
     outcome: status === 'CLOSED' ? { state: 'RANKED', champion: { entrant_id: 'CHAMP', mdd: 0.12 }, promoted: ['C1'],
-      entrants: [{ entrant_id: 'C1', book_ref: 'ACCOUNT', mdd: 0.10 }, { entrant_id: 'C2', book_ref: 'ACCOUNT', mdd: 0.2 }] } : null,
+      entrants: [{ entrant_id: 'C1', book_ref: 'ACCOUNT', mdd }, { entrant_id: 'C2', book_ref: 'ACCOUNT', mdd: 0.2 }] } : null,
     production_effect: 'NONE', opened_at: '2026-11-18T00:00:00Z', closed_at: status === 'CLOSED' ? closedAt : null,
   };
   body.record_hash = trials.recordHash(body);
@@ -255,7 +255,7 @@ const UNWRITTEN_EXPECTED = {
   'C3-FWD': ['promotion_gate', 'withdrawal', 'holding_period'],
   'SECTOR-ETF-LEFT-1': ['min_sample', 'promotion_gate', 'withdrawal'],
   'C17-NMSEL': ['min_sample', 'promotion_gate', 'withdrawal', 'expiry', 'champion', 'pairing', 'holding_period'],
-  'U11(B)': ['promotion_gate', 'expiry', 'pairing', 'holding_period'],
+  'U11(B)': ['promotion_gate', 'expiry', 'holding_period'],
   R21: ['promotion_gate', 'withdrawal', 'expiry', 'holding_period'],
 };
 
@@ -278,13 +278,13 @@ test('现有五个前向影子：只登记，规则字段与配置原样一致�
     for (const leak of ['MAX_60_TRADING_DAYS', 'forward_mdd_multiple_max', 'NEXT_TRADING_DAY_AFTER_RACE_CLOSE', 'CLOSE_INSUFFICIENT_NO_EXTENSION']) assert.equal(text.includes(leak), false, `${r.shadow_key}:${leak}`);
     assert.throws(() => pv.evaluate(r, fwd(), '2026-12-01'), code(/EXISTING_SHADOW_RULES_ARE_ITS_OWN/));
   }
-  assert.deepEqual(recs.filter((r) => r.unverified.length).map((r) => r.shadow_key), ['C17-NMSEL', 'U11(B)', 'R21']);
-  // 幂等；冻结后改了内容（比如给「未写」补默认值）→ 拒绝，旧行不改
+  assert.deepEqual(recs.filter((r) => r.unverified.length).map((r) => r.shadow_key), ['U11(B)']); // V1 后续：R21 规则进了协调目录；C17 T_start 与 U11 的 C / D 有了出处
+  // 幂等；冻结后改了原有内容 → 拒绝，旧行不改（只追加的改动走取代行，见末尾一条）
   const first = pv.registerExisting(cfg);
   assert.equal(first.length, 5);
   assert.ok(pv.registerExisting(cfg).every((r) => r.idempotent_skip));
   const patched = JSON.parse(JSON.stringify(cfg));
-  patched.shadows[0].fields.withdrawal = [{ source: 'C3_FREEZE_1', quote: '60' }];
+  patched.shadows[0].fields.start = [{ source: 'C3_FREEZE_1', quote: '★4 | (a)：T_start 照裁定 1 保持 2026-09-30。' }]; // 改原有摘句（不是追加）
   assert.throws(() => pv.registerExisting(patched), code(/EXISTING_REGISTRATION_CHANGED:PV-EXISTING-C3-FWD/));
   const bad = JSON.parse(JSON.stringify(cfg));
   bad.shadows[1].fields.start = '';
@@ -319,6 +319,13 @@ test('现有五个影子的规则字段与封存 / 冻结页逐字节一致（�
   const bad = v.quotes.filter((q) => !['FOUND', 'ABSENT'].includes(q.state));
   assert.deepEqual(bad, []);
   assert.ok(v.quotes.filter((q) => q.state === 'FOUND').length > 0);
+  assert.deepEqual(v.freeze_records.filter((f) => !['FOUND', 'ABSENT'].includes(f.section) || !['FOUND', 'ABSENT'].includes(f.queue_line)), []);
+  if (!absent.length) {
+    assert.equal(states.length, 23);
+    assert.ok(states.every((s) => s === 'MATCH'));
+    assert.ok(v.quotes.every((q) => q.state === 'FOUND'));
+    assert.deepEqual(v.freeze_records, [{ source: 'U11B_FREEZE_1_NOTE_1', section: 'FOUND', queue_line: 'FOUND' }]);
+  }
 });
 
 test('现有影子台账行为不变（SHD-…）：paper-validation 不写 shadow_runs / observations / virtual_ledger，读出来的状态一模一样', async () => {
@@ -348,5 +355,87 @@ test('现有影子台账行为不变（SHD-…）：paper-validation 不写 shad
   const src = fs.readFileSync(require.resolve('../services/shadow-control/paper-validation'), 'utf8');
   for (const s of ['SHADOW_LEDGER', 'DISAGREEMENT_LEDGER', 'VIRTUAL_LEDGER', 'shadow_runs.jsonl', 'virtual_ledger.jsonl', 'shadow_observations.jsonl', "require('./index')", "require('../shadow-control')"]) {
     assert.equal(src.includes(s), false, s);
+  }
+});
+
+// ── V1 后续（协调会话 2026-11-17 02:2x）：「预登记」按字面读、回测回撤为 0 拒绝、R21 出处可核后追加一行取代 ─────
+
+test('当天登记：起始会话开盘之前登记 → 起始日不变；开盘时或之后 → 顺延一个交易日并记原因与原起始日；晚于原起始日登记 → 仍拒绝', () => {
+  // A 股：09:30 +08（2026-11-23 周一，赛马 11-20 周五关闭）
+  const before = registered({ registeredAt: '2026-11-23T01:29:59Z' });
+  assert.deepEqual([before.start.date, before.start.shift], [START, undefined]);
+  for (const t of ['2026-11-23T01:30:00Z', '2026-11-23T01:31:00Z']) {
+    const r = registered({ registeredAt: t });
+    assert.equal(r.start.date, '2026-11-24', t);
+    assert.deepEqual(r.start.shift, { reason: 'START_SHIFTED_REGISTERED_AFTER_OPEN', original_date: START, open_at: '2026-11-23T01:30:00.000Z' }, t);
+    assert.equal(r.registered_on, START);
+    assert.equal(r.expiry.date, '2027-11-24'); // 到期从实际起始日算
+    assert.ok(validateRecord(r, 'PAPER_VALIDATION_V1').ok);
+  }
+  assert.throws(() => registered({ registeredAt: '2026-11-24T00:00:00Z' }), code(/PAPER_VALIDATION_START_BEFORE_REGISTRATION:2026-11-23<2026-11-24/));
+  // 美股：09:30 America/New_York（11-23 是冬令时，= 14:30Z）
+  const us = (t) => registered({ registeredAt: t }, { market: 'US', closedAt: '2026-11-21T02:00:00Z' });
+  assert.equal(us('2026-11-23T14:29:00Z').start.date, '2026-11-23');
+  assert.deepEqual([us('2026-11-23T14:30:00Z').start.date, us('2026-11-23T14:30:00Z').start.shift.open_at], ['2026-11-24', '2026-11-23T14:30:00.000Z']);
+  assert.equal(pv.internals.marketOpenAt('2026-07-01', 'US'), '2026-07-01T13:30:00.000Z'); // 夏令时
+  // 加密：00:00 UTC，日历是每一天
+  const days = Array.from({ length: 400 }, (_, i) => new Date(Date.UTC(2026, 10, 1 + i)).toISOString().slice(0, 10));
+  const cr = (t) => registered({ registeredAt: t, calendar: { ref: 'calendar:every-day', days } }, { market: 'CRYPTO', closedAt: '2026-11-20T08:00:00Z' });
+  assert.equal(cr('2026-11-20T23:59:59Z').start.date, '2026-11-21');
+  assert.deepEqual([cr('2026-11-21T00:00:00Z').start.date, cr('2026-11-21T00:00:00Z').start.shift.reason], ['2026-11-22', 'START_SHIFTED_REGISTERED_AFTER_OPEN']);
+});
+
+test('回测最大回撤为 0 → 登记拒绝 BACKTEST_DRAWDOWN_ZERO；大于 0 照旧', () => {
+  assert.throws(() => registered({}, { mdd: 0 }), code(/PAPER_VALIDATION_BACKTEST_DRAWDOWN_ZERO/));
+  const r = registered({}, { mdd: 0.0001 });
+  assert.equal(r.withdrawal.economic.backtest_mdd, 0.0001);
+});
+
+test('新出处之后：R21、C17-NMSEL 去掉 UNVERIFIED，U11(B) 只留 T_START_PENDING_FIRST_WRITE；台账里已有旧行时追加一行取代（旧行逐字节不动），改了原有摘句或出处仍拒绝', () => {
+  const cfg = pv.loadExisting();
+  const by = (c, k) => c.shadows.find((x) => x.shadow_key === k);
+  assert.deepEqual([by(cfg, 'R21').unverified, by(cfg, 'C17-NMSEL').unverified], [[], []]);
+  assert.deepEqual(by(cfg, 'U11(B)').unverified.map((u) => u.split(':')[0]), ['T_START_PENDING_FIRST_WRITE']);
+  assert.deepEqual(by(cfg, 'C17-NMSEL').fields.start.at(-1), { source: 'C17NM_RULING_3', quote: 'Forward shadow T_start = 2026-11-13T00:00:00Z.' });
+  assert.deepEqual(by(cfg, 'U11(B)').fields.champion.map((q) => q.source), ['U11B_FREEZE_1', 'U11B_FREEZE_1_NOTE_1', 'U11B_FREEZE_1_NOTE_1']);
+  assert.ok(cfg.sources.U11B_FREEZE_1_NOTE_1.freeze_record.queue_log.line_quote.includes('CD_NOTE_FROZEN'));
+  // 改动之前已经登记过的样子（#103 合并时的内容）：三条 UNVERIFIED、没有两份新出处与它们的摘句
+  const old = JSON.parse(JSON.stringify(cfg));
+  delete old.sources.C17NM_RULING_3; delete old.sources.U11B_FREEZE_1_NOTE_1;
+  Object.assign(by(old, 'C17-NMSEL'), { unverified: ['T_START_DATE_NOT_ON_A_SEAL_OR_FREEZE_PAGE: (former note)'] });
+  by(old, 'C17-NMSEL').fields.start = by(old, 'C17-NMSEL').fields.start.slice(0, 2);
+  const u = by(old, 'U11(B)');
+  Object.assign(u.fields, { champion: u.fields.champion.slice(0, 1), pairing: pv.UNWRITTEN, reading: u.fields.reading.slice(0, 2) });
+  u.unverified = [...u.unverified, 'CHAMPION_ARMS_UNDEFINED_ON_PAGE: (former note)'];
+  by(old, 'R21').unverified = ['RULE_SOURCE_NOT_IN_COORDINATOR_DIR: (former note)'];
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pv-supersede-'));
+  const prev = process.env.QRP_DATA_DIR;
+  process.env.QRP_DATA_DIR = dir;
+  try {
+    const first = pv.registerExisting(old);
+    const before = fs.readFileSync(pv.LEDGER());
+    const second = pv.registerExisting(cfg);
+    const row = (k) => second.find((x) => x.shadow_key === k);
+    assert.ok(row('C3-FWD').idempotent_skip && row('SECTOR-ETF-LEFT-1').idempotent_skip);
+    assert.deepEqual(row('C17-NMSEL').supersede_changes, ['start', 'sources', 'unverified']);
+    assert.deepEqual(row('U11(B)').supersede_changes, ['champion', 'pairing', 'reading', 'sources', 'unverified']);
+    assert.deepEqual(row('R21').supersede_changes, ['unverified']);
+    for (const k of ['C17-NMSEL', 'U11(B)', 'R21']) {
+      assert.equal(row(k).supersedes, first.find((x) => x.shadow_key === k).record_hash, k);
+      assert.equal(row(k).supersede_reason, 'ADDITIVE_UPDATE');
+      assert.equal(pv.registration(row(k).validation_id).record_hash, row(k).record_hash, k); // 头行是新的
+      assert.ok(validateRecord(row(k), 'PAPER_VALIDATION_V1').ok, k);
+    }
+    const after = fs.readFileSync(pv.LEDGER());
+    assert.deepEqual(after.subarray(0, before.length), before); // 旧行逐字节不动，只在后面追加
+    assert.ok(pv.registerExisting(cfg).every((x) => x.idempotent_skip));
+    const refused = (mutate, re = /EXISTING_REGISTRATION_CHANGED/) => { const c = JSON.parse(JSON.stringify(cfg)); mutate(c); assert.throws(() => pv.registerExisting(c), code(re)); };
+    refused((c) => { by(c, 'C3-FWD').fields.start[0].quote = '★4 | (a)：T_start 照裁定 1 保持 2026-09-30。'; });
+    refused((c) => { by(c, 'U11(B)').fields.reading.pop(); });
+    refused((c) => { by(c, 'U11(B)').fields.pairing = pv.UNWRITTEN; });
+    refused((c) => { c.sources.U11B_FREEZE_1.sha256 = 'f'.repeat(64); });
+    refused((c) => { by(c, 'R21').run_by = 'smartflow'; by(c, 'R21').listed_as.quote = `${by(c, 'R21').listed_as.quote} smartflow`; });
+  } finally {
+    if (prev === undefined) delete process.env.QRP_DATA_DIR; else process.env.QRP_DATA_DIR = prev;
   }
 });

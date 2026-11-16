@@ -68,6 +68,24 @@ function marketDate(iso, market) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: MARKET_TZ[market], year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
 }
 
+/** 开盘时刻（协调会话 2026-11-17 02:2x：「预登记」按字面读）：A 股 09:30 +08，美股 09:30 纽约时间（按当天的夏令时），加密 00:00 UTC。 */
+const MARKET_OPEN = Object.freeze({ CN_A: '09:30', US: '09:30', CRYPTO: '00:00' });
+function tzOffsetMinutes(t, tz) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date(t));
+  const g = (k) => Number(parts.find((p) => p.type === k).value);
+  return Math.round((Date.UTC(g('year'), g('month') - 1, g('day'), g('hour'), g('minute'), g('second')) - t) / 60000);
+}
+/** 某个交易日在该市场开盘的 UTC 时刻（ISO）。 */
+function marketOpenAt(date, market) {
+  need(MARKET_TZ[market] && isDate(date), 'MARKET_INVALID', `${market}:${date}`);
+  const [y, mo, d] = date.split('-').map(Number);
+  const [h, mi] = MARKET_OPEN[market].split(':').map(Number);
+  const wall = Date.UTC(y, mo - 1, d, h, mi);
+  let t = wall - tzOffsetMinutes(wall, MARKET_TZ[market]) * 60000;
+  t = wall - tzOffsetMinutes(t, MARKET_TZ[market]) * 60000; // 夏令时切换当天再校一次
+  return new Date(t).toISOString();
+}
+
 /** 日期加 n 个月（月末对齐：01-31 + 1 个月 = 02-28/29）。 */
 function addMonths(date, n) {
   const [y, m, d] = date.split('-').map(Number);
@@ -133,17 +151,27 @@ function registerNew(o = {}) {
   need(entrant, 'ENTRANT_NOT_IN_RACE', o.race.entrant_id);
   need((head.outcome.promoted || []).includes(o.race.entrant_id), 'ENTRANT_NOT_PROMOTED', o.race.entrant_id);
   need(isNum(entrant.mdd) && entrant.mdd >= 0, 'BACKTEST_MDD_MISSING', o.race.entrant_id);
+  need(entrant.mdd > 0, 'BACKTEST_DRAWDOWN_ZERO', o.race.entrant_id); // 1.5 倍的上限会是 0，任何回撤都停：登记即拒（协调会话 02:2x）
 
   need(isObj(o.calendar) && isText(o.calendar.ref) && Array.isArray(o.calendar.days) && o.calendar.days.every(isDate), 'CALENDAR_INVALID');
   const closedOn = marketDate(head.closed_at, market);
   const days = [...new Set(o.calendar.days)].sort();
   const next = days.find((d) => d > closedOn);
   need(next, 'CALENDAR_INCOMPLETE', `no trading day after ${closedOn}`);
-  const start = o.start_date === undefined ? next : o.start_date;
-  need(isDate(start), 'START_DATE_INVALID', start);
-  need(start === next, 'START_NOT_NEXT_TRADING_DAY_AFTER_RACE_CLOSE', `${start}≠${next}`);
+  const original = o.start_date === undefined ? next : o.start_date;
+  need(isDate(original), 'START_DATE_INVALID', original);
+  need(original === next, 'START_NOT_NEXT_TRADING_DAY_AFTER_RACE_CLOSE', `${original}≠${next}`);
   const registeredAt = o.registeredAt || now();
+  need(Number.isFinite(Date.parse(registeredAt)), 'TIME_INVALID', registeredAt);
   const registeredOn = marketDate(registeredAt, market);
+  // 「预登记」：起始会话开盘时或之后才登记（同一天）→ 顺延到日历里的下一个交易日，记原因与原起始日；晚于原起始日登记仍拒绝
+  const openAt = marketOpenAt(original, market);
+  let start = original; let shift = null;
+  if (registeredOn === original && Date.parse(registeredAt) >= Date.parse(openAt)) {
+    start = days.find((d) => d > original);
+    need(start, 'CALENDAR_INCOMPLETE', `no trading day after ${original}`);
+    shift = { reason: 'START_SHIFTED_REGISTERED_AFTER_OPEN', original_date: original, open_at: openAt };
+  }
   need(start >= registeredOn, 'START_BEFORE_REGISTRATION', `${start}<${registeredOn}`);
 
   const validationId = `PV-${market}-${sha256(`${head.race_id}|${o.race.entrant_id}`).slice(0, 12)}`;
@@ -153,7 +181,7 @@ function registerNew(o = {}) {
     shadow_ref: o.shadow_ref, book_ref: entrant.book_ref || null, run_by: null,
     race: { race_id: head.race_id, manifest_sha256: head.manifest_sha256, race_record_hash: head.record_hash, entrant_id: o.race.entrant_id, closed_on: closedOn },
     registered_on: registeredOn,
-    start: { rule: 'NEXT_TRADING_DAY_AFTER_RACE_CLOSE', date: start, calendar_ref: o.calendar.ref, calendar_sha256: sha256(JSON.stringify(days)) },
+    start: { rule: 'NEXT_TRADING_DAY_AFTER_RACE_CLOSE', date: start, ...(shift ? { shift } : {}), calendar_ref: o.calendar.ref, calendar_sha256: sha256(JSON.stringify(days)) },
     min_sample: minSampleOf(o.holding_period_trading_days, o.discrete_trades),
     promotion_gate: { rule: 'ALL_OF', requires: [...GATE_BLOCKERS] },
     withdrawal: {
@@ -312,6 +340,7 @@ function checkExistingConfig(cfg) {
   for (const [id, s] of Object.entries(cfg.sources)) {
     need(isText(s.path) && SHA64.test(s.sha256 || '') && ['coordinator', 'smartflow'].includes(s.repo), 'EXISTING_SOURCE_INVALID', id);
     if (s.repo === 'smartflow') need(/^[0-9a-f]{40}$/.test(s.commit || ''), 'EXISTING_SOURCE_COMMIT_MISSING', id);
+    if (s.freeze_record) need(isText(s.freeze_record.section_quote) && isObj(s.freeze_record.queue_log) && isText(s.freeze_record.queue_log.path) && isText(s.freeze_record.queue_log.line_quote), 'EXISTING_FREEZE_RECORD_INVALID', id);
   }
   for (const sh of cfg.shadows) {
     need(isText(sh.shadow_key) && MARKET_TZ[sh.market] && isText(sh.run_by), 'EXISTING_SHADOW_INVALID', sh.shadow_key);
@@ -342,13 +371,45 @@ function existingRecords(cfg = loadExisting()) {
   });
 }
 
-/** 把五条写进登记台账（幂等：同一条已在则跳过；同 id 内容变了 → 拒绝，旧行不改）。 */
+/** 一条登记去掉取代信息后的内容。 */
+const coreOf = (r) => { const { record_hash: _h, supersedes: _s, supersede_reason: _r, supersede_changes: _c, superseded_at: _t, idempotent_skip: _i, ...rest } = r; return trials.canonicalJson(rest); };
+
+/**
+ * 新旧两条之间只是追加吗：账本身份（shadow_key、市场、账本、谁跑）不变；每个规则字段原有的摘句一条不改、按原顺序是新列表的前缀
+ * （「未写」可以换成摘句，摘句不能变回「未写」）；原有的出处一个不改（可以加新的）；unverified 随意。返回变了的项，不是追加则 null。
+ */
+function additiveChanges(old, rec) {
+  if (['shadow_key', 'market', 'book_ref', 'run_by'].some((k) => old[k] !== rec[k])) return null;
+  const changes = [];
+  for (const f of RULE_FIELDS) {
+    const a = old[f].as_written; const b = rec[f].as_written;
+    if (trials.canonicalJson(a) === trials.canonicalJson(b)) continue;
+    if (a !== UNWRITTEN && (b === UNWRITTEN || b.length < a.length || trials.canonicalJson(b.slice(0, a.length)) !== trials.canonicalJson(a))) return null;
+    changes.push(f);
+  }
+  const now_ = new Map(rec.sources.map((x) => [x.id, trials.canonicalJson(x)]));
+  if (!old.sources.every((x) => now_.get(x.id) === trials.canonicalJson(x))) return null;
+  if (rec.sources.length !== old.sources.length) changes.push('sources');
+  if (trials.canonicalJson(old.unverified) !== trials.canonicalJson(rec.unverified)) changes.push('unverified');
+  return changes;
+}
+
+/**
+ * 把五条写进登记台账。幂等：同一条已在则跳过。同 id 内容变了：
+ *   - 只是追加（出处与摘句只增不改、「未写」补上摘句、unverified 变了）→ 追加一行取代（supersedes = 旧行的 record_hash，
+ *     supersede_changes 列出变了的项），旧行逐字节不动；
+ *   - 改了或删了原有的摘句、出处或账本身份 → 拒绝（EXISTING_REGISTRATION_CHANGED）。
+ */
 function registerExisting(cfg = loadExisting()) {
   const have = heads(LEDGER(), 'validation_id');
   return existingRecords(cfg).map((rec) => {
     const old = have.get(rec.validation_id);
-    if (old) { need(old.record_hash === rec.record_hash, 'EXISTING_REGISTRATION_CHANGED', rec.validation_id); return { ...old, idempotent_skip: true }; }
-    return append(LEDGER(), rec);
+    if (!old) return append(LEDGER(), rec);
+    if (coreOf(old) === coreOf(rec)) return { ...old, idempotent_skip: true };
+    const changes = additiveChanges(old, rec);
+    need(changes, 'EXISTING_REGISTRATION_CHANGED', rec.validation_id);
+    const { record_hash: _h, ...body } = rec;
+    return append(LEDGER(), seal({ ...body, supersedes: old.record_hash, supersede_reason: 'ADDITIVE_UPDATE', supersede_changes: changes, superseded_at: now() }, SCHEMA));
   });
 }
 
@@ -382,12 +443,23 @@ function verifySources(cfg = loadExisting(), { coordinatorDir, smartflowRepo } =
       }
     }
   }
-  return { sources: Object.fromEntries(Object.entries(sources).map(([k, v]) => [k, v.state])), quotes };
+  // 冻结记录（标题仍写草稿、冻结写在页内「冻结」一节与队列日志的一行）：一节的原文在出处里；队列日志只追加、不钉 sha，查那一行在不在
+  const freezeRecords = Object.entries(cfg.sources).filter(([, s]) => s.freeze_record).map(([id, s]) => {
+    const src = sources[id];
+    const section = src.state !== 'MATCH' ? src.state : (src.bytes.indexOf(Buffer.from(s.freeze_record.section_quote, 'utf8')) >= 0 ? 'FOUND' : 'QUOTE_NOT_IN_SOURCE');
+    let queue = 'ABSENT';
+    try {
+      const log = fs.readFileSync(path.join(cdir, path.relative('artifacts/coordinator', s.freeze_record.queue_log.path)));
+      queue = log.indexOf(Buffer.from(s.freeze_record.queue_log.line_quote, 'utf8')) >= 0 ? 'FOUND' : 'LINE_NOT_IN_LOG';
+    } catch { /* 读不到记 ABSENT */ }
+    return { source: id, section, queue_line: queue };
+  });
+  return { sources: Object.fromEntries(Object.entries(sources).map(([k, v]) => [k, v.state])), quotes, freeze_records: freezeRecords };
 }
 
 module.exports = {
   SCHEMA, EVAL_SCHEMA, LEDGER, EVAL_LEDGER, EXISTING_FILE, SIGNED, UNWRITTEN, DEFAULTS, FAULT_KINDS, STATES, TERMINAL, GATE_BLOCKERS, RULE_FIELDS,
   PaperValidationError, registerNew, evaluate, recordEvaluation, promotionGateFor, registration, evaluations, lastEvaluation,
   loadExisting, existingRecords, registerExisting, verifySources,
-  internals: { marketDate, addMonths, minSampleOf, closedRace, checkExistingConfig },
+  internals: { marketDate, marketOpenAt, addMonths, minSampleOf, closedRace, checkExistingConfig },
 };

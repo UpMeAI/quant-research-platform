@@ -22,8 +22,10 @@
     "C17NM_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1_FREEZE_1.md", "sha256": "7ee0dabfee705248f6f72e7946e6863f72c519c8a4a678e6b772499f0c22d208" },
     "C17NM_RULING_1": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1_RULING_1_T1_REASON_CODE.md", "sha256": "35990ead6d859e382b7cade7bea3739009df803e3175811e534fbcec7a83a892" },
     "C17NM_RULING_2": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1_RULING_2_GCAP_COUNT.md", "sha256": "e81abd279679f383858e0432db3429bcaa6130d2f046c5b6b54a26c7860c9c46" },
+    "C17NM_RULING_3": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1_RULING_3_COORDINATOR_MESSAGE.txt", "sha256": "834749407c701a4a7d9ec0bc31b4a357de219784dae191cf8b9873cb97cd99e6", "copied_from": "smartflow research/c17-nm-trigger-k2 @ a4acbe3c (copied read-only by the coordinator)" },
     "C17NM_RESULT": { "repo": "smartflow", "commit": "4d734c4f6f55d02f054ac77e1e7bc8571d4e9bdd", "path": "trading-system-v2/docs/evidence/c17-nm-trigger-v1/run/C17_NM_SELECTION_RESULT_V1.json", "sha256": "e4d311f3d7af7518476795870137d73d42acce29289d71e80780c1bd33beb433" },
     "U11B_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/US_ETF_VALUATION_GATE_B_SHADOW_K2_V1_FREEZE_1.md", "sha256": "1bd9355a124b3471ad1a6a45c0e9a461da4ee802e80a6f7a3aaaaa12fa1ec6ce" },
+    "U11B_FREEZE_1_NOTE_1": { "repo": "coordinator", "path": "artifacts/coordinator/US_ETF_VALUATION_GATE_B_SHADOW_K2_V1_FREEZE_1_NOTE_1.md", "sha256": "c4fa042d07a060a19dc9e75f9fd941e5baa8abc5e1991397e4000c916a14ed2c", "freeze_record": { "section_quote": "协调会话于 2026-11-17T02:21:11+08:00 冻结本附注（草稿 sha256 前缀 6653ad82）。定义按 §2 原样采用；冻结页 1bd9355a 正文不改。", "queue_log": { "path": "artifacts/coordinator/ops/owner-codex-queue/queue.log", "line_quote": "2026-11-17T02:21:11+08:00 U11B CD_NOTE_FROZEN coordinator: US_ETF_VALUATION_GATE_B_SHADOW_K2_V1_FREEZE_1_NOTE_1.md c4fa042d (from draft 6653ad82)" } } },
     "R21_RULE": { "repo": "coordinator", "path": "artifacts/coordinator/R21_FORWARD_SHADOW_RULE_V1.md", "sha256": "dd55ec468702362c800df746c582fccd53e7c958939009343a35d1f0d25296a3" },
     "R21_K2_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_K2_V1_FREEZE_1.md", "sha256": "ca036b246ade25d498dd3695fb1ac20ae3df438a11b8b2df53df7817c574b6a6" }
   },
@@ -83,7 +85,8 @@
       "fields": {
         "start": [
           { "source": "C17NM_FREEZE_1", "quote": "「做（证据不足）」只开前向影子（K2 §7 第 8 条），不新开账本。" },
-          { "source": "C17NM_RESULT", "quote": "只开前向影子（K2 §7 第 8 条），不改生产" }
+          { "source": "C17NM_RESULT", "quote": "只开前向影子（K2 §7 第 8 条），不改生产" },
+          { "source": "C17NM_RULING_3", "quote": "Forward shadow T_start = 2026-11-13T00:00:00Z." }
         ],
         "min_sample": "未写",
         "promotion_gate": "未写",
@@ -98,9 +101,7 @@
         "holding_period": "未写"
       },
       "consulted": ["C17NM_RULING_1", "C17NM_RULING_2"],
-      "unverified": [
-        "T_START_DATE_NOT_ON_A_SEAL_OR_FREEZE_PAGE: the pages say only that the shadow opens on the sealed verdict (sealed 做 / 证据不足); no dated T_start. The research master table (a generated projection, not a seal page) cites a coordinator ruling T_start 2026-11-13T00:00:00Z; that ruling page was not found in artifacts/coordinator."
-      ]
+      "unverified": []
     },
     {
       "shadow_key": "U11(B)",
@@ -120,18 +121,24 @@
           { "source": "U11B_FREEZE_1", "quote": "**数据不可得：** 采集连续失败，或数据登记被否决，则判不做，理由「数据不可得」。SEC 条款这一支已按记录排除（§1）。" }
         ],
         "expiry": "未写",
-        "champion": [{ "source": "U11B_FREEZE_1", "quote": "跑一次组合比较 C 对 D" }],
-        "pairing": "未写",
+        "champion": [
+          { "source": "U11B_FREEZE_1", "quote": "跑一次组合比较 C 对 D" },
+          { "source": "U11B_FREEZE_1_NOTE_1", "quote": "1. **D：** US_V5 纸面账本在影子期内实际执行的交易。每笔入场按当时在用的规则（以账本为准），从 T_start 起算，不固定在某一个历史版本。" },
+          { "source": "U11B_FREEZE_1_NOTE_1", "quote": "2. **C：** D 加上 (B) 过滤，即把影子期内「本会拦」的单股 2x ETF 入场（★ 组合读数：泡沫或恶化，D6 (a)）从 D 中去掉；被拦那笔占用的资金在该笔持有期内按现金计，不另找替代入场。" }
+        ],
+        "pairing": [{ "source": "U11B_FREEZE_1_NOTE_1", "quote": "4. **账户序列的构造：** C 的逐日权益 = D 的逐日权益，减去被拦各笔从入场到出场的逐日盈亏（含成本）。被拦交易本身的进出时点照 D 的实际记录，不重放。" }],
         "reading": [
           { "source": "U11B_FREEZE_1", "quote": "**第一次看数：** T_start + 12 个月，出描述性复盘，不出判定。" },
-          { "source": "U11B_FREEZE_1", "quote": "**判定：** 前向「本会拦」满 30 笔（G1）时，跑一次组合比较 C 对 D，导入 QRP，出做 / 不做。" }
+          { "source": "U11B_FREEZE_1", "quote": "**判定：** 前向「本会拦」满 30 笔（G1）时，跑一次组合比较 C 对 D，导入 QRP，出做 / 不做。" },
+          { "source": "U11B_FREEZE_1_NOTE_1", "quote": "主指标：账户层配对 g（C 对 D），δ_g = 0；" },
+          { "source": "U11B_FREEZE_1_NOTE_1", "quote": "次指标：被拦各笔的净 R 对 +0.10 R。" },
+          { "source": "U11B_FREEZE_1_NOTE_1", "quote": "只判这一个组合比较，结论只有做 / 不做（冻结页 §6、D13 照旧）。" }
         ],
         "holding_period": "未写"
       },
       "consulted": [],
       "unverified": [
-        "T_START_PENDING_FIRST_WRITE: T_start 2026-11-17 22:30 CST holds only if the first PIT file is written; the first collector run (HK, 07:20 CST 11-17) had not happened at registration. If it is not written, T_start moves per the page and must be appended there.",
-        "CHAMPION_ARMS_UNDEFINED_ON_PAGE: the frozen page says 组合比较 C 对 D but does not define C and D."
+        "T_START_PENDING_FIRST_WRITE: T_start 2026-11-17 22:30 CST holds only if the first PIT file is written; the first collector run (HK, 07:20 CST 11-17) had not happened at registration. If it is not written, T_start moves per the page and must be appended there."
       ]
     },
     {
@@ -160,9 +167,7 @@
         "holding_period": "未写"
       },
       "consulted": ["R21_K2_FREEZE_1"],
-      "unverified": [
-        "RULE_SOURCE_NOT_IN_COORDINATOR_DIR: R21_FORWARD_SHADOW_RULE_V1.md is not in artifacts/coordinator. The quotes were checked byte for byte against a local copy whose sha256 equals dd55ec46… (the value the signed §5.4 cites), held outside the coordinator directory; the authoritative copy is on the Linux research box. Until it is copied into artifacts/coordinator the byte test reports this source ABSENT."
-      ]
+      "unverified": []
     }
   ]
 }
