@@ -24,6 +24,8 @@ const gate = require('../services/research-mechanism-register/gate');
 const overseas = require('../services/overseas-sealed-verdicts');
 const trials = require('../services/trial-ledger');
 const { read } = require('../packages/ledger');
+// G-COST（附录 1）：本文件的合成 K2 在 11-17 之后冻结，在成本门的范围内；附录 1 冻结前门失败即关，本进程换一页合成的已绑定冻结页
+require('../services/cost-gate').internals.setDefaults({ freeze: { path: 'synthetic', sha256: 'a'.repeat(64), state: 'FREEZE_1', texts: [{ id: 'DRAFT_REV_1', sha256: 'b'.repeat(64) }] } });
 
 const AUTH = 'TEST_MECH_GATE_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
@@ -222,7 +224,7 @@ function importFixture({ k2Lines = {}, study }) {
   const files = {
     'trading-system-v2/docs/evidence/rm/RESULT.json': `${JSON.stringify({ verdict: { decision: '不做', evidence_strength: '有反对证据', allowed_use: '不进生产', text_zh: '合成' } })}\n`,
     'trading-system-v2/docs/RM_K2.md': text,
-    'trading-system-v2/docs/evidence/rm/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, runs: ['T', 'B'].map((l) => ({ family_id: FAMILY, config_label: l, rule_config_hash: hashOf(l) })) })}\n`,
+    'trading-system-v2/docs/evidence/rm/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, runs: ['T', 'B'].map((l) => ({ family_id: FAMILY, config_label: l, trial_id: idOf(l, study), rule_config_hash: hashOf(l), verdict_metric_kind: 'NET_RETURN_SERIES', cost_model_ref: 'REPLAY_CORE_PROFILE_COSTS' })) })}\n`, // K2 冻结在 11-17 之后，G-COST 也过门：判定用的运行写出计成本的模型
   };
   git(repo, 'init', '-q');
   for (const [rel, body] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true }); fs.writeFileSync(path.join(repo, rel), body); }

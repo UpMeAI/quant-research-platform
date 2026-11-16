@@ -542,7 +542,9 @@ function checkEntry(entry, evidenceDir, store = STORE, { mechanismGate: mechanis
     runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null),
     rulingBytes: () => (entry.causality_ruling ? readBound(evidencePath(evidenceDir, entry.causality_ruling.spec), entry.causality_ruling.spec.sha256) : null),
   }, causalityGateOptions);
-  return { identity, refs, verdict, trial, mechanism, causality };
+  // G-COST（docs/contracts/COST_MODEL_GATE_V1.md）：最后过成本门；生效时刻之后冻结的 K2 的 RESULT，判定用的运行出自毛收益模型即拒绝，失败即关，不改结论
+  const cost = require('../cost-gate').check(entry, { runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null) });
+  return { identity, refs, verdict, trial, mechanism, causality, cost };
 }
 
 /**
@@ -581,6 +583,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
     if (checked.trial.applies) body.trial_gates = checked.trial;
     if (checked.mechanism.applies) body.mechanism_gate = checked.mechanism;
     if (checked.causality.applies || checked.causality.report_only) body.causality_gate = checked.causality;
+    if (checked.cost.applies) body.cost_gate = checked.cost;
     body.lock_hash = sha256(canonical(body));
     return append(store.ledger(), body);
   });

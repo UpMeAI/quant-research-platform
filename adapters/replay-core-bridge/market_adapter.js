@@ -187,7 +187,10 @@ function createReplayCoreAdapter(def) {
     };
   }
 
-  return { manifest, snapshot, run_backtest, run_shadow, validate_release, runtime_capabilities, normalize_result };
+  /** 本适配器声明的成本拆分（与 normalize_result 的 cost_breakdown 同一个来源）；G-COST 按它判成本模型是否计成本。 */
+  const cost_breakdown = (m = {}) => def.costBreakdown(m);
+
+  return { manifest, snapshot, run_backtest, run_shadow, validate_release, runtime_capabilities, normalize_result, cost_breakdown };
 }
 
 module.exports = { EXECUTION_CONTRACT, createReplayCoreAdapter, metricsByDefinition };
