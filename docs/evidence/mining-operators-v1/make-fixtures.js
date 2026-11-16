@@ -2,7 +2,8 @@
 'use strict';
 
 /**
- * 挖掘沙箱白名单算子的因果证据用的合成夹具（确定性，种子固定）：data/series.json（一个标的 260 个交易日）、data/panel.json（60 天 × 8 个标的）。
+ * 挖掘沙箱白名单算子的因果证据用的合成夹具（确定性，种子固定）：data/series.json（一个标的 260 个交易日）、data/returns.json（同一段的日收益，正负都有）、
+ * data/panel.json（60 天 × 8 个标的）。
  *   node docs/evidence/mining-operators-v1/make-fixtures.js
  * 只有合成数据，没有任何真实行情。重跑得到逐字节相同的文件。
  */
@@ -27,6 +28,12 @@ function series() {
   });
 }
 
+/** 日收益（正负都有，给 sign 用：全是正数时 sign 的输出只有一个值，T-C1 判 DEGENERATE_OUTPUT）。 */
+function returns() {
+  const rand = prng(20261118);
+  return weekdays('2025-01-02', 260).map((date) => ({ date, value: r4((rand() - 0.5) * 0.06) }));
+}
+
 function panel() {
   const rand = prng(20261117);
   const codes = ['S01', 'S02', 'S03', 'S04', 'S05', 'S06', 'S07', 'S08'];
@@ -41,3 +48,4 @@ function panel() {
 fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, 'series.json'), `${JSON.stringify(series())}\n`);
 fs.writeFileSync(path.join(OUT, 'panel.json'), `${JSON.stringify(panel())}\n`);
+fs.writeFileSync(path.join(OUT, 'returns.json'), `${JSON.stringify(returns())}\n`);

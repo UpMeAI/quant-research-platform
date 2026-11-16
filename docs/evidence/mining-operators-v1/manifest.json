@@ -318,8 +318,8 @@
       "role": "FEATURE",
       "inputs": [
         {
-          "name": "series",
-          "file": "series.json",
+          "name": "returns",
+          "file": "returns.json",
           "availability": {
             "rule": "DATE_AT",
             "field": "date",
@@ -330,13 +330,13 @@
       ],
       "call": {
         "order": [
-          "series"
+          "returns"
         ],
         "params": []
       },
       "output": {
         "align": "ALIGNED",
-        "to": "series"
+        "to": "returns"
       }
     },
     {
