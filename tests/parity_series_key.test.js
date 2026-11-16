@@ -97,13 +97,18 @@ const spaceOf = (readings) => Buffer.from(JSON.stringify({ schema: 'MINING_SPACE
 
 test('parseSpace：读数的数据集要在钉住的登记表里；pit_available_at 以登记表的 PIT 记号开头；混合数据集要写在表里的 series', () => {
   const ok = (readings) => space.parseSpace(spaceOf(readings), PROOF, { registry: REG });
-  const bars = { name: 'close_hfq', dataset_id: 'V6_CN_STOCK_DAILY_BARS', pit_available_at: 'OBSERVED_AT (ingest instant); next-open only' };
+  // BARS 有历史时钟（协调会话裁定 2026-11-17：挖掘空间只收历史时钟，见 mining_space_history_clock）：后复权价取 daily × adj_factor 里最保守的那个
+  const bars = { name: 'close_hfq', dataset_id: 'V6_CN_STOCK_DAILY_BARS', series: ['daily', 'adj_factor'], pit_available_at: 'CLOSE_DATED_NEXT_OPEN_USABLE (history); next-open only' };
   assert.equal(ok([bars]).readings[0].dataset_id, 'V6_CN_STOCK_DAILY_BARS');
   assert.throws(() => ok([{ ...bars, dataset_id: 'TUSHARE_DAILY_UNREGISTERED' }]), code(/MINE_SPACE_READING_UNREGISTERED:TUSHARE_DAILY_UNREGISTERED/));
   // BAR_CLOSE 是 BARS 的 daily 序列的历史时钟（KG 1.14.0 pitHistoricalClock，见 parity_hist_clock）：没写 series → 要写
-  assert.throws(() => ok([{ ...bars, pit_available_at: 'BAR_CLOSE 15:00 +08:00' }]), code(/MINE_SPACE_READING_SERIES_REQUIRED:close_hfq/));
-  assert.throws(() => ok([{ ...bars, pit_available_at: 'NEXT_OPEN 09:30' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:close_hfq:NEXT_OPEN≠OBSERVED_AT/));
-  assert.throws(() => ok([{ ...bars, pit_available_at: 'OBSERVED_AT_LATE (not the same token)' }]), code(/MINE_SPACE_READING_PIT_MISMATCH/));
+  assert.throws(() => ok([{ ...bars, series: undefined, pit_available_at: 'BAR_CLOSE 15:00 +08:00' }]), code(/MINE_SPACE_READING_SERIES_REQUIRED:close_hfq/));
+  assert.throws(() => ok([{ ...bars, pit_available_at: 'NEXT_OPEN 09:30' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:close_hfq:NEXT_OPEN≠CLOSE_DATED_NEXT_OPEN_USABLE/));
+  assert.throws(() => ok([{ ...bars, pit_available_at: 'CLOSE_DATED_NEXT_OPEN_USABLE_LATE (not the same token)' }]), code(/MINE_SPACE_READING_PIT_MISMATCH/));
+  // 没有历史时钟的数据集：照旧按实时 PIT 记号核
+  const csi = { name: 'csi', dataset_id: 'V6_CSI300_INDEX_DAILY', pit_available_at: 'OBSERVED_AT (ingest)' };
+  assert.equal(ok([csi]).readings[0].name, 'csi');
+  assert.throws(() => ok([{ ...csi, pit_available_at: 'OBSERVED_AT_LATE' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:csi:OBSERVED_AT_LATE≠OBSERVED_AT/));
   // 混合数据集
   const macro = { name: 'sf', dataset_id: 'MACRO_CN_OFFICIAL', series: 'sf_month', pit_available_at: 'END_OF_FOLLOWING_MONTH_CONSERVATIVE (month-end + 1 month)' };
   assert.equal(ok([macro]).readings[0].series, 'sf_month');
@@ -120,11 +125,8 @@ test('parseSpace：读数的数据集要在钉住的登记表里；pit_available
 const COORDINATOR_DIR = path.resolve(process.env.QRP_COORDINATOR_DIR || path.join(ROOT, '..', 'artifacts', 'coordinator'));
 // DRAFT_3（parity 订正 6 之后，只改了 pit_available_at 的文字）；用按 sha 命名的只读副本，草稿再改也不影响这条
 const DRAFT = path.join(COORDINATOR_DIR, 'MINING_SPACE_V1_CN_A_R1.draft.bee978ed.json');
-test('协调会话的空间草稿 MINING_SPACE_V1_CN_A_R1（DRAFT_3，bee978ed…）对 1.14.0 夹具通过', { skip: fs.existsSync(DRAFT) ? false : `协调会话目录里没有 ${path.basename(DRAFT)}` }, () => {
+test('协调会话的空间草稿 MINING_SPACE_V1_CN_A_R1（DRAFT_3，bee978ed…，全是 OBSERVED_AT）对 1.14.0 被拒：两个数据集都有历史时钟（协调会话裁定 2026-11-17）', { skip: fs.existsSync(DRAFT) ? false : `协调会话目录里没有 ${path.basename(DRAFT)}` }, () => {
   const bytes = fs.readFileSync(DRAFT);
   assert.equal(sha(bytes), 'bee978ed5d1f98460dab2914cd9a6aedc14413301f92e89cb62865ffa258a16b');
-  const s = space.parseSpace(bytes, PROOF, { registry: REG });
-  assert.equal(s.space_ref, 'MINING_SPACE_V1:CN_A:R1:DRAFT_3');
-  assert.ok(s.readings.every((r) => r.pit_available_at.startsWith('OBSERVED_AT ')));
-  assert.deepEqual([...new Set(s.readings.map((r) => r.dataset_id))].sort(), ['V6_CN_STOCK_DAILY_BARS', 'V6_CN_STOCK_DAILY_BASIC']);
+  assert.throws(() => space.parseSpace(bytes, PROOF, { registry: REG }), code(/MINE_SPACE_READING_LIVE_CLOCK_IN_HISTORY:close_hfq/));
 });
