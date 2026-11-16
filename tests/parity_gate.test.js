@@ -21,7 +21,7 @@ const { read } = require('../packages/ledger');
  */
 const AUTH = 'TEST_PARITY_AUTHORITY';
 // 门的机制测试按没有 pitSemantics / priceBasis / vendor 字段的 1.11.0 写（KG 12afd2fc，从 config/dataset-registry/history 读）；
-// 1.13.0 起（KG 322ff69b）现在钉的那份另测（见末尾一条）。
+// 现在钉的那份（1.14.0，KG a738d3b5）另测（见末尾一条）。
 const REG = [...datasetRegistry.history().values()].find((h) => h.registry_version === '1.11.0');
 const CURRENT = datasetRegistry.pinned();
 const VERSION = REG.registry_version;
@@ -158,12 +158,12 @@ test('导入器：默认生效时刻下（K2 早于 11-17 00:24）照原样导�
   assert.equal(count(), 1);
 });
 
-test('现在钉的 1.13.0（KG 322ff69b）：记号按它的字段写 → PASS（PIT、BASIS 核过，VENDOR 相符）；钉在 1.11.0 的旧记号照现行字段核 PIT', () => {
-  assert.deepEqual([CURRENT.commit, CURRENT.registry_version], ['322ff69b28bf05efa3ef7b9ed75cb31504ac35f9', '1.13.0']);
+test('现在钉的 1.14.0（KG a738d3b5）：记号按它的字段写 → PASS（PIT、BASIS 核过，VENDOR 相符）；钉在 1.11.0 的旧记号照现行字段核 PIT', () => {
+  assert.deepEqual([CURRENT.commit, CURRENT.registry_version], ['a738d3b52f552f48ae62017712b72c82c9365d2c', '1.14.0']);
   const cur = { version: CURRENT.registry_version, sha256: CURRENT.registry_sha256 };
   const tok = `\`DATA:V6_CSI300_INDEX_DAILY@${cur.version}#${cur.sha256}|PIT=OBSERVED_AT|VENDOR=Tushare|BASIS=PRICE/RAW\``;
   const r = direct({ lines: [tok], opts: { registry: CURRENT } });
-  assert.deepEqual([r.state, r.registry.registry_version], ['PASS', '1.13.0']);
+  assert.deepEqual([r.state, r.registry.registry_version], ['PASS', '1.14.0']);
   const [row] = r.data_inputs;
   assert.deepEqual([row.pin_check, row.pit_check, row.basis_check, row.vendor_check], ['CURRENT', 'CHECKED', 'CHECKED', 'MATCH']);
   refuses(() => direct({ lines: [tok.replace('|BASIS=PRICE/RAW', '')], opts: { registry: CURRENT } }), 'PRICE_BASIS_MISSING');
