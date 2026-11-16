@@ -200,15 +200,25 @@ function checkRun(entry, run, i, regs) {
   need(RETURN_KINDS.includes(kind), 'METRIC_KIND_MISMATCH', `${at}:${reg.role}/${reg.stage}:${kind}`);
   if (scope !== 'COST_GATED') return row;
   need(isText(run.cost_model_ref), 'REF_MISSING', `${at}:${run.trial_id}`);
-  const id = modelIdOf(run.cost_model_ref);
-  need(MODEL_ID.test(id), 'REF_INVALID', `${at}:${run.cost_model_ref}`);
+  return { ...row, model: assessCostModel(run, reg.market, { at, label: reg.role }) };
+}
+
+/**
+ * 一个成本模型是否计成本（门内的行与 RF1116 §4.3 赛马共用，不另写）：目录里的模型按适配器的拆分判（不计成本 → GROSS_VERDICT），
+ * 目录外的按自报单边 commission_bps / slippage_bps 与 market 的下限判（§2.4）。market 是台账或榜的市场（floorMarketOf 归类）。
+ * @param {{cost_model_ref: string, cost_breakdown?: object}} source
+ */
+function assessCostModel(source, market, { at = 'cost_model', label = null } = {}) {
+  need(isObj(source) && isText(source.cost_model_ref), 'REF_MISSING', at);
+  const id = modelIdOf(source.cost_model_ref);
+  need(MODEL_ID.test(id), 'REF_INVALID', `${at}:${source.cost_model_ref}`);
   const known = CATALOGUE.get(id);
   if (known) {
     const why = [...(known.not_modelled.length ? [`NOT_MODELLED=${known.not_modelled.join(',')}`] : []), ...(known.missing.length ? [`MISSING=${known.missing.join(',')}`] : [])];
-    need(known.counts_costs, 'GROSS_VERDICT', `${at}:${reg.role}:${id}${why.length ? `:${why.join(':')}` : ''}`);
-    return { ...row, model: { model_id: id, source: known.source } };
+    need(known.counts_costs, 'GROSS_VERDICT', `${at}:${label ? `${label}:` : ''}${id}${why.length ? `:${why.join(':')}` : ''}`);
+    return { model_id: id, source: known.source };
   }
-  return { ...row, model: selfDeclared(at, run, id, reg) };
+  return selfDeclared(at, source, id, { market });
 }
 
 /**
@@ -263,6 +273,6 @@ function withDefaults(patch, fn) {
 
 module.exports = {
   FREEZE, EFFECTIVE_FROM, RUN_LOG_SCHEMA, IN_SCOPE_ROLES, IN_SCOPE_STAGES, SIGNAL_ROLE, SIGNAL_STAGE, RETURN_KINDS, SIGNAL_KINDS, ALWAYS_GROSS, CATALOGUE, FLOORS,
-  CostGateError, modelIdOf, classify, floorMarketOf, applies, check, costGatedScope,
+  CostGateError, modelIdOf, classify, floorMarketOf, applies, check, costGatedScope, assessCostModel,
   internals: { parseRunLog, checkRun, scopeOf, buildCatalogue, setDefaults, withDefaults },
 };
