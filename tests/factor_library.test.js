@@ -1,6 +1,6 @@
 'use strict';
 /**
- * 因子库 FACTOR_LIBRARY_V1（研究框架修订 2026-11-16 草稿 ddeb2eea §2、§7.3 第 1–2 条；P0）：
+ * 因子库 FACTOR_LIBRARY_V1（研究框架修订 2026-11-16 已签字修订（签字文本 fd22876f）§2、§8.3 第 1–2 条；P0）：
  *   - config/research_factor_library.v1.json 只有一个生产者（services/factor-library）：提交的字节必须等于 build() 的输出；
  *   - 结构校验：缺 pit_available_at、economic_logic_zh、class 被拒；未知 class、origin 被拒；P0 里 DSL 公式被拒；
  *   - mechanism_id 写了就必须在机制登记表里（research-mechanism-register 的 isRegistered）；
@@ -47,7 +47,23 @@ test('因子库文件：合同 FACTOR_LIBRARY_V1，校验通过，require 时加
   assert.doesNotThrow(() => lib.validate(RAW));
   assert.equal(RAW.production_effect, 'NONE');
   assert.equal(RAW.contract_ref.sha256, lib.CONTRACT_REF.sha256);
-  assert.ok(RAW.contract_ref.sha256.startsWith('ddeb2eea'));
+  assert.ok(RAW.contract_ref.sha256.startsWith('39f8c17c'));
+  assert.deepEqual([RAW.contract_ref.state, RAW.contract_ref.effective_from, RAW.contract_ref.texts.map((t) => `${t.id}:${t.sha256.slice(0, 8)}`)],
+    ['SIGNED', '2026-11-16T23:50:00+08:00', ['SIGNED_TEXT_REV_4:fd22876f']]);
+});
+
+/** 协调会话目录：默认是本仓库的上一级（KaylaProject）；QRP_COORDINATOR_ROOT 可覆盖。目录不在（别的机器、CI）就跳过。 */
+const COORD_ROOT = process.env.QRP_COORDINATOR_ROOT || require('node:path').resolve(__dirname, '..', '..');
+const coordFile = (rel) => require('node:path').join(COORD_ROOT, rel);
+const coordPresent = [lib.CONTRACT_REF.path, ...lib.CONTRACT_REF.texts.map((t) => t.path)].every((rel) => fs.existsSync(coordFile(rel)));
+const sha256Of = (b) => require('node:crypto').createHash('sha256').update(b).digest('hex');
+
+test('签字页与签字文本：按文件重算 sha256，与绑定一致；签字页写着签字文本的 sha256 与生效时刻（协调会话目录在时）', { skip: coordPresent ? false : `coordinator files not found under ${COORD_ROOT}` }, () => {
+  assert.equal(sha256Of(fs.readFileSync(coordFile(lib.CONTRACT_REF.path))), lib.CONTRACT_REF.sha256);
+  for (const t of lib.CONTRACT_REF.texts) assert.equal(sha256Of(fs.readFileSync(coordFile(t.path))), t.sha256, t.id);
+  const page = fs.readFileSync(coordFile(lib.CONTRACT_REF.path), 'utf8');
+  assert.ok(page.includes(lib.CONTRACT_REF.texts[0].sha256), 'signature page names the signed text sha256');
+  assert.ok(page.includes(`EFFECTIVE_FROM = ${lib.CONTRACT_REF.effective_from}`), 'signature page states EFFECTIVE_FROM');
 });
 
 test('一个生产者：提交的 JSON 字节等于 services/factor-library 的 build() 输出（不手改）', () => {
@@ -171,11 +187,13 @@ test('主线排序 v7：四个特征带权重；leaderQuantile 是参数、maxMi
   assert.ok(skipped.includes('/payload/features/maxMissingShare'));
 });
 
-test('核心池排序键：CORE_POOL_SELECTION 已退役，登记为 RETIRED；A23 挂 SEL.SECTOR_RS.RANK，运行开关列为未核实', () => {
+test('核心池排序键：CORE_POOL_SELECTION 已退役，登记为 RETIRED；A23 挂 SEL.SECTOR_RS.RANK，运行开关已核实（协调会话 A22 部署后核对）', () => {
   assert.equal(byId(RAW, 'CN_A.MOM.RS20_REALIZED_CORE_POOL').status, 'RETIRED');
   const a23 = byId(RAW, 'US_EQUITY_ETF.MOM.SECTOR_RS_EXCESS_63_126');
   assert.equal(a23.mechanism_id, 'SEL.SECTOR_RS.RANK');
-  assert.ok(a23.unverified.some((u) => /US_V5_SECTOR_RS/.test(u.reason_zh)));
+  assert.ok(!a23.unverified.some((u) => /US_V5_SECTOR_RS/.test(u.reason_zh)));
+  assert.deepEqual([a23.evidence.runtime_switch.name, a23.evidence.runtime_switch.value, a23.evidence.runtime_switch.state, a23.evidence.runtime_switch.verified_at],
+    ['US_V5_SECTOR_RS', 'on', 'VERIFIED', '2026-11-16T23:34:26+08:00']);
 });
 
 // ── 旧规则补登记：源文件核对 ──────────────────────────────────────────────────

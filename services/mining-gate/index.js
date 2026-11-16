@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * G-MINE 出沙箱的门 —— 研究框架修订 2026-11-16（因子库与 AI 自动挖掘因子）草稿 ddeb2eea §4；P0 只是骨架。合同 docs/contracts/FACTOR_LIBRARY_V1.md §4。
+ * G-MINE 出沙箱的门 —— 研究框架修订 2026-11-16（因子库与 AI 自动挖掘因子）已签字修订（签字文本 fd22876f，签字页 SIGNATURE_1 39f8c17c）§3.6；P0 只是骨架。合同 docs/contracts/FACTOR_LIBRARY_V1.md §4。
  *
  * 候选从 CANDIDATE 升 RESEARCH（可以立题）要九项全过；全过不等于上线（进生产照旧走 K2、封存、签字，§5）。
  *   1 DSR ≥ DSR_MIN，N = 本族（市场 × 持有期）累计尝试数        —— 门槛读 services/trial-ledger/overfit.js，不另抄

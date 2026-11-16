@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * 因子库 FACTOR_LIBRARY_V1 —— 研究框架修订 2026-11-16（因子库与 AI 自动挖掘因子）草稿 ddeb2eea §2；P0（协调会话 11-16 批准，不含挖掘）。
+ * 因子库 FACTOR_LIBRARY_V1 —— 研究框架修订 2026-11-16（因子库与 AI 自动挖掘因子）已签字修订（签字文本 fd22876f，签字页 SIGNATURE_1 39f8c17c）§2；P0（协调会话 11-16 批准，不含挖掘）。
  * 合同 docs/contracts/FACTOR_LIBRARY_V1.md。
  *
  * 一个生产者：config/research_factor_library.v1.json 只由本模块写出（build.js --write），不手改；测试核对提交的字节等于 build() 的输出。
@@ -31,13 +31,20 @@ const SCHEMA = 'FACTOR_LIBRARY_V1';
 const ENTRY_SCHEMA = 'FACTOR_LIBRARY_ENTRY_V1';
 const PRODUCER = 'services/factor-library';
 
-/** 绑定的修订文本：草稿 ddeb2eea（同字节副本），未签字；P0 由协调会话批准（不含挖掘）。 */
+/**
+ * 绑定的修订：Owner 2026-11-16 23:50 CST 签字（签字页 SIGNATURE_1），签的是修订 4（fd22876f）。按签字页与签字文本的 path + sha256 绑定，
+ * 做法同 services/research-framework-amendment-20261112-addendum-1（QRP #92）。此前绑的是草稿 ddeb2eea（P0，未签字）。
+ */
 const CONTRACT_REF = Object.freeze({
-  path: 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261116_FACTOR_LIBRARY_AI_MINING.draft.ddeb2eea.md',
-  sha256: 'ddeb2eeae4f2dada67c46128317910bdff6ed0dd2ccb6f8d23ef8d7b6f891447',
-  state: 'DRAFT_UNSIGNED_P0_APPROVED_BY_COORDINATOR',
-  sections: Object.freeze(['§2', '§4', '§7']),
-  ref_zh: '协调会话目录的文件，不在 git 里，按 sha256 绑定；Owner 未签字，P0 不含挖掘，协调会话 2026-11-16 23:1x 批准',
+  path: 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261116_SIGNATURE_1.md',
+  sha256: '39f8c17cd569f8eadf7bd18102997cc19b421959aec36fae98c1b1a20fbcd3fb',
+  state: 'SIGNED',
+  effective_from: '2026-11-16T23:50:00+08:00',
+  texts: Object.freeze([Object.freeze({ id: 'SIGNED_TEXT_REV_4',
+    path: 'artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261116_FACTOR_LIBRARY_AI_MINING.signed.fd22876f.md',
+    sha256: 'fd22876f6a690b52b07429f333d2545d8fedb5d285dccd3fd3f5a1ecd9f00c80' })]),
+  sections: Object.freeze(['§2', '§3.6', '§8']),
+  ref_zh: '协调会话目录的文件，不在 git 里，按 sha256 绑定；Owner 2026-11-16 23:50「签研究修订（默认）」，EFFECTIVE_FROM 2026-11-16T23:50:00+08:00',
 });
 
 const LAYERS = Object.freeze(['SELECTION_CROSS_SECTION']);
@@ -60,7 +67,7 @@ const REPO_ROOTS = Object.freeze({
  * §2.3 相关性去重的门槛：|ρ| > 0.7（截面值相关或因子收益相关取较大者）。0.7 是协调会话在评论串里答复 Owner 的数（「约 0.7」），
  * 草稿写「冻结时写定」，所以标 PENDING_FREEZE；G-MINE 第 8 项读这里，冻结前 G-MINE 整体失败即关。
  */
-const DEDUPE = Object.freeze({ RHO_MAX: 0.7, rule: 'ABS_RHO_GT_THRESHOLD_CONFLICTS', state: 'PENDING_FREEZE', source: '草稿 ddeb2eea §2.3' });
+const DEDUPE = Object.freeze({ RHO_MAX: 0.7, rule: 'ABS_RHO_GT_THRESHOLD_CONFLICTS', state: 'PENDING_FREEZE', source: '签字文本 fd22876f §2.3' });
 
 const FACTOR_ID = /^(CN_A|US_EQUITY)(_[A-Z0-9]+)?\.[A-Z0-9_]+\.[A-Z0-9_]+$/;
 const CODE_REF = /^CF:([a-z0-9][a-z0-9-]*):([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)#([A-Za-z_$][A-Za-z0-9_$.]*)$/;
@@ -204,7 +211,8 @@ function validate(doc) {
   const top = validateRecord(doc, SCHEMA);
   if (!top.ok) fail('FACTOR_LIBRARY_FIELD', top.problems.join(','));
   const ref = doc.contract_ref;
-  need(isObject(ref) && ref.path === CONTRACT_REF.path && ref.sha256 === CONTRACT_REF.sha256 && ref.state === CONTRACT_REF.state, 'FACTOR_LIBRARY_FIELD', 'contract_ref');
+  need(isObject(ref) && ref.path === CONTRACT_REF.path && ref.sha256 === CONTRACT_REF.sha256 && ref.state === CONTRACT_REF.state
+    && ref.effective_from === CONTRACT_REF.effective_from && JSON.stringify(ref.texts) === JSON.stringify(CONTRACT_REF.texts), 'FACTOR_LIBRARY_FIELD', 'contract_ref');
   need(doc.producer === PRODUCER, 'FACTOR_LIBRARY_FIELD', 'producer');
   need(doc.production_effect === 'NONE', 'FACTOR_LIBRARY_FIELD', 'production_effect');
   need(BEIJING.test(doc.registered_at) && isText(doc.registered_by), 'FACTOR_LIBRARY_FIELD', 'registered_at');

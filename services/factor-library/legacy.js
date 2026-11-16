@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * 旧规则因子一次性补登记（研究框架修订 2026-11-16 草稿 ddeb2eea §2.4；P0）。
+ * 旧规则因子一次性补登记（研究框架修订 2026-11-16 已签字修订（签字文本 fd22876f）§2.4；P0）。
  *
  * 只登记现行规则已经在用的读数，origin = LEGACY_RULE；不重新判定，只作去重的基准与「现有账本」（§4 第 6、7 项）的组成。
  * 每条绑定钉版提交上的源文件（repo、commit、path、sha256），并写出从源文件读到的字段值（extract）：
@@ -359,7 +359,10 @@ const FACTORS = Object.freeze([
       ptr('/parameters/US_V5_ETF_3000USD.sectorRs/versions/0/effectiveFrom', '2026-11-09T14:00:00.000Z'),
       ptr('/parameters/US_V5_ETF_3000USD.sectorRs/versions/0/value', { units: ['XLK', 'XLF', 'XLE', 'XLV', 'XLI', 'XLY', 'XLP', 'XLU', 'XLB', 'XLRE', 'XLC', 'SMH', 'XBI'], benchmark: 'SPY', lookbacks: [63, 126], weights: [0.5, 0.5], topN: 4 }),
     ])],
-    unverified: [{ field: 'status', reason_zh: '在跑还要 HK 上 worker 开关 US_V5_SECTOR_RS=on（运行环境，不在 git 里）；本次只读源文件，没有核对 HK' }, LOGIC_UNVERIFIED],
+    evidence: Object.freeze({ ...NOT_REJUDGED, runtime_switch: Object.freeze({ name: 'US_V5_SECTOR_RS', value: 'on', state: 'VERIFIED',
+      verified_by: 'coordinator queue A22 US_V5_POSTCHECK_PASS', verified_at: '2026-11-16T23:34:26+08:00', host_head: '61088923',
+      ref_zh: 'us-v5-worker 的 pm2 环境里 US_V5_SECTOR_RS=on，由协调会话 23:34 的 A22 部署后核对（rc 0，HK HEAD 61088923 干净）确认；AQuA 会话未登录 HK' }) }),
+    unverified: [LOGIC_UNVERIFIED],
   }),
 ]);
 
