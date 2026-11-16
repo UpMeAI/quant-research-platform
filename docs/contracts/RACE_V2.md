@@ -9,7 +9,7 @@
 
 ## 1. 赛马清单 `RACE_MANIFEST_V1`
 
-一场 = 一个市场、一个分区（层）。字段：`race_ref`、`market`（`CN_A` / `US` / `CRYPTO`）、`partition`（`SELECTION_TIMING` / `RISK`）、`periods_per_year`、`engine{id, version}`、`window{from, to}`、`cost_model{cost_model_ref, cost_breakdown?}`、`primary_metric`、`guardrails`、`pbo_max`、`promotion_slots`（1–2）、`champion`、`challengers[]`。
+一场 = 一个市场、一个分区（层）。字段：`race_ref`、`market`（`CN_A` / `US` / `CRYPTO`）、`partition`（`SELECTION_TIMING` / `RISK`）、`periods_per_year`、`seed`（★5 回退的重抽种子，随清单冻结，同 K2）、`engine{id, version}`、`window{from, to}`、`cost_model{cost_model_ref, cost_breakdown?}`、`primary_metric`、`guardrails`、`pbo_max`、`promotion_slots`（1–2）、`champion`、`challengers[]`。
 
 - 主指标随分区固定：`SELECTION_TIMING` → `ACCOUNT_PAIRED_G`；`RISK` → `RISK_TRIPLE_THEN_DAILY_CVAR5`。
 - 护栏（§4.4 的建议值，★g「细则是默认值」；清单逐项写出，冻结时定）：选股择时层 `dsr_min 0.95`、`mdd_max_ratio 1.2`、`participation_cap 0.10`；风控层 `bhy_alpha 0.05`；`pbo_max 0.5`。
@@ -29,17 +29,18 @@
 6. **入场线**（§4.4）：
    - `FACTOR`：因子库里该因子是 `RESEARCH`（过了 G-MINE）→ 否则 `RACE_ENTRY_FACTOR_NOT_RESEARCH`；
    - `HUMAN`：有冻结 K2（sha256 + 冻结时刻）→ 否则 `RACE_ENTRY_K2_NOT_FROZEN`；
-   - 都声明 G-CAUSAL：`PASS` / `DEVIATION_ACCEPTED` 带证据 sha256，或 `NOT_APPLICABLE` 且码是 `RISK_K_OR_ACCOUNT_LAYER`（附录 1 §1 A1）→ 否则 `RACE_ENTRY_CAUSALITY`。
+   - 都声明 G-CAUSAL：`PASS` / `DEVIATION_ACCEPTED` 带证据 sha256，或 `NOT_APPLICABLE` 且码是 `RISK_K_OR_ACCOUNT_LAYER`（附录 1 §1 A1）→ 否则 `RACE_ENTRY_CAUSALITY`。G-CAUSAL 由协调会话在冻结清单时重跑；赛马开赛时只核声明的状态与证据 sha。
 7. **G-COST**：分区的成本模型过 `services/cost-gate` 的 `assessCostModel`（目录内计成本的模型，或不低于本市场下限的自报单边 bps）；不计成本、低于下限、没有下限 → `COST_MODEL_*`。
 
 ## 3. 收赛（`closeRace`）
 
 - 结果：冠军与每个挑战者的 `engine`、`window`、`cost_model_ref` 必须等于清单（`RACE_ENGINE_MISMATCH` / `RACE_WINDOW_MISMATCH` / `RACE_COST_MODEL_MISMATCH`）；账户层日序列 `daily[{date, logret}]` 在窗口内、日期升序；每个挑战者与冠军逐日一致，缺边 → `RACE_PAIRED_SAMPLE_MISSING`。
-- **PBO**：CSCV（`overfit.pbo`），在本分区的全部参赛者（冠军加挑战者）的日对数收益上算。`> pbo_max` 或算不出 → 分区 `INCONCLUSIVE`，谁都不晋级；配置 < 4 → 不适用（由 DSR / BHY 承担）。
+- **PBO**：CSCV（`overfit.pbo`），在本分区的全部参赛者（冠军加挑战者）的日对数收益上算，按本分区自己的主指标排名（`overfit.pbo` 的 `measure` 参数）：选股择时层按对数收益之和（`SUM_LOG_RETURN`，原写法）；风控层按日 CVaR 5% 相对冠军的改善（`DAILY_CVAR5_IMPROVEMENT`；同一组行上冠军的 CVaR 对各列相同，按各列 CVaR 排名与按改善排名一致）。`> pbo_max` 或算不出 → 分区 `INCONCLUSIVE`，谁都不晋级；配置 < 4 → 不适用（由 DSR / BHY 承担）。
 - **选股择时层**，每个挑战者：
   - 配对 g = 日对数收益差的均值 × `periods_per_year`；裁决器 `adjudicate`（主指标 `paired_g`，护栏 `MDD_MAX_RATIO`：最大回撤不超过冠军的 `mdd_max_ratio` 倍）；
   - DSR = `overfit.deflatedSharpe`：`d` = 月度配对差（`overfit.monthlyPairedDiff`），N = 本市场累计 N（`trial-ledger.countMarket`，计入 N 的角色、不同配置数加未计数历史的下限，从不跨市场），V 取本市场账本级已知 ŜR（`trial-ledger.marketSharpes`）加本分区挑战者的 ŜR；
-  - 淘汰（任一条，记负结果）：`NOT_BEATING_CHAMPION`、`MDD_OVER_RATIO`、`DSR_BELOW_MIN`、`DSR_UNKNOWN`、`EXCESS_NOT_POSITIVE`（窗口内扣成本后的对数超额 ≤ 0）、`PARTICIPATION_OVER_CAP`（结果的 `participation_max` > `participation_cap`）；
+  - DSR 算不出（月数 < 24、已知 ŜR < 5 个等）：按 11-10 修订 ★5 用按本市场 N 的 Bonferroni 回退（`overfit.bonferroniFallback`，`d` 同上，种子取清单的 `seed`）。回退过了照常往下判；没过 → `DSR_UNKNOWN_AND_BONFERRONI_FALLBACK_NOT_PASSED`。结果记 `dsr_fallback`；
+  - 淘汰（任一条，记负结果）：`NOT_BEATING_CHAMPION`、`MDD_OVER_RATIO`、`DSR_BELOW_MIN`、`DSR_UNKNOWN_AND_BONFERRONI_FALLBACK_NOT_PASSED`、`EXCESS_NOT_POSITIVE`（窗口内扣成本后的对数超额 ≤ 0）、`PARTICIPATION_OVER_CAP`（结果的 `participation_max` > `participation_cap`）；
   - 另报：最大回撤、最差月份、日 CVaR 5%（尾部亏损）。
 - **风控层**，每个挑战者：
   - 最大回撤、最差月份、日 CVaR 5% 任一项劣于冠军 → `WORSE_MDD` / `WORSE_WORST_MONTH` / `WORSE_CVAR5`；
@@ -59,7 +60,5 @@
 ## 5. 范围之外与已知限制
 
 - 挖掘的尝试数：P1 才有 `MINED_CANDIDATE` 角色。现在本市场 N = 台账里计入 N 的行，P1 合并后挖掘的尝试自动计入同一个计数。
-- G-CAUSAL 只核声明（证据 sha256 与状态），由协调会话冻结清单时核对，不在赛马里重跑因果门。
+- G-CAUSAL 由协调会话在冻结清单时重跑；赛马开赛时只核声明的状态与证据 sha。
 - 风控层的 p 值不在赛马里计算：§4 没定检验方法，取各挑战者冻结 K2 的单边 p，赛马只做 BHY。
-- PBO 在风控分区也按日对数收益排名（CSCV 的写法），不是按风控层的主指标。
-- DSR 算不出（月数 < 24 或已知 ŜR < 5 个）时记 `DSR_UNKNOWN` 并淘汰，没有接 11-10 修订 ★5 的 Bonferroni 回退。

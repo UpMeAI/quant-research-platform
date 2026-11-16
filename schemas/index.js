@@ -346,7 +346,7 @@ const SCHEMAS = Object.freeze({
   },
   RACE_MANIFEST_V1: {
     _doc: '研究框架修订 2026-11-16 §4.3（RF1116，签字 fd22876f / 39f8c17c）—— 赛马清单：一个市场、一个分区（层）、冠军与挑战者、同一引擎 / 窗口 / 成本模型、主指标、护栏、晋级名额（≤ 2）；协调会话冻结（冻结页写出清单 sha256 与 FROZEN），清单 sha 写进每个参赛者的试验台账行（k2_sha256）',
-    race_ref: 's', market: 's', partition: 's', periods_per_year: 'n', engine: 'o', window: 'o', cost_model: 'o', primary_metric: 's', guardrails: 'o',
+    race_ref: 's', market: 's', partition: 's', periods_per_year: 'n', seed: 'n', engine: 'o', window: 'o', cost_model: 'o', primary_metric: 's', guardrails: 'o',
     pbo_max: 'n', promotion_slots: 'n', champion: 'o', challengers: 'a',
   },
   RACE_V2: {

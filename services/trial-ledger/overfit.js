@@ -220,8 +220,9 @@ function averageRank(values, index) {
  * 去掉最早的 T mod 16 天，连续等分 16 块；对 C(16,8) = 12,870 种训练 J / 检验 J̄ 组合：训练段取对数收益之和最好的一列（并列取列序号小的），
  * ω = 它在 J̄ 上的名次 / (n + 1)，λ = ln(ω / (1 − ω))；PBO = #{λ ≤ 0} / 12,870。
  * 配置 < 4 → NOT_APPLICABLE（由 DSR 承担）；每块不足 1 天 → UNKNOWN。
+ * measure（可选，RF1116 §4.3 赛马按分区自己的主指标排名）：(一列在一组块里按时间顺序的行值) → 业绩数（越大越好）。不给时按对数收益之和（原写法，逐位不变）。
  */
-function pbo(R, { blocks = PBO_BLOCKS } = {}) {
+function pbo(R, { blocks = PBO_BLOCKS, measure = null } = {}) {
   if (!Array.isArray(R) || !R.length) return { value: 'NOT_APPLICABLE', reason: 'NO_MATRIX' };
   const n = R[0].length;
   if (n < PBO_MIN_CONFIGS) return { value: 'NOT_APPLICABLE', reason: `CONFIGS_LT_${PBO_MIN_CONFIGS}`, configs: n };
@@ -236,14 +237,24 @@ function pbo(R, { blocks = PBO_BLOCKS } = {}) {
     for (let r = start + s * size; r < start + (s + 1) * size; r += 1) for (let c = 0; c < n; c += 1) sums[c] += R[r][c];
     blockSums.push(sums);
   }
+  if (measure !== null && typeof measure !== 'function') throw new TypeError('pbo: measure 必须是函数');
+  /** 一组块上每列的业绩：给了 measure 就对这些块的行（时间顺序）逐列求值。 */
+  const byMeasure = (set) => Array.from({ length: n }, (_, c) => {
+    const values = [];
+    for (const s of set) for (let r = start + s * size; r < start + (s + 1) * size; r += 1) values.push(R[r][c]);
+    const v = measure(values);
+    if (!isNum(v)) throw new TypeError(`pbo: measure 必须返回有限数（第 ${c} 列）`);
+    return v;
+  });
   const combos = combinations(blocks, blocks / 2);
   let overfit = 0;
   const lambdas = [];
   for (const train of combos) {
     const inTrain = new Array(blocks).fill(false);
     for (const s of train) inTrain[s] = true;
-    const is = new Array(n).fill(0); const oos = new Array(n).fill(0);
-    for (let s = 0; s < blocks; s += 1) { const target = inTrain[s] ? is : oos; for (let c = 0; c < n; c += 1) target[c] += blockSums[s][c]; }
+    let is = new Array(n).fill(0); let oos = new Array(n).fill(0);
+    if (measure === null) for (let s = 0; s < blocks; s += 1) { const target = inTrain[s] ? is : oos; for (let c = 0; c < n; c += 1) target[c] += blockSums[s][c]; }
+    else { is = byMeasure(train); oos = byMeasure(Array.from({ length: blocks }, (_, s) => s).filter((s) => !inTrain[s])); }
     let best = 0;
     for (let c = 1; c < n; c += 1) if (is[c] > is[best]) best = c;
     const omega = averageRank(oos, best) / (n + 1);

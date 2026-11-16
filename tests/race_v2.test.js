@@ -43,7 +43,7 @@ const entrant = (study, label, patch = {}) => ({ entrant_id: label, trial_id: id
 function manifestOf({ study = 'R2-SYNTH', labels = ['C1', 'C2', 'C3'], partition = 'SELECTION_TIMING', market = 'CN_A', patch = {}, challengerPatch = {} } = {}) {
   const layer = partition;
   return {
-    schema: 'RACE_MANIFEST_V1', race_ref: study, market, partition, periods_per_year: 242, engine: ENGINE, window: WINDOW, cost_model: COST,
+    schema: 'RACE_MANIFEST_V1', race_ref: study, market, partition, periods_per_year: 242, seed: 20261117, engine: ENGINE, window: WINDOW, cost_model: COST,
     primary_metric: v2.PRIMARY[partition],
     guardrails: partition === 'RISK' ? { bhy_alpha: v2.DEFAULTS.RISK.bhy_alpha } : { ...v2.DEFAULTS.SELECTION_TIMING },
     pbo_max: v2.DEFAULTS.pbo_max, promotion_slots: 2,
@@ -198,6 +198,41 @@ test('DSR 用本市场自己的累计 N：同一个挑战者按 A 股 N 过 0.95
   assert.deepEqual(outcome.promoted, ['C1']);
 });
 
+test('DSR 算不出时按 11-10 修订 ★5 用 Bonferroni 回退（overfit.bonferroniFallback，种子随清单冻结）：回退过了照常往下走，没过才淘汰', () => {
+  // 没有背景试验：已知 ŜR 只有本分区两个（< 5）→ DSR = UNKNOWN
+  const daily = { STRONG: challengerOf(0.011), WEAK: challengerOf(0.001) };
+  const { outcome } = run(manifestOf({ study: 'F1', labels: ['STRONG', 'WEAK'] }), daily);
+  const by = Object.fromEntries(outcome.entrants.map((e) => [e.entrant_id, e]));
+  for (const e of outcome.entrants) {
+    assert.equal(e.dsr.value, 'UNKNOWN');
+    assert.equal(e.dsr_fallback.method, 'BONFERRONI_BY_FAMILY_N');
+    assert.deepEqual([e.dsr_fallback.N, e.dsr_fallback.seed], [2, 20261117]);
+  }
+  assert.deepEqual([by.STRONG.dsr_fallback.pass, by.STRONG.reasons], [true, []]);
+  assert.deepEqual([by.WEAK.dsr_fallback.pass, by.WEAK.reasons], [false, ['DSR_UNKNOWN_AND_BONFERRONI_FALLBACK_NOT_PASSED']]);
+  const d = overfit.monthlyPairedDiff(daily.WEAK, CHAMP).map((x) => x.d);
+  assert.equal(by.WEAK.dsr_fallback.lower, overfit.bonferroniFallback({ d, N: 2, seed: 20261117 }).lower); // 复用原函数，不另写
+  assert.deepEqual(outcome.promoted, ['STRONG']);
+});
+
+test('风控分区的 CSCV 按本分区的主指标（日 CVaR 5% 的改善）排名，不按收益：同一组样本按收益 PBO > 0.5、按 CVaR ≤ 0.5', () => {
+  // 每列：16 块上和为 0 的余弦（按收益反持续）＋ 每块一天 −k 的冲击、其余 44 天各 +k/44 补回（块内和不变）。k 各列固定 → 按尾部亏损的排名在各块里持续
+  const block = (i) => Math.floor(i / 45);
+  const col = (c, k) => series((i) => ((0.001 * (c + 1)) * Math.cos((2 * Math.PI * (c + 1) * block(i)) / 16 + c * 0.7)) / 45 + (i % 45 === 20 ? -k : k / 44));
+  const champ = col(0, 0.01);
+  const daily = { C1: col(1, 0.02), C2: col(2, 0.03), C3: col(3, 0.04) };
+  const resultPatch = Object.fromEntries(['C1', 'C2', 'C3'].map((k) => [k, { p_one_sided: 0.01, p_method_ref: 'K2 §4（合成）' }]));
+  const { outcome } = run(manifestOf({ study: 'P2', partition: 'RISK' }), daily, { champ, resultPatch });
+  const R = champ.map((_, i) => [champ, daily.C1, daily.C2, daily.C3].map((s) => s[i].logret));
+  const byReturns = overfit.pbo(R).value;
+  const byCvar = overfit.pbo(R, { measure: v2.internals.cvarOfLog }).value;
+  assert.ok(byReturns > 0.5, `按收益 ${byReturns}`);
+  assert.ok(byCvar <= 0.5, `按 CVaR ${byCvar}`);
+  assert.deepEqual([outcome.pbo.measure, outcome.pbo.value, outcome.state], ['DAILY_CVAR5_IMPROVEMENT', byCvar, 'RANKED']);
+  // 不给 measure 时 overfit.pbo 逐位不变（选股择时层照旧按对数收益之和）
+  assert.equal(overfit.pbo(R, { measure: null }).value, byReturns);
+});
+
 test('分区 PBO > 0.5 → INCONCLUSIVE，谁都不晋级', () => {
   background();
   // 每列在 16 块上的和为 0（整数频率的余弦）：训练段最好的列在检验段必然最差 → PBO ≈ 1
@@ -207,6 +242,7 @@ test('分区 PBO > 0.5 → INCONCLUSIVE，谁都不晋级', () => {
   const daily = { C1: series(wave(1)), C2: series(wave(2)), C3: series(wave(3)) };
   const { outcome } = run(manifestOf({ study: 'P1' }), daily, { champ });
   assert.ok(outcome.pbo.value > 0.5, `PBO ${outcome.pbo.value}`);
+  assert.equal(outcome.pbo.measure, 'SUM_LOG_RETURN');
   assert.equal(outcome.state, 'INCONCLUSIVE');
   assert.deepEqual(outcome.promoted, []);
 });

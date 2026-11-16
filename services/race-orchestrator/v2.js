@@ -82,6 +82,7 @@ function parseManifest(bytes) {
   need(PARTITIONS.includes(m.partition), 'MANIFEST_INVALID', `partition:${m.partition}`);
   need(m.primary_metric === PRIMARY[m.partition], 'MANIFEST_INVALID', `primary_metric:${m.primary_metric}≠${PRIMARY[m.partition]}`);
   need(Number.isInteger(m.periods_per_year) && m.periods_per_year > 0, 'MANIFEST_INVALID', 'periods_per_year');
+  need(Number.isInteger(m.seed), 'MANIFEST_INVALID', 'seed'); // ★5 回退的重抽种子，随清单冻结（同 K2）
   need(isText(m.engine.id) && isText(m.engine.version), 'MANIFEST_INVALID', 'engine');
   need(DATE.test(m.window.from || '') && DATE.test(m.window.to || '') && m.window.from <= m.window.to, 'MANIFEST_INVALID', 'window');
   need(isText(m.cost_model.cost_model_ref), 'MANIFEST_INVALID', 'cost_model');
@@ -229,13 +230,19 @@ function checkResults(m, results) {
   return { champ, daily: out };
 }
 
-/** 本分区的 PBO：CSCV，列 = 冠军与全部挑战者的日对数收益（overfit.pbo）。 */
+/**
+ * 本分区的 PBO：CSCV（overfit.pbo），列 = 冠军与全部挑战者的日对数收益，按本分区自己的主指标排名：
+ *   - 选股择时层：对数收益之和（overfit.pbo 的原写法）；
+ *   - 风控层：日 CVaR 5% 相对冠军的改善（尾部亏损越小越好）。同一组行上冠军的 CVaR 对各列是同一个数，按改善排名与按各列自己的 CVaR 排名完全相同，所以直接取各列的 CVaR。
+ */
+const PBO_MEASURE = Object.freeze({ SELECTION_TIMING: 'SUM_LOG_RETURN', RISK: 'DAILY_CVAR5_IMPROVEMENT' });
+const cvarOfLog = (values) => cvar5(values.map((logret) => ({ logret })));
 function partitionPbo(m, champ, daily) {
   const cols = [champ, ...m.challengers.map((e) => daily[e.entrant_id])];
   const R = champ.map((_, i) => cols.map((c) => c[i].logret));
-  const p = overfit.pbo(R);
+  const p = m.partition === 'RISK' ? overfit.pbo(R, { measure: cvarOfLog }) : overfit.pbo(R);
   const { lambdas: _l, ...rest } = p;
-  return rest;
+  return { ...rest, measure: PBO_MEASURE[m.partition] };
 }
 
 function selectionTiming(m, results, champ, daily) {
@@ -258,11 +265,13 @@ function selectionTiming(m, results, champ, daily) {
       { championMetrics: { paired_g: 0, neg_mdd: -champRisk.mdd }, challengerMetrics: { paired_g: gPaired, neg_mdd: -mine.mdd } });
     const ds = overfit.deflatedSharpe({ d: months[e.entrant_id], N: n.n_raw, familySharpes: sharpes });
     const { dsr } = ds;
+    // DSR 算不出（月数 < 24、已知 ŜR < 5 个等）：按 11-10 修订 ★5 用按本市场 N 的 Bonferroni 回退（overfit.bonferroniFallback，种子随清单冻结）
+    const fallback = isNum(dsr) ? null : overfit.bonferroniFallback({ d: months[e.entrant_id], N: n.n_raw, seed: m.seed });
     const excess = s.reduce((a, x, i) => a + x.logret - champ[i].logret, 0);
     const reasons = [
       ...(adj.verdict !== 'CHALLENGER_WINS' ? ['NOT_BEATING_CHAMPION'] : []),
       ...(adj.guardrail_breaches.includes('MDD_MAX_RATIO') ? ['MDD_OVER_RATIO'] : []),
-      ...(isNum(dsr) ? (dsr < g.dsr_min ? ['DSR_BELOW_MIN'] : []) : ['DSR_UNKNOWN']),
+      ...(isNum(dsr) ? (dsr < g.dsr_min ? ['DSR_BELOW_MIN'] : []) : (fallback.pass ? [] : ['DSR_UNKNOWN_AND_BONFERRONI_FALLBACK_NOT_PASSED'])),
       ...(excess <= 0 ? ['EXCESS_NOT_POSITIVE'] : []),
       ...(r.participation_max > g.participation_cap ? ['PARTICIPATION_OVER_CAP'] : []),
     ];
@@ -270,6 +279,7 @@ function selectionTiming(m, results, champ, daily) {
       paired_g: gPaired, excess_log_after_costs: excess, mdd: mine.mdd, champion_mdd: champRisk.mdd, tail_cvar5: mine.cvar5, worst_month: mine.worst_month,
       participation_max: r.participation_max,
       dsr: isNum(dsr) ? dsr : { value: dsr.value, reason: dsr.reason }, dsr_n: n.n_raw, dsr_n_is_lower_bound: n.n_is_lower_bound, dsr_known_sr: sharpes.length,
+      ...(fallback ? { dsr_fallback: { method: fallback.method, N: fallback.N, B: fallback.B, seed: fallback.seed, alpha: fallback.alpha, lower: fallback.lower, pass: fallback.pass } } : {}),
       eliminated: reasons.length > 0, reasons };
   });
 }
@@ -345,5 +355,6 @@ const listRaces = () => [...heads().values()];
 module.exports = {
   SCHEMA, MANIFEST_SCHEMA, LEDGER, SIGNED, MARKETS, PARTITIONS, PRIMARY, ORIGINS, DEFAULTS, CAUSALITY_NA_ALLOWED, RaceV2Error,
   openRace, closeRace, adjudicatePartition, raceHead, listRaces,
-  internals: { parseManifest, verifyFreeze, entryOf, ledgerRowOf, maxDrawdown, worstMonth, cvar5, pairedG, partitionPbo, priorRiskP },
+  PBO_MEASURE,
+  internals: { parseManifest, verifyFreeze, entryOf, ledgerRowOf, maxDrawdown, worstMonth, cvar5, cvarOfLog, pairedG, partitionPbo, priorRiskP },
 };
