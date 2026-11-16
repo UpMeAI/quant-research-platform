@@ -18,6 +18,7 @@ const path = require('path');
 
 const DIR = path.join(__dirname, '..', '..', 'config', 'dataset-registry');
 const REGISTRY_FILE = 'datasets.v1.json';
+const SCANNER_FILE = 'dataset-registry-scan.cjs';
 /** 登记表级的新 PIT 语义清单（KG 1.13.0 起有；G-PARITY 认它登记的新值）。 */
 const REGISTRY_PIT_LIST_FIELD = 'pitSemantics';
 const HISTORY_DIR = 'history';
@@ -102,6 +103,8 @@ function history({ dir = DIR } = {}) {
   for (const e of doc.entries) {
     need(e && typeof e.version === 'string' && /^[0-9a-f]{40}$/.test(e.commit || '') && e.files && /^[0-9a-f]{64}$/.test(e.files[REGISTRY_FILE] || '')
       && e.dir === `${e.version}-${e.files[REGISTRY_FILE].slice(0, 8)}`, 'HISTORY_INVALID', JSON.stringify(e && e.dir));
+    // 扫描器的 sha256 每条必填（协调会话 2026-11-17 02:0x；1.11.0 那条本来就带）
+    need(/^[0-9a-f]{64}$/.test(e.files[SCANNER_FILE] || ''), 'HISTORY_INVALID', `${e.dir}:${SCANNER_FILE} sha256 missing`);
     const key = `${e.version}#${e.files[REGISTRY_FILE]}`;
     need(!out.has(key), 'HISTORY_INVALID', `duplicate ${key}`);
     const copy = readCopy(path.join(dir, HISTORY_DIR, e.dir), e.files, e.version, `${HISTORY_DIR}/${e.dir}`);
@@ -120,5 +123,5 @@ function changedFields(older, current) {
   return FINGERPRINT_FIELDS.filter((f) => !absent(value(older, f)) && canonical(value(older, f)) !== canonical(value(current, f)));
 }
 
-module.exports = { DIR, REGISTRY_FILE, REGISTRY_PIT_LIST_FIELD, HISTORY_DIR, HISTORY_FILE, HISTORY_SCHEMA, FINGERPRINT_FIELDS, DatasetRegistryError,
+module.exports = { DIR, REGISTRY_FILE, SCANNER_FILE, REGISTRY_PIT_LIST_FIELD, HISTORY_DIR, HISTORY_FILE, HISTORY_SCHEMA, FINGERPRINT_FIELDS, DatasetRegistryError,
   pinned, history, hasField, changedFields, internals: { readCopy, canonical } };
