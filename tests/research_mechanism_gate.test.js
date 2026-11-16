@@ -222,7 +222,7 @@ function importFixture({ k2Lines = {}, study }) {
   const files = {
     'trading-system-v2/docs/evidence/rm/RESULT.json': `${JSON.stringify({ verdict: { decision: '不做', evidence_strength: '有反对证据', allowed_use: '不进生产', text_zh: '合成' } })}\n`,
     'trading-system-v2/docs/RM_K2.md': text,
-    'trading-system-v2/docs/evidence/rm/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, runs: ['T', 'B'].map((l) => ({ family_id: FAMILY, config_label: l, rule_config_hash: hashOf(l) })) })}\n`,
+    'trading-system-v2/docs/evidence/rm/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, runs: ['T', 'B'].map((l) => ({ family_id: FAMILY, config_label: l, trial_id: idOf(l, study), rule_config_hash: hashOf(l), cost_model_ref: 'REPLAY_CORE_PROFILE_COSTS' })) })}\n`, // K2 冻结在 11-17 之后，G-COST 也过门：判定用的运行写出计成本的模型
   };
   git(repo, 'init', '-q');
   for (const [rel, body] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true }); fs.writeFileSync(path.join(repo, rel), body); }
