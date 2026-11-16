@@ -61,6 +61,30 @@ const R8_RUN_LOG = coord('R8_X04_KLINE_CHAN_ASHARE_RESEARCH_RUN_LOG_V1.json', '6
 const R8_K2 = coord('R8_X04_KLINE_CHAN_ASHARE_K2_V1.draft.md', '299473b0bfc3ed15c6075459b96f57b257afdefbc69bf64a6b89c660fd8b4f1c');
 const R8_FREEZE = coord('R8_X04_KLINE_CHAN_ASHARE_K2_V1_FREEZE_1.md', '4d30527ee89f94753a38501297e6f7b64b2486249f2b8a15d6b5b002aba2b153');
 
+// 修订 5（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_5.md）：R21 的两条判定（时机分缺 25% 权重，个股簿；J_RN、J_RP 各自对 B_K = C_RS、各用 95%）。
+// K2 = 冻结页本身（台账行的 k2_sha256 = 冻结页 ca036b24），冻结记录 2026-11-14 01:56:13（过拟合控制修订之后）；K2 §7 的 3 行在冻结后 3 分 19 秒、首次计算之前登记，PRE 带门的裁定。
+// 两条都是 INSUFFICIENT（G1_NOT_MET）→ 做 = 前向影子；前向影子的规则在封存里冻结（R21_FORWARD_SHADOW_RULE_V1，dd55ec46）。
+// 结果与运行日志在协调会话目录（按 sha256 绑定）：结果文件是 Linux 封存 scratch/r21-sealed-20261116 里 R21_RESULT.json 的逐字节副本。
+// K2 冻结早于 RF1112 生效（2026-11-15T22:47:42+08:00）与成本门 A1（2026-11-17T00:00:00+08:00）：G-MECH、G-CAUSAL、G-COST 都不适用（G-CAUSAL N/A: PRE_EFFECTIVE_K2），k2_frozen_at 照写。
+const R21_RESULT = coord('R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_RESULT_V1.json', '9db6f7e8d31c08d5d6e8e13c67875bfd86cb21b1b5e03443217757f6e51d74c0');
+const R21_RUN_LOG = coord('R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_RESEARCH_RUN_LOG_V1.json', '1ebfe73c0aeb0f1e66264309c55a3846ae5140915efc28ba7e714c1c2cdd0461');
+const R21_K2 = coord('R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_K2_V1_FREEZE_1.md', 'ca036b246ade25d498dd3695fb1ac20ae3df438a11b8b2df53df7817c574b6a6');
+const R21_RULING = Object.freeze({
+  spec: coord('R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_K2_V1_TRIAL_GATES_RULING_20261116.md', '8cc181db5d75a1737dd2541e569cb6f11734daec311190d293c4033c6d922686'),
+  pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN']),
+    preregistered_at: '2026-11-13T17:59:32.399Z', first_run_at: '2026-11-13T18:03:43Z' }),
+});
+const R21_USE = '前向影子：R21_FORWARD_SHADOW_RULE_V1（dd55ec46，封存里冻结）：T_start 2026-11-17，按日与生产并排记 ① 读数，另一本只读研究账（C_RS + 该路径）；'
+  + '只有记录器实时记下、或可逐字节复现的时点重放（附惰性证明）的会话才计入，否则 PENDING，不手填；读数照 K2 §5.1，G1 满足或 2027-05-17 先到者首读；生产不改';
+const r21Entry = (id, pair, label, titleZh, g, changed) => ({ id, label_zh: label, strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-16', title_zh: titleZh,
+  file: R21_RESULT, k2: R21_K2, freeze: null, run_log: R21_RUN_LOG, k2_frozen_at: '2026-11-14T01:56:13+08:00', trial_gates_ruling: R21_RULING,
+  read: Object.freeze({ decision: `judged.${pair}.state`, strength: `judged.${pair}.reason_code`, use: null, text: `judged.${pair}.verdict_zh` }), expect: 'INSUFFICIENT',
+  resolve: Object.freeze({ INSUFFICIENT: Object.freeze({ decision: '做', use_zh: R21_USE }) }),
+  note_zh: `INSUFFICIENT（G1_NOT_MET）→ 做 = 前向影子：${pair} 两阶段合并 g ${g}，1537 个会话、76 个月；改变的入场 ${changed} 笔 < 30（成熟交易 ≥ 30）。规则不改、生产不改。`
+    + '只报：g(T_RP_K − T_RN_K) −0.0886 %/年 [−0.2450 %, +0.0286 %]；分阶段复测（已读）只报。指数簿未跑（缺引擎，K2 §6），是缺口，不是证据不足。'
+    + '过拟合披露（J_RN、J_RP 各一行）：N 42（下界），DSR 照算法算出（RN 0.0061、RP 1.9e-6），PBO NOT_APPLICABLE: CONFIGS_LT_4 — 3 configurations (C_RS, T_RN_K, T_RP_K); CSCV needs ≥ 4（协调会话裁定原文）。'
+    + 'G_REPRO 两阶段 BINDING PASS（V6.3），G_INERT 两半 PASS。来源：Linux 封存 scratch/r21-sealed-20261116（SHA256SUMS dbb72dbe，SEAL_MANIFEST 9c2b2dc5），研究分支 Ashare-V6 research/r21-timing-weight 1477f16d，封存 2026-11-16。' });
+
 const ENTRIES = Object.freeze([
   { id: 'CN-R-ETF-1', label_zh: 'R-ETF-1', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-05', title_zh: '宽基 ETF 波动率网格 VG 对现行档位规则 C',
     file: v6('84adf8b97268d59318dda22be5363953e7939b6a', 'research/index-grid/r-etf-1/result-r-etf-1.json', '6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0'),
@@ -124,6 +148,10 @@ const ENTRIES = Object.freeze([
       + 'G-CF（A_NOKLINE 对封存 A，两阶段 873 + 664 个会话）PASS，只作对照；Q0 基线账 A 只在这一道门里比对，登记表不登记任何 Q0 账户的结论。'
       + '过拟合披露 OVD-f62f0cc373e0122b：N 42（下界），DSR 未知，PBO 0.045，按族 N 的 Bonferroni 回退；§3.5 的校正条件只加在「有支持证据」上，本题不适用。'
       + '来源：Linux 封存 scratch/r8-sealed-20261115（SHA256SUMS 8e92a3a5，SEAL_MANIFEST 33ed445d；SanDisk research-data/r8_ashare_v1/verdict-20261115 同 sha），研究分支 Ashare-V6 research/r8-ashare-kline-chan 0069dd8e（NEVER MERGE），封存 2026-11-15。' },
+  r21Entry('CN-R21-RN', 'J_RN', 'R21 A 股时机分缺权重（RN）', '个股簿：时机分缺 25% 权重按当天投票的维度重分（T_RN_K）对现行规则 C_RS，两阶段合并（2020-06-01 → 2026-09-28）',
+    '−0.0023 %/年，95 % [−0.0754 %, +0.0773 %]', 7),
+  r21Entry('CN-R21-RP', 'J_RP', 'R21 A 股时机分缺权重（RP）', '个股簿：时机分缺 25% 权重用两融余额与宽基 ETF 份额替换（T_RP_K）对现行规则 C_RS，两阶段合并（2020-06-01 → 2026-09-28）',
+    '−0.0909 %/年，95 % [−0.2592 %, +0.0461 %]', 15),
 ]);
 
 const locks = (strategyRef = null) => overseas.locks(strategyRef, STORE);
