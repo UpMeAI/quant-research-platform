@@ -37,6 +37,12 @@ K2 §0 在 RF1112 §5 的四行之后加一行，每个数据集一个记号，�
 - 重复与跨文件冲突按（数据集, 序列）判；锁行在 `dataset_id` 之后带 `series`。不写 `series=` 的记号，锁行与以前逐字节相同（没有 `series` 键）。
 - 历史：`pitSemanticsBySeries` 进一致性字段（旧版本没有不算变）。
 
+**历史时钟 `HIST=`（KG 1.14.0 起 `pitHistoricalClock`；协调会话审阅意见 2026-11-17）：** 实时 PIT 只说生产怎么拿到数据（例如 OBSERVED_AT），研究给历史数据定时点用的时钟另写在登记表的 `pitHistoricalClock`：`{ rule }` 或 `{ bySeries }`（1.14.0：`V6_CN_STOCK_DAILY_BASIC` rule `CLOSE_DATED_NEXT_OPEN_USABLE`；`V6_CN_STOCK_DAILY_BARS` 按 `daily` → `BAR_CLOSE`、`adj_factor` → `CLOSE_DATED_NEXT_OPEN_USABLE`；`CN_MARKET_PSYCHOLOGY` 按序列）。
+- 记号可选字段 `|HIST=<时钟>`。钉在有这个字段的版本（≥ 1.14.0）上、且数据集写了 `pitHistoricalClock` → 必填（`PARITY_HIST_CLOCK_REQUIRED`），要等于 `rule` 或 `bySeries[series]`（`PARITY_HIST_CLOCK_MISMATCH`）；数据集没写 → `hist_check: PENDING_REGISTRY_FIELD`。
+- 实时 PIT 只有一个、历史时钟按序列分的数据集（BARS），允许写 `#series=` 选时钟（实时 PIT 仍按数据集的那一个核）；没写 → `PARITY_SERIES_REQUIRED`，不在表里 → `PARITY_SERIES_UNKNOWN`。只有 `rule` 的非混合数据集照旧不许写 `series=`。
+- 锁行：钉在 ≥ 1.14.0 的记号带 `hist_check`（写了 HIST 另带 `hist_clock`）。钉在更早版本的记号：写了 HIST 记 `NOT_APPLICABLE_PRE_FIELD`，没写不加任何键——现有记号的锁行逐字节不变。
+- 历史：`pitHistoricalClock` 进一致性字段，只比 `rule` 与 `bySeries`（`detail` 的文字改了不算变）。
+
 - **选 K2 正文，不选 `entry.data_inputs`：** K2 由协调会话冻结、按 sha256 绑定，是研究判定的冻结来源；登记表字段由导入规格写，不在冻结的文本里。
 - PIT 语义的枚举：`OBSERVED_AT`、`ANNOUNCEMENT_NEXT_OPEN`、`ACCEPTANCE_TIME`、`BAR_CLOSE`、`NEXT_OPEN_SESSION_CLOSE`。新的语义只能先进登记表（登记表级字段 `pitSemantics` 的清单），门才认。
 - 供应方写登记表 `vendor` 里的原名（Tushare、Yahoo、Alpaca、SEC EDGAR、东财、Binance 等），逐字对上；登记表没写供应方时门只记不核。
@@ -62,7 +68,9 @@ K2 §0 在 RF1112 §5 的四行之后加一行，每个数据集一个记号，�
 | `PARITY_DATA_INPUTS_MISSING` | K2 一个 `DATA:` 都没有 |
 | `PARITY_DATA_INPUT_INVALID` | `DATA:` 写法不对，或同一（数据集, 序列）写了两次，或非混合数据集写了 `series=` |
 | `PARITY_SERIES_REQUIRED` | 混合数据集的记号没写 `series=` |
-| `PARITY_SERIES_UNKNOWN` | `series=` 不在数据集的 `pitSemanticsBySeries` 里 |
+| `PARITY_SERIES_UNKNOWN` | `series=` 不在数据集的 `pitSemanticsBySeries`（或 `pitHistoricalClock.bySeries`）里 |
+| `PARITY_HIST_CLOCK_REQUIRED` | 钉在 ≥ 1.14.0、数据集有 `pitHistoricalClock`，记号没写 `HIST=` |
+| `PARITY_HIST_CLOCK_MISMATCH` | `HIST=` 不等于登记表的 `rule` 或 `bySeries[series]` |
 | `PARITY_DATASET_UNREGISTERED` | 数据集不在 QRP 钉住的 KG 登记表里 |
 | `PARITY_PIN_MISMATCH` | 写的登记表版本或 sha256 不是 QRP 现在钉的（= 生产两端钉的），而且：不在历史里（`VERSION_NOT_IN_HISTORY`）；或这个数据集在那一版里没有（`DATASET_NOT_IN_PINNED_VERSION`）；或它的一致性字段从那一版到现在变了（`DATASET_CHANGED:<字段,…>`） |
 | `PARITY_DATA_INPUTS_CONFLICT` | 同一数据集在 K2 与冻结附注（或两份附注）里写得不一样 |

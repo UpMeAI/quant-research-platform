@@ -37,6 +37,8 @@ const PIT_SEMANTICS = Object.freeze(['OBSERVED_AT', 'ANNOUNCEMENT_NEXT_OPEN', 'A
 const REGISTRY_PIT_FIELD = 'pitSemantics';
 /** KG 1.14.0 起：混合数据集不写 pitSemantics（或为 null），另给序列级的 pitSemanticsBySeries（协调会话 2026-11-17 裁定）。 */
 const REGISTRY_PIT_BY_SERIES_FIELD = 'pitSemanticsBySeries';
+/** KG 1.14.0 起：研究按什么时钟给历史数据定时点，{ rule } 或 { bySeries }（协调会话审阅意见 2026-11-17）；记号用 HIST= 声明。 */
+const REGISTRY_HIST_FIELD = 'pitHistoricalClock';
 const REGISTRY_BASIS_FIELD = 'priceBasis';
 const REGISTRY_VENDOR_FIELD = 'vendor';
 /** 登记表级的价格口径说明（KG 1.13.0：对象，format = '<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>; …'）；没有时用同样的默认两组。 */
@@ -51,7 +53,7 @@ const AI_PIN_SCHEMA = 'AI_LOGIC_PIN_V1';
 const DATA_TOKEN = /`DATA:([^`]*)`/g;
 // `DATA:<id>[#series=<序列>]@<版本>#<sha256>|PIT=…|VENDOR=…[|BASIS=…]`；series 只给混合数据集写
 const DATA_HEAD = /^([A-Z0-9][A-Z0-9_]*)(?:#series=([A-Za-z0-9][A-Za-z0-9_.-]*))?@(\d+\.\d+\.\d+)#([0-9a-f]{64})((?:\|[A-Z]+=[^|]*)+)$/;
-const DATA_FIELDS = Object.freeze({ PIT: true, VENDOR: true, BASIS: false }); // 键 → 是否必填
+const DATA_FIELDS = Object.freeze({ PIT: true, VENDOR: true, BASIS: false, HIST: false }); // 键 → 是否必填（HIST 是否必填看登记表，见 check）
 const PIT_VALUE = /^[A-Z][A-Z0-9_]*$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 
@@ -122,9 +124,11 @@ function dataInputs(entry, text) {
     }
     for (const [field, required] of Object.entries(DATA_FIELDS)) need(!required || field in fields, 'DATA_INPUT_INVALID', `${entry.id}:${key}:${field} missing`);
     need(PIT_VALUE.test(fields.PIT), 'DATA_INPUT_INVALID', `${entry.id}:${key}:PIT`);
+    need(fields.HIST === undefined || PIT_VALUE.test(fields.HIST), 'DATA_INPUT_INVALID', `${entry.id}:${key}:HIST`);
     need(!out.some((d) => inputKey(d) === key), 'DATA_INPUT_INVALID', `${entry.id}:${key}:duplicate`);
     // 非混合记号不带 series 键：锁行与改动前逐字节相同
-    out.push({ dataset_id, ...(series ? { series } : {}), registry_version, registry_sha256, pit_semantics: fields.PIT, vendor: fields.VENDOR, ...(fields.BASIS ? { price_basis: fields.BASIS } : {}) });
+    out.push({ dataset_id, ...(series ? { series } : {}), registry_version, registry_sha256, pit_semantics: fields.PIT, vendor: fields.VENDOR, ...(fields.BASIS ? { price_basis: fields.BASIS } : {}),
+      ...(fields.HIST ? { hist_clock: fields.HIST } : {}) });
   }
   return out;
 }
@@ -186,9 +190,14 @@ function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = 
     // 混合数据集（没有 pitSemantics、有 pitSemanticsBySeries）：记号要写表里的 series，PIT 按那个序列核；非混合数据集不许写 series
     const bySeries = ds[REGISTRY_PIT_BY_SERIES_FIELD];
     const mixed = absent(ds[REGISTRY_PIT_FIELD]) && isObj(bySeries) && Object.keys(bySeries).length > 0;
+    // 历史时钟按序列分、实时 PIT 只有一个的数据集（V6_CN_STOCK_DAILY_BARS）：允许 #series= 选历史时钟
+    const histClock = ds[REGISTRY_HIST_FIELD];
+    const histBySeries = isObj(histClock) && isObj(histClock.bySeries) && Object.keys(histClock.bySeries).length > 0 ? histClock.bySeries : null;
     if (mixed) {
       need(d.series !== undefined, 'SERIES_REQUIRED', at);
       need(Object.prototype.hasOwnProperty.call(bySeries, d.series), 'SERIES_UNKNOWN', at);
+    } else if (histBySeries && d.series !== undefined) {
+      need(Object.prototype.hasOwnProperty.call(histBySeries, d.series), 'SERIES_UNKNOWN', `${at}:pitHistoricalClock`);
     } else need(d.series === undefined, 'DATA_INPUT_INVALID', `${at}:NOT_A_MIXED_DATASET`);
     // 记号钉的版本：现在钉的，或历史里的一份（那一版里这个数据集的一致性字段到现在没变）
     let pinnedReg = reg;
@@ -233,7 +242,24 @@ function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = 
         if (VENDOR_ENFORCED) need(vendorCheck === 'MATCH', 'VENDOR_MISMATCH', `${at}:${d.vendor}≠${registryVendors.join(',')}`);
       }
     }
-    return { ...d, pin_check: pinCheck, pit_check: absent(pit) ? PENDING : CHECKED, basis_check: basisCheck, vendor_check: vendorCheck,
+    // HIST：只对钉在有 pitHistoricalClock 字段的版本（≥ 1.14.0）上的记号核，同 BASIS；数据集写了历史时钟就必填、要等于 rule 或 bySeries[series]。
+    // 更早版本的记号：写了 HIST 记 NOT_APPLICABLE_PRE_FIELD，没写就不加任何键（现有记号的锁行逐字节不变）。
+    let histFields = {};
+    if (datasetRegistry.hasField(pinnedReg, REGISTRY_HIST_FIELD)) {
+      let want = null;
+      if (isObj(histClock) && isText(histClock.rule)) want = histClock.rule;
+      else if (histBySeries) {
+        need(d.series !== undefined, 'SERIES_REQUIRED', `${at}:pitHistoricalClock.bySeries`);
+        need(Object.prototype.hasOwnProperty.call(histBySeries, d.series), 'SERIES_UNKNOWN', `${at}:pitHistoricalClock`);
+        want = histBySeries[d.series];
+      }
+      if (want !== null) {
+        need(d.hist_clock !== undefined, 'HIST_CLOCK_REQUIRED', `${at}:registry ${want}`);
+        need(d.hist_clock === want, 'HIST_CLOCK_MISMATCH', `${at}:${d.hist_clock}≠${want}`);
+      }
+      histFields = { hist_check: want === null ? PENDING : CHECKED };
+    } else if (d.hist_clock !== undefined) histFields = { hist_check: PRE_FIELD };
+    return { ...d, pin_check: pinCheck, pit_check: absent(pit) ? PENDING : CHECKED, basis_check: basisCheck, vendor_check: vendorCheck, ...histFields,
       ...(vendorCheck === 'MISMATCH' ? { registry_vendor: registryVendors } : {}) };
   });
   const ai = checkAi(entry);

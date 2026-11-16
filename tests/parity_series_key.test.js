@@ -31,9 +31,9 @@ const REG = datasetRegistry.pinned();
 const V = `@${REG.registry_version}#${REG.registry_sha256}`;
 const code = (re) => (e) => { assert.match(e.message, re); return true; };
 const refuses = (fn, c, detail) => assert.throws(fn, (e) => e.code === `PARITY_${c}` && (!detail || String(e.detail).includes(detail)), `${c} ${detail || ''}`);
-function direct(lines, registry = REG) {
+function direct(lines, registry = REG, history = new Map()) {
   const k2 = Buffer.from(`# 合成 K2\n\n## 0\n**数据输入**：${lines.join('；')}\n`);
-  return gate.check({ id: 'SERIES', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: '2026-11-17T10:00:00+08:00' }, { k2Bytes: () => k2 }, { registry, history: new Map() });
+  return gate.check({ id: 'SERIES', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: '2026-11-17T10:00:00+08:00' }, { k2Bytes: () => k2 }, { registry, history });
 }
 
 test('真钉着的 1.14.0：三个混合数据集没有 pitSemantics（不写或 null）、带 pitSemanticsBySeries；两个新数据集 OBSERVED_AT。审阅前的夹具与它只差历史时钟、producedBy 与顶层清单，序列表一样', () => {
@@ -70,15 +70,14 @@ test('G-PARITY 混合数据集：没写 series → SERIES_REQUIRED；序列不�
 });
 
 test('G-PARITY 非混合数据集：写 series → DATA_INPUT_INVALID；不写 series 的锁行逐字节不变（没有 series 键）', () => {
-  refuses(() => direct([`\`DATA:V6_CN_STOCK_DAILY_BARS#series=close${V}|PIT=OBSERVED_AT|VENDOR=Tushare|BASIS=PRICE/RAW\``]), 'DATA_INPUT_INVALID', 'NOT_A_MIXED_DATASET');
-  const r = direct([`\`DATA:V6_CN_STOCK_DAILY_BARS${V}|PIT=OBSERVED_AT|VENDOR=Tushare|BASIS=PRICE/RAW\``]);
-  assert.equal(JSON.stringify(r.data_inputs[0]), JSON.stringify({ dataset_id: 'V6_CN_STOCK_DAILY_BARS', registry_version: '1.14.0', registry_sha256: REG.registry_sha256, pit_semantics: 'OBSERVED_AT',
-    vendor: 'Tushare', price_basis: 'PRICE/RAW', pin_check: 'CURRENT', pit_check: 'CHECKED', basis_check: 'CHECKED', vendor_check: 'MATCH' }));
+  // 历史时钟按序列分的（V6_CN_STOCK_DAILY_BARS，见 parity_hist_clock）允许 series；只有 rule 的 V6_CN_STOCK_DAILY_BASIC 照旧不许
+  refuses(() => direct([`\`DATA:V6_CN_STOCK_DAILY_BASIC#series=close${V}|PIT=OBSERVED_AT|VENDOR=Tushare|HIST=CLOSE_DATED_NEXT_OPEN_USABLE\``]), 'DATA_INPUT_INVALID', 'NOT_A_MIXED_DATASET');
   refuses(() => direct([`\`DATA:V6_CN_STOCK_DAILY_BARS${V}|PIT=BAR_CLOSE|VENDOR=Tushare|BASIS=PRICE/RAW\``]), 'PIT_SEMANTICS_MISMATCH', 'BAR_CLOSE≠OBSERVED_AT');
-  // 不写 series 的非混合记号：没有 series 键
-  const cur = datasetRegistry.pinned();
-  const row = direct([`\`DATA:SMARTFLOW_US_1M@${cur.registry_version}#${cur.registry_sha256}|PIT=BAR_CLOSE|VENDOR=Yahoo\``], cur).data_inputs[0];
-  assert.equal('series' in row, false);
+  // 不写 series、钉在没有历史时钟字段的版本（1.13.0）上的记号：锁行与改动前逐字节相同（没有 series、hist 键）
+  const v113 = [...datasetRegistry.history().values()].find((x) => x.registry_version === '1.13.0');
+  const row = direct([`\`DATA:SMARTFLOW_US_1M@1.13.0#${v113.registry_sha256}|PIT=BAR_CLOSE|VENDOR=Yahoo\``], REG, datasetRegistry.history()).data_inputs[0];
+  assert.equal(JSON.stringify(row), JSON.stringify({ dataset_id: 'SMARTFLOW_US_1M', registry_version: '1.13.0', registry_sha256: v113.registry_sha256, pit_semantics: 'BAR_CLOSE',
+    vendor: 'Yahoo', pin_check: 'HISTORY_UNCHANGED', pit_check: 'CHECKED', basis_check: 'PENDING_REGISTRY_FIELD', vendor_check: 'MATCH' }));
 });
 
 test('历史：pitSemanticsBySeries 进一致性字段；旧版本没有这个键不算变，有而改了算变', () => {
@@ -101,7 +100,9 @@ test('parseSpace：读数的数据集要在钉住的登记表里；pit_available
   const bars = { name: 'close_hfq', dataset_id: 'V6_CN_STOCK_DAILY_BARS', pit_available_at: 'OBSERVED_AT (ingest instant); next-open only' };
   assert.equal(ok([bars]).readings[0].dataset_id, 'V6_CN_STOCK_DAILY_BARS');
   assert.throws(() => ok([{ ...bars, dataset_id: 'TUSHARE_DAILY_UNREGISTERED' }]), code(/MINE_SPACE_READING_UNREGISTERED:TUSHARE_DAILY_UNREGISTERED/));
-  assert.throws(() => ok([{ ...bars, pit_available_at: 'BAR_CLOSE 15:00 +08:00' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:close_hfq:BAR_CLOSE.*OBSERVED_AT/));
+  // BAR_CLOSE 是 BARS 的 daily 序列的历史时钟（KG 1.14.0 pitHistoricalClock，见 parity_hist_clock）：没写 series → 要写
+  assert.throws(() => ok([{ ...bars, pit_available_at: 'BAR_CLOSE 15:00 +08:00' }]), code(/MINE_SPACE_READING_SERIES_REQUIRED:close_hfq/));
+  assert.throws(() => ok([{ ...bars, pit_available_at: 'NEXT_OPEN 09:30' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:close_hfq:NEXT_OPEN≠OBSERVED_AT/));
   assert.throws(() => ok([{ ...bars, pit_available_at: 'OBSERVED_AT_LATE (not the same token)' }]), code(/MINE_SPACE_READING_PIT_MISMATCH/));
   // 混合数据集
   const macro = { name: 'sf', dataset_id: 'MACRO_CN_OFFICIAL', series: 'sf_month', pit_available_at: 'END_OF_FOLLOWING_MONTH_CONSERVATIVE (month-end + 1 month)' };
@@ -109,7 +110,8 @@ test('parseSpace：读数的数据集要在钉住的登记表里；pit_available
   assert.throws(() => ok([{ ...macro, series: undefined }]), code(/MINE_SPACE_READING_SERIES_REQUIRED:sf/));
   assert.throws(() => ok([{ ...macro, series: 'cn_rent' }]), code(/MINE_SPACE_READING_SERIES_UNKNOWN:sf:cn_rent/));
   assert.throws(() => ok([{ ...macro, pit_available_at: 'OBSERVED_AT' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:sf/));
-  assert.throws(() => ok([{ ...bars, series: 'close' }]), code(/MINE_SPACE_READING_SERIES_NOT_ALLOWED:close_hfq/));
+  assert.throws(() => ok([{ name: 'pe_ttm', dataset_id: 'V6_CN_STOCK_DAILY_BASIC', series: 'close', pit_available_at: 'OBSERVED_AT' }]), code(/MINE_SPACE_READING_SERIES_NOT_ALLOWED:pe_ttm/));
+  assert.throws(() => ok([{ ...bars, series: 'close' }]), code(/MINE_SPACE_READING_SERIES_UNKNOWN:close_hfq:close/)); // BARS 的历史时钟按 daily / adj_factor 分
   // 不传 registry → 用真钉着的登记表（#104 之后是 1.14.0，a738d3b5）：同样的读数照样过，没登记的照样拒
   assert.equal(space.parseSpace(spaceOf([bars]), PROOF).readings[0].dataset_id, 'V6_CN_STOCK_DAILY_BARS');
   assert.throws(() => space.parseSpace(spaceOf([{ ...bars, dataset_id: 'TUSHARE_DAILY_UNREGISTERED' }]), PROOF), code(/MINE_SPACE_READING_UNREGISTERED:TUSHARE_DAILY_UNREGISTERED@1\.14\.0/));

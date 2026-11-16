@@ -48,7 +48,8 @@ function parseSpace(bytes, proof, { registry = null } = {}) {
   const names = new Set();
   const reg = registry || require('../dataset-registry').pinned();
   for (const r of s.readings) {
-    need(r && /^[a-z][a-z0-9_]*$/.test(r.name || '') && isText(r.dataset_id) && isText(r.pit_available_at) && (r.series === undefined || isText(r.series)), 'READING_INVALID', JSON.stringify(r));
+    need(r && /^[a-z][a-z0-9_]*$/.test(r.name || '') && isText(r.dataset_id) && isText(r.pit_available_at)
+      && (r.series === undefined || isText(r.series) || Array.isArray(r.series)), 'READING_INVALID', JSON.stringify(r));
     need(!Object.prototype.hasOwnProperty.call(dsl.OPERATORS, r.name), 'READING_SHADOWS_OPERATOR', r.name);
     need(!names.has(r.name), 'READING_DUPLICATE', r.name); names.add(r.name);
     checkReadingRegistered(r, reg);
@@ -73,27 +74,64 @@ function parseSpace(bytes, proof, { registry = null } = {}) {
 }
 
 /**
- * 读数要在钉住的数据集登记表里（协调会话 2026-11-17）：dataset_id 已登记；pit_available_at 以登记表的 PIT 记号开头（记号之后不能再接 A–Z 0–9 _）。
- * 混合数据集（没有 pitSemantics、有 pitSemanticsBySeries）要写表里的 series，按那个序列核；非混合数据集不许写 series。
+ * 读数要在钉住的数据集登记表里（协调会话 2026-11-17）：dataset_id 已登记；pit_available_at 的开头记号（之后不能再接 A–Z a–z 0–9 _）
+ * 只能是下面两种之一，别的一律 READING_PIT_MISMATCH：
+ *   - 实时 PIT：非混合数据集取 pitSemantics；混合数据集（没有 pitSemantics、有 pitSemanticsBySeries）取 pitSemanticsBySeries[series]，series 必写；
+ *   - 历史时钟（KG 1.14.0 起 pitHistoricalClock，挖掘只用次日开盘、历史按它定时点；协调会话审阅意见）：{ rule } 取 rule；
+ *     { bySeries } 取 bySeries[series]，series 必写。
+ * 多序列读数（例：后复权价 = daily × adj_factor）：series 可以写成数组（只在实时 PIT 只有一个、历史时钟按序列分的数据集上），
+ *   声明的历史时钟必须是这些序列里最保守（最晚可用）的那个；序之间没有定义先后的组合拒绝（READING_CLOCK_ORDER_UNDEFINED）。
  */
 const absentField = (v) => v === undefined || v === null;
+/** 时钟的先后（只列能说清的，前面的比后面的早可用）：收盘价在当天收盘可用，次日开盘才可用的晚于它；次日 00:00 早于次一交易日 09:00。 */
+const CLOCK_ORDER = Object.freeze([
+  Object.freeze(['BAR_CLOSE', 'CLOSE_DATED_NEXT_OPEN_USABLE']),
+  Object.freeze(['NEXT_DAY_0000_CST', 'NEXT_TRADING_DAY_0900_CST']),
+]);
+/** 一组时钟里最保守（最晚）的那个；全部相同就是它；不在同一条已定义的序里 → null。 */
+function mostConservative(clocks) {
+  const set = [...new Set(clocks)];
+  if (set.length === 1) return set[0];
+  const chain = CLOCK_ORDER.find((c) => set.every((k) => c.includes(k)));
+  return chain ? set.reduce((a, b) => (chain.indexOf(a) >= chain.indexOf(b) ? a : b)) : null;
+}
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 function checkReadingRegistered(r, reg) {
   const ds = reg.datasets.get(r.dataset_id);
   need(ds, 'READING_UNREGISTERED', `${r.dataset_id}@${reg.registry_version}`);
   const bySeries = ds.pitSemanticsBySeries;
   const mixed = absentField(ds.pitSemantics) && bySeries !== null && typeof bySeries === 'object' && Object.keys(bySeries).length > 0;
-  let pit;
+  const hist = ds.pitHistoricalClock && typeof ds.pitHistoricalClock === 'object' ? ds.pitHistoricalClock : null;
+  const histBySeries = hist && hist.bySeries && typeof hist.bySeries === 'object' && Object.keys(hist.bySeries).length ? hist.bySeries : null;
+  const histRule = hist && typeof hist.rule === 'string' ? hist.rule : null;
+  const series = r.series === undefined ? [] : (Array.isArray(r.series) ? r.series : [r.series]);
+  const isArray = Array.isArray(r.series);
+  need(series.every(isText) && (!isArray || series.length >= 2) && new Set(series).size === series.length, 'READING_INVALID', `${r.name}:series`);
+  // 能写哪些 series：混合数据集按实时的序列表（单个）；实时只有一个而历史时钟按序列的，按历史的序列表（可以是数组）；别的不许写
   if (mixed) {
-    need(r.series !== undefined, 'READING_SERIES_REQUIRED', `${r.name}:${r.dataset_id}`);
-    need(Object.prototype.hasOwnProperty.call(bySeries, r.series), 'READING_SERIES_UNKNOWN', `${r.name}:${r.series}`);
-    pit = [bySeries[r.series]];
-  } else {
-    need(r.series === undefined, 'READING_SERIES_NOT_ALLOWED', `${r.name}:${r.dataset_id}`);
-    need(!absentField(ds.pitSemantics), 'READING_PIT_MISMATCH', `${r.name}:registry has no pitSemantics for ${r.dataset_id}`);
-    pit = Array.isArray(ds.pitSemantics) ? ds.pitSemantics : [ds.pitSemantics];
-  }
+    need(series.length, 'READING_SERIES_REQUIRED', `${r.name}:${r.dataset_id}`);
+    need(!isArray, 'READING_SERIES_NOT_ALLOWED', `${r.name}:${r.dataset_id}:array on a mixed dataset`);
+    need(has(bySeries, series[0]), 'READING_SERIES_UNKNOWN', `${r.name}:${series[0]}`);
+  } else if (histBySeries) {
+    for (const x of series) need(has(histBySeries, x), 'READING_SERIES_UNKNOWN', `${r.name}:${x}`);
+  } else need(!series.length, 'READING_SERIES_NOT_ALLOWED', `${r.name}:${r.dataset_id}`);
+  const live = mixed ? [bySeries[series[0]]] : (absentField(ds.pitSemantics) ? [] : [].concat(ds.pitSemantics));
   const head = /^([A-Z][A-Z0-9_]*)(?![A-Za-z0-9_])/.exec(r.pit_available_at);
-  need(head && pit.includes(head[1]), 'READING_PIT_MISMATCH', `${r.name}:${head ? head[1] : r.pit_available_at.slice(0, 24)}≠${pit.join(',')}`);
+  const token = head ? head[1] : r.pit_available_at.slice(0, 24);
+  if (head && live.includes(token)) return;
+  // 不是实时 PIT：只能是历史时钟
+  let want = histRule;
+  if (want === null && histBySeries) {
+    if (!series.length) {
+      // 开头是某个序列的历史时钟却没写 series → 要写；什么都不是 → PIT 不符
+      need(!(head && Object.values(histBySeries).includes(token)), 'READING_SERIES_REQUIRED', `${r.name}:${r.dataset_id}:pitHistoricalClock.bySeries`);
+      fail('READING_PIT_MISMATCH', `${r.name}:${token}≠${[...live, ...new Set(Object.values(histBySeries))].join(' or ')}`);
+    }
+    for (const x of series) need(has(histBySeries, x), 'READING_SERIES_UNKNOWN', `${r.name}:${x}`);
+    want = mostConservative(series.map((x) => histBySeries[x]));
+    need(want !== null, 'READING_CLOCK_ORDER_UNDEFINED', `${r.name}:${series.map((x) => `${x}=${histBySeries[x]}`).join(',')}`);
+  }
+  need(head && want !== null && token === want, 'READING_PIT_MISMATCH', `${r.name}:${token}≠${[...live, ...(want ? [want] : [])].join(' or ') || 'nothing registered'}`);
 }
 
 /** 冻结页核对：页上写出清单 sha256、MINING_SPACE_V1 与 FROZEN（同 RACE_MANIFEST_V1 的冻结写法）。 */
@@ -109,4 +147,4 @@ function verifyFreeze(space, freeze) {
 const dslSpaceOf = (s) => ({ readings: s.readings.map((r) => r.name), constants: [...s.constants], lookbacks: [...s.lookbacks], operators: [...s.operators],
   max_tokens: s.max_tokens, max_depth: s.max_depth });
 
-module.exports = { SCHEMA, MARKETS, OPERATORS_PATH, SpaceError, parseSpace, verifyFreeze, dslSpaceOf };
+module.exports = { SCHEMA, MARKETS, OPERATORS_PATH, CLOCK_ORDER, SpaceError, parseSpace, verifyFreeze, dslSpaceOf };
