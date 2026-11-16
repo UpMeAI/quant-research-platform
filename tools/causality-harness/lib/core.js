@@ -271,6 +271,7 @@ function runFunction(spec, ctx) {
   need(gate.FUNCTION_ID.test(fid), 'FUNCTION_ID_INVALID', fid);
   const runner = spec.runner || 'node';
   need(gate.RUNNERS.includes(runner), 'RUNNER_INVALID', `${fid}:${runner}`);
+  need(spec.role === undefined || gate.FUNCTION_ROLES.includes(spec.role), 'FUNCTION_ROLE_INVALID', `${fid}:${spec.role}`); // A1：成交函数标 FILL
   need(Array.isArray(spec.inputs) && spec.inputs.length, 'INPUTS_MISSING', fid);
   const output = spec.output || {};
   need(['ALIGNED', 'KEYED', 'AT_POINT'].includes(output.align), 'OUTPUT_SPEC_INVALID', fid);
@@ -378,7 +379,7 @@ function runFunction(spec, ctx) {
   for (const k of Object.keys(reasons)) if (reasons[k] === undefined) delete reasons[k];
   const status = (k) => (reasons[k] ? 'FAIL' : 'PASS');
   return {
-    function_id: fid, path: spec.path, entry: spec.entry, runner, file_sha256: sha256(fs.readFileSync(sourceFile)),
+    function_id: fid, path: spec.path, entry: spec.entry, runner, ...(spec.role !== undefined ? { role: spec.role } : {}), file_sha256: sha256(fs.readFileSync(sourceFile)),
     inputs: inputs.map((i) => ({ name: i.name, file: i.file, file_sha256: i.file_sha256, rows: i.rows.length, availability: i.availability, intraday: i.intraday, key_fields: i.key_fields, keep_fields: i.keep_fields })),
     call: spec.call || {}, output, static_reads: staticReads.map(({ abs: _a, ...rest }) => rest), ...(spec.session ? { session: spec.session } : {}), segment_boundaries: spec.segment_boundaries || [],
     cut_points: cuts.map(iso), calls: jobs.length, isolation: ctx.isolation, sandbox: { mode, runtime },

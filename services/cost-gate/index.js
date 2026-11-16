@@ -166,19 +166,32 @@ function selfDeclared(at, run, id, reg) {
   return { model_id: id, source: 'RUN_LOG_ROW', floor_market: market, commission_bps: own.commission_bps, slippage_bps: own.slippage_bps };
 }
 
-/** 一行运行：角色与阶段取台账登记行，按门内 / 只看信号 / 其余判读数种类与成本。 */
-function checkRun(entry, run, i, regs) {
-  const at = `${entry.id}:runs[${run.config_label || i}]`;
+/** 本族、本 K2 的预登记行（角色、阶段、市场都从这里读）。 */
+const registrations = (entry) => ledger.trialRows().filter((r) => r.row_kind === 'REGISTRATION' && r.family_id === entry.strategy_ref && r.k2_sha256 === entry.k2.sha256);
+/** 一行运行对应的预登记行；运行行自己写的 role / stage / rule_config_hash 必须与它一致。 */
+function registrationOf(at, run, regs) {
   need(ledger.TRIAL_ID.test(run.trial_id || ''), 'RUN_TRIAL_ID_MISSING', at);
   const reg = regs.find((r) => r.trial_id === run.trial_id);
   need(reg, 'TRIAL_NOT_REGISTERED', `${at}:${run.trial_id}`);
   need(run.role === undefined || run.role === reg.role, 'ROLE_MISMATCH', `${at}:role ${run.role}≠${reg.role}`);
   need(run.stage === undefined || run.stage === reg.stage, 'ROLE_MISMATCH', `${at}:stage ${run.stage}≠${reg.stage}`);
   need(run.rule_config_hash === undefined || run.rule_config_hash === reg.rule_config_hash, 'RUN_TRIAL_MISMATCH', `${at}:rule_config_hash`);
+  return reg;
+}
+/** §2.2、§2.3：登记行 → COST_GATED（门内）/ SIGNAL_ONLY（只看信号）/ OUT_OF_SCOPE。 */
+const scopeOf = (reg) => (reg.role === SIGNAL_ROLE || reg.stage === SIGNAL_STAGE ? 'SIGNAL_ONLY'
+  : IN_SCOPE_ROLES.includes(reg.role) && IN_SCOPE_STAGES.includes(reg.stage) ? 'COST_GATED' : 'OUT_OF_SCOPE');
+const familyRuns = (entry, doc) => doc.runs.filter((r) => r.family_id === entry.strategy_ref);
+const atOf = (entry, run, i) => `${entry.id}:runs[${run.config_label || i}]`;
+
+/** 一行运行：角色与阶段取台账登记行，按门内 / 只看信号 / 其余判读数种类与成本。 */
+function checkRun(entry, run, i, regs) {
+  const at = atOf(entry, run, i);
+  const reg = registrationOf(at, run, regs);
   const kind = run.verdict_metric_kind;
   need(RETURN_KINDS.includes(kind) || SIGNAL_KINDS.includes(kind), 'METRIC_KIND_INVALID', `${at}:${kind}`);
-  const signalOnly = reg.role === SIGNAL_ROLE || reg.stage === SIGNAL_STAGE;
-  const scope = signalOnly ? 'SIGNAL_ONLY' : IN_SCOPE_ROLES.includes(reg.role) && IN_SCOPE_STAGES.includes(reg.stage) ? 'COST_GATED' : 'OUT_OF_SCOPE';
+  const scope = scopeOf(reg);
+  const signalOnly = scope === 'SIGNAL_ONLY';
   const row = { trial_id: run.trial_id, role: reg.role, stage: reg.stage, scope, verdict_metric_kind: kind };
   if (signalOnly) {
     need(SIGNAL_KINDS.includes(kind), 'SIGNAL_RETURN_CLAIM', `${at}:${reg.role}/${reg.stage}:${kind}`);
@@ -209,8 +222,8 @@ function check(entry, { runLogBytes = () => null } = {}, { effectiveFrom = DEFAU
   if (!scope.applies) return { applies: false, reason: scope.reason };
   need(addendum.isBound(freeze), 'FREEZE_UNBOUND', `${entry.id}:${freeze && freeze.path}:${freeze && freeze.state}`);
   const doc = parseRunLog(entry, runLogBytes());
-  const regs = ledger.trialRows().filter((r) => r.row_kind === 'REGISTRATION' && r.family_id === entry.strategy_ref && r.k2_sha256 === entry.k2.sha256);
-  const family = doc.runs.filter((r) => r.family_id === entry.strategy_ref);
+  const regs = registrations(entry);
+  const family = familyRuns(entry, doc);
   need(family.length, 'NO_RUNS', `${entry.id}:${entry.strategy_ref}`);
   const rows = family.map((r, i) => checkRun(entry, r, i, regs));
   const gated = rows.filter((r) => r.scope === 'COST_GATED');
@@ -221,6 +234,20 @@ function check(entry, { runLogBytes = () => null } = {}, { effectiveFrom = DEFAU
   return { applies: true, state: gated.length ? 'PASS' : 'SIGNAL_ONLY', effective_from: effectiveFrom, k2_frozen_at: entry.k2_frozen_at,
     freeze: { path: freeze.path, sha256: freeze.sha256, state: freeze.state },
     cost_gated_runs: gated.length, signal_only_runs: signal.length, other_runs: rows.length - gated.length - signal.length, cost_models: [...models.values()] };
+}
+
+/**
+ * A1（附录 1 §1.1，因果门的成交函数）读的范围：同一套过门判断与行分类（不另写），只回答「这一题是否在 G-COST 范围内、门内有几行、冻结页是否已绑定」。
+ * 不判成本、不判读数种类（那些留给 check）；不在范围内时不读运行日志。
+ */
+function costGatedScope(entry, runLogBytes = () => null, { effectiveFrom = DEFAULTS.effectiveFrom, freeze = DEFAULTS.freeze } = {}) {
+  const scope = applies(entry, effectiveFrom);
+  if (!scope.applies) return { applies: false, reason: scope.reason };
+  const doc = parseRunLog(entry, runLogBytes());
+  const regs = registrations(entry);
+  const rows = familyRuns(entry, doc).map((run, i) => ({ trial_id: run.trial_id, scope: scopeOf(registrationOf(atOf(entry, run, i), run, regs)) }));
+  return { applies: true, effective_from: effectiveFrom, freeze: { path: freeze && freeze.path, sha256: freeze && freeze.sha256, state: freeze && freeze.state },
+    freeze_bound: addendum.isBound(freeze), cost_gated_runs: rows.filter((r) => r.scope === 'COST_GATED').length, rows: rows.length };
 }
 
 /** 测试用：临时替换门的默认读法（导入器那处调用不带选项），返回还原函数。 */
@@ -236,6 +263,6 @@ function withDefaults(patch, fn) {
 
 module.exports = {
   FREEZE, EFFECTIVE_FROM, RUN_LOG_SCHEMA, IN_SCOPE_ROLES, IN_SCOPE_STAGES, SIGNAL_ROLE, SIGNAL_STAGE, RETURN_KINDS, SIGNAL_KINDS, ALWAYS_GROSS, CATALOGUE, FLOORS,
-  CostGateError, modelIdOf, classify, floorMarketOf, applies, check,
-  internals: { parseRunLog, checkRun, buildCatalogue, setDefaults, withDefaults },
+  CostGateError, modelIdOf, classify, floorMarketOf, applies, check, costGatedScope,
+  internals: { parseRunLog, checkRun, scopeOf, buildCatalogue, setDefaults, withDefaults },
 };

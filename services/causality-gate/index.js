@@ -20,11 +20,21 @@
  *
  * 生效时刻取冻结页（E13 / G14 同一个常量，在 services/research-framework-amendment-20261112，与 G-MECH 共用）：此刻及之后冻结的 K2 过门，此前已冻结的不追溯。
  * 证据要写出 contract_ref（本冻结页的路径 + sha256 前缀），过门时核对。
+ *
+ * A1（研究框架修订 2026-11-12 附录 1 §1、§1.1，成交函数纳入因果门）：过门的题里，K2 冻结不早于附录 1 的生效时刻（FILL_EFFECTIVE_FROM，
+ * ../research-framework-amendment-20261112-addendum-1，与 G-COST 同一个常量），且 G-COST 门内至少一行（范围判断用 ../cost-gate 的 costGatedScope，不另写）：
+ *   - 附录 1 冻结页未绑定 → CAUSALITY_FREEZE_UNBOUND；
+ *   - K2 写 `G-CAUSAL N/A: <码>` → CAUSALITY_SCOPE_FILL_NOT_EXEMPT，只有 RISK_K_OR_ACCOUNT_LAYER 放行（§1「不适用：风控层调 k、账户层」；协调会话 11-16 裁定，以 §1 为准）；
+ *   - K2 的 CF 函数在证据里没有一个标 role: FILL → CAUSALITY_FILL_FUNCTIONS_MISSING。
+ * 范围之外照旧，返回值逐字节不变；范围之内返回值多一个 fill_scope 块。证据函数的 role 可选（FUNCTION_ROLES），不写的现有证据照旧有效。
  */
 const crypto = require('crypto');
 const { validateRecord } = require('../../schemas');
 const { canonicalJson } = require('../trial-ledger');
 const amendment = require('../research-framework-amendment-20261112');
+const addendum1 = require('../research-framework-amendment-20261112-addendum-1');
+/** 成本门晚加载：只在过门的题判 A1 范围时才读（它在加载时要读适配器目录）。 */
+const costGate = () => require('../cost-gate');
 
 const SCHEMA = 'CAUSALITY_EVIDENCE_V1';
 /** 冻结页（E1：path + sha256）与生效时刻，都从共用模块读：G-MECH（E13）与 G-CAUSAL（G14）是同一个常量，不各自另写。 */
@@ -51,12 +61,19 @@ const FUNCTION_ID = /^[a-z0-9][a-z0-9-]*:[A-Za-z0-9_./-]+#[A-Za-z0-9_.$]+$/;
 const CF_IN_TEXT = /`CF:([^`\s]+)`/g;
 const NA_IN_TEXT = /G-CAUSAL N\/A:\s*([A-Z_]+)/g;
 const MAX_MISMATCHES = 20;
+/** A1：附录 1 的生效时刻（不早于 FREEZE_1）；证据函数可选的角色（修订 §3.2 列的四类加成交函数）。 */
+const FILL_EFFECTIVE_FROM = addendum1.EFFECTIVE_FROM;
+const FUNCTION_ROLES = Object.freeze(['SIGNAL', 'FEATURE', 'SCORE', 'FILTER', 'FILL']);
+const FILL_ROLE = 'FILL';
+/** A1 范围内唯一放行的不适用码（附录 1 §1）；COST_EXECUTION、ABLATION、DEFECT_OR_ENGINEERING、DESCRIPTIVE_NO_PERFORMANCE 都拒绝。 */
+const FILL_EXEMPT_NA = 'RISK_K_OR_ACCOUNT_LAYER';
 
 class CausalityGateError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
 }
 const fail = (code, detail) => { throw new CausalityGateError(`CAUSALITY_${code}`, detail); };
 const need = (condition, code, detail) => { if (!condition) fail(code, detail); };
+need(Date.parse(FILL_EFFECTIVE_FROM) >= Date.parse(EFFECTIVE_FROM), 'EFFECTIVE_FROM_INVALID', `FILL_EFFECTIVE_FROM ${FILL_EFFECTIVE_FROM} < ${EFFECTIVE_FROM}`); // A1 的范围在 G-CAUSAL 的范围之内
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isoAt = (v) => typeof v === 'string' && /[zZ]|[+-]\d{2}:\d{2}$/.test(v) && Number.isFinite(Date.parse(v));
@@ -84,6 +101,7 @@ function checkFunction(doc, fn, i) {
   need(Array.isArray(fn.mismatches) && fn.mismatches.length <= MAX_MISMATCHES, 'EVIDENCE_MISMATCHES_INVALID', fn.function_id);
   need(isObj(fn.fail_reasons), 'EVIDENCE_FUNCTION_INVALID', `${fn.function_id}:fail_reasons`);
   for (const t of TESTS) need((fn[t] === 'FAIL') === isText(fn.fail_reasons[t]), 'EVIDENCE_FAIL_REASON_INVALID', `${fn.function_id}:${t}`);
+  need(fn.role === undefined || FUNCTION_ROLES.includes(fn.role), 'EVIDENCE_FUNCTION_ROLE_INVALID', `${fn.function_id}:${fn.role}`);
 }
 
 /** 解析并核对一份证据（字节已按 sha256 复验）。不对 FAIL 拒绝，只核结构与 record_hash。 */
@@ -170,6 +188,17 @@ function runLogCommit(entry, runLogBytes, repo) {
 const summary = (doc) => doc.functions.map((f) => ({ function_id: f.function_id, t_c1: f.t_c1, t_c2: f.t_c2, t_c3: f.t_c3 }));
 
 /**
+ * A1 的范围（附录 1 §1.1）：附录 1 生效之后冻结、G-COST 门内至少一行的 RESULT。范围之外返回 null（调用方什么都不加）。
+ * 范围之内而附录 1 冻结页未绑定 → 失败即关。
+ */
+function fillScope(entry, runLogBytes) {
+  const s = costGate().costGatedScope(entry, runLogBytes);
+  if (!s.applies || !s.cost_gated_runs) return null;
+  need(s.freeze_bound, 'FREEZE_UNBOUND', `${entry.id}:${s.freeze.path}:${s.freeze.state}`);
+  return { applies: true, effective_from: s.effective_from, freeze_sha256: s.freeze.sha256, cost_gated_runs: s.cost_gated_runs };
+}
+
+/**
  * 导入器调用：原有校验与 G-TRIAL 门都通过之后。
  * @param {object} entry 登记表一题
  * @param {{k2Bytes: () => Buffer, evidenceBytes: () => Buffer|null, runLogBytes: () => Buffer|null, rulingBytes: () => Buffer|null}} files 按 sha256 复验后的字节
@@ -198,12 +227,14 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
       unknown_keys: Object.keys(doc.unknown).sort(), functions: summary(doc) };
   }
 
+  const fill = fillScope(entry, runLogBytes);
   const { cf, na } = declaration(k2Bytes().toString('utf8'));
   need(!(cf.length && na.length) && na.length <= 1, 'SCOPE_CONFLICT', entry.id);
   if (na.length) {
     need(NOT_APPLICABLE_CODES.includes(na[0]), 'SCOPE_CODE_INVALID', `${entry.id}:${na[0]}`);
+    need(!fill || na[0] === FILL_EXEMPT_NA, 'SCOPE_FILL_NOT_EXEMPT', `${entry.id}:${na[0]}`);
     need(!bound && !entry.causality_ruling, 'SCOPE_CONFLICT', `${entry.id}:N/A_WITH_EVIDENCE`);
-    return { applies: true, state: 'NOT_APPLICABLE', effective_from: effectiveFrom, not_applicable_code: na[0] };
+    return { applies: true, state: 'NOT_APPLICABLE', effective_from: effectiveFrom, not_applicable_code: na[0], ...(fill ? { fill_scope: fill } : {}) };
   }
   need(cf.length, 'SCOPE_MISSING', entry.id);
   for (const id of cf) need(FUNCTION_ID.test(id), 'K2_FUNCTION_ID_INVALID', `${entry.id}:${id}`);
@@ -221,6 +252,8 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
   const ids = doc.functions.map((f) => f.function_id);
   for (const id of cf) need(ids.includes(id), 'FUNCTION_NOT_IN_EVIDENCE', `${entry.id}:${id}`);
   for (const id of ids) need(cf.includes(id), 'FUNCTION_NOT_IN_K2', `${entry.id}:${id}`);
+  const fillIds = doc.functions.filter((f) => f.role === FILL_ROLE).map((f) => f.function_id);
+  if (fill) need(fillIds.length, 'FILL_FUNCTIONS_MISSING', `${entry.id}:${ids.join(',')}`);
 
   const ruling = rulingOf(entry, rulingBytes);
   const used = [];
@@ -246,11 +279,12 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
   }
   return { applies: true, state: used.length ? 'DEVIATION_ACCEPTED' : 'PASS', effective_from: effectiveFrom, evidence_sha256: entry.causality_evidence.sha256,
     evidence_record_hash: doc.record_hash, contract_ref: doc.contract_ref, harness_version: doc.harness_version, code_repo: doc.code_repo, code_sha: doc.code_sha, functions: summary(doc),
-    ...(used.length ? { deviations: used } : {}), ...(ruling ? { ruling_ref: ruling.ref, ruling_sha256: ruling.sha256 } : {}) };
+    ...(used.length ? { deviations: used } : {}), ...(ruling ? { ruling_ref: ruling.ref, ruling_sha256: ruling.sha256 } : {}),
+    ...(fill ? { fill_scope: { ...fill, fill_functions: fillIds } } : {}) };
 }
 
 module.exports = {
-  SCHEMA, FREEZE, CONTRACT_REF, EFFECTIVE_FROM, SEED, CUT_POINTS, HARNESS_VERSIONS, TESTS, TEST_LABEL, STATUSES, RUNNERS, AVAILABILITY_RULES, NOT_APPLICABLE_CODES,
+  SCHEMA, FREEZE, CONTRACT_REF, EFFECTIVE_FROM, FILL_EFFECTIVE_FROM, FUNCTION_ROLES, FILL_ROLE, FILL_EXEMPT_NA, SEED, CUT_POINTS, HARNESS_VERSIONS, TESTS, TEST_LABEL, STATUSES, RUNNERS, AVAILABILITY_RULES, NOT_APPLICABLE_CODES,
   FUNCTION_ID, SHA64, SHA40, MAX_MISMATCHES, CausalityGateError, recordHash, runCommitKey, parseEvidence, declaration, applies, check,
-  internals: { rulingOf, runLogCommit },
+  internals: { rulingOf, runLogCommit, fillScope },
 };
