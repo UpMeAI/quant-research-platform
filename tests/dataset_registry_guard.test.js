@@ -37,8 +37,22 @@ test('DRQ-2 QRP 还不是登记表里的系统（KG 消费方登记的 PR 合并
   assert.throws(() => scan.scanRepository({ root: path.join(__dirname, '..'), system: 'QRP', registry: datasetRegistry.pinned().registry }), /DATASET_REGISTRY_UNKNOWN_SYSTEM:QRP/);
 });
 
+test('DRQ-4 钉过的每一份都留在 history/（按 sha，逐个文件复验），并包含现在钉的这一份；历史里的一份被改即拒', () => {
+  const history = datasetRegistry.history();
+  const pinned = datasetRegistry.pinned();
+  assert.ok(history.has(`${pinned.registry_version}#${pinned.registry_sha256}`));
+  for (const h of history.values()) assert.equal(h.dir, `${h.registry_version}-${h.registry_sha256.slice(0, 8)}`);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-drq-h-'));
+  fs.cpSync(DIR, dir, { recursive: true });
+  const first = [...history.values()][0];
+  fs.appendFileSync(path.join(dir, 'history', first.dir, 'dataset-registry-scan.cjs'), '\n// drift\n');
+  assert.throws(() => datasetRegistry.history({ dir }), /DATASET_REGISTRY_PIN_DRIFT/);
+  fs.rmSync(path.join(dir, 'history', 'HISTORY.json'));
+  assert.throws(() => datasetRegistry.history({ dir }), /DATASET_REGISTRY_FILE_MISSING/);
+});
+
 test('DRQ-3 副本漂移即拒：登记表或扫描器的字节与 PIN 不符、登记表版本与 PIN 不符、PIN 缺文件', () => {
-  const copy = () => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-drq-')); for (const f of fs.readdirSync(DIR)) fs.copyFileSync(path.join(DIR, f), path.join(dir, f)); return dir; };
+  const copy = () => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-drq-')); fs.cpSync(DIR, dir, { recursive: true }); return dir; };
   const drifted = copy();
   const doc = JSON.parse(fs.readFileSync(path.join(drifted, 'datasets.v1.json'), 'utf8'));
   doc.datasets[0].title += ' (edited)';

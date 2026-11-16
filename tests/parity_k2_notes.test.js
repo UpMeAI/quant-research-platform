@@ -90,12 +90,13 @@ test('BASIS：数据集写了 priceBasis（字符串或列表）时记号必须�
   assert.deepEqual(gate.DEFAULT_BASIS_GROUPS.map((g) => [...g]), [['PRICE', 'TOTAL_RETURN'], ['RAW', 'SPLIT_ADJ', 'FULL_ADJ']]);
 });
 
-test('VENDOR：记号的供应方必须是数据集 vendor 按逗号拆开、去空白后的一项，否则 PARITY_VENDOR_MISMATCH；没写时只记', () => {
+test('VENDOR：和数据集 vendor 按逗号拆开、去空白后的各项比，只记 MATCH / MISMATCH，不拒（协调会话 01:2x 裁定第 3 条）；没写时只记', () => {
   const reg = withFields({ SMARTFLOW_U11_UNDERLYING_FACTS: { vendor: 'SEC EDGAR, Alpaca' }, ALPACA_1M_HISTORY: { vendor: 'Alpaca' } });
   const k2 = (t) => `${K2_NO_TOKENS}${t}\n`;
-  assert.equal(direct({ k2: k2(tok('SMARTFLOW_U11_UNDERLYING_FACTS', { pit: 'ACCEPTANCE_TIME', vendor: 'Alpaca' })), registry: reg }).data_inputs[0].vendor_check, 'CHECKED');
-  assert.equal(direct({ k2: k2(tok('SMARTFLOW_U11_UNDERLYING_FACTS', { pit: 'ACCEPTANCE_TIME', vendor: 'SEC EDGAR' })), registry: reg }).data_inputs[0].vendor_check, 'CHECKED');
-  refuses(() => direct({ k2: k2(tok('ALPACA_1M_HISTORY', { vendor: 'Alpaca SIP' })), registry: reg }), 'VENDOR_MISMATCH');
+  assert.equal(direct({ k2: k2(tok('SMARTFLOW_U11_UNDERLYING_FACTS', { pit: 'ACCEPTANCE_TIME', vendor: 'Alpaca' })), registry: reg }).data_inputs[0].vendor_check, 'MATCH');
+  assert.equal(direct({ k2: k2(tok('SMARTFLOW_U11_UNDERLYING_FACTS', { pit: 'ACCEPTANCE_TIME', vendor: 'SEC EDGAR' })), registry: reg }).data_inputs[0].vendor_check, 'MATCH');
+  const mismatch = direct({ k2: k2(tok('ALPACA_1M_HISTORY', { vendor: 'Alpaca SIP' })), registry: reg });
+  assert.deepEqual([mismatch.state, mismatch.data_inputs[0].vendor_check, mismatch.data_inputs[0].registry_vendor], ['PASS', 'MISMATCH', ['Alpaca']]);
   assert.equal(direct({ k2: k2(tok('SMARTFLOW_US_1M', { vendor: 'Yahoo' })), registry: reg }).data_inputs[0].vendor_check, 'PENDING_REGISTRY_FIELD');
 });
 

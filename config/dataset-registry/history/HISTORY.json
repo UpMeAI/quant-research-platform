@@ -1,0 +1,15 @@
+{
+  "schema": "DATASET_REGISTRY_HISTORY_V1",
+  "note": "Every KG dataset registry copy QRP has pinned, kept by sha (coordinator ruling 2026-11-17 01:2x). tools/dataset-registry-repin/repin.js adds the incoming and keeps the outgoing copy; never edit or delete an entry.",
+  "entries": [
+    {
+      "version": "1.11.0",
+      "commit": "12afd2fcb23f274630e01aad13d84f26f6c407f4",
+      "dir": "1.11.0-d8a17a3e",
+      "files": {
+        "datasets.v1.json": "d8a17a3ee6e23e59494176eb818d7dc46fde382da032878eeb729af0855ba687",
+        "dataset-registry-scan.cjs": "461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af"
+      }
+    }
+  ]
+}
