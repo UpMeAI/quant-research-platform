@@ -19,16 +19,16 @@ const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const PIN = JSON.parse(fs.readFileSync(path.join(DIR, 'PIN.json'), 'utf8'));
 const scan = require(path.join(DIR, 'dataset-registry-scan.cjs'));
 
-test('DRQ-0 登记表与扫描器是钉住的 KG 副本（322ff69b，登记表 1e32a26c…，1.13.0），与生产钉的相同（smartflow 2e958543；V6 在 #119 合并前仍记 83ab3af1）', () => {
+test('DRQ-0 登记表与扫描器是钉住的 KG 副本（a738d3b5，登记表 c5aabf57…，1.14.0），与 V6 钉的相同（85d188ec）；smartflow 在 #165 合并前仍记 2e958543（1.13.0）', () => {
   assert.equal(PIN.repository, 'wendy926/knowledge-graph');
-  assert.equal(PIN.commit, '322ff69b28bf05efa3ef7b9ed75cb31504ac35f9');
-  assert.equal(PIN.files['datasets.v1.json'], '1e32a26ca509d5dd82ad6123665ed8bb13495fd1f832b78d29b70f5450f8d94d');
+  assert.equal(PIN.commit, 'a738d3b52f552f48ae62017712b72c82c9365d2c');
+  assert.equal(PIN.files['datasets.v1.json'], 'c5aabf570888b15eb6cb3f24e40e6e9364bbb0024bd8a217e9f8918b5775f209');
   assert.equal(PIN.files['dataset-registry-scan.cjs'], '461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af');
   for (const [file, hash] of Object.entries(PIN.files)) assert.equal(sha256(fs.readFileSync(path.join(DIR, file))), hash, file);
   const pinned = datasetRegistry.pinned();
-  assert.deepEqual([pinned.commit, pinned.registry_version, pinned.registry_sha256, pinned.datasets.size], [PIN.commit, '1.13.0', PIN.files['datasets.v1.json'], 35]);
+  assert.deepEqual([pinned.commit, pinned.registry_version, pinned.registry_sha256, pinned.datasets.size], [PIN.commit, '1.14.0', PIN.files['datasets.v1.json'], 37]);
   assert.deepEqual(PIN.production_pins.map((p) => [p.repository, p.commit]), [
-    ['ashare-v6', '83ab3af185c86cd2a21269ce918e49017f8876b3'],
+    ['ashare-v6', '85d188ec7294962a45b71632a3684d913b2f28c2'],
     ['smartflow', '2e9585434853cbd6dc97769e32687ee530125f1c'],
   ]);
 });
@@ -47,6 +47,8 @@ test('DRQ-4 钉过的每一份都留在 history/（按 sha，逐个文件复验�
   const history = datasetRegistry.history();
   const pinned = datasetRegistry.pinned();
   assert.ok(history.has(`${pinned.registry_version}#${pinned.registry_sha256}`));
+  // 1.13.0 留着：K2 里可能已有钉在 1.13.0 的记号
+  assert.deepEqual([...history.values()].map((h) => h.registry_version), ['1.11.0', '1.13.0', '1.14.0']);
   for (const h of history.values()) assert.equal(h.dir, `${h.registry_version}-${h.registry_sha256.slice(0, 8)}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-drq-h-'));
   fs.cpSync(DIR, dir, { recursive: true });

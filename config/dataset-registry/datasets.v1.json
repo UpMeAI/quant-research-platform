@@ -1,6 +1,6 @@
 {
   "schemaVersion": "DATASET_REGISTRY_V1",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "adopted": "Coordinator ruling 2026-10-20: AUDIT_DATA_FLOW_DUPLICATES_2026-10-20 §6 A1–A10 adopted as the data-flow acceptance; P0 = this registry, the G2 guard in Cycle Atlas, Ashare-V6 and smartflow, and a freeze on new non-owner collectors.",
   "decisions": [
     "IC-A3 (Owner 2026-10-18): official sources are collected once, by the Cycle Atlas data chains; raw data is stored once.",
@@ -23,17 +23,24 @@
     "U11 (B) single-stock underlying forward shadow (coordinator rulings 2026-11-14 S1 / R1 / G1 on the K2 draft US_ETF_VALUATION_GATE_B_SHADOW_K2_V1; SEC terms record US_ETF_VALUATION_GATE_SEC_TERMS_RECORD_V1, sha256 7f634c68…): SMARTFLOW_U11_UNDERLYING_FACTS is registered as smartflow's shadow-and-research input before T_start. Its signature is the record contracts, not an SEC host: sec.gov is also read by Cycle Atlas's FINMAP numeric pages and smartflow's pre-open facts, and who owns SEC as a source (IC-A3; the 10-27 draft's US_COMPANY_FACTS_SEC_XBRL) stays open.",
     "US 1 minute stores (proposed by the AQuA session on 2026-11-16 under the Owner's 「Start the four」 (queue.log AQUA_FOUR STARTED 2026-11-16T12:51:27+08:00), adopted when the coordinator merges knowledge-graph #365): smartflow's two US 1 m stores are registered as smartflow-owned research inputs. SMARTFLOW_US_1M is the Yahoo forward archive of each completed regular session (smartflow #134, pm2 us-1m-archive on the smartflow host since 2026-11-10). ALPACA_1M_HISTORY is the Alpaca SIP 1Min history from 2016, in raw and all (smartflow #136; the store holds 2016-01 → 2026-11-09 on the smartflow host). Both are signed by their contract names, not by a host: query1.finance.yahoo.com and data.alpaca.markets are also read by smartflow's trading workers for other data, and a host signature would make every such read a finding. No other system collects or reads either store.",
     "US point-in-time research data source (Owner APPROVAL_1 2026-11-17 00:13:36–00:14:20 CST 「研究判「做」；批美股数据源（默认）」 on artifacts/coordinator/US_PIT_RESEARCH_DATA_SOURCE_DECISION_20261117.approved.b6c50849.md, ★1–★5 all default): research and live read one dataset from one producer, the smartflow U11 (B) EDGAR collector extended (same SEC client, same acceptance-time known_at rule). US_EQUITY_PIT_FREE_V1 is registered as smartflow's TRADING_PATH dataset, with QRP added as a consumer-only system that reads sha256-verified copies on the Linux research lane. As for U11, it is signed by its contract names, not by the sec.gov or Alpaca hosts (approved §5.1 names those hosts as its sources; as scanner signatures they would flag Cycle Atlas's own FinMap SEC readers), and who owns SEC as a source under IC-A3 stays open. US mining stays OFF until V1–V5 pass the ★1 gate (unpriced weight ≤ 1% in every holdings filing and an annual tracking gap ≤ 50 bps), the research-framework revision P1 is merged and the thresholds are frozen.",
-    "Research-live parity (Owner SIGNATURE_1 2026-11-17 ~00:23 CST on RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md, EFFECTIVE_FROM 2026-11-17T00:24:00+08:00; ★2 (a) research follows live, ★5 (a) QRP pins this registry like V6 and smartflow): one dataset, one producer; research and live are both consumers; each entry states pitSemantics (the live value; research must declare the same in its K2 data row, which QRP's G-PARITY checks, QRP #99), vendor and, for prices, priceBasis; new PIT values enter the registry-level pitSemantics list first (QRP reads it as an array). 1.13.0 registers the datasets research already used but the registry did not list (§4 P-2, P-3, P-6, P-7 and the coordinator's list of 2026-11-17), each with its producer, its consumers (QRP added where research reads it), its PIT semantics with the open parity gap, and its signature. A gap is recorded, not closed: the fixes are separate changes (P-2 producer choice, P-6 research known-at, P-7 membership snapshots). V6_INTRADAY_BAR_ARCHIVE is registered with status PLANNED_INACTIVE (Ashare-V6 #116, switch off by default). QRP gets scan roots (adapters, apps, ops, packages, services, tools; its pinned copy under config/ is not scanned), so its DRQ-2 becomes a real scan; QRP origin/main 4ea2176 has no finding."
+    "Research-live parity (Owner SIGNATURE_1 2026-11-17 ~00:23 CST on RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md, EFFECTIVE_FROM 2026-11-17T00:24:00+08:00; ★2 (a) research follows live, ★5 (a) QRP pins this registry like V6 and smartflow): one dataset, one producer; research and live are both consumers; each entry states pitSemantics (the live value; research must declare the same in its K2 data row, which QRP's G-PARITY checks, QRP #99), vendor and, for prices, priceBasis; new PIT values enter the registry-level pitSemantics list first (QRP reads it as an array). 1.13.0 registers the datasets research already used but the registry did not list (§4 P-2, P-3, P-6, P-7 and the coordinator's list of 2026-11-17), each with its producer, its consumers (QRP added where research reads it), its PIT semantics with the open parity gap, and its signature. A gap is recorded, not closed: the fixes are separate changes (P-2 producer choice, P-6 research known-at, P-7 membership snapshots). V6_INTRADAY_BAR_ARCHIVE is registered with status PLANNED_INACTIVE (Ashare-V6 #116, switch off by default). QRP gets scan roots (adapters, apps, ops, packages, services, tools; its pinned copy under config/ is not scanned), so its DRQ-2 becomes a real scan; QRP origin/main 4ea2176 has no finding.",
+    "A-share stock inputs for the first AI-mining round (coordinator 2026-11-17, after RESEARCH_LIVE_PARITY_V1): V6_CN_STOCK_DAILY_BARS (Tushare daily + adj_factor) and V6_CN_STOCK_DAILY_BASIC (Tushare daily_basic) are registered as V6-owned TRADING_PATH datasets with QRP as consumer; V6 stays the only collector. Their live PIT is V6's first observation (OBSERVED_AT); the clock their history carries is stated in pitHistoricalClock (see the #369 review line below). Three PIT names enter the list (CBOE_NEXT_DAY_0030_ET, CBOE_SAME_DAY_2130_ET, END_OF_FOLLOWING_MONTH_CONSERVATIVE): US_VOLATILITY_INDEX takes one whole; US_MARKET_PSYCHOLOGY, MACRO_CN_OFFICIAL and CN_MARKET_PSYCHOLOGY get pitSemanticsBySeries and keep the dataset-level value absent because their series differ.",
+    "1.14.0 review (#369, coordinator 2026-11-17): pitHistoricalClock states the clock rows carry in history beside the live pitSemantics (rule, or bySeries, plus detail). V6 stock bars: prices_daily.known_at = trade-date 15:00 CST by trigger (migrations 186 / 187), V6's own historical-evaluation clock, so research and live history agree. daily_basic and adj_factor have no known_at column (migrations 031, 006): dated at the trade-date close, usable from the next open only, disclosed (CLOSE_DATED_NEXT_OPEN_USABLE). END_OF_FOLLOWING_MONTH_CONSERVATIVE and the Cycle Atlas T1 rule (NEXT_DAY_0000_CST) are defined as the code has them."
   ],
   "pitSemantics": [
     "NEXT_TRADING_DAY_0900_CST",
     "ANNOUNCEMENT_NEXT_DAY_0000",
     "IN_DATE",
     "VISIBLE_PARTIAL_BAR",
-    "UNKNOWN"
+    "UNKNOWN",
+    "CBOE_NEXT_DAY_0030_ET",
+    "CBOE_SAME_DAY_2130_ET",
+    "END_OF_FOLLOWING_MONTH_CONSERVATIVE",
+    "CLOSE_DATED_NEXT_OPEN_USABLE",
+    "NEXT_DAY_0000_CST"
   ],
   "pitSemanticsDefinitions": {
-    "OBSERVED_AT": "The instant the producer first stored the row in production (its first_available_at / ingest time).",
+    "OBSERVED_AT": "The instant the producer first stored the row in production (its first_available_at / ingest time). A dataset's history may use another clock; it is stated in its pitHistoricalClock.",
     "ANNOUNCEMENT_NEXT_OPEN": "The open of the first trading session after the announcement.",
     "ACCEPTANCE_TIME": "SEC EDGAR acceptanceDateTime of the filing (UTC as stated). The fallback for a filing known only by its filing date differs by dataset and is stated in its pitParity (US_EQUITY_PIT_FREE_V1: the next NYSE trading day's 09:30 New York open; SMARTFLOW_U11_UNDERLYING_FACTS: none, known_at null).",
     "BAR_CLOSE": "The bar's own close: a bar is visible only once its interval has ended.",
@@ -42,7 +49,12 @@
     "ANNOUNCEMENT_NEXT_DAY_0000": "00:00 CST of the day after the announcement date (V6 research replay for statements; f_ann_date, else ann_date, else the statutory deadline).",
     "IN_DATE": "00:00 CST of the membership's in_date (V6 research replay for SW2021 membership).",
     "VISIBLE_PARTIAL_BAR": "The forming bar is visible before its interval ends (C17 live reads the last, unfinished kline).",
-    "UNKNOWN": "No availability instant can be stated; never treated as known (RESEARCH_LIVE_PARITY_V1 P-6)."
+    "UNKNOWN": "No availability instant can be stated; never treated as known (RESEARCH_LIVE_PARITY_V1 P-6).",
+    "CBOE_NEXT_DAY_0030_ET": "Day T is usable from T+1 00:30 New York; live, the file's Last-Modified raises the instant if later (Cycle Atlas NEXT_DAY_0030_ET: worker-cf/src/sources/mpt/us/cboe-put-call.ts:7–9, :16; the RSP/SPY breadth uses the same rule, breadth-series.ts:11, :20).",
+    "CBOE_SAME_DAY_2130_ET": "Day T is usable at T 21:30 New York once both Cboe VIX and VIX3M history files carry it; Last-Modified raises it if later (Cycle Atlas SAME_DAY_2130_ET: worker-cf/src/sources/mpt/us/cboe-vix.ts:4–5, :11).",
+    "END_OF_FOLLOWING_MONTH_CONSERVATIVE": "known_at = the earlier of the capture instant and 00:00 CST on the 1st of the month after next (the month after the data month ends); a value captured before that bound is known at its capture (basis OBSERVED_AT_INGESTION). KG worker-cf/scripts/cycle-readings/lib/macro-data/catalog.cjs:197–202; V6 src/macro-data/catalog.js:198–203.",
+    "CLOSE_DATED_NEXT_OPEN_USABLE": "History without a stored known_at: a row is dated at its trade-date close (15:00 CST) and usable from the next session's open only, disclosed (coordinator ruling 2026-11-17 on #369 for V6 daily_basic and adj_factor history; the same convention as the P-14 backfill ruling).",
+    "NEXT_DAY_0000_CST": "Cycle Atlas T1 for date-only official figures: a figure of day D captured at or after D+1 00:00 CST (a late run, a backfill, history) is stamped D+1 00:00 CST; a live capture before that, not before the same-day floor, is first public when first seen (OBSERVED_AT); a backfill captured earlier waits for a later capture. KG worker-cf/src/sources/mpt/cn/common.ts:105–115 (firstPublicT1)."
   },
   "priceBasisVocabulary": {
     "format": "<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>; a dataset that keeps two series lists both",
@@ -321,7 +333,18 @@
           "note": "V6 macro readings inputs: scheduled Tushare cn_* in MARKET_PIVOT, NBS/PBOC official pages, PMI release anchors, captures and their ingest."
         }
       ],
-      "vendor": "Tushare, NBS, PBOC"
+      "vendor": "Tushare, NBS, PBOC",
+      "pitSemanticsBySeries": {
+        "cn_pmi": "OBSERVED_AT",
+        "cn_cpi": "OBSERVED_AT",
+        "cn_ppi": "OBSERVED_AT",
+        "cn_gdp": "OBSERVED_AT",
+        "cn_m": "OBSERVED_AT",
+        "sf_month": "END_OF_FOLLOWING_MONTH_CONSERVATIVE",
+        "nbs_pboc_official_snapshot": "OBSERVED_AT"
+      },
+      "parityFieldsEvidence": "KG worker-cf/scripts/cycle-readings/lib/macro-data/catalog.cjs:12–28, :79–80, :184, :197–202; worker-cf/src/cycle-atlas/readings-capture/lane.ts:17–18",
+      "pitSemanticsBySeriesNote": "nbs_pboc_official_snapshot is a descriptive label for the NBS / PBOC official-page snapshots (lane.ts:17–18), not a code id; the other keys are the catalog's Tushare dataset names."
     },
     {
       "id": "MACRO_US_CYCLE",
@@ -460,7 +483,29 @@
           "MP-9": "scripts/mpt/cn/v6.sh: CN.CSI300_REALIZED_VOL_20D from V6's 沪深 300 closes (V6_CSI300_INDEX_DAILY consumer entry, interim to 2026-12-31)"
         }
       },
-      "vendor": "SSE, SZSE, SWS, V6 (Tushare)"
+      "vendor": "SSE, SZSE, SWS, V6 (Tushare)",
+      "pitSemanticsBySeries": {
+        "CN-1": "OBSERVED_AT",
+        "CN-2": "NEXT_TRADING_DAY_0900_CST",
+        "CN-3": "OBSERVED_AT",
+        "CN-4": "OBSERVED_AT",
+        "CN-5": "OBSERVED_AT",
+        "MP-8": "OBSERVED_AT",
+        "MP-9": "OBSERVED_AT"
+      },
+      "parityFieldsEvidence": "KG worker-cf/src/sources/mpt/cn/common.ts:83–89, :112–116; worker-cf/src/sources/mpt/cn/series.ts:152, :171",
+      "pitHistoricalClock": {
+        "bySeries": {
+          "CN-1": "NEXT_DAY_0000_CST",
+          "CN-2": "NEXT_TRADING_DAY_0900_CST",
+          "CN-3": "NEXT_DAY_0000_CST",
+          "CN-4": "NEXT_DAY_0000_CST",
+          "CN-5": "NEXT_DAY_0000_CST",
+          "MP-8": "NEXT_DAY_0000_CST",
+          "MP-9": "NEXT_DAY_0000_CST"
+        },
+        "detail": "Backfills and history use the T1 stamp (NEXT_DAY_0000_CST, common.ts:105–115); live captures before T1 are OBSERVED_AT (pitSemanticsBySeries). CN-2 margin uses T2 in both."
+      }
     },
     {
       "id": "US_MARKET_PSYCHOLOGY",
@@ -484,7 +529,14 @@
         }
       ],
       "knownViolations": [],
-      "vendor": "Cboe"
+      "vendor": "Cboe",
+      "pitSemanticsBySeries": {
+        "US.EQUITY_PUT_CALL": "CBOE_NEXT_DAY_0030_ET",
+        "US.TOTAL_PUT_CALL": "CBOE_NEXT_DAY_0030_ET",
+        "US.RSP_SPY_63D": "CBOE_NEXT_DAY_0030_ET",
+        "US.VIX_VIX3M": "CBOE_SAME_DAY_2130_ET"
+      },
+      "parityFieldsEvidence": "KG worker-cf/src/sources/mpt/us/cboe-put-call.ts:7–9, :16; breadth-series.ts:11, :20; cboe-vix.ts:4–5, :11"
     },
     {
       "id": "SW_L1_INDEX_CLOSES",
@@ -711,7 +763,9 @@
       ],
       "knownViolations": [],
       "vendor": "Cboe (Cycle Atlas), Yahoo (smartflow)",
-      "priceBasis": "PRICE/RAW"
+      "priceBasis": "PRICE/RAW",
+      "pitSemantics": "CBOE_SAME_DAY_2130_ET",
+      "parityFieldsEvidence": "KG worker-cf/src/sources/mpt/us/cboe-vix.ts:4–5, :11 (Cycle Atlas capture). smartflow's trading gates read their own Yahoo ^VIX intraday under the registered TRADING_PATH exception (src/services/us-market-regime.js:62, :102–104): not this dataset's PIT."
     },
     {
       "id": "ALL_A_CROSS_SECTION",
@@ -1597,13 +1651,147 @@
       "priceBasisNote": "RAW (exchange klines)",
       "vendor": "Binance",
       "priceBasis": "PRICE/RAW"
+    },
+    {
+      "id": "V6_CN_STOCK_DAILY_BARS",
+      "title": "A-share stock daily bars (Tushare daily: open, high, low, close, pre_close, volume, amount) as V6 stores them, raw, with the Tushare adj_factor series beside them; back-adjusted only at use",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator 2026-11-17 (first AI-mining round; RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a); V6 is the only collector of the Tushare all-A daily data (IC-A14, as ALL_A_CROSS_SECTION).",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "src/data-runtime/sync-service.js",
+          "src/data-runtime/canonicalize.js",
+          "src/data-runtime/current-data-preparation.js",
+          "src/data-runtime/full-market-day-sync.js",
+          "src/data-runtime/bulk-market-backfill-repository.js"
+        ],
+        "note": "Tushare daily (tushare-client.js:391, getDaily) and adj_factor (:515, getAdjustmentFactors); dataset specs sync-service.js:55–59 (daily) and :73–77 (adj_factor); every accepted row is stamped first_available_at = ingest instant (sync-service.js:444–450); the batch is RAW (:519). Bars go to prices_daily (db/migrations/001_phase1_foundation.sql:76–98; canonical adjustmentMode RAW_WITH_SEPARATE_ADJUSTMENT_FACTOR, canonicalize.js:68); factors to adjustment_factor_observation (ADJUSTMENT_FACTOR_OBSERVATION_V1, canonicalize.js:130–134). The DAILY chain writes all three: full-market-day-sync.js:358–361 → bulk-market-backfill-repository.js persistDay :278–338 (observedAt = the operational clock). Disclosure: scripts/backfill-convexity-corpus-outcomes.js:248–250, :571–577 calls persistDay with firstAvailableAtForRow = trade date 15:30 CST; if that script ever ran on production, first_available_at holds mixed semantics (ingest instants and 15:30 stamps)."
+      },
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "History: research and V6's historical evaluation both read prices_daily.known_at (D 15:00, migrations 186 / 187; known-at.js:14–16, :76, :84). Live rows are OBSERVED_AT (V6's first observation). adj_factor history follows CLOSE_DATED_NEXT_OPEN_USABLE; the replay's session-close dating of adj_factor (known-at.js:76) is later tightened to the next open per the ruling."
+      },
+      "vendor": "Tushare",
+      "priceBasis": "PRICE/RAW",
+      "adjustmentFactor": {
+        "series": "adj_factor",
+        "table": "adjustment_factor_observation",
+        "covers": "splits, bonus shares and cash dividends (Tushare adj_factor)",
+        "useAs": "back-adjusted at use with the latest adj_factor known at decision time: close × adj_factor(d) / adj_factor(latest known at the decision instant) gives TOTAL_RETURN/FULL_ADJ; the factor row has its own first_available_at (sync-service.js:200–212) and, in history, the CLOSE_DATED_NEXT_OPEN_USABLE clock"
+      },
+      "signatures": {
+        "tokens": [
+          "ADJUSTMENT_FACTOR_OBSERVATION_V1"
+        ]
+      },
+      "signaturesNote": "V6's adjustment factor observation contract (canonicalize.js:134) marks a second writer. prices_daily carries no contract name of its own and Tushare's daily is too generic a name to scan; V6 is the only collector.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Live books and the DAILY chain; the research replay (m1-ingestion.js bars)."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "The first AI-mining round reads V6's rows from a sha256-verified export: live rows by OBSERVED_AT; history by the historical clock above (pitHistoricalClock). No QRP Tushare reader."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.14.0 (coordinator 2026-11-17, first AI-mining round).",
+      "parityFieldsEvidence": "V6 src/data-runtime/sync-service.js:444–450 (first_available_at = ingest), :519 (RAW), :200–212 (adj_factor clock); canonicalize.js:68, :130–134; research known-at.js:14–16, :76, :84",
+      "pitHistoricalClock": {
+        "bySeries": {
+          "daily": "BAR_CLOSE",
+          "adj_factor": "CLOSE_DATED_NEXT_OPEN_USABLE"
+        },
+        "detail": "daily: prices_daily.known_at = trade date 15:00 Asia/Shanghai, set by trigger on insert (migration 186_known_at_daily_observation_clock.sql) and derived for existing rows (187_known_at_existing_row_derivation.sql); it is V6's own historical-evaluation clock (src/research/history-replay/known-at.js:14–16, :76, :84). adj_factor: adjustment_factor_observation has no known_at column (migration 006_data_runtime.sql), so history is dated at the trade-date close and usable from the next open only (coordinator ruling, disclosed)."
+      },
+      "units": {
+        "volume_shares": "lots (手, 100 shares) despite the column name (Tushare daily vol)",
+        "turnover_amount_cny": "CNY: Tushare amount (thousand CNY) × 1000",
+        "evidence": "bulk-market-backfill-repository.js:363–394 (columns written by persistDay); per the #369 review"
+      }
+    },
+    {
+      "id": "V6_CN_STOCK_DAILY_BASIC",
+      "title": "A-share stock daily basics (Tushare daily_basic: turnover_rate_f, total_mv, circ_mv, pe_ttm, pb, ps_ttm, dv_ttm and the rest of the row) as V6 stores them",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator 2026-11-17 (first AI-mining round; RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a); V6 is the only collector.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "src/data-runtime/sync-service.js",
+          "src/data-runtime/canonicalize.js",
+          "src/data-runtime/current-data-preparation.js",
+          "src/data-runtime/full-market-day-sync.js",
+          "src/data-runtime/bulk-market-backfill-repository.js"
+        ],
+        "note": "Tushare daily_basic (tushare-client.js:413, getDailyBasic); spec sync-service.js:61–65; first_available_at = ingest instant (sync-service.js:444–450). Rows go to market_daily_basic_observation (MARKET_DAILY_BASIC_OBSERVATION_V1, canonicalize.js:72–85, the field list at :72–75); The DAILY chain writes all three: full-market-day-sync.js:358–361 → bulk-market-backfill-repository.js persistDay :278–338 (observedAt = the operational clock). Disclosure: scripts/backfill-convexity-corpus-outcomes.js:248–250, :571–577 calls persistDay with firstAvailableAtForRow = trade date 15:30 CST; if that script ever ran on production, first_available_at holds mixed semantics (ingest instants and 15:30 stamps)."
+      },
+      "fields": [
+        "turnover_rate",
+        "turnover_rate_f",
+        "volume_ratio",
+        "pe",
+        "pe_ttm",
+        "pb",
+        "ps",
+        "ps_ttm",
+        "dv_ratio",
+        "dv_ttm",
+        "total_share",
+        "float_share",
+        "free_share",
+        "total_mv",
+        "circ_mv",
+        "close"
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "GAP: the replay dates daily_basic at the session close D 15:00 (known-at.js:14–16, :76, :84); the ruling for its history is usable from the next open only (CLOSE_DATED_NEXT_OPEN_USABLE). Research follows the ruling (★2 (a)). Live rows are OBSERVED_AT."
+      },
+      "vendor": "Tushare",
+      "signatures": {
+        "tokens": [
+          "MARKET_DAILY_BASIC_OBSERVATION_V1"
+        ]
+      },
+      "signaturesNote": "V6's daily basic observation contract (canonicalize.js:85) marks a second writer.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Live books, ALL_A_CROSS_SECTION's aggregates and the research replay (m1-ingestion.js basic)."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "The first AI-mining round reads V6's rows from a sha256-verified export: live rows by OBSERVED_AT; history by the historical clock above (pitHistoricalClock). No QRP Tushare reader."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.14.0 (coordinator 2026-11-17, first AI-mining round).",
+      "parityFieldsEvidence": "V6 src/data-runtime/sync-service.js:61–65, :444–450 (first_available_at = ingest); canonicalize.js:72–85; research known-at.js:14–16, :76, :84",
+      "pitHistoricalClock": {
+        "rule": "CLOSE_DATED_NEXT_OPEN_USABLE",
+        "detail": "market_daily_basic_observation has no known_at column (migration 031_market_daily_basic_observation.sql): history is dated at the trade-date close and usable from the next open only (coordinator ruling 2026-11-17, disclosed)."
+      }
     }
   ],
   "parityFieldsPending": {
-    "MACRO_CN_OFFICIAL": "MIXED: cn_pmi / cpi / ppi / gdp / m and the NBS / PBOC snapshots are OBSERVED_AT, sf_month uses the earlier of capture and a conservative end of the following month (no vocabulary value) (KG catalog.cjs:12–28, :184). vendor set; pitSemantics left absent.",
-    "CN_MARKET_PSYCHOLOGY": "MIXED: CN-1/3/4/5, MP-8, MP-9 live OBSERVED_AT (backfills next day 00:00), CN-2 margin NEXT_TRADING_DAY_0900_CST (KG sources/mpt/cn/common.ts:83–89, :112–116; series.ts:152, :171). vendor set; pitSemantics left absent.",
-    "US_MARKET_PSYCHOLOGY": "MIXED and outside the vocabulary: put/call next day 00:30 ET, VIX / VIX3M same day 21:30 ET, both moved later by Last-Modified (KG sources/mpt/us/cboe-put-call.ts:7–16, cboe-vix.ts:4–11). vendor set; pitSemantics left absent until the two rules enter the list.",
-    "US_VOLATILITY_INDEX": "MIXED: Cycle Atlas Cboe same day 21:30 ET; smartflow's trading gates read Yahoo ^VIX's last daily element intraday (src/services/us-market-regime.js:62, :102–104). vendor and priceBasis set; pitSemantics left absent.",
+    "MACRO_CN_OFFICIAL": "MIXED by series (pitSemanticsBySeries): sf_month END_OF_FOLLOWING_MONTH_CONSERVATIVE, the others OBSERVED_AT. vendor set; dataset-level value absent for the same reason.",
+    "CN_MARKET_PSYCHOLOGY": "MIXED by series (pitSemanticsBySeries): CN-2 margin NEXT_TRADING_DAY_0900_CST, the others OBSERVED_AT live and NEXT_DAY_0000_CST in history (pitHistoricalClock). vendor set; dataset-level value absent because QRP's gate keys off one value per dataset id.",
+    "US_MARKET_PSYCHOLOGY": "MIXED by series (pitSemanticsBySeries): put/call and the RSP/SPY breadth CBOE_NEXT_DAY_0030_ET, VIX/VIX3M CBOE_SAME_DAY_2130_ET. The dataset-level value stays absent because QRP's gate keys off one value per dataset id; a K2 row on one series needs a series-level key or a split entry (coordinator).",
     "SW_L1_INDEX_CLOSES": "usableFrom is the later of next day 00:00 and the capture (KG industry-cycle/index-closes.ts:77–79): no single vocabulary value. vendor and priceBasis set; pitSemantics left absent.",
     "VALUATION_SNAPSHOTS": "Producer code is on smartflow branch research/valuation-snapshots-interim only, not main; all three fields left absent.",
     "INDUSTRY_CYCLE_PHASE": "Derived nightly snapshot; evidence low confidence (KG industry-cycle/phase3/units.ts:64, :253); all three fields left absent.",
