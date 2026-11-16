@@ -215,7 +215,21 @@ function correct(trialId, result, { registeredBy, defectRef, registeredAt = null
 
 /** 本族截至 asOf 的 N：计入 N 的角色里不同 rule_config_hash 的个数，加 UNCOUNTED_HISTORY 的已知下限。 */
 function count(familyId, { asOf = null, rows = null } = {}) {
-  const live = [...heads((rows || trialRows()).filter(asOfFilter(asOf))).values()].filter((r) => r.family_id === familyId);
+  return { family_id: familyId, as_of: asOf, ...tally(liveRows((r) => r.family_id === familyId, { asOf, rows })) };
+}
+
+/**
+ * 一个市场截至 asOf 的 N（RF1116 §4.3 赛马：DSR 的 N = 本市场自己的累计尝试数，从不跨市场合并）：口径同 count，只是按市场而不是按族取行。
+ * marketOf 把台账行的 market（如 CRYPTO_USDM_PERP、US_EQUITY、CN_A）归到榜的市场；归不进的行不计。
+ */
+function countMarket(market, { marketOf, asOf = null, rows = null } = {}) {
+  need(typeof marketOf === 'function', 'MARKET_OF_REQUIRED');
+  return { market, as_of: asOf, ...tally(liveRows((r) => marketOf(r.market) === market, { asOf, rows })) };
+}
+
+const liveRows = (keep, { asOf = null, rows = null } = {}) => [...heads((rows || trialRows()).filter(asOfFilter(asOf))).values()].filter(keep);
+
+function tally(live) {
   const hashes = new Set(live.filter((r) => COUNTS_IN_N.has(r.role)).map((r) => r.rule_config_hash));
   const uncounted = live.filter((r) => r.role === 'UNCOUNTED_HISTORY');
   const pendingArms = live.filter((r) => r.unknown && r.unknown.arms);
@@ -226,7 +240,7 @@ function count(familyId, { asOf = null, rows = null } = {}) {
     ...(pendingArms.length ? [`K2_ARMS_NOT_CATALOGUED×${new Set(pendingArms.map((r) => r.study_ref)).size}`] : []),
   ];
   return {
-    family_id: familyId, as_of: asOf, n_raw: hashes.size + uncounted.reduce((a, r) => a + (r.uncounted_lower_bound || 0), 0),
+    n_raw: hashes.size + uncounted.reduce((a, r) => a + (r.uncounted_lower_bound || 0), 0),
     n_distinct_configs: hashes.size, n_uncounted_lower_bound: uncounted.reduce((a, r) => a + (r.uncounted_lower_bound || 0), 0),
     n_is_lower_bound: lowerBoundReasons.length > 0, lower_bound_reasons: lowerBoundReasons, rows: live.length, by_role: byRole, by_mode: byMode,
     studies: new Set(live.map((r) => r.study_ref)).size,
@@ -235,9 +249,17 @@ function count(familyId, { asOf = null, rows = null } = {}) {
 
 /** 进方差 V 的 ŜR：本族计入 N 的账本级试验，一配置一个（同配置取最后登记的数值）。 */
 function familySharpes(familyId, { asOf = null, rows = null } = {}) {
+  return sharpesOf((r) => r.family_id === familyId, { asOf, rows });
+}
+/** 同 familySharpes，按市场取行（赛马的 DSR 用本市场的 V）。 */
+function marketSharpes(market, { marketOf, asOf = null, rows = null } = {}) {
+  need(typeof marketOf === 'function', 'MARKET_OF_REQUIRED');
+  return sharpesOf((r) => marketOf(r.market) === market, { asOf, rows });
+}
+function sharpesOf(keep, { asOf = null, rows = null } = {}) {
   const byHash = new Map();
   for (const r of heads((rows || trialRows()).filter(asOfFilter(asOf))).values()) {
-    if (r.family_id !== familyId || !COUNTS_IN_N.has(r.role) || !BOOK_LEVEL.has(r.stage) || !isNum(r.sr_monthly_delta)) continue;
+    if (!keep(r) || !COUNTS_IN_N.has(r.role) || !BOOK_LEVEL.has(r.stage) || !isNum(r.sr_monthly_delta)) continue;
     byHash.set(r.rule_config_hash, { trial_id: r.trial_id, sr: r.sr_monthly_delta });
   }
   return [...byHash.values()];
@@ -419,6 +441,6 @@ const disclosures = (filter = {}) => read(DISCLOSURES()).filter((r) => r.schema 
 module.exports = {
   TRIALS, SEGMENTS, DISCLOSURES, ROLES, COUNTS_IN_N, STAGES, BOOK_LEVEL, MODES, LABELS, SEEN_KINDS, METRIC_KEYS, TRIAL_ID, SHA64,
   TrialLedgerError, canonicalJson, ruleConfigHash, evalHash, trialIdOf, recordHash, trialRows, heads, headOf,
-  register, recordResult, correct, count, familySharpes, markSegments, segmentsFor, segmentLabels, disclose, discloseNotApplicable, NOT_APPLICABLE_FIELDS, disclosures, seriesStats,
+  register, recordResult, correct, count, countMarket, familySharpes, marketSharpes, markSegments, segmentsFor, segmentLabels, disclose, discloseNotApplicable, NOT_APPLICABLE_FIELDS, disclosures, seriesStats,
   internals: { authority, need, fail, sameRegistration },
 };

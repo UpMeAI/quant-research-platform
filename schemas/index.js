@@ -344,6 +344,16 @@ const SCHEMAS = Object.freeze({
     horizon: 'o', economic_logic_zh: 's', origin: 's', mining: 'o?', status: 's', mechanism_id: 's?', rule_ref: 'o?', weight_in_rule: 'o?', composite: 'o?',
     correlation: 'o', dedupe: 'o', evidence: 'o', source: 'o?', code_refs: 'a', unverified: 'a',
   },
+  RACE_MANIFEST_V1: {
+    _doc: '研究框架修订 2026-11-16 §4.3（RF1116，签字 fd22876f / 39f8c17c）—— 赛马清单：一个市场、一个分区（层）、冠军与挑战者、同一引擎 / 窗口 / 成本模型、主指标、护栏、晋级名额（≤ 2）；协调会话冻结（冻结页写出清单 sha256 与 FROZEN），清单 sha 写进每个参赛者的试验台账行（k2_sha256）',
+    race_ref: 's', market: 's', partition: 's', periods_per_year: 'n', engine: 'o', window: 'o', cost_model: 'o', primary_metric: 's', guardrails: 'o',
+    pbo_max: 'n', promotion_slots: 'n', champion: 'o', challengers: 'a',
+  },
+  RACE_V2: {
+    _doc: '研究框架修订 2026-11-16 §4（RACE_V2）—— 一场按市场、按层分区的赛马：OPEN 行记冻结的清单、入场线、G-COST 的成本模型；CLOSED 行加 outcome（淘汰线、按本市场 N 的 DSR 或 BHY、分区 PBO、排名、晋级 ≤ 2）；台账 races_v2.jsonl，旧 RACE_RUN_V1 台账不动',
+    race_id: 's', status: 's', market: 's', partition: 's', manifest_sha256: 's', freeze: 'o', manifest: 'o', signed: 'o', entry: 'a', cost_model: 'o',
+    outcome: 'o?', production_effect: 's', opened_at: 's', closed_at: 's?', record_hash: 's',
+  },
   SIGNAL_REGISTRY_ROW_V1: {
     _doc: 'SIGNAL_REGISTRY_V1 的一行（rows[] 与 books[].blocks[].rollup）；windows 为 bookSinceStart / currentVersion / previousVersion',
     rowId: 's', ledgerId: 's', market: 's', partId: 's?', signalKey: 's', signalCodes: 'a', ruleRefs: 'a', entries: 'n',
