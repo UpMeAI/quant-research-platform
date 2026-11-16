@@ -58,8 +58,8 @@ test('过门、数据输入齐全 → PASS：数据集在钉住的登记表里�
   assert.equal(r.state, 'PASS');
   assert.deepEqual(r.registry, { commit: REG.commit, registry_version: VERSION, registry_sha256: SHA });
   assert.deepEqual(r.data_inputs, [
-    { dataset_id: 'V6_CSI300_INDEX_DAILY', registry_version: VERSION, registry_sha256: SHA, pit_semantics: 'BAR_CLOSE', vendor: 'Tushare', pit_check: 'PENDING_REGISTRY_FIELD', basis_check: 'PENDING_REGISTRY_FIELD', vendor_check: 'PENDING_REGISTRY_FIELD' },
-    { dataset_id: 'SMARTFLOW_U11_UNDERLYING_FACTS', registry_version: VERSION, registry_sha256: SHA, pit_semantics: 'ACCEPTANCE_TIME', vendor: 'SEC EDGAR', pit_check: 'PENDING_REGISTRY_FIELD', basis_check: 'PENDING_REGISTRY_FIELD', vendor_check: 'PENDING_REGISTRY_FIELD' },
+    { dataset_id: 'V6_CSI300_INDEX_DAILY', registry_version: VERSION, registry_sha256: SHA, pit_semantics: 'BAR_CLOSE', vendor: 'Tushare', pin_check: 'CURRENT', pit_check: 'PENDING_REGISTRY_FIELD', basis_check: 'NOT_APPLICABLE_PRE_FIELD', vendor_check: 'NOT_APPLICABLE_PRE_FIELD' },
+    { dataset_id: 'SMARTFLOW_U11_UNDERLYING_FACTS', registry_version: VERSION, registry_sha256: SHA, pit_semantics: 'ACCEPTANCE_TIME', vendor: 'SEC EDGAR', pin_check: 'CURRENT', pit_check: 'PENDING_REGISTRY_FIELD', basis_check: 'NOT_APPLICABLE_PRE_FIELD', vendor_check: 'NOT_APPLICABLE_PRE_FIELD' },
   ]);
   assert.deepEqual(r.ai_inputs, [{ ref: 'synth/facts.json', archive_ref: 'synth/archive.jsonl', archive_sha256: 'b'.repeat(64), ai_logic_pin_sha256: gate.pinHash(PIN) }]);
   assert.equal(r.decision, undefined); // 门不读、不写结论

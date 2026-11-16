@@ -17,7 +17,10 @@
  *     登记表的数据集写了 PIT 语义（字段 pitSemantics，字符串或列表）时必须是其中之一 → 否则 PARITY_PIT_SEMANTICS_MISMATCH；
  *     可选的 |BASIS=<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>（登记表的 priceBasisVocabulary）：数据集写了 priceBasis（字符串或列表）时记号必须带 BASIS
  *     （否则 PARITY_PRICE_BASIS_MISSING）且是其中之一（否则 PARITY_PRICE_BASIS_MISMATCH）；VENDOR 必须是数据集 vendor 按逗号拆开、去空白后的一项
- *     （否则 PARITY_VENDOR_MISMATCH）。登记表字段没有或为 null 的，记 PENDING_REGISTRY_FIELD（只报，不拒）。
+ *     （VENDOR_ENFORCED 为 false：只记 MATCH / MISMATCH，不拒，等 KG 加规范的 vendorIds）。登记表字段没有或为 null 的，记 PENDING_REGISTRY_FIELD（只报，不拒）。
+ *   登记表的历史（协调会话 2026-11-17 01:2x 裁定）：记号钉的是 QRP 现在钉的版本 → 照旧；钉的是更早的版本 → 那一版要在 history 里
+ *     （否则 PARITY_PIN_MISMATCH「VERSION_NOT_IN_HISTORY」），且这个数据集的一致性字段从那一版到现在没变（否则 PARITY_PIN_MISMATCH「DATASET_CHANGED:<字段>」）。
+ *     BASIS 与 VENDOR 只对钉在有这两个字段的版本上的记号核（版本里的数据集带 priceBasis / vendor 键）；更早的记号只核登记与 PIT，两项记 NOT_APPLICABLE_PRE_FIELD。
  *   AI 输入（§2）：entry.ai_inputs 每一项带 ai_logic_pin（AI_LOGIC_PIN_V1）与 production_archive{ref, sha256, ai_logic_pin}（实盘存档输出的钉值）；
  *     缺钉值、钉值不完整、没有存档可核、与存档的钉值不同 → PARITY_AI_LOGIC_MISMATCH。
  *   不过门的题：照原样导入，锁行不加字段。
@@ -39,6 +42,9 @@ const REGISTRY_BASIS_VOCAB_FIELD = 'priceBasisVocabulary';
 const DEFAULT_BASIS_GROUPS = Object.freeze([Object.freeze(['PRICE', 'TOTAL_RETURN']), Object.freeze(['RAW', 'SPLIT_ADJ', 'FULL_ADJ'])]);
 const PENDING = 'PENDING_REGISTRY_FIELD';
 const CHECKED = 'CHECKED';
+const PRE_FIELD = 'NOT_APPLICABLE_PRE_FIELD';
+/** 裁定第 3 条：VENDOR 只记不拒，直到 KG 加上规范的 vendorIds；代码路径保留。 */
+const VENDOR_ENFORCED = false;
 const AI_PIN_SCHEMA = 'AI_LOGIC_PIN_V1';
 const DATA_TOKEN = /`DATA:([^`]*)`/g;
 const DATA_HEAD = /^([A-Z0-9][A-Z0-9_]*)@(\d+\.\d+\.\d+)#([0-9a-f]{64})((?:\|[A-Z]+=[^|]*)+)$/;
@@ -149,9 +155,9 @@ function mergedInputs(entry, sources) {
  * 导入器调用：原有校验与 G-TRIAL、G-MECH、G-CAUSAL、G-COST 都通过之后。
  * @param {object} entry 登记表一题
  * @param {{k2Bytes: () => Buffer, noteBytes?: () => Buffer[]}} files 按 sha256 复验后的 K2 字节与冻结附注字节（entry.k2_notes 的顺序；只在过门时才读）
- * @param {{effectiveFrom?: string, registry?: object}} [opts] 只给测试用；导入器不传，取签字页的生效时刻与 QRP 钉住的登记表
+ * @param {{effectiveFrom?: string, registry?: object, history?: Map}} [opts] 只给测试用；导入器不传，取签字页的生效时刻、QRP 钉住的登记表与它的历史
  */
-function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = DEFAULTS.effectiveFrom, registry = null } = {}) {
+function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = DEFAULTS.effectiveFrom, registry = null, history = null } = {}) {
   const scope = applies(entry, effectiveFrom);
   if (!scope.applies) return { applies: false, reason: scope.reason };
   need(parity.isBound(), 'SIGNATURE_UNBOUND', parity.SIGNATURE.path);
@@ -164,12 +170,25 @@ function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = 
   need(inputs.length, 'DATA_INPUTS_MISSING', entry.id);
   const allowed = new Set([...PIT_SEMANTICS, ...(reg.pit_semantics || [])]);
   const [basisA, basisB] = basisGroups(reg);
+  let hist = history;
   const rows = inputs.map((d) => {
     const at = `${entry.id}:${d.dataset_id}`;
     const ds = reg.datasets.get(d.dataset_id);
     need(ds, 'DATASET_UNREGISTERED', at);
-    need(d.registry_version === reg.registry_version && d.registry_sha256 === reg.registry_sha256, 'PIN_MISMATCH',
-      `${at}:${d.registry_version}#${d.registry_sha256.slice(0, 8)}≠${reg.registry_version}#${reg.registry_sha256.slice(0, 8)}`);
+    // 记号钉的版本：现在钉的，或历史里的一份（那一版里这个数据集的一致性字段到现在没变）
+    let pinnedReg = reg;
+    let pinCheck = 'CURRENT';
+    if (!(d.registry_version === reg.registry_version && d.registry_sha256 === reg.registry_sha256)) {
+      if (!hist) hist = datasetRegistry.history();
+      const older = hist.get(`${d.registry_version}#${d.registry_sha256}`);
+      need(older, 'PIN_MISMATCH', `${at}:VERSION_NOT_IN_HISTORY:${d.registry_version}#${d.registry_sha256.slice(0, 8)}`);
+      const then = older.datasets.get(d.dataset_id);
+      need(then, 'PIN_MISMATCH', `${at}:DATASET_NOT_IN_PINNED_VERSION:${d.registry_version}`);
+      const changed = datasetRegistry.changedFields(then, ds);
+      need(!changed.length, 'PIN_MISMATCH', `${at}:DATASET_CHANGED:${changed.join(',')}`);
+      pinnedReg = older;
+      pinCheck = 'HISTORY_UNCHANGED';
+    }
     need(allowed.has(d.pit_semantics), 'PIT_SEMANTICS_MISMATCH', `${at}:${d.pit_semantics}:NOT_IN_ENUM_OR_REGISTRY`);
     const pit = ds[REGISTRY_PIT_FIELD];
     if (!absent(pit)) need(listOf(pit).includes(d.pit_semantics), 'PIT_SEMANTICS_MISMATCH', `${at}:${d.pit_semantics}≠${listOf(pit).join(',')}`);
@@ -177,17 +196,30 @@ function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = 
       const [a, b, extra] = d.price_basis.split('/');
       need(extra === undefined && basisA.includes(a) && basisB.includes(b), 'DATA_INPUT_INVALID', `${at}:BASIS=${d.price_basis}`);
     }
+    // BASIS：只对钉在有 priceBasis 字段的版本上的记号核
     const basis = ds[REGISTRY_BASIS_FIELD];
-    if (!absent(basis)) {
-      need(d.price_basis !== undefined, 'PRICE_BASIS_MISSING', `${at}:registry ${listOf(basis).join(',')}`);
-      need(listOf(basis).includes(d.price_basis), 'PRICE_BASIS_MISMATCH', `${at}:${d.price_basis}≠${listOf(basis).join(',')}`);
+    let basisCheck = PRE_FIELD;
+    if (datasetRegistry.hasField(pinnedReg, REGISTRY_BASIS_FIELD)) {
+      basisCheck = absent(basis) ? PENDING : CHECKED;
+      if (!absent(basis)) {
+        need(d.price_basis !== undefined, 'PRICE_BASIS_MISSING', `${at}:registry ${listOf(basis).join(',')}`);
+        need(listOf(basis).includes(d.price_basis), 'PRICE_BASIS_MISMATCH', `${at}:${d.price_basis}≠${listOf(basis).join(',')}`);
+      }
     }
+    // VENDOR：只对钉在有 vendor 字段的版本上的记号比；只记 MATCH / MISMATCH，VENDOR_ENFORCED 为 false 时不拒
     const vendor = ds[REGISTRY_VENDOR_FIELD];
-    if (!absent(vendor)) {
-      const vendors = listOf(vendor).flatMap((v) => String(v).split(',')).map((v) => v.trim()).filter(Boolean);
-      need(vendors.includes(d.vendor), 'VENDOR_MISMATCH', `${at}:${d.vendor}≠${vendors.join(',')}`);
+    let vendorCheck = PRE_FIELD;
+    let registryVendors = null;
+    if (datasetRegistry.hasField(pinnedReg, REGISTRY_VENDOR_FIELD)) {
+      vendorCheck = PENDING;
+      if (!absent(vendor)) {
+        registryVendors = listOf(vendor).flatMap((v) => String(v).split(',')).map((v) => v.trim()).filter(Boolean);
+        vendorCheck = registryVendors.includes(d.vendor) ? 'MATCH' : 'MISMATCH';
+        if (VENDOR_ENFORCED) need(vendorCheck === 'MATCH', 'VENDOR_MISMATCH', `${at}:${d.vendor}≠${registryVendors.join(',')}`);
+      }
     }
-    return { ...d, pit_check: absent(pit) ? PENDING : CHECKED, basis_check: absent(basis) ? PENDING : CHECKED, vendor_check: absent(vendor) ? PENDING : CHECKED };
+    return { ...d, pin_check: pinCheck, pit_check: absent(pit) ? PENDING : CHECKED, basis_check: basisCheck, vendor_check: vendorCheck,
+      ...(vendorCheck === 'MISMATCH' ? { registry_vendor: registryVendors } : {}) };
   });
   const ai = checkAi(entry);
   return { applies: true, state: 'PASS', effective_from: effectiveFrom, signature: { path: parity.SIGNATURE.path, sha256: parity.SIGNATURE.sha256 },
@@ -206,5 +238,5 @@ function withDefaults(patch, fn) {
   try { return fn(); } finally { restore(); }
 }
 
-module.exports = { EFFECTIVE_FROM, PIT_SEMANTICS, REGISTRY_PIT_FIELD, REGISTRY_BASIS_FIELD, REGISTRY_VENDOR_FIELD, REGISTRY_BASIS_VOCAB_FIELD, DEFAULT_BASIS_GROUPS, AI_PIN_SCHEMA, ParityGateError, applies, check, validPin, pinHash,
+module.exports = { EFFECTIVE_FROM, VENDOR_ENFORCED, PIT_SEMANTICS, REGISTRY_PIT_FIELD, REGISTRY_BASIS_FIELD, REGISTRY_VENDOR_FIELD, REGISTRY_BASIS_VOCAB_FIELD, DEFAULT_BASIS_GROUPS, AI_PIN_SCHEMA, ParityGateError, applies, check, validPin, pinHash,
   internals: { dataInputs, mergedInputs, checkAi, setDefaults, withDefaults } };
