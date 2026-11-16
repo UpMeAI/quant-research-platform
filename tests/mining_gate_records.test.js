@@ -95,3 +95,52 @@ test('暂停只看记录：连续 3 轮记录里 0 个过 → 暂停；同样 3 
   assert.equal(rounds.pauseState('US').paused, false);
   assert.equal(rounds.pauseState('CRYPTO').paused, true);
 });
+
+// ── 协调会话 2026-11-17 的补充（同裁定 3 一类）：门槛只从钉在 QRP git 里的文件读，不收调用方给的 ─────────────
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const THRESHOLDS_PATH = path.join(__dirname, '..', 'config', 'mining_gate_thresholds.v1.json');
+const frozenFile = (patch = {}) => {
+  const doc = { ...JSON.parse(fs.readFileSync(THRESHOLDS_PATH, 'utf8')), state: 'FROZEN', frozen_ref: { path: 'synthetic/MINE_THRESHOLDS_FREEZE.md', sha256: 'a'.repeat(64) }, ...patch };
+  const p = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'mine-thr-')), 'mining_gate_thresholds.v1.json');
+  fs.writeFileSync(p, `${JSON.stringify(doc, null, 2)}\n`);
+  return { p, sha: sha(fs.readFileSync(p)), doc };
+};
+
+test('记录的门槛只来自钉住的文件：调用方给的门槛（哪怕写着 FROZEN）或别的改判定的 ctx 都拒绝；冻结文件的数照用并记下；没冻结的照旧不过；文件变了记录里的 sha 跟着变', () => {
+  const { r, ids } = scoredRound('CN_A', '2027-06-02T02:00:00Z', 4);
+  const lenient = { state: 'FROZEN', frozen_ref: { path: 'x', sha256: 'b'.repeat(64) }, ic_mean_min: -1, icir_min: -1, monotonicity_min: -1, decay_ratio_min: 0, marginal_ir_delta_min: -1, marginal_intercept_t_min: -9 };
+  assert.throws(() => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {}, ctx: { thresholds: lenient } }), code(/MINE_GATE_RECORD_THRESHOLDS_FROM_CALLER/));
+  for (const k of ['familyTrialCount', 'library', 'registerBytes', 'marks', 'asOf']) {
+    assert.throws(() => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {}, ctx: { [k]: 1 } }), code(new RegExp(`MINE_GATE_RECORD_CTX_NOT_ACCEPTED:${k}`)), k);
+  }
+  // 仓库里的文件：PENDING_FREEZE → 门失败即关，记不过；记录写出文件 sha 与用到的数
+  const repoSha = sha(fs.readFileSync(THRESHOLDS_PATH));
+  const unfrozen = records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {} });
+  assert.deepEqual([unfrozen.pass, unfrozen.codes, unfrozen.thresholds_file.sha256, unfrozen.thresholds_used.state], [false, ['MINE_THRESHOLDS_UNFROZEN'], repoSha, 'PENDING_FREEZE']);
+  assert.equal(unfrozen.family_trial_count, trials.count(`MINE:CN_A:H5`).n_raw);
+  // 冻结的文件：照它的数判，数记进记录
+  const a = frozenFile({ ic_mean_min: 0.05 });
+  const withA = records.internals.withThresholdsFile(a.p, () => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[1], candidate: {} }));
+  assert.equal(withA.codes.includes('MINE_THRESHOLDS_UNFROZEN'), false);
+  assert.deepEqual([withA.thresholds_file.sha256, withA.thresholds_used.state, withA.thresholds_used.ic_mean_min, withA.thresholds_used.frozen_ref], [a.sha, 'FROZEN', 0.05, a.doc.frozen_ref]);
+  // 文件变了 → 记录里的 sha 与数跟着变
+  const b = frozenFile({ ic_mean_min: 0.03 });
+  const withB = records.internals.withThresholdsFile(b.p, () => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[2], candidate: {} }));
+  assert.notEqual(withB.thresholds_file.sha256, withA.thresholds_file.sha256);
+  assert.equal(withB.thresholds_used.ic_mean_min, 0.03);
+  // 文件写坏了 → 不记
+  const bad = frozenFile({ icir_min: 'lenient' });
+  assert.throws(() => records.internals.withThresholdsFile(bad.p, () => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[3], candidate: {} })), code(/MINE_GATE_RECORD_THRESHOLDS_FILE_INVALID/));
+});
+
+test('G-MINE 的 THRESHOLDS 与记录用的是同一个文件（一个生产者）：数一样、状态 PENDING_FREEZE、出处是签字页', () => {
+  const gate = require('../services/mining-gate');
+  const doc = JSON.parse(fs.readFileSync(THRESHOLDS_PATH, 'utf8'));
+  assert.deepEqual([doc.schema, doc.state, doc.frozen_ref], ['MINING_GATE_THRESHOLDS_V1', 'PENDING_FREEZE', null]);
+  for (const k of gate.THRESHOLD_KEYS) assert.equal(gate.THRESHOLDS[k], doc[k], k);
+  assert.deepEqual([gate.THRESHOLDS.state, gate.THRESHOLDS.source.path, gate.THRESHOLDS.source.sha256], [doc.state, doc.source.path, doc.source.sha256]);
+  assert.deepEqual([doc.source.path, doc.source.sha256], [require('../services/factor-library').CONTRACT_REF.path, require('../services/factor-library').CONTRACT_REF.sha256]);
+});

@@ -27,6 +27,12 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 **G-MINE records and closing** (coordinator ruling 3, 2026-11-17):
 - **The count is derived, never passed in.** `closeRound` takes no pass count; passing one is refused with `MINE_ROUND_GMINE_PASSES_NOT_A_PARAMETER`. The count comes from the per-candidate records `MINING_GATE_RECORD_V1` (`research/mining_gate_records.jsonl`), and the round row keeps the basis in `gmine_basis`.
 - **Records are written by the G-MINE evaluation path.** `services/mining-rounds/gate-records.js` runs G-MINE on the candidate result itself and appends one record per candidate per round, linked to the trial row and the holdout open. A candidate passes only if the gate passes and all nine items pass. A record requires a round in `SCORING` with the candidate in the open log; duplicates are refused.
+- **Thresholds come only from the pinned file** (coordinator addition, 2026-11-17).
+  - **The file:** `config/mining_gate_thresholds.v1.json` in QRP git. It is committed as `PENDING_FREEZE` with the draft ★e values and `frozen_ref: null`. It turns `FROZEN` only through a coordinator-reviewed PR that also sets `frozen_ref`. G-MINE's own `THRESHOLDS` is read from the same file.
+  - **What the writer accepts:** no `ctx` from the caller. Caller thresholds → `MINE_GATE_RECORD_THRESHOLDS_FROM_CALLER`; any other key (`familyTrialCount`, `library`, `registerBytes`, `marks`, `asOf`) → `MINE_GATE_RECORD_CTX_NOT_ACCEPTED`.
+  - **What it uses instead:** N is taken from the trial ledger (`count(family).n_raw`) and segment marks from the trial ledger. The factor library and mechanism register are the repo's pinned copies, which are the gate's defaults.
+  - **What it records:** the file's sha256 (`thresholds_file`), the six values plus state and `frozen_ref` (`thresholds_used`), and `family_trial_count`.
+  - **While unfrozen:** while the file is `PENDING_FREEZE`, every record is `pass: false` (`MINE_THRESHOLDS_UNFROZEN`).
 - **Missing results block the close.** Any opened candidate without a record → `MINE_ROUND_GMINE_RESULT_MISSING`. A round closed without opening the holdout records 0.
 - **The pause rule counts only these records.**
 
