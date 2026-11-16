@@ -117,7 +117,8 @@ const EVIDENCE_DIR = path.join(ROOT, 'docs', 'evidence', 'mining-operators-v1');
 const evidenceBytes = () => fs.readFileSync(path.join(EVIDENCE_DIR, 'CAUSALITY_EVIDENCE_V1.json'));
 function spaceBytes(patch = {}) {
   return Buffer.from(JSON.stringify({ schema: 'MINING_SPACE_V1', space_ref: 'MS-SYNTH-1', market: 'CN_A',
-    readings: [{ name: 'close', dataset_id: 'SYNTH_DAILY', pit_available_at: 'DATE_AT 15:00 +08:00' }, { name: 'volume', dataset_id: 'SYNTH_DAILY', pit_available_at: 'DATE_AT 15:00 +08:00' }],
+    // 读数要在钉住的数据集登记表里、PIT 记号对得上（协调会话 2026-11-17）：用登记过的 V6_CSI300_INDEX_DAILY（OBSERVED_AT）
+    readings: [{ name: 'close', dataset_id: 'V6_CSI300_INDEX_DAILY', pit_available_at: 'OBSERVED_AT (synthetic)' }, { name: 'volume', dataset_id: 'V6_CSI300_INDEX_DAILY', pit_available_at: 'OBSERVED_AT (synthetic)' }],
     operators: ['rank', 'zscore', 'ts_mean', 'ts_std', 'ts_corr', 'abs'], constants: [1, 2], lookbacks: [5, 20, 60], holding_periods: [5], max_tokens: 20, max_depth: 5,
     operator_evidence: { path: 'docs/evidence/mining-operators-v1/CAUSALITY_EVIDENCE_V1.json', sha256: sha(evidenceBytes()) }, ...patch }));
 }
@@ -132,7 +133,7 @@ test('MINING_SPACE_V1：读数写 PIT 可得时刻、算子在白名单且有因
   assert.throws(() => dsl.parse('neutralize_size(close)', space.dslSpaceOf(s)), code(/MINE_DSL_OPERATOR_NOT_IN_SPACE/));
   const refuses = (patch, re, pr = proof) => assert.throws(() => space.parseSpace(spaceBytes(patch), pr), code(re));
   refuses({ operators: ['rank', 'ts_max'] }, /MINE_SPACE_OPERATOR_NOT_WHITELISTED:ts_max/);
-  refuses({ readings: [{ name: 'close', dataset_id: 'SYNTH_DAILY' }] }, /MINE_SPACE_READING_INVALID/);
+  refuses({ readings: [{ name: 'close', dataset_id: 'V6_CSI300_INDEX_DAILY' }] }, /MINE_SPACE_READING_INVALID/);
   refuses({ readings: [{ name: 'rank', dataset_id: 'X', pit_available_at: 'DATE_AT' }] }, /MINE_SPACE_READING_SHADOWS_OPERATOR/);
   refuses({ lookbacks: [5, 300] }, /MINE_SPACE_LOOKBACKS_INVALID/);
   refuses({ max_tokens: 21 }, /MINE_SPACE_MAX_TOKENS_INVALID/);

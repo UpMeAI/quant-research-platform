@@ -31,6 +31,10 @@ All refusals happen at parse time. `parse()` returns the tree, a canonical form 
 ## Search space `MINING_SPACE_V1` (`space.js`)
 
 - **Contents.** Registered readings (each with dataset id and PIT availability), a subset of the operator whitelist, a constant grid, lookbacks ≤ 250, holding periods, and `max_tokens` ≤ 20 / `max_depth` ≤ 5. The two limits can only be tightened.
+- **Readings must be registered** (coordinator, 2026-11-17).
+  - **Dataset:** each `dataset_id` must be in the pinned KG dataset registry (`services/dataset-registry`), otherwise `MINE_SPACE_READING_UNREGISTERED`.
+  - **PIT token:** `pit_available_at` must start with the registry's PIT token for that dataset, a whole token (e.g. `OBSERVED_AT …`), otherwise `MINE_SPACE_READING_PIT_MISMATCH`. A dataset with no PIT in the registry is refused the same way.
+  - **Mixed datasets** (no `pitSemantics`, a `pitSemanticsBySeries` map): the reading must carry a `series` from the map, and the PIT is checked against that series. A missing series gives `MINE_SPACE_READING_SERIES_REQUIRED` and an unknown one `…_SERIES_UNKNOWN`. A `series` on a non-mixed dataset gives `…_SERIES_NOT_ALLOWED`.
 - **Operators need proof first.** `operator_evidence {path, sha256}` binds the operator causality evidence. Every operator in the space must appear there as `role: FEATURE` with T-C1, T-C2 and T-C3 all PASS, otherwise `MINE_SPACE_OPERATOR_NOT_PROVEN_CAUSAL`.
 - **Freeze.** The freeze page must state the space's sha256, `MINING_SPACE_V1` and `FROZEN`. Changing the space mid-round makes it a new round.
 

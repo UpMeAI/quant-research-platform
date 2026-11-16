@@ -25,7 +25,8 @@ const HISTORY_DIR = 'history';
 const HISTORY_FILE = 'HISTORY.json';
 const HISTORY_SCHEMA = 'DATASET_REGISTRY_HISTORY_V1';
 /** 数据集的一致性字段（裁定第 1 条）：从记号的版本到现在，这些字段（那一版写了的）不能变。producedBy 没有时取 producer。 */
-const FINGERPRINT_FIELDS = Object.freeze(['id', 'owner', 'producedBy', 'pitSemantics', 'vendor', 'priceBasis']);
+// pitSemanticsBySeries：KG 1.14.0 起的混合数据集（协调会话 2026-11-17 裁定）；旧版本没有不算变
+const FINGERPRINT_FIELDS = Object.freeze(['id', 'owner', 'producedBy', 'pitSemantics', 'vendor', 'priceBasis', 'pitSemanticsBySeries']);
 
 class DatasetRegistryError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }

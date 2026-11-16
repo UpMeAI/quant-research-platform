@@ -35,6 +35,8 @@ const EFFECTIVE_FROM = parity.EFFECTIVE_FROM;
 const PIT_SEMANTICS = Object.freeze(['OBSERVED_AT', 'ANNOUNCEMENT_NEXT_OPEN', 'ACCEPTANCE_TIME', 'BAR_CLOSE', 'NEXT_OPEN_SESSION_CLOSE']);
 /** 登记表数据集上的字段（KG 1.13.0 起有；没有或为 null 时只记「待登记表字段」）。 */
 const REGISTRY_PIT_FIELD = 'pitSemantics';
+/** KG 1.14.0 起：混合数据集不写 pitSemantics（或为 null），另给序列级的 pitSemanticsBySeries（协调会话 2026-11-17 裁定）。 */
+const REGISTRY_PIT_BY_SERIES_FIELD = 'pitSemanticsBySeries';
 const REGISTRY_BASIS_FIELD = 'priceBasis';
 const REGISTRY_VENDOR_FIELD = 'vendor';
 /** 登记表级的价格口径说明（KG 1.13.0：对象，format = '<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>; …'）；没有时用同样的默认两组。 */
@@ -47,7 +49,8 @@ const PRE_FIELD = 'NOT_APPLICABLE_PRE_FIELD';
 const VENDOR_ENFORCED = false;
 const AI_PIN_SCHEMA = 'AI_LOGIC_PIN_V1';
 const DATA_TOKEN = /`DATA:([^`]*)`/g;
-const DATA_HEAD = /^([A-Z0-9][A-Z0-9_]*)@(\d+\.\d+\.\d+)#([0-9a-f]{64})((?:\|[A-Z]+=[^|]*)+)$/;
+// `DATA:<id>[#series=<序列>]@<版本>#<sha256>|PIT=…|VENDOR=…[|BASIS=…]`；series 只给混合数据集写
+const DATA_HEAD = /^([A-Z0-9][A-Z0-9_]*)(?:#series=([A-Za-z0-9][A-Za-z0-9_.-]*))?@(\d+\.\d+\.\d+)#([0-9a-f]{64})((?:\|[A-Z]+=[^|]*)+)$/;
 const DATA_FIELDS = Object.freeze({ PIT: true, VENDOR: true, BASIS: false }); // 键 → 是否必填
 const PIT_VALUE = /^[A-Z][A-Z0-9_]*$/;
 const SHA64 = /^[0-9a-f]{64}$/;
@@ -98,25 +101,30 @@ function applies(entry, effectiveFrom = DEFAULTS.effectiveFrom) {
   return { applies: false, reason: 'SEALED_BEFORE_EFFECTIVE' };
 }
 
-/** K2 正文里的数据输入：每个 `DATA:…` 都要写对；同一个数据集只写一次。 */
+/** 数据输入的键：（数据集, 序列）；没有序列就是数据集本身。 */
+const inputKey = (d) => (d.series ? `${d.dataset_id}#series=${d.series}` : d.dataset_id);
+
+/** K2 正文里的数据输入：每个 `DATA:…` 都要写对；同一个（数据集, 序列）只写一次。 */
 function dataInputs(entry, text) {
   const out = [];
   for (const m of text.matchAll(DATA_TOKEN)) {
     const hit = DATA_HEAD.exec(m[1]);
     need(hit, 'DATA_INPUT_INVALID', `${entry.id}:${m[1]}`);
-    const [, dataset_id, registry_version, registry_sha256, tail] = hit;
+    const [, dataset_id, series, registry_version, registry_sha256, tail] = hit;
+    const key = inputKey({ dataset_id, series });
     const fields = {};
     for (const part of tail.slice(1).split('|')) {
       const eq = part.indexOf('=');
-      const key = part.slice(0, eq);
+      const field = part.slice(0, eq);
       const value = part.slice(eq + 1).trim();
-      need(key in DATA_FIELDS && !(key in fields) && value, 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:${key}`);
-      fields[key] = value;
+      need(field in DATA_FIELDS && !(field in fields) && value, 'DATA_INPUT_INVALID', `${entry.id}:${key}:${field}`);
+      fields[field] = value;
     }
-    for (const [key, required] of Object.entries(DATA_FIELDS)) need(!required || key in fields, 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:${key} missing`);
-    need(PIT_VALUE.test(fields.PIT), 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:PIT`);
-    need(!out.some((d) => d.dataset_id === dataset_id), 'DATA_INPUT_INVALID', `${entry.id}:${dataset_id}:duplicate`);
-    out.push({ dataset_id, registry_version, registry_sha256, pit_semantics: fields.PIT, vendor: fields.VENDOR, ...(fields.BASIS ? { price_basis: fields.BASIS } : {}) });
+    for (const [field, required] of Object.entries(DATA_FIELDS)) need(!required || field in fields, 'DATA_INPUT_INVALID', `${entry.id}:${key}:${field} missing`);
+    need(PIT_VALUE.test(fields.PIT), 'DATA_INPUT_INVALID', `${entry.id}:${key}:PIT`);
+    need(!out.some((d) => inputKey(d) === key), 'DATA_INPUT_INVALID', `${entry.id}:${key}:duplicate`);
+    // 非混合记号不带 series 键：锁行与改动前逐字节相同
+    out.push({ dataset_id, ...(series ? { series } : {}), registry_version, registry_sha256, pit_semantics: fields.PIT, vendor: fields.VENDOR, ...(fields.BASIS ? { price_basis: fields.BASIS } : {}) });
   }
   return out;
 }
@@ -139,13 +147,13 @@ function mergedInputs(entry, sources) {
   const from = new Map();
   for (const { source, text } of sources) {
     for (const d of dataInputs(entry, text)) {
-      const prior = out.find((x) => x.dataset_id === d.dataset_id);
+      const prior = out.find((x) => inputKey(x) === inputKey(d));
       if (prior) {
-        need(canonicalJson(prior) === canonicalJson(d), 'DATA_INPUTS_CONFLICT', `${entry.id}:${d.dataset_id}:${from.get(d.dataset_id)}≠${source}`);
+        need(canonicalJson(prior) === canonicalJson(d), 'DATA_INPUTS_CONFLICT', `${entry.id}:${inputKey(d)}:${from.get(inputKey(d))}≠${source}`);
         continue;
       }
       out.push(d);
-      from.set(d.dataset_id, source);
+      from.set(inputKey(d), source);
     }
   }
   return out;
@@ -172,9 +180,16 @@ function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = 
   const [basisA, basisB] = basisGroups(reg);
   let hist = history;
   const rows = inputs.map((d) => {
-    const at = `${entry.id}:${d.dataset_id}`;
+    const at = `${entry.id}:${inputKey(d)}`;
     const ds = reg.datasets.get(d.dataset_id);
     need(ds, 'DATASET_UNREGISTERED', at);
+    // 混合数据集（没有 pitSemantics、有 pitSemanticsBySeries）：记号要写表里的 series，PIT 按那个序列核；非混合数据集不许写 series
+    const bySeries = ds[REGISTRY_PIT_BY_SERIES_FIELD];
+    const mixed = absent(ds[REGISTRY_PIT_FIELD]) && isObj(bySeries) && Object.keys(bySeries).length > 0;
+    if (mixed) {
+      need(d.series !== undefined, 'SERIES_REQUIRED', at);
+      need(Object.prototype.hasOwnProperty.call(bySeries, d.series), 'SERIES_UNKNOWN', at);
+    } else need(d.series === undefined, 'DATA_INPUT_INVALID', `${at}:NOT_A_MIXED_DATASET`);
     // 记号钉的版本：现在钉的，或历史里的一份（那一版里这个数据集的一致性字段到现在没变）
     let pinnedReg = reg;
     let pinCheck = 'CURRENT';
@@ -190,7 +205,7 @@ function check(entry, { k2Bytes, noteBytes = () => [] } = {}, { effectiveFrom = 
       pinCheck = 'HISTORY_UNCHANGED';
     }
     need(allowed.has(d.pit_semantics), 'PIT_SEMANTICS_MISMATCH', `${at}:${d.pit_semantics}:NOT_IN_ENUM_OR_REGISTRY`);
-    const pit = ds[REGISTRY_PIT_FIELD];
+    const pit = mixed ? bySeries[d.series] : ds[REGISTRY_PIT_FIELD];
     if (!absent(pit)) need(listOf(pit).includes(d.pit_semantics), 'PIT_SEMANTICS_MISMATCH', `${at}:${d.pit_semantics}≠${listOf(pit).join(',')}`);
     if (d.price_basis !== undefined) {
       const [a, b, extra] = d.price_basis.split('/');
