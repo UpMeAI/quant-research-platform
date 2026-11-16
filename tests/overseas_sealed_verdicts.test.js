@@ -66,7 +66,7 @@ test('登记表：每题绑定的 sha256 都是 64 位小写十六进制，id �
     // 修订 1：页面结论只写做 / 不做；INSUFFICIENT 必须有 resolve
     if (entry.kind === 'RESULT' && entry.expect === 'INSUFFICIENT') assert.ok(entry.resolve && entry.resolve.INSUFFICIENT, entry.id);
   }
-  assert.equal(verdicts.ENTRIES.length, 44); // 修订 1 加 C17-N8；R-US-ETF-1 加 4 个单元；修订 3 加 10 个单元；修订 4 加 7 个单元（凯利 m 前推）；修订 5 加 QS-KDECAY；修订 6 加 C17-COSTSEL、UC-ACCTRISK；修订 7 加 C17-NMSEL；修订 8 加 US5-KMS8、US5-KMS8-BUCKET
+  assert.equal(verdicts.ENTRIES.length, 45); // 修订 9 加 UC-ROLE-VOO；修订 1 加 C17-N8；R-US-ETF-1 加 4 个单元；修订 3 加 10 个单元；修订 4 加 7 个单元（凯利 m 前推）；修订 5 加 QS-KDECAY；修订 6 加 C17-COSTSEL、UC-ACCTRISK；修订 7 加 C17-NMSEL；修订 8 加 US5-KMS8、US5-KMS8-BUCKET
 });
 
 test('stage + import：一题一条锁，结论原样读自文件；重复导入是幂等重放，台账旧字节不变', () => {
@@ -232,4 +232,43 @@ test('修订 8：KELLY-M-S8 两个单元（US_V5 单本、海外桶）绑同一�
   }
   assert.deepEqual(units.map((e) => [e.read.decision, e.read.strength, e.read.use]),
     [['objects.O1S.verdict', 'objects.O1S.evidence', 'verdict.allowedUse'], ['objects.O5S.verdict', 'objects.O5S.evidence', 'verdict.allowedUse']]);
+});
+
+test('修订 9：US_CORE 职责对照 VOO（UC-ROLE-VOO）读封存 JSON 的 part_b.verdict，做（影子）；10-28 封存、修订前冻结，三道门都不适用，不写 k2_frozen_at', () => {
+  const gates = require('../services/trial-ledger/gates');
+  const mech = require('../services/research-mechanism-register/gate');
+  const causality = require('../services/causality-gate');
+  const sealed = require('../services/desk-review-routing/sealed');
+  const e = verdicts.ENTRIES.find((x) => x.id === 'UC-ROLE-VOO');
+  assert.ok(e, 'UC-ROLE-VOO 缺');
+  assert.equal(e.strategy_ref, 'US_CORE_9000USD_3X_GATEOBS');
+  assert.equal(e.kind, 'RESULT');
+  assert.equal(e.sealed_on, '2026-10-28');
+  assert.equal(e.expect, '做（影子）');
+  assert.equal(e.file.sha256, '3ec623e26cef92a040cea6f24d0b28a750ad4bdaeebe00e636bc4492267a0270');
+  assert.equal(e.file.commit, '662fdcb081d8b83c56440495183261fd4b5571a1');
+  assert.equal(e.file.path, 'trading-system-v2/docs/evidence/us-core-role-vs-voo-v1/US_CORE_ROLE_VS_VOO_RESULT_V1.json');
+  // K2 绑冻结页写的提交 e0b5c2d0 上的草稿（字节与封存提交上相同），冻结页另绑；RUN_SEAL（A、B 两次逐字节相同）作附带文件
+  assert.equal(e.k2.sha256, '635af851637383b76e2cc1d1fc5689345873d66b84d77b5673b83b6d5fad82c4');
+  assert.equal(e.k2.commit, 'e0b5c2d08cf34b919d8339d0b48c25cf9dce4cc7');
+  assert.equal(e.freeze.sha256, 'c95abd46ebd0cd2775961b4a019c364fe2e70eafc9bb3c2d1e00c25c789606f7');
+  assert.deepEqual(e.also.map((spec) => spec.path), ['trading-system-v2/docs/evidence/us-core-role-vs-voo-v1/RUN_SEAL.json']);
+  assert.deepEqual(verdicts.internals.boundFiles(e).map((f) => f.role), ['FILE', 'ALSO', 'K2', 'FREEZE']);
+  assert.deepEqual(e.read, { decision: 'part_b.verdict.conclusionZh', strength: null, use: 'part_b.verdict.basisZh', text: null });
+  // 封存 JSON 的 part_b.verdict 原样（3ec623e2…）
+  const doc = { part_b: { c1_r_fit: 'STRADDLE', verdict: { row: 4, verdict: 'DO_SHADOW', conclusionZh: '做（影子）', rFit: 'STRADDLE', basisZh: 'D 的回撤大于职责基准，C1 的职责适配区间跨界：C1 前瞻影子；D 不变' } } };
+  const got = verdicts.internals.readVerdict(e, doc);
+  assert.equal(got.raw, e.expect);
+  assert.equal(got.use, 'D 的回撤大于职责基准，C1 的职责适配区间跨界：C1 前瞻影子；D 不变');
+  assert.equal(sealed.verdictWord(got.decision, e.id), '做');
+  for (const word of ['做', '不做', '做（证据不足）']) assert.notEqual(verdicts.internals.readVerdict(e, { part_b: { verdict: { ...doc.part_b.verdict, conclusionZh: word } } }).raw, e.expect, word);
+  // 10-28 封存（早于过拟合控制修订 11-11 与 RF1112 11-15）：G-TRIAL、G-MECH、G-CAUSAL 都按封存日不适用，不需要 k2_frozen_at
+  assert.equal(e.k2_frozen_at, undefined);
+  assert.deepEqual(gates.applies(e), { applies: false, reason: 'SEALED_BEFORE_AMENDMENT' });
+  assert.deepEqual(mech.applies(e, mech.EFFECTIVE_FROM), { applies: false, reason: 'SEALED_BEFORE_AMENDMENT' });
+  assert.deepEqual(causality.applies(e), { applies: false, reason: 'SEALED_BEFORE_AMENDMENT' });
+  assert.equal(e.trial_gates_ruling, undefined);
+  assert.equal(e.run_log, undefined);
+  // 结果文件只此一题用：回链按文件 sha256 对上时不会挂到别的锁上
+  assert.equal(verdicts.ENTRIES.filter((x) => x.file.sha256 === e.file.sha256).length, 1);
 });
