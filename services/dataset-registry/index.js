@@ -26,7 +26,8 @@ const HISTORY_FILE = 'HISTORY.json';
 const HISTORY_SCHEMA = 'DATASET_REGISTRY_HISTORY_V1';
 /** 数据集的一致性字段（裁定第 1 条）：从记号的版本到现在，这些字段（那一版写了的）不能变。producedBy 没有时取 producer。 */
 // pitSemanticsBySeries：KG 1.14.0 起的混合数据集（协调会话 2026-11-17 裁定）；旧版本没有不算变
-const FINGERPRINT_FIELDS = Object.freeze(['id', 'owner', 'producedBy', 'pitSemantics', 'vendor', 'priceBasis', 'pitSemanticsBySeries']);
+// pitHistoricalClock：KG 1.14.0 起（协调会话审阅意见 2026-11-17），只比 rule 与 bySeries，detail 的文字不算
+const FINGERPRINT_FIELDS = Object.freeze(['id', 'owner', 'producedBy', 'pitSemantics', 'vendor', 'priceBasis', 'pitSemanticsBySeries', 'pitHistoricalClock']);
 
 class DatasetRegistryError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
@@ -120,7 +121,8 @@ const hasField = (reg, field) => [...reg.datasets.values()].some((e) => e && Obj
 
 /** 数据集从旧版本到现在变了哪些一致性字段：旧版本没有或为 null 的字段不算变。 */
 function changedFields(older, current) {
-  const value = (e, f) => (f === 'producedBy' ? (e.producedBy !== undefined ? e.producedBy : e.producer) : e[f]);
+  const clock = (c) => (c && typeof c === 'object' ? { rule: c.rule ?? null, bySeries: c.bySeries ?? null } : c);
+  const value = (e, f) => (f === 'producedBy' ? (e.producedBy !== undefined ? e.producedBy : e.producer) : f === 'pitHistoricalClock' ? clock(e[f]) : e[f]);
   return FINGERPRINT_FIELDS.filter((f) => !absent(value(older, f)) && canonical(value(older, f)) !== canonical(value(current, f)));
 }
 
