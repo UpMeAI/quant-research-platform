@@ -224,7 +224,7 @@ function importFixture({ k2Lines = {}, study }) {
   const files = {
     'trading-system-v2/docs/evidence/rm/RESULT.json': `${JSON.stringify({ verdict: { decision: '不做', evidence_strength: '有反对证据', allowed_use: '不进生产', text_zh: '合成' } })}\n`,
     'trading-system-v2/docs/RM_K2.md': text,
-    'trading-system-v2/docs/evidence/rm/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, runs: ['T', 'B'].map((l) => ({ family_id: FAMILY, config_label: l, trial_id: idOf(l, study), rule_config_hash: hashOf(l), verdict_metric_kind: 'NET_RETURN_SERIES', cost_model_ref: 'REPLAY_CORE_PROFILE_COSTS' })) })}\n`, // K2 冻结在 11-17 之后，G-COST 也过门：判定用的运行写出计成本的模型
+    'trading-system-v2/docs/evidence/rm/RUN_LOG.json': `${JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, runs: ['T', 'B'].map((l) => ({ family_id: FAMILY, config_label: l, trial_id: idOf(l, study), rule_config_hash: hashOf(l), verdict_metric_kind: 'IC', cost_model_ref: 'REPLAY_CORE_PROFILE_COSTS' })) })}\n`, // K2 冻结在 11-17 之后，G-COST 也过门：两行登记为只看信号（下面 stage SIGNAL），A1 不适用，本文件只测 G-MECH
   };
   git(repo, 'init', '-q');
   for (const [rel, body] of Object.entries(files)) { fs.mkdirSync(path.dirname(path.join(repo, rel)), { recursive: true }); fs.writeFileSync(path.join(repo, rel), body); }
@@ -240,7 +240,8 @@ function importFixture({ k2Lines = {}, study }) {
     mechanism_prior_table: { source: 'coordinator', path: 'RM_PRIOR_TABLE.json', sha256: sha(tableBytes), ref: 'artifacts/coordinator/RM_PRIOR_TABLE.json（不在 git 里，按 sha256 绑定）' },
   };
   // G-TRIAL：预登记（冻结之前）、结果、披露
-  trials.register(ARMS.map((a) => ({ family_id: FAMILY, market: 'CRYPTO_USDM_PERP', study_ref: study, k2_sha256: k2Sha, stage: 'BOOK', ...a })), { registeredBy: AUTH, registeredAt: PREREG_AT });
+  // stage SIGNAL：没有 G-COST 门内的行，A1（附录 1 §1.1）不适用，本文件只测 G-MECH
+  trials.register(ARMS.map((a) => ({ family_id: FAMILY, market: 'CRYPTO_USDM_PERP', study_ref: study, k2_sha256: k2Sha, stage: 'SIGNAL', ...a })), { registeredBy: AUTH, registeredAt: PREREG_AT });
   for (const l of ['T', 'B']) {
     trials.recordResult(idOf(l, study), { window: { from: '2024-01-01', to: '2026-06-30' }, eval: { costs: { bp: 5 }, code_sha: 'a'.repeat(40) },
       metrics: { n_trades: 40, delta_g: -0.01 }, ...(l === 'B' ? { unknown: { sr_monthly_delta: 'BASELINE_VS_ITSELF' } } : { months: months(-0.004) }), study_verdict: '不做' }, { registeredBy: AUTH, registeredAt: RESULT_AT });

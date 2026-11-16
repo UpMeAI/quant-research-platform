@@ -132,7 +132,7 @@
 
 - 每个新增或重算的函数写成 `` `CF:<code_repo>:<path>#<entry>` ``，例如 `` `CF:ashare-v6:src/research/pvs/volume.js#volumeReading` ``。门从 K2 全文里抽出这些 id，写法同台账 id `TRL-…`。
 - 不适用写一行 `G-CAUSAL N/A: <码>`。码只有五个（§3.2）：`RISK_K_OR_ACCOUNT_LAYER`、`ABLATION`、`COST_EXECUTION`、`DEFECT_OR_ENGINEERING`、`DESCRIPTIVE_NO_PERFORMANCE`。
-- 附录 1（A1）范围内的 K2（§5.1）不能写 `G-CAUSAL N/A: COST_EXECUTION`；该引擎的成交函数写成 `CF:` 行，证据里标 `role: FILL`。
+- 附录 1（A1）范围内的 K2（§5.1）只能写 `G-CAUSAL N/A: RISK_K_OR_ACCOUNT_LAYER`，其余四个码都不能免测；该引擎的成交函数写成 `CF:` 行，证据里标 `role: FILL`（消融题也一样，可按代码 sha 引用以前的证据）。
 
 ## 5. 导入器（海外与 A 股封存结论，同一套 `checkEntry`）
 
@@ -170,11 +170,11 @@
 - **范围：** 上面过门的题里，`kind = RESULT`、`k2_frozen_at ≥` 附录 1 的 `EFFECTIVE_FROM`（`services/research-framework-amendment-20261112-addendum-1`，与 G-COST 同一个常量；G-CAUSAL 自己的 FREEZE_1 生效时刻不变），且 G-COST 门内至少一行（台账登记行的角色与阶段，判断用 `services/cost-gate` 的 `costGatedScope`，不另写）。
 - **规则：**
   - 附录 1 冻结页未绑定（`PENDING_FREEZE`）→ `CAUSALITY_FREEZE_UNBOUND`；
-  - K2 写 `G-CAUSAL N/A: COST_EXECUTION` → `CAUSALITY_SCOPE_FILL_NOT_EXEMPT`；
+  - K2 写 `G-CAUSAL N/A: <码>` → `CAUSALITY_SCOPE_FILL_NOT_EXEMPT`，四个码都拒绝：`COST_EXECUTION`、`ABLATION`、`DEFECT_OR_ENGINEERING`、`DESCRIPTIVE_NO_PERFORMANCE`。只有 `RISK_K_OR_ACCOUNT_LAYER` 放行（附录 1 §1「不适用：风控层调 k、账户层」），照原样记 `NOT_APPLICABLE`，另记 `fill_scope`。依据：协调会话 11-16 裁定，以 §1 为准，§1.1 随后对齐；
   - K2 的 `CF:` 函数在证据里没有一个标 `role: FILL` → `CAUSALITY_FILL_FUNCTIONS_MISSING`。标得对不对、成交函数有没有列全，由协调会话冻结 K2 时核对，代码不另建按引擎的清单。
 - **锁：** 范围内的题，`causality_gate` 多一个 `fill_scope`：`{ applies, effective_from, freeze_sha256, cost_gated_runs, fill_functions? }`。
 - **范围之外**（K2 早于附录 1 生效、门内没有行、全是只看信号、READING）：返回值与锁逐字节不变。
-- K2 写其他不适用码（例如 `RISK_K_OR_ACCOUNT_LAYER`，附录 1 §1「不适用：风控层调 k、账户层」）：§1.1 只拒绝 `COST_EXECUTION`，照原样记 `NOT_APPLICABLE`，另记 `fill_scope`。
+- 函数 `role` 的取值来自修订 §3.2 的四类，加成交函数 `FILL`；A1 只用 `FILL`。
 
 **不过门的题：**
 - 照原样导入，锁行逐字节不变。

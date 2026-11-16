@@ -24,7 +24,7 @@
  * A1（研究框架修订 2026-11-12 附录 1 §1、§1.1，成交函数纳入因果门）：过门的题里，K2 冻结不早于附录 1 的生效时刻（FILL_EFFECTIVE_FROM，
  * ../research-framework-amendment-20261112-addendum-1，与 G-COST 同一个常量），且 G-COST 门内至少一行（范围判断用 ../cost-gate 的 costGatedScope，不另写）：
  *   - 附录 1 冻结页未绑定 → CAUSALITY_FREEZE_UNBOUND；
- *   - K2 写 `G-CAUSAL N/A: COST_EXECUTION` → CAUSALITY_SCOPE_FILL_NOT_EXEMPT；
+ *   - K2 写 `G-CAUSAL N/A: <码>` → CAUSALITY_SCOPE_FILL_NOT_EXEMPT，只有 RISK_K_OR_ACCOUNT_LAYER 放行（§1「不适用：风控层调 k、账户层」；协调会话 11-16 裁定，以 §1 为准）；
  *   - K2 的 CF 函数在证据里没有一个标 role: FILL → CAUSALITY_FILL_FUNCTIONS_MISSING。
  * 范围之外照旧，返回值逐字节不变；范围之内返回值多一个 fill_scope 块。证据函数的 role 可选（FUNCTION_ROLES），不写的现有证据照旧有效。
  */
@@ -65,7 +65,8 @@ const MAX_MISMATCHES = 20;
 const FILL_EFFECTIVE_FROM = addendum1.EFFECTIVE_FROM;
 const FUNCTION_ROLES = Object.freeze(['SIGNAL', 'FEATURE', 'SCORE', 'FILTER', 'FILL']);
 const FILL_ROLE = 'FILL';
-const FILL_EXEMPTION_REFUSED = 'COST_EXECUTION';
+/** A1 范围内唯一放行的不适用码（附录 1 §1）；COST_EXECUTION、ABLATION、DEFECT_OR_ENGINEERING、DESCRIPTIVE_NO_PERFORMANCE 都拒绝。 */
+const FILL_EXEMPT_NA = 'RISK_K_OR_ACCOUNT_LAYER';
 
 class CausalityGateError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
@@ -231,7 +232,7 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
   need(!(cf.length && na.length) && na.length <= 1, 'SCOPE_CONFLICT', entry.id);
   if (na.length) {
     need(NOT_APPLICABLE_CODES.includes(na[0]), 'SCOPE_CODE_INVALID', `${entry.id}:${na[0]}`);
-    need(!fill || na[0] !== FILL_EXEMPTION_REFUSED, 'SCOPE_FILL_NOT_EXEMPT', `${entry.id}:${na[0]}`);
+    need(!fill || na[0] === FILL_EXEMPT_NA, 'SCOPE_FILL_NOT_EXEMPT', `${entry.id}:${na[0]}`);
     need(!bound && !entry.causality_ruling, 'SCOPE_CONFLICT', `${entry.id}:N/A_WITH_EVIDENCE`);
     return { applies: true, state: 'NOT_APPLICABLE', effective_from: effectiveFrom, not_applicable_code: na[0], ...(fill ? { fill_scope: fill } : {}) };
   }
@@ -283,7 +284,7 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
 }
 
 module.exports = {
-  SCHEMA, FREEZE, CONTRACT_REF, EFFECTIVE_FROM, FILL_EFFECTIVE_FROM, FUNCTION_ROLES, FILL_ROLE, SEED, CUT_POINTS, HARNESS_VERSIONS, TESTS, TEST_LABEL, STATUSES, RUNNERS, AVAILABILITY_RULES, NOT_APPLICABLE_CODES,
+  SCHEMA, FREEZE, CONTRACT_REF, EFFECTIVE_FROM, FILL_EFFECTIVE_FROM, FUNCTION_ROLES, FILL_ROLE, FILL_EXEMPT_NA, SEED, CUT_POINTS, HARNESS_VERSIONS, TESTS, TEST_LABEL, STATUSES, RUNNERS, AVAILABILITY_RULES, NOT_APPLICABLE_CODES,
   FUNCTION_ID, SHA64, SHA40, MAX_MISMATCHES, CausalityGateError, recordHash, runCommitKey, parseEvidence, declaration, applies, check,
   internals: { rulingOf, runLogCommit, fillScope },
 };

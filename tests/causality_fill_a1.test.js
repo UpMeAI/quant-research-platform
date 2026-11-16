@@ -16,7 +16,7 @@ const core = require('../tools/causality-harness/lib/core');
 /**
  * A1（研究框架修订 2026-11-12 附录 1 §1、§1.1）：成交函数纳入因果门。先红后绿，只用合成登记、合成运行日志与合成证据。
  * 范围：K2 冻结不早于附录 1 的 EFFECTIVE_FROM，且 G-COST 门内（台账登记的角色与阶段）至少一行——范围判断用成本门自己的分类。
- *   - K2 写 `G-CAUSAL N/A: COST_EXECUTION` → CAUSALITY_SCOPE_FILL_NOT_EXEMPT；
+ *   - K2 写 `G-CAUSAL N/A: <码>` → CAUSALITY_SCOPE_FILL_NOT_EXEMPT，只有 RISK_K_OR_ACCOUNT_LAYER 放行（§1；协调会话 11-16 裁定）；
  *   - K2 的 CF 函数在证据里没有一个标 role: FILL → CAUSALITY_FILL_FUNCTIONS_MISSING；
  *   - 附录 1 冻结页未绑定 → CAUSALITY_FREEZE_UNBOUND；
  *   - 范围之外（K2 早于生效时刻、门内没有行、全是只看信号）→ 与今天逐字节相同。
@@ -85,11 +85,16 @@ test('常量：A1 读附录 1 的生效时刻与冻结页（与 G-COST 同一个
   assert.ok(Date.parse(gate.FILL_EFFECTIVE_FROM) >= Date.parse(gate.EFFECTIVE_FROM));
   assert.ok(gate.FUNCTION_ROLES.includes('FILL'));
   assert.equal(gate.FILL_ROLE, 'FILL');
+  assert.equal(gate.FILL_EXEMPT_NA, 'RISK_K_OR_ACCOUNT_LAYER');
 });
 
-test('A1 范围内：K2 写 G-CAUSAL N/A: COST_EXECUTION → 拒绝 SCOPE_FILL_NOT_EXEMPT', () => {
-  refuses(() => a1({ lines: ['G-CAUSAL N/A: COST_EXECUTION'] }), 'SCOPE_FILL_NOT_EXEMPT');
-});
+// 协调会话 11-16 裁定（以 §1 为准）：A1 范围内只有 RISK_K_OR_ACCOUNT_LAYER 能免测，其余四个不适用码各拒一次；消融题要把成交函数写成 CF 行（可按代码 sha 引用以前的证据）
+for (const code of ['COST_EXECUTION', 'ABLATION', 'DEFECT_OR_ENGINEERING', 'DESCRIPTIVE_NO_PERFORMANCE']) {
+  test(`A1 范围内：K2 写 G-CAUSAL N/A: ${code} → 拒绝 SCOPE_FILL_NOT_EXEMPT`, () => {
+    assert.ok(gate.NOT_APPLICABLE_CODES.includes(code));
+    refuses(() => a1({ lines: [`G-CAUSAL N/A: ${code}`] }), 'SCOPE_FILL_NOT_EXEMPT');
+  });
+}
 
 test('A1 范围内：CF 函数在证据里没有一个标 role: FILL → 拒绝 FILL_FUNCTIONS_MISSING；标了 FILL → PASS，锁里记成交函数', () => {
   refuses(() => a1({ lines: [`\`CF:${FEAT}\``], functions: [fnRecord(FEAT)] }), 'FILL_FUNCTIONS_MISSING');
@@ -115,7 +120,7 @@ test('A1 范围外，与今天逐字节相同：K2 早于附录 1 生效、门�
   assert.deepEqual(Object.keys(cf).sort(), ['applies', 'code_repo', 'code_sha', 'contract_ref', 'effective_from', 'evidence_record_hash', 'evidence_sha256', 'functions', 'harness_version', 'state']);
 });
 
-test('A1 范围内、K2 写其他不适用码（如 RISK_K_OR_ACCOUNT_LAYER，§1「不适用：风控层调 k、账户层」）：§1.1 只拒绝 COST_EXECUTION，照原样放过并记范围', () => {
+test('A1 范围内：K2 写 G-CAUSAL N/A: RISK_K_OR_ACCOUNT_LAYER（§1「不适用：风控层调 k、账户层」）照原样放过，记 NOT_APPLICABLE 与范围', () => {
   const r = a1({ lines: ['G-CAUSAL N/A: RISK_K_OR_ACCOUNT_LAYER'] });
   assert.deepEqual([r.state, r.not_applicable_code, r.fill_scope], ['NOT_APPLICABLE', 'RISK_K_OR_ACCOUNT_LAYER', { applies: true, effective_from: addendum.EFFECTIVE_FROM, freeze_sha256: BOUND.sha256, cost_gated_runs: 1 }]);
 });
