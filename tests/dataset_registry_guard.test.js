@@ -19,28 +19,36 @@ const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const PIN = JSON.parse(fs.readFileSync(path.join(DIR, 'PIN.json'), 'utf8'));
 const scan = require(path.join(DIR, 'dataset-registry-scan.cjs'));
 
-test('DRQ-0 登记表与扫描器是钉住的 KG 副本（12afd2fc，登记表 d8a17a3e…，1.11.0），与生产两端钉的相同', () => {
+test('DRQ-0 登记表与扫描器是钉住的 KG 副本（a738d3b5，登记表 c5aabf57…，1.14.0），与 V6 钉的相同（85d188ec）；smartflow 在 #165 合并前仍记 2e958543（1.13.0）', () => {
   assert.equal(PIN.repository, 'wendy926/knowledge-graph');
-  assert.equal(PIN.commit, '12afd2fcb23f274630e01aad13d84f26f6c407f4');
-  assert.equal(PIN.files['datasets.v1.json'], 'd8a17a3ee6e23e59494176eb818d7dc46fde382da032878eeb729af0855ba687');
+  assert.equal(PIN.commit, 'a738d3b52f552f48ae62017712b72c82c9365d2c');
+  assert.equal(PIN.files['datasets.v1.json'], 'c5aabf570888b15eb6cb3f24e40e6e9364bbb0024bd8a217e9f8918b5775f209');
+  assert.equal(PIN.files['dataset-registry-scan.cjs'], '461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af');
   for (const [file, hash] of Object.entries(PIN.files)) assert.equal(sha256(fs.readFileSync(path.join(DIR, file))), hash, file);
   const pinned = datasetRegistry.pinned();
-  assert.deepEqual([pinned.commit, pinned.registry_version, pinned.registry_sha256, pinned.datasets.size], [PIN.commit, '1.11.0', PIN.files['datasets.v1.json'], 24]);
-  assert.deepEqual(PIN.production_pins.map((p) => p.repository), ['ashare-v6', 'smartflow']);
+  assert.deepEqual([pinned.commit, pinned.registry_version, pinned.registry_sha256, pinned.datasets.size], [PIN.commit, '1.14.0', PIN.files['datasets.v1.json'], 37]);
+  assert.deepEqual(PIN.production_pins.map((p) => [p.repository, p.commit]), [
+    ['ashare-v6', '85d188ec7294962a45b71632a3684d913b2f28c2'],
+    ['smartflow', '2e9585434853cbd6dc97769e32687ee530125f1c'],
+  ]);
 });
 
 test('DRQ-1 登记表有效（每个数据集一个所有者、例外类别认得、没有过期的 INTERIM）', () => {
   assert.deepEqual(scan.validateRegistry(datasetRegistry.pinned().registry), []);
 });
 
-test('DRQ-2 QRP 还不是登记表里的系统（KG 消费方登记的 PR 合并、重钉之后，本条改为扫描 QRP 仓库，同 DRS-2）', () => {
-  assert.throws(() => scan.scanRepository({ root: path.join(__dirname, '..'), system: 'QRP', registry: datasetRegistry.pinned().registry }), /DATASET_REGISTRY_UNKNOWN_SYSTEM:QRP/);
+test('DRQ-2 QRP 不采集、不生产任何不归它的登记数据集（扫描 QRP 仓库，同 smartflow DRS-2；config/ 里的钉版副本不扫）', () => {
+  const result = scan.scanRepository({ root: path.join(__dirname, '..'), system: 'QRP', registry: datasetRegistry.pinned().registry });
+  assert.equal(scan.describe(result), '');
+  assert.deepEqual([result.findings.length, result.uncovered.length, result.stale.length], [0, 0, 0]);
 });
 
 test('DRQ-4 钉过的每一份都留在 history/（按 sha，逐个文件复验），并包含现在钉的这一份；历史里的一份被改即拒', () => {
   const history = datasetRegistry.history();
   const pinned = datasetRegistry.pinned();
   assert.ok(history.has(`${pinned.registry_version}#${pinned.registry_sha256}`));
+  // 1.13.0 留着：K2 里可能已有钉在 1.13.0 的记号
+  assert.deepEqual([...history.values()].map((h) => h.registry_version), ['1.11.0', '1.13.0', '1.14.0']);
   for (const h of history.values()) assert.equal(h.dir, `${h.registry_version}-${h.registry_sha256.slice(0, 8)}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-drq-h-'));
   fs.cpSync(DIR, dir, { recursive: true });

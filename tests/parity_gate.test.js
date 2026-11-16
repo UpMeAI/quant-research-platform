@@ -20,7 +20,10 @@ const { read } = require('../packages/ledger');
  * 先红后绿，只用合成 K2 与合成登记；登记表是 QRP 钉住的 KG 副本（config/dataset-registry）。
  */
 const AUTH = 'TEST_PARITY_AUTHORITY';
-const REG = datasetRegistry.pinned();
+// 门的机制测试按没有 pitSemantics / priceBasis / vendor 字段的 1.11.0 写（KG 12afd2fc，从 config/dataset-registry/history 读）；
+// 现在钉的那份（1.14.0，KG a738d3b5）另测（见末尾一条）。
+const REG = [...datasetRegistry.history().values()].find((h) => h.registry_version === '1.11.0');
+const CURRENT = datasetRegistry.pinned();
 const VERSION = REG.registry_version;
 const SHA = REG.registry_sha256;
 const AFTER = '2026-11-17T10:00:00+08:00';
@@ -37,7 +40,7 @@ const aiInput = (patch = {}) => ({ category: 'EXTRACTED_FACT', ref: 'synth/facts
 function direct({ lines = [data('V6_CSI300_INDEX_DAILY')], entryPatch = {}, opts = {} } = {}) {
   const k2 = Buffer.from(k2Of(lines));
   const entry = { id: 'CN-PARITY', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: AFTER, ...entryPatch };
-  return gate.check(entry, { k2Bytes: () => k2 }, opts);
+  return gate.check(entry, { k2Bytes: () => k2 }, { registry: REG, ...opts });
 }
 const refuses = (fn, code) => assert.throws(fn, (e) => e.code === `PARITY_${code}`, code);
 
@@ -153,4 +156,19 @@ test('导入器：默认生效时刻下（K2 早于 11-17 00:24）照原样导�
   assert.equal(lock.decision, '做');
   assert.deepEqual([lock.parity_gate.applies, lock.parity_gate.state, lock.parity_gate.data_inputs[0].dataset_id], [true, 'PASS', 'SMARTFLOW_BTCUSDT_PERP_DAILY']);
   assert.equal(count(), 1);
+});
+
+test('现在钉的 1.14.0（KG a738d3b5）：记号按它的字段写 → PASS（PIT、BASIS 核过，VENDOR 相符）；钉在 1.11.0 的旧记号照现行字段核 PIT', () => {
+  assert.deepEqual([CURRENT.commit, CURRENT.registry_version], ['a738d3b52f552f48ae62017712b72c82c9365d2c', '1.14.0']);
+  const cur = { version: CURRENT.registry_version, sha256: CURRENT.registry_sha256 };
+  const tok = `\`DATA:V6_CSI300_INDEX_DAILY@${cur.version}#${cur.sha256}|PIT=OBSERVED_AT|VENDOR=Tushare|BASIS=PRICE/RAW\``;
+  const r = direct({ lines: [tok], opts: { registry: CURRENT } });
+  assert.deepEqual([r.state, r.registry.registry_version], ['PASS', '1.14.0']);
+  const [row] = r.data_inputs;
+  assert.deepEqual([row.pin_check, row.pit_check, row.basis_check, row.vendor_check], ['CURRENT', 'CHECKED', 'CHECKED', 'MATCH']);
+  refuses(() => direct({ lines: [tok.replace('|BASIS=PRICE/RAW', '')], opts: { registry: CURRENT } }), 'PRICE_BASIS_MISSING');
+  // 1.11.0 的记号：数据集一致性字段没变（HISTORY_UNCHANGED），PIT 照现行登记表核：OBSERVED_AT 过，BAR_CLOSE 不过
+  const old = direct({ lines: [data('V6_CSI300_INDEX_DAILY', { pit: 'OBSERVED_AT' })], opts: { registry: CURRENT } }).data_inputs[0];
+  assert.deepEqual([old.pin_check, old.pit_check, old.basis_check], ['HISTORY_UNCHANGED', 'CHECKED', 'NOT_APPLICABLE_PRE_FIELD']);
+  refuses(() => direct({ lines: [data('V6_CSI300_INDEX_DAILY')], opts: { registry: CURRENT } }), 'PIT_SEMANTICS_MISMATCH');
 });
