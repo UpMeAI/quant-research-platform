@@ -1,0 +1,744 @@
+[
+ {
+  "family_id": "US_V5_ETF_3000USD",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "FORWARD",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2026-10-08",
+   "to": "2026-11-13"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/live/BOOK_NAV_SERIES_US_V5_ETF_3000USD_2026-11-13.json",
+    "sha256": "f29d9545ed1ea7937ba2edda231bfe266b40e81a070c82c19395384e3c17a296"
+   }
+  ],
+  "config_label": "XM1_LIVE",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "BOOK_NAV_SERIES_V1",
+   "source_sha256": "f29d9545ed1ea7937ba2edda231bfe266b40e81a070c82c19395384e3c17a296",
+   "l1": "NONE",
+   "alignment": "PREREG_V1_S4"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "实盘净值序列原样读入（不改本、不重算），作配对相关、尾部、回撤段的输入。诊断，只报"
+ },
+ {
+  "family_id": "US_CORE_9000USD_3X_GATEOBS",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "FORWARD",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2026-10-08",
+   "to": "2026-11-13"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/live/BOOK_NAV_SERIES_US_CORE_9000USD_3X_GATEOBS_2026-11-13.json",
+    "sha256": "2f4c14c761d5196416dd58f03263b7b2ccb3c5404c0c874ced5d6d775d45cee4"
+   }
+  ],
+  "config_label": "XM1_LIVE",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "BOOK_NAV_SERIES_V1",
+   "source_sha256": "2f4c14c761d5196416dd58f03263b7b2ccb3c5404c0c874ced5d6d775d45cee4",
+   "l1": "NONE",
+   "alignment": "PREREG_V1_S4"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "实盘净值序列原样读入（不改本、不重算），作配对相关、尾部、回撤段的输入。诊断，只报"
+ },
+ {
+  "family_id": "C17_V2_4000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "FORWARD",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2026-10-01",
+   "to": "2026-11-15"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/live/BOOK_NAV_SERIES_C17_V2_4000USDT_2026-11-15.json",
+    "sha256": "3fdd8a86342532faa4bc7e026fa123d0974c9f599a3bad1b3fd10cc7e9f5fa28"
+   }
+  ],
+  "config_label": "XM1_LIVE",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "BOOK_NAV_SERIES_V1",
+   "source_sha256": "3fdd8a86342532faa4bc7e026fa123d0974c9f599a3bad1b3fd10cc7e9f5fa28",
+   "l1": "NONE",
+   "alignment": "PREREG_V1_S4"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "实盘净值序列原样读入（不改本、不重算），作配对相关、尾部、回撤段的输入。诊断，只报"
+ },
+ {
+  "family_id": "QUICK_SHOT_V3_1000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "FORWARD",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2026-10-07",
+   "to": "2026-11-15"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/live/BOOK_NAV_SERIES_QUICK_SHOT_V3_1000USDT_2026-11-15.json",
+    "sha256": "2810ad1b70ea2f14787ea280e453ae3f6da2455c9c443461d79dc86f6a768134"
+   }
+  ],
+  "config_label": "XM1_LIVE",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "BOOK_NAV_SERIES_V1",
+   "source_sha256": "2810ad1b70ea2f14787ea280e453ae3f6da2455c9c443461d79dc86f6a768134",
+   "l1": "NONE",
+   "alignment": "PREREG_V1_S4"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "实盘净值序列原样读入（不改本、不重算），作配对相关、尾部、回撤段的输入。诊断，只报"
+ },
+ {
+  "family_id": "INDEX_BOOK",
+  "market": "CN_A",
+  "study_ref": "DIAG-XM-1",
+  "stage": "FORWARD",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2026-10-08",
+   "to": "2026-11-16"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/live/BOOK_NAV_SERIES_ASHARE_V6_PAPER_INDEX_BOOK_2026-11-16.json",
+    "sha256": "24a40c232aca0d63b91eff6ec8320b99dbc9038b82118b647414b7bce1cd9f31"
+   }
+  ],
+  "config_label": "XM1_LIVE",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "BOOK_NAV_SERIES_V1",
+   "source_sha256": "24a40c232aca0d63b91eff6ec8320b99dbc9038b82118b647414b7bce1cd9f31",
+   "l1": "NONE",
+   "alignment": "PREREG_V1_S4"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "实盘净值序列原样读入（不改本、不重算），作配对相关、尾部、回撤段的输入。诊断，只报"
+ },
+ {
+  "family_id": "ASHARE_V6_PAPER",
+  "market": "CN_A",
+  "study_ref": "DIAG-XM-1",
+  "stage": "FORWARD",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2026-10-08",
+   "to": "2026-11-16"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/live/BOOK_NAV_SERIES_ASHARE_V6_PAPER_STOCK_BOOK_2026-11-16.json",
+    "sha256": "b8f42f92541d626e6b67d969e97fe3de0008992ec87fbec82826d714b7e0169f"
+   }
+  ],
+  "config_label": "XM1_LIVE_STOCK_BOOK",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "BOOK_NAV_SERIES_V1",
+   "source_sha256": "b8f42f92541d626e6b67d969e97fe3de0008992ec87fbec82826d714b7e0169f",
+   "l1": "NONE",
+   "alignment": "PREREG_V1_S4"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "实盘净值序列原样读入（不改本、不重算），作配对相关、尾部、回撤段的输入。诊断，只报"
+ },
+ {
+  "family_id": "US_V5_ETF_3000USD",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2023-01-03",
+   "to": "2026-10-23"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/US_V5_M2_Q0_RESULT_V1.json",
+    "sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49"
+   }
+  ],
+  "config_label": "XM1_REPLAY",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49",
+   "alignment": "PREREG_V1_S4",
+   "l1": "NONE"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "封存回放逐日权益原样读入。诊断，只报"
+ },
+ {
+  "family_id": "US_V5_ETF_3000USD",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2023-01-03",
+   "to": "2026-10-23"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/US_V5_M2_Q0_RESULT_V1.json",
+    "sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_BANDS",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 只按本市场档位 k 缩放日收益（不含联动），一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "US_V5_ETF_3000USD",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2023-01-03",
+   "to": "2026-10-23"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/US_V5_M2_Q0_RESULT_V1.json",
+    "sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_LINK",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS_LINK"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 签字规则（档位 + 两市场压力联动）缩放日收益，一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "US_CORE_9000USD_3X_GATEOBS",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2010-02-11",
+   "to": "2026-09-30"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/US_CORE_M2_Q0_RESULT_V1.json",
+    "sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9"
+   }
+  ],
+  "config_label": "XM1_REPLAY",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9",
+   "alignment": "PREREG_V1_S4",
+   "l1": "NONE"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "封存回放逐日权益原样读入。诊断，只报"
+ },
+ {
+  "family_id": "US_CORE_9000USD_3X_GATEOBS",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2010-02-11",
+   "to": "2026-09-30"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/US_CORE_M2_Q0_RESULT_V1.json",
+    "sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_BANDS",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 只按本市场档位 k 缩放日收益（不含联动），一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "US_CORE_9000USD_3X_GATEOBS",
+  "market": "US_EQUITY",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2010-02-11",
+   "to": "2026-09-30"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/US_CORE_M2_Q0_RESULT_V1.json",
+    "sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_LINK",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS_LINK"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 签字规则（档位 + 两市场压力联动）缩放日收益，一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "C17_V2_4000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-01-01",
+   "to": "2026-10-24"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/C17_V2_M2_Q0_RESULT_V2.json",
+    "sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa"
+   }
+  ],
+  "config_label": "XM1_REPLAY",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa",
+   "alignment": "PREREG_V1_S4",
+   "l1": "NONE"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "封存回放逐日权益原样读入。诊断，只报"
+ },
+ {
+  "family_id": "C17_V2_4000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-01-01",
+   "to": "2026-10-24"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/C17_V2_M2_Q0_RESULT_V2.json",
+    "sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_BANDS",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 只按本市场档位 k 缩放日收益（不含联动），一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "C17_V2_4000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-01-01",
+   "to": "2026-10-24"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/C17_V2_M2_Q0_RESULT_V2.json",
+    "sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_LINK",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS_LINK"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 签字规则（档位 + 两市场压力联动）缩放日收益，一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "QUICK_SHOT_V3_1000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-01-01",
+   "to": "2026-10-24"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/QS_V3_M2_Q0_RESULT_V1.json",
+    "sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45"
+   }
+  ],
+  "config_label": "XM1_REPLAY",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45",
+   "alignment": "PREREG_V1_S4",
+   "l1": "NONE"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "封存回放逐日权益原样读入。诊断，只报"
+ },
+ {
+  "family_id": "QUICK_SHOT_V3_1000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-01-01",
+   "to": "2026-10-24"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/QS_V3_M2_Q0_RESULT_V1.json",
+    "sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_BANDS",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 只按本市场档位 k 缩放日收益（不含联动），一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "QUICK_SHOT_V3_1000USDT",
+  "market": "CRYPTO_USDM_PERP",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-01-01",
+   "to": "2026-10-24"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/QS_V3_M2_Q0_RESULT_V1.json",
+    "sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_LINK",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS_LINK"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 签字规则（档位 + 两市场压力联动）缩放日收益，一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "ASHARE_V6_PAPER",
+  "market": "CN_A",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-06-01",
+   "to": "2026-09-28"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/ASHARE_V6_STOCK_BOOK_M2_Q0_RESULT_V1.json",
+    "sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e"
+   }
+  ],
+  "config_label": "XM1_REPLAY",
+  "role": "REPRO",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e",
+   "alignment": "PREREG_V1_S4",
+   "l1": "NONE"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "封存回放逐日权益原样读入。诊断，只报"
+ },
+ {
+  "family_id": "ASHARE_V6_PAPER",
+  "market": "CN_A",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-06-01",
+   "to": "2026-09-28"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/ASHARE_V6_STOCK_BOOK_M2_Q0_RESULT_V1.json",
+    "sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_BANDS",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 只按本市场档位 k 缩放日收益（不含联动），一阶上限。诊断，只报"
+ },
+ {
+  "family_id": "ASHARE_V6_PAPER",
+  "market": "CN_A",
+  "study_ref": "DIAG-XM-1",
+  "stage": "BOOK",
+  "k2_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+  "window": {
+   "from": "2020-06-01",
+   "to": "2026-09-28"
+  },
+  "source_refs": [
+   {
+    "path": "quant-research-platform@research/diag-xm-1:docs/research/DIAG_XM_1_PREREG_V1.md",
+    "sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70"
+   },
+   {
+    "path": "research-data/diag_xm_1_v1/inputs/replay/ASHARE_V6_STOCK_BOOK_M2_Q0_RESULT_V1.json",
+    "sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e"
+   },
+   {
+    "path": "Knowledge Graph@518d178c617aab7e7fe7af91d499013d1245100d:worker-cf/src/l1-risk-budget/bands.ts",
+    "git_blob": "44773d8b249ade244ebc46c8a75e8750ba8b7cd9"
+   }
+  ],
+  "config_label": "XM1_REPLAY_L1_LINK",
+  "role": "DIAGNOSTIC_ARM",
+  "rule_config": {
+   "diag": "DIAG-XM-1",
+   "series": "SEALED_DAILY_EQUITY",
+   "source_sha256": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e",
+   "alignment": "PREREG_V1_S4",
+   "l1_engine": "KG@518d178:bands.ts",
+   "timing": "PREREG_V1_S6_2_S6_3",
+   "application": "R_TIMES_K_FIRST_ORDER_UPPER_BOUND",
+   "l1": "BANDS_LINK"
+  },
+  "delta_vs_baseline": [],
+  "notes_zh": "L1 签字规则（档位 + 两市场压力联动）缩放日收益，一阶上限。诊断，只报"
+ }
+]
