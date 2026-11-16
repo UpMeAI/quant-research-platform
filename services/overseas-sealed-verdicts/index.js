@@ -55,6 +55,7 @@ const COMMIT = Object.freeze({
   CCS: '35f5f7d77830374081123966fd4129af427de79c', UCR: 'cef860e5d2c13d16ea420c088fc2f51826f9b405',
   NMS: '4d734c4f6f55d02f054ac77e1e7bc8571d4e9bdd',
   KMS8: 'bd1e125f1f35cee56472a8850b59dd120eb6778d', KMS8_RUN_LOG: 'e4b3c60e6c228b3d31edcff290e3c9e243a3fe26',
+  UCV: '662fdcb081d8b83c56440495183261fd4b5571a1', UCV_K2: 'e0b5c2d08cf34b919d8339d0b48c25cf9dce4cc7',
 });
 
 const Q4_RESULT = sf(COMMIT.Q4, 'docs/evidence/crypto-risk-q4/CRYPTO_C17_QS_RISK_Q4_RESULT_V1_E1.json', 'baa60ba86c44059fecd1b6a815d4302281ad6f478ae77b294522474a8b156730');
@@ -178,6 +179,15 @@ const KMS8_SOURCE_ZH = '来源：smartflow research/kelly-m-s8-run 的结果文�
 const kms8 = (id, key, title, note_zh) => Object.freeze({ id, label_zh: '凯利 m · S8 重拟合', strategy_ref: US5, kind: 'RESULT', sealed_on: '2026-11-15',
   title_zh: `US_V5 凯利上限 m 在 S8 节奏下重新拟合：${title}`, file: KMS8_RESULT, also: Object.freeze([KMS8_NOTE_1]), k2: KMS8_K2, freeze: KMS8_FREEZE, run_log: KMS8_RUN_LOG,
   k2_frozen_at: '2026-11-15T17:32:24+08:00', trial_gates_ruling: KMS8_RULING, read: kms8Read(key), expect: '不做', state_zh: KMS8_PASS_ZH, note_zh });
+
+// 修订 9：US_CORE 职责对照 VOO（desk 候选 RLC-US-2026W42-1，题 DQ-RQK-d8fdad6a84b9c984），一个单元。10-28 封存，早于过拟合控制修订（11-11）
+// 与 RF1112（11-15），三道门按封存日都不适用，不写 k2_frozen_at（冻结页写「02:4x」，文件写于 02:22:51 CST、封存提交 02:30:54 CST，只披露）。
+// K2 绑冻结页写的提交 e0b5c2d0 上的草稿（封存提交上字节相同）；RUN_SEAL 记 A、B 两次运行逐字节相同，作附带文件。
+// 机制登记表 U10（SEL.CORE_ROLE.TIMING_VS_HOLD）已记这份结果（seal_sha256 相同）
+const UCV_RESULT = sf(COMMIT.UCV, 'docs/evidence/us-core-role-vs-voo-v1/US_CORE_ROLE_VS_VOO_RESULT_V1.json', '3ec623e26cef92a040cea6f24d0b28a750ad4bdaeebe00e636bc4492267a0270');
+const UCV_RUN_SEAL = sf(COMMIT.UCV, 'docs/evidence/us-core-role-vs-voo-v1/RUN_SEAL.json', '7350da0ea236c6f7d31912360c99b868974a191c02a8c0666018f26a4d169623');
+const UCV_K2 = sf(COMMIT.UCV_K2, 'docs/US_CORE_ROLE_VS_VOO_RESEARCH_ACCEPTANCE_K2_DRAFT_V1.md', '635af851637383b76e2cc1d1fc5689345873d66b84d77b5673b83b6d5fad82c4');
+const UCV_FREEZE = coord('US_CORE_ROLE_VS_VOO_K2_FREEZE_1.md', 'c95abd46ebd0cd2775961b4a019c364fe2e70eafc9bb3c2d1e00c25c789606f7');
 
 const verdictPaths = (prefix = 'verdict', { strength = 'evidence_strength', use = 'allowed_use', text = 'text_zh' } = {}) => Object.freeze({
   decision: `${prefix}.decision`, strength: strength && `${prefix}.${strength}`, use: use && `${prefix}.${use}`, text: text && `${prefix}.${text}` });
@@ -374,6 +384,14 @@ const ENTRIES = Object.freeze([
   kms8('US5-KMS8-BUCKET', 'O5S', '海外桶联合线（L-R1b，US_V5 换成 S8 账本、为自由项）',
     'R：签字上限下判定值 4.13% ≤ 5%（S8 之前 0.77%），NO_FURTHER_CAP；离 5% 容差只剩 0.87 pp。F1：前推不触线，最大回撤 11.93%，离 L-R1b 40% 线 28.07 pp。'
     + 'F2：7 折都是 1，中位数 1、极差 0；各折本折上限下的读数从 1.76% 到 3.35%，第 7 折最高，几乎全部来自零优势读数。' + KMS8_SOURCE_ZH),
+  // 修订 9：US_CORE 职责对照 VOO，结论只从封存文件读（part_b.verdict）；desk 回链由 runtime-research-loop.linkSealedVerdict 绑定
+  { id: 'UC-ROLE-VOO', label_zh: '职责对照 VOO', strategy_ref: UC, kind: 'RESULT', sealed_on: '2026-10-28',
+    title_zh: 'US_CORE 职责对照：现承担者（3x 择时）对买入持有 VOO（SPY 总收益代表）', file: UCV_RESULT, also: Object.freeze([UCV_RUN_SEAL]), k2: UCV_K2, freeze: UCV_FREEZE,
+    read: Object.freeze({ decision: 'part_b.verdict.conclusionZh', strength: null, use: 'part_b.verdict.basisZh', text: null }), expect: '做（影子）',
+    note_zh: '判定表 §7 第 4 条：D（3x）最大回撤 46.08% 大于职责基准，C1（同规则 1x）的职责适配 R-FIT 区间跨界（界：BPR 上界 ≤ 1.00，Δg 下界 ≥ −0.02/年）：C1 前瞻影子，D 不变。'
+      + 'OOS 2018-01-02 → 2026-09-30：VOO g 0.1348、回撤 33.72%；D Δg +0.0850 [−0.1275, +0.2905]；C1 Δg −0.0128 [−0.0814, +0.0537]、回撤 21.34%、熊市保护比 0.633 [0.484, 1.280]。'
+      + '规则版本 a8601cd3（趋势档收盘低于均线）；Owner 10-28 的盘中到价改造落地后如要重判，另写附录。披露：C1 的 SPY、QQQ 腿不含分红，VOO 是总收益。'
+      + '来源：smartflow research/us-core-role-vs-voo-k2 的结果文档 US_CORE_ROLE_VS_VOO_RESEARCH_RESULT_V1.md（662fdcb0），封存 2026-10-28。' },
 ]);
 
 // ── 读文件 ──────────────────────────────────────────────────────────────────────

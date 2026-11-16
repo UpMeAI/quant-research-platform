@@ -555,6 +555,72 @@ function linkLockedEvaluation(linkId, binding = {}, input = {}) {
 }
 
 /**
+ * 封存研究结论的结论词 → 回链结论（海外导入规格修订 9）：只认这张表与「不做」开头的词，表外的词拒绝（失败即关）。
+ * 「做（影子）」「做（证据不足）」是证据不足下的「做」（只开前向影子，不改生产），记 INSUFFICIENT，不写成通过。
+ */
+const SEALED_CONCLUSION_OF = Object.freeze({ 做: 'PASS', '做（影子）': 'INSUFFICIENT', '做（证据不足）': 'INSUFFICIENT', INSUFFICIENT: 'INSUFFICIENT' });
+const sealedConclusionOf = (raw) => (typeof raw === 'string' && raw.startsWith('不做') ? 'FAIL' : Object.hasOwn(SEALED_CONCLUSION_OF, raw) ? SEALED_CONCLUSION_OF[raw] : null);
+
+/**
+ * 回链绑定一把封存研究结论锁（OVERSEAS_SEALED_VERDICT_LOCK_V1 / ASHARE_SEALED_VERDICT_LOCK_V1，海外导入规格修订 9）。
+ * 只给 desk 研究队列来的题（research_question_ref 为 DQ-…）用：封存结论不是 QRP 研究计划里的题，没有基线锁／对比锁可绑。
+ * 绑定键 {result_id, expected_file_sha256}；现场复验：锁存在、是本题当前的那把（没有被取代）、kind 为 RESULT、登记表里有这题、
+ * 锁的 case 与策略同回链、文件 sha256 等于期望值、这份文件只被一把当前锁用（回程按文件 sha256 对回链）、封存文件与绑定文件按 sha256 复验、
+ * 结论词仍是登记的期望值。写一行新的回链：result_ref = QRP:<result_id>:LOCKED，result_hash = 锁的 file_sha256，
+ * 结论按 SEALED_CONCLUSION_OF，采用状态仍 NOT_DECIDED（封存结论不是 Owner 的决定，不写采用记录）。dryRun 只返回将写的行。
+ */
+function linkSealedVerdict(linkId, binding = {}, input = {}) {
+  const overseas = require('../overseas-sealed-verdicts');
+  const stores = input.stores || require('../desk-review-routing/sealed').STORES;
+  const head = headBy(LINKS_LEDGER(), 'link_id', linkId);
+  if (!head) throw new Error(`LOOP_LINK_NOT_FOUND:${linkId}`);
+  const caseRec = headBy(CASES_LEDGER(), 'case_id', head.case_ref);
+  if (!caseRec) throw new Error(`LOOP_CASE_NOT_FOUND:${head.case_ref}`);
+  const resultId = binding.result_id;
+  required(resultId, 'LOOP_LOCK_BINDING_MISSING:result_id');
+  if (!/^[0-9a-f]{64}$/.test(binding.expected_file_sha256 || '')) throw new Error('LOOP_LOCK_BINDING_MISSING:expected_file_sha256');
+  const resultRef = `QRP:${resultId}:LOCKED`;
+  if (head.conclusion !== 'PENDING') {
+    if (head.result_ref === resultRef && head.result_hash === binding.expected_file_sha256) return { ...head, replayHit: true };
+    throw new Error(`LOOP_LINK_ALREADY_RESULT_LINKED:${linkId}`);
+  }
+  const heads = [];
+  let found = null;
+  for (const one of stores) {
+    const byEntry = new Map();
+    for (const lock of one.locks()) {
+      byEntry.set(lock.entry_id, lock);
+      if (lock.result_id === resultId) found = { one, lock };
+    }
+    heads.push(...[...byEntry.values()].map((lock) => ({ one, lock })));
+  }
+  if (!found) throw new Error(`LOOP_LOCK_NOT_FOUND:${resultId}`);
+  const { one, lock } = found;
+  const current = heads.find((h) => h.one === one && h.lock.entry_id === lock.entry_id).lock;
+  if (current.result_id !== resultId) throw new Error(`LOOP_LOCK_SUPERSEDED:${resultId}→${current.result_id}`);
+  if (lock.kind !== 'RESULT') throw new Error(`LOOP_SEALED_NOT_A_RESULT:${lock.kind}`);
+  const entry = one.entries.find((e) => e.id === lock.entry_id);
+  if (!entry) throw new Error(`LOOP_SEALED_ENTRY_NOT_REGISTERED:${lock.entry_id}`);
+  if (lock.case_ref !== head.case_ref || lock.strategy_ref !== caseRec.strategy_ref) throw new Error(`LOOP_LOCK_CASE_MISMATCH:${lock.case_ref}`);
+  if (lock.file_sha256 !== binding.expected_file_sha256) throw new Error('LOOP_RESULT_HASH_MISMATCH');
+  if (!/^DQ-/.test(head.research_question_ref)) throw new Error('LOOP_RESEARCH_QUESTION_MISMATCH');
+  const sharing = heads.filter((h) => h.lock.file_sha256 === lock.file_sha256);
+  if (sharing.length !== 1) throw new Error(`LOOP_SEALED_FILE_SHARED:${sharing.map((h) => h.lock.entry_id).join(',')}`);
+  const verified = overseas.verifiedVerdict(entry, lock, one.store);
+  const conclusion = sealedConclusionOf(verified.verdict.raw);
+  if (!conclusion) throw new Error(`LOOP_RESULT_VERDICT_UNSUPPORTED:${verified.verdict.raw}`);
+  const body = {
+    ...head, result_ref: resultRef, result_hash: lock.file_sha256,
+    conclusion, adoption_state: 'NOT_DECIDED', production_effect: 'NONE', recorded_at: input.recorded_at || now(),
+  };
+  delete body.replayHit;
+  delete body.link_hash;
+  body.link_hash = sha256(body);
+  if (input.dryRun) return { ...body, dryRun: true };
+  return append(LINKS_LEDGER(), body);
+}
+
+/**
  * 锁定结果回链。第二个参数是实验 ID（旧实验引擎：verifyFreeze + RESULT_LOCKED，行为不变）；
  * 传 {result_id, expected_file_sha256} 时改走基线锁／对比锁的绑定（linkLockedEvaluation）。
  */
@@ -668,6 +734,6 @@ module.exports = {
   PRODUCT_ACCEPTANCE_AMENDMENT_3_REF, PRODUCT_ACCEPTANCE_AMENDMENT_4_REF,
   PRODUCT_ACCEPTANCE_AMENDMENT_REFS, PRODUCT_SPEC_REF, PRODUCT_SPEC_SHA256,
   PRODUCT_EVIDENCE_KINDS, CASES_LEDGER, LINKS_LEDGER, MILESTONES_LEDGER, PRODUCT_EVIDENCE_LEDGER,
-  openCase, registerReviewQuestion, linkLockedResult, linkLockedEvaluation, LOCK_CONCLUSION_OF, registerProductEvidence, recordProductMilestone,
+  openCase, registerReviewQuestion, linkLockedResult, linkLockedEvaluation, LOCK_CONCLUSION_OF, linkSealedVerdict, SEALED_CONCLUSION_OF, registerProductEvidence, recordProductMilestone,
   listCases, listLinks, readModel,
 };
