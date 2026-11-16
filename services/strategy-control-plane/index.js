@@ -39,7 +39,6 @@ const withoutTrialRefs = (c) => { const { trial_refs: _t, ...rest } = c; return 
 
 /** 试验谱系里的 MINED_CANDIDATE 行（trial_refs 与其 source_refs 里的 TRL- 编号，递归）；trial_refs 不是数组 → 拒绝。 */
 function minedLineage(refs) {
-  if (refs === undefined) return [];
   if (!Array.isArray(refs) || !refs.every((r) => typeof r === 'string' && r)) throw new Error('PROMOTION_TRIAL_REFS_INVALID');
   const trials = require('../trial-ledger');
   const heads = trials.heads();
@@ -59,6 +58,8 @@ async function createPromotionCandidate(c = {}) {
   for (const k of ['release_candidate_ref', 'market', 'experiment_ref', 'research_evidence_refs', 'shadow_forward_refs', 'rollback_ref']) {
     if (!c[k] || (Array.isArray(c[k]) && !c[k].length)) throw new Error(`PROMOTION_MISSING_FIELD:${k}`);
   }
+  // 协调会话裁定 1（2026-11-17）：从现在起新建的候选都要带非空的 trial_refs（试验谱系）；台账里已有的行不动、不改写
+  if (!Array.isArray(c.trial_refs) || !c.trial_refs.length) throw new Error('PROMOTION_TRIAL_REFS_REQUIRED');
   // Research Gate:实验必须 RESULT_LOCKED 且 verdict = CHALLENGER_WINS(输了/负结果不进发布)
   const exp = experiments.experimentHead(c.experiment_ref);
   if (!exp || exp.status !== 'RESULT_LOCKED') throw new Error(`PROMOTION_EXPERIMENT_NOT_LOCKED:${c.experiment_ref}`);
@@ -71,7 +72,7 @@ async function createPromotionCandidate(c = {}) {
   // RF1116 §5 / §8.2 赛马路径：带赛马清单引用或模拟盘登记时，两者都要有，且每条 PAPER_VALIDATION_V1 最近一次判定的晋级门都过
   // （CLAIM_ELIGIBLE、同期配对净值不低于冠军、没有护栏违约、运行健康）。不带的旧路径行为与行形不变。
   // RF1116 P1（协调会话 2026-11-17 02:1x）：试验谱系里有 MINED_CANDIDATE 的候选，必须走赛马路径（赛马清单引用 + 过了晋级门的模拟盘登记）；
-  // 谱系 = c.trial_refs 与它们 source_refs 里的试验（递归）。没有挖掘谱系的候选，行为与行形逐字节照旧。
+  // 谱系 = c.trial_refs 与它们 source_refs 里的试验（递归），每个候选都查。没有挖掘谱系的候选，行与以前逐字节相同，只多了必填的 trial_refs。
   const mined = minedLineage(c.trial_refs);
   if (mined.length && (c.race_manifest_ref === undefined || c.paper_validation_refs === undefined)) {
     throw new Error(`PROMOTION_MINED_REQUIRES_RACE_AND_PAPER:${mined.join(',')}`);
@@ -84,7 +85,7 @@ async function createPromotionCandidate(c = {}) {
   }
   const rec = {
     schema: 'PROMOTION_CANDIDATE_V1',
-    candidate_id: c.candidate_id || `PC-${hash(mined.length ? c : withoutTrialRefs(c))}`, // 没有挖掘谱系时 trial_refs 不进编号：与不带它的候选逐字节相同
+    candidate_id: c.candidate_id || `PC-${hash(mined.length ? c : withoutTrialRefs(c))}`, // 没有挖掘谱系时 trial_refs 不进编号：编号与以前相同
     market: c.market,
     release_candidate_ref: c.release_candidate_ref,   // bundle_id#vN
     experiment_ref: c.experiment_ref,
@@ -99,7 +100,8 @@ async function createPromotionCandidate(c = {}) {
     review_status: 'PENDING_COMPATIBILITY',
     createdAt: now(),
     ...(raceRoute || {}),
-    ...(mined.length ? { trial_refs: [...c.trial_refs], mined_lineage: mined } : {}),
+    trial_refs: [...c.trial_refs],
+    ...(mined.length ? { mined_lineage: mined } : {}),
   };
   return append(PROMOTIONS_LEDGER(), rec);
 }

@@ -20,6 +20,7 @@ const experiments = require('../../services/experiment-orchestrator');
 const races = require('../../services/race-orchestrator');
 const shadow = require('../../services/shadow-control');
 const controlPlane = require('../../services/strategy-control-plane');
+const trials = require('../../services/trial-ledger');
 const runtimeStub = require('../../adapters/ashare-local/paper_runtime_stub');
 const { RUNTIME_ID } = require('../../adapters/ashare-local/market_facts');
 
@@ -205,11 +206,17 @@ async function main() {
   console.log(`  ${shd.shadow_id}: ${suff.forward_sample_count}/${suff.min_required} 个前向样本(分歧 ${disagreements})→ ${suff.claim_status}`);
 
   step(10, 'PromotionCandidate → Compatibility → Immutable Release');
+  // 晋级候选要 trial_refs（RF1116 P1，协调会话裁定 1）：演示登记一条 UNPLANNED_RUN 试验（合成数据），要产品里程碑权限
+  const authority = process.env.QRP_PRODUCT_MILESTONE_AUTHORITY;
+  if (!authority) throw new Error('QRP_PRODUCT_MILESTONE_AUTHORITY 未设置：晋级候选必须带 trial_refs，MVP 演示要先登记一条试验');
+  const [trial] = trials.register([{ family_id: 'MVP_DEMO_CN_A', market: MARKET, study_ref: `MVP-${RUN_TAG}`, config_label: chalRef, stage: 'SIGNAL', role: 'SIGNAL_TEST',
+    rule_config: { experiment_ref: exp.experiment_id, challenger: chalRef }, notes_zh: 'MVP 演示（SAMPLE_SYNTHETIC），不构成经济结论' }], { registeredBy: authority, mode: 'UNPLANNED_RUN' });
   const cand = await controlPlane.createPromotionCandidate({
     release_candidate_ref: chalRef, market: MARKET, experiment_ref: exp.experiment_id,
     research_evidence_refs: [artifact.result_hash, closed.result.result_hash],
     shadow_forward_refs: [shd.shadow_id],
     rollback_ref: champRef,
+    trial_refs: [trial.trial_id],
   });
   const compat = await controlPlane.runCompatibilityCheck(cand.candidate_id);
   if (!compat.compatibility.compatible) throw new Error(`兼容性失败:${compat.compatibility.reasons.join(';')}`);

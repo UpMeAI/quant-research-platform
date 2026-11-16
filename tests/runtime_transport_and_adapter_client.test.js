@@ -13,7 +13,7 @@ const local = require('../adapters/ashare-local');
 const { registerAdapter, getAdapter } = require('../adapters/registry');
 const { createHttpMarketAdapterClient } = require('../adapters/clients/http_market_adapter_client');
 const { RUNTIME_ID } = require('../adapters/ashare-local/market_facts');
-const { setupExperiment } = require('./_fixture');
+const { setupExperiment, trialRef } = require('./_fixture');
 
 const TOMORROW = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
@@ -88,7 +88,7 @@ async function pendingActivation() {
   shadow.recordObservation(run.shadow_id, { key: 'b', business_date: 'b', champion_output: [], challenger_output: ['600001.SH'] });
   const cand = await controlPlane.createPromotionCandidate({
     release_candidate_ref: fx.chalRef, market: 'CN_A', experiment_ref: fx.exp.experiment_id,
-    research_evidence_refs: ['ev'], shadow_forward_refs: [run.shadow_id], rollback_ref: fx.champRef,
+    research_evidence_refs: ['ev'], shadow_forward_refs: [run.shadow_id], rollback_ref: fx.champRef, trial_refs: [trialRef(fx.exp.experiment_id)],
   });
   await controlPlane.runCompatibilityCheck(cand.candidate_id);
   const release = controlPlane.createRelease(cand.candidate_id);
@@ -111,7 +111,7 @@ async function candidateAwaitingReview() {
   shadow.recordObservation(run.shadow_id, { key: 'b', business_date: 'b', champion_output: [], challenger_output: ['600001.SH'] });
   const cand = await controlPlane.createPromotionCandidate({
     release_candidate_ref: fx.chalRef, market: 'CN_A', experiment_ref: fx.exp.experiment_id,
-    research_evidence_refs: ['ev'], shadow_forward_refs: [run.shadow_id], rollback_ref: fx.champRef,
+    research_evidence_refs: ['ev'], shadow_forward_refs: [run.shadow_id], rollback_ref: fx.champRef, trial_refs: [trialRef(fx.exp.experiment_id)],
   });
   await controlPlane.runCompatibilityCheck(cand.candidate_id);
   controlPlane.createRelease(cand.candidate_id);

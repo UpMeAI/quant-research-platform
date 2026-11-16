@@ -10,7 +10,7 @@ const binding = require('../services/strategy-control-plane/runtime_binding');
 const stub = require('../adapters/ashare-local/paper_runtime_stub');
 const { RUNTIME_ID } = require('../adapters/ashare-local/market_facts');
 const migration = require('../services/strategy-control-plane/migration');
-const { setupExperiment } = require('./_fixture');
+const { setupExperiment, trialRef } = require('./_fixture');
 
 const TOMORROW = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 const YESTERDAY = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
@@ -31,7 +31,7 @@ async function promotable(verdict = 'CHALLENGER_WINS') {
 async function candidateOf(fx) {
   return controlPlane.createPromotionCandidate({
     release_candidate_ref: fx.chalRef, market: 'CN_A', experiment_ref: fx.exp.experiment_id,
-    research_evidence_refs: ['ev1'], shadow_forward_refs: [fx.shadowId], rollback_ref: fx.champRef,
+    research_evidence_refs: ['ev1'], shadow_forward_refs: [fx.shadowId], rollback_ref: fx.champRef, trial_refs: [trialRef(fx.exp.experiment_id)],
   });
 }
 
@@ -39,7 +39,7 @@ test('Promotion Gates:未锁结果 / 非胜者 / 影子样本不足 → 拒绝',
   const fx0 = await setupExperiment({ min_forward_evidence: 2 });
   await assert.rejects(async () => controlPlane.createPromotionCandidate({
     release_candidate_ref: fx0.chalRef, market: 'CN_A', experiment_ref: fx0.exp.experiment_id,
-    research_evidence_refs: ['e'], shadow_forward_refs: ['SHD-x'], rollback_ref: fx0.champRef,
+    research_evidence_refs: ['e'], shadow_forward_refs: ['SHD-x'], rollback_ref: fx0.champRef, trial_refs: [trialRef('not-locked')],
   }), /PROMOTION_EXPERIMENT_NOT_LOCKED/);
 
   const fxHold = await promotable('CHAMPION_HOLDS');

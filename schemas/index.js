@@ -125,7 +125,7 @@ const SCHEMAS = Object.freeze({
     registration_hash: 's', input_ref: 's', input_sha256: 's', evaluated_at: 's', record_hash: 's',
   },
   PROMOTION_CANDIDATE_V1: {
-    _doc: '§8 PromotionCandidate —— 研究/影子双 Gate + 兼容性 + 回滚锚。RF1116 §5 / §8.2：赛马路径另带 race_manifest_ref（RACE_V2 race_id + 清单 sha256）、paper_validation_refs 与 paper_validation_gate（每条模拟盘登记最近一次判定的晋级门都过才写）；旧路径（不带赛马引用）行形不变',
+    _doc: '§8 PromotionCandidate —— 研究/影子双 Gate + 兼容性 + 回滚锚。RF1116 §5 / §8.2：赛马路径另带 race_manifest_ref（RACE_V2 race_id + 清单 sha256）、paper_validation_refs 与 paper_validation_gate（每条模拟盘登记最近一次判定的晋级门都过才写）；旧路径（不带赛马引用）行形不变。RF1116 P1（协调会话裁定 1）：此后新建的候选都带非空 trial_refs（试验谱系），谱系里有 MINED_CANDIDATE 的另记 mined_lineage 且必须走赛马路径；此前的行没有这两个字段，不改写',
     candidate_id: 's', market: 's', release_candidate_ref: 's', experiment_ref: 's',
     research_evidence_refs: 'a', shadow_forward_refs: 'a', compatibility_result: 'o?',
     risk_impact: '*', unresolved_gaps: 'a', migration_policy: 's',
