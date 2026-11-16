@@ -1,0 +1,168 @@
+{
+  "schema": "PAPER_VALIDATION_EXISTING_SHADOWS_V1",
+  "doc_zh": "RF1116 §5.4：现有五个前向影子只是登记。每项是封存或冻结页的原文摘句（逐字节）+ 出处；页上没写的记「未写」，不补默认值；§5.3 的建议值不作用在这里。记录器照旧跑，QRP 只读它们的记录。",
+  "unwritten": "未写",
+  "registered_on": "2026-11-17",
+  "registered_at": "2026-11-17T02:00:00+08:00",
+  "sources": {
+    "RF1116_SIGNED": { "repo": "coordinator", "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261116_FACTOR_LIBRARY_AI_MINING.signed.fd22876f.md", "sha256": "fd22876f6a690b52b07429f333d2545d8fedb5d285dccd3fd3f5a1ecd9f00c80" },
+    "C3_K2": { "repo": "coordinator", "path": "artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1.draft.md", "sha256": "4d5acabfd8f16e97b8cfff33dac6db04a10a645eaff5f57f325520d880f67c7c" },
+    "C3_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1_FREEZE_1.md", "sha256": "54e6e5a8a6db3eb61ff65118299e1b91468aa4d757e671f14029e2c410bf10e2" },
+    "C3_FREEZE_1_NOTE_1": { "repo": "coordinator", "path": "artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1_FREEZE_1_NOTE_1.md", "sha256": "542e3022ada537eba20646accce1ecb3db34fb3c7cc2e0c9a69e0183ad27b0c0" },
+    "C3_FREEZE_1_NOTE_2": { "repo": "coordinator", "path": "artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1_FREEZE_1_NOTE_2.md", "sha256": "7cf9703f61e859148cd59cbbb16f54553f282d4388d14c318fb6a18f1ec3bc80" },
+    "C3_FREEZE_1_NOTE_3": { "repo": "coordinator", "path": "artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1_FREEZE_1_NOTE_3.md", "sha256": "f306f23e4f589dacd88dd782c73d6dce66357dc721daea528a21cbd5aea14107" },
+    "C3_FREEZE_1_NOTE_4": { "repo": "coordinator", "path": "artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1_FREEZE_1_NOTE_4.md", "sha256": "157c4156c8952e773d433ad939d1b30867a944a0078fcb2f48b99ee84dc17634" },
+    "C3_FREEZE_1_NOTE_5": { "repo": "coordinator", "path": "artifacts/coordinator/A_V6_R1_C3_FWD_K2_V1_FREEZE_1_NOTE_5.md", "sha256": "3e19af2dbdc28bc0e3db73d68a7466841f133e48027debc2774a0a0b8f78878a" },
+    "SECTOR_FWD_K2": { "repo": "coordinator", "path": "artifacts/coordinator/SECTOR_ETF_LEFT_1_FWD_SHADOW_ACCEPTANCE_V1.draft.md", "sha256": "a7af15b8799c984bf89d5d75c8e7a3293dc36e8b5d522573ddc4b5f965e31d62" },
+    "SECTOR_FWD_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/SECTOR_ETF_LEFT_1_FWD_SHADOW_ACCEPTANCE_V1_FREEZE_1.md", "sha256": "e89ad65ebd4f1495cf60877a2972728f6ddf3ce98eac5d2dcd1339937fad0737" },
+    "SECTOR_FWD_FREEZE_1_AMENDMENT_1": { "repo": "coordinator", "path": "artifacts/coordinator/SECTOR_ETF_LEFT_1_FWD_SHADOW_ACCEPTANCE_V1_FREEZE_1_AMENDMENT_1.md", "sha256": "68a923ea4d62d099b13f65b474b80b565bfc445c2e14a7eb64081b1dcc6341d1" },
+    "SECTOR_K2": { "repo": "coordinator", "path": "artifacts/coordinator/SECTOR_ETF_LEFT_1_K2_V1.draft.md", "sha256": "34864588774647c909d59baae185748915c708cf235b2f8eebc1ca5bcd4e8aa5" },
+    "SECTOR_K2_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/SECTOR_ETF_LEFT_1_K2_V1_FREEZE_1.md", "sha256": "68bd7e9f8d9b4dde0cd6817ef0e7410cbe790e3fd75e123a292aedd389b4baee" },
+    "C17NM_K2": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1.draft.md", "sha256": "83e9c2f1c8c492ee5ec75f0fa36573764cb71a62c1c3b357b00801b42e0474c3" },
+    "C17NM_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1_FREEZE_1.md", "sha256": "7ee0dabfee705248f6f72e7946e6863f72c519c8a4a678e6b772499f0c22d208" },
+    "C17NM_RULING_1": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1_RULING_1_T1_REASON_CODE.md", "sha256": "35990ead6d859e382b7cade7bea3739009df803e3175811e534fbcec7a83a892" },
+    "C17NM_RULING_2": { "repo": "coordinator", "path": "artifacts/coordinator/C17_NM_SELECTION_K2_V1_RULING_2_GCAP_COUNT.md", "sha256": "e81abd279679f383858e0432db3429bcaa6130d2f046c5b6b54a26c7860c9c46" },
+    "C17NM_RESULT": { "repo": "smartflow", "commit": "4d734c4f6f55d02f054ac77e1e7bc8571d4e9bdd", "path": "trading-system-v2/docs/evidence/c17-nm-trigger-v1/run/C17_NM_SELECTION_RESULT_V1.json", "sha256": "e4d311f3d7af7518476795870137d73d42acce29289d71e80780c1bd33beb433" },
+    "U11B_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/US_ETF_VALUATION_GATE_B_SHADOW_K2_V1_FREEZE_1.md", "sha256": "1bd9355a124b3471ad1a6a45c0e9a461da4ee802e80a6f7a3aaaaa12fa1ec6ce" },
+    "R21_RULE": { "repo": "coordinator", "path": "artifacts/coordinator/R21_FORWARD_SHADOW_RULE_V1.md", "sha256": "dd55ec468702362c800df746c582fccd53e7c958939009343a35d1f0d25296a3" },
+    "R21_K2_FREEZE_1": { "repo": "coordinator", "path": "artifacts/coordinator/R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_K2_V1_FREEZE_1.md", "sha256": "ca036b246ade25d498dd3695fb1ac20ae3df438a11b8b2df53df7817c574b6a6" }
+  },
+  "shadows": [
+    {
+      "shadow_key": "C3-FWD",
+      "market": "CN_A",
+      "book_zh": "A 股（V6 Q0）",
+      "run_by": "v6-q0-exec",
+      "listed_as": { "source": "RF1116_SIGNED", "quote": "| C3-FWD | A 股（V6 Q0） | v6-q0-exec |" },
+      "fields": {
+        "start": [{ "source": "C3_FREEZE_1", "quote": "★4 | (a)：T_start 照裁定 1 保持 2026-09-29。" }],
+        "min_sample": [{ "source": "C3_K2", "quote": "G1: 两臂在第 1 阶段的成熟交易各 ≥ 30；且「改变的入场」≥ 30" }],
+        "promotion_gate": "未写",
+        "withdrawal": "未写",
+        "expiry": [
+          { "source": "C3_FREEZE_1", "quote": "★8 | (a)：自 T_start 起满 2,011 个会话（约 2035-01）G1 仍不够，就收口 INSUFFICIENT（G1_NOT_MET），走草稿 §6 最后一行；段标到 2035-01-31" },
+          { "source": "C3_FREEZE_1", "quote": "**段标：** `FORWARD_RESERVED`，shadow_ref `A-V6-R1-C3-FWD`，2026-09-29 → 2035-01-31。" }
+        ],
+        "champion": [{ "source": "C3_K2", "quote": "**判定对象：C3_FWD = `A_V5_F_L3` 对 `A`。**" }],
+        "pairing": [{ "source": "C3_K2", "quote": "两本账都由冻结的 Q0 引擎前向重放，用同一把锁、同一代码树，放在一个进程里跑。" }],
+        "reading": [{ "source": "C3_FREEZE_1", "quote": "★2 | (a)：最多看 3 次，每次双侧 98.33%（1 − 0.05/3）。" }],
+        "holding_period": "未写"
+      },
+      "consulted": ["C3_FREEZE_1_NOTE_1", "C3_FREEZE_1_NOTE_2", "C3_FREEZE_1_NOTE_3", "C3_FREEZE_1_NOTE_4", "C3_FREEZE_1_NOTE_5"],
+      "unverified": []
+    },
+    {
+      "shadow_key": "SECTOR-ETF-LEFT-1",
+      "market": "CN_A",
+      "book_zh": "A 股行业 ETF（V6）",
+      "run_by": "V6",
+      "listed_as": { "source": "RF1116_SIGNED", "quote": "| SECTOR-ETF-LEFT-1 | A 股行业 ETF（V6） | V6 |" },
+      "fields": {
+        "start": [{ "source": "SECTOR_FWD_FREEZE_1", "quote": "T_start 2026-09-29。冻结以前的会话在冻结后按时点数据重放，每行标 `REPLAYED_AFTER_FREEZE`。" }],
+        "min_sample": "未写",
+        "promotion_gate": "未写",
+        "withdrawal": "未写",
+        "expiry": [{ "source": "SECTOR_FWD_FREEZE_1", "quote": "**段标** `FORWARD_RESERVED`：CN_A，族 INDEX_BOOK，2026-09-29 → 2027-12-31。" }],
+        "champion": [{ "source": "SECTOR_FWD_K2", "quote": "与同期随机入场的差：K2 §4 `R_RANDOM_ENTRY` 原样" }],
+        "pairing": [{ "source": "SECTOR_FWD_K2", "quote": "同一段、同一出场；200 次，种子 20261105），在已记录的前向数据上确定性重放。" }],
+        "reading": [
+          { "source": "SECTOR_FWD_FREEZE_1", "quote": "查看时只出 K2 §7 的四项读数：第 10 个回合平仓或第 250 个交易日，先到为准。" },
+          { "source": "SECTOR_FWD_FREEZE_1", "quote": "由协调会话看一次后定：继续、停，或另起 K2 / 修订。不做三态判定。" }
+        ],
+        "holding_period": [{ "source": "SECTOR_FWD_K2", "quote": "出场：止损 P3 − 1·ATR14 盘中到价；时间止损 H = 60 在开盘；没有目标价（K2 §3.4）。" }]
+      },
+      "consulted": ["SECTOR_FWD_FREEZE_1_AMENDMENT_1", "SECTOR_K2", "SECTOR_K2_FREEZE_1"],
+      "unverified": []
+    },
+    {
+      "shadow_key": "C17-NMSEL",
+      "market": "CRYPTO",
+      "book_zh": "加密（smartflow）",
+      "run_by": "smartflow",
+      "listed_as": { "source": "RF1116_SIGNED", "quote": "| C17-NMSEL | 加密（smartflow） | smartflow |" },
+      "fields": {
+        "start": [
+          { "source": "C17NM_FREEZE_1", "quote": "「做（证据不足）」只开前向影子（K2 §7 第 8 条），不新开账本。" },
+          { "source": "C17NM_RESULT", "quote": "只开前向影子（K2 §7 第 8 条），不改生产" }
+        ],
+        "min_sample": "未写",
+        "promotion_gate": "未写",
+        "withdrawal": "未写",
+        "expiry": "未写",
+        "champion": "未写",
+        "pairing": "未写",
+        "reading": [
+          { "source": "C17NM_K2", "quote": "看数规则：「本会挡」已平仓累计 ≥ 30 笔，或到 2027-06-30，先到为准。" },
+          { "source": "C17NM_K2", "quote": "看数工具把 T_start 之后、入场时已持有其他非主流的非主流入场标成「本会挡」，报这些仓的净 R、净 USDT。" }
+        ],
+        "holding_period": "未写"
+      },
+      "consulted": ["C17NM_RULING_1", "C17NM_RULING_2"],
+      "unverified": [
+        "T_START_DATE_NOT_ON_A_SEAL_OR_FREEZE_PAGE: the pages say only that the shadow opens on the sealed verdict (sealed 做 / 证据不足); no dated T_start. The research master table (a generated projection, not a seal page) cites a coordinator ruling T_start 2026-11-13T00:00:00Z; that ruling page was not found in artifacts/coordinator."
+      ]
+    },
+    {
+      "shadow_key": "U11(B)",
+      "market": "US",
+      "book_zh": "美股 ETF 估值门（smartflow，HK cron；T_start 11-17 22:30 CST）",
+      "run_by": "smartflow",
+      "listed_as": { "source": "RF1116_SIGNED", "quote": "| U11(B) | 美股 ETF 估值门（smartflow，HK cron；T_start 11-17 22:30 CST） | smartflow |" },
+      "fields": {
+        "start": [
+          { "source": "U11B_FREEZE_1", "quote": "T_start = 其后第一个美股开盘，即 **2026-11-17 09:30 ET（22:30 CST）**" },
+          { "source": "U11B_FREEZE_1", "quote": "若那次没写成，T_start 顺延到写成之后的第一个开盘，在本页追加记录。" }
+        ],
+        "min_sample": [{ "source": "U11B_FREEZE_1", "quote": "前向「本会拦」满 30 笔时出判定；" }],
+        "promotion_gate": "未写",
+        "withdrawal": [
+          { "source": "U11B_FREEZE_1", "quote": "**防害停止：** 前向被拦交易的合计净 R ≥ +3 R，即停止影子，判不做（过滤在持续拦赢单）。" },
+          { "source": "U11B_FREEZE_1", "quote": "**数据不可得：** 采集连续失败，或数据登记被否决，则判不做，理由「数据不可得」。SEC 条款这一支已按记录排除（§1）。" }
+        ],
+        "expiry": "未写",
+        "champion": [{ "source": "U11B_FREEZE_1", "quote": "跑一次组合比较 C 对 D" }],
+        "pairing": "未写",
+        "reading": [
+          { "source": "U11B_FREEZE_1", "quote": "**第一次看数：** T_start + 12 个月，出描述性复盘，不出判定。" },
+          { "source": "U11B_FREEZE_1", "quote": "**判定：** 前向「本会拦」满 30 笔（G1）时，跑一次组合比较 C 对 D，导入 QRP，出做 / 不做。" }
+        ],
+        "holding_period": "未写"
+      },
+      "consulted": [],
+      "unverified": [
+        "T_START_PENDING_FIRST_WRITE: T_start 2026-11-17 22:30 CST holds only if the first PIT file is written; the first collector run (HK, 07:20 CST 11-17) had not happened at registration. If it is not written, T_start moves per the page and must be appended there.",
+        "CHAMPION_ARMS_UNDEFINED_ON_PAGE: the frozen page says 组合比较 C 对 D but does not define C and D."
+      ]
+    },
+    {
+      "shadow_key": "R21",
+      "market": "CN_A",
+      "book_zh": "A 股个股簿，两条臂（V6；`R21_FORWARD_SHADOW_RULE_V1`，dd55ec46）",
+      "run_by": "V6",
+      "listed_as": { "source": "RF1116_SIGNED", "quote": "| R21 | A 股个股簿，两条臂（V6；`R21_FORWARD_SHADOW_RULE_V1`，dd55ec46） | V6 |" },
+      "fields": {
+        "start": [{ "source": "R21_RULE", "quote": "2. **T_start:** 2026-11-17, the first A-share session after the seal." }],
+        "min_sample": [{ "source": "R21_RULE", "quote": "G1 needs ≥ 30 mature trades and ≥ 30 changed entries, with the same alignment as §5.1." }],
+        "promotion_gate": "未写",
+        "withdrawal": "未写",
+        "expiry": "未写",
+        "champion": [
+          { "source": "R21_RULE", "quote": "One read-only research book per path: C_RS + that path." },
+          { "source": "R21_RULE", "quote": "RN, the `R21_RN_K` rule;" },
+          { "source": "R21_RULE", "quote": "RP, the `R21_RP_K` rule." }
+        ],
+        "pairing": [{ "source": "R21_RULE", "quote": "3. **What is recorded, daily, alongside production:** for each path, the ① readings (score, regime, state, k, cap) the path would give on that session, next to production's own." }],
+        "reading": [
+          { "source": "R21_RULE", "quote": "5. **Reading rule:** K2 FREEZE_1 §5.1 unchanged, applied to the counted forward sessions only." },
+          { "source": "R21_RULE", "quote": "The metric is g of the path's book against C_RS, at 95%." },
+          { "source": "R21_RULE", "quote": "6. **First read:** for each path, when G1 is first met on counted forward sessions, or on 2027-05-17, whichever comes first. Each later read is a new K2 decision; this rule sets none." }
+        ],
+        "holding_period": "未写"
+      },
+      "consulted": ["R21_K2_FREEZE_1"],
+      "unverified": [
+        "RULE_SOURCE_NOT_IN_COORDINATOR_DIR: R21_FORWARD_SHADOW_RULE_V1.md is not in artifacts/coordinator. The quotes were checked byte for byte against a local copy whose sha256 equals dd55ec46… (the value the signed §5.4 cites), held outside the coordinator directory; the authoritative copy is on the Linux research box. Until it is copied into artifacts/coordinator the byte test reports this source ABSENT."
+      ]
+    }
+  ]
+}

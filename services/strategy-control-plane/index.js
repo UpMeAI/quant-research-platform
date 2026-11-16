@@ -48,6 +48,14 @@ async function createPromotionCandidate(c = {}) {
     const s = await shadow.sufficiency(sid);
     if (s.claim_status !== 'CLAIM_ELIGIBLE') throw new Error(`PROMOTION_SHADOW_INSUFFICIENT:${sid}:${s.forward_sample_count}/${s.min_required}`);
   }
+  // RF1116 §5 / §8.2 赛马路径：带赛马清单引用或模拟盘登记时，两者都要有，且每条 PAPER_VALIDATION_V1 最近一次判定的晋级门都过
+  // （CLAIM_ELIGIBLE、同期配对净值不低于冠军、没有护栏违约、运行健康）。不带的旧路径行为与行形不变。
+  let raceRoute = null;
+  if (c.race_manifest_ref !== undefined || c.paper_validation_refs !== undefined) {
+    raceRoute = require('../shadow-control/paper-validation').promotionGateFor({
+      market: c.market, race_manifest_ref: c.race_manifest_ref, paper_validation_refs: c.paper_validation_refs, shadow_forward_refs: c.shadow_forward_refs,
+    });
+  }
   const rec = {
     schema: 'PROMOTION_CANDIDATE_V1',
     candidate_id: c.candidate_id || `PC-${hash(c)}`,
@@ -64,6 +72,7 @@ async function createPromotionCandidate(c = {}) {
     rollback_ref: c.rollback_ref,
     review_status: 'PENDING_COMPATIBILITY',
     createdAt: now(),
+    ...(raceRoute || {}),
   };
   return append(PROMOTIONS_LEDGER(), rec);
 }
