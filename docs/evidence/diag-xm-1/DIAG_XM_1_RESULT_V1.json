@@ -1,0 +1,3693 @@
+{
+ "followUps": {
+  "R-XM-1": {
+   "liveIdleCNY": 100000.0,
+   "liveIdleShare": 1.0,
+   "liveIndexIdleShare": 0.03846154,
+   "replayIdleCNY": 80664.06,
+   "replayIdleShare": 0.80664062,
+   "supported": true
+  },
+  "R-XM-2": {
+   "ci90": [
+    0.01360092,
+    0.09618875
+   ],
+   "i_pearson": false,
+   "ii_tail": false,
+   "iii_jaccard": true,
+   "jaccard": 0.69565217,
+   "joint": 12,
+   "lifts": [
+    1.24348958,
+    1.24348958
+   ],
+   "pearson": 0.05772489,
+   "supported": true
+  }
+ },
+ "inputs": {
+  "l1/H00300.CSI.json": "21068cdc200e79b1c7e9129c4c05b05a754177222abb4a183aea93ae990cbd9f",
+  "l1/H00905.CSI.json": "13eae5baadcbfb162ef33ce88945645f7237a78f39577ca583546457fecdc235",
+  "l1/SPY.json": "518b5ff5143061cebfb2b6ed5fe67ef353c4e432eb24540fdfaf50c16f2dafad",
+  "l1/btc_daily.csv": "93d527fd812cb3ea4f735513e1082768581d17db9b6510800f29c7c38a27b265",
+  "live/BOOK_NAV_SERIES_ASHARE_V6_PAPER_2026-11-16.json": "4e243dd35249ce6800875c60eacd782d93c7accad48a54f47562597935cd30cf",
+  "live/BOOK_NAV_SERIES_ASHARE_V6_PAPER_INDEX_BOOK_2026-11-16.json": "24a40c232aca0d63b91eff6ec8320b99dbc9038b82118b647414b7bce1cd9f31",
+  "live/BOOK_NAV_SERIES_ASHARE_V6_PAPER_STOCK_BOOK_2026-11-16.json": "b8f42f92541d626e6b67d969e97fe3de0008992ec87fbec82826d714b7e0169f",
+  "live/BOOK_NAV_SERIES_C17_V2_4000USDT_2026-11-15.json": "3fdd8a86342532faa4bc7e026fa123d0974c9f599a3bad1b3fd10cc7e9f5fa28",
+  "live/BOOK_NAV_SERIES_QUICK_SHOT_V3_1000USDT_2026-11-15.json": "2810ad1b70ea2f14787ea280e453ae3f6da2455c9c443461d79dc86f6a768134",
+  "live/BOOK_NAV_SERIES_US_CORE_9000USD_3X_GATEOBS_2026-11-13.json": "2f4c14c761d5196416dd58f03263b7b2ccb3c5404c0c874ced5d6d775d45cee4",
+  "live/BOOK_NAV_SERIES_US_V5_ETF_3000USD_2026-11-13.json": "f29d9545ed1ea7937ba2edda231bfe266b40e81a070c82c19395384e3c17a296",
+  "replay/ASHARE_V6_STOCK_BOOK_M2_Q0_RESULT_V1.json": "a7f680718e771f1ff8c9a301b605a199a7d7fd6158f59f067405e0756cd3418e",
+  "replay/C17_V2_M2_Q0_RESULT_V2.json": "e80c42523b30f7681aaede3e4f11b39475ed8fc9d724335400a7a8ba0db009fa",
+  "replay/QS_V3_M2_Q0_RESULT_V1.json": "bd83dd6ec1754dbc0b3338aefd826f29aa4f885afc05dced80ae4c826bdbfd45",
+  "replay/US_CORE_M2_Q0_RESULT_V1.json": "c5b6fc7e1e29fff97332f5ce7b033725f901f096111da5c1e7e7ad5fa4cc96e9",
+  "replay/US_V5_M2_Q0_RESULT_V1.json": "2604282b935f85d37b6878ba62a63d90e4b3539334f783e3adbf72ed23bdfe49"
+ },
+ "l1": {
+  "bandRows": {
+   "CN": {
+    "complete": {
+     "C": 1121,
+     "N": 2622,
+     "S": 1291
+    },
+    "first": "2005-01-04",
+    "firstComplete": "2006-01-13",
+    "last": "2026-09-30"
+   },
+   "CRYPTO": {
+    "complete": {
+     "C": 371,
+     "N": 1130,
+     "S": 600
+    },
+    "first": "2020-01-01",
+    "firstComplete": "2020-12-30",
+    "last": "2026-09-30"
+   },
+   "US": {
+    "complete": {
+     "C": 1047,
+     "N": 6534,
+     "S": 645
+    },
+    "first": "1993-01-29",
+    "firstComplete": "1994-01-24",
+    "last": "2026-09-30"
+   }
+  },
+  "combined": {
+   "BANDS": {
+    "maxDrawdown": 0.17255851,
+    "totalReturn": 1.120308,
+    "window": [
+     "2023-01-04",
+     "2026-09-28"
+    ]
+   },
+   "LINK": {
+    "maxDrawdown": 0.17255851,
+    "totalReturn": 1.120308,
+    "window": [
+     "2023-01-04",
+     "2026-09-28"
+    ]
+   },
+   "NONE": {
+    "maxDrawdown": 0.1616149,
+    "totalReturn": 1.4022321,
+    "window": [
+     "2023-01-04",
+     "2026-09-28"
+    ]
+   }
+  },
+  "effect": {
+   "C17": {
+    "BANDS": {
+     "cagr": 0.20612173,
+     "marks": 2464,
+     "maxDrawdown": 0.47658402,
+     "totalReturn": 2.54361025
+    },
+    "LINK": {
+     "cagr": 0.20612173,
+     "marks": 2464,
+     "maxDrawdown": 0.47658402,
+     "totalReturn": 2.54361025
+    },
+    "NONE": {
+     "cagr": 0.27585875,
+     "marks": 2464,
+     "maxDrawdown": 0.5547009,
+     "totalReturn": 4.17892952
+    },
+    "bandsDaysKBelow1": 970,
+    "bandsLogReturnDelta": -0.37945233,
+    "linkLogReturnDelta": 0.0,
+    "linkOnlyDates": [],
+    "linkOnlyDays": 0,
+    "returnsWithReading": 2464,
+    "window": [
+     "2020-01-02",
+     "2026-10-01"
+    ]
+   },
+   "CN_STOCK": {
+    "BANDS": {
+     "cagr": -0.01200804,
+     "marks": 1536,
+     "maxDrawdown": 0.07337441,
+     "totalReturn": -0.07098916
+    },
+    "LINK": {
+     "cagr": -0.01200804,
+     "marks": 1536,
+     "maxDrawdown": 0.07337441,
+     "totalReturn": -0.07098916
+    },
+    "NONE": {
+     "cagr": -0.01226911,
+     "marks": 1536,
+     "maxDrawdown": 0.07486584,
+     "totalReturn": -0.07248442
+    },
+    "bandsDaysKBelow1": 707,
+    "bandsLogReturnDelta": 0.00161082,
+    "linkLogReturnDelta": 0.0,
+    "linkOnlyDates": [],
+    "linkOnlyDays": 0,
+    "returnsWithReading": 1536,
+    "window": [
+     "2020-06-02",
+     "2026-09-28"
+    ]
+   },
+   "QS": {
+    "BANDS": {
+     "cagr": 0.15899728,
+     "marks": 2464,
+     "maxDrawdown": 0.19571207,
+     "totalReturn": 1.70769782
+    },
+    "LINK": {
+     "cagr": 0.15899728,
+     "marks": 2464,
+     "maxDrawdown": 0.19571207,
+     "totalReturn": 1.70769782
+    },
+    "NONE": {
+     "cagr": 0.14920571,
+     "marks": 2464,
+     "maxDrawdown": 0.19872611,
+     "totalReturn": 1.55697421
+    },
+    "bandsDaysKBelow1": 971,
+    "bandsLogReturnDelta": 0.05727415,
+    "linkLogReturnDelta": 0.0,
+    "linkOnlyDates": [],
+    "linkOnlyDays": 0,
+    "returnsWithReading": 2464,
+    "window": [
+     "2020-01-02",
+     "2026-10-01"
+    ]
+   },
+   "US_CORE": {
+    "BANDS": {
+     "cagr": 0.25098208,
+     "marks": 4182,
+     "maxDrawdown": 0.46773226,
+     "totalReturn": 40.10597658
+    },
+    "LINK": {
+     "cagr": 0.2528687,
+     "marks": 4182,
+     "maxDrawdown": 0.45425314,
+     "totalReturn": 41.14694261
+    },
+    "NONE": {
+     "cagr": 0.25057555,
+     "marks": 4182,
+     "maxDrawdown": 0.46078358,
+     "totalReturn": 39.8848563
+    },
+    "bandsDaysKBelow1": 586,
+    "bandsLogReturnDelta": 0.00539379,
+    "linkLogReturnDelta": 0.02500862,
+    "linkOnlyDates": [
+     "2022-01-28",
+     "2022-01-31",
+     "2022-02-01",
+     "2022-02-02",
+     "2022-02-03",
+     "2022-02-04",
+     "2022-02-07",
+     "2022-02-08",
+     "2022-02-09",
+     "2022-02-10",
+     "2022-02-11",
+     "2022-02-18",
+     "2022-02-22",
+     "2022-04-12",
+     "2022-04-13",
+     "2022-04-14",
+     "2022-04-18",
+     "2022-04-19",
+     "2022-04-20",
+     "2022-04-21",
+     "2022-04-22"
+    ],
+    "linkOnlyDays": 21,
+    "returnsWithReading": 4182,
+    "window": [
+     "2010-02-12",
+     "2026-09-30"
+    ]
+   },
+   "US_V5": {
+    "BANDS": {
+     "cagr": 0.0242027,
+     "marks": 938,
+     "maxDrawdown": 0.19120584,
+     "totalReturn": 0.09309698
+    },
+    "LINK": {
+     "cagr": 0.0242027,
+     "marks": 938,
+     "maxDrawdown": 0.19120584,
+     "totalReturn": 0.09309698
+    },
+    "NONE": {
+     "cagr": 0.03043572,
+     "marks": 938,
+     "maxDrawdown": 0.19120584,
+     "totalReturn": 0.1180641
+    },
+    "bandsDaysKBelow1": 68,
+    "bandsLogReturnDelta": -0.02258377,
+    "linkLogReturnDelta": 0.0,
+    "linkOnlyDates": [],
+    "linkOnlyDays": 0,
+    "returnsWithReading": 938,
+    "window": [
+     "2023-01-04",
+     "2026-09-30"
+    ]
+   }
+  },
+  "triggers": {
+   "appliedDays": 500,
+   "bandReadingDays": {
+    "CN": {
+     "C": 1684,
+     "L9": 12,
+     "N": 3924,
+     "S": 1958
+    },
+    "CRYPTO": {
+     "C": 371,
+     "L9": 5478,
+     "N": 1129,
+     "S": 600
+    },
+    "US": {
+     "C": 951,
+     "N": 6188,
+     "S": 439
+    }
+   },
+   "cappedDays": {
+    "CN": 0,
+    "CRYPTO": 0,
+    "US": 33
+   },
+   "episodes": [
+    {
+     "cappedDays": {},
+     "days": 15,
+     "end": "2008-07-29",
+     "start": "2008-07-15",
+     "stress": [
+      "CN",
+      "US"
+     ]
+    },
+    {
+     "cappedDays": {},
+     "days": 202,
+     "end": "2009-03-30",
+     "start": "2008-09-10",
+     "stress": [
+      "CN",
+      "US"
+     ]
+    },
+    {
+     "cappedDays": {
+      "US": 17
+     },
+     "days": 17,
+     "end": "2022-02-13",
+     "start": "2022-01-28",
+     "stress": [
+      "CN",
+      "CRYPTO"
+     ]
+    },
+    {
+     "cappedDays": {
+      "US": 5
+     },
+     "days": 36,
+     "end": "2022-03-25",
+     "start": "2022-02-18",
+     "stress": [
+      "CN",
+      "CRYPTO"
+     ]
+    },
+    {
+     "cappedDays": {
+      "US": 11
+     },
+     "days": 108,
+     "end": "2022-07-28",
+     "start": "2022-04-12",
+     "stress": [
+      "CN",
+      "CRYPTO",
+      "US"
+     ]
+    },
+    {
+     "cappedDays": {},
+     "days": 122,
+     "end": "2023-01-15",
+     "start": "2022-09-16",
+     "stress": [
+      "CN",
+      "CRYPTO",
+      "US"
+     ]
+    }
+   ],
+   "readingDays": 7578,
+   "span": [
+    "2006-01-01",
+    "2026-09-30"
+   ]
+  }
+ },
+ "l1Readings": "397bbe9122a88dde702b26ab58523fc98d4ad48d94125f351ba4d4e74bec21ad",
+ "live": {
+  "books": {
+   "C17": {
+    "episodes": [
+     {
+      "end": "2026-11-15",
+      "peakDate": "2026-10-05",
+      "recovered": false,
+      "start": "2026-10-07",
+      "trough": 0.29092069,
+      "troughDate": "2026-11-05"
+     }
+    ],
+    "file": {
+     "capital0": 4000,
+     "clock": "UTC_DAYS",
+     "costBasis": "NET_COMPLETE",
+     "measured": 46,
+     "points": 46,
+     "valuation": "REALIZED_ONLY"
+    },
+    "first": "2026-10-01",
+    "idleSessions": 19,
+    "idleShare": 0.42222222,
+    "last": "2026-11-15",
+    "maxDrawdown": 0.29092069,
+    "returns": 45,
+    "segments": 1,
+    "totalReturn": -0.216084
+   },
+   "CN_INDEX": {
+    "episodes": [],
+    "file": {
+     "capital0": 400000,
+     "clock": "SSE_SESSIONS",
+     "costBasis": "NET_COMPLETE",
+     "measured": 27,
+     "points": 28,
+     "valuation": "MARK_TO_MARKET"
+    },
+    "first": "2026-10-08",
+    "idleSessions": 1,
+    "idleShare": 0.03846154,
+    "last": "2026-11-16",
+    "maxDrawdown": 0.00080267,
+    "returns": 26,
+    "segments": 1,
+    "totalReturn": 0.000105
+   },
+   "CN_STOCK": {
+    "episodes": [],
+    "file": {
+     "capital0": 100000,
+     "clock": "SSE_SESSIONS",
+     "costBasis": "NET_COMPLETE",
+     "measured": 27,
+     "points": 28,
+     "valuation": "MARK_TO_MARKET"
+    },
+    "first": "2026-10-08",
+    "idleSessions": 26,
+    "idleShare": 1.0,
+    "last": "2026-11-16",
+    "maxDrawdown": 0.0,
+    "returns": 26,
+    "segments": 1,
+    "totalReturn": 0.0
+   },
+   "QS": {
+    "episodes": [
+     {
+      "end": "2026-10-30",
+      "peakDate": "2026-10-07",
+      "recovered": true,
+      "start": "2026-10-10",
+      "trough": 0.03575999,
+      "troughDate": "2026-10-25"
+     }
+    ],
+    "file": {
+     "capital0": 1000,
+     "clock": "UTC_DAYS",
+     "costBasis": "NET_COMPLETE",
+     "measured": 40,
+     "points": 40,
+     "valuation": "REALIZED_ONLY"
+    },
+    "first": "2026-10-07",
+    "idleSessions": 26,
+    "idleShare": 0.66666667,
+    "last": "2026-11-15",
+    "maxDrawdown": 0.03575999,
+    "returns": 39,
+    "segments": 1,
+    "totalReturn": -0.00638825
+   },
+   "US_CORE": {
+    "episodes": [
+     {
+      "end": "2026-11-13",
+      "peakDate": "2026-10-09",
+      "recovered": false,
+      "start": "2026-10-12",
+      "trough": 0.17973447,
+      "troughDate": "2026-11-05"
+     }
+    ],
+    "file": {
+     "capital0": 9000,
+     "clock": "NYSE_SESSIONS",
+     "costBasis": "NET_COMPLETE",
+     "measured": 27,
+     "points": 27,
+     "valuation": "MARK_TO_MARKET"
+    },
+    "first": "2026-10-08",
+    "idleSessions": 0,
+    "idleShare": 0.0,
+    "last": "2026-11-13",
+    "maxDrawdown": 0.17973447,
+    "returns": 26,
+    "segments": 1,
+    "totalReturn": -0.15672113
+   },
+   "US_V5": {
+    "episodes": [
+     {
+      "end": "2026-11-13",
+      "peakDate": "2026-11-04",
+      "recovered": false,
+      "start": "2026-11-05",
+      "trough": 0.0311196,
+      "troughDate": "2026-11-06"
+     }
+    ],
+    "file": {
+     "capital0": 3000,
+     "clock": "NYSE_SESSIONS",
+     "costBasis": "NET_PARTIAL",
+     "measured": 27,
+     "points": 27,
+     "valuation": "MARK_TO_MARKET"
+    },
+    "first": "2026-10-08",
+    "idleSessions": 11,
+    "idleShare": 0.42307692,
+    "last": "2026-11-13",
+    "maxDrawdown": 0.0311196,
+    "returns": 26,
+    "segments": 1,
+    "totalReturn": -0.002732
+   }
+  },
+  "combined": {
+   "calendarDays": 37,
+   "maxDrawdown": 0.03014505,
+   "totalReturn": -0.02578685,
+   "weightsCNY": {
+    "C17": 28400.0,
+    "CN_INDEX": 400000.0,
+    "CN_STOCK": 100000.0,
+    "QS": 7100.0,
+    "US_CORE": 63900.0,
+    "US_V5": 21300.0
+   },
+   "window": [
+    "2026-10-08",
+    "2026-11-13"
+   ],
+   "worst10": [
+    {
+     "contrib": {
+      "C17": -0.00280156,
+      "CN_INDEX": -0.00016081,
+      "CN_STOCK": 0.0,
+      "QS": -0.00018133,
+      "US_CORE": -0.00584964,
+      "US_V5": 0.0
+     },
+     "date": "2026-10-22",
+     "return": -0.00899334
+    },
+    {
+     "contrib": {
+      "C17": -0.00041698,
+      "CN_INDEX": 0.00011133,
+      "CN_STOCK": 0.0,
+      "QS": 0.00022113,
+      "US_CORE": -0.00748646,
+      "US_V5": -0.00034779
+     },
+     "date": "2026-10-30",
+     "return": -0.00791877
+    },
+    {
+     "contrib": {
+      "C17": -0.00075767,
+      "CN_INDEX": -0.00021044,
+      "CN_STOCK": 0.0,
+      "QS": -1.736e-05,
+      "US_CORE": -0.00371837,
+      "US_V5": -0.00076075
+     },
+     "date": "2026-11-05",
+     "return": -0.00546461
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_INDEX": 6.628e-05,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": -0.00533388,
+      "US_V5": 0.0
+     },
+     "date": "2026-10-16",
+     "return": -0.0052676
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_INDEX": 7.102e-05,
+      "CN_STOCK": 0.0,
+      "QS": 0.00021787,
+      "US_CORE": -0.00469734,
+      "US_V5": -0.000442
+     },
+     "date": "2026-10-14",
+     "return": -0.00485046
+    },
+    {
+     "contrib": {
+      "C17": -0.00131388,
+      "CN_INDEX": 0.00010245,
+      "CN_STOCK": 0.0,
+      "QS": 0.00021351,
+      "US_CORE": -0.00260772,
+      "US_V5": 0.0
+     },
+     "date": "2026-10-29",
+     "return": -0.00360564
+    },
+    {
+     "contrib": {
+      "C17": -0.00201545,
+      "CN_INDEX": 0.0,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": 0.0,
+      "US_V5": 0.0
+     },
+     "date": "2026-10-11",
+     "return": -0.00201545
+    },
+    {
+     "contrib": {
+      "C17": -0.00159438,
+      "CN_INDEX": -0.00025626,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": 0.00020531,
+      "US_V5": 0.0
+     },
+     "date": "2026-10-15",
+     "return": -0.00164534
+    },
+    {
+     "contrib": {
+      "C17": -0.00134103,
+      "CN_INDEX": 0.0,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": 0.0,
+      "US_V5": 0.0
+     },
+     "date": "2026-11-01",
+     "return": -0.00134103
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_INDEX": -4.73e-05,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": -0.0009467,
+      "US_V5": 0.0
+     },
+     "date": "2026-10-23",
+     "return": -0.000994
+    }
+   ]
+  },
+  "pairs": [
+   {
+    "a": "US_V5",
+    "b": "US_CORE",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.0311196,
+      "bDD": 0.17814593,
+      "date": "2026-11-06"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.021218,
+      "bDD": 0.17973447,
+      "date": "2026-11-05"
+     },
+     "bothDays": 9,
+     "jaccard": 0.27272727,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2026-11-13",
+        "peakDate": "2026-11-04",
+        "recovered": false,
+        "start": "2026-11-05",
+        "trough": 0.0311196,
+        "troughDate": "2026-11-06"
+       },
+       "b": {
+        "end": "2026-11-13",
+        "peakDate": "2026-10-09",
+        "recovered": false,
+        "start": "2026-10-12",
+        "trough": 0.17973447,
+        "troughDate": "2026-11-05"
+       }
+      }
+     ],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 33
+    },
+    "n": 26,
+    "pairIndex": 0,
+    "pearson": 0.43477918,
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": 0.31960467,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 26
+    }
+   },
+   {
+    "a": "US_V5",
+    "b": "C17",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.0311196,
+      "bDD": 0.29092069,
+      "date": "2026-11-06"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.021218,
+      "bDD": 0.29092069,
+      "date": "2026-11-05"
+     },
+     "bothDays": 9,
+     "jaccard": 0.24324324,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2026-11-13",
+        "peakDate": "2026-11-04",
+        "recovered": false,
+        "start": "2026-11-05",
+        "trough": 0.0311196,
+        "troughDate": "2026-11-06"
+       },
+       "b": {
+        "end": "2026-11-15",
+        "peakDate": "2026-10-05",
+        "recovered": false,
+        "start": "2026-10-07",
+        "trough": 0.29092069,
+        "troughDate": "2026-11-05"
+       }
+      }
+     ],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 37
+    },
+    "n": 26,
+    "pairIndex": 1,
+    "pearson": 0.07185054,
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": 0.06917093,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 26
+    }
+   },
+   {
+    "a": "US_V5",
+    "b": "QS",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.0311196,
+      "bDD": 0.00565757,
+      "date": "2026-11-06"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.01267286,
+      "bDD": 0.03575999,
+      "date": "2026-10-25"
+     },
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 30
+    },
+    "n": 26,
+    "pairIndex": 2,
+    "pearson": -0.31809683,
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": -0.47483618,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 26
+    }
+   },
+   {
+    "a": "US_V5",
+    "b": "CN_INDEX",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.0311196,
+      "bDD": 0.00054378,
+      "date": "2026-11-06"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 9
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": -0.18350461,
+     "cnTminus1_vs_otherT": -0.01536562,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 3,
+    "pearson": 0.13665091,
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": 0.22833537,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 1,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "US_V5",
+    "b": "CN_STOCK",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.0311196,
+      "bDD": 0.0,
+      "date": "2026-11-06"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 9
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": null,
+     "cnTminus1_vs_otherT": null,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 4,
+    "pearson": null,
+    "reason": "ZERO_VARIANCE",
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": null,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 0
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "US_CORE",
+    "b": "C17",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.17973447,
+      "bDD": 0.29092069,
+      "date": "2026-11-05"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.17973447,
+      "bDD": 0.29092069,
+      "date": "2026-11-05"
+     },
+     "bothDays": 33,
+     "jaccard": 0.89189189,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2026-11-13",
+        "peakDate": "2026-10-09",
+        "recovered": false,
+        "start": "2026-10-12",
+        "trough": 0.17973447,
+        "troughDate": "2026-11-05"
+       },
+       "b": {
+        "end": "2026-11-15",
+        "peakDate": "2026-10-05",
+        "recovered": false,
+        "start": "2026-10-07",
+        "trough": 0.29092069,
+        "troughDate": "2026-11-05"
+       }
+      }
+     ],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 37
+    },
+    "n": 26,
+    "pairIndex": 5,
+    "pearson": 0.30276468,
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": 0.33998492,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 1,
+     "k": 3,
+     "n": 26
+    }
+   },
+   {
+    "a": "US_CORE",
+    "b": "QS",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.17973447,
+      "bDD": 0.00565757,
+      "date": "2026-11-05"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.12901212,
+      "bDD": 0.03575999,
+      "date": "2026-10-25"
+     },
+     "bothDays": 19,
+     "jaccard": 0.54285714,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2026-11-13",
+        "peakDate": "2026-10-09",
+        "recovered": false,
+        "start": "2026-10-12",
+        "trough": 0.17973447,
+        "troughDate": "2026-11-05"
+       },
+       "b": {
+        "end": "2026-10-30",
+        "peakDate": "2026-10-07",
+        "recovered": true,
+        "start": "2026-10-10",
+        "trough": 0.03575999,
+        "troughDate": "2026-10-25"
+       }
+      }
+     ],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 35
+    },
+    "n": 26,
+    "pairIndex": 6,
+    "pearson": -0.31069078,
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": -0.09010935,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 1,
+     "k": 3,
+     "n": 26
+    }
+   },
+   {
+    "a": "US_CORE",
+    "b": "CN_INDEX",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.17973447,
+      "bDD": 0.00064174,
+      "date": "2026-11-05"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 33
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": -0.02838073,
+     "cnTminus1_vs_otherT": 0.15474379,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 7,
+    "pearson": 0.04659128,
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": 0.11076923,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 1,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "US_CORE",
+    "b": "CN_STOCK",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.17973447,
+      "bDD": 0.0,
+      "date": "2026-11-05"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-13"
+     ],
+     "unionDays": 33
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": null,
+     "cnTminus1_vs_otherT": null,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 8,
+    "pearson": null,
+    "reason": "ZERO_VARIANCE",
+    "span": [
+     "2026-10-08",
+     "2026-11-13"
+    ],
+    "spearman": null,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 0
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "C17",
+    "b": "QS",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.29092069,
+      "bDD": 0.00565757,
+      "date": "2026-11-05"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.221175,
+      "bDD": 0.03575999,
+      "date": "2026-10-25"
+     },
+     "bothDays": 21,
+     "jaccard": 0.525,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2026-11-15",
+        "peakDate": "2026-10-05",
+        "recovered": false,
+        "start": "2026-10-07",
+        "trough": 0.29092069,
+        "troughDate": "2026-11-05"
+       },
+       "b": {
+        "end": "2026-10-30",
+        "peakDate": "2026-10-07",
+        "recovered": true,
+        "start": "2026-10-10",
+        "trough": 0.03575999,
+        "troughDate": "2026-10-25"
+       }
+      }
+     ],
+     "span": [
+      "2026-10-07",
+      "2026-11-15"
+     ],
+     "unionDays": 40
+    },
+    "n": 39,
+    "pairIndex": 9,
+    "pearson": 0.01909259,
+    "span": [
+     "2026-10-07",
+     "2026-11-15"
+    ],
+    "spearman": -0.0063757,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 4
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 4
+     },
+     "joint": 1,
+     "k": 4,
+     "n": 39
+    }
+   },
+   {
+    "a": "C17",
+    "b": "CN_INDEX",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.29092069,
+      "bDD": 0.00064174,
+      "date": "2026-11-05"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-15"
+     ],
+     "unionDays": 39
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": -0.15484924,
+     "cnTminus1_vs_otherT": -0.00424269,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 10,
+    "pearson": 0.37949894,
+    "span": [
+     "2026-10-08",
+     "2026-11-15"
+    ],
+    "spearman": 0.20399393,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 1,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "C17",
+    "b": "CN_STOCK",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.29092069,
+      "bDD": 0.0,
+      "date": "2026-11-05"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-15"
+     ],
+     "unionDays": 39
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": null,
+     "cnTminus1_vs_otherT": null,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 11,
+    "pearson": null,
+    "reason": "ZERO_VARIANCE",
+    "span": [
+     "2026-10-08",
+     "2026-11-15"
+    ],
+    "spearman": null,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 0
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "QS",
+    "b": "CN_INDEX",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.03575999,
+      "bDD": 0.00080267,
+      "date": "2026-10-25"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-15"
+     ],
+     "unionDays": 21
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": -0.30074155,
+     "cnTminus1_vs_otherT": 0.15581606,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 12,
+    "pearson": 0.18770092,
+    "span": [
+     "2026-10-08",
+     "2026-11-15"
+    ],
+    "spearman": 0.06563438,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 1,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "QS",
+    "b": "CN_STOCK",
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.03575999,
+      "bDD": 0.0,
+      "date": "2026-10-25"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-15"
+     ],
+     "unionDays": 21
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": null,
+     "cnTminus1_vs_otherT": null,
+     "n": 24
+    },
+    "n": 25,
+    "pairIndex": 13,
+    "pearson": null,
+    "reason": "ZERO_VARIANCE",
+    "span": [
+     "2026-10-08",
+     "2026-11-15"
+    ],
+    "spearman": null,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 0
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 25
+    }
+   },
+   {
+    "a": "CN_INDEX",
+    "b": "CN_STOCK",
+    "drawdownOverlap": {
+     "aDeepestTrough": null,
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": null,
+     "overlappingEpisodes": [],
+     "span": [
+      "2026-10-08",
+      "2026-11-16"
+     ],
+     "unionDays": 0
+    },
+    "n": 26,
+    "pairIndex": 14,
+    "pearson": null,
+    "reason": "ZERO_VARIANCE",
+    "span": [
+     "2026-10-08",
+     "2026-11-16"
+    ],
+    "spearman": null,
+    "tail": {
+     "iGivenJ": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 0
+     },
+     "jGivenI": {
+      "state": "NOT_ENOUGH_TAIL_DAYS",
+      "tailDays": 3
+     },
+     "joint": 0,
+     "k": 3,
+     "n": 26
+    }
+   }
+  ],
+  "reference": {
+   "CN_COMBINED": {
+    "file": {
+     "capital0": 400000,
+     "clock": "SSE_SESSIONS",
+     "costBasis": "NET_COMPLETE",
+     "measured": 30,
+     "points": 31,
+     "valuation": "MARK_TO_MARKET"
+    },
+    "totalReturn": 8.4e-05
+   }
+  }
+ },
+ "prereg_sha256": "3e41d91e605a699083b45e9e542b5c469feec921f7283e9be3799300d49fbb70",
+ "replay": {
+  "books": {
+   "C17": {
+    "episodes": [
+     {
+      "end": "2020-02-14",
+      "peakDate": "2020-02-09",
+      "recovered": true,
+      "start": "2020-02-10",
+      "trough": 0.11230896,
+      "troughDate": "2020-02-11"
+     },
+     {
+      "end": "2020-03-12",
+      "peakDate": "2020-02-14",
+      "recovered": true,
+      "start": "2020-02-15",
+      "trough": 0.15196671,
+      "troughDate": "2020-03-07"
+     },
+     {
+      "end": "2020-04-29",
+      "peakDate": "2020-04-08",
+      "recovered": true,
+      "start": "2020-04-09",
+      "trough": 0.12675317,
+      "troughDate": "2020-04-22"
+     },
+     {
+      "end": "2020-05-30",
+      "peakDate": "2020-05-14",
+      "recovered": true,
+      "start": "2020-05-15",
+      "trough": 0.12177994,
+      "troughDate": "2020-05-27"
+     },
+     {
+      "end": "2020-08-14",
+      "peakDate": "2020-05-30",
+      "recovered": true,
+      "start": "2020-05-31",
+      "trough": 0.21355068,
+      "troughDate": "2020-07-07"
+     },
+     {
+      "end": "2023-01-20",
+      "peakDate": "2020-08-14",
+      "recovered": true,
+      "start": "2020-08-15",
+      "trough": 0.5547009,
+      "troughDate": "2022-12-12"
+     },
+     {
+      "end": "2024-07-15",
+      "peakDate": "2023-03-21",
+      "recovered": true,
+      "start": "2023-03-22",
+      "trough": 0.23207516,
+      "troughDate": "2023-09-28"
+     },
+     {
+      "end": "2025-07-16",
+      "peakDate": "2024-08-04",
+      "recovered": true,
+      "start": "2024-08-09",
+      "trough": 0.25146437,
+      "troughDate": "2025-03-11"
+     },
+     {
+      "end": "2026-01-31",
+      "peakDate": "2025-10-17",
+      "recovered": true,
+      "start": "2025-10-20",
+      "trough": 0.1395159,
+      "troughDate": "2025-12-22"
+     },
+     {
+      "end": "2026-10-24",
+      "peakDate": "2026-02-12",
+      "recovered": false,
+      "start": "2026-02-13",
+      "trough": 0.19917932,
+      "troughDate": "2026-06-15"
+     }
+    ],
+    "first": "2020-01-01",
+    "idleSessions": 1054,
+    "idleShare": 0.42380378,
+    "last": "2026-10-24",
+    "maxDrawdown": 0.5547009,
+    "returns": 2487,
+    "segments": 2,
+    "totalReturn": 4.07855219
+   },
+   "CN_STOCK": {
+    "episodes": [],
+    "first": "2020-06-01",
+    "idleSessions": 1239,
+    "idleShare": 0.80664062,
+    "last": "2026-09-28",
+    "maxDrawdown": 0.07486584,
+    "returns": 1536,
+    "segments": 1,
+    "totalReturn": -0.07248442
+   },
+   "QS": {
+    "episodes": [
+     {
+      "end": "2023-09-10",
+      "peakDate": "2021-06-23",
+      "recovered": true,
+      "start": "2021-06-24",
+      "trough": 0.13872904,
+      "troughDate": "2023-01-27"
+     },
+     {
+      "end": "2024-01-09",
+      "peakDate": "2023-10-19",
+      "recovered": true,
+      "start": "2023-10-20",
+      "trough": 0.19571207,
+      "troughDate": "2023-12-10"
+     },
+     {
+      "end": "2025-04-02",
+      "peakDate": "2024-06-14",
+      "recovered": true,
+      "start": "2024-06-15",
+      "trough": 0.15942377,
+      "troughDate": "2025-01-11"
+     },
+     {
+      "end": "2025-10-30",
+      "peakDate": "2025-04-06",
+      "recovered": true,
+      "start": "2025-04-08",
+      "trough": 0.16242887,
+      "troughDate": "2025-10-29"
+     },
+     {
+      "end": "2026-10-24",
+      "peakDate": "2025-10-30",
+      "recovered": false,
+      "start": "2025-11-01",
+      "trough": 0.22119069,
+      "troughDate": "2026-10-13"
+     }
+    ],
+    "first": "2020-01-01",
+    "idleSessions": 1459,
+    "idleShare": 0.58665058,
+    "last": "2026-10-24",
+    "maxDrawdown": 0.22119069,
+    "returns": 2487,
+    "segments": 2,
+    "totalReturn": 1.464468
+   },
+   "US_CORE": {
+    "episodes": [
+     {
+      "end": "2012-09-13",
+      "peakDate": "2010-04-23",
+      "recovered": true,
+      "start": "2010-04-26",
+      "trough": 0.4134825,
+      "troughDate": "2010-09-09"
+     },
+     {
+      "end": "2013-05-03",
+      "peakDate": "2012-09-19",
+      "recovered": true,
+      "start": "2012-09-20",
+      "trough": 0.27137152,
+      "troughDate": "2012-12-28"
+     },
+     {
+      "end": "2013-07-11",
+      "peakDate": "2013-05-21",
+      "recovered": true,
+      "start": "2013-05-22",
+      "trough": 0.16866186,
+      "troughDate": "2013-06-24"
+     },
+     {
+      "end": "2013-09-16",
+      "peakDate": "2013-08-02",
+      "recovered": true,
+      "start": "2013-08-05",
+      "trough": 0.10822448,
+      "troughDate": "2013-08-27"
+     },
+     {
+      "end": "2013-10-16",
+      "peakDate": "2013-09-19",
+      "recovered": true,
+      "start": "2013-09-20",
+      "trough": 0.10120239,
+      "troughDate": "2013-10-09"
+     },
+     {
+      "end": "2014-02-14",
+      "peakDate": "2014-01-22",
+      "recovered": true,
+      "start": "2014-01-23",
+      "trough": 0.15438469,
+      "troughDate": "2014-02-03"
+     },
+     {
+      "end": "2014-05-27",
+      "peakDate": "2014-03-06",
+      "recovered": true,
+      "start": "2014-03-07",
+      "trough": 0.1513458,
+      "troughDate": "2014-04-11"
+     },
+     {
+      "end": "2014-08-19",
+      "peakDate": "2014-07-23",
+      "recovered": true,
+      "start": "2014-07-24",
+      "trough": 0.1038567,
+      "troughDate": "2014-08-07"
+     },
+     {
+      "end": "2014-11-10",
+      "peakDate": "2014-09-18",
+      "recovered": true,
+      "start": "2014-09-19",
+      "trough": 0.19304052,
+      "troughDate": "2014-10-16"
+     },
+     {
+      "end": "2014-12-29",
+      "peakDate": "2014-11-28",
+      "recovered": true,
+      "start": "2014-12-01",
+      "trough": 0.14923565,
+      "troughDate": "2014-12-16"
+     },
+     {
+      "end": "2015-02-12",
+      "peakDate": "2014-12-29",
+      "recovered": true,
+      "start": "2014-12-30",
+      "trough": 0.14342171,
+      "troughDate": "2015-01-15"
+     },
+     {
+      "end": "2015-04-24",
+      "peakDate": "2015-03-02",
+      "recovered": true,
+      "start": "2015-03-03",
+      "trough": 0.10961536,
+      "troughDate": "2015-03-11"
+     },
+     {
+      "end": "2015-07-17",
+      "peakDate": "2015-05-21",
+      "recovered": true,
+      "start": "2015-05-22",
+      "trough": 0.11647064,
+      "troughDate": "2015-07-08"
+     },
+     {
+      "end": "2017-05-24",
+      "peakDate": "2015-07-20",
+      "recovered": true,
+      "start": "2015-07-21",
+      "trough": 0.44259975,
+      "troughDate": "2016-06-27"
+     },
+     {
+      "end": "2020-02-05",
+      "peakDate": "2018-01-26",
+      "recovered": true,
+      "start": "2018-01-29",
+      "trough": 0.44211483,
+      "troughDate": "2019-06-05"
+     },
+     {
+      "end": "2020-09-02",
+      "peakDate": "2020-02-19",
+      "recovered": true,
+      "start": "2020-02-20",
+      "trough": 0.45103157,
+      "troughDate": "2020-04-09"
+     },
+     {
+      "end": "2020-12-17",
+      "peakDate": "2020-09-02",
+      "recovered": true,
+      "start": "2020-09-03",
+      "trough": 0.29958792,
+      "troughDate": "2020-09-23"
+     },
+     {
+      "end": "2021-04-08",
+      "peakDate": "2021-02-12",
+      "recovered": true,
+      "start": "2021-02-16",
+      "trough": 0.23329968,
+      "troughDate": "2021-03-08"
+     },
+     {
+      "end": "2021-06-11",
+      "peakDate": "2021-04-16",
+      "recovered": true,
+      "start": "2021-04-19",
+      "trough": 0.16569965,
+      "troughDate": "2021-05-12"
+     },
+     {
+      "end": "2021-10-28",
+      "peakDate": "2021-09-03",
+      "recovered": true,
+      "start": "2021-09-07",
+      "trough": 0.19195449,
+      "troughDate": "2021-10-04"
+     },
+     {
+      "end": "2023-07-18",
+      "peakDate": "2021-11-19",
+      "recovered": true,
+      "start": "2021-11-22",
+      "trough": 0.46078358,
+      "troughDate": "2023-03-13"
+     },
+     {
+      "end": "2023-12-13",
+      "peakDate": "2023-07-19",
+      "recovered": true,
+      "start": "2023-07-20",
+      "trough": 0.31992528,
+      "troughDate": "2023-10-26"
+     },
+     {
+      "end": "2024-01-19",
+      "peakDate": "2023-12-27",
+      "recovered": true,
+      "start": "2023-12-28",
+      "trough": 0.10029111,
+      "troughDate": "2024-01-04"
+     },
+     {
+      "end": "2024-05-15",
+      "peakDate": "2024-03-22",
+      "recovered": true,
+      "start": "2024-03-25",
+      "trough": 0.19780561,
+      "troughDate": "2024-04-19"
+     },
+     {
+      "end": "2024-12-04",
+      "peakDate": "2024-07-10",
+      "recovered": true,
+      "start": "2024-07-11",
+      "trough": 0.37063591,
+      "troughDate": "2024-08-07"
+     },
+     {
+      "end": "2025-10-06",
+      "peakDate": "2024-12-16",
+      "recovered": true,
+      "start": "2024-12-17",
+      "trough": 0.29538386,
+      "troughDate": "2025-05-23"
+     },
+     {
+      "end": "2025-10-24",
+      "peakDate": "2025-10-08",
+      "recovered": true,
+      "start": "2025-10-09",
+      "trough": 0.1046923,
+      "troughDate": "2025-10-10"
+     },
+     {
+      "end": "2026-05-01",
+      "peakDate": "2025-10-29",
+      "recovered": true,
+      "start": "2025-10-30",
+      "trough": 0.26259363,
+      "troughDate": "2026-03-20"
+     },
+     {
+      "end": "2026-09-30",
+      "peakDate": "2026-06-02",
+      "recovered": false,
+      "start": "2026-06-03",
+      "trough": 0.30281974,
+      "troughDate": "2026-07-29"
+     }
+    ],
+    "first": "2010-02-11",
+    "idleSessions": 525,
+    "idleShare": 0.12553802,
+    "last": "2026-09-30",
+    "maxDrawdown": 0.46078358,
+    "returns": 4182,
+    "segments": 2,
+    "totalReturn": 39.8848563
+   },
+   "US_V5": {
+    "episodes": [
+     {
+      "end": "2024-02-26",
+      "peakDate": "2023-01-27",
+      "recovered": true,
+      "start": "2023-01-30",
+      "trough": 0.12756777,
+      "troughDate": "2023-11-01"
+     },
+     {
+      "end": "2026-10-23",
+      "peakDate": "2024-10-30",
+      "recovered": false,
+      "start": "2024-11-14",
+      "trough": 0.19120584,
+      "troughDate": "2026-01-07"
+     }
+    ],
+    "first": "2023-01-03",
+    "idleSessions": 563,
+    "idleShare": 0.5895288,
+    "last": "2026-10-23",
+    "maxDrawdown": 0.19120584,
+    "returns": 955,
+    "segments": 1,
+    "totalReturn": 0.13931053
+   }
+  },
+  "combined": {
+   "calendarDays": 1365,
+   "maxDrawdown": 0.16074616,
+   "totalReturn": 1.43607497,
+   "weightsCNY": {
+    "C17": 28400.0,
+    "CN_STOCK": 100000.0,
+    "QS": 7100.0,
+    "US_CORE": 63900.0,
+    "US_V5": 21300.0
+   },
+   "window": [
+    "2023-01-03",
+    "2026-09-28"
+   ],
+   "worst10": [
+    {
+     "contrib": {
+      "C17": 0.0051393,
+      "CN_STOCK": -7.37e-06,
+      "QS": 0.0,
+      "US_CORE": -0.07088386,
+      "US_V5": 0.0
+     },
+     "date": "2026-06-05",
+     "return": -0.06575193
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_STOCK": -0.00020508,
+      "QS": -0.00013808,
+      "US_CORE": -0.04781413,
+      "US_V5": 0.0
+     },
+     "date": "2024-12-18",
+     "return": -0.04815729
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_STOCK": -0.00034187,
+      "QS": 0.0,
+      "US_CORE": -0.04713494,
+      "US_V5": 0.0
+     },
+     "date": "2026-06-23",
+     "return": -0.04747681
+    },
+    {
+     "contrib": {
+      "C17": -0.01203322,
+      "CN_STOCK": 0.0,
+      "QS": 6.04e-05,
+      "US_CORE": -0.03304384,
+      "US_V5": 0.0
+     },
+     "date": "2024-07-17",
+     "return": -0.04501666
+    },
+    {
+     "contrib": {
+      "C17": -0.00742471,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": -0.0349525,
+      "US_V5": 0.0
+     },
+     "date": "2025-01-27",
+     "return": -0.04237721
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": -0.04011292,
+      "US_V5": -0.00066202
+     },
+     "date": "2024-07-24",
+     "return": -0.04077493
+    },
+    {
+     "contrib": {
+      "C17": -0.00553303,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": -0.03281556,
+      "US_V5": -7.045e-05
+     },
+     "date": "2024-09-03",
+     "return": -0.03841904
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_STOCK": 0.0,
+      "QS": 0.00037918,
+      "US_CORE": -0.0315065,
+      "US_V5": 0.0
+     },
+     "date": "2025-03-06",
+     "return": -0.03112732
+    },
+    {
+     "contrib": {
+      "C17": 0.00137401,
+      "CN_STOCK": 0.0,
+      "QS": 4.85e-05,
+      "US_CORE": -0.03251183,
+      "US_V5": 0.0
+     },
+     "date": "2025-02-27",
+     "return": -0.03108932
+    },
+    {
+     "contrib": {
+      "C17": 0.0,
+      "CN_STOCK": 0.0,
+      "QS": 0.0,
+      "US_CORE": -0.03051072,
+      "US_V5": 0.0
+     },
+     "date": "2024-08-05",
+     "return": -0.03051072
+    }
+   ]
+  },
+  "notAvailable": {
+   "CN_INDEX": "NOT_AVAILABLE:NO_SEALED_DAILY_EQUITY"
+  },
+  "pairs": [
+   {
+    "a": "US_V5",
+    "b": "US_CORE",
+    "ci90": {
+     "months": 45,
+     "pearson": [
+      0.16359223,
+      0.25519996
+     ],
+     "spearman": [
+      0.15810689,
+      0.25396349
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.19120584,
+      "bDD": 0.07097344,
+      "date": "2026-01-07"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.06105546,
+      "bDD": 0.46078358,
+      "date": "2023-03-13"
+     },
+     "bothDays": 975,
+     "jaccard": 0.75934579,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2024-02-26",
+        "peakDate": "2023-01-27",
+        "recovered": true,
+        "start": "2023-01-30",
+        "trough": 0.12756777,
+        "troughDate": "2023-11-01"
+       },
+       "b": {
+        "end": "2023-07-18",
+        "peakDate": "2021-11-19",
+        "recovered": true,
+        "start": "2021-11-22",
+        "trough": 0.46078358,
+        "troughDate": "2023-03-13"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-02-26",
+        "peakDate": "2023-01-27",
+        "recovered": true,
+        "start": "2023-01-30",
+        "trough": 0.12756777,
+        "troughDate": "2023-11-01"
+       },
+       "b": {
+        "end": "2023-12-13",
+        "peakDate": "2023-07-19",
+        "recovered": true,
+        "start": "2023-07-20",
+        "trough": 0.31992528,
+        "troughDate": "2023-10-26"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-02-26",
+        "peakDate": "2023-01-27",
+        "recovered": true,
+        "start": "2023-01-30",
+        "trough": 0.12756777,
+        "troughDate": "2023-11-01"
+       },
+       "b": {
+        "end": "2024-01-19",
+        "peakDate": "2023-12-27",
+        "recovered": true,
+        "start": "2023-12-28",
+        "trough": 0.10029111,
+        "troughDate": "2024-01-04"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2024-12-04",
+        "peakDate": "2024-07-10",
+        "recovered": true,
+        "start": "2024-07-11",
+        "trough": 0.37063591,
+        "troughDate": "2024-08-07"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2025-10-06",
+        "peakDate": "2024-12-16",
+        "recovered": true,
+        "start": "2024-12-17",
+        "trough": 0.29538386,
+        "troughDate": "2025-05-23"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2025-10-24",
+        "peakDate": "2025-10-08",
+        "recovered": true,
+        "start": "2025-10-09",
+        "trough": 0.1046923,
+        "troughDate": "2025-10-10"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2026-05-01",
+        "peakDate": "2025-10-29",
+        "recovered": true,
+        "start": "2025-10-30",
+        "trough": 0.26259363,
+        "troughDate": "2026-03-20"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2026-09-30",
+        "peakDate": "2026-06-02",
+        "recovered": false,
+        "start": "2026-06-03",
+        "trough": 0.30281974,
+        "troughDate": "2026-07-29"
+       }
+      }
+     ],
+     "span": [
+      "2023-01-03",
+      "2026-09-30"
+     ],
+     "unionDays": 1284
+    },
+    "n": 938,
+    "pairIndex": 0,
+    "pearson": 0.21070274,
+    "span": [
+     "2023-01-03",
+     "2026-09-30"
+    ],
+    "spearman": 0.2059188,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10021322,
+      "lift": 1.80466274,
+      "p": 0.18085106,
+      "tailDays": 94
+     },
+     "jGivenI": {
+      "base": 0.10021322,
+      "lift": 1.80466274,
+      "p": 0.18085106,
+      "tailDays": 94
+     },
+     "joint": 17,
+     "k": 94,
+     "n": 938
+    }
+   },
+   {
+    "a": "US_V5",
+    "b": "C17",
+    "ci90": {
+     "months": 46,
+     "pearson": [
+      0.01360092,
+      0.09618875
+     ],
+     "spearman": [
+      -0.00149748,
+      0.09703973
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.19120584,
+      "bDD": 0.09766076,
+      "date": "2026-01-07"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 944,
+     "jaccard": 0.69565217,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2024-02-26",
+        "peakDate": "2023-01-27",
+        "recovered": true,
+        "start": "2023-01-30",
+        "trough": 0.12756777,
+        "troughDate": "2023-11-01"
+       },
+       "b": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2025-07-16",
+        "peakDate": "2024-08-04",
+        "recovered": true,
+        "start": "2024-08-09",
+        "trough": 0.25146437,
+        "troughDate": "2025-03-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2026-01-31",
+        "peakDate": "2025-10-17",
+        "recovered": true,
+        "start": "2025-10-20",
+        "trough": 0.1395159,
+        "troughDate": "2025-12-22"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2026-02-12",
+        "recovered": false,
+        "start": "2026-02-13",
+        "trough": 0.19917932,
+        "troughDate": "2026-06-15"
+       }
+      }
+     ],
+     "span": [
+      "2023-01-03",
+      "2026-10-23"
+     ],
+     "unionDays": 1357
+    },
+    "n": 955,
+    "pairIndex": 1,
+    "pearson": 0.05772489,
+    "span": [
+     "2023-01-03",
+     "2026-10-23"
+    ],
+    "spearman": 0.04782139,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10052356,
+      "lift": 1.24348958,
+      "p": 0.125,
+      "tailDays": 96
+     },
+     "jGivenI": {
+      "base": 0.10052356,
+      "lift": 1.24348958,
+      "p": 0.125,
+      "tailDays": 96
+     },
+     "joint": 12,
+     "k": 96,
+     "n": 955
+    }
+   },
+   {
+    "a": "US_V5",
+    "b": "QS",
+    "ci90": {
+     "months": 46,
+     "pearson": [
+      -0.04075539,
+      0.00223082
+     ],
+     "spearman": [
+      -0.09481111,
+      -0.00204129
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.19120584,
+      "bDD": 0.05701424,
+      "date": "2026-01-07"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.06741828,
+      "bDD": 0.22119069,
+      "date": "2026-10-13"
+     },
+     "bothDays": 1009,
+     "jaccard": 0.78766589,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2024-02-26",
+        "peakDate": "2023-01-27",
+        "recovered": true,
+        "start": "2023-01-30",
+        "trough": 0.12756777,
+        "troughDate": "2023-11-01"
+       },
+       "b": {
+        "end": "2023-09-10",
+        "peakDate": "2021-06-23",
+        "recovered": true,
+        "start": "2021-06-24",
+        "trough": 0.13872904,
+        "troughDate": "2023-01-27"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-02-26",
+        "peakDate": "2023-01-27",
+        "recovered": true,
+        "start": "2023-01-30",
+        "trough": 0.12756777,
+        "troughDate": "2023-11-01"
+       },
+       "b": {
+        "end": "2024-01-09",
+        "peakDate": "2023-10-19",
+        "recovered": true,
+        "start": "2023-10-20",
+        "trough": 0.19571207,
+        "troughDate": "2023-12-10"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2025-04-02",
+        "peakDate": "2024-06-14",
+        "recovered": true,
+        "start": "2024-06-15",
+        "trough": 0.15942377,
+        "troughDate": "2025-01-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2025-10-30",
+        "peakDate": "2025-04-06",
+        "recovered": true,
+        "start": "2025-04-08",
+        "trough": 0.16242887,
+        "troughDate": "2025-10-29"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-23",
+        "peakDate": "2024-10-30",
+        "recovered": false,
+        "start": "2024-11-14",
+        "trough": 0.19120584,
+        "troughDate": "2026-01-07"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2025-10-30",
+        "recovered": false,
+        "start": "2025-11-01",
+        "trough": 0.22119069,
+        "troughDate": "2026-10-13"
+       }
+      }
+     ],
+     "span": [
+      "2023-01-03",
+      "2026-10-23"
+     ],
+     "unionDays": 1281
+    },
+    "n": 954,
+    "pairIndex": 2,
+    "pearson": -0.01546463,
+    "span": [
+     "2023-01-03",
+     "2026-10-23"
+    ],
+    "spearman": -0.04865327,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10062893,
+      "lift": 0.72460938,
+      "p": 0.07291667,
+      "tailDays": 96
+     },
+     "jGivenI": {
+      "base": 0.10062893,
+      "lift": 0.72460938,
+      "p": 0.07291667,
+      "tailDays": 96
+     },
+     "joint": 7,
+     "k": 96,
+     "n": 954
+    }
+   },
+   {
+    "a": "US_V5",
+    "b": "CN_STOCK",
+    "ci90": {
+     "months": 45,
+     "pearson": [
+      -0.0233322,
+      0.04833857
+     ],
+     "spearman": [
+      -0.02010211,
+      0.06022817
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.19120584,
+      "bDD": 0.06421287,
+      "date": "2026-01-07"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2023-01-03",
+      "2026-09-28"
+     ],
+     "unionDays": 1077
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": -0.01018311,
+     "cnTminus1_vs_otherT": 0.02633759,
+     "n": 871
+    },
+    "n": 872,
+    "pairIndex": 3,
+    "pearson": 0.01258129,
+    "span": [
+     "2023-01-03",
+     "2026-09-28"
+    ],
+    "spearman": 0.02113398,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10091743,
+      "lift": 1.01342975,
+      "p": 0.10227273,
+      "tailDays": 88
+     },
+     "jGivenI": {
+      "base": 0.10091743,
+      "lift": 1.01342975,
+      "p": 0.10227273,
+      "tailDays": 88
+     },
+     "joint": 9,
+     "k": 88,
+     "n": 872
+    }
+   },
+   {
+    "a": "US_CORE",
+    "b": "C17",
+    "ci90": {
+     "months": 81,
+     "pearson": [
+      -0.04986092,
+      0.0252728
+     ],
+     "spearman": [
+      -0.03592775,
+      0.0443947
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.46078358,
+      "bDD": 0.0,
+      "date": "2023-03-13"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.41671619,
+      "bDD": 0.5547009,
+      "date": "2022-12-12"
+     },
+     "bothDays": 1816,
+     "jaccard": 0.73851159,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2020-09-02",
+        "peakDate": "2020-02-19",
+        "recovered": true,
+        "start": "2020-02-20",
+        "trough": 0.45103157,
+        "troughDate": "2020-04-09"
+       },
+       "b": {
+        "end": "2020-03-12",
+        "peakDate": "2020-02-14",
+        "recovered": true,
+        "start": "2020-02-15",
+        "trough": 0.15196671,
+        "troughDate": "2020-03-07"
+       }
+      },
+      {
+       "a": {
+        "end": "2020-09-02",
+        "peakDate": "2020-02-19",
+        "recovered": true,
+        "start": "2020-02-20",
+        "trough": 0.45103157,
+        "troughDate": "2020-04-09"
+       },
+       "b": {
+        "end": "2020-04-29",
+        "peakDate": "2020-04-08",
+        "recovered": true,
+        "start": "2020-04-09",
+        "trough": 0.12675317,
+        "troughDate": "2020-04-22"
+       }
+      },
+      {
+       "a": {
+        "end": "2020-09-02",
+        "peakDate": "2020-02-19",
+        "recovered": true,
+        "start": "2020-02-20",
+        "trough": 0.45103157,
+        "troughDate": "2020-04-09"
+       },
+       "b": {
+        "end": "2020-05-30",
+        "peakDate": "2020-05-14",
+        "recovered": true,
+        "start": "2020-05-15",
+        "trough": 0.12177994,
+        "troughDate": "2020-05-27"
+       }
+      },
+      {
+       "a": {
+        "end": "2020-09-02",
+        "peakDate": "2020-02-19",
+        "recovered": true,
+        "start": "2020-02-20",
+        "trough": 0.45103157,
+        "troughDate": "2020-04-09"
+       },
+       "b": {
+        "end": "2020-08-14",
+        "peakDate": "2020-05-30",
+        "recovered": true,
+        "start": "2020-05-31",
+        "trough": 0.21355068,
+        "troughDate": "2020-07-07"
+       }
+      },
+      {
+       "a": {
+        "end": "2020-09-02",
+        "peakDate": "2020-02-19",
+        "recovered": true,
+        "start": "2020-02-20",
+        "trough": 0.45103157,
+        "troughDate": "2020-04-09"
+       },
+       "b": {
+        "end": "2023-01-20",
+        "peakDate": "2020-08-14",
+        "recovered": true,
+        "start": "2020-08-15",
+        "trough": 0.5547009,
+        "troughDate": "2022-12-12"
+       }
+      },
+      {
+       "a": {
+        "end": "2020-12-17",
+        "peakDate": "2020-09-02",
+        "recovered": true,
+        "start": "2020-09-03",
+        "trough": 0.29958792,
+        "troughDate": "2020-09-23"
+       },
+       "b": {
+        "end": "2023-01-20",
+        "peakDate": "2020-08-14",
+        "recovered": true,
+        "start": "2020-08-15",
+        "trough": 0.5547009,
+        "troughDate": "2022-12-12"
+       }
+      },
+      {
+       "a": {
+        "end": "2021-04-08",
+        "peakDate": "2021-02-12",
+        "recovered": true,
+        "start": "2021-02-16",
+        "trough": 0.23329968,
+        "troughDate": "2021-03-08"
+       },
+       "b": {
+        "end": "2023-01-20",
+        "peakDate": "2020-08-14",
+        "recovered": true,
+        "start": "2020-08-15",
+        "trough": 0.5547009,
+        "troughDate": "2022-12-12"
+       }
+      },
+      {
+       "a": {
+        "end": "2021-06-11",
+        "peakDate": "2021-04-16",
+        "recovered": true,
+        "start": "2021-04-19",
+        "trough": 0.16569965,
+        "troughDate": "2021-05-12"
+       },
+       "b": {
+        "end": "2023-01-20",
+        "peakDate": "2020-08-14",
+        "recovered": true,
+        "start": "2020-08-15",
+        "trough": 0.5547009,
+        "troughDate": "2022-12-12"
+       }
+      },
+      {
+       "a": {
+        "end": "2021-10-28",
+        "peakDate": "2021-09-03",
+        "recovered": true,
+        "start": "2021-09-07",
+        "trough": 0.19195449,
+        "troughDate": "2021-10-04"
+       },
+       "b": {
+        "end": "2023-01-20",
+        "peakDate": "2020-08-14",
+        "recovered": true,
+        "start": "2020-08-15",
+        "trough": 0.5547009,
+        "troughDate": "2022-12-12"
+       }
+      },
+      {
+       "a": {
+        "end": "2023-07-18",
+        "peakDate": "2021-11-19",
+        "recovered": true,
+        "start": "2021-11-22",
+        "trough": 0.46078358,
+        "troughDate": "2023-03-13"
+       },
+       "b": {
+        "end": "2023-01-20",
+        "peakDate": "2020-08-14",
+        "recovered": true,
+        "start": "2020-08-15",
+        "trough": 0.5547009,
+        "troughDate": "2022-12-12"
+       }
+      },
+      {
+       "a": {
+        "end": "2023-07-18",
+        "peakDate": "2021-11-19",
+        "recovered": true,
+        "start": "2021-11-22",
+        "trough": 0.46078358,
+        "troughDate": "2023-03-13"
+       },
+       "b": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       }
+      },
+      {
+       "a": {
+        "end": "2023-12-13",
+        "peakDate": "2023-07-19",
+        "recovered": true,
+        "start": "2023-07-20",
+        "trough": 0.31992528,
+        "troughDate": "2023-10-26"
+       },
+       "b": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-01-19",
+        "peakDate": "2023-12-27",
+        "recovered": true,
+        "start": "2023-12-28",
+        "trough": 0.10029111,
+        "troughDate": "2024-01-04"
+       },
+       "b": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-05-15",
+        "peakDate": "2024-03-22",
+        "recovered": true,
+        "start": "2024-03-25",
+        "trough": 0.19780561,
+        "troughDate": "2024-04-19"
+       },
+       "b": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-12-04",
+        "peakDate": "2024-07-10",
+        "recovered": true,
+        "start": "2024-07-11",
+        "trough": 0.37063591,
+        "troughDate": "2024-08-07"
+       },
+       "b": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-12-04",
+        "peakDate": "2024-07-10",
+        "recovered": true,
+        "start": "2024-07-11",
+        "trough": 0.37063591,
+        "troughDate": "2024-08-07"
+       },
+       "b": {
+        "end": "2025-07-16",
+        "peakDate": "2024-08-04",
+        "recovered": true,
+        "start": "2024-08-09",
+        "trough": 0.25146437,
+        "troughDate": "2025-03-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2025-10-06",
+        "peakDate": "2024-12-16",
+        "recovered": true,
+        "start": "2024-12-17",
+        "trough": 0.29538386,
+        "troughDate": "2025-05-23"
+       },
+       "b": {
+        "end": "2025-07-16",
+        "peakDate": "2024-08-04",
+        "recovered": true,
+        "start": "2024-08-09",
+        "trough": 0.25146437,
+        "troughDate": "2025-03-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2025-10-24",
+        "peakDate": "2025-10-08",
+        "recovered": true,
+        "start": "2025-10-09",
+        "trough": 0.1046923,
+        "troughDate": "2025-10-10"
+       },
+       "b": {
+        "end": "2026-01-31",
+        "peakDate": "2025-10-17",
+        "recovered": true,
+        "start": "2025-10-20",
+        "trough": 0.1395159,
+        "troughDate": "2025-12-22"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-05-01",
+        "peakDate": "2025-10-29",
+        "recovered": true,
+        "start": "2025-10-30",
+        "trough": 0.26259363,
+        "troughDate": "2026-03-20"
+       },
+       "b": {
+        "end": "2026-01-31",
+        "peakDate": "2025-10-17",
+        "recovered": true,
+        "start": "2025-10-20",
+        "trough": 0.1395159,
+        "troughDate": "2025-12-22"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-05-01",
+        "peakDate": "2025-10-29",
+        "recovered": true,
+        "start": "2025-10-30",
+        "trough": 0.26259363,
+        "troughDate": "2026-03-20"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2026-02-12",
+        "recovered": false,
+        "start": "2026-02-13",
+        "trough": 0.19917932,
+        "troughDate": "2026-06-15"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-09-30",
+        "peakDate": "2026-06-02",
+        "recovered": false,
+        "start": "2026-06-03",
+        "trough": 0.30281974,
+        "troughDate": "2026-07-29"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2026-02-12",
+        "recovered": false,
+        "start": "2026-02-13",
+        "trough": 0.19917932,
+        "troughDate": "2026-06-15"
+       }
+      }
+     ],
+     "span": [
+      "2020-01-01",
+      "2026-09-30"
+     ],
+     "unionDays": 2459
+    },
+    "n": 1693,
+    "pairIndex": 4,
+    "pearson": -0.01169124,
+    "span": [
+     "2020-01-01",
+     "2026-09-30"
+    ],
+    "spearman": 0.00403194,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10041347,
+      "lift": 1.1716263,
+      "p": 0.11764706,
+      "tailDays": 170
+     },
+     "jGivenI": {
+      "base": 0.10041347,
+      "lift": 1.1716263,
+      "p": 0.11764706,
+      "tailDays": 170
+     },
+     "joint": 20,
+     "k": 170,
+     "n": 1693
+    }
+   },
+   {
+    "a": "US_CORE",
+    "b": "QS",
+    "ci90": {
+     "months": 81,
+     "pearson": [
+      -0.05591955,
+      0.01461178
+     ],
+     "spearman": [
+      -0.12571166,
+      -0.04012971
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.46078358,
+      "bDD": 0.03127617,
+      "date": "2023-03-13"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 1532,
+     "jaccard": 0.67370273,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2021-10-28",
+        "peakDate": "2021-09-03",
+        "recovered": true,
+        "start": "2021-09-07",
+        "trough": 0.19195449,
+        "troughDate": "2021-10-04"
+       },
+       "b": {
+        "end": "2023-09-10",
+        "peakDate": "2021-06-23",
+        "recovered": true,
+        "start": "2021-06-24",
+        "trough": 0.13872904,
+        "troughDate": "2023-01-27"
+       }
+      },
+      {
+       "a": {
+        "end": "2023-07-18",
+        "peakDate": "2021-11-19",
+        "recovered": true,
+        "start": "2021-11-22",
+        "trough": 0.46078358,
+        "troughDate": "2023-03-13"
+       },
+       "b": {
+        "end": "2023-09-10",
+        "peakDate": "2021-06-23",
+        "recovered": true,
+        "start": "2021-06-24",
+        "trough": 0.13872904,
+        "troughDate": "2023-01-27"
+       }
+      },
+      {
+       "a": {
+        "end": "2023-12-13",
+        "peakDate": "2023-07-19",
+        "recovered": true,
+        "start": "2023-07-20",
+        "trough": 0.31992528,
+        "troughDate": "2023-10-26"
+       },
+       "b": {
+        "end": "2023-09-10",
+        "peakDate": "2021-06-23",
+        "recovered": true,
+        "start": "2021-06-24",
+        "trough": 0.13872904,
+        "troughDate": "2023-01-27"
+       }
+      },
+      {
+       "a": {
+        "end": "2023-12-13",
+        "peakDate": "2023-07-19",
+        "recovered": true,
+        "start": "2023-07-20",
+        "trough": 0.31992528,
+        "troughDate": "2023-10-26"
+       },
+       "b": {
+        "end": "2024-01-09",
+        "peakDate": "2023-10-19",
+        "recovered": true,
+        "start": "2023-10-20",
+        "trough": 0.19571207,
+        "troughDate": "2023-12-10"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-01-19",
+        "peakDate": "2023-12-27",
+        "recovered": true,
+        "start": "2023-12-28",
+        "trough": 0.10029111,
+        "troughDate": "2024-01-04"
+       },
+       "b": {
+        "end": "2024-01-09",
+        "peakDate": "2023-10-19",
+        "recovered": true,
+        "start": "2023-10-20",
+        "trough": 0.19571207,
+        "troughDate": "2023-12-10"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-12-04",
+        "peakDate": "2024-07-10",
+        "recovered": true,
+        "start": "2024-07-11",
+        "trough": 0.37063591,
+        "troughDate": "2024-08-07"
+       },
+       "b": {
+        "end": "2025-04-02",
+        "peakDate": "2024-06-14",
+        "recovered": true,
+        "start": "2024-06-15",
+        "trough": 0.15942377,
+        "troughDate": "2025-01-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2025-10-06",
+        "peakDate": "2024-12-16",
+        "recovered": true,
+        "start": "2024-12-17",
+        "trough": 0.29538386,
+        "troughDate": "2025-05-23"
+       },
+       "b": {
+        "end": "2025-04-02",
+        "peakDate": "2024-06-14",
+        "recovered": true,
+        "start": "2024-06-15",
+        "trough": 0.15942377,
+        "troughDate": "2025-01-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2025-10-06",
+        "peakDate": "2024-12-16",
+        "recovered": true,
+        "start": "2024-12-17",
+        "trough": 0.29538386,
+        "troughDate": "2025-05-23"
+       },
+       "b": {
+        "end": "2025-10-30",
+        "peakDate": "2025-04-06",
+        "recovered": true,
+        "start": "2025-04-08",
+        "trough": 0.16242887,
+        "troughDate": "2025-10-29"
+       }
+      },
+      {
+       "a": {
+        "end": "2025-10-24",
+        "peakDate": "2025-10-08",
+        "recovered": true,
+        "start": "2025-10-09",
+        "trough": 0.1046923,
+        "troughDate": "2025-10-10"
+       },
+       "b": {
+        "end": "2025-10-30",
+        "peakDate": "2025-04-06",
+        "recovered": true,
+        "start": "2025-04-08",
+        "trough": 0.16242887,
+        "troughDate": "2025-10-29"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-05-01",
+        "peakDate": "2025-10-29",
+        "recovered": true,
+        "start": "2025-10-30",
+        "trough": 0.26259363,
+        "troughDate": "2026-03-20"
+       },
+       "b": {
+        "end": "2025-10-30",
+        "peakDate": "2025-04-06",
+        "recovered": true,
+        "start": "2025-04-08",
+        "trough": 0.16242887,
+        "troughDate": "2025-10-29"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-05-01",
+        "peakDate": "2025-10-29",
+        "recovered": true,
+        "start": "2025-10-30",
+        "trough": 0.26259363,
+        "troughDate": "2026-03-20"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2025-10-30",
+        "recovered": false,
+        "start": "2025-11-01",
+        "trough": 0.22119069,
+        "troughDate": "2026-10-13"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-09-30",
+        "peakDate": "2026-06-02",
+        "recovered": false,
+        "start": "2026-06-03",
+        "trough": 0.30281974,
+        "troughDate": "2026-07-29"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2025-10-30",
+        "recovered": false,
+        "start": "2025-11-01",
+        "trough": 0.22119069,
+        "troughDate": "2026-10-13"
+       }
+      }
+     ],
+     "span": [
+      "2020-01-01",
+      "2026-09-30"
+     ],
+     "unionDays": 2274
+    },
+    "n": 1693,
+    "pairIndex": 5,
+    "pearson": -0.01260221,
+    "span": [
+     "2020-01-01",
+     "2026-09-30"
+    ],
+    "spearman": -0.08310016,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10041347,
+      "lift": 0.64439446,
+      "p": 0.06470588,
+      "tailDays": 170
+     },
+     "jGivenI": {
+      "base": 0.10041347,
+      "lift": 0.64439446,
+      "p": 0.06470588,
+      "tailDays": 170
+     },
+     "joint": 11,
+     "k": 170,
+     "n": 1693
+    }
+   },
+   {
+    "a": "US_CORE",
+    "b": "CN_STOCK",
+    "ci90": {
+     "months": 76,
+     "pearson": [
+      -0.0375345,
+      0.05919486
+     ],
+     "spearman": [
+      -0.05855538,
+      0.02638568
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.46078358,
+      "bDD": 0.03299832,
+      "date": "2023-03-13"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2020-06-01",
+      "2026-09-28"
+     ],
+     "unionDays": 1943
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": 0.02090732,
+     "cnTminus1_vs_otherT": 0.01916093,
+     "n": 1482
+    },
+    "n": 1483,
+    "pairIndex": 6,
+    "pearson": 0.01240863,
+    "span": [
+     "2020-06-01",
+     "2026-09-28"
+    ],
+    "spearman": -0.01608814,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10047202,
+      "lift": 0.9351831,
+      "p": 0.09395973,
+      "tailDays": 149
+     },
+     "jGivenI": {
+      "base": 0.10047202,
+      "lift": 0.9351831,
+      "p": 0.09395973,
+      "tailDays": 149
+     },
+     "joint": 14,
+     "k": 149,
+     "n": 1483
+    }
+   },
+   {
+    "a": "C17",
+    "b": "QS",
+    "ci90": {
+     "months": 82,
+     "pearson": [
+      -0.02942593,
+      0.00366034
+     ],
+     "spearman": [
+      -0.05360863,
+      0.00477574
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.5547009,
+      "bDD": 0.09528641,
+      "date": "2022-12-12"
+     },
+     "bDeepestTrough": {
+      "aDD": 0.16649646,
+      "bDD": 0.22119069,
+      "date": "2026-10-13"
+     },
+     "bothDays": 1556,
+     "jaccard": 0.64644786,
+     "overlappingEpisodes": [
+      {
+       "a": {
+        "end": "2023-01-20",
+        "peakDate": "2020-08-14",
+        "recovered": true,
+        "start": "2020-08-15",
+        "trough": 0.5547009,
+        "troughDate": "2022-12-12"
+       },
+       "b": {
+        "end": "2023-09-10",
+        "peakDate": "2021-06-23",
+        "recovered": true,
+        "start": "2021-06-24",
+        "trough": 0.13872904,
+        "troughDate": "2023-01-27"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       },
+       "b": {
+        "end": "2023-09-10",
+        "peakDate": "2021-06-23",
+        "recovered": true,
+        "start": "2021-06-24",
+        "trough": 0.13872904,
+        "troughDate": "2023-01-27"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       },
+       "b": {
+        "end": "2024-01-09",
+        "peakDate": "2023-10-19",
+        "recovered": true,
+        "start": "2023-10-20",
+        "trough": 0.19571207,
+        "troughDate": "2023-12-10"
+       }
+      },
+      {
+       "a": {
+        "end": "2024-07-15",
+        "peakDate": "2023-03-21",
+        "recovered": true,
+        "start": "2023-03-22",
+        "trough": 0.23207516,
+        "troughDate": "2023-09-28"
+       },
+       "b": {
+        "end": "2025-04-02",
+        "peakDate": "2024-06-14",
+        "recovered": true,
+        "start": "2024-06-15",
+        "trough": 0.15942377,
+        "troughDate": "2025-01-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2025-07-16",
+        "peakDate": "2024-08-04",
+        "recovered": true,
+        "start": "2024-08-09",
+        "trough": 0.25146437,
+        "troughDate": "2025-03-11"
+       },
+       "b": {
+        "end": "2025-04-02",
+        "peakDate": "2024-06-14",
+        "recovered": true,
+        "start": "2024-06-15",
+        "trough": 0.15942377,
+        "troughDate": "2025-01-11"
+       }
+      },
+      {
+       "a": {
+        "end": "2025-07-16",
+        "peakDate": "2024-08-04",
+        "recovered": true,
+        "start": "2024-08-09",
+        "trough": 0.25146437,
+        "troughDate": "2025-03-11"
+       },
+       "b": {
+        "end": "2025-10-30",
+        "peakDate": "2025-04-06",
+        "recovered": true,
+        "start": "2025-04-08",
+        "trough": 0.16242887,
+        "troughDate": "2025-10-29"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-01-31",
+        "peakDate": "2025-10-17",
+        "recovered": true,
+        "start": "2025-10-20",
+        "trough": 0.1395159,
+        "troughDate": "2025-12-22"
+       },
+       "b": {
+        "end": "2025-10-30",
+        "peakDate": "2025-04-06",
+        "recovered": true,
+        "start": "2025-04-08",
+        "trough": 0.16242887,
+        "troughDate": "2025-10-29"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-01-31",
+        "peakDate": "2025-10-17",
+        "recovered": true,
+        "start": "2025-10-20",
+        "trough": 0.1395159,
+        "troughDate": "2025-12-22"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2025-10-30",
+        "recovered": false,
+        "start": "2025-11-01",
+        "trough": 0.22119069,
+        "troughDate": "2026-10-13"
+       }
+      },
+      {
+       "a": {
+        "end": "2026-10-24",
+        "peakDate": "2026-02-12",
+        "recovered": false,
+        "start": "2026-02-13",
+        "trough": 0.19917932,
+        "troughDate": "2026-06-15"
+       },
+       "b": {
+        "end": "2026-10-24",
+        "peakDate": "2025-10-30",
+        "recovered": false,
+        "start": "2025-11-01",
+        "trough": 0.22119069,
+        "troughDate": "2026-10-13"
+       }
+      }
+     ],
+     "span": [
+      "2020-01-01",
+      "2026-10-24"
+     ],
+     "unionDays": 2407
+    },
+    "n": 2486,
+    "pairIndex": 7,
+    "pearson": -0.01315778,
+    "span": [
+     "2020-01-01",
+     "2026-10-24"
+    ],
+    "spearman": -0.02398464,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.1001609,
+      "lift": 0.84201868,
+      "p": 0.08433735,
+      "tailDays": 249
+     },
+     "jGivenI": {
+      "base": 0.1001609,
+      "lift": 0.84201868,
+      "p": 0.08433735,
+      "tailDays": 249
+     },
+     "joint": 21,
+     "k": 249,
+     "n": 2486
+    }
+   },
+   {
+    "a": "C17",
+    "b": "CN_STOCK",
+    "ci90": {
+     "months": 76,
+     "pearson": [
+      -0.04088186,
+      0.03571601
+     ],
+     "spearman": [
+      -0.09646928,
+      -0.00483344
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": {
+      "aDD": 0.5547009,
+      "bDD": 0.02137797,
+      "date": "2022-12-12"
+     },
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2020-06-01",
+      "2026-09-28"
+     ],
+     "unionDays": 2120
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": -0.01517159,
+     "cnTminus1_vs_otherT": 0.00375403,
+     "n": 1534
+    },
+    "n": 1535,
+    "pairIndex": 8,
+    "pearson": -0.0034878,
+    "span": [
+     "2020-06-01",
+     "2026-09-28"
+    ],
+    "spearman": -0.04992518,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10032573,
+      "lift": 0.90613932,
+      "p": 0.09090909,
+      "tailDays": 154
+     },
+     "jGivenI": {
+      "base": 0.10032573,
+      "lift": 0.90613932,
+      "p": 0.09090909,
+      "tailDays": 154
+     },
+     "joint": 14,
+     "k": 154,
+     "n": 1535
+    }
+   },
+   {
+    "a": "QS",
+    "b": "CN_STOCK",
+    "ci90": {
+     "months": 76,
+     "pearson": [
+      -0.15253778,
+      0.01264887
+     ],
+     "spearman": [
+      -0.05387773,
+      0.04021508
+     ]
+    },
+    "drawdownOverlap": {
+     "aDeepestTrough": null,
+     "bDeepestTrough": null,
+     "bothDays": 0,
+     "jaccard": 0.0,
+     "overlappingEpisodes": [],
+     "span": [
+      "2020-06-01",
+      "2026-09-28"
+     ],
+     "unionDays": 1721
+    },
+    "lagSensitivity": {
+     "cnT_vs_otherTminus1": 0.00553488,
+     "cnTminus1_vs_otherT": 0.00127049,
+     "n": 1534
+    },
+    "n": 1535,
+    "pairIndex": 9,
+    "pearson": -0.05727572,
+    "span": [
+     "2020-06-01",
+     "2026-09-28"
+    ],
+    "spearman": -0.00761552,
+    "tail": {
+     "iGivenJ": {
+      "base": 0.10032573,
+      "lift": 0.84141508,
+      "p": 0.08441558,
+      "tailDays": 154
+     },
+     "jGivenI": {
+      "base": 0.10032573,
+      "lift": 0.84141508,
+      "p": 0.08441558,
+      "tailDays": 154
+     },
+     "joint": 13,
+     "k": 154,
+     "n": 1535
+    }
+   }
+  ]
+ },
+ "schema": "DIAG_XM_1_RESULT_V1"
+}

@@ -1,0 +1,257 @@
+{
+ "note_zh": "封存后补算，不在预登记里，只作背景，不改 §7 判据",
+ "pairs": [
+  {
+   "a": "US_V5",
+   "aShare": 0.78932,
+   "b": "US_CORE",
+   "bShare": 0.863204,
+   "jaccard": 0.75934579,
+   "jaccardIfIndependent": 0.701563,
+   "set": "replay",
+   "spanDays": 1367
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.792806,
+   "b": "C17",
+   "bShare": 0.86259,
+   "jaccard": 0.69565217,
+   "jaccardIfIndependent": 0.703907,
+   "set": "replay",
+   "spanDays": 1390
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.792806,
+   "b": "QS",
+   "bShare": 0.854676,
+   "jaccard": 0.78766589,
+   "jaccardIfIndependent": 0.698628,
+   "set": "replay",
+   "spanDays": 1390
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.789011,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "replay",
+   "spanDays": 1365
+  },
+  {
+   "a": "US_CORE",
+   "aShare": 0.84503,
+   "b": "C17",
+   "bShare": 0.889249,
+   "jaccard": 0.73851159,
+   "jaccardIfIndependent": 0.764565,
+   "set": "replay",
+   "spanDays": 2465
+  },
+  {
+   "a": "US_CORE",
+   "aShare": 0.84503,
+   "b": "QS",
+   "bShare": 0.698986,
+   "jaccard": 0.67370273,
+   "jaccardIfIndependent": 0.619566,
+   "set": "replay",
+   "spanDays": 2465
+  },
+  {
+   "a": "US_CORE",
+   "aShare": 0.840762,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "replay",
+   "spanDays": 2311
+  },
+  {
+   "a": "C17",
+   "aShare": 0.890317,
+   "b": "QS",
+   "bShare": 0.701888,
+   "jaccard": 0.64644786,
+   "jaccardIfIndependent": 0.646027,
+   "set": "replay",
+   "spanDays": 2489
+  },
+  {
+   "a": "C17",
+   "aShare": 0.917352,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "replay",
+   "spanDays": 2311
+  },
+  {
+   "a": "QS",
+   "aShare": 0.744699,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "replay",
+   "spanDays": 2311
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.243243,
+   "b": "US_CORE",
+   "bShare": 0.891892,
+   "jaccard": 0.27272727,
+   "jaccardIfIndependent": 0.236277,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.243243,
+   "b": "C17",
+   "bShare": 1.0,
+   "jaccard": 0.24324324,
+   "jaccardIfIndependent": 0.243243,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.243243,
+   "b": "QS",
+   "bShare": 0.567568,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.205212,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.243243,
+   "b": "CN_INDEX",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_V5",
+   "aShare": 0.243243,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_CORE",
+   "aShare": 0.891892,
+   "b": "C17",
+   "bShare": 1.0,
+   "jaccard": 0.89189189,
+   "jaccardIfIndependent": 0.891892,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_CORE",
+   "aShare": 0.891892,
+   "b": "QS",
+   "bShare": 0.567568,
+   "jaccard": 0.54285714,
+   "jaccardIfIndependent": 0.531034,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_CORE",
+   "aShare": 0.891892,
+   "b": "CN_INDEX",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "US_CORE",
+   "aShare": 0.891892,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 37
+  },
+  {
+   "a": "C17",
+   "aShare": 1.0,
+   "b": "QS",
+   "bShare": 0.525,
+   "jaccard": 0.525,
+   "jaccardIfIndependent": 0.525,
+   "set": "live",
+   "spanDays": 40
+  },
+  {
+   "a": "C17",
+   "aShare": 1.0,
+   "b": "CN_INDEX",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 39
+  },
+  {
+   "a": "C17",
+   "aShare": 1.0,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 39
+  },
+  {
+   "a": "QS",
+   "aShare": 0.538462,
+   "b": "CN_INDEX",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 39
+  },
+  {
+   "a": "QS",
+   "aShare": 0.538462,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": 0.0,
+   "jaccardIfIndependent": 0.0,
+   "set": "live",
+   "spanDays": 39
+  },
+  {
+   "a": "CN_INDEX",
+   "aShare": 0.0,
+   "b": "CN_STOCK",
+   "bShare": 0.0,
+   "jaccard": null,
+   "jaccardIfIndependent": null,
+   "set": "live",
+   "spanDays": 40
+  }
+ ],
+ "result_sha256": "a202e1dc8f6064bfdcb7669973626449a888df9703eb12750f9dd3538fb959a1",
+ "schema": "DIAG_XM_1_SUPPLEMENT_1_V1"
+}
