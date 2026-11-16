@@ -36,7 +36,9 @@ test('DSL：合法公式解析成规范写法；记号（算子、读数、数�
   assert.equal(dsl.parse('-abs(close) * 2 + log(volume)', SPACE).canonical, '(((-abs(close))*2)+log(volume))');
   assert.equal(dsl.parse('ts_corr(close, volume, 60)', SPACE).depth, 1);
   // 正好 20 个记号、正好 5 层：过
-  assert.equal(dsl.parse(`-close${' + close'.repeat(9)}`, SPACE).tokens, 20);
+  const twenty = dsl.parse('-(((close + close) + (close + close)) + ((close + close) + (close + close)) + (close + close))', SPACE);
+  assert.deepEqual([twenty.tokens, twenty.depth], [20, 5]);
+  assert.throws(() => dsl.parse(`-close${' + close'.repeat(9)}`, SPACE), code(/MINE_DSL_TOO_DEEP:10>5/)); // 20 个记号，但左结合的长链有 10 层
   assert.equal(dsl.parse(nest(5), SPACE).depth, 5);
   assert.equal(dsl.parse('ts_mean(close, 250)', SPACE).operators[0], 'ts_mean');
 });

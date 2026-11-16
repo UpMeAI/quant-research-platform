@@ -67,7 +67,7 @@ function evaluate(parsed, panel) {
 
 /**
  * 打分之前的中性化（§3.6「先中性化」，§8.3 第 12 条）：每一天先减行业均值，再对 log 市值回归取残差。G-MINE 的 IC 类读数只认带
- * neutralization { industry: 'APPLIED', size: 'APPLIED' } 的结果（services/mining-gate 的 NEUTRALIZED）。行业或市值缺失 → 拒绝，不跳过。
+ * neutralization { industry: 'APPLIED', size: 'APPLIED' } 的结果（G-MINE 门的 NEUTRALIZED 常量）。行业或市值缺失 → 拒绝，不跳过。
  */
 function neutralizeForScoring(result, panel) {
   if (!result || !Array.isArray(result.values)) fail('NOT_EVALUATED');
