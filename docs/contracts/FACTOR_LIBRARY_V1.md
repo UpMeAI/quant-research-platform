@@ -1,7 +1,11 @@
 # 因子库 · FACTOR_LIBRARY_V1（P0）
 
-- 依据：研究框架修订 2026-11-16「因子库与 AI 自动挖掘因子」草稿 `RESEARCH_FRAMEWORK_AMENDMENT_20261116_FACTOR_LIBRARY_AI_MINING.draft.ddeb2eea.md`（sha256 `ddeb2eea…`，同字节副本）§2、§4、§7。协调会话目录的文件，不在 git 里，按 sha256 绑定。
-- 状态：**草稿，Owner 未签字。** P0 不含挖掘，协调会话 2026-11-16 23:1x 批准先做。P0 没有 DSL、没有生成方、没有任何模型接口调用。
+- 依据：研究框架修订 2026-11-16「因子库、AI 自动挖掘、赛马与样本外模拟盘验证」，**Owner 2026-11-16 23:50 CST 签字**（「签研究修订（默认）」）。
+  - 签字页 `RESEARCH_FRAMEWORK_AMENDMENT_20261116_SIGNATURE_1.md`（sha256 `39f8c17c…`）；
+  - 签字文本：修订 4 `RESEARCH_FRAMEWORK_AMENDMENT_20261116_FACTOR_LIBRARY_AI_MINING.signed.fd22876f.md`（sha256 `fd22876f…`），§2、§3.6、§8；
+  - `EFFECTIVE_FROM = 2026-11-16T23:50:00+08:00`。
+  - 协调会话目录的文件，不在 git 里，按 path + sha256 绑定（`contract_ref`），做法同 QRP #92。P0（#95）绑的是草稿 ddeb2eea，签字后改绑到这里。
+- 状态：已签字。挖掘仍未开：P1 合并、★e 门槛、`MINING_SPACE_V1` 和留出段日期冻结之前，任何挖掘都不跑（遗传规划也不跑）。本库没有 DSL、没有生成方、没有任何模型接口调用。
 - 代码：
   - `services/factor-library/index.js`：结构校验、构建、源文件核对；
   - `services/factor-library/legacy.js`：旧规则因子补登记的数据（改这里，不改 JSON）；

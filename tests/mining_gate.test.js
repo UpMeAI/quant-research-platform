@@ -1,6 +1,6 @@
 'use strict';
 /**
- * G-MINE 骨架（研究框架修订 2026-11-16 草稿 ddeb2eea §4、§7.3 第 7 条；P0）：
+ * G-MINE 骨架（研究框架修订 2026-11-16 已签字修订（签字文本 fd22876f）§3.6、§8.3 第 3 条；P0）：
  *   - 九项各是一个函数，作用于一个候选结果对象；DSR、PBO 的门槛从 services/trial-ledger/overfit.js 读，不另抄；
  *   - ★e 新门槛（IC、ICIR、单调性、衰减、边际）在一个常量块里，标 PENDING_FREEZE；冻结前门一律失败即关（MINE_THRESHOLDS_UNFROZEN）；
  *   - 九项各一个反例被拒；注入冻结门槛后全过的样例可升 RESEARCH，结果对象一个字都不改；
