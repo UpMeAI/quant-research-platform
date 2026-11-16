@@ -10,7 +10,24 @@
  *   - 数据为 SAMPLE_SYNTHETIC(确定性合成),演示平台治理与流水线,不构成任何经济结论;
  *   - Runtime 为内置 stub(生产 Runtime = Ashare-V5,以同一 pull 协议对接);
  *   - real_order=0,无 broker 凭证,MVP 只发布到 PAPER。
+ *
+ * 数据目录守卫（协调会话 2026-11-17，失败即关）:QRP_DATA_DIR 必须设,且真实路径在系统临时目录或 demo / demo-* 目录之下;
+ * 没设或指向 <repo>/var/ledger(真的研究台账)一律不开跑(MVP_DEMO_DATA_DIR_NOT_DEMO)。npm run mvp:ashare 每次给一个新的 mktemp -d 目录。
+ * 守卫在加载任何会碰数据目录的模块之前就跑。
  */
+const demoGuard = require('./mvp_demo_guard');
+if (process.argv.includes('--help') || process.argv.includes('-h')) {
+  console.log('usage: QRP_DATA_DIR=<temp or demo dir> QRP_PRODUCT_MILESTONE_AUTHORITY=<demo authority> node apps/research-cli/run_ashare_mvp.js');
+  console.log(`  ${demoGuard.HELP_LINE}`);
+  process.exit(0);
+}
+try {
+  demoGuard.checkDemoDataDir(process.env);
+} catch (e) {
+  console.error(`❌ ${e.message}\n   ${demoGuard.HELP_LINE}`);
+  process.exit(1);
+}
+
 const pit = require('../../adapters/ashare-local/pit_store');
 const { generateSampleBars } = require('../../adapters/ashare-local/sample_data');
 const { CHAMPION_VARIANT } = require('../../adapters/ashare-local/strategy_vpq');

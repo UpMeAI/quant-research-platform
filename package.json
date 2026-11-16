@@ -6,7 +6,7 @@
   "engines": { "node": ">=18" },
   "scripts": {
     "test": "node --test 'tests/*.test.js'",
-    "mvp:ashare": "node apps/research-cli/run_ashare_mvp.js",
+    "mvp:ashare": "QRP_DATA_DIR=\"$(mktemp -d \"${TMPDIR:-/tmp}/qrp-mvp-demo.XXXXXX\")\" QRP_PRODUCT_MILESTONE_AUTHORITY=\"${QRP_PRODUCT_MILESTONE_AUTHORITY:-MVP_DEMO}\" node apps/research-cli/run_ashare_mvp.js",
     "seed:ashare": "node apps/research-cli/seed_sample_data.js --market CN_A",
     "web": "node apps/research-api/index.js"
   }
