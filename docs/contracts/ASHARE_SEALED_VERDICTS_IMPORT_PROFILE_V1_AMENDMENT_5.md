@@ -5,7 +5,7 @@
 依据：
 - 冻结页 `R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_K2_V1_FREEZE_1.md`（`ca036b24…`，冻结记录 2026-11-14 01:56:13 CST；★R21-1–6 全部 (a)）。台账行的 k2_sha256 就是这一页，所以 K2 绑它，不另绑冻结页。
 - 协调会话 2026-11-16 22:4x 的封存裁定：封存批准；★R21-S1 = (a)，附条件；PBO 不适用的裁定原文。
-- 门的裁定页 `R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_K2_V1_TRIAL_GATES_RULING_20261116.md`（`8cc181db…`，协调会话冻结）。
+- 门的裁定页 `R21_ASHARE_TIMING_SCORE_MISSING_WEIGHT_K2_V1_TRIAL_GATES_RULING_20261116.md`（`128687ee…`，协调会话 2026-11-16 22:46 CST）。
 - `k2_frozen_at` = 冻结时刻；`G-CAUSAL N/A: PRE_EFFECTIVE_K2`。
 
 ## 1. 加入登记表的两题
