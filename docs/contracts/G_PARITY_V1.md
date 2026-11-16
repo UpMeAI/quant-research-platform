@@ -30,6 +30,13 @@ K2 §0 在 RF1112 §5 的四行之后加一行，每个数据集一个记号，�
 
 例：`` `DATA:V6_CSI300_INDEX_DAILY@1.11.0#d8a17a3ee6e23e59494176eb818d7dc46fde382da032878eeb729af0855ba687|PIT=BAR_CLOSE|VENDOR=Tushare` ``。
 
+**序列级口径（KG 1.14.0 起；协调会话 2026-11-17 裁定）：** 混合数据集不写 `pitSemantics`（或为 null），另给 `pitSemanticsBySeries`（序列 → PIT），1.14.0 里是 `MACRO_CN_OFFICIAL`、`CN_MARKET_PSYCHOLOGY`、`US_MARKET_PSYCHOLOGY`。
+- 记号写成 `DATA:<id>#series=<序列>@<版本>#<sha256>|PIT=…|VENDOR=…[|BASIS=…]`，序列写法 `[A-Za-z0-9][A-Za-z0-9_.-]*`。
+- 混合数据集：没写 `series=` → `PARITY_SERIES_REQUIRED`；序列不在表里 → `PARITY_SERIES_UNKNOWN`；PIT 按 `pitSemanticsBySeries[序列]` 核（例：`MACRO_CN_OFFICIAL#series=sf_month` 要 `END_OF_FOLLOWING_MONTH_CONSERVATIVE`）。
+- 非混合数据集写了 `series=` → `PARITY_DATA_INPUT_INVALID`（`NOT_A_MIXED_DATASET`）。
+- 重复与跨文件冲突按（数据集, 序列）判；锁行在 `dataset_id` 之后带 `series`。不写 `series=` 的记号，锁行与以前逐字节相同（没有 `series` 键）。
+- 历史：`pitSemanticsBySeries` 进一致性字段（旧版本没有不算变）。
+
 - **选 K2 正文，不选 `entry.data_inputs`：** K2 由协调会话冻结、按 sha256 绑定，是研究判定的冻结来源；登记表字段由导入规格写，不在冻结的文本里。
 - PIT 语义的枚举：`OBSERVED_AT`、`ANNOUNCEMENT_NEXT_OPEN`、`ACCEPTANCE_TIME`、`BAR_CLOSE`、`NEXT_OPEN_SESSION_CLOSE`。新的语义只能先进登记表（登记表级字段 `pitSemantics` 的清单），门才认。
 - 供应方写登记表 `vendor` 里的原名（Tushare、Yahoo、Alpaca、SEC EDGAR、东财、Binance 等），逐字对上；登记表没写供应方时门只记不核。
@@ -53,7 +60,9 @@ K2 §0 在 RF1112 §5 的四行之后加一行，每个数据集一个记号，�
 | 拒绝 | 条件 |
 |---|---|
 | `PARITY_DATA_INPUTS_MISSING` | K2 一个 `DATA:` 都没有 |
-| `PARITY_DATA_INPUT_INVALID` | `DATA:` 写法不对，或同一数据集写了两次 |
+| `PARITY_DATA_INPUT_INVALID` | `DATA:` 写法不对，或同一（数据集, 序列）写了两次，或非混合数据集写了 `series=` |
+| `PARITY_SERIES_REQUIRED` | 混合数据集的记号没写 `series=` |
+| `PARITY_SERIES_UNKNOWN` | `series=` 不在数据集的 `pitSemanticsBySeries` 里 |
 | `PARITY_DATASET_UNREGISTERED` | 数据集不在 QRP 钉住的 KG 登记表里 |
 | `PARITY_PIN_MISMATCH` | 写的登记表版本或 sha256 不是 QRP 现在钉的（= 生产两端钉的），而且：不在历史里（`VERSION_NOT_IN_HISTORY`）；或这个数据集在那一版里没有（`DATASET_NOT_IN_PINNED_VERSION`）；或它的一致性字段从那一版到现在变了（`DATASET_CHANGED:<字段,…>`） |
 | `PARITY_DATA_INPUTS_CONFLICT` | 同一数据集在 K2 与冻结附注（或两份附注）里写得不一样 |
