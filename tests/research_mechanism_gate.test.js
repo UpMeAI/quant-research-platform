@@ -219,7 +219,8 @@ function importFixture({ k2Lines = {}, study }) {
   const repo = tmp('qrp-mg-sf-'); const art = tmp('qrp-mg-art-');
   const tableBytes = tableFor();
   // K2 在修订生效之后冻结，G-CAUSAL（§3）也过门：这道题不新增或重算特征，§0 写明不适用（G12）
-  const text = `${k2Text({ tableSha: sha(tableBytes), lines: k2Lines, trialIds: ['T', 'B'].map((l) => idOf(l, study)) })}G-CAUSAL N/A: DESCRIPTIVE_NO_PERFORMANCE\n`;
+  // K2 冻结在 RESEARCH_LIVE_PARITY_V1 生效（11-17 00:24）之后，G-PARITY 也过门：§0 写一行「数据输入」（QRP 钉住的 KG 登记表）
+  const text = `${k2Text({ tableSha: sha(tableBytes), lines: k2Lines, trialIds: ['T', 'B'].map((l) => idOf(l, study)) })}G-CAUSAL N/A: DESCRIPTIVE_NO_PERFORMANCE\n**数据输入**：\`DATA:SMARTFLOW_BTCUSDT_PERP_DAILY@1.11.0#d8a17a3ee6e23e59494176eb818d7dc46fde382da032878eeb729af0855ba687|PIT=BAR_CLOSE|VENDOR=Binance\`\n`;
   const k2Sha = sha(text);
   const files = {
     'trading-system-v2/docs/evidence/rm/RESULT.json': `${JSON.stringify({ verdict: { decision: '不做', evidence_strength: '有反对证据', allowed_use: '不进生产', text_zh: '合成' } })}\n`,

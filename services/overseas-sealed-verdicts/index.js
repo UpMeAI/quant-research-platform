@@ -544,7 +544,9 @@ function checkEntry(entry, evidenceDir, store = STORE, { mechanismGate: mechanis
   }, causalityGateOptions);
   // G-COST（docs/contracts/COST_MODEL_GATE_V1.md）：最后过成本门；生效时刻之后冻结的 K2 的 RESULT，判定用的运行出自毛收益模型即拒绝，失败即关，不改结论
   const cost = require('../cost-gate').check(entry, { runLogBytes: () => (entry.run_log ? readBound(evidencePath(evidenceDir, entry.run_log), entry.run_log.sha256) : null) });
-  return { identity, refs, verdict, trial, mechanism, causality, cost };
+  // G-PARITY（RESEARCH_LIVE_PARITY_V1 §3，docs/contracts/G_PARITY_V1.md）：G-COST 之后；签字之后冻结的 K2，数据输入、PIN、PIT 语义、AI 钉值与生产不一致即拒绝，不改结论
+  const parity = require('../parity-gate').check(entry, { k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256) });
+  return { identity, refs, verdict, trial, mechanism, causality, cost, parity };
 }
 
 /**
@@ -584,6 +586,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
     if (checked.mechanism.applies) body.mechanism_gate = checked.mechanism;
     if (checked.causality.applies || checked.causality.report_only) body.causality_gate = checked.causality;
     if (checked.cost.applies) body.cost_gate = checked.cost;
+    if (checked.parity.applies) body.parity_gate = checked.parity;
     body.lock_hash = sha256(canonical(body));
     return append(store.ledger(), body);
   });
