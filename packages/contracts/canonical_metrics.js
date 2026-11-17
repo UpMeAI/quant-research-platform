@@ -11,7 +11,7 @@ const AXES = Object.freeze({
     'mae_avg_on_good', 'mfe_avg_on_good', 'signal_turnover_per_day', 'costPerSide'],
   robustness: ['is_cumRet', 'oos_cumRet', 'is_oos_decay'],
   operational: ['deterministic', 'result_hash', 'replayable'],
-  capacity: ['status'],   // MVP 只声明状态(NOT_IMPLEMENTED_P4);容量模型属 §21 P4
+  capacity: ['status'],   // 状态必有:NOT_IMPLEMENTED_P4,或作业带了容量报告时 MODELLED_PREV_DAY_VOLUME_CAP_V1(services/capacity-model)
   // §8 RaceResult.cost_breakdown / §9 Costs:成本必须逐项交代(合并 or 未建模),
   // 不允许用一个总费率冒充"手续费/滑点/冲击/funding/FX/流动性"全覆盖。
   cost_breakdown: ['model', 'components'],

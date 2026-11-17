@@ -42,8 +42,21 @@
 - 结构校验：`services/fill-model-declarations` 的 `validate`（规则都在库里、节奏规则只放在 `cadence`、出处指向钉住的仓库、环境开关写明来源、每条锁的正则只有一个捕获组、每个账本两段、没锁的写明原因）。
 - **锁定测试**（`tests/fill_model_declarations.test.js`）：按 `git show <钉住的提交>:<路径>` 读 V6 `83ab3af1` 与 smartflow `3b25fb61` 的源文件（只读），按正则取出常量的源码文字逐字比较，能算的再按算式比数值。仓库路径：环境变量 `QRP_V6_ROOT` / `QRP_SMARTFLOW_ROOT`，否则取 QRP 旁边的 `Ashare-V6` / `smartflow`；都不在时跳过并写明原因。实盘改了常量，这个测试就红；重钉提交时一并核对。
   - 锁住的：V6 盘中 60 秒（`DEFAULT_INTERVAL_MS = 60_000`）、上海时段 09:30–11:30 与 13:00–15:00、指数簿开盘 09:30:30；smartflow 的 US_V5 扫描节奏（`COMPLETED_1H`、`MINUTE_MS`、`ROUND_LAG_MS = MINUTE_MS` 即 :31 分、开盘 09:30、收盘 16:00、提前收盘 13:00）、US_V5 盯盘 60000 毫秒、杠杆 ETF 分级止损 2% / 60 秒与 4% / 300 秒、US_CORE 单边成本 0.0005、C17 入场每 10 分钟、Quick Shot 每分钟一批与 6 批、Quick Shot 出场 5 分钟。
+  - #110 补的锁（#100 留下三条没锁的，每条都在源码里找到了常量）：五段个股簿滑点 10 bp（V6 `src/stock-book/paper-cost.js:5`，收盘段与触价段都锁）；US_CORE 16:35 日决策（`us-core-rotation-worker.js:495` 的 `16 * 60 + 35`）、触价时段 09:31–16:05（`:2018–2019`）、触价 60 秒一轮（`:2724`）；C17 出场保护 60 秒一轮（`strategy-worker.js:1556`）。现在 12 条全部有锁，共 28 条。
+- **漂移核对**（#110）：`verifyLocks(doc, { commits: { <仓库>: <40 位提交号> } })` 换一个提交核对同一份声明，钉住的提交不变；命令行 `node tools/fill-model-declarations/check-locks.js --commit ashare-v6=<sha> --commit smartflow=<sha>`，有 FAIL 或 SKIPPED 时退出码 1。钉住的提交仍是 §0.1 读代码时的 V6 83ab3af1（Mac 调度器镜像 `ashare-v6-main:83ab3af1`，协调会话 11-17 09:59 读出）和 smartflow 3b25fb61；协调会话部署后用这个命令核对新部署的提交，全过再改钉。#110 写入时核对过 V6 main b3d05845 与 smartflow main 93428ef8：28/28 PASS。
 
-## 4. 范围之外
+## 4. 容量模型（签字文本 §2.2 第 6 条，#110）
 
-- 引擎迁移（V6、smartflow）、QRP 回放接入、`PREV_DAY_VOLUME_CAP` 的参与率报告进容量模型（§2.2 第 6 条）：另开 PR。
+- `services/capacity-model`（`CAPACITY_REPORT_V1`）：容量模型 = `PREV_DAY_VOLUME_CAP` 加上每笔的参与率报告。上限只调库里的 `PREV_DAY_VOLUME_CAP`，不另算。
+- `participationReport({ fills, participation = 0.1, lotSize = 1 })`：每笔 `{ id, symbol, date, side, desired, prevDayVolume, lotSize? }` → `{ quantity, cap, participation（成交 ÷ 前一日量）, desiredParticipation（想要的 ÷ 前一日量）, state }`。
+  - 四种状态分开记：`WITHIN_CAP`、`CAPPED`、`PREV_VOLUME_MISSING`（前一日量读不到：未知，成交 0，参与率 null，不当 0、不回退到当天量）、`PREV_VOLUME_ZERO`（读到了，是 0：上限 0，参与率 null）。
+  - 带当天量的成交（`todayVolume`、`sameDayVolume`、`volume`）拒收：`CAPACITY_SAME_DAY_VOLUME_REFUSED`。
+  - 汇总：四种状态的计数、已知笔数、参与率的最大值与 p50 / p95（最近秩，只在前一日量已知且大于 0 的成交上算；没有就 null）、想要的参与率的最大值、未成交数量（其中前一日量未知的部分单列）。
+- `capacityAxis(report)`：赛马的容量轴，`status: MODELLED_PREV_DAY_VOLUME_CAP_V1`、汇总、报告的 sha256；报告先过自洽核对（`CAPACITY_REPORT_INVALID`）。
+- 两个适配器（`adapters/ashare-local`、`adapters/replay-core-bridge`）：作业的原生结果带了 `capacity_report` 才填容量轴；没带的照旧 `NOT_IMPLEMENTED_P4`，`normalize_result` 的输出与改动前逐字节一致（`tests/capacity_model.test.js` 记了改动前在 c6e1dd4 上算出的 sha256）。
+- 谁出报告：回放引擎在成交时调 `PREV_DAY_VOLUME_CAP` 的那一处（V6 五段个股簿补量上限的 PR，签字文本 §5 第 4 步）。在那之前没有作业带报告，容量轴照旧。
+
+## 5. 范围之外
+
+- 引擎迁移（V6、smartflow）另开 PR（签字文本 §5 第 4、6 步）。
 - `schemas/index.js` 不改（规格 §4 第 6 条）。

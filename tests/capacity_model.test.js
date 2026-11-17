@@ -60,8 +60,8 @@ test('汇总：只在前一日量已知且大于 0 的成交上算参与率的�
   const s = cm.participationReport({ fills: FILLS }).summary;
   assert.deepEqual(s, {
     trades: 4, withinCap: 1, capped: 1, prevVolumeMissing: 1, prevVolumeZero: 1, known: 2,
-    maxParticipation: 0.05, p50Participation: 12_300 / 123_456, p95Participation: 0.05,
-    maxDesiredParticipation: 50_000 / 123_456, unfilledQuantity: 37_700 + 10_000, unfilledQuantityUnknown: 10_000,
+    maxParticipation: 12_300 / 123_456, p50Participation: 0.05, p95Participation: 12_300 / 123_456,
+    maxDesiredParticipation: 50_000 / 123_456, unfilledQuantity: 37_700 + 10_000 + 10_000, unfilledQuantityUnknown: 10_000,
   });
   const none = cm.participationReport({ fills: [FILLS[2]] }).summary;
   assert.deepEqual([none.known, none.maxParticipation, none.p50Participation, none.p95Participation, none.maxDesiredParticipation], [1 - 1, null, null, null, null]);
@@ -75,8 +75,8 @@ test('容量轴：带报告的作业填 MODELLED_PREV_DAY_VOLUME_CAP_V1 和汇�
   assert.deepEqual(axis, {
     status: 'MODELLED_PREV_DAY_VOLUME_CAP_V1', model: 'PREV_DAY_VOLUME_CAP', participation_limit: 0.1,
     trade_count: 4, within_cap_count: 1, capped_count: 1, prev_volume_missing_count: 1, prev_volume_zero_count: 1,
-    max_participation: 0.05, p50_participation: 12_300 / 123_456, p95_participation: 0.05, max_desired_participation: 50_000 / 123_456,
-    unfilled_quantity: 47_700, report_sha256: cm.reportSha256(report),
+    max_participation: 12_300 / 123_456, p50_participation: 0.05, p95_participation: 12_300 / 123_456, max_desired_participation: 50_000 / 123_456,
+    unfilled_quantity: 57_700, report_sha256: cm.reportSha256(report),
   });
   assert.match(axis.report_sha256, /^[0-9a-f]{64}$/);
   assert.throws(() => cm.capacityAxis({ ...report, schema: 'OTHER' }), (e) => e.code === 'CAPACITY_REPORT_INVALID');

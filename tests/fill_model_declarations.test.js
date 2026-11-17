@@ -40,7 +40,7 @@ test('结构反例：成交规则不在库里、节奏规则放进成交规则�
   d = clone(); d.declarations[1].locks[0].pattern = 'DEFAULT_INTERVAL_MS = [0-9_]+;'; refuses(d, 'LOCK_PATTERN_INVALID');
   d = clone(); d.declarations[1].segment = d.declarations[0].segment; refuses(d, 'ROW_DUPLICATE');
   d = clone(); d.declarations[1].book = 'CN_A.STOCK_FIVE_STAGE'; refuses(d, 'BOOK_SEGMENTS_INVALID');
-  d = clone(); delete d.declarations[2].unlocked_reason_zh; refuses(d, 'LOCKS_INVALID');
+  d = clone(); d.declarations[2].locks = []; delete d.declarations[2].unlocked_reason_zh; refuses(d, 'LOCKS_INVALID');
   d = clone(); d.declarations[0].cadence.rule = 'EVERY_TICK'; refuses(d, 'CADENCE_INVALID');
 });
 

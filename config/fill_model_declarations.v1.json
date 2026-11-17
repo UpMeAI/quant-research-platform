@@ -44,20 +44,23 @@
       "book": "CN_A.STOCK_FIVE_STAGE", "segment": "CLOSE_DECIDE_NEXT_OPEN", "bar": "DAILY",
       "cadence": { "rule": "SCAN_SCHEDULE", "params": { "kind": "AT_CLOSE" } },
       "rules": ["NEXT_OPEN", "PREV_DAY_VOLUME_CAP"], "params": { "slippage_bps": 10, "price": "UNADJUSTED_OPEN", "participation": 0.1 },
-      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:120-123"],
+      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:120-123", "ashare-v6:src/stock-book/paper-cost.js:5"],
       "env": [],
-      "locks": [],
-      "unlocked_reason_zh": "滑点 10 bp 取自账本配置（COST.slippageBps），不是源码常量；按 §0.1 的行对上，配置由 RACE / G-COST 的下限表另核",
+      "locks": [
+        { "id": "V6_FIVE_STAGE_SLIPPAGE_BPS", "repo": "ashare-v6", "path": "src/stock-book/paper-cost.js", "pattern": "slippageBps: ([0-9.]+), sellStampTaxBps", "expect": "10", "value": 10 }
+      ],
+      "notes_zh": "#110：滑点 10 bp 是源码常量 COST.slippageBps（paper-cost.js:5），#100 记成了账本配置，已补锁",
       "gaps_zh": "按验收要补上 PREV_DAY_VOLUME_CAP（现行没有上限）"
     },
     {
       "book": "CN_A.STOCK_FIVE_STAGE", "segment": "INTRADAY_TOUCH_EXIT", "bar": "COMPLETED_1M",
       "cadence": { "rule": "POLL_EVERY", "params": { "interval_ms": 60000, "windows": [["09:30", "11:30"], ["13:00", "15:00"]], "tz": "+08:00" } },
       "rules": ["GAP_THROUGH_LEVEL_AT_OPEN", "PREV_DAY_VOLUME_CAP"], "params": { "fill": "LEVEL_MINUS_10BP", "settlement": "T_PLUS_1", "participation": 0.1 },
-      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:180-209", "ashare-v6:src/touch-exit/plan-store.js:13-16"],
+      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:180-209", "ashare-v6:src/touch-exit/plan-store.js:13-16", "ashare-v6:src/stock-book/paper-cost.js:5"],
       "env": [{ "name": "INTRADAY_INTERVAL_MS", "value": null, "where": "MAC_V6_SCHEDULER", "note_zh": "同一个 60 秒任务" }],
       "locks": [
-        { "id": "V6_INTRADAY_INTERVAL_MS", "repo": "ashare-v6", "path": "src/intraday/intraday-config.js", "pattern": "const DEFAULT_INTERVAL_MS = ([^;]+);", "expect": "60_000", "value": 60000 }
+        { "id": "V6_INTRADAY_INTERVAL_MS", "repo": "ashare-v6", "path": "src/intraday/intraday-config.js", "pattern": "const DEFAULT_INTERVAL_MS = ([^;]+);", "expect": "60_000", "value": 60000 },
+        { "id": "V6_FIVE_STAGE_SLIPPAGE_BPS", "repo": "ashare-v6", "path": "src/stock-book/paper-cost.js", "pattern": "slippageBps: ([0-9.]+), sellStampTaxBps", "expect": "10", "value": 10 }
       ],
       "gaps_zh": "按验收要补上 PREV_DAY_VOLUME_CAP"
     },
@@ -95,12 +98,13 @@
       "book": "US.US_CORE", "segment": "DAILY_DECISION", "bar": "DAILY_YAHOO",
       "cadence": { "rule": "SCAN_SCHEDULE", "params": { "kind": "DAILY_AT", "at": "16:35", "tz": "America/New_York" } },
       "rules": ["NEXT_OPEN"], "params": { "slippage_bps": 5 },
-      "live_refs": ["smartflow:src/workers/us-core-rotation-worker.js:18-29", "smartflow:src/workers/us-core-rotation-worker.js:251", "smartflow:src/workers/us-core-rotation-worker.js:173", "smartflow:src/workers/us-core-rotation-worker.js:544", "smartflow:src/workers/us-core-rotation-worker.js:1094"],
+      "live_refs": ["smartflow:src/workers/us-core-rotation-worker.js:18-29", "smartflow:src/workers/us-core-rotation-worker.js:251", "smartflow:src/workers/us-core-rotation-worker.js:173", "smartflow:src/workers/us-core-rotation-worker.js:544", "smartflow:src/workers/us-core-rotation-worker.js:1094", "smartflow:src/workers/us-core-rotation-worker.js:495"],
       "env": [],
       "locks": [
-        { "id": "SF_US_CORE_COST_SIDE", "repo": "smartflow", "path": "src/services/touch-exit-policy.js", "pattern": "const US_CORE_COST_SIDE = ([0-9.]+);", "expect": "0.0005", "value": 0.0005 }
+        { "id": "SF_US_CORE_COST_SIDE", "repo": "smartflow", "path": "src/services/touch-exit-policy.js", "pattern": "const US_CORE_COST_SIDE = ([0-9.]+);", "expect": "0.0005", "value": 0.0005 },
+        { "id": "SF_US_CORE_DECISION_AT", "repo": "smartflow", "path": "src/workers/us-core-rotation-worker.js", "pattern": "Number\\(p\\.minute\\) >= ([0-9 *+]+);", "expect": "16 * 60 + 35", "value": 995 }
       ],
-      "unlocked_reason_zh": "16:35 只写在文件头注释（us-core-rotation-worker.js:18–29），不是常量；只锁 5 bp"
+      "notes_zh": "#110：16:35 的判定是源码常量（us-core-rotation-worker.js:495 的 16 * 60 + 35），#100 只看到了文件头注释，已补锁"
     },
     {
       "book": "US.US_CORE", "segment": "TOUCH_EXIT_AND_ENTRY", "bar": "COMPLETED_1M_YAHOO",
@@ -109,9 +113,12 @@
       "live_refs": ["smartflow:src/workers/us-core-rotation-worker.js:2018-2028", "smartflow:src/workers/us-core-rotation-worker.js:2101-2113", "smartflow:src/workers/us-core-rotation-worker.js:443-455", "smartflow:src/workers/us-core-rotation-worker.js:2006-2013", "smartflow:src/workers/us-core-rotation-worker.js:2718-2726", "smartflow:src/services/touch-entry-policy.js:22-23"],
       "env": [{ "name": "US_CORE_TOUCH_EXIT", "value": "1", "where": "HK_PM2" }],
       "locks": [
-        { "id": "SF_US_CORE_COST_SIDE", "repo": "smartflow", "path": "src/services/touch-exit-policy.js", "pattern": "const US_CORE_COST_SIDE = ([0-9.]+);", "expect": "0.0005", "value": 0.0005 }
+        { "id": "SF_US_CORE_COST_SIDE", "repo": "smartflow", "path": "src/services/touch-exit-policy.js", "pattern": "const US_CORE_COST_SIDE = ([0-9.]+);", "expect": "0.0005", "value": 0.0005 },
+        { "id": "SF_US_CORE_TOUCH_FROM", "repo": "smartflow", "path": "src/workers/us-core-rotation-worker.js", "pattern": "const INTRADAY_FROM_MIN = ([^;]+);", "expect": "9 * 60 + 31", "value": 571 },
+        { "id": "SF_US_CORE_TOUCH_TO", "repo": "smartflow", "path": "src/workers/us-core-rotation-worker.js", "pattern": "const INTRADAY_TO_MIN = ([^;]+);", "expect": "16 * 60 + 5", "value": 965 },
+        { "id": "SF_US_CORE_TOUCH_INTERVAL", "repo": "smartflow", "path": "src/workers/us-core-rotation-worker.js", "pattern": "runIntradayPass\\(\\)\\.catch[^\\n]*\\n\\s*\\}, ([0-9_]+)\\);", "expect": "60000", "value": 60000 }
       ],
-      "notes_zh": "入场自 2026-11-16 14:30Z（touch-entry-policy.js:22–23）"
+      "notes_zh": "入场自 2026-11-16 14:30Z（touch-entry-policy.js:22–23）。#110：时段 09:31–16:05（:2018–2019）与 60 秒一轮（:2724）补锁"
     },
     {
       "book": "CRYPTO.C17", "segment": "ENTRY", "bar": "BINANCE_4H_1H_15M_INCL_FORMING",
@@ -127,13 +134,15 @@
       "book": "CRYPTO.C17", "segment": "EXIT", "bar": "BINANCE_1M_INCL_FORMING_SINCE_LAST_CHECK",
       "cadence": { "rule": "POLL_EVERY", "params": { "interval_ms": 60000 } },
       "rules": ["GAP_THROUGH_LEVEL_AT_OPEN"], "params": { "fill": "LEVEL_PLUS_SLIPPAGE_AND_TAKER_FEE" },
-      "live_refs": ["smartflow:src/core/trade-manager.js:683-690", "smartflow:src/services/c17-touch-exit.js:4-10"],
+      "live_refs": ["smartflow:src/core/trade-manager.js:683-690", "smartflow:src/services/c17-touch-exit.js:4-10", "smartflow:src/workers/strategy-worker.js:1539-1556"],
       "env": [
         { "name": "C17_TOUCH_EXIT", "value": "1", "where": "HK_PM2" },
         { "name": "TOUCH_EXIT_T_CRYPTO", "value": "2026-10-29T00:00:00.000Z", "where": "HK_PM2" }
       ],
-      "locks": [],
-      "unlocked_reason_zh": "出场保护的 60 秒间隔没有在 trade-manager.js:683–690 或 c17-touch-exit.js 里找到单独的常量；待引擎迁移 PR 指出常量后补锁"
+      "locks": [
+        { "id": "SF_C17_EXIT_PROTECTION_INTERVAL", "repo": "smartflow", "path": "src/workers/strategy-worker.js", "pattern": "this\\._protectionRunning = false; \\}\\n\\s*\\}, ([0-9_]+)\\);", "expect": "60000", "value": 60000 }
+      ],
+      "notes_zh": "#110：60 秒是 startPaperProtection 的 setInterval 间隔（strategy-worker.js:1556），已补锁"
     },
     {
       "book": "CRYPTO.QUICK_SHOT", "segment": "ENTRY", "bar": "COMPLETED_1H_BINANCE",
