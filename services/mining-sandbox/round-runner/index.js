@@ -42,12 +42,28 @@ const FROZEN_INPUTS = Object.freeze({
   holdout_freeze: segs.FREEZE_PAGE,
 });
 
+/**
+ * 挖掘段的覆盖下限（独立复审 2026-11-17 第 4 条）：开轮之前、记任何尝试之前，挖掘段每个决策日（第一天除外，它没有前一日的行）在股票池里、
+ * 后复权收盘价有数的名字至少这么多；不够就拒绝（MINE_RUNNER_COVERAGE_BELOW_FLOOR），免得空的股票池往 N 里写 200 个没有分数的尝试。
+ * 2,000：2020-06 沪深主板 + 创业板 + 科创板约 3,800 只，扣掉 ST、上市不满 120 日、停牌后仍在 3,000 以上；取一个留足余量、又挡得住缺一大块数据的数。
+ */
+const COVERAGE_FLOOR = Object.freeze({ min_names_per_day: 2000 });
+/**
+ * 留出段目录的完整性下限（复审第 1 条）：留出段里每个 SSE 开市日，日线、daily_basic、复权因子三张表的 READY 行至少 1 行，
+ * 且不少于该表各开市日行数中位数的一半（补导缺了一大半的日子也拦得住）。
+ */
+const HOLDOUT_FLOOR = Object.freeze({ min_rows_per_day: 1, min_share_of_median_day: 0.5 });
+/** 留出段目录必须有的 7 张表（导出规格 rev 3 §2；行业成员只在 A 目录）。 */
+const HOLDOUT_TABLES = Object.freeze(['prices_daily_stock.csv', 'market_daily_basic_observation_stock.csv', 'adjustment_factor_observation_stock.csv', 'security_master_stock.csv',
+  'security_suspension_observation.csv', 'security_suspension_day_coverage.csv', 'trading_calendar.csv']);
+
 class RunnerError extends Error {
   constructor(code, detail) { super(detail === undefined ? code : `${code}:${detail}`); this.code = code; this.detail = detail; }
 }
 const fail = (code, detail) => { throw new RunnerError(`MINE_RUNNER_${code}`, detail); };
 const need = (c, code, detail) => { if (!c) fail(code, detail); };
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const SHA64_RE = /^[0-9a-f]{64}$/;
 const now = () => new Date().toISOString();
 const inside = (p, root) => { const rel = path.relative(path.resolve(root), path.resolve(p)); return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel)); };
 
@@ -101,15 +117,29 @@ function sealHoldout({ roundId, dataRef, dataSha256, sealedAt = null }) {
 
 const attemptId = (roundId, n) => `${roundId}:A${String(n).padStart(3, '0')}`;
 
+/** 挖掘段面板的逐日覆盖：池里且后复权收盘价有数的名字数；有一天低于下限就拒绝。返回 { min, min_date, median, days }。 */
+function checkCoverage(panel, floor = COVERAGE_FLOOR) {
+  need(panel && panel.segment === 'MINING' && panel.readings && panel.readings.close_hfq, 'COVERAGE_PANEL_INVALID');
+  need(Number.isInteger(floor.min_names_per_day) && floor.min_names_per_day >= 1, 'COVERAGE_FLOOR_INVALID', floor.min_names_per_day);
+  const counts = panel.dates.map((_, t) => panel.codes.reduce((n, _c, j) => n + (panel.universe[t][j] && Number.isFinite(panel.readings.close_hfq[t][j]) ? 1 : 0), 0));
+  const days = counts.slice(1);
+  need(days.length, 'COVERAGE_PANEL_INVALID', 'no decision day after the first');
+  let min = Infinity; let minDate = null;
+  days.forEach((n, k) => { if (n < min) { min = n; minDate = panel.dates[k + 1]; } });
+  need(min >= floor.min_names_per_day, 'COVERAGE_BELOW_FLOOR', `${minDate}:${min}<${floor.min_names_per_day}`);
+  const sorted = [...days].sort((a, b) => a - b);
+  return { min, min_date: minDate, median: sorted[Math.floor(sorted.length / 2)], days: days.length, floor: { ...floor } };
+}
+
 /**
  * 第 3–4 步：生成 + 挖掘段打分 + 每个尝试一行试验台账，到上限停。sources = 车道副本与验证折尾段（不许有留出段）。
  * @returns {{round_id, status, attempts: {scored, parse_refused, deduped}, total}}
  */
-function generate({ roundId, sources, outDir, registeredBy }) {
+function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null }) {
   need(Array.isArray(sources) && sources.length, 'SOURCES_MISSING');
   for (const s of sources) need(!s.holdout, 'HOLDOUT_IN_GENERATION', s.label);
   const dir = runDir(outDir, roundId);
-  need(!fs.existsSync(path.join(dir, 'selection.json')), 'GENERATION_CLOSED', `${roundId}: selection done`);
+  need(!rounds.selectionOf(roundId), 'GENERATION_CLOSED', `${roundId}: selection recorded`);
   let r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.generator.mode === 'AI_MINED_GP', 'GENERATOR_NOT_GP', r.generator.mode);
@@ -118,7 +148,8 @@ function generate({ roundId, sources, outDir, registeredBy }) {
   const H = f.holdingPeriod;
   const gen = generatorOverride || generators.generatorFor(r.generator, { space: f.dslSpace, holdingPeriod: H });
   const m = segs.SEGMENTS.MINING;
-  const panel = adapter.buildPanel({ sources, space: f.space, segment: 'MINING', from: m.from, to: m.to });
+  const panel = prebuilt || adapter.buildPanel({ sources, space: f.space, segment: 'MINING', from: m.from, to: m.to });
+  const coverage = checkCoverage(panel, coverageFloor); // 一个尝试都没记之前
   const counts = { scored: 0, parse_refused: 0, deduped: 0 };
   const startedAt = now();
   const log = path.join(dir, 'attempts.jsonl');
@@ -158,7 +189,7 @@ function generate({ roundId, sources, outDir, registeredBy }) {
   }
   const out = { schema: 'MINING_RUNNER_GENERATE_V1', round_id: roundId, status: r.status, cap: r.cap, total: r.candidates_scored, attempts: counts, holding_period: H,
     generator: { mode: gen.mode, seed: gen.seed, params: gen.params || null }, space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze },
-    mining_panel: panel.manifest, started_at: startedAt, finished_at: now() };
+    mining_panel: panel.manifest, coverage, started_at: startedAt, finished_at: now() };
   writeJson(path.join(dir, 'generate.json'), out);
   return out;
 }
@@ -178,8 +209,8 @@ function select({ roundId, sources, outDir }) {
   for (const s of sources) need(!s.holdout, 'HOLDOUT_IN_SELECTION', s.label);
   const r = rounds.roundHead(roundId);
   need(r && ['OPEN', 'CAP_REACHED'].includes(r.status), 'ROUND_NOT_SELECTABLE', `${roundId}:${r && r.status}`);
+  if (rounds.selectionOf(roundId)) throw new rounds.MiningRoundError('MINE_ROUND_SELECTION_EXISTS', roundId);
   const dir = runDir(outDir, roundId);
-  need(!fs.existsSync(path.join(dir, 'selection.json')), 'SELECTION_EXISTS', roundId);
   const f = loadFrozenSpace();
   const v = segs.SEGMENTS.VALIDATION;
   const panel = adapter.buildPanel({ sources, space: f.space, segment: 'VALIDATION', from: segs.SEGMENTS.MINING.from, to: v.to });
@@ -190,30 +221,76 @@ function select({ roundId, sources, outDir }) {
   const out = { schema: 'MINING_VALIDATION_SELECTION_V1', round_id: roundId, rule: selector.RULE, folds: selector.folds(), holding_period: f.holdingPeriod,
     candidates, selected: candidates.filter((c) => c.selected).map((c) => c.candidate_id), validation_panel: panel.manifest, created_at: now() };
   writeJson(path.join(dir, 'selection.json'), out);
+  // 台账里只追加一行：文件的 sha 与过了的候选编号（打分时只信这一行，不信输出目录里的文件）
+  rounds.recordSelection(roundId, { selection_sha256: sha256(fs.readFileSync(path.join(dir, 'selection.json'))), selected: out.selected, evaluated: candidates.length,
+    rule: { ...selector.RULE } });
   return out;
 }
 
 /**
- * 留出段目录的核对（开 holdout-vault 之前，不读行情）：SHA256SUMS 的 sha 等于封存的；或者有 SHA256SUMS.sealed 等于封存的、且它的每一行
- * 都原样在现在的 SHA256SUMS 里（补导只许追加）。交易日历要到留出段终点（12-31 的数据进来之前不打分）。
+ * 留出段目录的核对（开 holdout-vault 之前做完，独立复审 2026-11-17 第 1、2 条）。seal = { data_sha256, segment: { from, to } }。
+ *   1 清单：SHA256SUMS 的 sha 等于封存的；或者 SHA256SUMS.sealed 等于封存的、且它的每一行都原样在现在的 SHA256SUMS 里（补导只许追加）；
+ *   2 文件：目录里每个 CSV 都在清单里（MINE_RUNNER_HOLDOUT_FILE_UNLISTED）；清单里每个文件都在、sha 对得上（…_FILE_MISSING / …_FILE_SHA_MISMATCH）；
+ *     7 张表都在（…_TABLE_MISSING）；
+ *   3 完整：日历（SSE）到留出段终点；留出段里每个 SSE 开市日，日线、daily_basic、复权因子的 READY 行 ≥ HOLDOUT_FLOOR（…_HOLDOUT_INCOMPLETE:<表>:<日>）。
+ *     导出规格 rev 3 的日历每次都是整段（到 2026-12-31），所以不能只看日历。
+ * 核过才把目录交给面板；任何一条不过都在开启之前拒绝，那一次开启不被耗掉。
  */
+function holdoutDirCheck(dir, seal) {
+  need(seal && SHA64_RE.test(seal.data_sha256 || '') && seal.segment && seal.segment.from && seal.segment.to, 'NOT_SEALED');
+  need(dir && fs.existsSync(path.join(dir, 'SHA256SUMS')), 'HOLDOUT_DIR_INVALID', dir);
+  const sumsBytes = fs.readFileSync(path.join(dir, 'SHA256SUMS'));
+  const parse = (text) => text.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+    const m = /^([0-9a-f]{64}) [ *](.+)$/.exec(l); need(m, 'HOLDOUT_SHA256SUMS_LINE', l); return { line: l, sha: m[1], name: m[2] };
+  });
+  const listed = parse(sumsBytes.toString('utf8'));
+  if (sha256(sumsBytes) !== seal.data_sha256) {
+    const sealedFile = path.join(dir, 'SHA256SUMS.sealed');
+    need(fs.existsSync(sealedFile) && sha256(fs.readFileSync(sealedFile)) === seal.data_sha256, 'HOLDOUT_SHA_MISMATCH', dir);
+    const now1 = new Set(listed.map((x) => x.line));
+    const lost = parse(fs.readFileSync(sealedFile, 'utf8')).filter((x) => !now1.has(x.line));
+    need(!lost.length, 'HOLDOUT_SEALED_FILES_CHANGED', lost.map((x) => x.name).join(','));
+  }
+  const byName = new Map(listed.map((x) => [x.name, x.sha]));
+  for (const n of fs.readdirSync(dir).filter((x) => x.endsWith('.csv')).sort()) need(byName.has(n), 'HOLDOUT_FILE_UNLISTED', n);
+  for (const x of listed) {
+    const f = path.join(dir, x.name);
+    need(fs.existsSync(f), 'HOLDOUT_FILE_MISSING', x.name);
+    need(sha256(fs.readFileSync(f)) === x.sha, 'HOLDOUT_FILE_SHA_MISMATCH', x.name);
+  }
+  for (const t of HOLDOUT_TABLES) need(byName.has(t), 'HOLDOUT_TABLE_MISSING', t);
+  const src = adapter.csvDirSource(dir, { mode: 'LIVE', label: 'holdout', holdout: true });
+  const cal = new Map(); let last = '';
+  src.forEach('calendar', (r) => {
+    const ex = Object.prototype.hasOwnProperty.call(r, 'exchange') ? r.exchange : r.market;
+    if (ex !== adapter.CALENDAR_EXCHANGE) return;
+    const at = adapter.internals.parseTs(r.first_available_at); const rev = Number(r.revision || 0);
+    const cur = cal.get(r.calendar_date);
+    if (!cur || at > cur.at || (at === cur.at && rev >= cur.rev)) cal.set(r.calendar_date, { at, rev, open: r.is_open === 't' || r.is_open === 'true' });
+    if (r.calendar_date > last) last = r.calendar_date;
+  });
+  need(last >= seal.segment.to, 'HOLDOUT_INCOMPLETE', `trading_calendar.csv:${seal.segment.to}`);
+  const days = [...cal.entries()].filter(([d, v]) => v.open && d >= seal.segment.from && d <= seal.segment.to).map(([d]) => d).sort();
+  need(days.length, 'HOLDOUT_INCOMPLETE', 'trading_calendar.csv:no open day');
+  const rowsPerDay = {};
+  for (const [table, file] of [['prices', 'prices_daily_stock.csv'], ['basic', 'market_daily_basic_observation_stock.csv'], ['adj', 'adjustment_factor_observation_stock.csv']]) {
+    const n = new Map();
+    src.forEach(table, (r) => { if (r.quality_state === 'READY' && r.trade_date >= seal.segment.from && r.trade_date <= seal.segment.to) n.set(r.trade_date, (n.get(r.trade_date) || 0) + 1); });
+    const per = days.map((d) => n.get(d) || 0);
+    const median = [...per].sort((a, b) => a - b)[Math.floor(per.length / 2)];
+    days.forEach((d, k) => {
+      need(per[k] >= HOLDOUT_FLOOR.min_rows_per_day && per[k] >= HOLDOUT_FLOOR.min_share_of_median_day * median, 'HOLDOUT_INCOMPLETE', `${file}:${d}:${per[k]}`);
+    });
+    rowsPerDay[file] = { min: Math.min(...per), median };
+  }
+  return { calendar_to: last, open_days: days.length, rows_per_day: rowsPerDay, source: src };
+}
+
+/** 对着本轮的封存记录核留出段目录。 */
 function verifyHoldoutDir(roundId, dir) {
   const seal = vault.sealOf(roundId);
   need(seal, 'NOT_SEALED', roundId);
-  need(dir && fs.existsSync(path.join(dir, 'SHA256SUMS')), 'HOLDOUT_DIR_INVALID', dir);
-  const sums = fs.readFileSync(path.join(dir, 'SHA256SUMS'));
-  if (sha256(sums) !== seal.data_sha256) {
-    const sealedFile = path.join(dir, 'SHA256SUMS.sealed');
-    need(fs.existsSync(sealedFile) && sha256(fs.readFileSync(sealedFile)) === seal.data_sha256, 'HOLDOUT_SHA_MISMATCH', roundId);
-    const now1 = new Set(sums.toString('utf8').split('\n').map((l) => l.trim()).filter(Boolean));
-    const lost = fs.readFileSync(sealedFile, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean).filter((l) => !now1.has(l));
-    need(!lost.length, 'HOLDOUT_SEALED_FILES_CHANGED', lost.length);
-  }
-  const src = adapter.csvDirSource(dir, { mode: 'LIVE', label: 'holdout', holdout: true });
-  let last = '';
-  src.forEach('calendar', (row) => { if (row.calendar_date > last) last = row.calendar_date; });
-  need(last >= seal.segment.to, 'HOLDOUT_INCOMPLETE', `${last}<${seal.segment.to}`);
-  return { seal_hash: seal.record_hash, data_sha256: seal.data_sha256, calendar_to: last, source: src };
+  return { ...holdoutDirCheck(dir, seal), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
 }
 
 /**
@@ -223,22 +300,24 @@ function verifyHoldoutDir(roundId, dir) {
 function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null }) {
   for (const s of sources) need(!s.holdout, 'HOLDOUT_PASSED_AS_SOURCE', s.label);
   const dir = runDir(outDir, roundId);
+  // 选择只信台账里那一行（复审第 3 条）：输出目录里的 selection.json 要对得上它的 sha；候选编号取这一行，公式取试验台账行
+  const selRow = rounds.selectionOf(roundId);
+  need(selRow, 'SELECTION_MISSING', roundId);
   const selFile = path.join(dir, 'selection.json');
-  need(fs.existsSync(selFile), 'SELECTION_MISSING', roundId);
-  const selection = JSON.parse(fs.readFileSync(selFile, 'utf8'));
-  need(selection.round_id === roundId, 'SELECTION_ROUND_MISMATCH', selection.round_id);
-  if (!selection.selected.length) { writeJson(path.join(dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
+  need(fs.existsSync(selFile) && sha256(fs.readFileSync(selFile)) === selRow.selection_sha256, 'SELECTION_FILE_MISMATCH', roundId);
+  const formulas = new Map(scoredAttempts(roundId).map((c) => [c.candidate_id, c.formula]));
+  for (const id of selRow.selected) need(formulas.has(id), 'SELECTION_CANDIDATE_UNKNOWN', id);
+  if (!selRow.selected.length) { writeJson(path.join(dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
   const checked = verifyHoldoutDir(roundId, holdoutDir);
-  const opened = vault.open({ round_id: roundId, candidate_ids: [...selection.selected], openedBy: RUNNER_ID });
+  const opened = vault.open({ round_id: roundId, candidate_ids: [...selRow.selected], openedBy: RUNNER_ID });
   const f = loadFrozenSpace();
   const panel = adapter.buildPanel({ sources: [...sources, checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
-  const byId = new Map(selection.candidates.map((c) => [c.candidate_id, c]));
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
-  const results = holdoutScoring.roundResults(opened.candidate_ids.map((id) => ({ candidate_id: id, formula: byId.get(id).formula, parsed: dsl.parse(byId.get(id).formula, f.dslSpace) })),
+  const results = holdoutScoring.roundResults(opened.candidate_ids.map((id) => ({ candidate_id: id, formula: formulas.get(id), parsed: dsl.parse(formulas.get(id), f.dslSpace) })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp });
   const records = results.map((res) => gateRecords.recordGateResult({ round_id: roundId, candidate_id: res.candidate_id, candidate: res }));
-  writeJson(path.join(dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: true, holdout: { seal_hash: checked.seal_hash, data_sha256: checked.data_sha256,
-    calendar_to: checked.calendar_to }, holdout_panel: panel.manifest, results, records: records.map((x) => ({ candidate_id: x.candidate_id, pass: x.pass, codes: x.codes, record_hash: x.record_hash })) });
+  writeJson(path.join(dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: true, selection_record_hash: selRow.record_hash,
+    holdout: { seal_hash: checked.seal_hash, data_sha256: checked.data_sha256, calendar_to: checked.calendar_to, open_days: checked.open_days, rows_per_day: checked.rows_per_day }, holdout_panel: panel.manifest, results, records: records.map((x) => ({ candidate_id: x.candidate_id, pass: x.pass, codes: x.codes, record_hash: x.record_hash })) });
   return { opened: true, records };
 }
 
@@ -252,6 +331,7 @@ function withFrozenInputs(patch, cb) { const prior = frozenInputs; frozenInputs 
 function withGenerator(gen, cb) { const prior = generatorOverride; generatorOverride = gen; try { return cb(); } finally { generatorOverride = prior; } }
 
 module.exports = {
-  MARKET, RUNNER_ID, FROZEN_INPUTS, RunnerError, start, loadFrozenSpace, requestRound, sealHoldout, generate, select, verifyHoldoutDir, scoreHoldout, close, scoredAttempts,
+  MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, start, loadFrozenSpace, checkCoverage, requestRound, sealHoldout, generate, select,
+  holdoutDirCheck, verifyHoldoutDir, scoreHoldout, close, scoredAttempts,
   internals: { withGenerator, withFrozenInputs, attemptId },
 };

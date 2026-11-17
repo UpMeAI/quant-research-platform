@@ -173,11 +173,15 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
 | 1 | open: frozen space `docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json` + freeze page `4ec642b9…` (sha checked, `parseSpace`, `verifyFreeze`), holding period 5, `AI_MINED_GP` with `gp_seed`, cap ≤ 200, frozen holdout. A request for `AI_MINED_LLM` gives `MINE_LLM_NOT_ENABLED` before `openRound` | `requestRound` → `openRound` |
 | 2 | seal: the holdout directory's reference and the sha256 of its `SHA256SUMS`. The generation container does not mount the holdout | `sealHoldout` → `holdout-vault.seal` |
 | 3–4 | generate from `generatorView` only, then score on the mining segment; every attempt is one trial row (below); stop at the cap, no top-up | `generate` → `recordCandidate` |
-| 5 | select on the walk-forward folds into `<out>/rounds/<id>/selection.json` only | `select` |
-| 6 | check the holdout directory, then open the vault once | `scoreHoldout` → `holdout-vault.open` |
+| 5 | select on the walk-forward folds into `<out>/rounds/<id>/selection.json`, plus one append-only `MINING_SELECTION_V1` row (the file's sha + selected ids) | `select` → `recordSelection` |
+| 6 | check the selection row and the holdout directory, then open the vault once | `scoreHoldout` → `holdout-vault.open` |
 | 7 | score through `holdout-scoring.js` only, which uses `neutralizeForScoring` | `roundResults` |
 | 8 | one G-MINE record per opened candidate | `recordGateResult` |
 | 9 | close; the pass count is derived from the records | `close` → `closeRound` |
+
+**Coverage first** (P2 review item 4)
+- Before the round is opened (CLI) and before any attempt is recorded (`generate`), the mining panel must have at least `COVERAGE_FLOOR.min_names_per_day` = **2,000** names per decision day, counting names in the universe with a finite `close_hfq`; the first day is exempt.
+- Otherwise it refuses with `MINE_RUNNER_COVERAGE_BELOW_FLOOR`. An empty or half-exported lane copy therefore cannot write 200 unscored attempts into N.
 
 **Attempts** (RF1116 §3.3, P2 spec §2 and §4 item 5)
 - **Every attempt is one trial row,** written through `recordCandidate`, and counts toward the cap of 200 and toward N.
@@ -195,14 +199,24 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
   - the mean IC over the whole validation segment is > 0;
   - the fold mean is positive in ≥ ⌈2/3 × folds⌉ folds;
   - the mining score is > 0.
-- **Where results go.** They go to `selection.json` only, never to the trial ledger or `generatorView`.
-- **After selection** the round's generation is closed (`MINE_RUNNER_GENERATION_CLOSED`).
+- **Where results go.**
+  - The fold statistics go to `selection.json` only, never to the trial ledger or `generatorView`.
+  - The ledger gets one `MINING_SELECTION_V1` row: the file's sha and the selected ids, no statistics.
+- **After selection** the round's generation is closed (`MINE_RUNNER_GENERATION_CLOSED`, and `recordCandidate` gives `MINE_ROUND_GENERATION_CLOSED`).
 
-**Holdout hand-over.** `scoreHoldout` checks the mounted holdout directory before `holdout-vault.open`:
-- The files are intact. Either `sha256(SHA256SUMS)` equals the sealed sha, or `SHA256SUMS.sealed` hashes to it and every sealed line is still present (completion exports are append-only, as `<table>_<YYYYMMDD>.csv`).
-- The calendar reaches the holdout end.
+**Holdout hand-over** (P2 review items 1–3). `scoreHoldout` does all of the following before `holdout-vault.open`:
+- **Selection.** The `MINING_SELECTION_V1` row must exist, and `selection.json` must hash to its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). Ids come from the row; formulas come from the trial rows.
+- **Manifest.** Either `sha256(SHA256SUMS)` equals the sealed sha, or `SHA256SUMS.sealed` hashes to it and every sealed line is still present (completion exports are append-only, as `<table>_<YYYYMMDD>.csv`).
+- **Files** (`holdoutDirCheck`, a pure function of the directory and the seal):
+  - every CSV in the directory is listed (`…_FILE_UNLISTED`);
+  - every listed file exists and hashes to its line (`…_FILE_MISSING`, `…_FILE_SHA_MISMATCH`);
+  - all 7 tables are present (`…_TABLE_MISSING`).
+- **Completeness.**
+  - The SSE calendar reaches the holdout end.
+  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows: at least 1, and at least half of that table's median day (`HOLDOUT_FLOOR`; refusal `…_HOLDOUT_INCOMPLETE:<file>:<day>:<n>`).
+  - Export spec rev 3 ships the full calendar in every export, so the calendar alone proves nothing.
 
-Otherwise it refuses (`MINE_RUNNER_HOLDOUT_SHA_MISMATCH`, `…_SEALED_FILES_CHANGED`, `…_HOLDOUT_INCOMPLETE`) without spending the single open. A second open gives `MINE_HOLDOUT_ALREADY_OPENED`.
+Any failure refuses without spending the single open. A second open gives `MINE_HOLDOUT_ALREADY_OPENED`.
 
 **Holdout scoring** (`holdout-scoring.js`; the runner is its only caller)
 - **Scoring days.** Decision days are inside the holdout, and so are the labels.

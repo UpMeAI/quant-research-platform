@@ -4,7 +4,8 @@
 /**
  * 挖掘轮次执行器的命令行（容器的入口，deploy/research-lane/round-runner/）。两个阶段分开跑，留出段目录只在第二阶段挂进来：
  *
- *   generate --out DIR --lane DIR [--lane-adapter MODULE] --tail DIR --seed N [--cap N] --holdout-ref REF --holdout-sha256 SHA [--resume ROUND_ID]
+ *   generate --out DIR --lane DIR [--lane-adapter MODULE] --tail DIR --seed N [--cap N] --holdout-ref REF --holdout-sha256 SHA [--resume ROUND_ID] [--min-names-per-day N]
+ *            先建挖掘段面板、核逐日覆盖（默认每天 ≥ 2,000 只，runner.COVERAGE_FLOOR），过了才：
  *            第 1–5 步：开轮（或续跑 --resume 的轮）→ 封存留出段（只记引用与 sha）→ 生成 + 挖掘段打分 + 记台账 → 前推验证折选择。
  *   score    --out DIR --round ROUND_ID --lane DIR [--lane-adapter MODULE] --tail DIR --holdout DIR
  *            第 6–9 步：核留出段目录 → 开留出段（每轮一次）→ 打分 → 逐候选 G-MINE 记录 → 关轮。
@@ -17,7 +18,7 @@ const runner = require('./index');
 const adapter = require('../data-adapter');
 
 const OPTIONS = Object.freeze({
-  generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at'],
+  generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day'],
   score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at'],
 });
 
@@ -45,14 +46,19 @@ function main(argv) {
     require('../generators').assertGeneratorEnabled(generator); // 大模型：在开轮、读数据、锁目录之前就拒
     required(o, ['out', 'lane', 'tail', ...(o.resume ? [] : ['seed', 'holdout-ref', 'holdout-sha256'])]);
     const { outDir } = runner.start({ outDir: o.out });
+    // 数据先核（复审第 4 条）：挖掘段面板建好、逐日覆盖过了下限，才开轮、封存、记尝试
+    const sources = sourcesOf(o);
+    const floor = o['min-names-per-day'] === undefined ? runner.COVERAGE_FLOOR : { min_names_per_day: Number(o['min-names-per-day']) };
+    const m = require('../segments').SEGMENTS.MINING;
+    const panel = adapter.buildPanel({ sources, space: runner.loadFrozenSpace().space, segment: 'MINING', from: m.from, to: m.to });
+    runner.checkCoverage(panel, floor);
     let roundId = o.resume;
     if (!roundId) {
       const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null });
       roundId = r.round_id;
       runner.sealHoldout({ roundId, dataRef: o['holdout-ref'], dataSha256: o['holdout-sha256'] });
     }
-    const sources = sourcesOf(o);
-    const g = runner.generate({ roundId, sources, outDir, registeredBy });
+    const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel });
     const s = runner.select({ roundId, sources, outDir });
     return { command: 'generate', round_id: roundId, status: g.status, total: g.total, attempts: g.attempts, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length };
   }

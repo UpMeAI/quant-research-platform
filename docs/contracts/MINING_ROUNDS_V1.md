@@ -78,3 +78,8 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 - **Built (P2).** The runner is `services/mining-sandbox/round-runner` (see `MINING_SANDBOX_V1`, "Round runner"), and the container is `deploy/research-lane/round-runner/` (`DEPLOY.md`). GP rounds need no egress, so the container runs `--network none`.
 - **Every attempt is a trial row (P2).** The runner writes parse-refused and deduplicated attempts through `recordCandidate` as well, with no score. Each carries `rule_config.attempt` and `attempt_id`, so it counts toward the round cap of 200 and toward N. `candidates_scored` therefore counts attempts.
 - **`holdout-vault.sealOf(round_id)`** returns the seal row (read-only). The runner checks the mounted holdout directory against it before `open`.
+- **Selection is a ledger row (P2 review, 2026-11-17).**
+  - `recordSelection(round_id, {selection_sha256, selected, evaluated, rule})` appends one `MINING_SELECTION_V1` row per round (`research/mining_selections.jsonl`): the sha256 of the runner's `selection.json` and the candidates that passed the validation folds.
+  - Selected ids must be scored attempts of the round (`MINE_ROUND_SELECTION_CANDIDATE_INVALID`). A second row gives `MINE_ROUND_SELECTION_EXISTS`.
+  - After the row exists, `recordCandidate` refuses with `MINE_ROUND_GENERATION_CLOSED`.
+  - The holdout opens exactly the ids in this row, and the runner takes each formula from its trial row, never from the output file.

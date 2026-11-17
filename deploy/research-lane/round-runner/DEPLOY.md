@@ -25,7 +25,7 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 
 ### Lane copy layout
 
-- **Files and columns:** the same file names and columns as export spec rev 2 §2:
+- **Files and columns:** the same file names and columns as export spec **rev 3** §2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1.a24afab2.md`, which replaces rev 2):
   - `prices_daily_stock.csv`
   - `market_daily_basic_observation_stock.csv`
   - `adjustment_factor_observation_stock.csv`
@@ -33,7 +33,13 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
   - `security_suspension_observation.csv`
   - `security_suspension_day_coverage.csv`
   - `trading_calendar.csv`
-- **Dates:** trade dates 2020-06-01 → 2026-09-28. **`trading_calendar.csv` starts at 2019-06-01**, so the 120-session listing rule works from the first mining day.
+- **Dates:** trade dates 2020-06-01 → 2026-09-28.
+- **Calendar (rev 3 §2.2):** `trading_calendar.csv` comes from `canonical_calendar_observation`.
+  - It holds one row per (date, exchange) for **both SSE and SZSE**, with `market` = `A_SHARE` and the exchange in `exchange`, covering 2019-06-01 → 2026-12-31.
+  - The same file is in every directory (lane copy, validation tail, holdout).
+  - The runner takes open days from SSE rows only and lists any SSE/SZSE disagreement in the panel manifest.
+  - Starting at 2019-06-01 is what makes the 120-session listing rule work from the first mining day.
+- **Security master (rev 3 §2.1):** `security_master_stock.csv` comes from `canonical_security_observation`. It has the rev 2 column names plus `record_id`, `revision` and `allow_new_risk`, and holds each security's last row before the directory's first date plus every row inside it. (The legacy `security_master` and `trading_calendar` tables are empty in the live DB.)
 - **Integrity:** `SHA256SUMS` comes from `shasum -a 256 *.csv`.
 - **Source:** it is exported read-only from the lane's replay copy with the same queries, no vendor re-fetch.
 - **Other formats:** a different reader can be plugged in with `--lane-adapter <module>` (a module exporting `createSource(dir, opts)`). No adapter is needed when the layout above is used.
@@ -44,13 +50,15 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 mkdir -p /srv/research-lane/rf1116-mining/{code,data,holdout-sealed,out}
 git clone https://github.com/UpMeAI/quant-research-platform.git /srv/research-lane/rf1116-mining/code && git -C /srv/research-lane/rf1116-mining/code checkout --detach <merge-commit>
 cd /srv/research-lane/rf1116-mining/code && DOCKER_HOST=unix:///run/user/1000/docker.sock \
-  docker build -f deploy/research-lane/round-runner/Dockerfile -t qrp-round-runner:<commit12> .
+  docker build --pull=false -f deploy/research-lane/round-runner/Dockerfile -t qrp-round-runner:<commit12> .
 DOCKER_HOST=unix:///run/user/1000/docker.sock docker run --rm --user 0:0 --network none \
   -v /srv/research-lane/rf1116-mining/out:/out --entrypoint chown qrp-round-runner:<commit12> 1000:1000 /out   # out/ writable for container uid 1000
 ```
 
-- **Network at build time only:** the build pulls `node:22.12.0-bookworm-slim` once. `npm ci` installs nothing, because QRP has no dependencies and the lockfile pins that.
-- **Pin by digest:** record the pulled image digest (`docker image inspect node:22.12.0-bookworm-slim --format '{{index .RepoDigests 0}}'`) in the deploy log.
+- **Base image, no network:** Docker Hub is blocked from the lane. The Dockerfile pins `node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392` (Node 22.23.3), which is the lane's local image.
+  - Check it before building: `docker image inspect node:22-bookworm-slim --format '{{index .RepoDigests 0}}'` must print that digest.
+  - Then build with `--pull=false`.
+- **Dependencies:** `npm ci` installs nothing, because QRP has no dependencies and the lockfile pins that.
 
 ## Seal, then generate (steps 1–5)
 
@@ -68,10 +76,13 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 ```
 
 The run does the following:
+- **checks the data before anything is written:** it builds the mining-segment panel and requires at least **2,000** names per decision day (in the universe, with a back-adjusted close; the first day is exempt).
+  - Otherwise it refuses with `MINE_RUNNER_COVERAGE_BELOW_FLOOR:<day>:<n><2000>`. No round is opened and nothing enters N.
+  - The 2020-06 universe is about 3,800 names before exclusions.
 - opens a CN_A GP round with the frozen space `0d3556fa…`, freeze page `4ec642b9…`, holding period 5, cap 200 and holdout 2026-10-19 → 2026-12-31;
 - seals the holdout (data_ref + `<holdout_sha256>`);
 - generates and scores on the mining segment. **Every attempt is a trial row** (parse-refused and deduplicated included), and the run stops at 200;
-- runs the validation-fold selection into `out/rounds/<round_id>/selection.json`.
+- runs the validation-fold selection into `out/rounds/<round_id>/selection.json`, and appends one `MINING_SELECTION_V1` row (that file's sha256 and the selected ids) to the ledger. After this row exists, the round records no more attempts. At scoring time, the runner trusts only this row; the file in `out/` must match its sha.
 
 It prints one JSON line with the `round_id`.
 
@@ -97,13 +108,16 @@ chmod -R a+rX /srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-
 RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh score <round_id>
 ```
 
-**Checks before `holdout-vault.open`.** Before opening the vault, the runner checks two things without reading any market file:
-1. The holdout files are intact:
-   - either `sha256(SHA256SUMS)` equals the sealed sha;
-   - or `sha256(SHA256SUMS.sealed)` equals it and every sealed line is still in `SHA256SUMS` (append-only).
-2. The holdout trading calendar reaches 2026-12-31.
+**Checks before `holdout-vault.open`.** Before opening the vault, the runner reads the holdout directory once and checks:
+1. **The manifest is the sealed one, append-only.** Either `sha256(SHA256SUMS)` equals the sealed sha, or `sha256(SHA256SUMS.sealed)` equals it and every sealed line is still in `SHA256SUMS`.
+2. **Every file is listed and intact.**
+   - Every CSV in the directory is listed (`…_FILE_UNLISTED`).
+   - Every listed file exists and hashes to its line (`…_FILE_MISSING`, `…_FILE_SHA_MISMATCH`).
+   - All 7 tables are present (`…_TABLE_MISSING`): prices, daily_basic, adjustment factor, security master, suspension, suspension day coverage, calendar.
+3. **The data is complete.** Rev 3 always ships the full calendar to 2026-12-31, so the calendar alone proves nothing. For every SSE open day 2026-10-19 → 2026-12-31, each of the prices, daily_basic and adjustment-factor tables must have READY rows: at least 1, and at least half of that table's median day (`…_HOLDOUT_INCOMPLETE:<file>:<day>:<n>`).
+4. **The selection is the recorded one.** The `MINING_SELECTION_V1` row exists, and `selection.json` matches its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). The formulas are taken from the trial rows, not from the file.
 
-Otherwise it refuses with `MINE_RUNNER_HOLDOUT_SHA_MISMATCH`, `…_SEALED_FILES_CHANGED` or `…_HOLDOUT_INCOMPLETE`, and the single open is not spent.
+If any check fails it refuses, and the single open is not spent.
 
 **After the checks** it does the following:
 - opens the vault once;
