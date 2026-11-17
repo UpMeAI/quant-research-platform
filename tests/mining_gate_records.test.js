@@ -71,8 +71,8 @@ test('开过留出段的候选只要有一个没有 G-MINE 记录 → 不许关�
   // 真门（门槛没冻结）：记录写进来，不过
   const s = scoredRound('US', '2027-02-02T02:00:00Z', 1);
   const real = records.recordGateResult({ round_id: s.r.round_id, candidate_id: s.ids[0], candidate: {} });
-  // ★e 冻结 PR 起文件是 FROZEN，但仓库里的冻结页还是草稿占位（DRAFT）→ 失败即关，记不过
-  assert.deepEqual([real.pass, real.codes], [false, ['MINE_THRESHOLDS_FREEZE_REF_INVALID']]);
+  // ★e 冻结后文件是 FROZEN、冻结页已签发：门槛块通过，空候选在各项上不过（记不过），记录写下 FROZEN 与六个数
+  assert.deepEqual([real.pass, real.codes.some((c) => c.startsWith('MINE_THRESHOLDS_')), real.thresholds_used.state], [false, false, 'FROZEN']);
 });
 
 test('暂停只看记录：连续 3 轮记录里 0 个过 → 暂停；同样 3 轮里有 1 个记录过 → 不暂停', () => {
@@ -117,10 +117,11 @@ test('记录的门槛只来自钉住的文件：调用方给的门槛（哪怕�
   for (const k of ['familyTrialCount', 'library', 'registerBytes', 'marks', 'asOf']) {
     assert.throws(() => records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {}, ctx: { [k]: 1 } }), code(new RegExp(`MINE_GATE_RECORD_CTX_NOT_ACCEPTED:${k}`)), k);
   }
-  // 仓库里的文件：FROZEN，冻结页还是草稿占位 → 门失败即关（FREEZE_REF_INVALID），记不过；记录写出文件 sha 与用到的数
+  // 仓库里的文件：FROZEN，冻结页已签发 → 照六个数判（空候选在各项上不过，记不过）；记录写出文件 sha 与用到的数
   const repoSha = sha(fs.readFileSync(THRESHOLDS_PATH));
   const unfrozen = records.recordGateResult({ round_id: r.round_id, candidate_id: ids[0], candidate: {} });
-  assert.deepEqual([unfrozen.pass, unfrozen.codes, unfrozen.thresholds_file.sha256, unfrozen.thresholds_used.state], [false, ['MINE_THRESHOLDS_FREEZE_REF_INVALID'], repoSha, 'FROZEN']);
+  assert.deepEqual([unfrozen.pass, unfrozen.codes.some((c) => c.startsWith('MINE_THRESHOLDS_')), unfrozen.thresholds_file.sha256, unfrozen.thresholds_used.state, unfrozen.thresholds_used.ic_mean_min],
+    [false, false, repoSha, 'FROZEN', 0.02]);
   assert.equal(unfrozen.family_trial_count, trials.count(`MINE:CN_A:H5`).n_raw);
   // 没冻结的情形：临时的 PENDING 副本 → MINE_THRESHOLDS_UNFROZEN
   const pendingDoc = { ...JSON.parse(fs.readFileSync(THRESHOLDS_PATH, 'utf8')), state: 'PENDING_FREEZE', frozen_ref: null };

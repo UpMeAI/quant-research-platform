@@ -85,7 +85,7 @@ test('DSR、PBO 的门槛读 overfit.js 的常量，不另抄；★e 门槛在�
   assert.equal(new Set(gate.ITEMS.map((i) => i.key)).size, 9);
 });
 
-test('冻结前失败即关：没冻结的门槛块下，连全过的样例也被拒（MINE_THRESHOLDS_UNFROZEN），不跑任何一项；默认门槛（文件，FROZEN）在冻结页签发前被拒（FREEZE_REF_INVALID）', () => {
+test('冻结前失败即关：没冻结的门槛块下，连全过的样例也被拒（MINE_THRESHOLDS_UNFROZEN），不跑任何一项；默认门槛（文件，FROZEN，冻结页已签发）照六个数判', () => {
   const c = candidate();
   const PENDING = { ...gate.THRESHOLDS, state: 'PENDING_FREEZE', frozen_ref: null }; // 文件转 FROZEN 之后，没冻结的情形用临时的 PENDING 副本测
   const r = gate.evaluate(c, ctx({ thresholds: PENDING }));
@@ -93,9 +93,9 @@ test('冻结前失败即关：没冻结的门槛块下，连全过的样例也�
   assert.deepEqual(r.codes, ['MINE_THRESHOLDS_UNFROZEN']);
   assert.deepEqual(r.items, []);
   assert.equal(r.eligible_status, null);
-  // 默认读文件：FROZEN，但仓库里的冻结页还是草稿占位（DRAFT）→ 失败即关
+  // 默认读文件：FROZEN，冻结页是签发的 FREEZE_1（8a36e15b）→ 门槛块通过，九项照这六个数判
   const d = gate.evaluate(c, ctx({ thresholds: undefined }));
-  assert.deepEqual([d.pass, d.codes, d.items], [false, ['MINE_THRESHOLDS_FREEZE_REF_INVALID'], []]);
+  assert.deepEqual([d.codes.some((x) => x.startsWith('MINE_THRESHOLDS_')), d.items.length], [false, 9]);
   // 写了 FROZEN 却没有冻结页 sha256、或某个数不是有限数：同样拒绝
   assert.equal(gate.evaluate(c, ctx({ thresholds: { ...FROZEN, frozen_ref: null } })).codes[0], 'MINE_THRESHOLDS_INVALID');
   assert.equal(gate.evaluate(c, ctx({ thresholds: { ...FROZEN, icir_min: '0.3' } })).codes[0], 'MINE_THRESHOLDS_INVALID');

@@ -1,6 +1,6 @@
-# RF1116 · G-MINE ★e 门槛 · FREEZE_1 · DRAFT（待协调会话签发）
+# RF1116 · G-MINE ★e 门槛 · FREEZE_1 · FROZEN
 
-状态：**DRAFT。** 由协调会话签发：去掉 `.draft`，填冻结时刻，算 sha256，把 path 与 sha256 写进 QRP `config/mining_gate_thresholds.v1.json` 的 `frozen_ref`（门槛冻结 PR）。与 `MINING_SPACE_V1` DRAFT_4、锁定留出段日期同时冻结（协调会话 04:32）。
+状态：**FROZEN。** 冻结时刻 2026-11-17T10:57:06+08:00（读钟），由协调会话签发；同时冻结 `MINING_SPACE_V1_CN_A_R1_FREEZE_1.md`（空间 0d3556fa）与 `RF1116_HOLDOUT_CN_A_R1_FREEZE_1.md`（留出段 2026-10-19 → 2026-12-31），Owner 2026-11-17 10:5x 在协调窗口签「挖掘按推荐」（★M (a)、★H1 (a)、★H2 (a)、★K (b)）。草稿 `RF1116_GMINE_THRESHOLDS_FREEZE_1.draft.md` sha256 6584693fea54f028153c7cda697a0b3d03329d26dc967122993fc5c026de838b；除本两行外与草稿逐字相同。
 - 起草：2026-11-17 04:3x CST（读钟），AQuA 会话。
 
 ## 1. 冻结的是什么

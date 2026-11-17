@@ -3,7 +3,7 @@
   "doc_zh": "G-MINE ★e 门槛（研究框架修订 2026-11-16 §3.6，签字 fd22876f / 39f8c17c）。唯一出处：services/mining-gate 的 THRESHOLDS 与挖掘轮次的逐候选记录都只读这份文件。PENDING_FREEZE 期间门一律失败即关（MINE_THRESHOLDS_UNFROZEN）；转 FROZEN 只经协调会话审过的 PR，同时写 frozen_ref：path 是仓库里冻结页的字节一致副本（docs/freeze/），sha256 是它的 sha，coordinator_path 是协调会话签发的那一页。FROZEN 时门与逐候选记录都核这一页（页在、sha 对、写着 FROZEN 与六个数），否则 MINE_THRESHOLDS_FREEZE_REF_INVALID。",
   "state": "FROZEN",
   "source": { "path": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261116_SIGNATURE_1.md", "sha256": "39f8c17cd569f8eadf7bd18102997cc19b421959aec36fae98c1b1a20fbcd3fb", "section": "§4 ★e" },
-  "frozen_ref": { "path": "docs/freeze/RF1116_GMINE_THRESHOLDS_FREEZE_1.md", "sha256": "6584693fea54f028153c7cda697a0b3d03329d26dc967122993fc5c026de838b", "coordinator_path": "artifacts/coordinator/RF1116_GMINE_THRESHOLDS_FREEZE_1.md" },
+  "frozen_ref": { "path": "docs/freeze/RF1116_GMINE_THRESHOLDS_FREEZE_1.md", "sha256": "8a36e15b995b34603fd977547fdd16fbd70717c4d541dfa2c0a669b53c30a5f4", "coordinator_path": "artifacts/coordinator/RF1116_GMINE_THRESHOLDS_FREEZE_1.md" },
   "ic_mean_min": 0.02,
   "icir_min": 0.3,
   "monotonicity_min": 0.9,
