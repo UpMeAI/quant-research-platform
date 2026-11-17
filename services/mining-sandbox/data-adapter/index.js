@@ -5,7 +5,8 @@
  * 冻结准备 §2.3 的股票池；MINING_SANDBOX_V1「只用历史、按 P-14 次日开盘决策」）：把车道上的导出目录读成求值器要的面板。
  *
  * 面板 { segment, dates, codes, readings, industry, size, universe, labels: { exec_open }, manifest }：
- *   - dates 是决策日（开盘执行）；readings[r][i][j] 是决策日 dates[i] 开盘时可用的值，即前一交易日的行（两种历史时钟 BAR_CLOSE、
+ *   - dates 是决策日（开盘执行），取上交所的开市日（导出规格 rev 3 a24afab2：日历来自 canonical_calendar_observation，交易所在 exchange 列；
+ *     SSE 与 SZSE 不一致的日子列进 manifest.calendar）；readings[r][i][j] 是决策日 dates[i] 开盘时可用的值，即前一交易日的行（两种历史时钟 BAR_CLOSE、
  *     CLOSE_DATED_NEXT_OPEN_USABLE 都是「t 日的行只喂 t+1 开盘」）。没有那一天的行就是 NaN，不往前补。assertUsable 拒绝更早的用法（MINE_DATA_LOOK_AHEAD）。
  *   - 后复权价 = 原始价 × 同一天的 adjustment_factor_observation 因子（导出规格 rev 2；prices_daily.adjustment_factor 那一列不用）。
  *     ret_1d = close / previous_close − 1（前收是除权后的，等于 Tushare pct_chg）；amount = turnover_amount_cny；其余取 daily_basic 的 values。
@@ -40,7 +41,8 @@ const CLOCKS = Object.freeze({ BAR_CLOSE: 'NEXT_OPEN', CLOSE_DATED_NEXT_OPEN_USA
 const LIVE_CUTOFF = 'T09:00:00+08:00';
 const MIN_LISTED_SESSIONS = 120;
 const INDUSTRY = Object.freeze({ standard: 'SW2021', level: 'L1' });
-const CALENDAR_MARKET = 'SSE';
+/** 开市日的来源：上交所（导出规格 rev 3：canonical_calendar_observation 的 market 恒为 A_SHARE，交易所在 exchange 列）。 */
+const CALENDAR_EXCHANGE = 'SSE';
 const BASIC_FIELDS = Object.freeze({ turnover_f: 'turnover_rate_f', total_mv: 'total_mv', circ_mv: 'circ_mv', pe_ttm: 'pe_ttm', pb: 'pb', ps_ttm: 'ps_ttm', dv_ttm: 'dv_ttm' });
 const BARS = 'V6_CN_STOCK_DAILY_BARS';
 const BASIC = 'V6_CN_STOCK_DAILY_BASIC';
@@ -191,9 +193,9 @@ function selector(cells) {
 
 /**
  * @param {{sources: object[], space: object, segment: 'MINING'|'VALIDATION'|'HOLDOUT', from: string, to: string,
- *          calendarMarket?: string, minListedSessions?: number, industry?: {standard, level}}} o
+ *          calendarExchange?: string, minListedSessions?: number, industry?: {standard, level}}} o
  */
-function buildPanel({ sources, space, segment, from, to, calendarMarket = CALENDAR_MARKET, minListedSessions = MIN_LISTED_SESSIONS, industry = INDUSTRY } = {}) {
+function buildPanel({ sources, space, segment, from, to, calendarExchange = CALENDAR_EXCHANGE, minListedSessions = MIN_LISTED_SESSIONS, industry = INDUSTRY } = {}) {
   const seg = Object.prototype.hasOwnProperty.call(segs.SEGMENTS, segment) ? segs.SEGMENTS[segment] : null;
   if (!seg) fail('SEGMENT_UNKNOWN', segment);
   if (!(typeof from === 'string' && typeof to === 'string' && from <= to)) fail('RANGE_INVALID', `${from}..${to}`);
@@ -203,19 +205,25 @@ function buildPanel({ sources, space, segment, from, to, calendarMarket = CALEND
   for (const s of sources) if (s.holdout && segment !== 'HOLDOUT') fail('HOLDOUT_SOURCE_OUTSIDE_HOLDOUT', s.label);
   const readings = mapReadings(space);
 
-  // 交易日历：同一天取入库最晚的那一行
+  // 交易日历（导出规格 rev 3）：交易所取 exchange 列，没有这一列（旧写法）才看 market；每个 (日期, 交易所) 取入库最晚的、同刻取修订号大的；
+  // 开市日只认 calendarExchange（SSE）；SSE 与 SZSE 的 is_open 不一致的日子列进 manifest.calendar（不顶替、不静默）
   const calRows = new Map(); let calMax = '';
   for (const s of sources) {
     if (!s.has('calendar')) continue;
     s.forEach('calendar', (r) => {
-      if (r.market !== calendarMarket) return;
-      const at = parseTs(r.first_available_at); const cur = calRows.get(r.calendar_date);
-      if (!cur || at >= cur.at) calRows.set(r.calendar_date, { at, open: r.is_open === 't' || r.is_open === 'true' });
-      if (r.calendar_date > calMax) calMax = r.calendar_date;
+      if (!ACCEPTED_QUALITY.includes(r.quality_state === undefined ? 'READY' : r.quality_state)) return;
+      const ex = Object.prototype.hasOwnProperty.call(r, 'exchange') ? r.exchange : r.market;
+      const at = parseTs(r.first_available_at); const rev = r.revision === undefined || r.revision === null ? 0 : Number(r.revision);
+      const key = `${r.calendar_date}|${ex}`; const cur = calRows.get(key);
+      if (!cur || at > cur.at || (at === cur.at && rev >= cur.rev)) calRows.set(key, { date: r.calendar_date, ex, at, rev, open: r.is_open === 't' || r.is_open === 'true' });
+      if (ex === calendarExchange && r.calendar_date > calMax) calMax = r.calendar_date;
     });
   }
-  const cal = [...calRows.entries()].filter(([, v]) => v.open).map(([d]) => d).sort();
-  if (!cal.length) fail('CALENDAR_MISSING', calendarMarket);
+  const byExchange = (ex) => new Map([...calRows.values()].filter((v) => v.ex === ex).map((v) => [v.date, v.open]));
+  const sse = byExchange(calendarExchange); const other = byExchange(calendarExchange === 'SSE' ? 'SZSE' : 'SSE');
+  const disagreements = [...sse.entries()].filter(([d, o]) => other.has(d) && other.get(d) !== o).map(([d]) => d).sort();
+  const cal = [...sse.entries()].filter(([, o]) => o).map(([d]) => d).sort();
+  if (!cal.length) fail('CALENDAR_MISSING', calendarExchange);
   if (calMax < to) fail('CALENDAR_RANGE', `${calMax}<${to}`);
   const dates = cal.filter((d) => d >= from && d <= to);
   if (!dates.length) fail('NO_TRADING_DAYS', `${from}..${to}`);
@@ -386,14 +394,16 @@ function buildPanel({ sources, space, segment, from, to, calendarMarket = CALEND
       sources: sources.map((s) => ({ label: s.label, mode: s.mode, kind: s.kind || null, holdout: Boolean(s.holdout), sums_sha256: s.sums_sha256 || null })),
       rules: {
         decision: 'NEXT_OPEN', live_cutoff: `next trading day ${LIVE_CUTOFF.slice(1)}`, revision_known: 'LATEST_FIRST_AVAILABLE_BY_CUTOFF', revision_history_backfill: 'EARLIEST_RECORDED_INSTANT_HIGHEST_REVISION',
-        accepted_quality: [...ACCEPTED_QUALITY], min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_market: calendarMarket, exchanges_excluded: ['BSE'],
+        accepted_quality: [...ACCEPTED_QUALITY], min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_exchange: calendarExchange, exchanges_excluded: ['BSE'],
       },
+      calendar: { exchange: calendarExchange, open_days_in_sources: cal.length, last_date: calMax, sse_szse_disagreements: disagreements.filter((d) => d >= from && d <= to),
+        sse_szse_disagreements_all: disagreements.length },
       counts,
     },
   };
 }
 
 module.exports = {
-  FILES, MODES, ACCEPTED_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_MARKET, READINGS, DataError,
+  FILES, MODES, ACCEPTED_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, DataError,
   csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, internals: { forEachCsvRow, parseTs, clockOf, mapReadings },
 };

@@ -92,7 +92,11 @@ Reads the CSV directories of export spec rev 2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1
 - **The lane-copy reader is pluggable.** `loadSource({dir, mode, label, adapter})` loads a module that exports `createSource(dir, {mode, label, holdout})` and returns the same interface (`has`, `forEach`, `label`, `mode`, `holdout`). Without `adapter`, it uses the CSV reader.
 
 **Panel** (`buildPanel({sources, space, segment, from, to})`)
-- `dates` are decision days, taken from the SSE trading calendar in the sources.
+- `dates` are decision days: the open days of the SSE calendar in the sources.
+  - Under export spec rev 3 (`a24afab2…`), the calendar comes from `canonical_calendar_observation`. There `market` is always `A_SHARE`, and the exchange is in `exchange`, with one row each for SSE and SZSE.
+  - The adapter reads `exchange`, and falls back to `market` only when the column is absent. Per (date, exchange) it takes the row ingested last.
+  - Only SSE rows define open days. No SSE rows gives `MINE_DATA_CALENDAR_MISSING:SSE`; SZSE is never substituted.
+  - Dates where SSE and SZSE `is_open` disagree are listed in `manifest.calendar.sse_szse_disagreements`.
 - **Next open only.** `readings[r][i][j]` is the value usable at the open of `dates[i]`: the row dated on the previous trading day.
   - Both historical clocks in the frozen space mean "a day-t row feeds only the t+1 open": `BAR_CLOSE` (daily bars) and `CLOSE_DATED_NEXT_OPEN_USABLE` (adjustment factor, `daily_basic`).
   - Any other clock gives `MINE_DATA_CLOCK_UNSUPPORTED`.
@@ -115,10 +119,10 @@ Reads the CSV directories of export spec rev 2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1
   - Included: main boards, ChiNext and STAR. BSE securities are not in the panel at all.
   - Excluded on the decision day: ST, listed fewer than 120 trading days (counted on the trading calendar), suspended for the full session, not `LISTED`, or delisted.
   - The security master snapshot used is the latest one on or before the decision day.
-  - Export the lane copy's `trading_calendar.csv` from 2019-06-01, so that the 120-day count works from the start of the mining segment.
+  - Export spec rev 3 puts the same calendar, 2019-06-01 → 2026-12-31, in every directory, so the 120-day count works from the start of the mining segment.
 - **Industry** (`industry[i][j]`)
   - SW2021 level 1 `industry_code`.
-  - A membership applies when `effective_from` ≤ day < `effective_to`, with revisions chosen by ingestion time as above.
+  - A membership applies when `effective_from` ≤ day < `effective_to`, with revisions chosen by ingestion time as above: a revision ingested after the decision day's 09:00 is not used for that day (a test pins a later-ingested code change).
   - Membership history is backfilled, so it always falls back to the earliest recorded state.
   - When several memberships cover a day, the latest `effective_from` wins.
 - **Size.** `size` is the previous day's `total_mv`.

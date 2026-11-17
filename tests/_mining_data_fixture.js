@@ -2,7 +2,8 @@
 /**
  * 合成的 A 股导出目录（RF1116 导出规格 rev 2 的文件与列名；全部是编的数，不是任何真实行情）。给数据适配器、GP、执行器的测试用。
  *
- *   lane/         车道副本（HISTORY）：trade_date 2020-06-01 → 2026-09-28；交易日历从 2019-06-03 起（上市满 120 个交易日要往前数）。
+ *   lane/         车道副本（HISTORY）：trade_date 2020-06-01 → 2026-09-28。
+ *   交易日历（rev 3）：每个目录同一份 2019-06-01 → 2026-12-31，SSE 与 SZSE 各一行（market = A_SHARE）；上市满 120 个交易日要往前数。
  *                 first_available_at 是回补时刻（2026-03-01），只有最后一个月是「当晚入库」。
  *   tail/         验证折尾段（LIVE）：2026-09-29 → 2026-10-16；行业成员整表只放这里。
  *   holdout/      留出段（LIVE）：2026-10-19 → 2026-12-31。
@@ -15,7 +16,8 @@
  *   - S01.SH 在 2022-03-15 的 daily_basic pb = 999（看未来的反例：只能出现在下一个交易日的决策上）；
  *   - tail：S02.SH 2026-10-09 的 daily_basic 有两个修订，修订 2 在次一交易日 09:00 之后才入库；S04.SZ 2026-10-13 的 daily_basic 只有一个迟到的修订；
  *   - lane：S05.SZ 2021-05-10 的 daily_basic 两个修订都是回补（取最早的那个）；S07.SH 2021-08-02 的日线 quality_state = CONFLICT（不用）；
- *   - 行业：S06.SZ 在 2023-07-03 从 801010 改到 801080（旧成员的修订 2 写了 effective_to）；S12.SZ 的成员 2023-07-17 结束、没有下一条；
+ *   - 日历：2021-04-07 SSE 开市、SZSE 写成休市（两所不一致，适配器以 SSE 为准并列出）；
+ *   - 行业：S08.SZ 的成员修订 2（801080 → 801050）2026-10-12 10:00 才入库；S06.SZ 在 2023-07-03 从 801010 改到 801080（旧成员的修订 2 写了 effective_to）；S12.SZ 的成员 2023-07-17 结束、没有下一条；
  *     每只都有一条从 2016-01-04 起的申万二级（不用）。
  * 收益里埋了一个弱的短期反转（下一日收益 ≈ −0.3 × 当日收益 + 噪声），让 GP 有东西可找；不保证任何结论。
  */
@@ -24,7 +26,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const SEGMENTS = Object.freeze({ lane: ['2020-06-01', '2026-09-28'], tail: ['2026-09-29', '2026-10-16'], holdout: ['2026-10-19', '2026-12-31'] });
-const CAL_FROM = '2019-06-03';
+const CAL_FROM = '2019-06-01';
 const BACKFILL_AT = '2026-03-01 12:00:00+08';
 
 const STOCKS = Object.freeze([
@@ -43,6 +45,8 @@ const FACTS = Object.freeze({
   liveLate: { code: 'S04.SZ', date: '2026-10-13', at: '2026-10-15 08:00:00+08' },
   backfillRevision: { code: 'S05.SZ', date: '2021-05-10', rev1: { pb: 3.25, at: BACKFILL_AT }, rev2: { pb: 6.5, at: '2026-04-01 12:00:00+08' } },
   conflict: { code: 'S07.SH', date: '2021-08-02' },
+  calendarDisagree: { date: '2021-04-07', sse: 't', szse: 'f' },
+  industryRevision: { code: 'S08.SZ', from: '2015-01-05', before: '801080', after: '801050', at: '2026-10-12 10:00:00+08' },
   reclass: { code: 'S06.SZ', date: '2023-07-03', from: '801010', to: '801080' },
   membershipEnds: { code: 'S12.SZ', date: '2023-07-17' },
 });
@@ -70,13 +74,15 @@ const BASIC_COLS = ['record_id', 'raw_record_id', 'security_id', 'trade_date', '
   'source_reconciliation_state'];
 const ADJ_COLS = ['record_id', 'raw_record_id', 'security_id', 'trade_date', 'adjustment_factor', 'value_state', 'first_available_at', 'ingested_at', 'source_record_id', 'revision', 'schema_version',
   'quality_state'];
-const MASTER_COLS = ['security_id', 'business_date', 'ticker', 'security_code', 'exchange', 'board', 'asset_class', 'display_name', 'name_integrity', 'listing_date', 'delisting_date',
-  'listing_status', 'risk_warning_status', 'first_available_at', 'ingested_at', 'source_record_id', 'schema_version', 'quality_state'];
+// 导出规格 rev 3（a24afab2）§2.1：canonical_security_observation，列名同 rev 2 的 security_master，多 record_id、revision、allow_new_risk
+const MASTER_COLS = ['record_id', 'security_id', 'business_date', 'ticker', 'security_code', 'exchange', 'board', 'asset_class', 'display_name', 'name_integrity', 'listing_date', 'delisting_date',
+  'listing_status', 'risk_warning_status', 'first_available_at', 'ingested_at', 'source_record_id', 'revision', 'schema_version', 'quality_state', 'allow_new_risk'];
 const SUSP_COLS = ['record_id', 'security_id', 'trade_date', 'suspension_type', 'suspension_timing', 'full_session', 'first_available_at', 'ingested_at', 'source_record_id', 'revision',
   'schema_version', 'quality_state'];
 const COVER_COLS = ['coverage_id', 'trade_date', 'provider_row_count', 'accepted_row_count', 'full_session_count', 'first_available_at', 'ingested_at', 'job_run_id', 'source_registry_version',
   'quality_state'];
-const CAL_COLS = ['calendar_date', 'market', 'is_open', 'source_record_id', 'calendar_version', 'first_available_at', 'ingested_at'];
+// 导出规格 rev 3 §2.2：canonical_calendar_observation，market 恒为 A_SHARE，交易所在 exchange（SSE / SZSE 各一行），每个目录同一份 2019-06-01 → 2026-12-31
+const CAL_COLS = ['calendar_date', 'market', 'exchange', 'is_open', 'previous_open_date', 'first_available_at', 'ingested_at', 'source_record_id', 'revision', 'schema_version', 'quality_state'];
 const IND_COLS = ['record_id', 'security_id', 'industry_standard', 'industry_level', 'industry_code', 'industry_name', 'effective_from', 'effective_to', 'first_available_at', 'ingested_at',
   'source_record_id', 'revision', 'schema_version', 'quality_state'];
 
@@ -93,18 +99,26 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length }
   const openDays = cal.filter((c) => c.open).map((c) => c.date);
   const tables = {}; for (const k of Object.keys(SEGMENTS)) tables[k] = { prices: [], basic: [], adj: [], master: [], susp: [], cover: [], cal: [], ind: [] };
   const push = (d, t, row) => { const s = segOf(d); if (s) tables[s][t].push(row); };
+  let prevOpen = null;
   for (const c of cal) {
-    const s = c.date < SEGMENTS.lane[0] ? 'lane' : segOf(c.date);
-    if (s) tables[s].cal.push({ calendar_date: c.date, market: 'SSE', is_open: c.open ? 't' : 'f', source_record_id: `cal:${c.date}`, calendar_version: 'synthetic-v1', first_available_at: BACKFILL_AT, ingested_at: BACKFILL_AT });
+    for (const exchange of ['SSE', 'SZSE']) {
+      const dis = FACTS.calendarDisagree.date === c.date ? FACTS.calendarDisagree[exchange.toLowerCase()] : null;
+      const row = { calendar_date: c.date, market: 'A_SHARE', exchange, is_open: dis || (c.open ? 't' : 'f'), previous_open_date: prevOpen, first_available_at: BACKFILL_AT, ingested_at: BACKFILL_AT,
+        source_record_id: `cal:${c.date}:${exchange}`, revision: 1, schema_version: 'synthetic-v1', quality_state: 'READY' };
+      for (const k of Object.keys(SEGMENTS)) tables[k].cal.push(row);
+    }
+    if (c.open) prevOpen = c.date;
   }
+  const allMaster = [];
   STOCKS.slice(0, stocks).forEach(([id, exchange, board, listing, industry], k) => {
     let close = 10 + k; let prevRet = 0; let factor = 1; const shares = 1e8 * (k + 1);
     for (const d of openDays) {
       if (d < SEGMENTS.lane[0] || d < listing) continue;
       const st = id === FACTS.st.code && d >= FACTS.st.from && d <= FACTS.st.to;
-      push(d, 'master', { security_id: id, business_date: d, ticker: id, security_code: id.slice(0, 3).padEnd(6, '0'), exchange, board, asset_class: 'STOCK', display_name: st ? `ST合成${k}` : `合成${k}`,
-        name_integrity: 'VERIFIED', listing_date: listing, delisting_date: null, listing_status: 'LISTED', risk_warning_status: st ? 'ST' : 'NORMAL', first_available_at: ingestAt(d), ingested_at: ingestAt(d),
-        source_record_id: `sm:${id}:${d}`, schema_version: 'synthetic-v1', quality_state: 'READY' });
+      const m = { record_id: `sm:${id}:${d}:1`, security_id: id, business_date: d, ticker: id, security_code: id.slice(0, 3).padEnd(6, '0'), exchange, board, asset_class: 'STOCK',
+        display_name: st ? `ST合成${k}` : `合成${k}`, name_integrity: 'VERIFIED', listing_date: listing, delisting_date: null, listing_status: 'LISTED', risk_warning_status: st ? 'ST' : 'NORMAL',
+        first_available_at: ingestAt(d), ingested_at: ingestAt(d), source_record_id: `sm:${id}:${d}`, revision: 1, schema_version: 'synthetic-v1', quality_state: 'READY', allow_new_risk: st ? 'f' : 't' };
+      push(d, 'master', m); allMaster.push(m);
       if (id === FACTS.suspended.code && d >= FACTS.suspended.from && d <= FACTS.suspended.to) {
         push(d, 'susp', { record_id: `su:${id}:${d}`, security_id: id, trade_date: d, suspension_type: 'S', suspension_timing: null, full_session: 't', first_available_at: `${addDays(d, -1)} 20:00:00+08`,
           ingested_at: `${addDays(d, -1)} 20:00:00+08`, source_record_id: `su:${id}:${d}`, revision: 1, schema_version: 'synthetic-v1', quality_state: 'READY' });
@@ -151,9 +165,19 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length }
     } else if (id === FACTS.membershipEnds.code) {
       tables.tail.ind.push(ind(industry, '2015-01-05', null, 1, BACKFILL_AT));
       tables.tail.ind.push(ind(industry, '2015-01-05', FACTS.membershipEnds.date, 2, BACKFILL_AT));
+    } else if (id === FACTS.industryRevision.code) {
+      const r = FACTS.industryRevision; // 修订 2 晚到 2026-10-12 10:00 才入库，之前的决策只能用修订 1
+      tables.tail.ind.push(ind(r.before, r.from, null, 1, BACKFILL_AT));
+      tables.tail.ind.push(ind(r.after, r.from, null, 2, r.at));
     } else tables.tail.ind.push(ind(industry, '2015-01-05', null, 1, BACKFILL_AT));
     tables.tail.ind.push({ ...ind('851000', '2016-01-04', null, 1, BACKFILL_AT), industry_level: 'L2', record_id: `im2:${id}`, source_record_id: `sw2:${id}` }); // L2 不用
   });
+  // rev 3 §2.1：A、B 目录还带每只在 D0 之前的最后一条主表行
+  for (const k of ['tail', 'holdout']) {
+    const last = new Map();
+    for (const m of allMaster) if (m.business_date < SEGMENTS[k][0] && (!last.has(m.security_id) || m.business_date > last.get(m.security_id).business_date)) last.set(m.security_id, m);
+    tables[k].master.push(...last.values());
+  }
   for (const k of Object.keys(SEGMENTS)) {
     for (const d of openDays.filter((x) => inSeg(x, SEGMENTS[k]))) {
       tables[k].cover.push({ coverage_id: `cv:${d}`, trade_date: d, provider_row_count: 1, accepted_row_count: 1, full_session_count: 0, first_available_at: ingestAt(d), ingested_at: ingestAt(d),

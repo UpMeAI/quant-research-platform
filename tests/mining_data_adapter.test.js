@@ -61,7 +61,7 @@ test('CSV：带引号的 JSON、NULL 与空串分开；每个文件核 SHA256SUM
   for (const n of fs.readdirSync(fx.dirs.tail)) fs.copyFileSync(path.join(fx.dirs.tail, n), path.join(copy, n));
   const src = adapter.csvDirSource(copy, { mode: 'LIVE', label: 'copy' });
   assert.equal(src.sums_sha256, crypto.createHash('sha256').update(fs.readFileSync(path.join(copy, 'SHA256SUMS'))).digest('hex'));
-  fs.appendFileSync(path.join(copy, 'trading_calendar.csv'), '2026-10-17,SSE,t,x,v,2026-10-17 00:00:00+08,2026-10-17 00:00:00+08\n');
+  fs.appendFileSync(path.join(copy, 'trading_calendar.csv'), '2027-01-04,A_SHARE,SSE,t,2026-12-31,2026-12-31 00:00:00+08,2026-12-31 00:00:00+08,x,1,v,READY\n');
   assert.throws(() => src.forEach('calendar', () => {}), code(/MINE_DATA_SHA256SUMS_MISMATCH/));
   const sums = fs.readFileSync(path.join(copy, 'SHA256SUMS'), 'utf8').split('\n').filter((l) => !l.endsWith('trading_calendar.csv')).join('\n');
   fs.writeFileSync(path.join(copy, 'SHA256SUMS'), sums);
@@ -172,6 +172,55 @@ test('分段：挖掘段的面板只到挖掘段终点；留出段目录只能�
     code(/MINE_DATA_CLOCK_UNSUPPORTED/));
   assert.throws(() => adapter.buildPanel({ sources: [lane()], space: bad({ dataset_id: 'V6_CN_STOCK_DAILY_BASIC' }), segment: 'MINING', from: '2021-01-04', to: '2021-02-01' }),
     code(/MINE_DATA_READING_UNMAPPED/));
+});
+
+/** 把一个目录的日历改写成别的样子（重算 SHA256SUMS）。 */
+function withCalendar(src, mapRows) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-cal-'));
+  for (const n of fs.readdirSync(src)) fs.copyFileSync(path.join(src, n), path.join(dir, n));
+  const rows = csvRows(dir, 'trading_calendar.csv');
+  const { cols, out } = mapRows(rows);
+  fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), require('./_mining_data_fixture').internals.csv(cols, out));
+  const files = fs.readdirSync(dir).filter((n) => n.endsWith('.csv')).sort();
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${files.map((n) => `${crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, n))).digest('hex')}  ${n}`).join('\n')}\n`);
+  return dir;
+}
+
+test('日历（导出规格 rev 3：canonical_calendar_observation，market 恒为 A_SHARE、交易所在 exchange）：开市日只认 SSE；两所不一致的日子列进清单；没有 exchange 列才看 market', () => {
+  const rows = csvRows(fx.dirs.lane, 'trading_calendar.csv');
+  assert.ok(rows.every((r) => r.market === 'A_SHARE') && rows.some((r) => r.exchange === 'SZSE'), 'fixture is rev 3');
+  const p = adapter.buildPanel({ sources: [lane(), tail()], space: SPACE, segment: 'MINING', from: '2021-04-01', to: '2021-04-30' });
+  const d = FACTS.calendarDisagree.date;
+  assert.ok(p.dates.includes(d), 'SSE open day kept although SZSE says closed');
+  assert.deepEqual(p.manifest.calendar.exchange, 'SSE');
+  assert.deepEqual(p.manifest.calendar.sse_szse_disagreements, [d]);
+  assert.equal(p.dates.length, fx.calendar.filter((x) => x >= '2021-04-01' && x <= '2021-04-30').length);
+  // 只有 SZSE 行 → 没有开市日来源，拒绝（不拿深交所顶替）
+  const szseOnly = withCalendar(fx.dirs.lane, (rs) => ({ cols: Object.keys(rs[0]), out: rs.filter((r) => r.exchange === 'SZSE') }));
+  const tailNoCal = withCalendar(fx.dirs.tail, (rs) => ({ cols: Object.keys(rs[0]), out: rs.filter((r) => r.exchange === 'SZSE') }));
+  assert.throws(() => adapter.buildPanel({ sources: [adapter.csvDirSource(szseOnly, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(tailNoCal, { mode: 'LIVE', label: 'tail' })],
+    space: SPACE, segment: 'MINING', from: '2021-04-01', to: '2021-04-30' }), code(/MINE_DATA_CALENDAR_MISSING:SSE/));
+  // 旧写法（没有 exchange 列、market = SSE）照样能读；有 exchange 列时不看 market
+  const legacy = (src) => withCalendar(src, (rs) => ({ cols: ['calendar_date', 'market', 'is_open', 'first_available_at', 'ingested_at', 'source_record_id', 'revision', 'schema_version', 'quality_state'],
+    out: rs.filter((r) => r.exchange === 'SSE').map((r) => ({ ...r, market: 'SSE' })) }));
+  const lp = adapter.buildPanel({ sources: [adapter.csvDirSource(legacy(fx.dirs.lane), { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(legacy(fx.dirs.tail), { mode: 'LIVE', label: 'tail' })],
+    space: SPACE, segment: 'MINING', from: '2021-04-01', to: '2021-04-30' });
+  assert.deepEqual(lp.dates, p.dates);
+  // 同一 (日期, 交易所) 有晚入库的修订：取它（2021-04-08 的 SSE 修订 2 改成休市）
+  const amend = (src) => withCalendar(src, (rs) => ({ cols: Object.keys(rs[0]), out: [...rs, { ...rs.find((r) => r.calendar_date === '2021-04-08' && r.exchange === 'SSE'),
+    is_open: 'f', revision: '2', first_available_at: '2026-04-01 12:00:00+08', source_record_id: 'cal:2021-04-08:SSE:r2' }] }));
+  const ap = adapter.buildPanel({ sources: [adapter.csvDirSource(amend(fx.dirs.lane), { mode: 'HISTORY', label: 'lane' }), tail()], space: SPACE, segment: 'MINING', from: '2021-04-01', to: '2021-04-30' });
+  assert.ok(p.dates.includes('2021-04-08') && !ap.dates.includes('2021-04-08'), 'the later calendar revision wins');
+});
+
+test('行业的可得时刻：晚入库的修订（改了行业代码）在它入库之前的决策日不用；回补的历史取最早入库那一刻的', () => {
+  const r = FACTS.industryRevision;
+  const v = adapter.buildPanel({ sources: [lane(), tail()], space: SPACE, segment: 'VALIDATION', from: '2026-09-01', to: '2026-10-16' });
+  const ind = (p, day) => { const { i, j } = cell(p, null, day, r.code); return p.industry[i][j]; };
+  assert.equal(ind(v, '2026-10-12'), r.before, 'cutoff 10-12 09:00 is before the 10:00 revision');
+  assert.equal(ind(v, '2026-10-13'), r.after);
+  const m = adapter.buildPanel({ sources: [lane(), tail()], space: SPACE, segment: 'MINING', from: '2023-06-01', to: '2023-06-30' });
+  assert.equal(ind(m, '2023-06-01'), r.before, 'history falls back to the earliest recorded state, not the later revision');
 });
 
 test('车道副本的读法可换：loadSource 按适配器模块的 createSource 建源；默认是导出规格的 CSV 目录', () => {
