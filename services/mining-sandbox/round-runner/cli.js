@@ -63,6 +63,7 @@ function main(argv) {
     const m = require('../segments').SEGMENTS.MINING;
     const panel = adapter.buildPanel({ sources, space: runner.loadFrozenSpace().space, segment: 'MINING', from: m.from, to: m.to });
     runner.checkCoverage(panel, floor);
+    const canary = runner.checkCanary(panel); // 第 1 轮缺陷之后：固定公式算不出分就不开轮（续跑也核）
     let roundId = o.resume;
     if (roundId) runner.noteResume({ roundId, coverageFloor: floor }); // 续跑用的下限也写进台账
     if (!roundId) {
@@ -70,7 +71,7 @@ function main(argv) {
       roundId = r.round_id;
       runner.sealHoldout({ roundId, dataRef: o['holdout-ref'], dataSha256: o['holdout-sha256'] });
     }
-    const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel });
+    const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel, canary });
     const s = runner.select({ roundId, sources, outDir });
     return { command: 'generate', round_id: roundId, status: g.status, total: g.total, attempts: g.attempts, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length };
   }

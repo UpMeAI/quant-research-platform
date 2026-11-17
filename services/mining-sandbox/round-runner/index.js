@@ -145,10 +145,31 @@ function checkCoverage(panel, floor = COVERAGE_FLOOR) {
 }
 
 /**
- * 第 3–4 步：生成 + 挖掘段打分 + 每个尝试一行试验台账，到上限停。sources = 车道副本与验证折尾段（不许有留出段）。
- * @returns {{round_id, status, attempts: {scored, parse_refused, deduped}, total}}
+ * 金丝雀（2026-11-18 第 1 轮 MR-CN_A-2026-11-e1ab63a27b 缺陷之后）：开轮之前，固定公式在挖掘段面板上必须算得出分。
+ * 第 1 轮的行业成员一行都没进面板，打分前的中性化把每个值都变成 NaN，200 个候选的有效 IC 日都是 0，分数是 null 却记成了 SCORED。
+ * 要求：每条金丝雀公式的分数是有限数，且有效 IC 日 ≥ max(MIN_IC_DAYS, ⌈min_day_share × (面板日数 − 持有期)⌉)。不过 → MINE_RUNNER_CANARY_UNSCORABLE，
+ * 不开轮、不封存、不记尝试。返回 { formulas: [{ formula, score, ic_days }], min_ic_days, holding_period }（写进 generate.json）。
  */
-function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null }) {
+const CANARY = Object.freeze({ formulas: Object.freeze(['(-close_hfq)']), min_day_share: 0.5 });
+function checkCanary(panel, canary = CANARY) {
+  need(panel && panel.segment === 'MINING' && Array.isArray(panel.dates) && panel.dates.length, 'CANARY_PANEL_INVALID');
+  const f = loadFrozenSpace();
+  const H = f.holdingPeriod;
+  const minDays = Math.max(scoring.MIN_IC_DAYS, Math.ceil(canary.min_day_share * Math.max(0, panel.dates.length - H)));
+  const formulas = canary.formulas.map((text) => {
+    const s = scoring.miningScore(dsl.parse(text, f.dslSpace), panel, { holding_period: H });
+    need(Number.isFinite(s.score) && s.ic_days >= minDays, 'CANARY_UNSCORABLE', `${text}:ic_days=${s.ic_days}<${minDays}`);
+    return { formula: text, score: s.score, ic_days: s.ic_days };
+  });
+  return { formulas, min_ic_days: minDays, holding_period: H };
+}
+
+/**
+ * 第 3–4 步：生成 + 挖掘段打分 + 每个尝试一行试验台账，到上限停。sources = 车道副本与验证折尾段（不许有留出段）。
+ * 分数不是有限数的尝试记 UNSCORABLE（计入 N，不进选择，GP 不当它有分），永远不记 SCORED（第 1 轮缺陷）。
+ * @returns {{round_id, status, attempts: {scored, unscorable, parse_refused, deduped}, total, canary}}
+ */
+function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null, canary = null }) {
   need(Array.isArray(sources) && sources.length, 'SOURCES_MISSING');
   for (const s of sources) need(!s.holdout, 'HOLDOUT_IN_GENERATION', s.label);
   const dir = runDir(outDir, roundId);
@@ -163,7 +184,7 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
   const m = segs.SEGMENTS.MINING;
   const panel = prebuilt || adapter.buildPanel({ sources, space: f.space, segment: 'MINING', from: m.from, to: m.to });
   const coverage = checkCoverage(panel, coverageFloor); // 一个尝试都没记之前
-  const counts = { scored: 0, parse_refused: 0, deduped: 0 };
+  const counts = { scored: 0, unscorable: 0, parse_refused: 0, deduped: 0 };
   const startedAt = now();
   const log = path.join(dir, 'attempts.jsonl');
   while (r.status === 'OPEN' && r.candidates_scored < r.cap) {
@@ -190,8 +211,14 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
         counts.deduped += 1;
       } else {
         const s = scoring.miningScore(parsed, panel, { holding_period: H });
-        rec = { candidate_id: id, formula_canonical: parsed.canonical, formula_sha256: parsed.sha256, holding_period: H, mining_score: s.score };
-        counts.scored += 1;
+        if (Number.isFinite(s.score)) {
+          rec = { candidate_id: id, formula_canonical: parsed.canonical, formula_sha256: parsed.sha256, holding_period: H, mining_score: s.score };
+          counts.scored += 1;
+        } else {
+          rec = { candidate_id: id, formula_canonical: parsed.canonical, formula_sha256: parsed.sha256, holding_period: H, mining_score: null,
+            rule_config: { formula: parsed.canonical, ...base, attempt: 'UNSCORABLE', ic_days: s.ic_days, attempt_id: id } };
+          counts.unscorable += 1;
+        }
       }
       rounds.recordCandidate(roundId, rec, { registeredBy, registeredAt: now() });
       tried.add(rec.formula_canonical);
@@ -202,7 +229,7 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
   }
   const out = { schema: 'MINING_RUNNER_GENERATE_V1', round_id: roundId, status: r.status, cap: r.cap, total: r.candidates_scored, attempts: counts, holding_period: H,
     generator: { mode: gen.mode, seed: gen.seed, params: gen.params || null }, space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze },
-    mining_panel: panel.manifest, coverage, started_at: startedAt, finished_at: now() };
+    mining_panel: panel.manifest, coverage, canary, started_at: startedAt, finished_at: now() };
   writeJson(path.join(dir, 'generate.json'), out);
   return out;
 }
@@ -510,7 +537,7 @@ function withFrozenInputs(patch, cb) { const prior = frozenInputs; frozenInputs 
 function withGenerator(gen, cb) { const prior = generatorOverride; generatorOverride = gen; try { return cb(); } finally { generatorOverride = prior; } }
 
 module.exports = {
-  MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, start, loadFrozenSpace, checkCoverage, requestRound, sealHoldout, generate, select,
+  MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
   holdoutDirCheck, verifyHoldoutDir, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha,
   internals: { withGenerator, withFrozenInputs, withFault, attemptId },
 };

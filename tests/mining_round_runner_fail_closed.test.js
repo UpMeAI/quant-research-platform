@@ -78,5 +78,5 @@ test('算不出分的尝试记 UNSCORABLE（计入 N、不进选择、GP 不当�
   const log = fs.readFileSync(path.join(out, 'rounds', r.round_id.replace(/[^A-Za-z0-9_-]/g, '_'), 'attempts.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   assert.deepEqual(log.filter((x) => x.mining_score === null && x.status === 'SCORED'), [], 'attempts.jsonl never says SCORED with a null score');
   assert.equal(log.filter((x) => x.status === 'UNSCORABLE').length, 1);
-  assert.deepEqual(runner.internals.scoredAttempts(r.round_id).map((c) => c.formula), ['rank(pb)'], 'only the scored attempt reaches the selection');
+  assert.deepEqual(runner.scoredAttempts(r.round_id).map((c) => c.formula), ['rank(pb)'], 'only the scored attempt reaches the selection');
 });
