@@ -44,14 +44,17 @@ function direct({ lines = [data('V6_CSI300_INDEX_DAILY')], entryPatch = {}, opts
 }
 const refuses = (fn, code) => assert.throws(fn, (e) => e.code === `PARITY_${code}`, code);
 
-test('签字页绑定：EFFECTIVE_FROM 取签字页（2026-11-17T00:24:00+08:00），按路径与 sha256 绑定签字页与签的文本；现行登记表没有一题过门', () => {
+test('签字页绑定：EFFECTIVE_FROM 取签字页（2026-11-17T00:24:00+08:00），按路径与 sha256 绑定签字页与签的文本；现行登记表只有 R-XM-1 两题过门', () => {
   assert.equal(parity.EFFECTIVE_FROM, '2026-11-17T00:24:00+08:00');
   assert.equal(gate.EFFECTIVE_FROM, parity.EFFECTIVE_FROM);
   assert.deepEqual([parity.SIGNATURE.path, parity.SIGNATURE.sha256, parity.SIGNATURE.texts.map((t) => `${t.id}:${t.sha256.slice(0, 8)}`)],
     ['artifacts/coordinator/RESEARCH_LIVE_PARITY_V1_SIGNATURE_1.md', 'f0fe8e5c38a5e7d78dd101601480e1565ccfdede4c2d1971c6fc3b3a56531bce', ['SIGNED_TEXT:ceb35505']]);
   assert.equal(parity.isBound(), true);
   assert.deepEqual([...gate.PIT_SEMANTICS], ['OBSERVED_AT', 'ANNOUNCEMENT_NEXT_OPEN', 'ACCEPTANCE_TIME', 'BAR_CLOSE', 'NEXT_OPEN_SESSION_CLOSE']);
-  for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) assert.equal(gate.applies(entry).applies, false, entry.id);
+  // 现行登记表只有 A 股修订 6 的 R-XM-1 两题过门（K2 2026-11-17 15:42:02 冻结），照常 PASS（真导入预演见修订 6 §2）；其余一题也不过门
+  const RXM1 = ['CN-RXM1-M', 'CN-RXM1-B'];
+  for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) assert.equal(gate.applies(entry).applies, RXM1.includes(entry.id), entry.id);
+  assert.deepEqual(ashare.ENTRIES.filter((e) => RXM1.includes(e.id)).map((e) => e.id), RXM1);
   const at = (t) => gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) }, k2_frozen_at: t }).applies;
   assert.deepEqual([at('2026-11-17T00:24:00+08:00'), at('2026-11-17T00:23:59+08:00')], [true, false]);
 });
