@@ -32,6 +32,7 @@
 | `FORMING_BAR_AS_OF_POLL(barInterval)` | 1 分钟线、轮询时刻、大 K 线间隔、对齐起点 | 正在形成的那根（只用轮询前已收完的分钟线） |
 | `SCAN_SCHEDULE(spec)` | `INTERVAL`、`COMPLETED_1H`（开盘后 1 分钟只管出场，此后每根收完的 1 小时线结束后 1 分钟执行；提前收盘只到最后一根完整的）、`ROUND_ROBIN_BATCHES` | 扫描时刻序列 |
 
+- **下单时刻的口径（#110，1.0.1）：** 在时刻 t 发出的单子，最早在 t 之后开始的那一根 1 分钟线里成交；t 所在的那一分钟已经开始，t 恰在整分钟上时也一样（回放的轮询都在整分钟上）。`MARKET_AFTER_POLL` 取开始时刻严格晚于轮询时刻的第一根（1.0.0 起如此）；`TIERED_LIMIT_STOP` 的档位从 `firstMinuteAfter(触发时刻)` 起算。1.0.0 的分级止损用开始时刻不早于触发时刻的分钟线：触发恰在整分钟上时，第一档读了市价规则跳过的那一分钟（早一分钟，不是前视：那一分钟整个在触发之后）。触发不在整分钟上时，1.0.0 与 1.0.1 逐字节一致（档位是整分钟时；`tests/fill_model.test.js` 2,000 组对照）。这一处改动是缺陷修复，由协调会话裁定（#110 RULING_NEEDED TIERED_TIMING）；V6、smartflow、E3 拷的是 76f3a41d（1.0.0），裁定后重钉。
 - 节奏反例（签字文本 §2.2 第 4 条）：两次轮询之间先碰到又回来的价格，按轮询判不到（`priceAtPoll`）；正在形成的 1 小时线在第 n 分钟的高低价，只用到第 n 分钟为止的分钟线。
 - 因果（§2.2 第 3 条）：`docs/evidence/fill-model-v1/` 的清单与合成夹具，`tools/causality-harness` 跑出 `CAUSALITY_EVIDENCE_V1.json`：十二条全部 `role: FILL`，T-C1、T-C2、T-C3 全 PASS。证据绑定规格的 sha256（`k2_sha256` = `90814c60…`，`study_ref` = `FILL_MODEL_LIBRARY_V1`），`code_sha` 是跑证据时的 QRP 提交。今后的 K2 按附录 1 A1 把成交函数写成 `CF:` 行时，可以按代码 sha 引用这份证据；库改了就重跑（`tests/fill_model_evidence.test.js` 核对字节）。
 
@@ -42,7 +43,8 @@
 - 结构校验：`services/fill-model-declarations` 的 `validate`（规则都在库里、节奏规则只放在 `cadence`、出处指向钉住的仓库、环境开关写明来源、每条锁的正则只有一个捕获组、每个账本两段、没锁的写明原因）。
 - **锁定测试**（`tests/fill_model_declarations.test.js`）：按 `git show <钉住的提交>:<路径>` 读 V6 `83ab3af1` 与 smartflow `3b25fb61` 的源文件（只读），按正则取出常量的源码文字逐字比较，能算的再按算式比数值。仓库路径：环境变量 `QRP_V6_ROOT` / `QRP_SMARTFLOW_ROOT`，否则取 QRP 旁边的 `Ashare-V6` / `smartflow`；都不在时跳过并写明原因。实盘改了常量，这个测试就红；重钉提交时一并核对。
   - 锁住的：V6 盘中 60 秒（`DEFAULT_INTERVAL_MS = 60_000`）、上海时段 09:30–11:30 与 13:00–15:00、指数簿开盘 09:30:30；smartflow 的 US_V5 扫描节奏（`COMPLETED_1H`、`MINUTE_MS`、`ROUND_LAG_MS = MINUTE_MS` 即 :31 分、开盘 09:30、收盘 16:00、提前收盘 13:00）、US_V5 盯盘 60000 毫秒、杠杆 ETF 分级止损 2% / 60 秒与 4% / 300 秒、US_CORE 单边成本 0.0005、C17 入场每 10 分钟、Quick Shot 每分钟一批与 6 批、Quick Shot 出场 5 分钟。
-  - #110 补的锁（#100 留下三条没锁的，每条都在源码里找到了常量）：五段个股簿滑点 10 bp（V6 `src/stock-book/paper-cost.js:5`，收盘段与触价段都锁）；US_CORE 16:35 日决策（`us-core-rotation-worker.js:495` 的 `16 * 60 + 35`）、触价时段 09:31–16:05（`:2018–2019`）、触价 60 秒一轮（`:2724`）；C17 出场保护 60 秒一轮（`strategy-worker.js:1556`）。现在 12 条全部有锁，共 28 条。
+  - #110 补的锁（#100 留下三条没锁的，每条都在源码里找到了常量）：五段个股簿滑点 10 bp（V6 `src/stock-book/paper-cost.js:5`，收盘段与触价段都锁）；US_CORE 16:35 日决策（`us-core-rotation-worker.js:495` 的 `16 * 60 + 35`）、触价时段 09:31–16:05（`:2018–2019`）、触价 60 秒一轮（`:2724`）；C17 出场保护 60 秒一轮（`strategy-worker.js:1556`）。现在 12 条全部有锁，共 29 条（含 US_CORE 日决策的成本常量）。
+- **★5 美股滑点（#110）：** US_V5 入场与盯盘的市价成交 `slippage_bps: 5`，来源 `slippage_source` = QRP `services/cost-gate` 的 `FLOORS.US.total_bps_min`（签字 ★5 (a)：G-COST 美股下限，实测更高时用实测值；实盘是 Alpaca 模拟盘市价成交，没有写死的常量），测试锁在这个 QRP 常量上；分级限价单 `tiered_slippage_bps: 0`。US_CORE 两段 `slippage_bps: 5`：实盘按开盘价或触价分钟收盘价成交、每边 5 bp 记成本，锁在 `touch-exit-policy.js:45`（触价）与 `us-core-rotation-worker.js:173`（日决策，`SF_US_CORE_DAILY_COST_SIDE`）。E3 引用这几行（按提交与 sha256），不另写。
 - **漂移核对**（#110）：`verifyLocks(doc, { commits: { <仓库>: <40 位提交号> } })` 换一个提交核对同一份声明，钉住的提交不变；命令行 `node tools/fill-model-declarations/check-locks.js --commit ashare-v6=<sha> --commit smartflow=<sha>`，有 FAIL 或 SKIPPED 时退出码 1。钉住的提交仍是 §0.1 读代码时的 V6 83ab3af1（Mac 调度器镜像 `ashare-v6-main:83ab3af1`，协调会话 11-17 09:59 读出）和 smartflow 3b25fb61；协调会话部署后用这个命令核对新部署的提交，全过再改钉。#110 写入时核对过 V6 main b3d05845 与 smartflow main 93428ef8：28/28 PASS。
 
 ## 4. 容量模型（签字文本 §2.2 第 6 条，#110）

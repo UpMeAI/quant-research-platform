@@ -67,7 +67,7 @@
     {
       "book": "US.US_V5", "segment": "ENTRY", "bar": "COMPLETED_1H_YAHOO",
       "cadence": { "rule": "SCAN_SCHEDULE", "params": { "kind": "COMPLETED_1H", "open": "09:30", "close": "16:00", "early_close": "13:00", "lag_ms": 60000, "tz": "America/New_York" } },
-      "rules": ["MARKET_AFTER_POLL"], "params": { "order": "MARKET_DAY_THEN_POLL_FILL" },
+      "rules": ["MARKET_AFTER_POLL"], "params": { "order": "MARKET_DAY_THEN_POLL_FILL", "slippage_bps": 5, "slippage_source": { "kind": "QRP_CONSTANT", "path": "services/cost-gate/index.js", "key": "FLOORS.US.total_bps_min", "basis": "ENGINE_MODELING_ACCEPTANCE_V1 ★5 (a): the G-COST US floor unless the live measured slippage is higher" }, "live_fill_zh": "实盘是 Alpaca 模拟盘的市价单成交价（us-broker-alpaca.js:70–80 下单、:133–148 轮询），没有写死的滑点常量；实测滑点记在 slippage_cost（:160–183）。回放按 ★5 (a)：G-COST 美股下限 5 bps，实测更高时用实测值" },
       "live_refs": ["smartflow:src/services/us-v5-scan-schedule.js:8-14", "smartflow:src/services/us-v5-scan-schedule.js:66-76", "smartflow:src/services/us-broker-alpaca.js:70-80", "smartflow:src/services/us-broker-alpaca.js:133-148"],
       "env": [
         { "name": "US_V5_SCAN_SCHEDULE", "value": "COMPLETED_1H", "where": "HK_PM2" },
@@ -85,7 +85,7 @@
     {
       "book": "US.US_V5", "segment": "INTRADAY_WATCH", "bar": "FORMING_1H_YAHOO",
       "cadence": { "rule": "POLL_EVERY", "params": { "interval_ms": 60000, "forming_bar": { "rule": "FORMING_BAR_AS_OF_POLL", "bar_interval_ms": 3600000 } } },
-      "rules": ["SAME_BAR_STOP_FIRST", "GAP_THROUGH_LEVEL_AT_OPEN", "MARKET_AFTER_POLL", "TIERED_LIMIT_STOP"], "params": { "tiers": { "t1Pct": 2, "t1TimeoutS": 60, "t2Pct": 4, "t2TimeoutS": 300 }, "tiered_for": "LEVERAGED_ETF_STOP" },
+      "rules": ["SAME_BAR_STOP_FIRST", "GAP_THROUGH_LEVEL_AT_OPEN", "MARKET_AFTER_POLL", "TIERED_LIMIT_STOP"], "params": { "tiers": { "t1Pct": 2, "t1TimeoutS": 60, "t2Pct": 4, "t2TimeoutS": 300 }, "tiered_for": "LEVERAGED_ETF_STOP", "slippage_bps": 5, "tiered_slippage_bps": 0, "slippage_source": { "kind": "QRP_CONSTANT", "path": "services/cost-gate/index.js", "key": "FLOORS.US.total_bps_min", "basis": "ENGINE_MODELING_ACCEPTANCE_V1 ★5 (a): the G-COST US floor unless the live measured slippage is higher" }, "live_fill_zh": "非杠杆仓位的平仓是 Alpaca 市价单（同入场，★5 (a) 5 bps）；杠杆 ETF 止损的分级限价单按限价或更优的开盘价成交，不再加滑点，第三档市价加 5 bps" },
       "live_refs": ["smartflow:src/workers/us-v5-strategy-worker.js:853-858", "smartflow:src/workers/us-v5-strategy-worker.js:1103", "smartflow:src/services/us-v5-exit-rules.js:47-86", "smartflow:src/services/us-broker-alpaca.js:313-338"],
       "env": [{ "name": "US_V5_TOUCH_EXIT", "value": "1", "where": "HK_PM2" }],
       "locks": [
@@ -97,11 +97,12 @@
     {
       "book": "US.US_CORE", "segment": "DAILY_DECISION", "bar": "DAILY_YAHOO",
       "cadence": { "rule": "SCAN_SCHEDULE", "params": { "kind": "DAILY_AT", "at": "16:35", "tz": "America/New_York" } },
-      "rules": ["NEXT_OPEN"], "params": { "slippage_bps": 5 },
+      "rules": ["NEXT_OPEN"], "params": { "slippage_bps": 5, "cost_applied_zh": "实盘按开盘价成交，每边 5 bp 记成本（executePendingSwitch :544 起，sellFee = gross × costSide、buyFee = spend × costSide），合同 §0.1 写作「次日开盘 +5 bp」" },
       "live_refs": ["smartflow:src/workers/us-core-rotation-worker.js:18-29", "smartflow:src/workers/us-core-rotation-worker.js:251", "smartflow:src/workers/us-core-rotation-worker.js:173", "smartflow:src/workers/us-core-rotation-worker.js:544", "smartflow:src/workers/us-core-rotation-worker.js:1094", "smartflow:src/workers/us-core-rotation-worker.js:495"],
       "env": [],
       "locks": [
         { "id": "SF_US_CORE_COST_SIDE", "repo": "smartflow", "path": "src/services/touch-exit-policy.js", "pattern": "const US_CORE_COST_SIDE = ([0-9.]+);", "expect": "0.0005", "value": 0.0005 },
+        { "id": "SF_US_CORE_DAILY_COST_SIDE", "repo": "smartflow", "path": "src/workers/us-core-rotation-worker.js", "pattern": "\\nconst COST_SIDE = ([0-9.]+);", "expect": "0.0005", "value": 0.0005 },
         { "id": "SF_US_CORE_DECISION_AT", "repo": "smartflow", "path": "src/workers/us-core-rotation-worker.js", "pattern": "Number\\(p\\.minute\\) >= ([0-9 *+]+);", "expect": "16 * 60 + 35", "value": 995 }
       ],
       "notes_zh": "#110：16:35 的判定是源码常量（us-core-rotation-worker.js:495 的 16 * 60 + 35），#100 只看到了文件头注释，已补锁"
@@ -109,7 +110,7 @@
     {
       "book": "US.US_CORE", "segment": "TOUCH_EXIT_AND_ENTRY", "bar": "COMPLETED_1M_YAHOO",
       "cadence": { "rule": "POLL_EVERY", "params": { "interval_ms": 60000, "windows": [["09:31", "16:05"]], "tz": "America/New_York" } },
-      "rules": ["TOUCH_MINUTE_CLOSE"], "params": { "slippage_bps": 5 },
+      "rules": ["TOUCH_MINUTE_CLOSE"], "params": { "slippage_bps": 5, "cost_applied_zh": "实盘按触价那一分钟的 1 分钟收盘价成交，每边 5 bp 记成本（:2351 executePendingSwitch(…, TEP.US_CORE_COST_SIDE)），合同 §0.1 写作「那一分钟收盘价 +5 bp」" },
       "live_refs": ["smartflow:src/workers/us-core-rotation-worker.js:2018-2028", "smartflow:src/workers/us-core-rotation-worker.js:2101-2113", "smartflow:src/workers/us-core-rotation-worker.js:443-455", "smartflow:src/workers/us-core-rotation-worker.js:2006-2013", "smartflow:src/workers/us-core-rotation-worker.js:2718-2726", "smartflow:src/services/touch-entry-policy.js:22-23"],
       "env": [{ "name": "US_CORE_TOUCH_EXIT", "value": "1", "where": "HK_PM2" }],
       "locks": [
