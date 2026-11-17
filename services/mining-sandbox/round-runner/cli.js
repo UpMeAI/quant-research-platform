@@ -7,7 +7,7 @@
  *   generate --out DIR --lane DIR [--lane-adapter MODULE] --tail DIR --seed N [--cap N] --holdout-ref REF --holdout-sha256 SHA [--resume ROUND_ID] [--min-names-per-day N]
  *            先建挖掘段面板、核逐日覆盖（默认每天 ≥ 2,000 只，runner.COVERAGE_FLOOR），过了才：
  *            第 1–5 步：开轮（或续跑 --resume 的轮）→ 封存留出段（只记引用与 sha）→ 生成 + 挖掘段打分 + 记台账 → 前推验证折选择。
- *   score    --out DIR --round ROUND_ID --lane DIR [--lane-adapter MODULE] --tail DIR --holdout DIR
+ *   score    --out DIR --round ROUND_ID --lane DIR [--lane-adapter MODULE] --tail DIR --holdout DIR [--min-names-per-day N]
  *            第 6–9 步：核留出段目录 → 开留出段（每轮一次）→ 打分 → 逐候选 G-MINE 记录 → 关轮。
  *
  * 启动即 lockdown（只许写 --out）；QRP_DATA_DIR 必须在 --out 里。登记人取 QRP_PRODUCT_MILESTONE_AUTHORITY。
@@ -19,7 +19,7 @@ const adapter = require('../data-adapter');
 
 const OPTIONS = Object.freeze({
   generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day'],
-  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at'],
+  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day'],
 });
 
 function parseArgs(argv) {
@@ -54,7 +54,7 @@ function main(argv) {
     runner.checkCoverage(panel, floor);
     let roundId = o.resume;
     if (!roundId) {
-      const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null });
+      const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null, coverageFloor: floor });
       roundId = r.round_id;
       runner.sealHoldout({ roundId, dataRef: o['holdout-ref'], dataSha256: o['holdout-sha256'] });
     }
@@ -64,7 +64,8 @@ function main(argv) {
   }
   required(o, ['out', 'round', 'lane', 'tail', 'holdout']);
   const { outDir } = runner.start({ outDir: o.out });
-  const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null });
+  const floor = o['min-names-per-day'] === undefined ? runner.COVERAGE_FLOOR : { min_names_per_day: Number(o['min-names-per-day']) };
+  const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, coverageFloor: floor });
   const closed = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };
 }

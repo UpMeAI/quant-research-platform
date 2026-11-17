@@ -213,10 +213,18 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
   - all 7 tables are present (`…_TABLE_MISSING`).
 - **Completeness.**
   - The SSE calendar reaches the holdout end.
-  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows: at least 1, and at least half of that table's median day (`HOLDOUT_FLOOR`; refusal `…_HOLDOUT_INCOMPLETE:<file>:<day>:<n>`).
+  - The calendar's READY SSE rows reach the holdout end.
+  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows for at least `COVERAGE_FLOOR.min_names_per_day` (2,000) **distinct `security_id`s**. Names are counted, not rows (re-review G5).
+  - Each table also reaches at least half of its own median day (`HOLDOUT_FLOOR`). The absolute floor stops a uniformly thin export, which pulls the median down with it; the relative check still catches an isolated half-empty day above the floor.
+  - The refusal is `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`. The floor used goes into the open record's `pre_open_checks`, and the generate-phase floor into the round row's `data_checks`.
   - Export spec rev 3 ships the full calendar in every export, so the calendar alone proves nothing.
 
 Any failure refuses without spending the single open. A second open gives `MINE_HOLDOUT_ALREADY_OPENED`.
+
+**Known limitation: no recovery after the open.** If the runner dies between `holdout-vault.open` and the last G-MINE record, the round stays `SCORING`.
+- Re-scoring is refused (`MINE_HOLDOUT_ALREADY_OPENED`), and closing is refused (`MINE_ROUND_GMINE_RESULT_MISSING`).
+- That is deliberate: there is no second open.
+- Recovery needs a coordinator ruling, and the pre-open checks exist to make that case rare.
 
 **Holdout scoring** (`holdout-scoring.js`; the runner is its only caller)
 - **Scoring days.** Decision days are inside the holdout, and so are the labels.

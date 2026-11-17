@@ -49,7 +49,7 @@ function seal({ round_id: roundId, segment, data_ref: dataRef, data_sha256: data
  * 开启（每轮一次）：交出数据的引用与 sha，记下这次读了哪些候选；轮次转为 SCORING。
  * @returns {{round_id, data_ref, data_sha256, segment, candidate_ids}}
  */
-function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null } = {}) {
+function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null, checks = null } = {}) {
   const r = rounds.roundHead(roundId);
   need(r, 'MINE_HOLDOUT_ROUND_NOT_FOUND', roundId);
   const [s] = rows(SEAL_SCHEMA, roundId);
@@ -61,7 +61,8 @@ function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null
   const known = new Set([...trials.heads().values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId).map((t) => t.mining.candidate_id));
   for (const id of ids) need(known.has(id), 'MINE_HOLDOUT_CANDIDATE_UNKNOWN', `${roundId}:${id}`);
   rounds.beginScoring(roundId);
-  write({ schema: OPEN_SCHEMA, round_id: roundId, seal_hash: s.record_hash, candidate_ids: [...ids], opened_by: openedBy, opened_at: openedAt || now() }, OPEN_SCHEMA);
+  write({ schema: OPEN_SCHEMA, round_id: roundId, seal_hash: s.record_hash, candidate_ids: [...ids], opened_by: openedBy, opened_at: openedAt || now(),
+    pre_open_checks: checks && typeof checks === 'object' ? JSON.parse(JSON.stringify(checks)) : null }, OPEN_SCHEMA); // 开启之前执行器做过的核对（覆盖下限等）
   return { round_id: roundId, data_ref: s.data_ref, data_sha256: s.data_sha256, segment: { ...s.segment }, candidate_ids: [...ids] };
 }
 

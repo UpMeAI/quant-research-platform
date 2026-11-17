@@ -124,7 +124,9 @@ test('尝试计数（§4 第 5 条）：解析不过、去重被拒的都记一�
  */
 function holdoutVariants() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-holdout-variants-'));
-  const names = ['partial', 'complete', 'tampered', 'unsealed', 'forged', 'corrupt', 'unlisted', 'thin'];
+  const names = ['partial', 'complete', 'tampered', 'unsealed', 'forged', 'corrupt', 'unlisted', 'thin', 'g5a', 'g5b', 'half', 'dupes'];
+  const THIN = new Set(['S01.SH', 'S02.SH']); const HALF = new Set(['S01.SH', 'S02.SH', 'S03.SH', 'S04.SZ', 'S05.SZ', 'S06.SZ']);
+  const DATA = /^(prices_daily|market_daily_basic|adjustment_factor)/;
   const v = Object.fromEntries(names.map((n) => { const d = path.join(root, n); fs.mkdirSync(d); return [n, d]; }));
   const CUT = '2026-11-17';
   const sums = (dir) => {
@@ -137,37 +139,58 @@ function holdoutVariants() {
     const isCal = name === 'trading_calendar.csv';
     const day = (r) => r.trade_date || r.business_date;
     const early = isCal ? rows : rows.filter((r) => day(r) <= CUT); const late = isCal ? [] : rows.filter((r) => day(r) > CUT);
-    for (const n of names) fs.writeFileSync(path.join(v[n], name), fixtureInternals.csv(cols, early));
+    for (const n of names) {
+      const e = n === 'g5b' && DATA.test(name) ? early.filter((r) => THIN.has(r.security_id)) : early; // G5b：封存的那一份也只有 2 只
+      fs.writeFileSync(path.join(v[n], name), fixtureInternals.csv(cols, e));
+    }
     if (isCal) continue;
     for (const n of names.filter((x) => x !== 'partial')) {
-      const keep = n === 'thin' && name === 'prices_daily_stock.csv' ? late.filter((r) => r.trade_date !== '2026-12-15' || r.security_id === 'S01.SH') : late;
+      const keep = n === 'thin' && name === 'prices_daily_stock.csv' ? late.filter((r) => r.trade_date !== '2026-12-15' || r.security_id === 'S01.SH')
+        : (n === 'g5a' || n === 'g5b') && DATA.test(name) ? late.filter((r) => THIN.has(r.security_id)) // G5a / G5b：补导的每天只有 15 只里的 2 只
+          : n === 'half' && name === 'prices_daily_stock.csv' ? late.filter((r) => r.trade_date !== '2026-12-15' || HALF.has(r.security_id))
+            // dupes：补导的日线每天只有 2 只，但每行重复成 3 个修订（行数 6 ≥ 5，名字 2 < 5）
+            : n === 'dupes' && name === 'prices_daily_stock.csv' ? late.filter((r) => THIN.has(r.security_id)).flatMap((r) => [1, 2, 3].map((k) => ({ ...r, revision: String(k), record_id: `${r.record_id}:r${k}` })))
+              : late;
       fs.writeFileSync(path.join(v[n], name.replace(/\.csv$/, '_20270105.csv')), fixtureInternals.csv(cols, keep));
     }
   }
   sums(v.partial);
-  for (const n of ['complete', 'tampered', 'corrupt', 'unlisted', 'thin']) fs.copyFileSync(path.join(v.partial, 'SHA256SUMS'), path.join(v[n], 'SHA256SUMS.sealed'));
+  for (const n of ['complete', 'tampered', 'corrupt', 'unlisted', 'thin', 'g5a', 'half', 'dupes']) fs.copyFileSync(path.join(v.partial, 'SHA256SUMS'), path.join(v[n], 'SHA256SUMS.sealed'));
+  // G5b 的封存件是它自己那一份（封存时就薄）
+  const g5bEarly = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-g5b-early-'));
+  for (const n of fs.readdirSync(v.g5b).filter((x) => x.endsWith('.csv'))) fs.copyFileSync(path.join(v.g5b, n), path.join(g5bEarly, n));
+  sums(g5bEarly); fs.copyFileSync(path.join(g5bEarly, 'SHA256SUMS'), path.join(v.g5b, 'SHA256SUMS.sealed'));
   const bump = (file) => { const t = fs.readFileSync(file, 'utf8').split('\n'); t[1] = t[1].replace(/,(\d+\.\d+),/, (m, x) => `,${(Number(x) * 1.01).toFixed(4)},`); fs.writeFileSync(file, t.join('\n')); };
   bump(path.join(v.tampered, 'prices_daily_stock.csv'));
   for (const n of names.filter((x) => x !== 'partial')) sums(v[n]);
   fs.copyFileSync(path.join(v.forged, 'SHA256SUMS'), path.join(v.forged, 'SHA256SUMS.sealed'));
   bump(path.join(v.corrupt, 'prices_daily_stock.csv')); // 清单不改
   fs.writeFileSync(path.join(v.unlisted, 'notes.csv'), 'a\n1\n');
-  return { ...v, sealSha: sha(fs.readFileSync(path.join(v.partial, 'SHA256SUMS'))) };
+  return { ...v, sealSha: sha(fs.readFileSync(path.join(v.partial, 'SHA256SUMS'))), g5bSealSha: sha(fs.readFileSync(path.join(g5bEarly, 'SHA256SUMS'))) };
 }
 
 test('留出段目录的核对（开 vault 之前，纯函数）：每个列出的文件都核 sha、补导只追加、清单外的 CSV 拒绝、7 张表都要在、每个 SSE 开市日都有足够的 READY 日线 / daily_basic / 复权因子', () => {
   const hv = holdoutVariants();
   const seal = { data_sha256: hv.sealSha, segment: { from: '2026-10-19', to: '2026-12-31' } };
-  const check = (dir, s = seal) => runner.holdoutDirCheck(dir, s);
+  const check = (dir, s = seal) => runner.holdoutDirCheck(dir, s, { minNamesPerDay: COV.min_names_per_day });
   assert.throws(() => check(hv.partial), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-11-18/), 'the full calendar does not make a partial export look complete');
   assert.throws(() => check(hv.unsealed), code(/MINE_RUNNER_HOLDOUT_SHA_MISMATCH/));
   assert.throws(() => check(hv.forged), code(/MINE_RUNNER_HOLDOUT_SHA_MISMATCH/));
   assert.throws(() => check(hv.tampered), code(/MINE_RUNNER_HOLDOUT_SEALED_FILES_CHANGED/));
   assert.throws(() => check(hv.corrupt), code(/MINE_RUNNER_HOLDOUT_FILE_SHA_MISMATCH:prices_daily_stock\.csv/));
   assert.throws(() => check(hv.unlisted), code(/MINE_RUNNER_HOLDOUT_FILE_UNLISTED:notes\.csv/));
-  assert.throws(() => check(hv.thin), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-12-15/));
+  assert.throws(() => check(hv.thin), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-12-15:1$/));
+  // 复审 G5：绝对下限按不同的 security_id 数（不是行数，行里有修订）；补导每天只有 2 只（G5a）、整段都只有 2 只（G5b）都拒绝
+  assert.throws(() => check(hv.g5a), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-11-18:2$/));
+  assert.throws(() => check(hv.g5b, { ...seal, data_sha256: hv.g5bSealSha }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-10-19:2$/));
+  assert.throws(() => check(hv.dupes), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-11-18:2$/), 'distinct security_id, not rows (rows include revisions)');
+  // 过了绝对下限、但不到中位数一半的日子（12-15 只剩 6 只）也拒绝：两条都留着
+  assert.throws(() => check(hv.half), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-12-15:6$/));
+  // 生产默认的下限（每天 2,000 只）：16 只的合成数据一律不够
+  assert.throws(() => runner.holdoutDirCheck(hv.complete, seal), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-10-19:\d+$/));
   const ok = check(hv.complete);
   assert.equal(ok.open_days, 54);
+  assert.deepEqual(ok.floor, { min_names_per_day: 5, min_share_of_median_day: 0.5, basis: 'DISTINCT_SECURITY_ID_READY' });
   assert.deepEqual(Object.keys(ok.rows_per_day).sort(), ['adjustment_factor_observation_stock.csv', 'market_daily_basic_observation_stock.csv', 'prices_daily_stock.csv']);
   // 少一张表（封存时就少）：拒绝
   const noCover = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-holdout-notable-'));
@@ -185,7 +208,17 @@ test('留出段目录的核对（开 vault 之前，纯函数）：每个列出�
   const scFiles = fs.readdirSync(shortCal).filter((n) => n.endsWith('.csv')).sort();
   fs.writeFileSync(path.join(shortCal, 'SHA256SUMS'), `${scFiles.map((n) => `${sha(fs.readFileSync(path.join(shortCal, n)))}  ${n}`).join('\n')}\n`);
   assert.throws(() => check(shortCal, { ...seal, data_sha256: sha(fs.readFileSync(path.join(shortCal, 'SHA256SUMS'))) }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:trading_calendar\.csv:2026-12-31/));
-  assert.deepEqual(runner.HOLDOUT_FLOOR, { min_rows_per_day: 1, min_share_of_median_day: 0.5 });
+  assert.deepEqual(runner.HOLDOUT_FLOOR, { min_share_of_median_day: 0.5, basis: 'DISTINCT_SECURITY_ID_READY' });
+  // 日历只数 READY 的行：12-31 那一行不是 READY → 日历不到留出段终点
+  const stale = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-holdout-calstale-'));
+  for (const n of fs.readdirSync(hv.complete).filter((x) => x.endsWith('.csv'))) {
+    if (n !== 'trading_calendar.csv') { fs.copyFileSync(path.join(hv.complete, n), path.join(stale, n)); continue; }
+    const rows = []; adapter.internals.forEachCsvRow(path.join(hv.complete, n), (r) => rows.push(r));
+    fs.writeFileSync(path.join(stale, n), fixtureInternals.csv(Object.keys(rows[0]), rows.map((r) => (r.calendar_date === '2026-12-31' && r.exchange === 'SSE' ? { ...r, quality_state: 'STALE' } : r))));
+  }
+  const stFiles = fs.readdirSync(stale).filter((n) => n.endsWith('.csv')).sort();
+  fs.writeFileSync(path.join(stale, 'SHA256SUMS'), `${stFiles.map((n) => `${sha(fs.readFileSync(path.join(stale, n)))}  ${n}`).join('\n')}\n`);
+  assert.throws(() => check(stale, { ...seal, data_sha256: sha(fs.readFileSync(path.join(stale, 'SHA256SUMS'))) }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:trading_calendar\.csv:2026-12-31/));
 });
 
 test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启时交出、目录核不过不开、只开一次；补导的带日期后缀文件照样核 sha', () => {
@@ -221,7 +254,7 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
     code(/MINE_SELECT_NOT_VALIDATION_PANEL/));
 
   // 留出段：先核目录，核不过不开
-  const score = (dir) => runner.scoreHoldout({ roundId: r.round_id, sources: sources(), holdoutDir: dir, outDir: out, scoredAt: '2027-01-06T10:00:00+08:00' });
+  const score = (dir) => runner.scoreHoldout({ roundId: r.round_id, sources: sources(), holdoutDir: dir, outDir: out, scoredAt: '2027-01-06T10:00:00+08:00', coverageFloor: COV });
   assert.throws(() => score(hv.partial), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
   assert.throws(() => score(hv.unsealed), code(/MINE_RUNNER_HOLDOUT_SHA_MISMATCH/));
   assert.throws(() => score(hv.tampered), code(/MINE_RUNNER_HOLDOUT_SEALED_FILES_CHANGED/));
@@ -236,8 +269,12 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
   fs.writeFileSync(selFile, selBytes);
   assert.equal(vault.openLog(r.round_id).length, 0, 'a failed check never spends the single open');
   assert.notEqual(rounds.roundHead(r.round_id).status, 'SCORING');
+  assert.throws(() => runner.scoreHoldout({ roundId: r.round_id, sources: sources(), holdoutDir: hv.complete, outDir: out }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/),
+    'the production floor (2,000 names) refuses the 16-name fixture before the open');
+  assert.equal(vault.openLog(r.round_id).length, 0);
   const s = score(hv.complete);
   assert.equal(s.opened, true);
+  assert.deepEqual(vault.openLog(r.round_id)[0].pre_open_checks.min_names_per_day, { value: 5, default: 2000, overridden: true }, 'the score-phase override is in the open record');
   assert.equal(s.records.length, sel.selected.length);
   const [open] = vault.openLog(r.round_id);
   assert.deepEqual(open.candidate_ids, sel.selected);
@@ -424,7 +461,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   const texts = (x) => lines(path.join(runDirOf(x.out, x.g.round_id), 'attempts.jsonl')).map((l) => l.text).join('\n');
   assert.equal(sha(texts(a)), sha(texts(b)), 'same seed, space and data: byte-identical formula list');
 
-  const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout], a.env);
+  const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5'], a.env);
   assert.equal(s.status, 0, s.stderr);
   const sOut = JSON.parse(s.stdout);
   assert.deepEqual([sOut.opened, sOut.records, sOut.passes, sOut.status], [true, a.g.selected, 0, 'CLOSED']);
@@ -435,6 +472,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   assert.deepEqual([round.status, round.candidates_scored, round.cap, round.generator.mode, round.generator.gp_seed], ['CLOSED', 24, 24, 'AI_MINED_GP', 7]);
   assert.equal(round.space.sha256, runner.FROZEN_INPUTS.space.sha256);
   assert.deepEqual(round.holdout, { from: '2026-10-19', to: '2026-12-31' });
+  assert.deepEqual(round.data_checks, { coverage_floor: { min_names_per_day: 5, default: 2000, overridden: true } }, 'the generate-phase override is in the round row');
   const rows = roundTrials(id);
   assert.equal(rows.length, 24);
   const log = lines(path.join(runDirOf(a.out, id), 'attempts.jsonl'));

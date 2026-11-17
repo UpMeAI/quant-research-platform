@@ -49,10 +49,13 @@ const FROZEN_INPUTS = Object.freeze({
  */
 const COVERAGE_FLOOR = Object.freeze({ min_names_per_day: 2000 });
 /**
- * 留出段目录的完整性下限（复审第 1 条）：留出段里每个 SSE 开市日，日线、daily_basic、复权因子三张表的 READY 行至少 1 行，
- * 且不少于该表各开市日行数中位数的一半（补导缺了一大半的日子也拦得住）。
+ * 留出段目录的完整性下限（复审第 1 条与再审 G5）：留出段里每个 SSE 开市日，日线、daily_basic、复权因子三张表各自按 READY 行里
+ * **不同的 security_id** 数（行里有修订，不按行数）：
+ *   - 绝对下限：≥ COVERAGE_FLOOR.min_names_per_day（与挖掘段同一个数，生产 2,000；测试可以压低，压低的数写进开启记录）；
+ *   - 相对下限：≥ 该表各开市日名字数中位数的一半（绝对下限之上，再拦住个别缺了一大半的日子）。
+ * 只用相对下限时，薄的补导（例如 11-18 以后每天 15 只里只有 2 只，占 54 天里的 32 天）会把中位数本身拉低而蒙混过去（G5a / G5b）。
  */
-const HOLDOUT_FLOOR = Object.freeze({ min_rows_per_day: 1, min_share_of_median_day: 0.5 });
+const HOLDOUT_FLOOR = Object.freeze({ min_share_of_median_day: 0.5, basis: 'DISTINCT_SECURITY_ID_READY' });
 /** 留出段目录必须有的 7 张表（导出规格 rev 3 §2；行业成员只在 A 目录）。 */
 const HOLDOUT_TABLES = Object.freeze(['prices_daily_stock.csv', 'market_daily_basic_observation_stock.csv', 'adjustment_factor_observation_stock.csv', 'security_master_stock.csv',
   'security_suspension_observation.csv', 'security_suspension_day_coverage.csv', 'trading_calendar.csv']);
@@ -98,13 +101,15 @@ const runDir = (outDir, roundId) => { const d = path.join(outDir, 'rounds', roun
 const writeJson = (file, o) => fs.writeFileSync(file, `${JSON.stringify(o, null, 2)}\n`);
 
 /** 第 1 步：开轮。要大模型 → MINE_LLM_NOT_ENABLED，在 openRound 之前。 */
-function requestRound({ generator, cap = rounds.LIMITS.candidates_per_round, openedAt = null } = {}) {
+function requestRound({ generator, cap = rounds.LIMITS.candidates_per_round, openedAt = null, coverageFloor = COVERAGE_FLOOR } = {}) {
   generators.assertGeneratorEnabled(generator);
   need(Number.isInteger(generator.gp_seed), 'GP_SEED_REQUIRED');
   const f = loadFrozenSpace();
   return rounds.openRound({
     market: MARKET, space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze }, holding_periods: [...f.space.holding_periods],
     generator: { mode: 'AI_MINED_GP', gp_seed: generator.gp_seed }, holdout: { from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }, cap, openedAt: openedAt || undefined,
+    data_checks: { coverage_floor: { min_names_per_day: coverageFloor.min_names_per_day, default: COVERAGE_FLOOR.min_names_per_day,
+      overridden: coverageFloor.min_names_per_day !== COVERAGE_FLOOR.min_names_per_day } },
   });
 }
 
@@ -236,7 +241,8 @@ function select({ roundId, sources, outDir }) {
  *     导出规格 rev 3 的日历每次都是整段（到 2026-12-31），所以不能只看日历。
  * 核过才把目录交给面板；任何一条不过都在开启之前拒绝，那一次开启不被耗掉。
  */
-function holdoutDirCheck(dir, seal) {
+function holdoutDirCheck(dir, seal, { minNamesPerDay = COVERAGE_FLOOR.min_names_per_day } = {}) {
+  need(Number.isInteger(minNamesPerDay) && minNamesPerDay >= 1, 'COVERAGE_FLOOR_INVALID', minNamesPerDay);
   need(seal && SHA64_RE.test(seal.data_sha256 || '') && seal.segment && seal.segment.from && seal.segment.to, 'NOT_SEALED');
   need(dir && fs.existsSync(path.join(dir, 'SHA256SUMS')), 'HOLDOUT_DIR_INVALID', dir);
   const sumsBytes = fs.readFileSync(path.join(dir, 'SHA256SUMS'));
@@ -263,7 +269,7 @@ function holdoutDirCheck(dir, seal) {
   const cal = new Map(); let last = '';
   src.forEach('calendar', (r) => {
     const ex = Object.prototype.hasOwnProperty.call(r, 'exchange') ? r.exchange : r.market;
-    if (ex !== adapter.CALENDAR_EXCHANGE) return;
+    if (ex !== adapter.CALENDAR_EXCHANGE || (r.quality_state !== undefined && r.quality_state !== 'READY')) return; // 只数 READY 的日历行
     const at = adapter.internals.parseTs(r.first_available_at); const rev = Number(r.revision || 0);
     const cur = cal.get(r.calendar_date);
     if (!cur || at > cur.at || (at === cur.at && rev >= cur.rev)) cal.set(r.calendar_date, { at, rev, open: r.is_open === 't' || r.is_open === 'true' });
@@ -274,30 +280,36 @@ function holdoutDirCheck(dir, seal) {
   need(days.length, 'HOLDOUT_INCOMPLETE', 'trading_calendar.csv:no open day');
   const rowsPerDay = {};
   for (const [table, file] of [['prices', 'prices_daily_stock.csv'], ['basic', 'market_daily_basic_observation_stock.csv'], ['adj', 'adjustment_factor_observation_stock.csv']]) {
-    const n = new Map();
-    src.forEach(table, (r) => { if (r.quality_state === 'READY' && r.trade_date >= seal.segment.from && r.trade_date <= seal.segment.to) n.set(r.trade_date, (n.get(r.trade_date) || 0) + 1); });
-    const per = days.map((d) => n.get(d) || 0);
+    const names = new Map();
+    src.forEach(table, (r) => {
+      if (r.quality_state !== 'READY' || !(r.trade_date >= seal.segment.from && r.trade_date <= seal.segment.to)) return;
+      if (!names.has(r.trade_date)) names.set(r.trade_date, new Set());
+      names.get(r.trade_date).add(r.security_id);
+    });
+    const per = days.map((d) => (names.get(d) ? names.get(d).size : 0));
     const median = [...per].sort((a, b) => a - b)[Math.floor(per.length / 2)];
     days.forEach((d, k) => {
-      need(per[k] >= HOLDOUT_FLOOR.min_rows_per_day && per[k] >= HOLDOUT_FLOOR.min_share_of_median_day * median, 'HOLDOUT_INCOMPLETE', `${file}:${d}:${per[k]}`);
+      need(per[k] >= minNamesPerDay && per[k] >= HOLDOUT_FLOOR.min_share_of_median_day * median, 'HOLDOUT_INCOMPLETE', `${file}:${d}:${per[k]}`);
     });
-    rowsPerDay[file] = { min: Math.min(...per), median };
+    rowsPerDay[file] = { min_names: Math.min(...per), median_names: median };
   }
-  return { calendar_to: last, open_days: days.length, rows_per_day: rowsPerDay, source: src };
+  return { calendar_to: last, open_days: days.length, rows_per_day: rowsPerDay, floor: { min_names_per_day: minNamesPerDay, ...HOLDOUT_FLOOR }, source: src };
 }
 
 /** 对着本轮的封存记录核留出段目录。 */
-function verifyHoldoutDir(roundId, dir) {
+function verifyHoldoutDir(roundId, dir, opts = {}) {
   const seal = vault.sealOf(roundId);
   need(seal, 'NOT_SEALED', roundId);
-  return { ...holdoutDirCheck(dir, seal), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
+  return { ...holdoutDirCheck(dir, seal, opts), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
 }
+/** 覆盖下限的记录（写进台账：开轮写进轮次清单，打分写进开启记录）：用了几、默认几、是不是压低了。 */
+const floorRecord = (floor) => ({ min_names_per_day: { value: floor.min_names_per_day, default: COVERAGE_FLOOR.min_names_per_day, overridden: floor.min_names_per_day !== COVERAGE_FLOOR.min_names_per_day } });
 
 /**
  * 第 6–8 步：核留出段目录 → holdout-vault.open（每轮一次）→ 只经 holdout-scoring 打分 → 每个候选 recordGateResult。
  * 没有候选过验证折：不开留出段，返回 { opened: false }（关轮记 0）。
  */
-function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null }) {
+function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, coverageFloor = COVERAGE_FLOOR }) {
   for (const s of sources) need(!s.holdout, 'HOLDOUT_PASSED_AS_SOURCE', s.label);
   const dir = runDir(outDir, roundId);
   // 选择只信台账里那一行（复审第 3 条）：输出目录里的 selection.json 要对得上它的 sha；候选编号取这一行，公式取试验台账行
@@ -308,8 +320,9 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null })
   const formulas = new Map(scoredAttempts(roundId).map((c) => [c.candidate_id, c.formula]));
   for (const id of selRow.selected) need(formulas.has(id), 'SELECTION_CANDIDATE_UNKNOWN', id);
   if (!selRow.selected.length) { writeJson(path.join(dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
-  const checked = verifyHoldoutDir(roundId, holdoutDir);
-  const opened = vault.open({ round_id: roundId, candidate_ids: [...selRow.selected], openedBy: RUNNER_ID });
+  const checked = verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: coverageFloor.min_names_per_day });
+  const opened = vault.open({ round_id: roundId, candidate_ids: [...selRow.selected], openedBy: RUNNER_ID,
+    checks: { ...floorRecord(coverageFloor), holdout_dir: { open_days: checked.open_days, calendar_to: checked.calendar_to, rows_per_day: checked.rows_per_day } } });
   const f = loadFrozenSpace();
   const panel = adapter.buildPanel({ sources: [...sources, checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');

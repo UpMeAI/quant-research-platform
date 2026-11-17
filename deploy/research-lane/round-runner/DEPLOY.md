@@ -57,6 +57,9 @@ DOCKER_HOST=unix:///run/user/1000/docker.sock docker run --rm --user 0:0 --netwo
 
 - **Base image, no network:** Docker Hub is blocked from the lane. The Dockerfile pins `node:22-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392` (Node 22.23.3), which is the lane's local image.
   - Check it before building: `docker image inspect node:22-bookworm-slim --format '{{index .RepoDigests 0}}'` must print that digest.
+  - If the image ever has to be reloaded, use the lane's saved copy `/srv/research-lane/images/node_22-bookworm-slim.tar`.
+    - Its sha256 is `0fb2fe45b4ee389e7bc833dd21d1ea2292e90fa301bcfaab881cdff52e675edf` (read on the lane 2026-11-17, file dated 2026-11-03, 82,501,120 bytes).
+    - Check the hash before `docker load -i`, then re-check the RepoDigest above.
   - Then build with `--pull=false`.
 - **Dependencies:** `npm ci` installs nothing, because QRP has no dependencies and the lockfile pins that.
 
@@ -77,6 +80,8 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 
 The run does the following:
 - **checks the data before anything is written:** it builds the mining-segment panel and requires at least **2,000** names per decision day (in the universe, with a back-adjusted close; the first day is exempt).
+  - The floor that was used is written into the round row (`data_checks.coverage_floor`: value, default, `overridden`).
+  - `--min-names-per-day` exists for synthetic tests only; never pass it on the lane.
   - Otherwise it refuses with `MINE_RUNNER_COVERAGE_BELOW_FLOOR:<day>:<n><2000>`. No round is opened and nothing enters N.
   - The 2020-06 universe is about 3,800 names before exclusions.
 - opens a CN_A GP round with the frozen space `0d3556fa…`, freeze page `4ec642b9…`, holding period 5, cap 200 and holdout 2026-10-19 → 2026-12-31;
@@ -114,10 +119,21 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
    - Every CSV in the directory is listed (`…_FILE_UNLISTED`).
    - Every listed file exists and hashes to its line (`…_FILE_MISSING`, `…_FILE_SHA_MISMATCH`).
    - All 7 tables are present (`…_TABLE_MISSING`): prices, daily_basic, adjustment factor, security master, suspension, suspension day coverage, calendar.
-3. **The data is complete.** Rev 3 always ships the full calendar to 2026-12-31, so the calendar alone proves nothing. For every SSE open day 2026-10-19 → 2026-12-31, each of the prices, daily_basic and adjustment-factor tables must have READY rows: at least 1, and at least half of that table's median day (`…_HOLDOUT_INCOMPLETE:<file>:<day>:<n>`).
+3. **The data is complete.** Rev 3 always ships the full calendar to 2026-12-31, so the calendar alone proves nothing.
+   - The calendar's READY SSE rows must reach 2026-12-31.
+   - For every SSE open day 2026-10-19 → 2026-12-31, each of the prices, daily_basic and adjustment-factor tables must have READY rows for at least **2,000 distinct `security_id`s** (the same floor as generation). Names are counted, not rows, because rows include revisions.
+   - Each table must also reach at least half of its own median day.
+   - Otherwise it refuses with `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`.
+   - The floor used is written into the vault's open record (`pre_open_checks`).
 4. **The selection is the recorded one.** The `MINING_SELECTION_V1` row exists, and `selection.json` matches its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). The formulas are taken from the trial rows, not from the file.
 
 If any check fails it refuses, and the single open is not spent.
+
+**Known limitation: no recovery after the open.** If the score container dies after `holdout-vault.open` but before every candidate's G-MINE record is written, the round stays in `SCORING`.
+- A second `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`), and `close` is refused (`MINE_ROUND_GMINE_RESULT_MISSING`).
+- That is deliberate: the single open is never repeated.
+- Recovering such a round needs a coordinator ruling.
+- The checks above exist so that every data problem stops the run before the open.
 
 **After the checks** it does the following:
 - opens the vault once;
