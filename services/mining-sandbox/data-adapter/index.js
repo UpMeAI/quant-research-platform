@@ -34,6 +34,7 @@ const FILES = Object.freeze({
   suspension: 'security_suspension_observation.csv', calendar: 'trading_calendar.csv', industry: 'industry_membership_sw2021.csv',
 });
 const MODES = Object.freeze(['HISTORY', 'LIVE']);
+const SUFFIXED = /^_\d{8}\.csv$/;
 const ACCEPTED_QUALITY = Object.freeze(['READY']);
 /** 历史时钟 → 最早可用的决策：两种都是次一交易日开盘（MINING_SANDBOX_V1：只用历史、按 P-14 次日开盘决策）。 */
 const CLOCKS = Object.freeze({ BAR_CLOSE: 'NEXT_OPEN', CLOSE_DATED_NEXT_OPEN_USABLE: 'NEXT_OPEN' });
@@ -126,16 +127,22 @@ function csvDirSource(dir, { mode, label, holdout = false } = {}) {
   return Object.freeze({
     kind: 'CSV_DIR', label, mode, holdout: holdout === true, dir, sums_sha256: sha256(sumsBytes), manifest_sha256: manifestSha,
     has: (table) => Boolean(FILES[table]) && fs.existsSync(path.join(dir, FILES[table])),
+    /** 读一张表：基础文件，再按文件名顺序读补导的 <表>_<YYYYMMDD>.csv（导出规格 §1：留出段 12-31 之后补导，同一目录，新文件带日期后缀）。 */
     forEach(table, onRow) {
       const name = FILES[table];
       if (!name) fail('TABLE_UNKNOWN', table);
-      const file = path.join(dir, name);
-      if (!fs.existsSync(file)) fail('FILE_MISSING', `${label}:${name}`);
-      const want = sums.get(name);
-      if (!want) fail('FILE_NOT_IN_SHA256SUMS', `${label}:${name}`);
-      const r = forEachCsvRow(file, onRow);
-      if (r.sha256 !== want) fail('SHA256SUMS_MISMATCH', `${label}:${name}`);
-      return r;
+      if (!fs.existsSync(path.join(dir, name))) fail('FILE_MISSING', `${label}:${name}`);
+      const stem = name.slice(0, -'.csv'.length);
+      const parts = [name, ...fs.readdirSync(dir).filter((n) => n.startsWith(stem) && SUFFIXED.test(n.slice(stem.length))).sort()];
+      let rows = 0;
+      for (const part of parts) {
+        const want = sums.get(part);
+        if (!want) fail('FILE_NOT_IN_SHA256SUMS', `${label}:${part}`);
+        const r = forEachCsvRow(path.join(dir, part), onRow);
+        if (r.sha256 !== want) fail('SHA256SUMS_MISMATCH', `${label}:${part}`);
+        rows += r.rows;
+      }
+      return { rows, files: parts };
     },
   });
 }

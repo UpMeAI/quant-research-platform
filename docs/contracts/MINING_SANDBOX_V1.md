@@ -161,3 +161,82 @@ Reads the CSV directories of export spec rev 2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1
 - **GP.** `generatorFor(roundGenerator, {space, holdingPeriod})` builds the GP from `gp_seed`.
 - **LLM.** `AI_MINED_LLM` gives `MINE_LLM_NOT_ENABLED`. The research key (★K (b)) has not been placed, so no key is read, no network is used and no LLM round is opened.
 - **Anything else** gives `MINE_GENERATOR_UNKNOWN`.
+
+## Round runner (`round-runner/`) — P2
+
+It runs only inside the research lane's rootless container (`deploy/research-lane/round-runner/`, see its `DEPLOY.md`).
+- `start` refuses to run unless `QRP_DATA_DIR` lies inside the output directory (`MINE_RUNNER_DATA_DIR_OUTSIDE_OUTPUT`). It then calls `lockdown`, so the process can write only the output directory.
+- It is the one sandbox module that calls the QRP front doors (`mining-rounds`, `holdout-vault`, `gate-records`). It never imports `packages/ledger`.
+
+| step | what | interface |
+|---|---|---|
+| 1 | open: frozen space `docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json` + freeze page `4ec642b9…` (sha checked, `parseSpace`, `verifyFreeze`), holding period 5, `AI_MINED_GP` with `gp_seed`, cap ≤ 200, frozen holdout. A request for `AI_MINED_LLM` gives `MINE_LLM_NOT_ENABLED` before `openRound` | `requestRound` → `openRound` |
+| 2 | seal: the holdout directory's reference and the sha256 of its `SHA256SUMS`. The generation container does not mount the holdout | `sealHoldout` → `holdout-vault.seal` |
+| 3–4 | generate from `generatorView` only, then score on the mining segment; every attempt is one trial row (below); stop at the cap, no top-up | `generate` → `recordCandidate` |
+| 5 | select on the walk-forward folds into `<out>/rounds/<id>/selection.json`, plus one append-only `MINING_SELECTION_V1` row (the file's sha + selected ids) | `select` → `recordSelection` |
+| 6 | check the selection row and the holdout directory, then open the vault once | `scoreHoldout` → `holdout-vault.open` |
+| 7 | score through `holdout-scoring.js` only, which uses `neutralizeForScoring` | `roundResults` |
+| 8 | one G-MINE record per opened candidate | `recordGateResult` |
+| 9 | close; the pass count is derived from the records | `close` → `closeRound` |
+
+**Coverage first** (P2 review item 4)
+- Before the round is opened (CLI) and before any attempt is recorded (`generate`), the mining panel must have at least `COVERAGE_FLOOR.min_names_per_day` = **2,000** names per decision day, counting names in the universe with a finite `close_hfq`; the first day is exempt.
+- Otherwise it refuses with `MINE_RUNNER_COVERAGE_BELOW_FLOOR`. An empty or half-exported lane copy therefore cannot write 200 unscored attempts into N.
+
+**Attempts** (RF1116 §3.3, P2 spec §2 and §4 item 5)
+- **Every attempt is one trial row,** written through `recordCandidate`, and counts toward the cap of 200 and toward N.
+  - `PARSE_REFUSED`: the raw text, with the `MINE_DSL_*` code in `rule_config.refusal`, and no score.
+  - `DEDUPED`: the canonical form was already tried in this market. No score.
+  - Both carry `rule_config.attempt` and `rule_config.attempt_id`, so each is a distinct rule config in N.
+  - Everything else is scored on the mining segment.
+- **Ids.** Candidate ids are `<round_id>:A<nnn>`.
+- **Audit log.** `attempts.jsonl` in the run directory lists every attempt.
+
+**Selection** (`selector.js`, `VALIDATION_SELECTION_V1`)
+- **Folds.** The folds are the 11-10 §7.2 test windows over the validation segment: six half-years, 2024H1 … 2026-07-01 → 2026-10-16.
+- **Per fold.** Each fold gets the mean neutralized daily rank IC.
+- **Default rule** (pending coordinator review):
+  - the mean IC over the whole validation segment is > 0;
+  - the fold mean is positive in ≥ ⌈2/3 × folds⌉ folds;
+  - the mining score is > 0.
+- **Where results go.**
+  - The fold statistics go to `selection.json` only, never to the trial ledger or `generatorView`.
+  - The ledger gets one `MINING_SELECTION_V1` row: the file's sha and the selected ids, no statistics.
+- **After selection** the round's generation is closed (`MINE_RUNNER_GENERATION_CLOSED`, and `recordCandidate` gives `MINE_ROUND_GENERATION_CLOSED`).
+
+**Holdout hand-over** (P2 review items 1–3). `scoreHoldout` does all of the following before `holdout-vault.open`:
+- **Selection.** The `MINING_SELECTION_V1` row must exist, and `selection.json` must hash to its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). Ids come from the row; formulas come from the trial rows.
+- **Manifest.** Either `sha256(SHA256SUMS)` equals the sealed sha, or `SHA256SUMS.sealed` hashes to it and every sealed line is still present (completion exports are append-only, as `<table>_<YYYYMMDD>.csv`).
+- **Files** (`holdoutDirCheck`, a pure function of the directory and the seal):
+  - every CSV in the directory is listed (`…_FILE_UNLISTED`);
+  - every listed file exists and hashes to its line (`…_FILE_MISSING`, `…_FILE_SHA_MISMATCH`);
+  - all 7 tables are present (`…_TABLE_MISSING`).
+- **Completeness.**
+  - The SSE calendar reaches the holdout end.
+  - The calendar's READY SSE rows reach the holdout end.
+  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows for at least `COVERAGE_FLOOR.min_names_per_day` (2,000) **distinct `security_id`s**. Names are counted, not rows (re-review G5).
+  - Each table also reaches at least half of its own median day (`HOLDOUT_FLOOR`). The absolute floor stops a uniformly thin export, which pulls the median down with it; the relative check still catches an isolated half-empty day above the floor.
+  - The refusal is `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`. The floor used goes into the open record's `pre_open_checks`, and the generate-phase floor into the round row's `data_checks`.
+  - Export spec rev 3 ships the full calendar in every export, so the calendar alone proves nothing.
+
+Any failure refuses without spending the single open. A second open gives `MINE_HOLDOUT_ALREADY_OPENED`.
+
+**Known limitation: no recovery after the open.** If the runner dies between `holdout-vault.open` and the last G-MINE record, the round stays `SCORING`.
+- Re-scoring is refused (`MINE_HOLDOUT_ALREADY_OPENED`), and closing is refused (`MINE_ROUND_GMINE_RESULT_MISSING`).
+- That is deliberate: there is no second open.
+- Recovery needs a coordinator ruling, and the pre-open checks exist to make that case rare.
+
+**Holdout scoring** (`holdout-scoring.js`; the runner is its only caller)
+- **Scoring days.** Decision days are inside the holdout, and so are the labels.
+- **IC.** `ic_mean` is the mean daily rank IC; `icir` is mean ÷ sd over every H-th day (non-overlapping).
+- **Quintiles and decay.** Quintile means are taken on the non-overlapping days; `ic_double_horizon` is the IC at 2H.
+- **Net of cost**
+  - Long-only top 20%, equal weight, rebalanced every H days.
+  - Cost per side is commission 2.5 + slippage 10 bps (the G-COST CN_A floor), plus 5 bps stamp duty on sells.
+  - Measured against the equal-weight universe, annualized over 242 days.
+  - Limit-up and limit-down fills are not modelled, because the export has no limit prices.
+- **DSR** comes from monthly paired differences with N = the family's cumulative count. With about 3 holdout months it is `UNKNOWN` (`T_LT_24`).
+- **PBO** is CSCV over the opened candidates' daily log excess returns (`ROUND_CANDIDATE_SET`); with fewer than 4 candidates it is `NOT_APPLICABLE`.
+- **Marginal and correlation** inputs are left empty with a reason, because the library's CN_A factor series are not in the lane data.
+- **Mechanism** is `null`, because GP registers none.
+- **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
