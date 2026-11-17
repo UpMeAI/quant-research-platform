@@ -213,6 +213,31 @@ test('日历（导出规格 rev 3：canonical_calendar_observation，market 恒�
   assert.ok(p.dates.includes('2021-04-08') && !ap.dates.includes('2021-04-08'), 'the later calendar revision wins');
 });
 
+test('只有 SSE 的日历（车道副本的 BASE 库：每个日历日一行 SSE、没有 SZSE，勘误 1 / ★RF1116_CAL_MIN (a)）照样能读：开市日一样、没有两所不一致可列；runner 的留出段核对也只看 SSE', () => {
+  const sseOnly = (src) => withCalendar(src, (rs) => ({ cols: Object.keys(rs[0]), out: rs.filter((r) => r.exchange === 'SSE') }));
+  const laneSse = sseOnly(fx.dirs.lane);
+  assert.ok(csvRows(laneSse, 'trading_calendar.csv').every((r) => r.exchange === 'SSE'));
+  for (const [segment, from, to] of [['MINING', '2021-04-01', '2021-04-30'], ['VALIDATION', '2026-09-01', '2026-10-16']]) {
+    const both = adapter.buildPanel({ sources: [lane(), tail()], space: SPACE, segment, from, to });
+    // 车道副本只有 SSE（BASE），验证尾段与留出段照导出规格 rev 3 有两所；全只有 SSE 也一样
+    for (const srcs of [[adapter.csvDirSource(laneSse, { mode: 'HISTORY', label: 'lane' }), tail()],
+      [adapter.csvDirSource(laneSse, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(sseOnly(fx.dirs.tail), { mode: 'LIVE', label: 'tail' })]]) {
+      const p = adapter.buildPanel({ sources: srcs, space: SPACE, segment, from, to });
+      assert.deepEqual(p.dates, both.dates, `${segment}: same open days`);
+      assert.equal(p.manifest.calendar.exchange, 'SSE');
+    }
+  }
+  const pAll = adapter.buildPanel({ sources: [adapter.csvDirSource(laneSse, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(sseOnly(fx.dirs.tail), { mode: 'LIVE', label: 'tail' })],
+    space: SPACE, segment: 'MINING', from: '2021-04-01', to: '2021-04-30' });
+  assert.deepEqual(pAll.manifest.calendar.sse_szse_disagreements, [], 'nothing to compare without SZSE rows, and nothing is required');
+  // 留出段目录的核对（runner.holdoutDirCheck）只看 READY 的 SSE 行
+  const runner = require('../services/mining-sandbox/round-runner');
+  const holdSse = sseOnly(fx.dirs.holdout);
+  const seal = { data_sha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(holdSse, 'SHA256SUMS'))).digest('hex'), segment: { from: '2026-10-19', to: '2026-12-31' } };
+  const c = runner.holdoutDirCheck(holdSse, seal, { minNamesPerDay: 5 });
+  assert.equal(c.calendar_to, '2026-12-31');
+});
+
 test('行业的可得时刻：晚入库的修订（改了行业代码）在它入库之前的决策日不用；回补的历史取最早入库那一刻的', () => {
   const r = FACTS.industryRevision;
   const v = adapter.buildPanel({ sources: [lane(), tail()], space: SPACE, segment: 'VALIDATION', from: '2026-09-01', to: '2026-10-16' });

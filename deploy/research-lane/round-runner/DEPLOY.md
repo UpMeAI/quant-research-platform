@@ -16,7 +16,7 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 | path | contents | owner / mode | mount |
 |---|---|---|---|
 | `/srv/research-lane/rf1116-mining/code/` | QRP checkout at the reviewed merge commit (build context) | kayla, 0755 | not mounted (baked into the image) |
-| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928/` | the lane copy in export spec rev 3 CSV layout (`b523435d`, a note-only revision of `a24afab2`; see below). `HISTORY` source | kayla, dirs 0755 / files 0644 | `/data/lane:ro` |
+| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928/` | the lane copy, exported by the lane-copy spec `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` with its `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1_ERRATA_1.md` (see below). `HISTORY` source | kayla, dirs 0755 / files **0444** | `/data/lane:ro` |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-daily-20260929-20261016/` | validation tail export (spec §1, first directory), with `SHA256SUMS` and `EXPORT_MANIFEST.json`. `LIVE` source | kayla, 0755 / 0644 | `/data/tail:ro` |
 | `/srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019/` | holdout export (spec §1, second directory) plus `SHA256SUMS.sealed` | kayla, **0700** until hand-over | `/data/holdout:ro`, **`score` only** |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-live-factor-series/` | R1.4: the existing CN_A factor series in `FACTOR_SERIES_V1` (`factor_series.csv`, `unit_membership.csv`, `SHA256SUMS`), from the coordinator's registered export | kayla, 0755 / 0644 | `/data/factor-series:ro`, **`score` only**; if it is missing or unsigned, `score` refuses before the open |
@@ -26,7 +26,8 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 
 ### Lane copy layout
 
-- **Files and columns:** the same file names and columns as export spec **rev 3** §2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1.b523435d.md`, a note-only revision of `a24afab2`; it replaces rev 2):
+- **Spec:** the lane copy follows `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` as corrected by `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1_ERRATA_1.md`. The validation tail and the holdout follow export spec **rev 3** (`RF1116_CN_A_LANE_EXPORT_SPEC_V1.b523435d.md`, a note-only revision of `a24afab2`).
+- **Files and columns** (the same names and columns as export spec rev 3 §2, plus industry membership):
   - `prices_daily_stock.csv`
   - `market_daily_basic_observation_stock.csv`
   - `adjustment_factor_observation_stock.csv`
@@ -34,15 +35,16 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
   - `security_suspension_observation.csv`
   - `security_suspension_day_coverage.csv`
   - `trading_calendar.csv`
+  - `industry_membership_sw2021.csv`
 - **Dates:** trade dates 2020-06-01 → 2026-09-28.
-- **Calendar (rev 3 §2.2):** `trading_calendar.csv` comes from `canonical_calendar_observation`.
-  - It holds one row per (date, exchange) for **both SSE and SZSE**, with `market` = `A_SHARE` and the exchange in `exchange`, covering 2019-06-01 → 2026-12-31.
-  - The same file is in every directory (lane copy, validation tail, holdout).
-  - The runner takes open days from SSE rows only and lists any SSE/SZSE disagreement in the panel manifest.
+- **Calendar:** `trading_calendar.csv` comes from `canonical_calendar_observation`, with `market` = `A_SHARE` and the exchange in `exchange`, covering 2019-06-01 → 2026-12-31.
+  - **The lane copy's calendar is SSE-only.** The BASE database holds one SSE row per calendar day (2,771 rows) and no SZSE rows. The coordinator's ruling ★RF1116_CAL_MIN (a) amends the calendar minimum to match. The export manifest records `SPEC_DEVIATION calendar_min_rows` and `CALENDAR_SZSE_ABSENT`.
+  - The validation tail and the holdout come from the live database under export spec rev 3 and carry both SSE and SZSE rows.
+  - **Nothing requires SZSE rows.** The runner takes open days from SSE rows only (`data-adapter/index.js:212–229`; the holdout check reads READY SSE rows). Where SZSE rows exist, any SSE/SZSE disagreement is listed in the panel manifest; where they do not, there is nothing to list. A test pins that an SSE-only calendar reads the same open days.
   - Starting at 2019-06-01 is what makes the 120-session listing rule work from the first mining day.
 - **Security master (rev 3 §2.1):** `security_master_stock.csv` comes from `canonical_security_observation`. It has the rev 2 column names plus `record_id`, `revision` and `allow_new_risk`, and holds each security's last row before the directory's first date plus every row inside it. (The legacy `security_master` and `trading_calendar` tables are empty in the live DB.)
-- **Integrity:** `SHA256SUMS` comes from `shasum -a 256 *.csv`.
-- **Source:** it is exported read-only from the lane's replay copy with the same queries, no vendor re-fetch.
+- **Integrity:** the lane copy's `SHA256SUMS` comes from `sha256sum *.csv EXPORT_MANIFEST.json STEP0.json`, so it also covers `EXPORT_MANIFEST.json` and `STEP0.json`. Files are 0444, directories 0755.
+- **Source:** exported read-only, with no vendor re-fetch, from the BASE replay database **`ashare_v6_replay_c3fwd`** in the lane's `c3fwd-postgres` container. The spec named `ashare_v6_replay_c1`, which does not exist on that instance (errata 1 §1); the export manifest records `SPEC_DEVIATION db_name`.
 - **Other formats:** a different reader can be plugged in with `--lane-adapter <module>` (a module exporting `createSource(dir, opts)`). No adapter is needed when the layout above is used.
 
 ## One-time setup
@@ -82,7 +84,7 @@ DOCKER_HOST=unix:///run/user/1000/docker.sock docker run --rm --user 0:0 --netwo
 
 ## Seal, then generate (steps 1–5)
 
-**Prerequisite: the lane copy.** Before the first `generate`, `data/rf1116-cn-a-lane-copy-20200601-20260928/` must exist. The coordinator exports it read-only from the Q0 replay DB with export spec rev 3's queries, bounded 2020-06-01 → 2026-09-28, with `SHA256SUMS` and `EXPORT_MANIFEST.json`. It is not part of the 21:42 export.
+**Prerequisite: the lane copy.** Before the first `generate`, `data/rf1116-cn-a-lane-copy-20200601-20260928/` must exist. The coordinator exports it read-only per `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` and its `…_ERRATA_1.md`: from `c3fwd-postgres` / `ashare_v6_replay_c3fwd` (the Q0 replay BASE), bounded 2020-06-01 → 2026-09-28, files 0444, with `EXPORT_MANIFEST.json`, `STEP0.json` and a `SHA256SUMS` covering all of them. It is not part of the 21:42 export.
 
 **Before the first round**, put the holdout export in `holdout-sealed/…`, then record what is being sealed:
 
@@ -133,6 +135,7 @@ Under R1.5 the AQuA session writes the mechanisms and the coordinator reviews th
 5. **Only then score:** `run.sh score <round_id>` (next section). It refuses before the open, and the open is not spent, when the latest review is missing (`MINE_RUNNER_MECHANISM_REVIEW_MISSING`), does not cover every survivor (`…_INCOMPLETE`), no longer matches the registrations (`…_STALE`), was altered (`…_HASH_MISMATCH`) or is dated after the open (`…_AFTER_OPEN`). A `REJECTED` survivor is still scored and recorded, and fails item 9 (`MINE_MECHANISM_REJECTED`).
 
 - **What these steps mount.** `mechanisms` and `review` mount only `out/` (rw) and the input file (ro): no data, no holdout, no network.
+- **File arguments.** `run.sh` resolves `mech.jsonl`, `verdicts.json` and the rescore crash log with `realpath -e` before mounting, so a name relative to the current directory works. A missing file stops `run.sh` before Docker is called.
 
 ## Hand-over and scoring (steps 6–9), only after the 2026-12-31 data is in
 
@@ -207,4 +210,4 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 - **Shared host:** this host also carries V6 production. Run outside the V6 windows: 09:15–15:30 CST, the post-close chain, and the 06:30 PREMARKET.
 - **Run time:** a full round is roughly 200 mining evaluations plus one validation pass. That takes hours, not minutes.
 - **Monthly limit:** at most 2 rounds per market per month (Beijing time).
-- **Concurrent rounds (R1.6):** up to 2 generation-only rounds per market may be open at once and may share the holdout segment, but only before its first open. Still at most 2 opens per month. Once any round has opened a segment, no new round can open on it (`MINE_ROUND_HOLDOUT_SEGMENT_OPENED`); the next round needs a new segment after 2026-12-31.
+- **Concurrent rounds (R1.6):** up to 2 generation-only rounds per market may be open at once and may share the holdout segment, but only before its first open. Still at most 2 rounds per market per month (`LIMITS.rounds_per_month`). Once any round has opened a segment, no new round can open on it (`MINE_ROUND_HOLDOUT_SEGMENT_OPENED`); the next round needs a new segment after 2026-12-31.

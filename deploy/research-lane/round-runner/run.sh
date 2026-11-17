@@ -21,6 +21,15 @@ FACTOR_SERIES="$LANE/data/rf1116-cn-a-live-factor-series"
 HOLDOUT_REF="lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"
 AUTHORITY=RF1116_MINING_RUNNER
 
+# File arguments become absolute paths before they reach "-v": Docker reads a bare name ("verdicts.json") as a volume
+# name, mounts an empty directory and leaves a stray volume. A missing file stops here; docker is never called.
+abs_file() {
+  local p
+  p="$(realpath -e -- "$1" 2>/dev/null)" || { echo "run.sh: no such file: $1" >&2; exit 66; }
+  [ -f "$p" ] || [ "$p" = /dev/null ] || { echo "run.sh: not a regular file: $1" >&2; exit 66; }
+  printf '%s' "$p"
+}
+
 cmd="${1:?generate|resume|mechanisms|review|score|rescore}"
 case "$cmd" in
   generate)
@@ -32,15 +41,15 @@ case "$cmd" in
     docker run --rm --name "rf1116-resume" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$OUT:/out:rw" "$IMAGE" generate --out /out --lane /data/lane --tail /data/tail --resume "$round"
     ;;
   mechanisms)
-    round="${2:?round_id}"; reg="${3:-/dev/null}"
+    round="${2:?round_id}"; reg="$(abs_file "${3:-/dev/null}")"
     docker run --rm --name "rf1116-mechanisms" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" -v "$reg:/data/mechanisms.jsonl:ro" "$IMAGE" mechanisms --out /out --round "$round" --register /data/mechanisms.jsonl
     ;;
   review)
-    round="${2:?round_id}"; verdicts="${3:?verdicts.json}"
+    round="${2:?round_id}"; verdicts="$(abs_file "${3:?verdicts.json}")"
     docker run --rm --name "rf1116-review" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" -v "$verdicts:/data/verdicts.json:ro" "$IMAGE" review --out /out --round "$round" --file /data/verdicts.json
     ;;
   rescore)
-    round="${2:?round_id}"; reason="${3:?crash reason}"; crashlog="${4:?crash log file}"
+    round="${2:?round_id}"; reason="${3:?crash reason}"; crashlog="$(abs_file "${4:?crash log file}")"
     docker run --rm --name "rf1116-rescore" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" -v "$crashlog:/data/crash.log:ro" -v "$OUT:/out:rw" "$IMAGE" rescore --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series --reason "$reason" --crash-log /data/crash.log
     ;;
   score)

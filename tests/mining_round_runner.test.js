@@ -53,6 +53,36 @@ const knownGen = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nex
 const COV = Object.freeze({ min_names_per_day: 5 });
 const cli = (args, env) => spawnSync(process.execPath, [CLI, ...args], { env: { ...process.env, ...env }, encoding: 'utf8' });
 
+test('run.sh：文件参数先用 realpath -e 解析成绝对路径再挂（裸文件名不会被 Docker 当成卷名）；文件不存在就停，不调 docker', (t) => {
+  if (spawnSync('realpath', ['-e', '/']).status !== 0) { t.skip('no GNU realpath -e on this host (run.sh runs on the Linux lane)'); return; }
+  const RUN_SH = path.join(ROOT, 'deploy/research-lane/round-runner/run.sh');
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fake-docker-'));
+  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$DOCKER_ARGS_OUT"\n', { mode: 0o755 });
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-run-sh-cwd-')));
+  for (const n of ['verdicts.json', 'mech.jsonl', 'crash.log']) fs.writeFileSync(path.join(cwd, n), 'x\n');
+  const run = (args) => {
+    const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-docker-args-')), 'args');
+    const r = spawnSync('bash', [RUN_SH, ...args], { cwd, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_ARGS_OUT: out } });
+    return { ...r, args: fs.existsSync(out) ? fs.readFileSync(out, 'utf8').split('\n').filter(Boolean) : null };
+  };
+  for (const [args, mount] of [[['review', 'MR-X', 'verdicts.json'], `${cwd}/verdicts.json:/data/verdicts.json:ro`],
+    [['mechanisms', 'MR-X', 'mech.jsonl'], `${cwd}/mech.jsonl:/data/mechanisms.jsonl:ro`],
+    [['mechanisms', 'MR-X', './sub/../mech.jsonl'], `${cwd}/mech.jsonl:/data/mechanisms.jsonl:ro`],
+    [['rescore', 'MR-X', 'synthetic crash', 'crash.log'], `${cwd}/crash.log:/data/crash.log:ro`]]) {
+    if (args[2] && args[2].includes('sub')) fs.mkdirSync(path.join(cwd, 'sub'), { recursive: true });
+    const r = run(args);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(r.args.includes(mount), `${args.join(' ')}: ${JSON.stringify(r.args.filter((a) => a.includes('/data/')))}`);
+  }
+  assert.ok(run(['mechanisms', 'MR-X']).args.includes('/dev/null:/data/mechanisms.jsonl:ro'), 'listing only: /dev/null');
+  for (const args of [['review', 'MR-X', 'missing.json'], ['mechanisms', 'MR-X', 'missing.jsonl'], ['rescore', 'MR-X', 'r', 'missing.log'], ['review', 'MR-X', cwd]]) {
+    const r = run(args);
+    assert.notEqual(r.status, 0, args.join(' '));
+    assert.match(r.stderr, /run\.sh: .*(no such file|not a regular file)/);
+    assert.equal(r.args, null, 'docker is never called');
+  }
+});
+
 test('大模型（★K 没定之前）：开轮之前就拒 MINE_LLM_NOT_ENABLED，没有轮被开；命令行也拒；generate 没有 --holdout 这个选项', () => {
   const out = freshData();
   assert.equal(runner.loadFrozenSpace().space.sha256, runner.FROZEN_INPUTS.space.sha256);

@@ -143,6 +143,33 @@ test('R1.5 复审：复审行晚于留出段开启（时刻在将来）、或被
   process.env.QRP_DATA_DIR = dataRoot;
 });
 
+test('R1.5 复审：先 APPROVED、后一次复审改成 REJECTED → 打分用最新那一行，第 9 项不过（MINE_MECHANISM_REJECTED）；选择记录还没有时不能复审（MINE_MECHANISM_REVIEW_NO_SELECTION）', () => {
+  freshData();
+  // 选择记录还没有：只开轮、封存
+  const r0 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: KNOWN.length, openedAt: '2026-11-28T02:00:00Z' });
+  assert.throws(() => mechanisms.recordReview(r0.round_id, { mechanism_set_sha256: '0'.repeat(64), reviewer: 'coordinator', verdicts: [{ candidate_id: `${r0.round_id}:A001`, verdict: 'REJECTED' }] }),
+    code(/MINE_MECHANISM_REVIEW_NO_SELECTION/));
+  assert.throws(() => mechanisms.mechanismSetSha(r0.round_id), code(/MINE_MECHANISM_REVIEW_NO_SELECTION/));
+  assert.deepEqual(mechanisms.reviewsOf(r0.round_id), []);
+  rounds.closeRound(r0.round_id);
+  // 先 APPROVED 再 REJECTED
+  freshData();
+  const { sel, args, id } = toSelection(process.env.QRP_DATA_DIR, '2026-11-29T02:00:00Z');
+  const [first] = sel.selected;
+  register(id, first);
+  const approved = reviewAll(id);
+  assert.equal(approved.verdicts.find((v) => v.candidate_id === first).verdict, 'APPROVED');
+  const rejected = reviewAll(id, { [first]: 'REJECTED' });
+  assert.equal(rejected.supersedes, approved.record_hash);
+  runner.scoreHoldout(args);
+  const rec = gateRecords.recordsOf(id).find((x) => x.candidate_id === first);
+  assert.equal(rec.items.find((i) => i.item === 9).pass, false);
+  assert.ok(rec.codes.includes('MINE_MECHANISM_REJECTED'), rec.codes.join(','));
+  const score = JSON.parse(fs.readFileSync(path.join(process.env.QRP_DATA_DIR, 'rounds', id.replace(/[^A-Za-z0-9_-]/g, '_'), 'score.json'), 'utf8'));
+  assert.deepEqual(score.results.find((x) => x.candidate_id === first).mechanism.review, { verdict: 'REJECTED', review_hash: rejected.record_hash, reviewed_at: rejected.reviewed_at });
+  process.env.QRP_DATA_DIR = dataRoot;
+});
+
 test('R1.5 复审：合同、命令行与 run.sh 都有这一步（mechanisms → review → score）', () => {
   const ROOT = path.join(__dirname, '..');
   const cli = require('../services/mining-sandbox/round-runner/cli');
