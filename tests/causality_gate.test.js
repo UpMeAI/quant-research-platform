@@ -67,7 +67,10 @@ test('冻结页绑定：EFFECTIVE_FROM 取 FREEZE_1 的时刻（与 G-MECH 同�
   try { mech = require('../services/research-mechanism-register/gate'); } catch { /* #84 未合并 */ }
   if (mech) assert.equal(mech.EFFECTIVE_FROM, gate.EFFECTIVE_FROM);
   const reasons = new Set();
+  // 唯一的例外：A 股修订 6 的 R-XM-1 两题（K2 2026-11-17 15:42:02 冻结）过门，K2 没写范围，按门的裁定读作 N/A: RISK_K_OR_ACCOUNT_LAYER
+  const RXM1 = ['CN-RXM1-M', 'CN-RXM1-B'];
   for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) {
+    if (RXM1.includes(entry.id)) continue;
     const scope = gate.applies(entry);
     assert.equal(scope.applies, false, entry.id);
     reasons.add(scope.reason);
@@ -75,6 +78,14 @@ test('冻结页绑定：EFFECTIVE_FROM 取 FREEZE_1 的时刻（与 G-MECH 同�
     assert.equal(entry.causality_ruling, undefined, entry.id);
   }
   assert.deepEqual([...reasons].sort(), ['FROZEN_BEFORE_AMENDMENT', 'NO_K2', 'SEALED_BEFORE_AMENDMENT']);
+  for (const id of RXM1) {
+    const entry = ashare.ENTRIES.find((e) => e.id === id);
+    assert.ok(entry, `${id} 缺`);
+    assert.deepEqual(gate.applies(entry), { applies: true, reason: 'FROZEN_AFTER_AMENDMENT' });
+    assert.equal(entry.causality_evidence, undefined, id);
+    assert.deepEqual(Object.keys(entry.causality_ruling).sort(), ['scope_not_applicable', 'spec'], id);
+    assert.equal(entry.causality_ruling.scope_not_applicable, 'RISK_K_OR_ACCOUNT_LAYER', id);
+  }
   assert.equal(gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) }, k2_frozen_at: '2026-11-15T22:47:42+08:00' }).applies, true);
   assert.equal(gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) }, k2_frozen_at: '2026-11-15T22:47:41+08:00' }).applies, false);
   assert.throws(() => gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) }, sealed_on: '2026-11-15' }), /CAUSALITY_K2_FROZEN_AT_MISSING/);
@@ -256,4 +267,50 @@ test('导入器：注入生效时刻后过门——证据齐全 → 锁里记 PA
   const wrongCode = importerFixture({ evidencePatch: { code_sha: 'd'.repeat(40) } });
   assert.throws(() => overseas.importVerdicts(wrongCode.out, opts(wrongCode)), /CAUSALITY_CODE_SHA_MISMATCH/);
   assert.equal(fs.existsSync(overseas.LEDGER()) ? read(overseas.LEDGER()).length : 0, 0);
+});
+
+// ── 门的裁定读范围（A 股导入规格 V1 修订 6；R-XM-1 ★IMP1 (a)，协调会话 2026-11-17）──────────────────────────
+// K2 两样都没写（CAUSALITY_SCOPE_MISSING）时，只能由按 sha256 绑定的裁定页写明不适用码；锁里记 DEVIATION_ACCEPTED（不记 NOT_APPLICABLE、不记 PASS）。
+
+const scopePage = (code = 'RISK_K_OR_ACCOUNT_LAYER', drop = null) => ['# 门的裁定（合成）', 'DEVIATION_ACCEPTED', 'CAUSALITY_SCOPE_MISSING', `G-CAUSAL N/A: ${code}`].filter((w) => w !== drop).join('\n');
+const BARE_K2 = k2Of(['- 没有声明']);
+const scopeRuled = ({ code = 'RISK_K_OR_ACCOUNT_LAYER', page = scopePage(code), rulingPatch = {}, ...rest } = {}) => ({ k2Text: BARE_K2, doc: null, ruling: page,
+  entryPatch: { causality_ruling: { spec: { sha256: RULING_SHA }, scope_not_applicable: code, ...rulingPatch } }, ...rest });
+
+test('门的裁定读范围：没有页照旧拒绝 CAUSALITY_SCOPE_MISSING；页对、K2 确实两样都没写、不绑证据 → DEVIATION_ACCEPTED，记不适用码、偏差与裁定页 sha256', () => {
+  assert.throws(() => direct({ k2Text: BARE_K2, doc: null }), /CAUSALITY_SCOPE_MISSING/);
+  const ok = direct(scopeRuled());
+  assert.equal(ok.applies, true);
+  assert.equal(ok.state, 'DEVIATION_ACCEPTED');
+  assert.equal(ok.not_applicable_code, 'RISK_K_OR_ACCOUNT_LAYER');
+  assert.deepEqual(ok.deviation, { code: 'CAUSALITY_SCOPE_MISSING', read_as: 'G-CAUSAL N/A: RISK_K_OR_ACCOUNT_LAYER' });
+  assert.equal(ok.ruling_sha256, RULING_SHA);
+  assert.equal(ok.fill_scope, undefined, 'K2 冻结早于附录 1：A1 不适用（A1 另见 causality_fill_a1）');
+  // §3.2 五类都能这样读（A1 范围之外）
+  for (const code of gate.NOT_APPLICABLE_CODES) assert.equal(direct(scopeRuled({ code })).state, 'DEVIATION_ACCEPTED', code);
+  // 没有裁定的不适用题：返回值照旧（NOT_APPLICABLE，不带裁定字段）
+  const plain = direct({ k2Text: k2Of(['G-CAUSAL N/A: ABLATION']), doc: null });
+  assert.deepEqual(plain, { applies: true, state: 'NOT_APPLICABLE', effective_from: EFF, not_applicable_code: 'ABLATION' });
+});
+
+test('门的裁定读范围：页的字节缺失、页上缺字或写的是别的码 → 拒绝；K2 其实写了范围（CF 或 N/A）→ RULING_FACT_NOT_HOLD；码不认得、和函数偏差混写 → 拒绝；又绑了证据 → SCOPE_CONFLICT', () => {
+  assert.throws(() => direct({ ...scopeRuled(), ruling: null }), /CAUSALITY_RULING_FILE_MISSING/);
+  for (const w of ['DEVIATION_ACCEPTED', 'CAUSALITY_SCOPE_MISSING', 'G-CAUSAL N/A: RISK_K_OR_ACCOUNT_LAYER']) {
+    assert.throws(() => direct(scopeRuled({ page: scopePage('RISK_K_OR_ACCOUNT_LAYER', w) })), /CAUSALITY_RULING_TEXT_DOES_NOT_STATE/, w);
+  }
+  assert.throws(() => direct(scopeRuled({ page: scopePage('ABLATION') })), /CAUSALITY_RULING_TEXT_DOES_NOT_STATE/);
+  assert.throws(() => direct({ ...scopeRuled(), k2Text: k2Of(['G-CAUSAL N/A: ABLATION']) }), /CAUSALITY_RULING_FACT_NOT_HOLD/);
+  assert.throws(() => direct({ ...scopeRuled(), k2Text: K2_DEFAULT }), /CAUSALITY_RULING_FACT_NOT_HOLD/);
+  // 审阅 #119 FIX-2：K2 里有不合规范的「G-CAUSAL N/A」写法（全角冒号、括号、小写、全角斜杠、换行）时，declaration() 读不出码，
+  // 但 K2 确实写了范围，裁定不能把它读成另一个码 → 一律 RULING_FACT_NOT_HOLD
+  for (const line of ['G-CAUSAL N/A：ABLATION', 'G-CAUSAL N/A（账户层）', 'g-causal n/a: ablation', 'G-CAUSAL N／A: ABLATION', 'G-CAUSAL\nN/A ABLATION', 'G-CAUSALN/A', '**G-CAUSAL N/A**：消融']) {
+    assert.throws(() => direct({ ...scopeRuled(), k2Text: k2Of([`- ${line}`]) }), /CAUSALITY_RULING_FACT_NOT_HOLD/, line);
+  }
+  // 只提到「CF」两个字母、没有反引号的说明（R-XM-1 K2 头部「- CF: 停放决定……」那种知道时刻说明）不算范围声明，照样按裁定读
+  assert.equal(direct({ ...scopeRuled(), k2Text: k2Of(['- CF: 停放决定只用 t−1 已出的计划']) }).state, 'DEVIATION_ACCEPTED');
+  assert.throws(() => direct(scopeRuled({ code: 'LOOKS_FINE' })), /CAUSALITY_RULING_SCOPE_CODE_INVALID/);
+  assert.throws(() => direct(scopeRuled({ rulingPatch: { deviations: [{ function_id: FN, test: 't_c1' }] } })), /CAUSALITY_RULING_INVALID/);
+  assert.throws(() => direct({ ...scopeRuled(), doc: undefined }), /CAUSALITY_SCOPE_CONFLICT/);
+  // 不过门的题带裁定照旧拒绝
+  assert.throws(() => direct({ ...scopeRuled(), entryPatch: { ...scopeRuled().entryPatch, k2_frozen_at: '2026-11-15T10:00:00+08:00' } }), /CAUSALITY_RULING_ON_UNGATED_ENTRY/);
 });

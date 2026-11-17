@@ -63,7 +63,7 @@ const SIGNAL_RUNS = [['S', 'IC']];
  * 直接调因果门。lines：K2 §0；functions：证据里的函数（null = 不绑证据）；runs：运行日志的行；freeze：附录 1 冻结页（成本门的默认读法）。
  * 每份 K2 一个题号（STUDY 加 K2 sha 前缀），按 K2 现场预登记 T 与 S。
  */
-function a1({ lines, functions = null, runs = GATED_RUNS, frozenAt = AFTER, freeze = BOUND, kind = 'RESULT' }) {
+function a1({ lines, functions = null, runs = GATED_RUNS, frozenAt = AFTER, freeze = BOUND, kind = 'RESULT', scopeRuling = null, rulingPage = null }) {
   const k2 = Buffer.from(k2Of(lines));
   const k2Sha = sha(k2);
   const study = `${STUDY}-${k2Sha.slice(0, 8)}`;
@@ -71,8 +71,11 @@ function a1({ lines, functions = null, runs = GATED_RUNS, frozenAt = AFTER, free
   const evBytes = functions ? Buffer.from(JSON.stringify(evidence(k2Sha, functions))) : null;
   const log = Buffer.from(JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2Sha, smartflow_run_commit: CODE, runs: runs.map(runRow(study)) }));
   const entry = { id: 'C17-R99-A1', kind, strategy_ref: FAMILY, sealed_on: '2026-11-20', k2: { sha256: k2Sha }, k2_frozen_at: frozenAt,
-    ...(evBytes ? { causality_evidence: { sha256: sha(evBytes) } } : {}) };
-  return costGate.internals.withDefaults({ freeze }, () => gate.check(entry, { k2Bytes: () => k2, evidenceBytes: () => evBytes, runLogBytes: () => log, rulingBytes: () => null }));
+    ...(evBytes ? { causality_evidence: { sha256: sha(evBytes) } } : {}),
+    // A 股导入规格修订 6：K2 没写范围时，按 sha256 绑定的裁定页读作不适用
+    ...(scopeRuling ? { causality_ruling: { spec: { sha256: sha(rulingPage || '') }, scope_not_applicable: scopeRuling } } : {}) };
+  return costGate.internals.withDefaults({ freeze }, () => gate.check(entry, { k2Bytes: () => k2, evidenceBytes: () => evBytes, runLogBytes: () => log,
+    rulingBytes: () => (rulingPage ? Buffer.from(rulingPage) : null) }));
 }
 const refuses = (fn, code) => assert.throws(fn, (e) => e.code === `CAUSALITY_${code}`, code);
 
@@ -154,4 +157,14 @@ test('工具：清单的函数写了 role 就原样记进证据（门复验通�
   const plain = core.runManifest(mini({}), { registeredBy: 'TEST', k: 3 });
   assert.equal('role' in plain.functions[0], false);
   assert.throws(() => core.runManifest(mini({ role: 'EXECUTION' }), { registeredBy: 'TEST', k: 3 }), /FUNCTION_ROLE_INVALID/);
+});
+
+test('A1 范围内（A 股导入规格修订 6）：K2 两样都没写、按裁定页读作不适用时，同样只放过 RISK_K_OR_ACCOUNT_LAYER，记 DEVIATION_ACCEPTED 与范围；其余四个码拒绝 SCOPE_FILL_NOT_EXEMPT', () => {
+  const page = (code) => `DEVIATION_ACCEPTED\nCAUSALITY_SCOPE_MISSING\nG-CAUSAL N/A: ${code}\n`;
+  const r = a1({ lines: ['- 账户层现金停放，没有范围声明'], scopeRuling: 'RISK_K_OR_ACCOUNT_LAYER', rulingPage: page('RISK_K_OR_ACCOUNT_LAYER') });
+  assert.deepEqual([r.state, r.not_applicable_code, r.fill_scope.applies, r.fill_scope.cost_gated_runs], ['DEVIATION_ACCEPTED', 'RISK_K_OR_ACCOUNT_LAYER', true, 1]);
+  assert.deepEqual(r.deviation, { code: 'CAUSALITY_SCOPE_MISSING', read_as: 'G-CAUSAL N/A: RISK_K_OR_ACCOUNT_LAYER' });
+  for (const code of ['COST_EXECUTION', 'ABLATION', 'DEFECT_OR_ENGINEERING', 'DESCRIPTIVE_NO_PERFORMANCE']) {
+    refuses(() => a1({ lines: [`- 没有范围声明（${code}）`], scopeRuling: code, rulingPage: page(code) }), 'SCOPE_FILL_NOT_EXEMPT');
+  }
 });

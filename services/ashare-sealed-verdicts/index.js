@@ -85,6 +85,41 @@ const r21Entry = (id, pair, label, titleZh, g, changed) => ({ id, label_zh: labe
     + '过拟合披露（J_RN、J_RP 各一行）：N 42（下界），DSR 照算法算出（RN 0.0061、RP 1.9e-6），PBO NOT_APPLICABLE: CONFIGS_LT_4 — 3 configurations (C_RS, T_RN_K, T_RP_K); CSCV needs ≥ 4（协调会话裁定原文）。'
     + 'G_REPRO 两阶段 BINDING PASS（V6.3），G_INERT 两半 PASS。来源：Linux 封存 scratch/r21-sealed-20261116（SHA256SUMS dbb72dbe，SEAL_MANIFEST 9c2b2dc5），研究分支 Ashare-V6 research/r21-timing-weight 1477f16d，封存 2026-11-16。' });
 
+// 修订 6（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_6.md）：R-XM-1 个股本闲置现金停放（M 货币 ETF 511880、B 短债 ETF 511010，对现金基线 C）。
+// K2 = 草稿修订 3 本身（台账行的 k2_sha256 = 480ec87f），冻结页 FREEZE_1 另绑，2026-11-17 15:42:02 冻结——第一题在 RF1112（11-15 22:47:42）、附录 1（11-17 00:00）
+// 与 G-PARITY（11-17 00:24）之后冻结的导入，五道门都过：G-COST、G-PARITY 照常 PASS；G-TRIAL PRE（冻结后、首次计算前登记）、G-MECH（先前结论表在冻结后按冻结前的数据生成，
+// sha256 不在 K2 里；第 4 行「无。……」读作「无」）、G-CAUSAL（K2 没写范围，读作 N/A: RISK_K_OR_ACCOUNT_LAYER）都只出自同一页门的裁定，记 DEVIATION_ACCEPTED。
+// 判定照 ★R1 (b)（裁定页 28bf76ca）：M = 做（有支持；过拟合门的族方差 V 不用本题自己的行，DSR = 1），B = 不做（T0 缺口）。指数本不出判定（K2 §6），不进登记表。
+// 结果与运行日志在协调会话目录（按 sha256 绑定）：Linux 封存 rxm1/sealed-20261117（SEAL_MANIFEST 63de15fa）里 RXM1_RESULT.json、RUN_LOG.json 的逐字节副本。
+const RXM1_RESULT = coord('R_XM_1_ASHARE_IDLE_CASH_RESULT_V1.json', '1b277f278a28b0ad10ff422cc75e7f1ff90691e5de9e8ef87317ecb4694e0bea');
+const RXM1_RUN_LOG = coord('R_XM_1_ASHARE_IDLE_CASH_RESEARCH_RUN_LOG_V1.json', '5f253bb3de10ce25fea6bbfd915b9105647ceb9aaa3c09e8efc71ddadeae5bb9');
+const RXM1_K2 = coord('R_XM_1_ASHARE_IDLE_CASH_K2_V1.draft.480ec87f.md', '480ec87fdc39880f1d44e7bd71642b56af1d4af56fb6179c18cf0fc845eb182e');
+const RXM1_FREEZE = coord('R_XM_1_ASHARE_IDLE_CASH_K2_V1_FREEZE_1.md', '5794f7c3679fcffe21647d9b70e281b09d5b1fe129b5aab465c859151a61c320');
+const RXM1_NOTES = Object.freeze([
+  coord('R_XM_1_ASHARE_IDLE_CASH_K2_V1_FREEZE_1_NOTE_1.md', '4ecde74c33bff06ca39f87264eb42c2536d9ce56bdcf59414d0b94905608b3fb'),
+  coord('R_XM_1_ASHARE_IDLE_CASH_K2_V1_FREEZE_1_NOTE_2.md', '900d38ccc103346f8e2cba3c164b926cc2eb5f15a94c12edbad372ba5fd91ac9'),
+]);
+const RXM1_ALSO = Object.freeze([
+  coord('R_XM_1_ASHARE_IDLE_CASH_K2_V1_RESULT.md', 'c13e03fa930a26fe7d9571b2e8aece48c120be066488e3bec145e9271b17a4f3'),
+  coord('R_XM_1_ASHARE_IDLE_CASH_K2_V1_RESULT_RULING_R1.md', '28bf76ca1c0b845ecb3a7b7008fcbf307369a4732f2fe741071fbb4c53c84e60'),
+]);
+const RXM1_PRIOR = coord('R_XM_1_MECHANISM_PRIOR_TABLE_V1.json', '04c4aec8358b7060813bdf379a4bd8dfcb6007964d57640a1478ba02e5f76c97');
+// 门的裁定页：协调会话 2026-11-17T20:15:00+08:00 冻结（草稿 09ecea27 只读保留；冻结页只加 §3 说明与 §6 核对，机读记号不变）
+const RXM1_GATES_RULING = coord('R_XM_1_IMPORT_GATES_RULING_1.md', '46861c5be29a6d95d3789f444bb2190b1e12f81334d0b73f726fd9544b6b74bf');
+const RXM1_LINE4 = '无。只用封存回放与实盘账本里抽取的事实。';
+const RXM1_SOURCE = '来源：Linux 封存 /srv/research-lane2/overseas/rxm1/sealed-20261117（SEAL_MANIFEST 63de15fa，15 个文件；Mac 副本逐个文件相符），运行代码 rxm1-run.js f516ae39（测试 7/7，两遍逐字节相同），封存 2026-11-17。'
+  + '门的裁定页 R_XM_1_IMPORT_GATES_RULING_1：G-TRIAL PRE、G-MECH、G-CAUSAL 都记 DEVIATION_ACCEPTED；G-COST、G-PARITY 照常 PASS。'
+  + '实盘 T0 检查按 NOTE_2（900d38cc）：c_{t−1} + 停放累计现金 + min(同一开盘本的卖出回笼, G_t) − G_t ≥ 0，回放里 M 三种读法缺口都是 0。';
+const rxm1Entry = (id, row, code, expect, labelZh, titleZh, noteZh) => ({ id, label_zh: labelZh, strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-17', title_zh: titleZh,
+  file: RXM1_RESULT, also: RXM1_ALSO, k2: RXM1_K2, freeze: RXM1_FREEZE, k2_notes: RXM1_NOTES, run_log: RXM1_RUN_LOG, k2_frozen_at: '2026-11-17T15:42:02+08:00',
+  trial_gates_ruling: Object.freeze({ spec: RXM1_GATES_RULING, pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN']),
+    preregistered_at: '2026-11-17T07:48:36.403Z', first_run_at: '2026-11-17T07:54:06.728Z' }) }),
+  mechanism_ids: Object.freeze(['ACCT.IDLE_CASH.TBILL_PARKING']), mechanism_prior_table: RXM1_PRIOR, ai_inputs: Object.freeze([]),
+  mechanism_ruling: Object.freeze({ spec: RXM1_GATES_RULING, deviations: Object.freeze(['MECHANISM_PRIOR_TABLE_NOT_IN_K2', 'AI_ROLE_K2_LINE4_READ_AS_NONE']), line4_text: RXM1_LINE4 }),
+  causality_ruling: Object.freeze({ spec: RXM1_GATES_RULING, scope_not_applicable: 'RISK_K_OR_ACCOUNT_LAYER' }),
+  read: Object.freeze({ decision: `rows.${row}.verdict`, strength: null, use: null, text: null }), expect,
+  note_zh: `${noteZh}${RXM1_SOURCE}` });
+
 const ENTRIES = Object.freeze([
   { id: 'CN-R-ETF-1', label_zh: 'R-ETF-1', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-05', title_zh: '宽基 ETF 波动率网格 VG 对现行档位规则 C',
     file: v6('84adf8b97268d59318dda22be5363953e7939b6a', 'research/index-grid/r-etf-1/result-r-etf-1.json', '6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0'),
@@ -152,6 +187,14 @@ const ENTRIES = Object.freeze([
     '−0.0023 %/年，95 % [−0.0754 %, +0.0773 %]', 7),
   r21Entry('CN-R21-RP', 'J_RP', 'R21 A 股时机分缺权重（RP）', '个股簿：时机分缺 25% 权重用两融余额与宽基 ETF 份额替换（T_RP_K）对现行规则 C_RS，两阶段合并（2020-06-01 → 2026-09-28）',
     '−0.0909 %/年，95 % [−0.2592 %, +0.0461 %]', 15),
+  rxm1Entry('CN-RXM1-M', 'RXM1_M', '511880.SH', '做', 'R-XM-1 闲置现金停放（货币 ETF）', '个股本闲置现金按 Q_t = max(0, c_{t−1} − G_t) 停放 511880.SH 银华日利（M），开盘成交，对现金基线 C（2020-06-01 → 2026-09-28）',
+    '做（有支持，★R1 (b)，裁定页 28bf76ca）：配对 g +1.47 %/年，95 % [+1.35 %, +1.59 %]，MDE80 0.18 %；ΔMDD −4.46 个百分点（3.02 % 对 7.49 %）；T0 缺口 0，T1 压力 3 次 6,675 元（只报）；'
+    + '29 笔、成本 467 元、分配 9,326 元；1537 个会话、76 个月，75 个月为正。过拟合披露 OVD-95fd157215597f79 的机械读数 DSR 0.033（族方差 V 含本题 3 行）原样保留；'
+    + '★R1 (b) 的读法：族方差 V 不用本题自己的行（RXM1_M、RXM1_M_LOWCOST、RXM1_B），只用 R8_X04 三行与 R21 两行，V 0.0165、N 50、T 76、DSR 1，证据门不降级。'
+    + '上线前提：V6 先放行 511880、采日线、个股本停放放在默认关闭的开关后（R_XM_1_V6_PARKING_PREREQUISITES 272c8939），生产另走变更；「做」≠ 生产采用。'),
+  rxm1Entry('CN-RXM1-B', 'RXM1_B', '511010.SH', '不做', 'R-XM-1 闲置现金停放（短债 ETF）', '个股本闲置现金按同一规则停放 511010.SH 上证 5 年期国债 ETF（B），开盘成交，对现金基线 C（2020-06-01 → 2026-09-28）',
+    '不做：配对 g +2.24 %/年，95 % [+1.00 %, +3.37 %]，但 T0 缺口 34 次 53,415 元（2020-08-27 → 2021-02-08 债市下跌期，2 次落在本的买入日），「T0 缺口为 0」是 K2 §5.5 的必要条件；'
+    + 'NOTE_2 的封顶读法下仍是 34 次，最宽读法下也有 31 次。过拟合披露 OVD-02f289abe66f0225 原样保留（证据门对「不做」不起作用；★R1 (b) 读法下 DSR 0.785）。裁定页 28bf76ca。'),
 ]);
 
 const locks = (strategyRef = null) => overseas.locks(strategyRef, STORE);

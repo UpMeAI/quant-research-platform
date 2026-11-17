@@ -75,7 +75,7 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('冻结页绑定与目录：生效时刻与冻结页只在附录 1 模块写一处（FREEZE_1：冻结页 a3329481…、草稿修订 1 d64e88af…）；门内角色与阶段按 §2.2；目录里 REPLAY_CORE_COSTS_NONE 是毛收益；现行登记表没有一题过门', () => {
+test('冻结页绑定与目录：生效时刻与冻结页只在附录 1 模块写一处（FREEZE_1：冻结页 a3329481…、草稿修订 1 d64e88af…）；门内角色与阶段按 §2.2；目录里 REPLAY_CORE_COSTS_NONE 是毛收益；现行登记表只有 R-XM-1 两题过门', () => {
   assert.equal(addendum.EFFECTIVE_FROM, '2026-11-17T00:00:00+08:00');
   assert.equal(gate.EFFECTIVE_FROM, addendum.EFFECTIVE_FROM);
   assert.equal(gate.FREEZE, addendum.FREEZE);
@@ -91,7 +91,10 @@ test('冻结页绑定与目录：生效时刻与冻结页只在附录 1 模块�
   assert.deepEqual([none.source, none.counts_costs, none.not_modelled], ['adapters/us-replay-core', false, ['commission', 'slippage']]);
   assert.deepEqual([gate.CATALOGUE.get(COSTED).source, gate.CATALOGUE.get(COSTED).counts_costs], ['adapters/crypto-replay-core', true]);
   assert.equal(gate.modelIdOf(GROSS), 'REPLAY_CORE_COSTS_NONE');
-  for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) assert.equal(gate.applies(entry).applies, false, entry.id);
+  // 现行登记表只有 A 股修订 6 的 R-XM-1 两题过门（K2 2026-11-17 15:42:02 冻结），照常 PASS（真导入预演见修订 6 §2）；其余一题也不过门
+  const RXM1 = ['CN-RXM1-M', 'CN-RXM1-B'];
+  for (const entry of [...overseas.ENTRIES, ...ashare.ENTRIES]) assert.equal(gate.applies(entry).applies, RXM1.includes(entry.id), entry.id);
+  assert.deepEqual(ashare.ENTRIES.filter((e) => RXM1.includes(e.id)).map((e) => e.id), RXM1);
   const at = (t) => gate.applies({ id: 'x', kind: 'RESULT', k2: { sha256: K2_SHA }, k2_frozen_at: t }).applies;
   assert.equal(at('2026-11-17T00:00:00+08:00'), true);
   assert.equal(at('2026-11-16T23:59:59+08:00'), false);
