@@ -26,7 +26,7 @@ const BYTES = fs.readFileSync(path.join(__dirname, 'fixtures', 'dataset-registry
 const DOC = JSON.parse(BYTES.toString('utf8'));
 /** KG #369 审阅之前的分支头 a8c272a5 的 1.14.0（pre-review bytes），只留作对照：#104 合并后真钉着的是 a738d3b5 的 1.14.0。 */
 const FIXTURE_REG = Object.freeze({ registry_version: DOC.version, registry_sha256: sha(BYTES), datasets: new Map(DOC.datasets.map((d) => [d.id, d])), registry: DOC });
-/** 下面的用例都对真钉着的 1.14.0（config/dataset-registry，KG a738d3b5，c5aabf57…）跑。 */
+/** 下面的用例都对真钉着的登记表跑（config/dataset-registry；现在是 KG f4b24f41 的 1.17.0，930bae16…，1.14.0 的数据集原样未改）。 */
 const REG = datasetRegistry.pinned();
 const V = `@${REG.registry_version}#${REG.registry_sha256}`;
 const code = (re) => (e) => { assert.match(e.message, re); return true; };
@@ -36,8 +36,8 @@ function direct(lines, registry = REG, history = new Map()) {
   return gate.check({ id: 'SERIES', kind: 'RESULT', sealed_on: '2026-11-20', k2: { sha256: sha(k2) }, k2_frozen_at: '2026-11-17T10:00:00+08:00' }, { k2Bytes: () => k2 }, { registry, history });
 }
 
-test('真钉着的 1.14.0：三个混合数据集没有 pitSemantics（不写或 null）、带 pitSemanticsBySeries；两个新数据集 OBSERVED_AT。审阅前的夹具与它只差历史时钟、producedBy 与顶层清单，序列表一样', () => {
-  assert.deepEqual([REG.commit, REG.registry_version, REG.registry_sha256], ['a738d3b52f552f48ae62017712b72c82c9365d2c', '1.14.0', 'c5aabf570888b15eb6cb3f24e40e6e9364bbb0024bd8a217e9f8918b5775f209']);
+test('真钉着的登记表（1.17.0；1.14.0 起的数据集原样未改）：三个混合数据集没有 pitSemantics（不写或 null）、带 pitSemanticsBySeries；两个新数据集 OBSERVED_AT。审阅前的夹具与它只差历史时钟、producedBy 与顶层清单，序列表一样', () => {
+  assert.deepEqual([REG.commit, REG.registry_version, REG.registry_sha256], ['f4b24f41befe4f31f72824915ead28355d542cd5', '1.17.0', '930bae16786398496d730540677aeb2294f0ceab09fea18c285aab99f59059cb']);
   const mixedOf = (reg) => [...reg.datasets.values()].filter((d) => (d.pitSemantics === null || d.pitSemantics === undefined) && d.pitSemanticsBySeries && Object.keys(d.pitSemanticsBySeries).length).map((d) => d.id).sort();
   assert.deepEqual(mixedOf(REG), ['CN_MARKET_PSYCHOLOGY', 'MACRO_CN_OFFICIAL', 'US_MARKET_PSYCHOLOGY']);
   assert.deepEqual(['V6_CN_STOCK_DAILY_BARS', 'V6_CN_STOCK_DAILY_BASIC'].map((id) => REG.datasets.get(id).pitSemantics), ['OBSERVED_AT', 'OBSERVED_AT']);
@@ -117,9 +117,9 @@ test('parseSpace：读数的数据集要在钉住的登记表里；pit_available
   assert.throws(() => ok([{ ...macro, pit_available_at: 'OBSERVED_AT' }]), code(/MINE_SPACE_READING_PIT_MISMATCH:sf/));
   assert.throws(() => ok([{ name: 'pe_ttm', dataset_id: 'V6_CN_STOCK_DAILY_BASIC', series: 'close', pit_available_at: 'OBSERVED_AT' }]), code(/MINE_SPACE_READING_SERIES_NOT_ALLOWED:pe_ttm/));
   assert.throws(() => ok([{ ...bars, series: 'close' }]), code(/MINE_SPACE_READING_SERIES_UNKNOWN:close_hfq:close/)); // BARS 的历史时钟按 daily / adj_factor 分
-  // 不传 registry → 用真钉着的登记表（#104 之后是 1.14.0，a738d3b5）：同样的读数照样过，没登记的照样拒
+  // 不传 registry → 用真钉着的登记表（现在是 1.17.0，f4b24f41）：同样的读数照样过，没登记的照样拒
   assert.equal(space.parseSpace(spaceOf([bars]), PROOF).readings[0].dataset_id, 'V6_CN_STOCK_DAILY_BARS');
-  assert.throws(() => space.parseSpace(spaceOf([{ ...bars, dataset_id: 'TUSHARE_DAILY_UNREGISTERED' }]), PROOF), code(/MINE_SPACE_READING_UNREGISTERED:TUSHARE_DAILY_UNREGISTERED@1\.14\.0/));
+  assert.throws(() => space.parseSpace(spaceOf([{ ...bars, dataset_id: 'TUSHARE_DAILY_UNREGISTERED' }]), PROOF), code(new RegExp(`MINE_SPACE_READING_UNREGISTERED:TUSHARE_DAILY_UNREGISTERED@${REG.registry_version.replace(/\./g, "\\.")}$`)));
 });
 
 const COORDINATOR_DIR = path.resolve(process.env.QRP_COORDINATOR_DIR || path.join(ROOT, '..', 'artifacts', 'coordinator'));
