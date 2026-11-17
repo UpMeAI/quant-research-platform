@@ -28,6 +28,7 @@ class CapacityError extends Error {
 const need = (condition, code, detail) => { if (!condition) throw new CapacityError(code, detail); };
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const isText = (v) => typeof v === 'string' && v !== '';
+const isDay = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`));
 
 /** 最近秩分位数（升序，q ∈ (0, 1]）；空数组 null。 */
 function quantile(sorted, q) {
@@ -37,7 +38,8 @@ function quantile(sorted, q) {
 
 /**
  * 逐笔参与率报告。
- *   fills：[{ id, symbol, date, side: BUY|SELL, desired（想成交的数量）, prevDayVolume（前一交易日成交量，已按拆分换算；读不到写 null）, lotSize? }]
+ *   fills：[{ id, symbol, date, side: BUY|SELL, desired（想成交的数量）, prevDayVolume（前一交易日成交量，已按拆分换算；读不到写 null）,
+ *            prevDayVolumeDate（那一量的日期，必须早于 date；量读不到时可以没有）, lotSize? }]
  *   participation：参与率上限（默认 0.1，同库）；lotSize：没写每手股数的成交用它（默认 1）。
  * 返回 { schema, model, participationLimit, trades: [...], summary }，trades 与 fills 同序。
  */
@@ -54,13 +56,18 @@ function participationReport({ fills, participation = fm.DEFAULT_PARTICIPATION, 
     need(isNum(f.desired) && f.desired >= 0, 'CAPACITY_FILL_INVALID', `${at}.desired`);
     const lot = f.lotSize === undefined ? lotSize : f.lotSize;
     need(isNum(lot) && lot > 0, 'CAPACITY_FILL_INVALID', `${at}.lotSize`);
+    // 前一日量的日期必须早于成交日（只看字段名不算数）：量已知时必填，量读不到时可以没有，写了也必须早于成交日。
+    const dated = isDay(f.prevDayVolumeDate) && isDay(f.date) && f.prevDayVolumeDate < f.date;
     const known = isNum(f.prevDayVolume) && f.prevDayVolume >= 0;
+    need(known ? dated : (f.prevDayVolumeDate === undefined || f.prevDayVolumeDate === null || dated), 'CAPACITY_PREV_VOLUME_DATE_INVALID',
+      `${at}.prevDayVolumeDate ${f.prevDayVolumeDate} vs date ${f.date}`);
     const r = fm.PREV_DAY_VOLUME_CAP({ prevDayVolume: known ? f.prevDayVolume : undefined, participation, desired: f.desired, lotSize: lot });
     const prevDayVolume = known ? f.prevDayVolume : null;
+    const prevDayVolumeDate = isDay(f.prevDayVolumeDate) ? f.prevDayVolumeDate : null;
     const state = !known ? 'PREV_VOLUME_MISSING' : f.prevDayVolume === 0 ? 'PREV_VOLUME_ZERO' : r.capped ? 'CAPPED' : 'WITHIN_CAP';
     const ratio = (q) => (known && f.prevDayVolume > 0 ? q / f.prevDayVolume : null);
     return { id: f.id, symbol: f.symbol, date: f.date, side: f.side, desired: f.desired, quantity: r.quantity, cap: known ? r.cap : null,
-      prevDayVolume, participation: ratio(r.quantity), desiredParticipation: ratio(f.desired), state };
+      prevDayVolume, prevDayVolumeDate, participation: ratio(r.quantity), desiredParticipation: ratio(f.desired), state };
   });
   const count = (s) => trades.filter((t) => t.state === s).length;
   const knownRows = trades.filter((t) => t.participation !== null);
@@ -90,7 +97,8 @@ function checkReport(report) {
   need(report && report.schema === SCHEMA && report.model === MODEL && Array.isArray(report.trades) && report.summary
     && isNum(report.participationLimit), 'CAPACITY_REPORT_INVALID', 'shape');
   for (const t of report.trades) {
-    const ok = t && STATES.includes(t.state) && isNum(t.desired) && isNum(t.quantity) && t.quantity >= 0 && t.quantity <= t.desired + 1e-9 && (
+    const ok = t && STATES.includes(t.state) && isNum(t.desired) && isNum(t.quantity) && t.quantity >= 0 && t.quantity <= t.desired + 1e-9
+      && (t.prevDayVolumeDate === null ? t.state === 'PREV_VOLUME_MISSING' : isDay(t.prevDayVolumeDate) && isDay(t.date) && t.prevDayVolumeDate < t.date) && (
       t.state === 'PREV_VOLUME_MISSING' ? t.prevDayVolume === null && t.cap === null && t.quantity === 0
         : t.state === 'PREV_VOLUME_ZERO' ? t.prevDayVolume === 0 && t.cap === 0 && t.quantity === 0
           : isNum(t.prevDayVolume) && t.prevDayVolume > 0 && isNum(t.cap) && t.cap <= t.prevDayVolume * report.participationLimit + 1e-9

@@ -6,8 +6,8 @@
     "spec": { "path": "artifacts/coordinator/FILL_MODEL_LIBRARY_V1_SPEC.draft.md", "sha256": "90814c6075b7c7e3609b87f6a7e8fac3fd34698a5f32ee250c174fd602e062ac" }
   },
   "pins": {
-    "ashare-v6": { "commit": "83ab3af185c86cd2a21269ce918e49017f8876b3", "env_root": "QRP_V6_ROOT", "sibling": "Ashare-V6", "package_dir": "" },
-    "smartflow": { "commit": "3b25fb61ceffb0ed3437a6f6746ed66bf7150955", "env_root": "QRP_SMARTFLOW_ROOT", "sibling": "smartflow", "package_dir": "trading-system-v2" }
+    "ashare-v6": { "commit": "4d9bc80f778bba304d8b398d2727b7cc039130f2", "env_root": "QRP_V6_ROOT", "sibling": "Ashare-V6", "package_dir": "" },
+    "smartflow": { "commit": "93428ef89157cc6ae8cc924fc969f55660fad4a8", "env_root": "QRP_SMARTFLOW_ROOT", "sibling": "smartflow", "package_dir": "trading-system-v2" }
   },
   "env_read": { "read_by": "coordinator", "read_at": "2026-11-17T00:16:00+08:00", "where_zh": "HK 上读 pm2 的环境；Mac 上读 V6 调度器容器。只代表那一刻，协调会话每次部署之后重读一次，有变化就更新这里" },
   "declarations": [
@@ -15,7 +15,7 @@
       "book": "CN_A.INDEX_SLEEVE", "segment": "OPEN_PLAN", "bar": "DAILY",
       "cadence": { "rule": "SCAN_SCHEDULE", "params": { "kind": "AFTER_CLOSE_CHAIN_THEN_EXECUTE_AT", "execute_at": "09:30:30", "tz": "+08:00" } },
       "rules": ["NEXT_OPEN", "PREV_DAY_VOLUME_CAP"], "params": { "slippage_bps": 10, "limit_band": "WITHIN_PRICE_LIMITS", "participation": 0.1 },
-      "live_refs": ["ashare-v6:src/index-book/paper-sleeve.js:33", "ashare-v6:src/index-book/paper-sleeve.js:62-71"],
+      "live_refs": ["ashare-v6:src/index-book/paper-sleeve.js:34", "ashare-v6:src/index-book/paper-sleeve.js:63-72"],
       "env": [],
       "locks": [
         { "id": "V6_INDEX_EXECUTE_AT", "repo": "ashare-v6", "path": "src/index-book/paper-sleeve.js", "pattern": "execute: '([0-9:]+)'", "expect": "09:30:30" }
@@ -44,7 +44,7 @@
       "book": "CN_A.STOCK_FIVE_STAGE", "segment": "CLOSE_DECIDE_NEXT_OPEN", "bar": "DAILY",
       "cadence": { "rule": "SCAN_SCHEDULE", "params": { "kind": "AT_CLOSE" } },
       "rules": ["NEXT_OPEN", "PREV_DAY_VOLUME_CAP"], "params": { "slippage_bps": 10, "price": "UNADJUSTED_OPEN", "participation": 0.1 },
-      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:120-123", "ashare-v6:src/stock-book/paper-cost.js:5"],
+      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:178-181", "ashare-v6:src/stock-book/paper-cost.js:5"],
       "env": [],
       "locks": [
         { "id": "V6_FIVE_STAGE_SLIPPAGE_BPS", "repo": "ashare-v6", "path": "src/stock-book/paper-cost.js", "pattern": "slippageBps: ([0-9.]+), sellStampTaxBps", "expect": "10", "value": 10 }
@@ -56,7 +56,7 @@
       "book": "CN_A.STOCK_FIVE_STAGE", "segment": "INTRADAY_TOUCH_EXIT", "bar": "COMPLETED_1M",
       "cadence": { "rule": "POLL_EVERY", "params": { "interval_ms": 60000, "windows": [["09:30", "11:30"], ["13:00", "15:00"]], "tz": "+08:00" } },
       "rules": ["GAP_THROUGH_LEVEL_AT_OPEN", "PREV_DAY_VOLUME_CAP"], "params": { "fill": "LEVEL_MINUS_10BP", "settlement": "T_PLUS_1", "participation": 0.1 },
-      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:180-209", "ashare-v6:src/touch-exit/plan-store.js:13-16", "ashare-v6:src/stock-book/paper-cost.js:5"],
+      "live_refs": ["ashare-v6:src/stock-book/five-stage/paper-simulator.js:259-291", "ashare-v6:src/touch-exit/plan-store.js:13-16", "ashare-v6:src/stock-book/paper-cost.js:5"],
       "env": [{ "name": "INTRADAY_INTERVAL_MS", "value": null, "where": "MAC_V6_SCHEDULER", "note_zh": "同一个 60 秒任务" }],
       "locks": [
         { "id": "V6_INTRADAY_INTERVAL_MS", "repo": "ashare-v6", "path": "src/intraday/intraday-config.js", "pattern": "const DEFAULT_INTERVAL_MS = ([^;]+);", "expect": "60_000", "value": 60000 },
@@ -68,6 +68,7 @@
       "book": "US.US_V5", "segment": "ENTRY", "bar": "COMPLETED_1H_YAHOO",
       "cadence": { "rule": "SCAN_SCHEDULE", "params": { "kind": "COMPLETED_1H", "open": "09:30", "close": "16:00", "early_close": "13:00", "lag_ms": 60000, "tz": "America/New_York" } },
       "rules": ["MARKET_AFTER_POLL"], "params": { "order": "MARKET_DAY_THEN_POLL_FILL", "slippage_bps": 5, "slippage_source": { "kind": "QRP_CONSTANT", "path": "services/cost-gate/index.js", "key": "FLOORS.US.total_bps_min", "basis": "ENGINE_MODELING_ACCEPTANCE_V1 ★5 (a): the G-COST US floor unless the live measured slippage is higher" }, "live_fill_zh": "实盘是 Alpaca 模拟盘的市价单成交价（us-broker-alpaca.js:70–80 下单、:133–148 轮询），没有写死的滑点常量；实测滑点记在 slippage_cost（:160–183）。回放按 ★5 (a)：G-COST 美股下限 5 bps，实测更高时用实测值" },
+      "gaps_zh": "★5 (a) 的「实盘实测滑点更高时用实测值」这一支没有实现（NOT_IMPLEMENTED）：没有哪个消费方读实测值（us-broker-alpaca.js:160–183 的 slippage_cost），E3 用的是固定 5 bps；实现前，这一行的滑点就是固定的 G-COST 下限 5 bps",
       "live_refs": ["smartflow:src/services/us-v5-scan-schedule.js:8-14", "smartflow:src/services/us-v5-scan-schedule.js:66-76", "smartflow:src/services/us-broker-alpaca.js:70-80", "smartflow:src/services/us-broker-alpaca.js:133-148"],
       "env": [
         { "name": "US_V5_SCAN_SCHEDULE", "value": "COMPLETED_1H", "where": "HK_PM2" },
@@ -86,6 +87,7 @@
       "book": "US.US_V5", "segment": "INTRADAY_WATCH", "bar": "FORMING_1H_YAHOO",
       "cadence": { "rule": "POLL_EVERY", "params": { "interval_ms": 60000, "forming_bar": { "rule": "FORMING_BAR_AS_OF_POLL", "bar_interval_ms": 3600000 } } },
       "rules": ["SAME_BAR_STOP_FIRST", "GAP_THROUGH_LEVEL_AT_OPEN", "MARKET_AFTER_POLL", "TIERED_LIMIT_STOP"], "params": { "tiers": { "t1Pct": 2, "t1TimeoutS": 60, "t2Pct": 4, "t2TimeoutS": 300 }, "tiered_for": "LEVERAGED_ETF_STOP", "slippage_bps": 5, "tiered_slippage_bps": 0, "slippage_source": { "kind": "QRP_CONSTANT", "path": "services/cost-gate/index.js", "key": "FLOORS.US.total_bps_min", "basis": "ENGINE_MODELING_ACCEPTANCE_V1 ★5 (a): the G-COST US floor unless the live measured slippage is higher" }, "live_fill_zh": "非杠杆仓位的平仓是 Alpaca 市价单（同入场，★5 (a) 5 bps）；杠杆 ETF 止损的分级限价单按限价或更优的开盘价成交，不再加滑点，第三档市价加 5 bps" },
+      "gaps_zh": "★5 (a) 的「实盘实测滑点更高时用实测值」这一支没有实现（NOT_IMPLEMENTED）：没有哪个消费方读实测值（us-broker-alpaca.js:160–183 的 slippage_cost），E3 用的是固定 5 bps；实现前，这一行的滑点就是固定的 G-COST 下限 5 bps",
       "live_refs": ["smartflow:src/workers/us-v5-strategy-worker.js:853-858", "smartflow:src/workers/us-v5-strategy-worker.js:1103", "smartflow:src/services/us-v5-exit-rules.js:47-86", "smartflow:src/services/us-broker-alpaca.js:313-338"],
       "env": [{ "name": "US_V5_TOUCH_EXIT", "value": "1", "where": "HK_PM2" }],
       "locks": [
