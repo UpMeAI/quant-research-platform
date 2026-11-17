@@ -92,9 +92,10 @@ const ingestAt = (d) => (segOf(d) === 'lane' && d < '2026-09-01' ? BACKFILL_AT :
 /**
  * 写出三个目录。返回 { root, dirs: { lane, tail, holdout }, facts, calendar: [开市日…] }。
  * opts.stocks（默认全部 16 只）可以只取前几只，给端到端测试提速；opts.seed 换随机序列。
- * opts.industryQuality（默认 READY）是行业成员表每一行的 quality_state（2026-11-18 第 1 轮缺陷：V6 的行业成员全是 DEGRADED）。
+ * opts.industryQuality（默认 DEGRADED，与 V6 一样：canonicalize.js:460 把每一行行业成员都写成 DEGRADED）是行业成员表每一行的 quality_state；
+ *   第 1 轮缺陷（2026-11-18）之前这里写的是 READY，测试因此没碰到生产的数据。
  */
-function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, industryQuality = 'READY' } = {}) {
+function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, industryQuality = 'DEGRADED' } = {}) {
   const rng = mulberry32(seed);
   const cal = calendar(CAL_FROM, SEGMENTS.holdout[1]);
   const openDays = cal.filter((c) => c.open).map((c) => c.date);

@@ -39,6 +39,12 @@ const FILES = Object.freeze({
 const MODES = Object.freeze(['HISTORY', 'LIVE']);
 const SUFFIXED = /^_\d{8}\.csv$/;
 const ACCEPTED_QUALITY = Object.freeze(['READY']);
+/**
+ * 行业成员表另收 DEGRADED（★RF1116_INDUSTRY_QUALITY，2026-11-18 第 1 轮缺陷之后）：V6 把每一行行业成员都写成 DEGRADED
+ * （Ashare-V6 src/data-runtime/canonicalize.js:460，sourceReconciliationState PRIMARY_ONLY：单一来源 Tushare index_member_all，没有第二来源核对），
+ * 只收 READY 等于一行都不收，打分前的行业中性化就把每个值都变成 NaN。行业只用于中性化与分组，不是读数。其余各表仍只收 READY。
+ */
+const ACCEPTED_INDUSTRY_QUALITY = Object.freeze(['READY', 'DEGRADED']);
 /** 历史时钟 → 最早可用的决策：两种都是次一交易日开盘（MINING_SANDBOX_V1：只用历史、按 P-14 次日开盘决策）。 */
 const CLOCKS = Object.freeze({ BAR_CLOSE: 'NEXT_OPEN', CLOSE_DATED_NEXT_OPEN_USABLE: 'NEXT_OPEN' });
 const LIVE_CUTOFF = 'T09:00:00+08:00';
@@ -338,7 +344,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   for (const s of sources) {
     if (!s.has('industry')) continue;
     s.forEach('industry', (r) => {
-      if (r.industry_standard !== industry.standard || r.industry_level !== industry.level || !codeIdx.has(r.security_id) || !ACCEPTED_QUALITY.includes(r.quality_state)) return;
+      if (r.industry_standard !== industry.standard || r.industry_level !== industry.level || !codeIdx.has(r.security_id) || !ACCEPTED_INDUSTRY_QUALITY.includes(r.quality_state)) return;
       counts.industry.rows += 1;
       const key = `${r.security_id}|${r.effective_from}`;
       if (!groups.has(key)) groups.set(key, { code: r.security_id, from: r.effective_from, revs: [] });
@@ -401,7 +407,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       sources: sources.map((s) => ({ label: s.label, mode: s.mode, kind: s.kind || null, holdout: Boolean(s.holdout), sums_sha256: s.sums_sha256 || null })),
       rules: {
         decision: 'NEXT_OPEN', live_cutoff: `next trading day ${LIVE_CUTOFF.slice(1)}`, revision_known: 'LATEST_FIRST_AVAILABLE_BY_CUTOFF', revision_history_backfill: 'EARLIEST_RECORDED_INSTANT_HIGHEST_REVISION',
-        accepted_quality: [...ACCEPTED_QUALITY], min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_exchange: calendarExchange, exchanges_excluded: ['BSE'],
+        accepted_quality: [...ACCEPTED_QUALITY], industry_accepted_quality: [...ACCEPTED_INDUSTRY_QUALITY], min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_exchange: calendarExchange, exchanges_excluded: ['BSE'],
       },
       calendar: { exchange: calendarExchange, open_days_in_sources: cal.length, last_date: calMax, sse_szse_disagreements: disagreements.filter((d) => d >= from && d <= to),
         sse_szse_disagreements_all: disagreements.length },
@@ -411,6 +417,6 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
 }
 
 module.exports = {
-  FILES, MODES, ACCEPTED_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, DataError,
+  FILES, MODES, ACCEPTED_QUALITY, ACCEPTED_INDUSTRY_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, DataError,
   csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, internals: { forEachCsvRow, parseTs, clockOf, mapReadings },
 };
