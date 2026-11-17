@@ -1,0 +1,5 @@
+[Unit]
+Description=RF1116 generate window pause (coordinator 2026-11-18)
+[Service]
+Type=oneshot
+ExecStart=/srv/research-lane/rf1116-mining/ops/rf1116-window-pause.sh

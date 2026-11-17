@@ -17,17 +17,18 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 |---|---|---|---|
 | `/srv/research-lane/rf1116-mining/code/` | QRP checkout at the reviewed merge commit (build context) | kayla, 0755 | not mounted (baked into the image) |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928/` | the lane copy, exported by the lane-copy spec `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` with its `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1_ERRATA_1.md` (see below). `HISTORY` source | kayla, dirs 0755 / files **0444** | `/data/lane:ro` |
-| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-daily-20260929-20261016/` | validation tail export (spec §1, first directory), with `SHA256SUMS` and `EXPORT_MANIFEST.json`. `LIVE` source | kayla, 0755 / 0644 | `/data/tail:ro` |
-| `/srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019/` | holdout export (spec §1, second directory) plus `SHA256SUMS.sealed` | kayla, **0700** until hand-over | `/data/holdout:ro`, **`score` only** |
+| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-daily-20260929-20261016/` | validation tail export (spec §1, first directory), with `SHA256SUMS` and `EXPORT_MANIFEST.json`. `LIVE` source. Round 1 (2026-11-18): the export directory is `rf1116-cn-a-daily-20260929-20261016-r4` (spec rev 4, `SHA256SUMS` sha256 `758323e8…`), and this path is a symlink to it, because `run.sh` names the path without the suffix; Docker follows the host symlink | kayla, 0755 / 0644 | `/data/tail:ro` |
+| `/srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019/` | holdout export (spec §1, second directory) plus `SHA256SUMS.sealed`. Round 1: the Mac export `rf1116-cn-a-daily-holdout-from-20261019-r4` (spec rev 4, `D1` 2026-11-17), copied under this name without the suffix, because `run.sh`'s `HOLDOUT_REF` names it; the seal binds the content (`SHA256SUMS.sealed` sha256 `e64e2823…`) | kayla, **0700** until hand-over | `/data/holdout:ro`, **`score` only** |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-live-factor-series/` | R1.4: the existing CN_A factor series in `FACTOR_SERIES_V1` (`factor_series.csv`, `unit_membership.csv`, `SHA256SUMS`), from the coordinator's registered export | kayla, 0755 / 0644 | `/data/factor-series:ro`, **`score` only**; if it is missing or unsigned, `score` refuses before the open |
+| `/srv/research-lane/rf1116-mining/ops/` | `rf1116-window-pause.sh` (see "Window pause") and its `window-pause.log`; run logs under `ops/logs/` | kayla, 0755 | not mounted |
 | `/srv/research-lane/rf1116-mining/out/` | `qrp-data/` (mining rounds, trials, holdout vault, G-MINE records) and `rounds/<round_id>/` (`attempts.jsonl`, `generate.json`, `selection.json`, `score.json`) | container uid 1000 (host 100999) | `/out:rw`, the only writable mount |
 
 **`out/qrp-data/` persists across rounds and is never deleted.** It holds the cumulative N of family `MINE:CN_A:H5`. Container-written files belong to host uid 100999, so kayla can read them but cannot remove them.
 
 ### Lane copy layout
 
-- **Spec:** the lane copy follows `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` as corrected by `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1_ERRATA_1.md`. The validation tail and the holdout follow export spec **rev 3** (`RF1116_CN_A_LANE_EXPORT_SPEC_V1.b523435d.md`, a note-only revision of `a24afab2`).
-- **Files and columns** (the same names and columns as export spec rev 3 §2, plus industry membership):
+- **Spec:** the lane copy follows `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` as corrected by `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1_ERRATA_1.md` (sha256 `a47a2ebbe201aa617c16d41b63bbee8e80dc3764d88f84aab13a45d2b265b014`). The validation tail and the holdout follow export spec **rev 4** (`RF1116_CN_A_LANE_EXPORT_SPEC_V1.33093147.md`, sha256 `33093147e8ff7be0815b1b7f1800cfd61edc05cab261d7839a52c9e2766e0ecd`). Rev 4 changes only the §3 checks and gives the holdout directory an end date `D1`; its SQL is that of rev 3 (`b523435d`, a note-only revision of `a24afab2`). The rev 3 exports of 2026-11-18 05:34 were void under rev 3 §3 and are not used.
+- **Files and columns** (the same names and columns as export spec §2, unchanged from rev 3 to rev 4, plus industry membership):
   - `prices_daily_stock.csv`
   - `market_daily_basic_observation_stock.csv`
   - `adjustment_factor_observation_stock.csv`
@@ -39,7 +40,7 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 - **Dates:** trade dates 2020-06-01 → 2026-09-28.
 - **Calendar:** `trading_calendar.csv` comes from `canonical_calendar_observation`, with `market` = `A_SHARE` and the exchange in `exchange`, covering 2019-06-01 → 2026-12-31.
   - **The lane copy's calendar is SSE-only.** The BASE database holds one SSE row per calendar day (2,771 rows) and no SZSE rows. The coordinator's ruling ★RF1116_CAL_MIN (a) amends the calendar minimum to match. The export manifest records `SPEC_DEVIATION calendar_min_rows` and `CALENDAR_SZSE_ABSENT`.
-  - The validation tail and the holdout come from the live database under export spec rev 3 and carry both SSE and SZSE rows.
+  - The validation tail and the holdout come from the live database under export spec rev 4. The live `canonical_calendar_observation` is SSE-only as well (2,771 rows, 1,842 SSE open days, 0 SZSE rows). Rev 4 §3 records the SSE/SZSE check as N/A in each export manifest; rev 3's 3,600-row minimum assumed two exchanges and voided the first export.
   - **Nothing requires SZSE rows.** The runner takes open days from SSE rows only (`data-adapter/index.js:212–229`; the holdout check reads READY SSE rows). Where SZSE rows exist, any SSE/SZSE disagreement is listed in the panel manifest; where they do not, there is nothing to list. A test pins that an SSE-only calendar reads the same open days.
   - Starting at 2019-06-01 is what makes the 120-session listing rule work from the first mining day.
 - **Security master (rev 3 §2.1):** `security_master_stock.csv` comes from `canonical_security_observation`. It has the rev 2 column names plus `record_id`, `revision` and `allow_new_risk`, and holds each security's last row before the directory's first date plus every row inside it. (The legacy `security_master` and `trading_calendar` tables are empty in the live DB.)
@@ -120,6 +121,33 @@ run.sh resume <round_id>
 ```
 
 The GP continues deterministically from the ledger. After `selection.json` exists, generation for that round is closed.
+
+### Window pause (ruling ★RF1116_GENERATE_WINDOW (a))
+
+Generation yields to V6 production on the lane. A kayla user timer runs a script every minute, Monday to Friday (CST):
+- it `docker pause`s a running `rf1116-generate-*` or `rf1116-resume` container inside 06:30–08:00 (the ruling), 09:15–15:30 (the trading session) and 18:10–20:45 (the post-close chain), the V6 windows listed under "Limits and timing";
+- it `docker unpause`s it outside them;
+- each action is appended to `ops/window-pause.log`.
+
+It touches no other container: `mechanisms`, `review` and `score` are not paused. Generation has no wall-clock limits (the only clock read in `round-runner/index.js` is a timestamp), so a pause only delays it: the same seed gives the same trials, and only the timestamps move.
+
+The installed files are byte-identical to the copies in this directory (sha256 read on the lane 2026-11-18):
+
+| file in this directory | installed at | sha256 |
+|---|---|---|
+| `rf1116-window-pause.sh` | `/srv/research-lane/rf1116-mining/ops/rf1116-window-pause.sh` | `a887f774460f9a30be440019a72c228b77750aaec164e14243dd9a8f85cb576c` |
+| `rf1116-window-pause.service` | `~kayla/.config/systemd/user/rf1116-window-pause.service` | `641ca7f630bd50a8f66709f8450c9dc905af1a95597077ed484fd75d6eeba268` |
+| `rf1116-window-pause.timer` | `~kayla/.config/systemd/user/rf1116-window-pause.timer` | `4b32a7567cdeb8ff4bba977521067cc868ad94607c140884c463eaf007028c90` |
+
+Install, or re-install after a change:
+
+```sh
+install -m 0755 deploy/research-lane/round-runner/rf1116-window-pause.sh /srv/research-lane/rf1116-mining/ops/
+install -m 0644 deploy/research-lane/round-runner/rf1116-window-pause.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now rf1116-window-pause.timer
+```
+
+The windows use weekdays only. On an exchange holiday the script still pauses in the windows, which costs time but nothing else.
 
 ## Mechanisms and their review (R1.5), before the hand-over
 
