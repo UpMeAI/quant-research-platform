@@ -104,7 +104,8 @@ const RXM1_ALSO = Object.freeze([
   coord('R_XM_1_ASHARE_IDLE_CASH_K2_V1_RESULT_RULING_R1.md', '28bf76ca1c0b845ecb3a7b7008fcbf307369a4732f2fe741071fbb4c53c84e60'),
 ]);
 const RXM1_PRIOR = coord('R_XM_1_MECHANISM_PRIOR_TABLE_V1.json', '04c4aec8358b7060813bdf379a4bd8dfcb6007964d57640a1478ba02e5f76c97');
-const RXM1_GATES_RULING = coord('R_XM_1_IMPORT_GATES_RULING_1.draft.md', '09ecea27d21fccc63a5c22b621c64763926b4bdd83159ae5833d0bc3355efa9a');
+// 门的裁定页：协调会话 2026-11-17T20:15:00+08:00 冻结（草稿 09ecea27 只读保留；冻结页只加 §3 说明与 §6 核对，机读记号不变）
+const RXM1_GATES_RULING = coord('R_XM_1_IMPORT_GATES_RULING_1.md', '46861c5be29a6d95d3789f444bb2190b1e12f81334d0b73f726fd9544b6b74bf');
 const RXM1_LINE4 = '无。只用封存回放与实盘账本里抽取的事实。';
 const RXM1_SOURCE = '来源：Linux 封存 /srv/research-lane2/overseas/rxm1/sealed-20261117（SEAL_MANIFEST 63de15fa，15 个文件；Mac 副本逐个文件相符），运行代码 rxm1-run.js f516ae39（测试 7/7，两遍逐字节相同），封存 2026-11-17。'
   + '门的裁定页 R_XM_1_IMPORT_GATES_RULING_1：G-TRIAL PRE、G-MECH、G-CAUSAL 都记 DEVIATION_ACCEPTED；G-COST、G-PARITY 照常 PASS。'

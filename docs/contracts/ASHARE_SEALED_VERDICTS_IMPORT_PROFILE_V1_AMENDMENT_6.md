@@ -9,7 +9,7 @@
 - **K2：** `R_XM_1_ASHARE_IDLE_CASH_K2_V1.draft.480ec87f.md`（`480ec87f…`）。台账行的 k2_sha256 就是它，所以 K2 绑它。冻结页 FREEZE_1（`5794f7c3…`，k2_frozen_at 2026-11-17T15:42:02+08:00）另绑。
 - **K2 附注：** NOTE_1（`4ecde74c…`，G-PARITY 记号）、NOTE_2（`900d38cc…`，实盘 T0 检查算入同一开盘的本卖出回笼，封顶），都按 sha256 绑定。
 - **结果裁定：** 封存结果页 `c13e03fa…` 与 ★R1 裁定页 `28bf76ca…`（Owner「R1 选 b」）。作为同题另一封存文件（ALSO）绑定。
-- **门的裁定页：** `R_XM_1_IMPORT_GATES_RULING_1`（协调会话 ★IMP1 = (a)，2026-11-17）。G-TRIAL PRE、G-MECH、G-CAUSAL 三处偏差都出自这一页，按 sha256 绑定。
+- **门的裁定页：** `R_XM_1_IMPORT_GATES_RULING_1.md`（`46861c5b…`；协调会话 ★IMP1 = (a)，2026-11-17T20:15:00+08:00 冻结；草稿 `09ecea27…` 只读保留）。G-TRIAL PRE、G-MECH、G-CAUSAL 三处偏差都出自这一页，按 sha256 绑定。
 
 ## 1. 加入登记表的两题
 

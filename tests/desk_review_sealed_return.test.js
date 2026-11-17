@@ -13,7 +13,7 @@ const sealed = require('../services/desk-review-routing/sealed');
 const overseas = require('../services/overseas-sealed-verdicts');
 const ashare = require('../services/ashare-sealed-verdicts');
 /** R-XM-1 门的裁定页（R_XM_1_IMPORT_GATES_RULING_1，协调会话冻结）的 sha256。 */
-const RXM1_RULING_SHA = '09ecea27d21fccc63a5c22b621c64763926b4bdd83159ae5833d0bc3355efa9a';
+const RXM1_RULING_SHA = '46861c5be29a6d95d3789f444bb2190b1e12f81334d0b73f726fd9544b6b74bf';
 const { validateRecord } = require('../schemas');
 const schema = require('./_json_schema');
 
@@ -362,7 +362,7 @@ test('A 股修订 6：R-XM-1 两题从封存 JSON 的 rows.RXM1_M / rows.RXM1_B 
     const rulings = [entry.trial_gates_ruling.spec, entry.mechanism_ruling.spec, entry.causality_ruling.spec].map(pick);
     assert.deepEqual(rulings[1], rulings[0]);
     assert.deepEqual(rulings[2], rulings[0]);
-    assert.equal(rulings[0].sha256, RXM1_RULING_SHA);
+    assert.deepEqual(rulings[0], C('R_XM_1_IMPORT_GATES_RULING_1.md', RXM1_RULING_SHA));
     assert.deepEqual(entry.trial_gates_ruling.pre, { status: 'DEVIATION_ACCEPTED', codes: ['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN'],
       preregistered_at: '2026-11-17T07:48:36.403Z', first_run_at: '2026-11-17T07:54:06.728Z' });
     assert.equal(entry.trial_gates_ruling.disclosure_not_applicable, undefined, 'DSR 照算法算出（OVD-95fd157215597f79、OVD-02f289abe66f0225），不用披露不适用的裁定');
