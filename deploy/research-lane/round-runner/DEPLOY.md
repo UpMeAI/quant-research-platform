@@ -122,20 +122,20 @@ run.sh resume <round_id>
 
 The GP continues deterministically from the ledger. After `selection.json` exists, generation for that round is closed.
 
-### Window pause (ruling ★RF1116_GENERATE_WINDOW (a))
+### Window pause (rulings ★RF1116_GENERATE_WINDOW (a) and ★RF1116_SCORE_PAUSE (a))
 
-Generation yields to V6 production on the lane. A kayla user timer runs a script every minute, Monday to Friday (CST):
-- it `docker pause`s a running `rf1116-generate-*` or `rf1116-resume` container inside 06:30–08:00 (the ruling), 09:15–15:30 (the trading session) and 18:10–20:45 (the post-close chain), the V6 windows listed under "Limits and timing";
+Generation and scoring yield to V6 production on the lane, which carries V6 production from 2026-11-23. A kayla user timer runs a script every minute, Monday to Friday (CST):
+- it `docker pause`s a running `rf1116-generate-*`, `rf1116-resume`, `rf1116-score` or `rf1116-rescore` container inside 06:30–08:00 (the ruling), 09:15–15:30 (the trading session) and 18:10–20:45 (the post-close chain), the V6 windows listed under "Limits and timing";
 - it `docker unpause`s it outside them;
 - each action is appended to `ops/window-pause.log`.
 
-It touches no other container: `mechanisms`, `review` and `score` are not paused. Generation has no wall-clock limits (the only clock read in `round-runner/index.js` is a timestamp), so a pause only delays it: the same seed gives the same trials, and only the timestamps move.
+It touches no other container. `rf1116-mechanisms` and `rf1116-review` are not paused: they take 1 CPU / 2 GB and finish quickly. The runner has no wall-clock limits (the only clock read in `round-runner/index.js` is a timestamp), so a pause only delays a phase: the same seed gives the same trials, a paused `score` scores the same selection, and only the timestamps move. A pause is not a crash: a paused `score` stays one open of the holdout, and `rescore` (R1.8) is not involved.
 
-The installed files are byte-identical to the copies in this directory (sha256 read on the lane 2026-11-18):
+The copies in this directory are what gets installed; after an install, the lane files must have these sha256. `rf1116-window-pause.sh` was `a887f774…` until ★RF1116_SCORE_PAUSE (a) added `rf1116-score` and `rf1116-rescore`; the two units are unchanged (sha256 first read on the lane 2026-11-18):
 
 | file in this directory | installed at | sha256 |
 |---|---|---|
-| `rf1116-window-pause.sh` | `/srv/research-lane/rf1116-mining/ops/rf1116-window-pause.sh` | `a887f774460f9a30be440019a72c228b77750aaec164e14243dd9a8f85cb576c` |
+| `rf1116-window-pause.sh` | `/srv/research-lane/rf1116-mining/ops/rf1116-window-pause.sh` | `4541bdee579422490961e746015c19340c4eedf247e6aa2f04903882cf652d0e` |
 | `rf1116-window-pause.service` | `~kayla/.config/systemd/user/rf1116-window-pause.service` | `641ca7f630bd50a8f66709f8450c9dc905af1a95597077ed484fd75d6eeba268` |
 | `rf1116-window-pause.timer` | `~kayla/.config/systemd/user/rf1116-window-pause.timer` | `4b32a7567cdeb8ff4bba977521067cc868ad94607c140884c463eaf007028c90` |
 
@@ -145,7 +145,10 @@ Install, or re-install after a change:
 install -m 0755 deploy/research-lane/round-runner/rf1116-window-pause.sh /srv/research-lane/rf1116-mining/ops/
 install -m 0644 deploy/research-lane/round-runner/rf1116-window-pause.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload && systemctl --user enable --now rf1116-window-pause.timer
+sha256sum /srv/research-lane/rf1116-mining/ops/rf1116-window-pause.sh ~/.config/systemd/user/rf1116-window-pause.{service,timer}   # must match the table
 ```
+
+`tests/rf1116_window_pause.test.js` runs the script with stub `date` and `docker`. It checks which containers are paused, the window edges, weekends, and that this table holds the files' sha256.
 
 The windows use weekdays only. On an exchange holiday the script still pauses in the windows, which costs time but nothing else.
 
