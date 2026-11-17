@@ -394,6 +394,14 @@ test('门的裁定：形状不对 → MECHANISM_RULING_INVALID（没有偏差、
   assert.throws(() => run(ruledFx({ rulingPatch: { line4_text: '无' } })), /MECHANISM_RULING_INVALID/);
   assert.throws(() => run(ruledFx({ deviations: [NOT_IN_K2], line4: '无', rulingPatch: { line4_text: '无' } })), /MECHANISM_RULING_INVALID/);
   assert.throws(() => run(ruledFx({ rulingPatch: { spec: { sha256: 'nope' } } })), /MECHANISM_RULING_INVALID/);
+  // 审阅 #119 FIX-1：形状是 { spec, deviations[], line4_text? }，多出或不认得的键一律拒绝（不能借 status: 'PASS' 之类改写锁里的读数）
+  for (const extra of [{ status: 'PASS' }, { state: 'PASS' }, { disclosure_not_applicable: ['dsr', 'pbo'] }, { pre: {} }, { note: 'x' }]) {
+    assert.throws(() => run(ruledFx({ rulingPatch: extra })), /MECHANISM_RULING_INVALID/, JSON.stringify(extra));
+  }
+  // 真登记表的 CN-RXM1-M 加一个 status 键：形状检查先于读页，直接拒绝
+  const realM = ashare.ENTRIES.find((e) => e.id === 'CN-RXM1-M');
+  assert.throws(() => gate.internals.rulingOf({ ...realM, mechanism_ruling: { ...realM.mechanism_ruling, status: 'PASS' } }, () => null), /MECHANISM_RULING_INVALID/);
+  assert.throws(() => gate.internals.rulingOf(realM, () => null), /MECHANISM_RULING_FILE_MISSING/, '原样的登记形状通过形状检查');
   const early = ruledFx();
   early.entry.k2_frozen_at = '2026-11-16T11:00:00+08:00';
   assert.throws(() => run(early), /MECHANISM_RULING_ON_UNGATED_ENTRY/);

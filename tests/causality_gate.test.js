@@ -301,6 +301,13 @@ test('门的裁定读范围：页的字节缺失、页上缺字或写的是别�
   assert.throws(() => direct(scopeRuled({ page: scopePage('ABLATION') })), /CAUSALITY_RULING_TEXT_DOES_NOT_STATE/);
   assert.throws(() => direct({ ...scopeRuled(), k2Text: k2Of(['G-CAUSAL N/A: ABLATION']) }), /CAUSALITY_RULING_FACT_NOT_HOLD/);
   assert.throws(() => direct({ ...scopeRuled(), k2Text: K2_DEFAULT }), /CAUSALITY_RULING_FACT_NOT_HOLD/);
+  // 审阅 #119 FIX-2：K2 里有不合规范的「G-CAUSAL N/A」写法（全角冒号、括号、小写、全角斜杠、换行）时，declaration() 读不出码，
+  // 但 K2 确实写了范围，裁定不能把它读成另一个码 → 一律 RULING_FACT_NOT_HOLD
+  for (const line of ['G-CAUSAL N/A：ABLATION', 'G-CAUSAL N/A（账户层）', 'g-causal n/a: ablation', 'G-CAUSAL N／A: ABLATION', 'G-CAUSAL\nN/A ABLATION', 'G-CAUSALN/A', '**G-CAUSAL N/A**：消融']) {
+    assert.throws(() => direct({ ...scopeRuled(), k2Text: k2Of([`- ${line}`]) }), /CAUSALITY_RULING_FACT_NOT_HOLD/, line);
+  }
+  // 只提到「CF」两个字母、没有反引号的说明（R-XM-1 K2 头部「- CF: 停放决定……」那种知道时刻说明）不算范围声明，照样按裁定读
+  assert.equal(direct({ ...scopeRuled(), k2Text: k2Of(['- CF: 停放决定只用 t−1 已出的计划']) }).state, 'DEVIATION_ACCEPTED');
   assert.throws(() => direct(scopeRuled({ code: 'LOOKS_FINE' })), /CAUSALITY_RULING_SCOPE_CODE_INVALID/);
   assert.throws(() => direct(scopeRuled({ rulingPatch: { deviations: [{ function_id: FN, test: 't_c1' }] } })), /CAUSALITY_RULING_INVALID/);
   assert.throws(() => direct({ ...scopeRuled(), doc: undefined }), /CAUSALITY_SCOPE_CONFLICT/);
