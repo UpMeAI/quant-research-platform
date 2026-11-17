@@ -460,6 +460,7 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
   need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
+  need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
   const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir });
   if (!p.selRow.selected.length) { writeJson(path.join(p.dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
   const c = p.checked;
@@ -485,6 +486,7 @@ function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', score
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
   need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
+  need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
   need(r.status === 'SCORING', 'ROUND_NOT_SCORING', `${roundId}:${r.status}`);
   const [open] = vault.openLog(roundId);
   need(open, 'ROUND_NOT_OPENED', roundId);

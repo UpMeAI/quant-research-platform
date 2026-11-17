@@ -6,6 +6,7 @@
 #   run.sh review   <round_id> <verdicts.json>    R1.5: the coordinator's review (MECHANISM_REVIEW_V1); score refuses without it
 #   run.sh score    <round_id>                    steps 6-9 (check holdout dir, open vault once, score, G-MINE records, close)
 #   run.sh rescore  <round_id> <reason> <crash.log>  R1.8: exactly one same-selection rescore after a crash past the open
+#   run.sh fail-evaluation <round_id> <reason> <evidence_sha256>  ★RF1116_ROUND1_STATE (a): close a round that was never evaluated (holdout never opened)
 # Both phases: --network none, read-only root fs, all capabilities dropped, no new privileges, uid 1000, CPU/memory/pid limits,
 # data mounts read-only, exactly one writable mount (/out). The holdout directory is mounted only by "score".
 set -euo pipefail
@@ -30,7 +31,7 @@ abs_file() {
   printf '%s' "$p"
 }
 
-cmd="${1:?generate|resume|mechanisms|review|score|rescore}"
+cmd="${1:?generate|resume|mechanisms|review|score|rescore|fail-evaluation}"
 case "$cmd" in
   generate)
     seed="${2:?gp_seed}"; sums="${3:?sha256 of the holdout SHA256SUMS at seal time}"
@@ -52,9 +53,13 @@ case "$cmd" in
     round="${2:?round_id}"; reason="${3:?crash reason}"; crashlog="$(abs_file "${4:?crash log file}")"
     docker run --rm --name "rf1116-rescore" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" -v "$crashlog:/data/crash.log:ro" -v "$OUT:/out:rw" "$IMAGE" rescore --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series --reason "$reason" --crash-log /data/crash.log
     ;;
+  fail-evaluation)
+    round="${2:?round_id}"; reason="${3:?reason}"; evidence="${4:?evidence sha256}"
+    docker run --rm --name "rf1116-fail-evaluation" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" "$IMAGE" fail-evaluation --out /out --round "$round" --reason "$reason" --evidence-sha256 "$evidence"
+    ;;
   score)
     round="${2:?round_id}"
     docker run --rm --name "rf1116-score" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" -v "$OUT:/out:rw" "$IMAGE" score --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series
     ;;
-  *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | resume <round_id> | mechanisms <round_id> [file] | review <round_id> <verdicts.json> | score <round_id> | rescore <round_id> <reason> <crash.log>" >&2; exit 64 ;;
+  *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | resume <round_id> | mechanisms <round_id> [file] | review <round_id> <verdicts.json> | score <round_id> | rescore <round_id> <reason> <crash.log> | fail-evaluation <round_id> <reason> <evidence_sha256>" >&2; exit 64 ;;
 esac

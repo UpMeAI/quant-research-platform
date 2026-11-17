@@ -397,7 +397,7 @@ test('隔离（§4 第 7 条）：执行器启动即 lockdown，写输出目录�
   assert.deepEqual(fs.readdirSync(outside), []);
   const src = fs.readFileSync(CLI, 'utf8');
   const main = src.slice(src.indexOf('function main'));
-  assert.equal(main.split('runner.start(').length - 1, 4, 'generate, mechanisms, review (R1.5) and score all lock down first');
+  assert.equal(main.split('runner.start(').length - 1, 5, 'generate, mechanisms, review (R1.5), fail-evaluation (★RF1116_ROUND1_STATE) and score all lock down first');
   assert.ok(main.indexOf('runner.start(') < main.indexOf('runner.generate(') && main.lastIndexOf('runner.start(') < main.indexOf('runner.scoreHoldout('));
   assert.ok(main.lastIndexOf('runner.start(') > main.indexOf('runner.select('), 'the score branch has its own start');
 });
@@ -419,7 +419,7 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   for (const k of ['.git', 'var', 'tests']) assert.ok(ignore.includes(k), k);
   const sh = fs.readFileSync(path.join(dir, 'run.sh'), 'utf8');
   const runs = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
-  assert.equal(runs.length, 6); // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score
+  assert.equal(runs.length, 7); // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score、fail-evaluation（★RF1116_ROUND1_STATE (a)）
   for (const l of runs) {
     for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 1000:1000', '-e QRP_DATA_DIR=/out/qrp-data']) assert.ok(l.includes(flag), `${flag} in ${l.slice(0, 60)}`);
     assert.match(l, /--cpus \d+ /); assert.match(l, /--memory \d+g /); assert.match(l, /--memory-swap \d+g /); assert.match(l, /--pids-limit \d+ /);
