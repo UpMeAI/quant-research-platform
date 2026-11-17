@@ -304,6 +304,9 @@ test('R1.5 机制登记 + R1.3 / R1.4 / R1.6 进 G-MINE 记录：留出段开启
   }
   const recs = new Map(gateRecords.recordsOf(id).map((x) => [x.candidate_id, x]));
   assert.ok(!recs.get(first).codes.includes('MINE_MECHANISM_UNKNOWN'));
+  assert.ok(!recs.get(first).codes.includes('MINE_MECHANISM_AFTER_HOLDOUT'), 'registered before the open (R1.5 rev 4)');
+  assert.equal(res.get(first).mechanism.registered_at, mechanisms.mechanismOf(id, first).registered_at);
+  assert.equal(res.get(first).holdout.opened_at, vault.openLog(id)[0].opened_at, 'item 9 compares with the open, not the scoring time');
   for (const other of rest) assert.ok(recs.get(other).codes.includes('MINE_MECHANISM_UNKNOWN'));
   // R1.3：DSR 在验证折上（≥ 24 个月），不再是 UNKNOWN
   for (const x of score.results) {
@@ -358,7 +361,7 @@ test('命令行与容器：mechanisms 一步（不挂数据、不挂留出段、
   assert.ok(score.every((l) => l.includes('$FACTOR_SERIES:/data/factor-series:ro') && l.includes('--factor-series /data/factor-series')));
   assert.ok(require('../services/mining-sandbox/round-runner/cli').OPTIONS.mechanisms.includes('register'));
   const contract = fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_SANDBOX_V1.md'), 'utf8') + fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_ROUNDS_V1.md'), 'utf8');
-  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'R1.8', 'R1.9', 'R1.10', 'R1.11', '5f0d0328']) assert.ok(contract.includes(k), k);
+  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'R1.8', 'R1.9', 'R1.10', 'R1.11', 'R1.12', 'FAILED_PARTIAL', '705e2e6a']) assert.ok(contract.includes(k), k);
   const rescoreLine = runs.filter((l) => / rescore /.test(l));
   assert.equal(rescoreLine.length, 1, 'run.sh rescore (R1.8)');
   assert.ok(rescoreLine[0].includes('-v "$HOLDOUT:/data/holdout:ro"') && rescoreLine[0].includes(':/data/crash.log:ro') && rescoreLine[0].includes('--network none'));
@@ -405,8 +408,11 @@ test('R1.8：留出段开启之后崩溃，恰好一次同选集重打分；记�
   const b = rescoreRound();
   assert.throws(() => runner.internals.withFault('AFTER_FIRST_RECORD', () => runner.scoreHoldout(b.args)), code(/MINE_RUNNER_TEST_FAULT/));
   assert.equal(gateRecords.recordsOf(b.r.round_id).length, 1);
-  assert.throws(() => runner.rescore({ ...b.args, reason: 'crash', log: 'x' }), code(/MINE_HOLDOUT_RESCORE_RECORDS_EXIST/));
+  assert.throws(() => runner.rescore({ ...b.args, reason: 'crash', log: 'x' }), code(/MINE_RUNNER_RESCORE_RECORDS_EXIST/));
   assert.equal(vault.rescoreLog(b.r.round_id).length, 0);
+  assert.equal(rounds.roundHead(b.r.round_id).status, 'FAILED_PARTIAL', 'R1.12 (rev 4): any record written means FAILED_PARTIAL, never a rescore');
+  assert.throws(() => vault.recordRescore({ round_id: b.r.round_id, reason: 'r', log: '', inputs_sha256: vault.openLog(b.r.round_id)[0].inputs_sha256, rescoredBy: 'TEST' }),
+    code(/MINE_HOLDOUT_RESCORE_NOT_SCORING/), 'the vault refuses too');
 
   // 选择记录变了、或封存的清单变了 → 拒绝
   const c = rescoreRound();
@@ -455,5 +461,174 @@ test('续跑（--resume）用的覆盖下限也写进台账（轮次行的 data_
   assert.deepEqual(head.data_checks.resumes[0].min_names_per_day, { value: 5, default: 2000, overridden: true });
   assert.ok(/T.*Z$/.test(head.data_checks.resumes[0].at));
   assert.deepEqual(head.data_checks.coverage_floor, { min_names_per_day: 2000, default: 2000, overridden: false }, 'the open-time record is kept');
+  process.env.QRP_DATA_DIR = dataRoot;
+});
+
+// ---------- 裁定 R1 修订 4（705e2e6a…，#115 审阅之后）：R1.5、R1.6 的本意写明，R1.12 新增 ----------
+const spaceOf = (tag, n) => ({ space_ref: `MS-${tag}-${n}`, sha256: sha(`${tag}-space-${n}`), freeze: { path: `f-${tag}-${n}`, sha256: sha(`${tag}-freeze-${n}`) } });
+const openOn = (tag) => (n, at, holdout = H1) => rounds.openRound({ market: 'CN_A', space: spaceOf(tag, n), holding_periods: [5], generator: GP, holdout, openedAt: at, ...R1 });
+const H2 = Object.freeze({ from: '2027-01-04', to: '2027-03-31' });
+const H3 = Object.freeze({ from: '2027-04-01', to: '2027-06-30' });
+const oneCandidate = (r, k = 5) => rounds.recordCandidate(r.round_id, { candidate_id: `${r.round_id}:A00${k}`, formula_canonical: `rank(ts_mean(pb,${k}))`,
+  formula_sha256: sha(`rank(ts_mean(pb,${k}))`), holding_period: 5, mining_score: 0.01 }, { registeredBy: AUTH });
+const beijing = (ms) => new Date(ms + 8 * 3600e3).toISOString().replace(/\.\d+Z$/, '+08:00');
+
+test('R1.6（修订 4）：同一段留出段只在第一次开启之前可以由 2 个只生成的轮次共用；任何一轮开启过，这个市场这一段不再开新轮；没开启就关的轮不算开启', () => {
+  freshData();
+  const open = openOn('r16b');
+  const a = open(1, '2026-11-17T04:00:00Z');
+  oneCandidate(a);
+  vault.seal({ round_id: a.round_id, segment: H1, data_ref: 'synthetic', data_sha256: sha('h'), sealedBy: 'TEST' });
+  vault.open({ round_id: a.round_id, candidate_ids: [`${a.round_id}:A005`], openedBy: 'TEST' });
+  assert.equal(rounds.roundHead(a.round_id).status, 'SCORING');
+  // 复审的情形：A 在 SCORING，B 开在同一段上
+  assert.throws(() => open(2, '2026-11-18T04:00:00Z'), code(/MINE_ROUND_HOLDOUT_SEGMENT_OPENED:CN_A:2026-10-19\.\.2026-12-31/));
+  assert.equal(rounds.roundsOf('CN_A').length, 1, 'nothing written');
+  // 早于 R1.6 的轮次行没有 holdout_opens：留出段保管的开启记录照样算开启
+  const ledger = require('../packages/ledger');
+  const { record_hash: _old, ...legacy } = { ...rounds.roundHead(a.round_id), holdout_opens: null };
+  ledger.append(rounds.LEDGER(), { ...legacy, record_hash: trials.recordHash(legacy) });
+  assert.equal(rounds.roundHead(a.round_id).holdout_opens, null);
+  assert.throws(() => open(2, '2026-11-18T04:00:00Z'), code(/MINE_ROUND_HOLDOUT_SEGMENT_OPENED/), 'the vault open row counts without holdout_opens');
+  // 开过的段在关轮之后照样不能再用
+  gateRecords.internals.withGate(() => ({ pass: false, codes: ['SYNTHETIC'], items: [] }), () => gateRecords.recordGateResult({ round_id: a.round_id, candidate_id: `${a.round_id}:A005`, candidate: {} }));
+  rounds.closeRound(a.round_id);
+  assert.throws(() => open(2, '2026-11-18T04:00:00Z'), code(/MINE_ROUND_HOLDOUT_SEGMENT_OPENED/));
+  // 新段照常
+  assert.equal(open(2, '2026-11-18T04:00:00Z', H2).status, 'OPEN');
+
+  // 对照：没开启留出段就关的轮，这一段还没被看过，第二轮可以共用
+  freshData();
+  const open2 = openOn('r16c');
+  const x = open2(1, '2026-11-17T04:00:00Z');
+  rounds.closeRound(x.round_id);
+  assert.deepEqual([rounds.roundHead(x.round_id).gmine_passes, vault.openLog(x.round_id).length], [0, 0]);
+  assert.equal(open2(2, '2026-11-18T04:00:00Z').holdout.from, H1.from);
+  // 开启之前共用同一段的两轮：先开的那一轮开启之后，另一轮照样开自己的那一次
+  freshData();
+  const open3 = openOn('r16d');
+  const p = open3(1, '2026-11-17T04:00:00Z'); const q = open3(2, '2026-11-18T04:00:00Z');
+  for (const r of [p, q]) { oneCandidate(r); vault.seal({ round_id: r.round_id, segment: H1, data_ref: 'synthetic', data_sha256: sha('h'), sealedBy: 'TEST' }); }
+  vault.open({ round_id: p.round_id, candidate_ids: [`${p.round_id}:A005`], openedBy: 'TEST' });
+  assert.equal(vault.open({ round_id: q.round_id, candidate_ids: [`${q.round_id}:A005`], openedBy: 'TEST' }).segment_open_index, 2);
+  process.env.QRP_DATA_DIR = dataRoot;
+});
+
+test('R1.5（修订 4）：机制的 written_at 不晚于登记时刻；打分时登记必须早于留出段开启，晚于开启的第 9 项不过（复审的情形：写成时刻比开启晚 4 分钟）', () => {
+  const out = freshData();
+  const { r, sel } = toSelection(out, { openedAt: '2026-11-24T02:00:00Z' });
+  const id = r.round_id; const [first, second] = sel.selected;
+  assert.ok(first && second, `need two survivors (${sel.selected.length})`);
+  const M = { mechanism_id: 'SEL.MEANREV.SWING_BAND', economic_logic_zh: '合成测试文本', failure_mode_zh: '合成测试文本' };
+  // 复审的情形：written_at 比现在（登记时刻）晚 4 分钟 → 登记就拒绝（以前容忍 5 分钟）
+  const later = beijing(Date.now() + 4 * 60e3);
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: first, ...M, written_at: later }, { writtenBy: AUTH }), code(/MINE_MECHANISM_WRITTEN_AT/));
+  const stamp = '2026-11-17T06:00:00.000Z';
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: first, ...M, written_at: '2026-11-17T14:00:01+08:00' }, { writtenBy: AUTH, registeredAt: stamp }), code(/MINE_MECHANISM_WRITTEN_AT/), 'one second late');
+  assert.equal(mechanisms.registerMechanism(id, { candidate_id: first, ...M, written_at: '2026-11-17T14:00:00+08:00' }, { writtenBy: AUTH, registeredAt: stamp }).registered_at, stamp, 'equal is allowed');
+  // 登记时刻在开启之后（台账里的 registered_at 晚于开启记录的 opened_at）→ 第 9 项不过
+  const future = Date.now() + 4 * 60e3;
+  mechanisms.registerMechanism(id, { candidate_id: second, ...M, written_at: beijing(future) }, { writtenBy: AUTH, registeredAt: new Date(future).toISOString() });
+  runner.scoreHoldout({ roundId: id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, scoredAt: '2027-01-06T10:00:00+08:00', holdoutFloor: COV });
+  const [open] = vault.openLog(id);
+  assert.ok(Date.parse(mechanisms.mechanismOf(id, second).registered_at) > Date.parse(open.opened_at));
+  const recs = new Map(gateRecords.recordsOf(id).map((x) => [x.candidate_id, x]));
+  const item9 = (cid) => recs.get(cid).items.find((i) => i.item === 9);
+  assert.equal(item9(second).pass, false);
+  assert.ok(recs.get(second).codes.includes('MINE_MECHANISM_AFTER_HOLDOUT'), recs.get(second).codes.join(','));
+  assert.ok(!recs.get(first).codes.includes('MINE_MECHANISM_AFTER_HOLDOUT'), 'registered before the open');
+  process.env.QRP_DATA_DIR = dataRoot;
+});
+
+/** 一轮走到 FAILED_RESCORE（只用 P1 的服务：选择记录 → 封存 → 开启 → 一次重打分事件 → 又崩）。 */
+function toFailedRescore(r) {
+  oneCandidate(r);
+  const sel = rounds.recordSelection(r.round_id, { selection_sha256: sha(`sel-${r.round_id}`), selected: [`${r.round_id}:A005`], evaluated: 1 });
+  vault.seal({ round_id: r.round_id, segment: r.holdout, data_ref: 'synthetic', data_sha256: sha('h'), sealedBy: 'TEST' });
+  vault.open({ round_id: r.round_id, candidate_ids: [`${r.round_id}:A005`], openedBy: 'TEST', selection_record_hash: sel.record_hash, inputs_sha256: sha('inputs') });
+  vault.recordRescore({ round_id: r.round_id, reason: 'crash 1', log: 'x', inputs_sha256: sha('inputs'), rescoredBy: 'TEST' });
+  return rounds.failRescore(r.round_id, { reason: 'crash 2' });
+}
+
+test('R1.8 的 FAILED_RESCORE：暂停规则把它当没过的已关轮；它不占开轮名额', () => {
+  freshData();
+  const open = openOn('r18p');
+  const r1 = open(1, '2026-11-17T04:00:00Z'); rounds.closeRound(r1.round_id);
+  const r2 = open(2, '2026-11-18T04:00:00Z'); rounds.closeRound(r2.round_id);
+  const r3 = open(3, '2026-12-01T04:00:00Z', H2); const r4 = open(4, '2026-12-02T04:00:00Z', H2);
+  assert.throws(() => open(9, '2027-01-04T04:00:00Z', H3), code(/MINE_ROUND_ALREADY_OPEN:CN_A:2/), 'r3 and r4 hold both slots');
+  assert.equal(rounds.pauseState('CN_A').paused, false, 'two failed rounds only');
+  assert.equal(toFailedRescore(r3).status, 'FAILED_RESCORE');
+  // 暂停：r1、r2、r3 连续 3 轮没过（r3 是 FAILED_RESCORE）
+  const pause = rounds.pauseState('CN_A');
+  assert.deepEqual([pause.paused, pause.failed_rounds], [true, [r1.round_id, r2.round_id, r3.round_id]]);
+  // 名额：r3 释放了，r4 仍占一个；用过的空间被暂停挡住，新空间可以开
+  assert.throws(() => open(3, '2027-01-04T04:00:00Z', H3), code(/MINE_MARKET_PAUSED/));
+  const r5 = open(5, '2027-01-04T04:00:00Z', H3);
+  assert.deepEqual([r5.status, r5.resumed_after_pause], ['OPEN', [r1.round_id, r2.round_id, r3.round_id]]);
+  process.env.QRP_DATA_DIR = dataRoot;
+});
+
+test('R1.12：写了一部分 G-MINE 记录之后崩溃 → 终态 FAILED_PARTIAL：0 个通过；已写的记录保留、标 VOID、不计数（暂停规则也不数）；尝试留在 N；释放开轮名额；留出段的开启照旧计数；只能从 SCORING 进入并写原因', () => {
+  const passAll = () => ({ pass: true, codes: [], items: gate.ITEMS.map((i) => ({ item: i.item, key: i.key, pass: true })) });
+  const b = rescoreRound(); const id = b.r.round_id;
+  assert.ok(b.sel.selected.length >= 2, `need a partial set (${b.sel.selected.length})`);
+  const n0 = rounds.familyN('CN_A', 5);
+  assert.throws(() => gateRecords.internals.withGate(passAll, () => runner.internals.withFault('AFTER_FIRST_RECORD', () => runner.scoreHoldout(b.args))), code(/MINE_RUNNER_TEST_FAULT/));
+  const [partial] = gateRecords.recordsOf(id);
+  assert.deepEqual([gateRecords.recordsOf(id).length, partial.pass], [1, true], 'one record written, and it passed');
+  // 只能从 SCORING、要写原因
+  assert.throws(() => rounds.failPartial(id, { reason: '' }), code(/MINE_ROUND_FAILED_PARTIAL_REASON/));
+  // 执行器：有记录 → 不重打分，以 FAILED_PARTIAL 关轮
+  const reason = 'container killed after the first G-MINE record (synthetic)';
+  assert.throws(() => runner.rescore({ ...b.args, reason, log: 'synthetic log' }), code(/MINE_RUNNER_RESCORE_RECORDS_EXIST/));
+  const head = rounds.roundHead(id);
+  assert.deepEqual([head.status, head.gmine_passes], ['FAILED_PARTIAL', 0]);
+  assert.deepEqual([head.gmine_basis.records, head.gmine_basis.record_hashes], [0, []]);
+  assert.deepEqual(head.gmine_basis.failed_partial, { reason, log_sha256: sha('synthetic log'), records_written: 1, candidates_opened: b.sel.selected.length,
+    void_record_hashes: [partial.record_hash], ruling: 'R1.12' });
+  assert.equal(vault.rescoreLog(id).length, 0, 'no rescore event');
+  // VOID：原行保留，另记 VOID；默认读法不返回，带 includeVoid 才看得到
+  assert.deepEqual(gateRecords.recordsOf(id), []);
+  assert.deepEqual(gateRecords.recordsOf(id, { includeVoid: true }).map((x) => [x.record_hash, x.pass]), [[partial.record_hash, true]]);
+  const [v] = gateRecords.voidsOf(id);
+  assert.deepEqual([v.schema, v.voided_record_hash, v.candidate_id, v.round_status, v.ruling], ['MINING_GATE_RECORD_VOID_V1', partial.record_hash, partial.candidate_id, 'FAILED_PARTIAL', 'R1.12']);
+  // 尝试留在 N；留出段的开启照旧计数
+  assert.equal(rounds.familyN('CN_A', 5), n0);
+  assert.deepEqual([vault.openLog(id).length, head.holdout_opens.count], [1, 1]);
+  // 终态：不能再打分、重打分、关轮、记 G-MINE
+  assert.throws(() => runner.rescore({ ...b.args, reason: 'again', log: 'x' }), code(/MINE_RUNNER_ROUND_FAILED_PARTIAL/));
+  assert.throws(() => runner.scoreHoldout(b.args), code(/MINE_RUNNER_ROUND_FAILED_PARTIAL/));
+  assert.throws(() => runner.close({ roundId: id }), code(/MINE_ROUND_NOT_OPEN/));
+  assert.throws(() => rounds.failPartial(id, { reason: 'again' }), code(/MINE_ROUND_NOT_SCORING/));
+  assert.throws(() => gateRecords.recordGateResult({ round_id: id, candidate_id: b.sel.selected[1], candidate: {} }), code(/MINE_GATE_RECORD_ROUND_NOT_SCORING/));
+  // 这一段已开启过：不再开新轮（R1.6 修订 4）；新段上两轮可以同时开（FAILED_PARTIAL 不占名额）
+  const open = openOn('r112');
+  assert.throws(() => open(1, '2026-11-25T04:00:00Z'), code(/MINE_ROUND_HOLDOUT_SEGMENT_OPENED/));
+  const r2 = open(2, '2026-12-01T04:00:00Z', H2);
+  assert.throws(() => rounds.failPartial(r2.round_id, { reason: 'x' }), code(/MINE_ROUND_NOT_SCORING/), 'only from SCORING');
+  const r3 = open(3, '2026-12-02T04:00:00Z', H2);
+  assert.deepEqual([r2.status, r3.status], ['OPEN', 'OPEN']);
+  // 暂停规则：FAILED_PARTIAL 按 0 个通过算，VOID 的通过记录不数
+  rounds.closeRound(r2.round_id); rounds.closeRound(r3.round_id);
+  const pause = rounds.pauseState('CN_A');
+  assert.deepEqual([pause.paused, pause.failed_rounds], [true, [id, r2.round_id, r3.round_id]]);
+
+  // 没写任何记录 → 走 R1.8 的重打分，不能 FAILED_PARTIAL；记录都写完了 → 正常关轮，也不能
+  const c = rescoreRound();
+  assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(c.args)), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.throws(() => rounds.failPartial(c.r.round_id, { reason: 'x' }), code(/MINE_ROUND_FAILED_PARTIAL_NO_RECORDS/));
+  const d = rescoreRound();
+  runner.scoreHoldout(d.args);
+  assert.throws(() => rounds.failPartial(d.r.round_id, { reason: 'x' }), code(/MINE_ROUND_FAILED_PARTIAL_COMPLETE/));
+  assert.equal(runner.close({ roundId: d.r.round_id }).status, 'CLOSED');
+  // 重打分时写了一条又崩（R1.8 第二次崩溃）→ FAILED_RESCORE；那一条同样标 VOID、不计数
+  const e = rescoreRound();
+  assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(e.args)), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.throws(() => gateRecords.internals.withGate(passAll, () => runner.internals.withFault('AFTER_FIRST_RECORD', () => runner.rescore({ ...e.args, reason: 'crash 1', log: 'x' }))), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.throws(() => runner.rescore({ ...e.args, reason: 'crash 2', log: 'y' }), code(/MINE_RUNNER_RESCORE_FAILED/));
+  const fr = rounds.roundHead(e.r.round_id);
+  assert.deepEqual([fr.status, fr.gmine_passes, gateRecords.recordsOf(e.r.round_id).length, gateRecords.voidsOf(e.r.round_id).length], ['FAILED_RESCORE', 0, 0, 1]);
+  assert.equal(fr.gmine_basis.failed_rescore.partial_records_ignored, 1);
   process.env.QRP_DATA_DIR = dataRoot;
 });

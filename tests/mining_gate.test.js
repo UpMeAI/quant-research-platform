@@ -51,13 +51,13 @@ function candidate() {
     candidate_id: 'R001-C017', factor_id: 'CN_A.MINED.R001_C017', market: 'CN_A', layer: 'SELECTION_CROSS_SECTION', origin: 'AI_MINED_GP',
     round_id: 'R001', family_id: 'CN_A.SELECTION_CROSS_SECTION.H20', horizon_trading_days: 20, status: 'CANDIDATE',
     overfit: { dsr: 0.97, n_trials: N_FAMILY, pbo: 0.31, pbo_scope: 'ROUND_CANDIDATE_SET' },
-    holdout: { scored_at: '2026-12-01T10:00:00+08:00', neutralization: { industry: 'APPLIED', size: 'APPLIED' }, ic_mean: 0.035, icir: 0.42, icir_non_overlapping: true, ic_double_horizon: 0.022,
+    holdout: { opened_at: '2026-12-01T01:30:00.000Z', scored_at: '2026-12-01T10:00:00+08:00', neutralization: { industry: 'APPLIED', size: 'APPLIED' }, ic_mean: 0.035, icir: 0.42, icir_non_overlapping: true, ic_double_horizon: 0.022,
       quintile_mean_returns: [-0.01, -0.002, 0.003, 0.008, 0.015] },
     net_of_cost: { long_only: true, top_fraction: 0.2, cost: { commission_bps: 2.5, slippage_bps: 10, stamp_duty_on_sell: true },
       benchmark: 'EQUAL_WEIGHT_UNIVERSE', annualized_excess: 0.031 },
     marginal: { book_factor_ids: gate.bookFactorIds(lib.LIBRARY, 'CN_A'), wfo_net_ir_delta: 0.05, intercept_t: 1.1 },
     correlation: { orthogonalised_against: [], pairs: sameMarket.map((f, i) => ({ factor_id: f.factor_id, rho_cross_section: 0.1 + i / 100, rho_returns: -0.2 })) },
-    mechanism: { mechanism_id: MECH_ID, economic_logic_zh: '合成：经济逻辑', failure_mode_zh: '合成：预期失效方式', written_at: '2026-11-30T09:00:00+08:00' },
+    mechanism: { mechanism_id: MECH_ID, economic_logic_zh: '合成：经济逻辑', failure_mode_zh: '合成：预期失效方式', written_at: '2026-11-30T09:00:00+08:00', registered_at: '2026-11-30T01:00:05.000Z' },
     verdict: { label: '合成结论', note: '门不改写这一块' },
   };
 }
@@ -144,7 +144,12 @@ const COUNTER = [
   ['CORRELATION', 'MINE_CORRELATION_UNKNOWN', (c) => { c.correlation.pairs.find((p) => p.factor_id === 'CN_A.QUALITY.STRUCTURAL_SCORE').rho_returns = 'UNKNOWN'; }], // R1.9：取比较集里的一个
   ['MECHANISM', 'MINE_MECHANISM_UNKNOWN', (c) => { c.mechanism.mechanism_id = 'SEL.NOPE.NOPE'; }],
   ['MECHANISM', 'MINE_MECHANISM_FIELDS', (c) => { c.mechanism.failure_mode_zh = ''; }],
-  ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { c.mechanism.written_at = '2026-12-01T10:00:01+08:00'; }],
+  // R1.5（修订 4）：written_at ≤ 登记时刻 < 留出段开启（不是打分时刻）
+  ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { c.mechanism.written_at = '2026-12-01T09:30:01+08:00'; c.mechanism.registered_at = '2026-12-01T01:30:01.000Z'; }],
+  ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { c.mechanism.registered_at = '2026-12-01T01:30:00.000Z'; }], // 登记与开启同一刻：不早于开启
+  ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { delete c.holdout.opened_at; }],
+  ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { delete c.mechanism.registered_at; }],
+  ['MECHANISM', 'MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION', (c) => { c.mechanism.written_at = '2026-11-30T09:04:00+08:00'; }], // 复审的情形：写成时刻晚于登记 4 分钟
 ];
 
 for (const [key, code, mutate] of COUNTER) {

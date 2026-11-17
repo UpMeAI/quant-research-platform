@@ -6,7 +6,8 @@
  * 过了验证折的每个候选（本轮选择记录 MINING_SELECTION_V1 里的编号），在留出段开启之前写一条：
  *   - mechanism_id 必须在仓库钉住的机制登记表里（services/research-mechanism-register，MINE_MECHANISM_ID_NOT_REGISTERED）；
  *   - 经济逻辑与预期失效方式都要写（MINE_MECHANISM_FIELDS）；写的是公式的经济逻辑，不是市场预测；
- *   - written_at 是北京时间（+08:00），不晚于登记时刻（MINE_MECHANISM_WRITTEN_AT）；registered_at 是系统时刻；
+ *   - written_at 是北京时间（+08:00），不晚于登记时刻（MINE_MECHANISM_WRITTEN_AT，修订 4：不容忍）；registered_at 是系统时刻；
+ *     打分时第 9 项要 written_at ≤ registered_at < 留出段开启的 opened_at（不是打分时刻），否则不过；
  *   - 过 G-MECH 的同机制去重：分诊查询（as_of = written_at）的路由是 NOT_DO_SETTLED → 拒绝（MINE_MECHANISM_NOT_DO_SETTLED）；
  *     路由、登记表 sha、引到的封存 sha 都写进这一行；本轮已有别的候选登记了同一个机制 → 写进 same_mechanism_in_round（披露，不拒）；
  *   - 每个候选只一条、只追加（MINE_MECHANISM_DUPLICATE）；留出段一开就不能再写（MINE_MECHANISM_AFTER_HOLDOUT_OPEN）；
@@ -53,7 +54,8 @@ function registerMechanism(roundId, m = {}, { writtenBy, registeredAt = null } =
   need(isText(m.economic_logic_zh) && isText(m.failure_mode_zh), 'MINE_MECHANISM_FIELDS', m.candidate_id);
   need(isText(writtenBy), 'MINE_MECHANISM_WRITTEN_BY_REQUIRED');
   const stamp = registeredAt || now();
-  need(BEIJING.test(m.written_at || '') && Date.parse(m.written_at) <= Date.parse(stamp) + 5 * 60e3, 'MINE_MECHANISM_WRITTEN_AT', String(m.written_at));
+  // 修订 4 写明：written_at 不得晚于登记时刻（不再容忍 5 分钟）；打分时 G-MINE 第 9 项再核登记早于留出段开启（门的 checkMechanism）
+  need(Number.isFinite(Date.parse(stamp)) && BEIJING.test(m.written_at || '') && Date.parse(m.written_at) <= Date.parse(stamp), 'MINE_MECHANISM_WRITTEN_AT', String(m.written_at));
   const table = mech.query({ mechanism_ids: [m.mechanism_id], market: MARKET_OF[r.market] || r.market }, { asOf: m.written_at });
   const route = routeOverride || table.route;
   need(route !== 'NOT_DO_SETTLED', 'MINE_MECHANISM_NOT_DO_SETTLED', `${m.mechanism_id}:${(table.cite_seal_sha256 || []).join(',')}`);

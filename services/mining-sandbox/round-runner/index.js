@@ -41,7 +41,7 @@ const FROZEN_INPUTS = Object.freeze({
   space_freeze: Object.freeze({ path: 'docs/freeze/MINING_SPACE_V1_CN_A_R1_FREEZE_1.md', sha256: '4ec642b9ae87e7cd69b1bd226cc8964647dcace26a1dec60c0124df23fd8af69' }),
   holdout_freeze: segs.FREEZE_PAGE,
   // 协调会话裁定 R1（2026-11-17）：每份清单的 rulings 引它；协调目录的路径写进清单，车道上核仓库副本
-  ruling_r1: Object.freeze({ path: 'docs/freeze/RF1116_RULING_R1_20261117.md', sha256: '5f0d03288f6522aa981fee285f5d936d074077d5d727f0866a90a8e3378048d2',
+  ruling_r1: Object.freeze({ path: 'docs/freeze/RF1116_RULING_R1_20261117.md', sha256: '705e2e6aa9a741f94e09f708579ed0270b5220b227081d485e8f4515c8978e36',
     coordinator_path: 'artifacts/coordinator/RF1116_RULING_R1_20261117.md' }),
 });
 
@@ -378,13 +378,13 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
 }
 
 /** 开启之后：建留出段面板、只经 holdout-scoring 打分、逐候选记录 G-MINE（第一次与重打分一样）。 */
-function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenIndex, rescored = false }) {
+function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenIndex, openedAt, rescored = false }) {
   const f = loadFrozenSpace();
   const panel = adapter.buildPanel({ sources: [...sources, p.checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
   const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace) })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation: p.validation,
-      familySharpes: p.familySharpes, mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex });
+      familySharpes: p.familySharpes, mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt });
   const records = results.map((res, k) => { const rec = gateRecords.recordGateResult({ round_id: roundId, candidate_id: res.candidate_id, candidate: res }); if (k === 0) faultAt('AFTER_FIRST_RECORD'); return rec; });
   const c = p.checked;
   writeJson(path.join(p.dir, rescored ? 'score.rescore.json' : 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: true, rescored, selection_record_hash: p.selRow.record_hash,
@@ -403,13 +403,15 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
+  need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
   const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir });
   if (!p.selRow.selected.length) { writeJson(path.join(p.dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
   const c = p.checked;
   const opened = vault.open({ round_id: roundId, candidate_ids: [...p.selRow.selected], openedBy: RUNNER_ID, selection_record_hash: p.selRow.record_hash, inputs_sha256: p.inputs_sha256,
     checks: { ...floorRecord(holdoutFloor, HOLDOUT_FLOOR), holdout_dir: { open_days: c.open_days, calendar_to: c.calendar_to, rows_per_day: c.rows_per_day } } });
   faultAt('AFTER_OPEN');
-  const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: opened.candidate_ids, segmentOpenIndex: opened.segment_open_index });
+  const [openRec] = vault.openLog(roundId); // 第 9 项按开启记录的 opened_at 核机制登记（修订 4）
+  const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: opened.candidate_ids, segmentOpenIndex: opened.segment_open_index, openedAt: openRec.opened_at });
   return { opened: true, records };
 }
 
@@ -418,12 +420,15 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
  *   轮次在 SCORING、没有记过重打分 → 重做开启之前的全部核对（同样的输入，inputs_sha256 要等于开启时的）→ holdout-vault.recordRescore（第二个事件：原因 + 日志；
  *     它核选集行逐字节没变、第一次没写 G-MINE 记录、只许一次）→ 用同一份选集打分、记录。
  *   已经记过一次重打分、轮次还在 SCORING（重打分又崩了）→ 以 FAILED_RESCORE 关轮（不算记录，尝试照旧计入 N），拒绝（MINE_RUNNER_RESCORE_FAILED）；
- *   之后任何打分或重打分 → MINE_RUNNER_ROUND_FAILED_RESCORE。
+ *   没有重打分事件、但第一次已经写了 G-MINE 记录（至少一条、没写完）→ 裁定 R1.12：以 FAILED_PARTIAL 关轮（0 个通过，记录标 VOID，尝试留在 N，
+ *     释放名额，留出段开启照旧计数），拒绝（MINE_RUNNER_RESCORE_RECORDS_EXIST）；
+ *   之后任何打分或重打分 → MINE_RUNNER_ROUND_FAILED_RESCORE / MINE_RUNNER_ROUND_FAILED_PARTIAL。
  */
 function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null }) {
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
+  need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
   need(r.status === 'SCORING', 'ROUND_NOT_SCORING', `${roundId}:${r.status}`);
   const [open] = vault.openLog(roundId);
   need(open, 'ROUND_NOT_OPENED', roundId);
@@ -432,10 +437,15 @@ function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', score
     rounds.failRescore(roundId, { reason, logSha256: sha256(String(log || '')) });
     fail('RESCORE_FAILED', `${roundId}: second crash, closed as FAILED_RESCORE`);
   }
+  const written = gateRecords.recordsOf(roundId).length;
+  if (written) {
+    rounds.failPartial(roundId, { reason, logSha256: sha256(String(log || '')) });
+    fail('RESCORE_RECORDS_EXIST', `${roundId}: ${written} G-MINE record(s) written before the crash, closed as FAILED_PARTIAL (R1.12)`);
+  }
   const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir });
   vault.recordRescore({ round_id: roundId, reason, log, inputs_sha256: p.inputs_sha256, rescoredBy: RUNNER_ID });
   faultAt('AFTER_RESCORE_EVENT');
-  const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: open.candidate_ids, segmentOpenIndex: open.segment_open_index, rescored: true });
+  const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: open.candidate_ids, segmentOpenIndex: open.segment_open_index, openedAt: open.opened_at, rescored: true });
   return { rescored: true, records };
 }
 

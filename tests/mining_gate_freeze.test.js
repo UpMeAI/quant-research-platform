@@ -87,7 +87,7 @@ const FROZEN_COPIES = Object.freeze({
   'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json': '0d3556fa97f17d3a67b350e7f74c12fb521ca1fb60c293121601f7eb95f96637',
   'docs/freeze/RF1116_HOLDOUT_CN_A_R1_FREEZE_1.md': '0fefcd244e85d68504fbb20b761043c1f001965f005c29106740250e2e24a14b',
   // 协调会话裁定 R1（2026-11-17）：P2 六条执行裁定；每份 MINING_ROUND_V1 清单的 rulings 引它，openRound 核这份副本
-  'docs/freeze/RF1116_RULING_R1_20261117.md': '5f0d03288f6522aa981fee285f5d936d074077d5d727f0866a90a8e3378048d2', // 修订 3（R1.7 更正、R1.9–R1.11）
+  'docs/freeze/RF1116_RULING_R1_20261117.md': '705e2e6aa9a741f94e09f708579ed0270b5220b227081d485e8f4515c8978e36', // 修订 4（R1.5、R1.6 本意写明，R1.12）
 });
 test('守卫：仓库里五份冻结页副本的 sha256 等于签发的（门槛页、空间冻结页、空间 JSON、留出段冻结页、裁定 R1）；docs/freeze/ 里没有别的文件', () => {
   for (const [p, want] of Object.entries(FROZEN_COPIES)) assert.equal(sha(fs.readFileSync(path.join(ROOT, p))), want, p);

@@ -146,7 +146,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 
 If any check fails it refuses, and the single open is not spent.
 
-**Recovery after a crash past the open (R1.8, ruling `d80ce988…`).** If the score container dies after `holdout-vault.open` but before the last G-MINE record, the round stays in `SCORING`, and `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
+**Recovery after a crash past the open (R1.8 and R1.12, ruling R1 revision 4 `705e2e6a…`).** If the score container dies after `holdout-vault.open` but before the last G-MINE record, the round stays in `SCORING`, and `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
 
 Exactly one rescore of the same selection is allowed:
 
@@ -162,7 +162,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
   Otherwise it is refused: `MINE_HOLDOUT_RESCORE_SELECTION_CHANGED`, `…_INPUTS_CHANGED` or `…_RECORDS_EXIST`.
 - **What it records.** The rescore is the vault's second event (`HOLDOUT_RESCORE_V1`: the reason, the log's sha256 and its first 4,000 characters). Then the same candidates are scored and the round is closed.
 - **If the rescore itself crashes,** the next `rescore` closes the round as **`FAILED_RESCORE`**. No G-MINE record counts, but the attempts stay in N. After that, any further attempt is refused.
-- **A crash after the first record** cannot be rescored. It needs the coordinator.
+- **A crash after the first record** cannot be rescored (ruling R1.12, revision 4). The same `rescore` command closes the round as **`FAILED_PARTIAL`** with the reason and the log's sha256 (`MINE_RUNNER_RESCORE_RECORDS_EXIST`): 0 passes, the written G-MINE records kept and marked VOID, the attempts in N, the open-round slot released, the holdout open still counted (no new round on that segment). After that, any further attempt is refused.
 
 **After the checks** it does the following:
 - opens the vault once;

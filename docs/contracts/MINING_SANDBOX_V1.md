@@ -237,7 +237,7 @@ Any failure refuses without spending the single open. A second open gives `MINE_
   - the mechanism registrations.
 - **The vault event.** The vault then records the second event, which requires everything unchanged and no G-MINE record, and the same candidates are scored.
 - **A second crash** closes the round as `FAILED_RESCORE` on the next call (`MINE_RUNNER_RESCORE_FAILED`). Afterwards everything is refused (`MINE_RUNNER_ROUND_FAILED_RESCORE`).
-- **A crash after the first record** cannot be rescored (`MINE_HOLDOUT_RESCORE_RECORDS_EXIST`).
+- **A crash after the first record (R1.12, revision 4).** `rescore` does not rescore it: with any record written and no rescore event, it closes the round as `FAILED_PARTIAL` with the given reason and log sha256 (`MINE_RUNNER_RESCORE_RECORDS_EXIST`). The written records are kept and marked VOID, the round counts 0 passes, its attempts stay in N, its slot is released and its holdout open stays counted. Afterwards everything is refused (`MINE_RUNNER_ROUND_FAILED_PARTIAL`).
 
 **Holdout scoring** (`holdout-scoring.js`; the runner is its only caller)
 - **Scoring days.** Decision days are inside the holdout, and so are the labels.
@@ -254,7 +254,7 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **Mechanism** is `null`, because GP registers none.
 - **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
 
-## Coordinator ruling R1 in the runner (2026-11-17, revision 3 `5f0d0328…`: R1.7 corrected, R1.9–R1.11 added)
+## Coordinator ruling R1 in the runner (2026-11-17, revision 4 `705e2e6a…`: R1.5 and R1.6 intent stated, R1.12 added; revision 3 `5f0d0328…` corrected R1.7 and added R1.9–R1.11)
 
 - **R1.1.** Every attempt is a trial row (see "Round runner").
 - **R1.2.** `requestRound` writes `rulings` (the R1 page, verified against `docs/freeze/RF1116_RULING_R1_20261117.md`) and `selection_rule` = `selector.RULE` into the manifest. `selector.RULE` is FROZEN by R1.2, written as data. `select` reads the rule from the round row, never from the constant.
@@ -274,7 +274,7 @@ Any failure refuses without spending the single open. A second open gives `MINE_
   - **Duplicated regressors.** Exactly duplicated regressor series are dropped from the item-7 OLS and listed in `marginal.collinear_dropped`. In V6, #6 (the stock's unit score) and #12 (the unit score) have the same values, so #12 is dropped.
   - **R1.11.** The series come from V6's live window only.
 - **R1.5.** `run.sh mechanisms <round_id> [registrations.jsonl]` (CLI `mechanisms`) lists the survivors (ids from the selection row, formulas from the trial rows) with their registration state, and registers a JSONL file.
-  - Before the open, `scoreHoldout` attaches each candidate's registration (`mechanism`: id, texts, `written_at`, `registration_hash`).
+  - Before the open, `scoreHoldout` attaches each candidate's registration (`mechanism`: id, texts, `written_at`, `registered_at`, `registration_hash`) and the open row's `opened_at` (`holdout.opened_at`). Item 9 requires the registration to predate the open (revision 4).
   - A candidate without one is still scored, with `mechanism: null` and `mechanism_reason: NO_MECHANISM_REGISTERED_BEFORE_OPEN`, and item 9 fails.
 - **R1.6.** The result carries `holdout.segment_open_index`.
 - **R1.7 Limits** (`price-limits.js`, copied from V6 83ab3af1).

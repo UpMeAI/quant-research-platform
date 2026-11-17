@@ -254,13 +254,14 @@ function scoreCandidate(parsed, panel, { holding_period: H }) {
  *   1 DSR（R1.3）：在前推验证折的月度配对差上算（validation：候选编号 → { monthly_d }，familySharpes：本轮各候选验证折的 ŜR），N = 本族累计尝试数；
  *   2 PBO：本轮候选集上的 CSCV（留出段的逐日超额）；
  *   7、8（R1.4）：libraryComparison（给了现有因子序列才算得出）；
- *   9（R1.5）：mechanisms：候选编号 → 开启之前写的机制登记；没有的 mechanism null，写 mechanism_reason；
+ *   9（R1.5）：mechanisms：候选编号 → 开启之前写的机制登记；没有的 mechanism null，写 mechanism_reason；登记时刻（registered_at）与
+ *     留出段开启时刻（holdout.opened_at = 开启记录的 opened_at）一并交给门，门核登记早于开启（修订 4）；
  *   R1.6：segmentOpenIndex = 这段留出段在本族里第几次被开。
  * @param {Array<{candidate_id, parsed, formula}>} candidates
  * @returns {Array<object>} 与 candidates 同序
  */
 function roundResults(candidates, panel, { holding_period: H, market, familyTrialCount, scoredAt, validation = new Map(), familySharpes = [], mechanisms = new Map(),
-  factorSeries = null, segmentOpenIndex = null }) {
+  factorSeries = null, segmentOpenIndex = null, openedAt = null }) {
   if (!Number.isInteger(familyTrialCount) || familyTrialCount < 1) fail('FAMILY_N_UNKNOWN', familyTrialCount);
   const scored = candidates.map((c) => ({ c, s: scoreCandidate(c.parsed, panel, { holding_period: H }) }));
   const dayKeys = scored.map(({ s }) => new Map(s.series.daily_excess.map((x) => [x.t, x.excess])));
@@ -275,13 +276,14 @@ function roundResults(candidates, panel, { holding_period: H, market, familyTria
     const m = mechanisms.get(c.candidate_id) || null;
     return {
       schema: 'MINED_CANDIDATE_RESULT_V1', candidate_id: c.candidate_id, factor_id: c.candidate_id, market, formula: c.formula, generator: 'AI_MINED_GP',
-      holdout: { ...s.holdout, scored_at: scoredAt, segment_open_index: segmentOpenIndex },
+      holdout: { ...s.holdout, opened_at: openedAt, scored_at: scoredAt, segment_open_index: segmentOpenIndex },
       net_of_cost: s.net_of_cost,
       overfit: { dsr: dsr.dsr, dsr_segment: dsr.segment, dsr_t_months: dsr.t_months, n_trials: familyTrialCount, pbo: isNum(pbo.value) ? pbo.value : pbo, pbo_scope: 'ROUND_CANDIDATE_SET',
         pbo_rows: R.length, pbo_candidates: candidates.length },
       marginal: cmp.marginal,
       correlation: cmp.correlation,
-      mechanism: m ? { mechanism_id: m.mechanism_id, economic_logic_zh: m.economic_logic_zh, failure_mode_zh: m.failure_mode_zh, written_at: m.written_at, registration_hash: m.record_hash } : null,
+      mechanism: m ? { mechanism_id: m.mechanism_id, economic_logic_zh: m.economic_logic_zh, failure_mode_zh: m.failure_mode_zh, written_at: m.written_at,
+        registered_at: m.registered_at, registration_hash: m.record_hash } : null,
       mechanism_reason: m ? null : 'NO_MECHANISM_REGISTERED_BEFORE_OPEN',
     };
   });

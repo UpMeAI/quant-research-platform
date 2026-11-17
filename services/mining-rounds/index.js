@@ -12,6 +12,7 @@
  *   记候选：每个算过分的候选写一行试验台账（role MINED_CANDIDATE，stage SIGNAL，族 MINE:<市场>:H<持有期>，计入 N，从不按轮清零）；
  *     第 201 个不算分、不入账，本轮停止（MINE_ROUND_CAP_REACHED，状态 CAP_REACHED，不补）。去重被拒的、正交化的版本照样各记一行。
  *   关轮：G-MINE 过了几个由逐候选的 G-MINE 记录数出来（./gate-records.js；不收调用方报的数），只给暂停规则用。
+ *   失败终态（裁定 R1.8、R1.12）：FAILED_RESCORE、FAILED_PARTIAL，都按 0 个通过、记录标 VOID、尝试留在 N、释放名额、留出段开启照旧计数。
  *   生成方能看到的（generatorView）：搜索空间、挖掘段分数、已试过的公式；看不到验证折、留出段、赛马、模拟盘的结果，也看不到 G-MINE 过没过。
  * 错误码 MINE_ROUND_* / MINE_MARKET_*；台账 research/mining_rounds.jsonl 与试验台账（只追加）。
  */
@@ -85,9 +86,16 @@ function write(body) {
   return append(LEDGER(), rec);
 }
 
+/**
+ * 终态：CLOSED；R1.8 重打分又崩的 FAILED_RESCORE；R1.12 写了一部分 G-MINE 记录之后崩的 FAILED_PARTIAL。
+ * 两个 FAILED_* 都按 0 个通过算（暂停规则把它们当「没过」的已关轮），都不占开轮名额，留出段的开启照旧计数。
+ */
+const TERMINAL = Object.freeze(['CLOSED', 'FAILED_RESCORE', 'FAILED_PARTIAL']);
+const FAILED_TERMINAL = Object.freeze(['FAILED_RESCORE', 'FAILED_PARTIAL']);
+
 /** 市场是否暂停：最近连续 3 个已关的轮都没有候选过 G-MINE。返回那几轮用过的空间 sha（解除要换一份新的）。 */
 function pauseState(market) {
-  const closed = roundsOf(market).filter((r) => r.status === 'CLOSED' || r.status === 'FAILED_RESCORE'); // R1.8：重打分失败的轮按「没过」算
+  const closed = roundsOf(market).filter((r) => TERMINAL.includes(r.status)); // R1.8 / R1.12：两种失败终态按「没过」算（gmine_passes 0）
   const tail = closed.slice(-LIMITS.pause_after_failed_rounds);
   const paused = tail.length === LIMITS.pause_after_failed_rounds && tail.every((r) => r.gmine_passes === 0);
   return { paused, failed_rounds: paused ? tail.map((r) => r.round_id) : [], spaces_used: paused ? [...new Set(tail.map((r) => r.space.sha256))] : [] };
@@ -116,15 +124,21 @@ function openRound(o = {}) {
   const openedAt = o.openedAt || now();
   const prior = roundsOf(o.market);
   // 留出段（R1.6）：一段最多给 rounds_per_holdout 轮用；要么沿用最新那一段（还没用满），要么换一段整段在以前各段之后的新段；
-  // 其余（重叠、往前挪）一律 MINE_ROUND_HOLDOUT_MOVED，用满了 MINE_ROUND_HOLDOUT_EXHAUSTED
+  // 其余（重叠、往前挪）一律 MINE_ROUND_HOLDOUT_MOVED，用满了 MINE_ROUND_HOLDOUT_EXHAUSTED。
+  // 修订 4 写明本意：共用只限这一段第一次被开启之前；这个市场里任何一轮开启过这一段（轮次行有 holdout_opens，或留出段保管有开启记录），
+  // 就不再在这一段上开新轮 → MINE_ROUND_HOLDOUT_SEGMENT_OPENED。没开启留出段就关的轮不算开启。
   if (prior.length) {
     const same = (h) => h.from === o.holdout.from && h.to === o.holdout.to;
     const latest = prior[prior.length - 1].holdout;
     const lastEnd = prior.reduce((m, r) => (r.holdout.to > m ? r.holdout.to : m), '');
-    if (same(latest)) need(prior.filter((r) => same(r.holdout)).length < LIMITS.rounds_per_holdout, 'MINE_ROUND_HOLDOUT_EXHAUSTED', `${latest.from}..${latest.to}`);
-    else need(o.holdout.from > lastEnd, 'MINE_ROUND_HOLDOUT_MOVED', `${o.holdout.from}..${o.holdout.to} vs ${latest.from}..${latest.to}`);
+    if (same(latest)) {
+      const sharing = prior.filter((r) => same(r.holdout));
+      need(sharing.length < LIMITS.rounds_per_holdout, 'MINE_ROUND_HOLDOUT_EXHAUSTED', `${latest.from}..${latest.to}`);
+      const vault = require('../holdout-vault');
+      need(!sharing.some((r) => r.holdout_opens || vault.openLog(r.round_id).length), 'MINE_ROUND_HOLDOUT_SEGMENT_OPENED', `${o.market}:${latest.from}..${latest.to}`);
+    } else need(o.holdout.from > lastEnd, 'MINE_ROUND_HOLDOUT_MOVED', `${o.holdout.from}..${o.holdout.to} vs ${latest.from}..${latest.to}`);
   }
-  const stillOpen = prior.filter((r) => r.status !== 'CLOSED' && r.status !== 'FAILED_RESCORE').length;
+  const stillOpen = prior.filter((r) => !TERMINAL.includes(r.status)).length;
   need(stillOpen < LIMITS.open_rounds_per_market, 'MINE_ROUND_ALREADY_OPEN', `${o.market}:${stillOpen}`);
   const month = monthCst(openedAt);
   need(prior.filter((r) => r.month === month).length < LIMITS.rounds_per_month, 'MINE_ROUND_MONTHLY_CAP', `${o.market}:${month}`);
@@ -245,10 +259,40 @@ function failRescore(roundId, { reason, logSha256 = null, failedAt = null } = {}
   const vault = require('../holdout-vault');
   const [open] = vault.openLog(roundId);
   need(open && vault.rescoreLog(roundId).length === 1, 'MINE_ROUND_FAILED_RESCORE_WITHOUT_RESCORE', roundId);
-  const partial = require('./gate-records').recordsOf(roundId).length;
-  return write({ ...r, status: 'FAILED_RESCORE', gmine_passes: 0,
+  const gateRecords = require('./gate-records');
+  const partial = gateRecords.recordsOf(roundId).length;
+  const row = write({ ...r, status: 'FAILED_RESCORE', gmine_passes: 0,
     gmine_basis: { holdout_open_hash: open.record_hash, records: 0, record_hashes: [], failed_rescore: { reason: String(reason || ''), log_sha256: logSha256, partial_records_ignored: partial } },
     closed_at: failedAt || now() });
+  // 重打分时写下的部分记录同样标 VOID（不计数；轮次行先写，读法对 FAILED_* 的轮本来就不返回记录）
+  gateRecords.voidRecords(roundId, { roundStatus: 'FAILED_RESCORE', reason: String(reason || ''), ruling: 'R1.8' });
+  return row;
+}
+
+/**
+ * 协调会话裁定 R1.12（修订 4）：留出段开启之后、已经写下一部分 G-MINE 记录（至少一条、没写完）时崩溃 → 以 FAILED_PARTIAL 关轮。
+ *   只能从 SCORING 进入，写明崩溃原因；本轮按 0 个通过计（gmine_basis 不收记录）；已写的记录保留原行，另记 VOID（./gate-records.js voidRecords），任何统计都不算；
+ *   本轮的尝试照旧在试验台账里、计入 N；释放开轮名额（终态）；留出段的开启照旧计数（开启记录与 holdout_opens 不动）。
+ *   一条记录都没写 → R1.8 的重打分（MINE_ROUND_FAILED_PARTIAL_NO_RECORDS）；全写完了 → 正常关轮（MINE_ROUND_FAILED_PARTIAL_COMPLETE）。
+ */
+function failPartial(roundId, { reason, logSha256 = null, failedAt = null } = {}) {
+  const r = roundHead(roundId);
+  need(r, 'MINE_ROUND_NOT_FOUND', roundId);
+  need(r.status === 'SCORING', 'MINE_ROUND_NOT_SCORING', `${roundId}:${r.status}`);
+  need(isText(reason), 'MINE_ROUND_FAILED_PARTIAL_REASON', roundId);
+  const [open] = require('../holdout-vault').openLog(roundId);
+  need(open, 'MINE_ROUND_FAILED_PARTIAL_NO_RECORDS', `${roundId}: holdout not opened`);
+  const gateRecords = require('./gate-records');
+  const written = gateRecords.recordsOf(roundId);
+  need(written.length > 0, 'MINE_ROUND_FAILED_PARTIAL_NO_RECORDS', `${roundId}: no G-MINE record written, R1.8 rescore applies`);
+  need(written.length < open.candidate_ids.length, 'MINE_ROUND_FAILED_PARTIAL_COMPLETE', `${roundId}: every G-MINE record is written, close the round`);
+  const row = write({ ...r, status: 'FAILED_PARTIAL', gmine_passes: 0,
+    gmine_basis: { holdout_open_hash: open.record_hash, records: 0, record_hashes: [],
+      failed_partial: { reason, log_sha256: logSha256, records_written: written.length, candidates_opened: open.candidate_ids.length,
+        void_record_hashes: written.map((x) => x.record_hash), ruling: 'R1.12' } },
+    closed_at: failedAt || now() });
+  gateRecords.voidRecords(roundId, { roundStatus: 'FAILED_PARTIAL', reason, ruling: 'R1.12' });
+  return row;
 }
 
 /** 续跑（--resume）时用过的数据核对（覆盖下限）也写进轮次行（data_checks.resumes，只追加）。 */
@@ -280,6 +324,6 @@ function generatorView(roundId) {
   });
 }
 
-module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf, beginScoring, closeRound,
-  failRescore, recordResumeCheck,
+module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, TERMINAL, FAILED_TERMINAL, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf,
+  beginScoring, closeRound, failRescore, failPartial, recordResumeCheck,
   roundHead, roundsOf, pauseState, familyN, generatorView, manifestSha };
