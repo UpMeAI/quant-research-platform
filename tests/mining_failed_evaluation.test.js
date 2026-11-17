@@ -129,3 +129,14 @@ test('命令行 fail-evaluation 与 run.sh：只挂 out/，同一套容器限制
   const deploy = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/DEPLOY.md'), 'utf8');
   assert.ok(deploy.includes(`run.sh fail-evaluation MR-CN_A-2026-11-e1ab63a27b`) && deploy.includes(EVIDENCE), 'DEPLOY.md has the exact command for round 1');
 });
+
+test('复审 L-7：有一个尝试算出了有限分数的轮不能记 FAILED_EVALUATION（那是被评估过的轮）', () => {
+  const out = freshData();
+  const r = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, cap: 2, openedAt: '2026-11-18T05:49:16+08:00' });
+  const stub = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: () => ['rank(pb)', 'sign(close_hfq)'] };
+  const g = runner.internals.withGenerator(stub, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: { min_names_per_day: 5 } }));
+  assert.deepEqual([g.attempts.scored, g.attempts.unscorable], [1, 1]);
+  const before = ledgerBytes();
+  assert.throws(() => rounds.failEvaluation(r.round_id, { reason: REASON, evidenceSha256: EVIDENCE }), code(/MINE_ROUND_FAILED_EVALUATION_HAS_SCORES:.*:1$/));
+  assert.equal(ledgerBytes(), before, 'nothing written');
+});
