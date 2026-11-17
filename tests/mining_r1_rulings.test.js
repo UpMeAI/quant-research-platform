@@ -361,7 +361,7 @@ test('命令行与容器：mechanisms 一步（不挂数据、不挂留出段、
   assert.ok(score.every((l) => l.includes('$FACTOR_SERIES:/data/factor-series:ro') && l.includes('--factor-series /data/factor-series')));
   assert.ok(require('../services/mining-sandbox/round-runner/cli').OPTIONS.mechanisms.includes('register'));
   const contract = fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_SANDBOX_V1.md'), 'utf8') + fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_ROUNDS_V1.md'), 'utf8');
-  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'R1.8', 'R1.9', 'R1.10', 'R1.11', 'R1.12', 'FAILED_PARTIAL', '705e2e6a']) assert.ok(contract.includes(k), k);
+  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'R1.8', 'R1.9', 'R1.10', 'R1.11', 'R1.12', 'R1.12a', 'FAILED_PARTIAL', 'f904e0fe']) assert.ok(contract.includes(k), k);
   const rescoreLine = runs.filter((l) => / rescore /.test(l));
   assert.equal(rescoreLine.length, 1, 'run.sh rescore (R1.8)');
   assert.ok(rescoreLine[0].includes('-v "$HOLDOUT:/data/holdout:ro"') && rescoreLine[0].includes(':/data/crash.log:ro') && rescoreLine[0].includes('--network none'));

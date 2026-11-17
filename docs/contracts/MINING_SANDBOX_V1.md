@@ -254,7 +254,7 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **Mechanism** is `null`, because GP registers none.
 - **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
 
-## Coordinator ruling R1 in the runner (2026-11-17, revision 4 `705e2e6a…`: R1.5 and R1.6 intent stated, R1.12 added; revision 3 `5f0d0328…` corrected R1.7 and added R1.9–R1.11)
+## Coordinator ruling R1 in the runner (2026-11-17, revision 5 `f904e0fe…`: R1.12a added; revision 4 `705e2e6a…` stated the R1.5 and R1.6 intent and added R1.12; revision 3 `5f0d0328…` corrected R1.7 and added R1.9–R1.11)
 
 - **R1.1.** Every attempt is a trial row (see "Round runner").
 - **R1.2.** `requestRound` writes `rulings` (the R1 page, verified against `docs/freeze/RF1116_RULING_R1_20261117.md`) and `selection_rule` = `selector.RULE` into the manifest. `selector.RULE` is FROZEN by R1.2, written as data. `select` reads the rule from the round row, never from the constant.

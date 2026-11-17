@@ -86,9 +86,9 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 
 ## Coordinator ruling R1 (2026-11-17)
 
-Source: `RF1116_RULING_R1_20261117.md`, revision 4, sha256 `705e2e6aa9a741f94e09f708579ed0270b5220b227081d485e8f4515c8978e36`. Revision 4 states the intent of R1.5 and R1.6 (no new rule) and adds R1.12. Revision 3 (`5f0d0328…`) corrected R1.7 and added R1.9–R1.11. Revisions 3, 2 (`d80ce988…`) and 1 (`ce254328…`) are kept in the coordinator folder.
+Source: `RF1116_RULING_R1_20261117.md`, revision 5, sha256 `f904e0feb3dc8e96a6e5b80e0ecc790f3cdca309b47fb88972c803f50a689d44`. Revision 5 adds R1.12a (behaviour unchanged). Revision 4 (`705e2e6a…`) stated the intent of R1.5 and R1.6 (no new rule) and added R1.12. Revision 3 (`5f0d0328…`) corrected R1.7 and added R1.9–R1.11. Revisions 4, 3, 2 (`d80ce988…`) and 1 (`ce254328…`) are kept in the coordinator folder.
 
-A byte copy of revision 4 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `705e2e6a…`.
+A byte copy of revision 5 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `f904e0fe…`.
 
 - **R1.1 Every attempt is a trial row.** Parse-refused and deduplicated attempts are written through `recordCandidate`, unscored. They count toward the round cap of 200 and toward the family's cumulative N (signed §3.3).
 - **R1.2 The selection rule lives in the manifest, and every manifest cites its rulings.**
@@ -131,6 +131,7 @@ A byte copy of revision 4 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and 
     - The open-round slot is released.
     - The holdout use stays counted: the open row and `holdout_opens` are kept, and R1.6 refuses new rounds on that segment.
   - **Pause rule.** It counts `FAILED_PARTIAL` as a failed round with 0 passes; VOID records, passing or not, are never counted.
+- **R1.12a (revision 5).** A rescore that writes records and then crashes closes as `FAILED_RESCORE`, not `FAILED_PARTIAL`. Every record of a failed round, including those its rescore wrote, is marked VOID and counted nowhere. This is the behaviour since revision 4's implementation.
 - **Resume record.** `recordResumeCheck` appends the floor used on a `--resume` run to the round row's `data_checks.resumes`.
 - **R1.9 The comparison set for G-MINE items 7–8.** Items 7–8 compare only against same-market `LIVE_IN_RULE` factors that cover the full stock cross-section.
   - **Single source:** `factor-library` `COMPARISON_EXCLUSIONS` / `comparisonFactorIds`.

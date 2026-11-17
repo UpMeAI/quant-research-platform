@@ -146,7 +146,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 
 If any check fails it refuses, and the single open is not spent.
 
-**Recovery after a crash past the open (R1.8 and R1.12, ruling R1 revision 4 `705e2e6a…`).** If the score container dies after `holdout-vault.open` but before the last G-MINE record, the round stays in `SCORING`, and `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
+**Recovery after a crash past the open (R1.8 and R1.12, ruling R1 revision 5 `f904e0fe…`).** If the score container dies after `holdout-vault.open` but before the last G-MINE record, the round stays in `SCORING`, and `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
 
 Exactly one rescore of the same selection is allowed:
 

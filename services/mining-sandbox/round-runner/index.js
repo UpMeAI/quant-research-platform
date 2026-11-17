@@ -41,7 +41,7 @@ const FROZEN_INPUTS = Object.freeze({
   space_freeze: Object.freeze({ path: 'docs/freeze/MINING_SPACE_V1_CN_A_R1_FREEZE_1.md', sha256: '4ec642b9ae87e7cd69b1bd226cc8964647dcace26a1dec60c0124df23fd8af69' }),
   holdout_freeze: segs.FREEZE_PAGE,
   // 协调会话裁定 R1（2026-11-17）：每份清单的 rulings 引它；协调目录的路径写进清单，车道上核仓库副本
-  ruling_r1: Object.freeze({ path: 'docs/freeze/RF1116_RULING_R1_20261117.md', sha256: '705e2e6aa9a741f94e09f708579ed0270b5220b227081d485e8f4515c8978e36',
+  ruling_r1: Object.freeze({ path: 'docs/freeze/RF1116_RULING_R1_20261117.md', sha256: 'f904e0feb3dc8e96a6e5b80e0ecc790f3cdca309b47fb88972c803f50a689d44',
     coordinator_path: 'artifacts/coordinator/RF1116_RULING_R1_20261117.md' }),
 });
 
