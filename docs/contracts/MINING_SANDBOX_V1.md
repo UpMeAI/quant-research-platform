@@ -187,8 +187,11 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
 - **Every attempt is one trial row,** written through `recordCandidate`, and counts toward the cap of 200 and toward N.
   - `PARSE_REFUSED`: the raw text, with the `MINE_DSL_*` code in `rule_config.refusal`, and no score.
   - `DEDUPED`: the canonical form was already tried in this market. No score.
-  - Both carry `rule_config.attempt` and `rule_config.attempt_id`, so each is a distinct rule config in N.
-  - Everything else is scored on the mining segment.
+  - `UNSCORABLE` (after round 1's defect, 2026-11-18): parsed and new, but its mining score is not a finite number (for example a constant formula). No score; `rule_config.ic_days` is kept.
+  - All three carry `rule_config.attempt` and `rule_config.attempt_id`, so each is a distinct rule config in N.
+  - Everything else is scored on the mining segment, with a finite score.
+  - `recordCandidate` is the front door and enforces this. A row without an attempt marker must have a finite `mining_score` (`MINE_ROUND_SCORE_NOT_FINITE`). A marked row must be one of the three, with a null score (`MINE_ROUND_ATTEMPT_UNKNOWN`, `MINE_ROUND_ATTEMPT_HAS_SCORE`).
+- **Canary (pre-open data check, with the coverage floor).** `(-close_hfq)` must be scorable through the candidates' neutralization path: on every scored day, ≥ the floor and ≥ 0.9 × coverage names have a finite neutralized value, and IC days are ≥ 0.95 × the scored days. It runs in the CLI before opening or resuming, and inside `generate()`. Otherwise `MINE_RUNNER_CANARY_UNSCORABLE`. See DEPLOY.md.
 - **Ids.** Candidate ids are `<round_id>:A<nnn>`.
 - **Audit log.** `attempts.jsonl` in the run directory lists every attempt.
 
