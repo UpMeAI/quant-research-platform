@@ -65,13 +65,14 @@ const itemOf = (result, key) => result.items.find((x) => x.key === key);
 
 // ── 常量来源与冻结状态 ────────────────────────────────────────────────────────
 
-test('DSR、PBO 的门槛读 overfit.js 的常量，不另抄；★e 门槛在一个块里，标 PENDING_FREEZE', () => {
+test('DSR、PBO 的门槛读 overfit.js 的常量，不另抄；★e 门槛在一个块里（★e 冻结 PR 起 FROZEN，冻结页见 mining_gate_freeze）', () => {
   assert.equal(gate.DSR_MIN, overfit.DSR_MIN);
   assert.equal(gate.PBO_MAX, overfit.PBO_MAX);
   const src = fs.readFileSync(path.join(ROOT, 'services', 'mining-gate', 'index.js'), 'utf8');
   assert.match(src, /require\('\.\.\/trial-ledger\/overfit'\)/);
   assert.doesNotMatch(src, /0\.95/);
-  assert.equal(gate.THRESHOLDS.state, 'PENDING_FREEZE');
+  assert.equal(gate.THRESHOLDS.state, 'FROZEN');
+  assert.equal(gate.THRESHOLDS.frozen_ref.path, 'docs/freeze/RF1116_GMINE_THRESHOLDS_FREEZE_1.md');
   assert.ok(Object.isFrozen(gate.THRESHOLDS));
   for (const k of ['ic_mean_min', 'icir_min', 'monotonicity_min', 'decay_ratio_min', 'marginal_ir_delta_min', 'marginal_intercept_t_min']) {
     assert.equal(typeof gate.THRESHOLDS[k], 'number', k);
@@ -84,19 +85,22 @@ test('DSR、PBO 的门槛读 overfit.js 的常量，不另抄；★e 门槛在�
   assert.equal(new Set(gate.ITEMS.map((i) => i.key)).size, 9);
 });
 
-test('冻结前失败即关：默认门槛下，连全过的样例也被拒（MINE_THRESHOLDS_UNFROZEN），不跑任何一项', () => {
+test('冻结前失败即关：没冻结的门槛块下，连全过的样例也被拒（MINE_THRESHOLDS_UNFROZEN），不跑任何一项；默认门槛（文件，FROZEN，冻结页已签发）照六个数判', () => {
   const c = candidate();
-  const r = gate.evaluate(c, ctx({ thresholds: undefined }));
+  const PENDING = { ...gate.THRESHOLDS, state: 'PENDING_FREEZE', frozen_ref: null }; // 文件转 FROZEN 之后，没冻结的情形用临时的 PENDING 副本测
+  const r = gate.evaluate(c, ctx({ thresholds: PENDING }));
   assert.equal(r.pass, false);
   assert.deepEqual(r.codes, ['MINE_THRESHOLDS_UNFROZEN']);
   assert.deepEqual(r.items, []);
   assert.equal(r.eligible_status, null);
-  assert.equal(gate.evaluate(c, ctx({ thresholds: gate.THRESHOLDS })).codes[0], 'MINE_THRESHOLDS_UNFROZEN');
+  // 默认读文件：FROZEN，冻结页是签发的 FREEZE_1（8a36e15b）→ 门槛块通过，九项照这六个数判
+  const d = gate.evaluate(c, ctx({ thresholds: undefined }));
+  assert.deepEqual([d.codes.some((x) => x.startsWith('MINE_THRESHOLDS_')), d.items.length], [false, 9]);
   // 写了 FROZEN 却没有冻结页 sha256、或某个数不是有限数：同样拒绝
   assert.equal(gate.evaluate(c, ctx({ thresholds: { ...FROZEN, frozen_ref: null } })).codes[0], 'MINE_THRESHOLDS_INVALID');
   assert.equal(gate.evaluate(c, ctx({ thresholds: { ...FROZEN, icir_min: '0.3' } })).codes[0], 'MINE_THRESHOLDS_INVALID');
   // 单项函数也不在冻结前判 ★e 项
-  assert.deepEqual(gate.checkIcIcir(c, ctx({ thresholds: gate.THRESHOLDS })).codes, ['MINE_THRESHOLDS_UNFROZEN']);
+  assert.deepEqual(gate.checkIcIcir(c, ctx({ thresholds: PENDING })).codes, ['MINE_THRESHOLDS_UNFROZEN']);
 });
 
 test('注入冻结门槛后全过：九项全过，可升 RESEARCH；结果对象一个字都不改（深冻结的输入也照跑）', () => {

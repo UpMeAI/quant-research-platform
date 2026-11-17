@@ -54,11 +54,44 @@ const numOf = (v) => (isObject(v) && 'value' in v ? v.value : v);
 const at = (o, key) => (isObject(o) ? o[key] : undefined);
 
 /** 门槛块是否已冻结且完整：state FROZEN、冻结页 path + sha256、六个数都是有限数。 */
-function thresholdState(t) {
+/**
+ * 冻结页核对（协调会话 2026-11-17：每台机器一样，不读协调目录）：frozen_ref.path 是仓库里 docs/freeze/ 下的冻结页副本，
+ * 要在、sha256 等于 frozen_ref.sha256、页里写着 FROZEN、六个数各在某一行里和它的键一起出现。返回 null（对）或原因。
+ */
+const REPO_ROOT = require('path').join(__dirname, '..', '..');
+let FREEZE_ROOT = REPO_ROOT;
+const FREEZE_DIR = 'docs/freeze/';
+function verifyFreezeRef(t) {
+  const fsx = require('fs'); const px = require('path');
+  const ref = isObject(t) ? t.frozen_ref : null;
+  if (!isObject(ref) || !isText(ref.path) || !SHA64.test(ref.sha256 || '')) return 'REF_SHAPE';
+  const norm = px.posix.normalize(ref.path);
+  if (norm !== ref.path || !norm.startsWith(FREEZE_DIR) || norm.includes('..') || px.isAbsolute(norm)) return 'PATH_INVALID';
+  const file = px.join(FREEZE_ROOT, norm);
+  if (!fsx.existsSync(file)) return 'PAGE_MISSING';
+  const bytes = fsx.readFileSync(file);
+  if (require('crypto').createHash('sha256').update(bytes).digest('hex') !== ref.sha256) return 'PAGE_SHA_MISMATCH';
+  const text = bytes.toString('utf8');
+  if (!/\bFROZEN\b/.test(text)) return 'PAGE_NOT_FROZEN';
+  const lines = text.split('\n');
+  for (const k of THRESHOLD_KEYS) {
+    const ok = lines.some((l) => new RegExp(`(^|[^A-Za-z0-9_])${k}([^A-Za-z0-9_]|$)`).test(l)
+      && (l.match(/-?\d+(?:\.\d+)?/g) || []).some((n) => Number(n) === t[k]));
+    if (!ok) return `PAGE_VALUE_MISSING:${k}`;
+  }
+  return null;
+}
+
+/**
+ * 门槛块的状态：没冻结 → MINE_THRESHOLDS_UNFROZEN；冻结但结构或数不对 → MINE_THRESHOLDS_INVALID；
+ * checkFreeze（门默认读文件时、逐候选记录）且冻结页核对不过 → MINE_THRESHOLDS_FREEZE_REF_INVALID。
+ */
+function thresholdState(t, { checkFreeze = false } = {}) {
   if (!isObject(t) || t.state !== FROZEN) return 'MINE_THRESHOLDS_UNFROZEN';
   const ref = t.frozen_ref;
   if (!isObject(ref) || !isText(ref.path) || !SHA64.test(ref.sha256 || '')) return 'MINE_THRESHOLDS_INVALID';
   if (!THRESHOLD_KEYS.every((k) => isNum(t[k]))) return 'MINE_THRESHOLDS_INVALID';
+  if (checkFreeze && verifyFreezeRef(t)) return 'MINE_THRESHOLDS_FREEZE_REF_INVALID';
   return null;
 }
 
@@ -229,12 +262,16 @@ const ITEMS = Object.freeze([
  */
 function evaluate(candidate, ctx = {}) {
   const thresholds = ctx.thresholds ?? THRESHOLDS;
+  // 默认读文件（权威）时总核冻结页；调用方自带门槛块（单元测试）时只在 ctx.checkFreeze 时核；逐候选记录总传 checkFreeze
+  const checkFreeze = ctx.thresholds === undefined || ctx.thresholds === null || ctx.checkFreeze === true;
+  const freezeCheck = checkFreeze && isObject(thresholds) && thresholds.state === FROZEN ? verifyFreezeRef(thresholds) : null;
   const head = {
     schema: 'MINING_GATE_RESULT_V1', candidate_id: at(candidate, 'candidate_id') ?? null, factor_id: at(candidate, 'factor_id') ?? null,
-    thresholds: { state: isObject(thresholds) ? thresholds.state ?? null : null, frozen_ref: isObject(thresholds) ? thresholds.frozen_ref ?? null : null },
+    thresholds: { state: isObject(thresholds) ? thresholds.state ?? null : null, frozen_ref: isObject(thresholds) ? thresholds.frozen_ref ?? null : null,
+      ...(freezeCheck ? { freeze_check: freezeCheck } : {}) },
     production_effect: 'NONE',
   };
-  const blocked = thresholdState(thresholds);
+  const blocked = thresholdState(thresholds, { checkFreeze });
   if (blocked) return Object.freeze({ ...head, pass: false, eligible_status: null, codes: [blocked], items: [] });
   if (!isObject(candidate)) return Object.freeze({ ...head, pass: false, eligible_status: null, codes: ['MINE_CANDIDATE_INVALID'], items: [] });
   const items = ITEMS.map(({ check }) => check(candidate, { ...ctx, thresholds }));
@@ -243,8 +280,12 @@ function evaluate(candidate, ctx = {}) {
   return Object.freeze({ ...head, pass, eligible_status: pass ? 'RESEARCH' : null, codes, items });
 }
 
+/** 只给测试用：临时把「仓库根」换成一个放了合成冻结页的目录，回调结束还原。 */
+function withFreezeRoot(root, cb) { const prior = FREEZE_ROOT; FREEZE_ROOT = root; try { return cb(); } finally { FREEZE_ROOT = prior; } }
+
 module.exports = {
-  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLD_KEYS, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
+  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLD_KEYS, FREEZE_DIR, verifyFreezeRef, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
   thresholdState, bookFactorIds, evaluate,
   checkDsr, checkPbo, checkIcIcir, checkMonotonicity, checkDecay, checkNetOfCost, checkMarginal, checkCorrelation, checkMechanism,
+  internals: { withFreezeRoot },
 };

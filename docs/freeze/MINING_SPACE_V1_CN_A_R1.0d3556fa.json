@@ -1,0 +1,127 @@
+{
+  "schema": "MINING_SPACE_V1",
+  "space_ref": "MINING_SPACE_V1:CN_A:R1:DRAFT_4",
+  "market": "CN_A",
+  "readings": [
+    {
+      "name": "close_hfq",
+      "dataset_id": "V6_CN_STOCK_DAILY_BARS",
+      "series": [
+        "daily",
+        "adj_factor"
+      ],
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock, registry 1.14.0; back-adjusted close = daily close x adj_factor; most conservative of daily (BAR_CLOSE, prices_daily.known_at 15:00) and adj_factor (dated at the close, usable from the next open)). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "open_hfq",
+      "dataset_id": "V6_CN_STOCK_DAILY_BARS",
+      "series": [
+        "daily",
+        "adj_factor"
+      ],
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock, registry 1.14.0; back-adjusted open). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "high_hfq",
+      "dataset_id": "V6_CN_STOCK_DAILY_BARS",
+      "series": [
+        "daily",
+        "adj_factor"
+      ],
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock, registry 1.14.0; back-adjusted high). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "low_hfq",
+      "dataset_id": "V6_CN_STOCK_DAILY_BARS",
+      "series": [
+        "daily",
+        "adj_factor"
+      ],
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock, registry 1.14.0; back-adjusted low). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "ret_1d",
+      "dataset_id": "V6_CN_STOCK_DAILY_BARS",
+      "series": "daily",
+      "pit_available_at": "BAR_CLOSE (pitHistoricalClock, registry 1.14.0; Tushare pct_chg on the ex-rights previous close; prices_daily.known_at = trade date 15:00 (migrations 186/187)). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "amount",
+      "dataset_id": "V6_CN_STOCK_DAILY_BARS",
+      "series": "daily",
+      "pit_available_at": "BAR_CLOSE (pitHistoricalClock, registry 1.14.0; turnover amount (CNY); prices_daily.known_at = trade date 15:00). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "turnover_f",
+      "dataset_id": "V6_CN_STOCK_DAILY_BASIC",
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock rule, registry 1.14.0; market_daily_basic_observation has no known_at column, migration 031). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "total_mv",
+      "dataset_id": "V6_CN_STOCK_DAILY_BASIC",
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock rule, registry 1.14.0; market_daily_basic_observation has no known_at column, migration 031). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "circ_mv",
+      "dataset_id": "V6_CN_STOCK_DAILY_BASIC",
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock rule, registry 1.14.0; market_daily_basic_observation has no known_at column, migration 031). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "pe_ttm",
+      "dataset_id": "V6_CN_STOCK_DAILY_BASIC",
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock rule, registry 1.14.0; market_daily_basic_observation has no known_at column, migration 031). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "pb",
+      "dataset_id": "V6_CN_STOCK_DAILY_BASIC",
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock rule, registry 1.14.0; market_daily_basic_observation has no known_at column, migration 031). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "ps_ttm",
+      "dataset_id": "V6_CN_STOCK_DAILY_BASIC",
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock rule, registry 1.14.0; market_daily_basic_observation has no known_at column, migration 031). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    },
+    {
+      "name": "dv_ttm",
+      "dataset_id": "V6_CN_STOCK_DAILY_BASIC",
+      "pit_available_at": "CLOSE_DATED_NEXT_OPEN_USABLE (pitHistoricalClock rule, registry 1.14.0; market_daily_basic_observation has no known_at column, migration 031). Next-open only: day-t rows feed only the decision executed at the t+1 open (RESEARCH_LIVE_PARITY_V1 P-14/P-15; live OBSERVED_AT rows count only if ingested by t+1 09:00 Asia/Shanghai)"
+    }
+  ],
+  "operators": [
+    "rank",
+    "zscore",
+    "neutralize_industry",
+    "neutralize_size",
+    "ts_mean",
+    "ts_std",
+    "ts_delta",
+    "ts_rank",
+    "ts_corr",
+    "sign",
+    "abs",
+    "log"
+  ],
+  "constants": [
+    0.5,
+    1,
+    2
+  ],
+  "lookbacks": [
+    1,
+    5,
+    10,
+    20,
+    60,
+    120,
+    250
+  ],
+  "holding_periods": [
+    5
+  ],
+  "max_tokens": 20,
+  "max_depth": 5,
+  "operator_evidence": {
+    "path": "docs/evidence/mining-operators-v1/CAUSALITY_EVIDENCE_V1.json",
+    "sha256": "fb9ed76db0f3bb39145ce2862d419e7ea0fe0c6fab177cb96ea6cda6688acc33"
+  }
+}

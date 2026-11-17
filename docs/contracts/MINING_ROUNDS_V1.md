@@ -33,6 +33,16 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
   - **What it uses instead:** N is taken from the trial ledger (`count(family).n_raw`) and segment marks from the trial ledger. The factor library and mechanism register are the repo's pinned copies, which are the gate's defaults.
   - **What it records:** the file's sha256 (`thresholds_file`), the six values plus state and `frozen_ref` (`thresholds_used`), and `family_trial_count`.
   - **While unfrozen:** while the file is `PENDING_FREEZE`, every record is `pass: false` (`MINE_THRESHOLDS_UNFROZEN`).
+  - **Once FROZEN** (★e freeze PR), the freeze page is checked from the repo itself, never from the coordinator directory.
+    - `frozen_ref.path` points to the in-repo copy of the freeze page, `docs/freeze/RF1116_GMINE_THRESHOLDS_FREEZE_1.md`. It must be byte-identical to the coordinator's issued page, which is named in `frozen_ref.coordinator_path`.
+    - G-MINE's default thresholds and every per-candidate record (`checkFreeze`) verify that the page exists under `docs/freeze/`, that its sha256 equals `frozen_ref.sha256`, and that it contains `FROZEN` and all six values. Otherwise the result is `MINE_THRESHOLDS_FREEZE_REF_INVALID`, with the reason in `thresholds.freeze_check` (`PATH_INVALID`, `PAGE_MISSING`, `PAGE_SHA_MISMATCH`, `PAGE_NOT_FROZEN` or `PAGE_VALUE_MISSING:<key>`).
+    - The check is deterministic on every machine, the research lane included.
+    - **Issued pages** (coordinator, 2026-11-17T10:57:06+08:00, after the Owner signed 「挖掘按推荐」). Byte copies live in `docs/freeze/`, and a guard test pins each one to its issued sha256:
+      - `RF1116_GMINE_THRESHOLDS_FREEZE_1.md` (`8a36e15b…`, the ★e page that `frozen_ref` points to);
+      - `MINING_SPACE_V1_CN_A_R1_FREEZE_1.md` (`4ec642b9…`) plus the frozen space `MINING_SPACE_V1_CN_A_R1.0d3556fa.json` (`0d3556fa…`, the DRAFT_4 bytes), which pass `space.verifyFreeze`;
+      - `RF1116_HOLDOUT_CN_A_R1_FREEZE_1.md` (`0fefcd24…`, holdout 2026-10-19 → 2026-12-31).
+
+      With these copies, the P2 runner and the holdout vault can verify on the research lane without the Mac's coordinator folder.
 - **Missing results block the close.** Any opened candidate without a record → `MINE_ROUND_GMINE_RESULT_MISSING`. A round closed without opening the holdout records 0.
 - **The pause rule counts only these records.**
 
