@@ -228,6 +228,7 @@ function checkCorrelation(c, ctx = {}) {
  * 9 机制：已登记、写了经济逻辑与失效方式、G-MECH 分诊不是 NOT_DO_SETTLED；时刻（协调会话裁定 R1.5，修订 4 705e2e6a）：
  *   机制登记（mechanism.registered_at）与写成时刻（written_at，北京时间）都早于留出段开启（holdout.opened_at，不是打分时刻），
  *   否则 MINE_MECHANISM_AFTER_HOLDOUT（缺任何一个时刻也是）；written_at 晚于登记时刻 → MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION。
+ *   协调会话复审（MECHANISM_REVIEW_V1，R1.5）：mechanism.review.verdict 是 REJECTED → MINE_MECHANISM_REJECTED；不是 APPROVED（没有裁决）→ MINE_MECHANISM_REVIEW_MISSING。
  */
 function checkMechanism(c, ctx = {}) {
   const m = at(c, 'mechanism'); const codes = [];
@@ -240,6 +241,9 @@ function checkMechanism(c, ctx = {}) {
   const wOk = BEIJING.test(written || ''); const rOk = isInstant(registered);
   if (!wOk || !rOk || !isInstant(opened) || !(Date.parse(registered) < Date.parse(opened)) || !(Date.parse(written) < Date.parse(opened))) codes.push('MINE_MECHANISM_AFTER_HOLDOUT');
   if (wOk && rOk && Date.parse(written) > Date.parse(registered)) codes.push('MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION');
+  const verdict = at(at(m, 'review'), 'verdict');
+  if (verdict === 'REJECTED') codes.push('MINE_MECHANISM_REJECTED');
+  else if (verdict !== 'APPROVED') codes.push('MINE_MECHANISM_REVIEW_MISSING');
   let route = null;
   if (BEIJING.test(scored || '')) {
     try {

@@ -86,9 +86,9 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 
 ## Coordinator ruling R1 (2026-11-17)
 
-Source: `RF1116_RULING_R1_20261117.md`, revision 4, sha256 `705e2e6aa9a741f94e09f708579ed0270b5220b227081d485e8f4515c8978e36`. Revision 4 states the intent of R1.5 and R1.6 (no new rule) and adds R1.12. Revision 3 (`5f0d0328…`) corrected R1.7 and added R1.9–R1.11. Revisions 3, 2 (`d80ce988…`) and 1 (`ce254328…`) are kept in the coordinator folder.
+Source: `RF1116_RULING_R1_20261117.md`, revision 5, sha256 `f904e0feb3dc8e96a6e5b80e0ecc790f3cdca309b47fb88972c803f50a689d44`. Revision 5 adds R1.12a (behaviour unchanged). Revision 4 (`705e2e6a…`) stated the intent of R1.5 and R1.6 (no new rule) and added R1.12. Revision 3 (`5f0d0328…`) corrected R1.7 and added R1.9–R1.11. Revisions 4, 3, 2 (`d80ce988…`) and 1 (`ce254328…`) are kept in the coordinator folder.
 
-A byte copy of revision 4 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `705e2e6a…`.
+A byte copy of revision 5 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `f904e0fe…`.
 
 - **R1.1 Every attempt is a trial row.** Parse-refused and deduplicated attempts are written through `recordCandidate`, unscored. They count toward the round cap of 200 and toward the family's cumulative N (signed §3.3).
 - **R1.2 The selection rule lives in the manifest, and every manifest cites its rulings.**
@@ -111,6 +111,13 @@ A byte copy of revision 4 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and 
   - **At scoring (revision 4).** G-MINE item 9 requires `written_at` ≤ `registered_at` < the vault open's `opened_at`, not the scoring time. The runner passes `holdout.opened_at` (from the open row) and `mechanism.registered_at`. A registration at or after the open, or a missing time, gives `MINE_MECHANISM_AFTER_HOLDOUT`; `written_at` after `registered_at` gives `MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION`.
   - **G-MECH.** The G-MECH triage route must not be `NOT_DO_SETTLED` (`…_NOT_DO_SETTLED`). The route and the register sha are stored, and other candidates of the round with the same mechanism are listed in `same_mechanism_in_round`.
   - **One per candidate,** append-only (`…_DUPLICATE`).
+  - **The coordinator's review (`MECHANISM_REVIEW_V1`, `research/mining_mechanism_reviews.jsonl`).** R1.5 says the coordinator reviews the mechanisms before scoring; this is now enforced in code.
+    - `mechanismSetSha(round_id)` is the sha256 of the canonical JSON of the round id, the selection row's hash and, for every selected candidate in id order, its registration's `record_hash` (or null).
+    - `recordReview(round_id, {mechanism_set_sha256, reviewer, verdicts: [{candidate_id, verdict, note?}]})` appends one row with the round id, the selection hash, the set sha and its items, a verdict per candidate (`APPROVED` or `REJECTED`), the reviewer (free text, not an identity check), `reviewed_at` (never in the future) and `recorded_at`.
+    - Refusals at write time: no selection row yet (`MINE_MECHANISM_REVIEW_NO_SELECTION`); the set sha differs from the current registrations (`MINE_MECHANISM_REVIEW_SET_CHANGED`); an unknown, unselected or repeated candidate, or a verdict other than the two (`…_INVALID`); `APPROVED` without a registration (`…_APPROVED_UNREGISTERED`); no reviewer (`…_REVIEWER_REQUIRED`); `reviewed_at` in the future or not an instant (`…_AT`); after the holdout opened (`…_AFTER_HOLDOUT_OPEN`).
+    - **Append-only, latest wins.** A second review of the same round is a new row whose `supersedes` names the previous one; `latestReview` returns the last row.
+    - **Scoring.** The runner refuses before the open unless the latest review exists (`MINE_RUNNER_MECHANISM_REVIEW_MISSING`), is unaltered (`…_HASH_MISMATCH`), has a verdict for every selected candidate (`…_INCOMPLETE`), matches the current selection and registrations (`…_STALE`) and predates the open (`…_AFTER_OPEN`; on a rescore, strictly before the open's `opened_at`). The review's hash is part of `inputs_sha256`.
+    - **Item 9.** `mechanism.review.verdict` `REJECTED` fails item 9 (`MINE_MECHANISM_REJECTED`); anything but `APPROVED` fails it (`MINE_MECHANISM_REVIEW_MISSING`). A rejected candidate is still scored and recorded.
 - **R1.8 Recovery after a crash past the open.**
   - **The rescore.** `holdout-vault.recordRescore` allows exactly one `RESCORE_SAME_SELECTION` per round (`MINE_HOLDOUT_RESCORE_ONCE`), as a second vault event (`HOLDOUT_RESCORE_V1`, `research/holdout_vault.jsonl`, with the reason and the log's sha256 and excerpt).
   - **Its conditions.**
@@ -131,6 +138,7 @@ A byte copy of revision 4 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and 
     - The open-round slot is released.
     - The holdout use stays counted: the open row and `holdout_opens` are kept, and R1.6 refuses new rounds on that segment.
   - **Pause rule.** It counts `FAILED_PARTIAL` as a failed round with 0 passes; VOID records, passing or not, are never counted.
+- **R1.12a (revision 5).** A rescore that writes records and then crashes closes as `FAILED_RESCORE`, not `FAILED_PARTIAL`. Every record of a failed round, including those its rescore wrote, is marked VOID and counted nowhere. This is the behaviour since revision 4's implementation.
 - **Resume record.** `recordResumeCheck` appends the floor used on a `--resume` run to the round row's `data_checks.resumes`.
 - **R1.9 The comparison set for G-MINE items 7–8.** Items 7–8 compare only against same-market `LIVE_IN_RULE` factors that cover the full stock cross-section.
   - **Single source:** `factor-library` `COMPARISON_EXCLUSIONS` / `comparisonFactorIds`.

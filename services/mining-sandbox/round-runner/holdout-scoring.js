@@ -255,13 +255,14 @@ function scoreCandidate(parsed, panel, { holding_period: H }) {
  *   2 PBO：本轮候选集上的 CSCV（留出段的逐日超额）；
  *   7、8（R1.4）：libraryComparison（给了现有因子序列才算得出）；
  *   9（R1.5）：mechanisms：候选编号 → 开启之前写的机制登记；没有的 mechanism null，写 mechanism_reason；登记时刻（registered_at）与
- *     留出段开启时刻（holdout.opened_at = 开启记录的 opened_at）一并交给门，门核登记早于开启（修订 4）；
+ *     留出段开启时刻（holdout.opened_at = 开启记录的 opened_at）一并交给门，门核登记早于开启（修订 4）；协调会话的复审裁决
+ *     （review：MECHANISM_REVIEW_V1 的 verdict、行 hash、reviewed_at）放进 mechanism.review，REJECTED 的第 9 项不过；
  *   R1.6：segmentOpenIndex = 这段留出段在本族里第几次被开。
  * @param {Array<{candidate_id, parsed, formula}>} candidates
  * @returns {Array<object>} 与 candidates 同序
  */
 function roundResults(candidates, panel, { holding_period: H, market, familyTrialCount, scoredAt, validation = new Map(), familySharpes = [], mechanisms = new Map(),
-  factorSeries = null, segmentOpenIndex = null, openedAt = null }) {
+  factorSeries = null, segmentOpenIndex = null, openedAt = null, review = null }) {
   if (!Number.isInteger(familyTrialCount) || familyTrialCount < 1) fail('FAMILY_N_UNKNOWN', familyTrialCount);
   const scored = candidates.map((c) => ({ c, s: scoreCandidate(c.parsed, panel, { holding_period: H }) }));
   const dayKeys = scored.map(({ s }) => new Map(s.series.daily_excess.map((x) => [x.t, x.excess])));
@@ -283,7 +284,8 @@ function roundResults(candidates, panel, { holding_period: H, market, familyTria
       marginal: cmp.marginal,
       correlation: cmp.correlation,
       mechanism: m ? { mechanism_id: m.mechanism_id, economic_logic_zh: m.economic_logic_zh, failure_mode_zh: m.failure_mode_zh, written_at: m.written_at,
-        registered_at: m.registered_at, registration_hash: m.record_hash } : null,
+        registered_at: m.registered_at, registration_hash: m.record_hash,
+        review: review && review.verdicts.has(c.candidate_id) ? { verdict: review.verdicts.get(c.candidate_id), review_hash: review.review_hash, reviewed_at: review.reviewed_at } : null } : null,
       mechanism_reason: m ? null : 'NO_MECHANISM_REGISTERED_BEFORE_OPEN',
     };
   });

@@ -254,7 +254,7 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **Mechanism** is `null`, because GP registers none.
 - **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
 
-## Coordinator ruling R1 in the runner (2026-11-17, revision 4 `705e2e6a…`: R1.5 and R1.6 intent stated, R1.12 added; revision 3 `5f0d0328…` corrected R1.7 and added R1.9–R1.11)
+## Coordinator ruling R1 in the runner (2026-11-17, revision 5 `f904e0fe…`: R1.12a added; revision 4 `705e2e6a…` stated the R1.5 and R1.6 intent and added R1.12; revision 3 `5f0d0328…` corrected R1.7 and added R1.9–R1.11)
 
 - **R1.1.** Every attempt is a trial row (see "Round runner").
 - **R1.2.** `requestRound` writes `rulings` (the R1 page, verified against `docs/freeze/RF1116_RULING_R1_20261117.md`) and `selection_rule` = `selector.RULE` into the manifest. `selector.RULE` is FROZEN by R1.2, written as data. `select` reads the rule from the round row, never from the constant.
@@ -276,6 +276,9 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **R1.5.** `run.sh mechanisms <round_id> [registrations.jsonl]` (CLI `mechanisms`) lists the survivors (ids from the selection row, formulas from the trial rows) with their registration state, and registers a JSONL file.
   - Before the open, `scoreHoldout` attaches each candidate's registration (`mechanism`: id, texts, `written_at`, `registered_at`, `registration_hash`) and the open row's `opened_at` (`holdout.opened_at`). Item 9 requires the registration to predate the open (revision 4).
   - A candidate without one is still scored, with `mechanism: null` and `mechanism_reason: NO_MECHANISM_REGISTERED_BEFORE_OPEN`, and item 9 fails.
+  - **The coordinator's review comes between `mechanisms` and `score`.** `run.sh review <round_id> <verdicts.json>` (CLI `review --out --round --file`) writes a `MECHANISM_REVIEW_V1` row; `mechanisms` prints the `mechanism_set_sha256` the file must carry and the latest review. Writing is refused before the selection exists (`MINE_MECHANISM_REVIEW_NO_SELECTION`) and for a `reviewed_at` in the future (`MINE_MECHANISM_REVIEW_AT`); `run.sh` resolves file arguments with `realpath -e` before mounting them.
+  - `prepareScoring` (first scoring and rescore) refuses before the open unless the latest review exists, is unaltered, covers every selected candidate, matches the current registrations and predates the open: `MINE_RUNNER_MECHANISM_REVIEW_MISSING`, `…_HASH_MISMATCH`, `…_INCOMPLETE`, `…_STALE`, `…_AFTER_OPEN`.
+  - Each result's `mechanism.review` carries the verdict, the review hash and `reviewed_at`; `score.json` carries `mechanism_review`. `REJECTED` fails item 9 (`MINE_MECHANISM_REJECTED`), and the candidate is still scored and recorded.
 - **R1.6.** The result carries `holdout.segment_open_index`.
 - **R1.7 Limits** (`price-limits.js`, copied from V6 83ab3af1).
   - **Bands.** `config/v6/market-rules/price_limit_history_v1.json:105–116`; anything but ST reads NORMAL (`price-limit-history.js:69–90`). Main board 10%. Main-board ST 5% until 2026-07-06, then 10%. ChiNext and STAR 20%.

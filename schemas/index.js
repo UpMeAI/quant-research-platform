@@ -374,7 +374,11 @@ const SCHEMAS = Object.freeze({
     _doc: '挖掘候选的机制登记（协调会话裁定 R1.5，ce254328）：过了验证折的候选在留出段开启之前写一条，只追加、每个候选一条；机制编号在钉住的机制登记表里、过 G-MECH 同机制去重（路由不是 NOT_DO_SETTLED）；G-MINE 第 9 项读它（services/mining-rounds/mechanisms.js）',
     round_id: 's', candidate_id: 's', mechanism_id: 's', economic_logic_zh: 's', failure_mode_zh: 's', written_at: 's', written_by: 's', registered_at: 's',
     selection_record_hash: 's', gmech: 'o', same_mechanism_in_round: 'a', record_hash: 's',
+  },  MECHANISM_REVIEW_V1: {
+    _doc: '协调会话对一轮机制登记的复审（裁定 R1.5「打分之前由协调会话复审这批机制」，修订 5 f904e0fe）：只追加，同一轮再复审是新的一行（supersedes），最新的算数；mechanism_set_sha256 = 选择记录 hash 与选择记录里每个候选（按编号排序）的机制登记行 hash（没登记 null）的规范 JSON 的 sha256；verdicts 每个候选 APPROVED / REJECTED；reviewer 是自由文本；执行器打分之前要每个选中的候选都有裁决、集合 sha 对得上、早于留出段开启；REJECTED 的照样打分，第 9 项不过（services/mining-rounds/mechanisms.js）',
+    round_id: 's', selection_record_hash: 's', mechanism_set_sha256: 's', items: 'a', verdicts: 'a', reviewer: 's', reviewed_at: 's', recorded_at: 's', supersedes: 's?', record_hash: 's',
   },
+
   MINING_GATE_RECORD_V1: {
     _doc: 'G-MINE 逐候选记录（RF1116 §3.6；协调会话 2026-11-17 裁定 3）：G-MINE 求值这条路写（services/mining-rounds/gate-records.js 调用门求值），每轮每个候选一行、只追加；挂本轮的试验台账行与留出段开启记录；过 = 门判 pass 且九项全过；门槛只读钉住的 config/mining_gate_thresholds.v1.json（不收调用方的），记下文件 sha256 与用到的数、本族 N；关轮从这些记录数「过了几个」',
     round_id: 's', candidate_id: 's', trial_id: 's', trial_record_hash: 's', holdout_open_hash: 's', gate_result_sha256: 's', thresholds_file: 'o', thresholds_used: 'o',

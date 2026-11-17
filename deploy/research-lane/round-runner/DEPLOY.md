@@ -16,7 +16,7 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 | path | contents | owner / mode | mount |
 |---|---|---|---|
 | `/srv/research-lane/rf1116-mining/code/` | QRP checkout at the reviewed merge commit (build context) | kayla, 0755 | not mounted (baked into the image) |
-| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928/` | the lane copy in export spec rev 2 CSV layout (see below). `HISTORY` source | kayla, dirs 0755 / files 0644 | `/data/lane:ro` |
+| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928/` | the lane copy, exported by the lane-copy spec `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` with its `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1_ERRATA_1.md` (see below). `HISTORY` source | kayla, dirs 0755 / files **0444** | `/data/lane:ro` |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-daily-20260929-20261016/` | validation tail export (spec §1, first directory), with `SHA256SUMS` and `EXPORT_MANIFEST.json`. `LIVE` source | kayla, 0755 / 0644 | `/data/tail:ro` |
 | `/srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019/` | holdout export (spec §1, second directory) plus `SHA256SUMS.sealed` | kayla, **0700** until hand-over | `/data/holdout:ro`, **`score` only** |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-live-factor-series/` | R1.4: the existing CN_A factor series in `FACTOR_SERIES_V1` (`factor_series.csv`, `unit_membership.csv`, `SHA256SUMS`), from the coordinator's registered export | kayla, 0755 / 0644 | `/data/factor-series:ro`, **`score` only**; if it is missing or unsigned, `score` refuses before the open |
@@ -26,7 +26,8 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 
 ### Lane copy layout
 
-- **Files and columns:** the same file names and columns as export spec **rev 3** §2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1.a24afab2.md`, which replaces rev 2):
+- **Spec:** the lane copy follows `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` as corrected by `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1_ERRATA_1.md`. The validation tail and the holdout follow export spec **rev 3** (`RF1116_CN_A_LANE_EXPORT_SPEC_V1.b523435d.md`, a note-only revision of `a24afab2`).
+- **Files and columns** (the same names and columns as export spec rev 3 §2, plus industry membership):
   - `prices_daily_stock.csv`
   - `market_daily_basic_observation_stock.csv`
   - `adjustment_factor_observation_stock.csv`
@@ -34,22 +35,39 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
   - `security_suspension_observation.csv`
   - `security_suspension_day_coverage.csv`
   - `trading_calendar.csv`
+  - `industry_membership_sw2021.csv`
 - **Dates:** trade dates 2020-06-01 → 2026-09-28.
-- **Calendar (rev 3 §2.2):** `trading_calendar.csv` comes from `canonical_calendar_observation`.
-  - It holds one row per (date, exchange) for **both SSE and SZSE**, with `market` = `A_SHARE` and the exchange in `exchange`, covering 2019-06-01 → 2026-12-31.
-  - The same file is in every directory (lane copy, validation tail, holdout).
-  - The runner takes open days from SSE rows only and lists any SSE/SZSE disagreement in the panel manifest.
+- **Calendar:** `trading_calendar.csv` comes from `canonical_calendar_observation`, with `market` = `A_SHARE` and the exchange in `exchange`, covering 2019-06-01 → 2026-12-31.
+  - **The lane copy's calendar is SSE-only.** The BASE database holds one SSE row per calendar day (2,771 rows) and no SZSE rows. The coordinator's ruling ★RF1116_CAL_MIN (a) amends the calendar minimum to match. The export manifest records `SPEC_DEVIATION calendar_min_rows` and `CALENDAR_SZSE_ABSENT`.
+  - The validation tail and the holdout come from the live database under export spec rev 3 and carry both SSE and SZSE rows.
+  - **Nothing requires SZSE rows.** The runner takes open days from SSE rows only (`data-adapter/index.js:212–229`; the holdout check reads READY SSE rows). Where SZSE rows exist, any SSE/SZSE disagreement is listed in the panel manifest; where they do not, there is nothing to list. A test pins that an SSE-only calendar reads the same open days.
   - Starting at 2019-06-01 is what makes the 120-session listing rule work from the first mining day.
 - **Security master (rev 3 §2.1):** `security_master_stock.csv` comes from `canonical_security_observation`. It has the rev 2 column names plus `record_id`, `revision` and `allow_new_risk`, and holds each security's last row before the directory's first date plus every row inside it. (The legacy `security_master` and `trading_calendar` tables are empty in the live DB.)
-- **Integrity:** `SHA256SUMS` comes from `shasum -a 256 *.csv`.
-- **Source:** it is exported read-only from the lane's replay copy with the same queries, no vendor re-fetch.
+- **Integrity:** the lane copy's `SHA256SUMS` comes from `sha256sum *.csv EXPORT_MANIFEST.json STEP0.json`, so it also covers `EXPORT_MANIFEST.json` and `STEP0.json`. Files are 0444, directories 0755.
+- **Source:** exported read-only, with no vendor re-fetch, from the BASE replay database **`ashare_v6_replay_c3fwd`** in the lane's `c3fwd-postgres` container. The spec named `ashare_v6_replay_c1`, which does not exist on that instance (errata 1 §1); the export manifest records `SPEC_DEVIATION db_name`.
 - **Other formats:** a different reader can be plugged in with `--lane-adapter <module>` (a module exporting `createSource(dir, opts)`). No adapter is needed when the layout above is used.
 
 ## One-time setup
 
+**Code on the lane.** GitHub reachability from the lane is unknown (Docker Hub is blocked there). Use one of:
+
+- **(a) Default when GitHub is not reachable: `git archive` from the Mac.** Run this from the Mac's QRP checkout. It records the commit in `code/.QRP_COMMIT`:
+
+  ```sh
+  git -C <mac-qrp-checkout> fetch origin && git -C <mac-qrp-checkout> archive <merge-commit> | lx 'mkdir -p /srv/research-lane/rf1116-mining/code && tar -x -C /srv/research-lane/rf1116-mining/code'
+  echo <merge-commit> | lx 'cat > /srv/research-lane/rf1116-mining/code/.QRP_COMMIT'
+  ```
+- **(b) When GitHub is reachable: clone on the lane.**
+
+  ```sh
+  git clone https://github.com/UpMeAI/quant-research-platform.git /srv/research-lane/rf1116-mining/code && git -C /srv/research-lane/rf1116-mining/code checkout --detach <merge-commit>
+  git -C /srv/research-lane/rf1116-mining/code rev-parse HEAD > /srv/research-lane/rf1116-mining/code/.QRP_COMMIT
+  ```
+
+Then build the image and make `out/` writable:
+
 ```sh
 mkdir -p /srv/research-lane/rf1116-mining/{code,data,holdout-sealed,out}
-git clone https://github.com/UpMeAI/quant-research-platform.git /srv/research-lane/rf1116-mining/code && git -C /srv/research-lane/rf1116-mining/code checkout --detach <merge-commit>
 cd /srv/research-lane/rf1116-mining/code && DOCKER_HOST=unix:///run/user/1000/docker.sock \
   docker build --pull=false -f deploy/research-lane/round-runner/Dockerfile -t qrp-round-runner:<commit12> .
 DOCKER_HOST=unix:///run/user/1000/docker.sock docker run --rm --user 0:0 --network none \
@@ -65,6 +83,8 @@ DOCKER_HOST=unix:///run/user/1000/docker.sock docker run --rm --user 0:0 --netwo
 - **Dependencies:** `npm ci` installs nothing, because QRP has no dependencies and the lockfile pins that.
 
 ## Seal, then generate (steps 1–5)
+
+**Prerequisite: the lane copy.** Before the first `generate`, `data/rf1116-cn-a-lane-copy-20200601-20260928/` must exist. The coordinator exports it read-only per `RF1116_CN_A_LANE_COPY_EXPORT_SPEC_V1.f1b3a200.md` and its `…_ERRATA_1.md`: from `c3fwd-postgres` / `ashare_v6_replay_c3fwd` (the Q0 replay BASE), bounded 2020-06-01 → 2026-09-28, files 0444, with `EXPORT_MANIFEST.json`, `STEP0.json` and a `SHA256SUMS` covering all of them. It is not part of the 21:42 export.
 
 **Before the first round**, put the holdout export in `holdout-sealed/…`, then record what is being sealed:
 
@@ -101,17 +121,21 @@ run.sh resume <round_id>
 
 The GP continues deterministically from the ledger. After `selection.json` exists, generation for that round is closed.
 
-## Mechanisms (R1.5), before the hand-over
+## Mechanisms and their review (R1.5), before the hand-over
 
-After `generate` has written the selection, list the survivors and register their mechanisms. The coordinator writes the JSONL: one line per survivor, `{candidate_id, mechanism_id, economic_logic_zh, failure_mode_zh, written_at}`, where `written_at` is Beijing time with `+08:00`.
+Under R1.5 the AQuA session writes the mechanisms and the coordinator reviews them. After `generate` has written the selection, the steps run in this order (`run.sh` stands for `RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh`):
 
-```sh
-RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh mechanisms <round_id>                       # list
-RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh mechanisms <round_id> /path/to/mech.jsonl  # register
-```
+1. **List the survivors:** `run.sh mechanisms <round_id>`. It prints the survivors (ids from the selection row, formulas from the trial rows), their registration state, the current `mechanism_set_sha256` and the latest review.
+2. **AQuA writes `mech.jsonl`:** one line per survivor it can explain, `{candidate_id, mechanism_id, economic_logic_zh, failure_mode_zh, written_at}`. `written_at` is Beijing time with `+08:00` and no later than the registration. `mechanism_id` must already be in the mechanism register (R1.10).
+3. **Register them:** `run.sh mechanisms <round_id> mech.jsonl`. Append-only; refused once the holdout is open. A survivor without a registration is still scored but fails G-MINE item 9.
+4. **The coordinator reviews:** `run.sh review <round_id> verdicts.json` writes one `MECHANISM_REVIEW_V1` row. The file is `{"mechanism_set_sha256": "<from step 1, after step 3>", "reviewer": "coordinator", "verdicts": [{"candidate_id": "…", "verdict": "APPROVED" | "REJECTED", "note": "…"}]}`.
+   - It needs a verdict for every survivor before `score` will run. `APPROVED` needs a registration. `reviewer` is free text, not an identity check.
+   - The set sha must equal the current registrations (`MINE_MECHANISM_REVIEW_SET_CHANGED`). If a registration is added after the review, review again.
+   - A second review is a new row naming the one it replaces (`supersedes`); the latest row wins. Reviews are refused once the holdout is open.
+5. **Only then score:** `run.sh score <round_id>` (next section). It refuses before the open, and the open is not spent, when the latest review is missing (`MINE_RUNNER_MECHANISM_REVIEW_MISSING`), does not cover every survivor (`…_INCOMPLETE`), no longer matches the registrations (`…_STALE`), was altered (`…_HASH_MISMATCH`) or is dated after the open (`…_AFTER_OPEN`). A `REJECTED` survivor is still scored and recorded, and fails item 9 (`MINE_MECHANISM_REJECTED`).
 
-- **What it mounts.** The step mounts only `out/` (rw) and the JSONL (ro): no data, no holdout, no network.
-- **Append-only.** Registrations cannot be changed, and are refused once the holdout is open. A survivor without one is still scored but fails G-MINE item 9.
+- **What these steps mount.** `mechanisms` and `review` mount only `out/` (rw) and the input file (ro): no data, no holdout, no network.
+- **File arguments.** `run.sh` resolves `mech.jsonl`, `verdicts.json` and the rescore crash log with `realpath -e` before mounting, so a name relative to the current directory works. A missing file stops `run.sh` before Docker is called.
 
 ## Hand-over and scoring (steps 6–9), only after the 2026-12-31 data is in
 
@@ -146,7 +170,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 
 If any check fails it refuses, and the single open is not spent.
 
-**Recovery after a crash past the open (R1.8 and R1.12, ruling R1 revision 4 `705e2e6a…`).** If the score container dies after `holdout-vault.open` but before the last G-MINE record, the round stays in `SCORING`, and `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
+**Recovery after a crash past the open (R1.8 and R1.12, ruling R1 revision 5 `f904e0fe…`).** If the score container dies after `holdout-vault.open` but before the last G-MINE record, the round stays in `SCORING`, and `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
 
 Exactly one rescore of the same selection is allowed:
 
@@ -156,13 +180,15 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 
 - **It is accepted only if all of these hold:**
   - the selection row is byte-unchanged;
-  - every input is the same as at the open (the holdout manifest and `SHA256SUMS.sealed`, `selection.json`, the factor series, the data sources, the code and the floor), compared through `inputs_sha256`;
+  - every input is the same as at the open (the holdout manifest and `SHA256SUMS.sealed`, `selection.json`, the factor series, the data sources, the code, the floor, the mechanism registrations and the mechanism review), compared through `inputs_sha256`;
+  - the latest mechanism review predates the open;
   - the first attempt wrote **no** G-MINE record.
 
   Otherwise it is refused: `MINE_HOLDOUT_RESCORE_SELECTION_CHANGED`, `…_INPUTS_CHANGED` or `…_RECORDS_EXIST`.
 - **What it records.** The rescore is the vault's second event (`HOLDOUT_RESCORE_V1`: the reason, the log's sha256 and its first 4,000 characters). Then the same candidates are scored and the round is closed.
 - **If the rescore itself crashes,** the next `rescore` closes the round as **`FAILED_RESCORE`**. No G-MINE record counts, but the attempts stay in N. After that, any further attempt is refused.
-- **A crash after the first record** cannot be rescored (ruling R1.12, revision 4). The same `rescore` command closes the round as **`FAILED_PARTIAL`** with the reason and the log's sha256 (`MINE_RUNNER_RESCORE_RECORDS_EXIST`): 0 passes, the written G-MINE records kept and marked VOID, the attempts in N, the open-round slot released, the holdout open still counted (no new round on that segment). After that, any further attempt is refused.
+- **R1.12a (revision 5):** a rescore that writes records and then crashes also closes as `FAILED_RESCORE`, not `FAILED_PARTIAL`. Every record of a failed round, including those its rescore wrote, is marked VOID and counted nowhere.
+- **A crash after the first record** cannot be rescored (ruling R1.12, revision 5 `f904e0fe…`). The same `rescore` command closes the round as **`FAILED_PARTIAL`** with the reason and the log's sha256 (`MINE_RUNNER_RESCORE_RECORDS_EXIST`): 0 passes, the written G-MINE records kept and marked VOID, the attempts in N, the open-round slot released, the holdout open still counted (no new round on that segment). After that, any further attempt is refused.
 
 **After the checks** it does the following:
 - opens the vault once;
@@ -184,4 +210,4 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 - **Shared host:** this host also carries V6 production. Run outside the V6 windows: 09:15–15:30 CST, the post-close chain, and the 06:30 PREMARKET.
 - **Run time:** a full round is roughly 200 mining evaluations plus one validation pass. That takes hours, not minutes.
 - **Monthly limit:** at most 2 rounds per market per month (Beijing time).
-- **One open round per market:** a round stays open (`CAP_REACHED`) until it is scored in early 2027, so a second CN_A round cannot open before then.
+- **Concurrent rounds (R1.6):** up to 2 generation-only rounds per market may be open at once and may share the holdout segment, but only before its first open. Still at most 2 rounds per market per month (`LIMITS.rounds_per_month`). Once any round has opened a segment, no new round can open on it (`MINE_ROUND_HOLDOUT_SEGMENT_OPENED`); the next round needs a new segment after 2026-12-31.
