@@ -28,7 +28,9 @@ test('结构：12 条（6 个账本各 2 段），节奏规则与成交规则都
   const usV5Watch = DOC.declarations.find((d) => d.book === 'US.US_V5' && d.segment === 'INTRADAY_WATCH');
   assert.deepEqual(usV5Watch.params.tiers, fm.DEFAULT_TIERS); // 声明的档位 = 库的默认档位 = 实盘（锁）
   const counts = DOC.declarations.map((d) => d.locks.length);
-  assert.ok(counts.filter((c) => c > 0).length >= 9, `有锁的条数 ${counts}`);
+  // #110：#100 留下的三条没锁的（五段个股簿收盘段、US_CORE 日决策、C17 出场）都在源码里找到了常量，12 条全部有锁
+  assert.deepEqual(counts.filter((c) => c === 0), [], `没锁的条 ${counts}`);
+  assert.deepEqual(DOC.declarations.filter((d) => d.unlocked_reason_zh).map((d) => `${d.book}/${d.segment}`), []);
 });
 
 test('结构反例：成交规则不在库里、节奏规则放进成交规则、环境开关没写来源、锁的正则不是一个捕获组、同一段写两次、账本只有一段、没锁也没写原因', () => {
@@ -52,7 +54,11 @@ test('锁定：每条锁在钉住的提交上读到的常量与声明逐字相�
     const byId = Object.fromEntries(results.map((r) => [r.id, r]));
     assert.deepEqual([byId.V6_INTRADAY_INTERVAL_MS.actual, byId.SF_QS_MONITOR_INTERVAL.actual, byId.SF_LEVERAGED_STOP_TIERS.actual, byId.SF_US_V5_ROUND_LAG.actual, byId.SF_US_V5_OPEN_MIN.actual],
       ['60_000', '5 * 60 * 1000', '{ t1Pct: 2.0, t1TimeoutS: 60, t2Pct: 4.0, t2TimeoutS: 300 }', 'MINUTE_MS', '9 * 60 + 30']);
-    assert.ok(results.length >= 20, `锁 ${results.length} 条`);
+    assert.ok(results.length >= 27, `锁 ${results.length} 条`);
+    // #110 新加的锁：五段个股簿滑点 10 bp（V6 paper-cost.js:5）、US_CORE 16:35 日决策（:495）、触价窗口 09:31–16:05（:2018–2019）、
+    // US_CORE 触价 60 秒一轮（:2724）、C17 出场保护 60 秒一轮（strategy-worker.js:1556）
+    assert.deepEqual(['V6_FIVE_STAGE_SLIPPAGE_BPS', 'SF_US_CORE_DECISION_AT', 'SF_US_CORE_TOUCH_FROM', 'SF_US_CORE_TOUCH_TO', 'SF_US_CORE_TOUCH_INTERVAL', 'SF_C17_EXIT_PROTECTION_INTERVAL']
+      .map((id) => byId[id] && byId[id].actual), ['10', '16 * 60 + 35', '9 * 60 + 31', '16 * 60 + 5', '60000', '60000']);
   });
 
 test('锁定反例：实盘改了常量（合成仓库，60 秒改成 30 秒）→ 锁红；仓库不在 → SKIPPED，不算通过；算式求值', () => {
@@ -70,4 +76,25 @@ test('锁定反例：实盘改了常量（合成仓库，60 秒改成 30 秒）�
   const [s] = decl.verifyLocks(one, { roots: { 'ashare-v6': null } });
   assert.equal(s.state, 'SKIPPED');
   assert.deepEqual(['60_000', '5 * 60 * 1000', '9 * 60 + 30', '0.0005', 'MINUTE_MS'].map(decl.numericValue), [60000, 300000, 570, 0.0005, null]);
+});
+
+test('漂移核对（协调会话每次部署后用）：同一份声明换到另一个提交上核对锁；常量变了逐条报 FAIL，钉住的提交不变', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fm-drift-'));
+  const git = (...a) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...a]).toString().trim();
+  git('init', '-q');
+  fs.mkdirSync(path.join(repo, 'src', 'intraday'), { recursive: true });
+  fs.writeFileSync(path.join(repo, 'src', 'intraday', 'intraday-config.js'), 'const DEFAULT_INTERVAL_MS = 60_000;\n');
+  git('add', '.'); git('commit', '-q', '-m', 'pinned');
+  const pinned = git('rev-parse', 'HEAD');
+  fs.writeFileSync(path.join(repo, 'src', 'intraday', 'intraday-config.js'), 'const DEFAULT_INTERVAL_MS = 120_000;\n');
+  git('commit', '-q', '-am', 'drift');
+  const later = git('rev-parse', 'HEAD');
+  const one = { ...clone(), declarations: [clone().declarations[1]] };
+  one.declarations[0].locks = [one.declarations[0].locks[0]];
+  one.pins = { ...one.pins, 'ashare-v6': { ...one.pins['ashare-v6'], commit: pinned } };
+  assert.equal(decl.verifyLocks(one, { roots: { 'ashare-v6': repo } })[0].state, 'PASS');
+  const [d] = decl.verifyLocks(one, { roots: { 'ashare-v6': repo }, commits: { 'ashare-v6': later } });
+  assert.deepEqual([d.state, d.actual, d.commit], ['FAIL', '120_000', later]);
+  assert.equal(one.pins['ashare-v6'].commit, pinned);
+  assert.throws(() => decl.verifyLocks(one, { roots: { 'ashare-v6': repo }, commits: { 'ashare-v6': 'HEAD' } }), (e) => e.code === 'FILL_DECLARATION_COMMIT_INVALID');
 });
