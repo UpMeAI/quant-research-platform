@@ -184,4 +184,4 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length }
   return { root, dirs, facts: FACTS, calendar: openDays, segments: SEGMENTS };
 }
 
-module.exports = { makeMiningDataFixture, FACTS, STOCKS, SEGMENTS, internals: { calendar, nextOpen } };
+module.exports = { makeMiningDataFixture, FACTS, STOCKS, SEGMENTS, internals: { calendar, nextOpen, csv } };

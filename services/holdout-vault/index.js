@@ -67,5 +67,7 @@ function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null
 
 /** 开启日志（审计用）。 */
 const openLog = (roundId) => rows(OPEN_SCHEMA, roundId);
+/** 本轮的封存记录（只读；P2 执行器在开启之前用它核留出段目录的 sha）。 */
+const sealOf = (roundId) => rows(SEAL_SCHEMA, roundId)[0] || null;
 
-module.exports = { SEAL_SCHEMA, OPEN_SCHEMA, LEDGER, HoldoutError, seal, open, openLog };
+module.exports = { SEAL_SCHEMA, OPEN_SCHEMA, LEDGER, HoldoutError, seal, open, openLog, sealOf };

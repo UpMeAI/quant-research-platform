@@ -1,0 +1,7 @@
+# Build context = the QRP checkout root. Only code, config, schemas, docs (freeze copies, operator evidence) and the lockfile go in.
+.git
+var
+tests
+node_modules
+artifacts
+**/*.log

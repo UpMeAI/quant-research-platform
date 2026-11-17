@@ -75,3 +75,6 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 
 - **Container.** The round runner runs only inside the research lane's rootless container, with read-only data mounts and network egress to the model API only.
 - **Only producer of holdout results.** The round runner is the only producer of holdout results, and it produces them through `neutralizeForScoring` (`services/mining-sandbox/evaluator`). Its per-candidate G-MINE results go through `recordGateResult`.
+- **Built (P2).** The runner is `services/mining-sandbox/round-runner` (see `MINING_SANDBOX_V1`, "Round runner"), and the container is `deploy/research-lane/round-runner/` (`DEPLOY.md`). GP rounds need no egress, so the container runs `--network none`.
+- **Every attempt is a trial row (P2).** The runner writes parse-refused and deduplicated attempts through `recordCandidate` as well, with no score. Each carries `rule_config.attempt` and `attempt_id`, so it counts toward the round cap of 200 and toward N. `candidates_scored` therefore counts attempts.
+- **`holdout-vault.sealOf(round_id)`** returns the seal row (read-only). The runner checks the mounted holdout directory against it before `open`.
