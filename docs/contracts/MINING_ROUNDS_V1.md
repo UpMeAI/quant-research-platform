@@ -86,7 +86,9 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 
 ## Coordinator ruling R1 (2026-11-17)
 
-Source: `RF1116_RULING_R1_20261117.md` (sha256 `ce25432851b8bfc6447809de7fb220111d80d418da1b31f1f07982b2037f4269`). A byte copy is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it.
+Source: `RF1116_RULING_R1_20261117.md`, revision 2 with R1.8, sha256 `d80ce98862e90efbf5ac5b5e2dd5ee6c04dc7d6421f19ef6c598be145fdb3eaa`. Revision 1 (`ce254328…`) is kept in the coordinator folder.
+
+A byte copy of revision 2 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `d80ce988…`.
 
 - **R1.1 Every attempt is a trial row.** Parse-refused and deduplicated attempts are written through `recordCandidate`, unscored. They count toward the round cap of 200 and toward the family's cumulative N (signed §3.3).
 - **R1.2 The selection rule lives in the manifest, and every manifest cites its rulings.**
@@ -107,3 +109,14 @@ Source: `RF1116_RULING_R1_20261117.md` (sha256 `ce25432851b8bfc6447809de7fb22011
   - **Checks.** The `mechanism_id` must be registered (`…_ID_NOT_REGISTERED`). Both texts are required (`…_FIELDS`). `written_at` is Beijing time and not in the future (`…_WRITTEN_AT`).
   - **G-MECH.** The G-MECH triage route must not be `NOT_DO_SETTLED` (`…_NOT_DO_SETTLED`). The route and the register sha are stored, and other candidates of the round with the same mechanism are listed in `same_mechanism_in_round`.
   - **One per candidate,** append-only (`…_DUPLICATE`).
+- **R1.8 Recovery after a crash past the open.**
+  - **The rescore.** `holdout-vault.recordRescore` allows exactly one `RESCORE_SAME_SELECTION` per round (`MINE_HOLDOUT_RESCORE_ONCE`), as a second vault event (`HOLDOUT_RESCORE_V1`, `research/holdout_vault.jsonl`, with the reason and the log's sha256 and excerpt).
+  - **Its conditions.**
+    - The round is `SCORING`.
+    - The selection row is byte-unchanged: its `record_hash` recomputes and equals the hash the open row recorded (`…_SELECTION_CHANGED`).
+    - The runner's `inputs_sha256` equals the open row's (`…_INPUTS_CHANGED`).
+    - No G-MINE record exists for the round (`…_RECORDS_EXIST`).
+  - **Determinism.** Scoring is deterministic on the same inputs and code; a test pins that a crash plus a rescore gives the same records as a clean run.
+  - **Failed rescore.** `failRescore` closes a round whose rescore also crashed as `FAILED_RESCORE`: `gmine_passes` 0, no records counted, the attempts staying in N.
+  - **Pause rule and open count.** The pause rule counts a `FAILED_RESCORE` round as a failure; it no longer counts as open.
+- **Resume record.** `recordResumeCheck` appends the floor used on a `--resume` run to the round row's `data_checks.resumes`.

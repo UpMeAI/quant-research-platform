@@ -214,17 +214,30 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
 - **Completeness.**
   - The SSE calendar reaches the holdout end.
   - The calendar's READY SSE rows reach the holdout end.
-  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows for at least `COVERAGE_FLOOR.min_names_per_day` (2,000) **distinct `security_id`s**. Names are counted, not rows (re-review G5).
-  - Each table also reaches at least half of its own median day (`HOLDOUT_FLOOR`). The absolute floor stops a uniformly thin export, which pulls the median down with it; the relative check still catches an isolated half-empty day above the floor.
+  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows for at least `HOLDOUT_FLOOR.min_names_per_day` (**4,000**, export spec rev 3 §3) **distinct `security_id`s**.
+    - Names are counted, not rows (re-review G5).
+    - `.BJ` ids are excluded, as in the panel.
+    - The mining-panel universe floor `COVERAGE_FLOOR` stays at 2,000, because the 2020 universe is about 3,800.
+  - Each day also reaches at least half of the median of the **sealed** days: the days covered by the files listed in `SHA256SUMS.sealed`, which cannot move after sealing (re-review G5c).
+    - A thin completion export can therefore no longer pull its own median down.
+    - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
   - The refusal is `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`. The floor used goes into the open record's `pre_open_checks`, and the generate-phase floor into the round row's `data_checks`.
   - Export spec rev 3 ships the full calendar in every export, so the calendar alone proves nothing.
 
 Any failure refuses without spending the single open. A second open gives `MINE_HOLDOUT_ALREADY_OPENED`.
 
-**Known limitation: no recovery after the open.** If the runner dies between `holdout-vault.open` and the last G-MINE record, the round stays `SCORING`.
-- Re-scoring is refused (`MINE_HOLDOUT_ALREADY_OPENED`), and closing is refused (`MINE_ROUND_GMINE_RESULT_MISSING`).
-- That is deliberate: there is no second open.
-- Recovery needs a coordinator ruling, and the pre-open checks exist to make that case rare.
+**Recovery after the open (R1.8).** If the runner dies between `holdout-vault.open` and the last G-MINE record, the round stays `SCORING`, and `scoreHoldout` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
+- **The one rescore.** `rescore` (CLI `rescore`, run.sh `rescore <round_id> <reason> <crash.log>`) allows exactly one same-selection rescore. It reruns every pre-open check through `prepareScoring`, which is shared with the first attempt. It also recomputes `inputs_sha256`:
+  - the selection row and file;
+  - the holdout manifest and `SHA256SUMS.sealed`;
+  - the factor series;
+  - the data sources;
+  - the code files;
+  - the floor;
+  - the mechanism registrations.
+- **The vault event.** The vault then records the second event, which requires everything unchanged and no G-MINE record, and the same candidates are scored.
+- **A second crash** closes the round as `FAILED_RESCORE` on the next call (`MINE_RUNNER_RESCORE_FAILED`). Afterwards everything is refused (`MINE_RUNNER_ROUND_FAILED_RESCORE`).
+- **A crash after the first record** cannot be rescored (`MINE_HOLDOUT_RESCORE_RECORDS_EXIST`).
 
 **Holdout scoring** (`holdout-scoring.js`; the runner is its only caller)
 - **Scoring days.** Decision days are inside the holdout, and so are the labels.
@@ -241,7 +254,7 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **Mechanism** is `null`, because GP registers none.
 - **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
 
-## Coordinator ruling R1 in the runner (2026-11-17, `ce254328…`)
+## Coordinator ruling R1 in the runner (2026-11-17, revision 2 `d80ce988…`, which adds R1.8)
 
 - **R1.1.** Every attempt is a trial row (see "Round runner").
 - **R1.2.** `requestRound` writes `rulings` (the R1 page, verified against `docs/freeze/RF1116_RULING_R1_20261117.md`) and `selection_rule` = `selector.RULE` into the manifest. `selector.RULE` is FROZEN by R1.2, written as data. `select` reads the rule from the round row, never from the constant.

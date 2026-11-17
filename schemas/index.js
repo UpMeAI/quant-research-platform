@@ -387,7 +387,12 @@ const SCHEMAS = Object.freeze({
   },
   HOLDOUT_OPEN_V1: {
     _doc: '留出段开启日志（RF1116 §3.4）：每轮只开一次，记读了哪些候选（每个只读一次）、谁开、何时开；segment_open_index = 这段留出段在本族（同市场）里第几次被开（协调会话裁定 R1.6）',
-    round_id: 's', seal_hash: 's', candidate_ids: 'a', opened_by: 's', opened_at: 's', segment_open_index: 'n', pre_open_checks: 'o?', record_hash: 's',
+    round_id: 's', seal_hash: 's', candidate_ids: 'a', opened_by: 's', opened_at: 's', segment_open_index: 'n', pre_open_checks: 'o?', selection_record_hash: 's?', inputs_sha256: 's?',
+    record_hash: 's',
+  },
+  HOLDOUT_RESCORE_V1: {
+    _doc: '留出段开启之后崩溃的恢复（协调会话裁定 R1.8，d80ce988）：每轮至多一次 RESCORE_SAME_SELECTION，记成保管服务的第二个事件；选集行与输入（inputs_sha256）都要与开启时一样、第一次没写下任何 G-MINE 记录；写原因与日志',
+    round_id: 's', kind: 's', open_hash: 's', selection_record_hash: 's', inputs_sha256: 's', reason: 's', log_sha256: 's', log_excerpt: 's', rescored_by: 's', rescored_at: 's', record_hash: 's',
   },
   RACE_MANIFEST_V1: {
     _doc: '研究框架修订 2026-11-16 §4.3（RF1116，签字 fd22876f / 39f8c17c）—— 赛马清单：一个市场、一个分区（层）、冠军与挑战者、同一引擎 / 窗口 / 成本模型、主指标、护栏、晋级名额（≤ 2）；协调会话冻结（冻结页写出清单 sha256 与 FROZEN），清单 sha 写进每个参赛者的试验台账行（k2_sha256）',

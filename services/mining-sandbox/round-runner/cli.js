@@ -12,7 +12,8 @@
  *
  *   mechanisms --out DIR --round ROUND_ID [--register FILE]
  *            协调会话裁定 R1.5：列出过了验证折的候选与机制登记状态；--register 给一个 JSONL 文件就逐条登记（留出段开启之前，只追加）。
- *   score 另可 --factor-series DIR（FACTOR_SERIES_V1，R1.4：G-MINE 第 7、8 项要的现有因子序列，只读）。
+ *   score 另可 --factor-series DIR（FACTOR_SERIES_V1，R1.4：G-MINE 第 7、8 项要的现有因子序列，只读）；--min-names-per-day 是留出段的下限（默认 4,000）。
+ *   rescore（score 的选项）+ --reason TEXT --crash-log FILE：协调会话裁定 R1.8，开启之后崩溃的那一轮恰好一次同选集重打分；再崩以 FAILED_RESCORE 关轮。
  *
  * 启动即 lockdown（只许写 --out）；QRP_DATA_DIR 必须在 --out 里。登记人取 QRP_PRODUCT_MILESTONE_AUTHORITY。
  * 只有 GP：--generator 给别的（比如 AI_MINED_LLM）→ MINE_LLM_NOT_ENABLED / MINE_GENERATOR_UNKNOWN。认不出的选项一律拒绝（generate 没有 --holdout）。
@@ -25,6 +26,7 @@ const OPTIONS = Object.freeze({
   generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day'],
   score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series'],
   mechanisms: ['out', 'round', 'register'],
+  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log'],
 });
 
 function parseArgs(argv) {
@@ -58,6 +60,7 @@ function main(argv) {
     const panel = adapter.buildPanel({ sources, space: runner.loadFrozenSpace().space, segment: 'MINING', from: m.from, to: m.to });
     runner.checkCoverage(panel, floor);
     let roundId = o.resume;
+    if (roundId) runner.noteResume({ roundId, coverageFloor: floor }); // 续跑用的下限也写进台账
     if (!roundId) {
       const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null, coverageFloor: floor });
       roundId = r.round_id;
@@ -82,8 +85,17 @@ function main(argv) {
   }
   required(o, ['out', 'round', 'lane', 'tail', 'holdout']);
   const { outDir } = runner.start({ outDir: o.out });
-  const floor = o['min-names-per-day'] === undefined ? runner.COVERAGE_FLOOR : { min_names_per_day: Number(o['min-names-per-day']) };
-  const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, coverageFloor: floor,
+  const floor = o['min-names-per-day'] === undefined ? runner.HOLDOUT_FLOOR : { min_names_per_day: Number(o['min-names-per-day']) };
+  if (cmd === 'rescore') {
+    // R1.8：开启之后崩溃，恰好一次同选集重打分（原因与崩溃日志写进留出段保管的第二个事件）
+    required(o, ['reason', 'crash-log']);
+    const log = require('fs').readFileSync(o['crash-log'], 'utf8');
+    const rr = runner.rescore({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
+      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log });
+    const closedR = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
+    return { command: 'rescore', round_id: o.round, rescored: rr.rescored, records: rr.records.length, passes: closedR.gmine_passes, status: closedR.status };
+  }
+  const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
     factorSeriesDir: o['factor-series'] || null });
   const closed = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };

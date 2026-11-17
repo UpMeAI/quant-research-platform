@@ -87,7 +87,7 @@ function write(body) {
 
 /** 市场是否暂停：最近连续 3 个已关的轮都没有候选过 G-MINE。返回那几轮用过的空间 sha（解除要换一份新的）。 */
 function pauseState(market) {
-  const closed = roundsOf(market).filter((r) => r.status === 'CLOSED');
+  const closed = roundsOf(market).filter((r) => r.status === 'CLOSED' || r.status === 'FAILED_RESCORE'); // R1.8：重打分失败的轮按「没过」算
   const tail = closed.slice(-LIMITS.pause_after_failed_rounds);
   const paused = tail.length === LIMITS.pause_after_failed_rounds && tail.every((r) => r.gmine_passes === 0);
   return { paused, failed_rounds: paused ? tail.map((r) => r.round_id) : [], spaces_used: paused ? [...new Set(tail.map((r) => r.space.sha256))] : [] };
@@ -124,7 +124,8 @@ function openRound(o = {}) {
     if (same(latest)) need(prior.filter((r) => same(r.holdout)).length < LIMITS.rounds_per_holdout, 'MINE_ROUND_HOLDOUT_EXHAUSTED', `${latest.from}..${latest.to}`);
     else need(o.holdout.from > lastEnd, 'MINE_ROUND_HOLDOUT_MOVED', `${o.holdout.from}..${o.holdout.to} vs ${latest.from}..${latest.to}`);
   }
-  need(prior.filter((r) => r.status !== 'CLOSED').length < LIMITS.open_rounds_per_market, 'MINE_ROUND_ALREADY_OPEN', `${o.market}:${prior.filter((r) => r.status !== 'CLOSED').length}`);
+  const stillOpen = prior.filter((r) => r.status !== 'CLOSED' && r.status !== 'FAILED_RESCORE').length;
+  need(stillOpen < LIMITS.open_rounds_per_market, 'MINE_ROUND_ALREADY_OPEN', `${o.market}:${stillOpen}`);
   const month = monthCst(openedAt);
   need(prior.filter((r) => r.month === month).length < LIMITS.rounds_per_month, 'MINE_ROUND_MONTHLY_CAP', `${o.market}:${month}`);
   const pause = pauseState(o.market);
@@ -233,6 +234,33 @@ function closeRound(roundId, opts = {}) {
   return write({ ...r, status: 'CLOSED', gmine_passes: passes, gmine_basis: basis, closed_at: closedAt || now() });
 }
 
+/**
+ * 协调会话裁定 R1.8：重打分（RESCORE_SAME_SELECTION）之后又崩 → 以 FAILED_RESCORE 关轮：不算任何 G-MINE 记录（gmine_passes 0、basis 不收记录），
+ * 本轮的尝试照旧在试验台账里、照旧计入 N；暂停规则把它当「没过」。只有 holdout-vault 记过一次重打分、轮次还在 SCORING 才能这样关。
+ */
+function failRescore(roundId, { reason, logSha256 = null, failedAt = null } = {}) {
+  const r = roundHead(roundId);
+  need(r, 'MINE_ROUND_NOT_FOUND', roundId);
+  need(r.status === 'SCORING', 'MINE_ROUND_NOT_SCORING', `${roundId}:${r.status}`);
+  const vault = require('../holdout-vault');
+  const [open] = vault.openLog(roundId);
+  need(open && vault.rescoreLog(roundId).length === 1, 'MINE_ROUND_FAILED_RESCORE_WITHOUT_RESCORE', roundId);
+  const partial = require('./gate-records').recordsOf(roundId).length;
+  return write({ ...r, status: 'FAILED_RESCORE', gmine_passes: 0,
+    gmine_basis: { holdout_open_hash: open.record_hash, records: 0, record_hashes: [], failed_rescore: { reason: String(reason || ''), log_sha256: logSha256, partial_records_ignored: partial } },
+    closed_at: failedAt || now() });
+}
+
+/** 续跑（--resume）时用过的数据核对（覆盖下限）也写进轮次行（data_checks.resumes，只追加）。 */
+function recordResumeCheck(roundId, check) {
+  const r = roundHead(roundId);
+  need(r, 'MINE_ROUND_NOT_FOUND', roundId);
+  need(r.status === 'OPEN' || r.status === 'CAP_REACHED', 'MINE_ROUND_NOT_OPEN', `${roundId}:${r.status}`);
+  need(isObj(check), 'MINE_ROUND_DATA_CHECK_INVALID', roundId);
+  const dc = isObj(r.data_checks) ? r.data_checks : {};
+  return write({ ...r, data_checks: { ...dc, resumes: [...(Array.isArray(dc.resumes) ? dc.resumes : []), JSON.parse(JSON.stringify(check))] } });
+}
+
 /** 本族累计 N（所有轮次，从不清零；口径同试验台账 count）。 */
 const familyN = (market, holdingPeriod, opts = {}) => trials.count(`MINE:${market}:H${holdingPeriod}`, opts).n_raw;
 
@@ -253,4 +281,5 @@ function generatorView(roundId) {
 }
 
 module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf, beginScoring, closeRound,
+  failRescore, recordResumeCheck,
   roundHead, roundsOf, pauseState, familyN, generatorView, manifestSha };

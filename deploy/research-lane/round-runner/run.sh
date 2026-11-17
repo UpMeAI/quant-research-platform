@@ -4,6 +4,7 @@
 #   run.sh resume   <round_id>                    continue generation of an open round after a crash, then select
 #   run.sh mechanisms <round_id> [registrations.jsonl]  R1.5: list the validation survivors; register their mechanisms (before the open)
 #   run.sh score    <round_id>                    steps 6-9 (check holdout dir, open vault once, score, G-MINE records, close)
+#   run.sh rescore  <round_id> <reason> <crash.log>  R1.8: exactly one same-selection rescore after a crash past the open
 # Both phases: --network none, read-only root fs, all capabilities dropped, no new privileges, uid 1000, CPU/memory/pid limits,
 # data mounts read-only, exactly one writable mount (/out). The holdout directory is mounted only by "score".
 set -euo pipefail
@@ -19,7 +20,7 @@ FACTOR_SERIES="$LANE/data/rf1116-cn-a-live-factor-series"
 HOLDOUT_REF="lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"
 AUTHORITY=RF1116_MINING_RUNNER
 
-cmd="${1:?generate|resume|mechanisms|score}"
+cmd="${1:?generate|resume|mechanisms|score|rescore}"
 case "$cmd" in
   generate)
     seed="${2:?gp_seed}"; sums="${3:?sha256 of the holdout SHA256SUMS at seal time}"
@@ -33,9 +34,13 @@ case "$cmd" in
     round="${2:?round_id}"; reg="${3:-/dev/null}"
     docker run --rm --name "rf1116-mechanisms" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" -v "$reg:/data/mechanisms.jsonl:ro" "$IMAGE" mechanisms --out /out --round "$round" --register /data/mechanisms.jsonl
     ;;
+  rescore)
+    round="${2:?round_id}"; reason="${3:?crash reason}"; crashlog="${4:?crash log file}"
+    docker run --rm --name "rf1116-rescore" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" -v "$crashlog:/data/crash.log:ro" -v "$OUT:/out:rw" "$IMAGE" rescore --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series --reason "$reason" --crash-log /data/crash.log
+    ;;
   score)
     round="${2:?round_id}"
     docker run --rm --name "rf1116-score" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" -v "$OUT:/out:rw" "$IMAGE" score --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series
     ;;
-  *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | resume <round_id> | mechanisms <round_id> [file] | score <round_id>" >&2; exit 64 ;;
+  *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | resume <round_id> | mechanisms <round_id> [file] | score <round_id> | rescore <round_id> <reason> <crash.log>" >&2; exit 64 ;;
 esac

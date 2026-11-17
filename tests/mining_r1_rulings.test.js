@@ -64,7 +64,7 @@ function toSelection(out, { openedAt = '2026-11-21T02:00:00Z', manifest = null }
 test('R1.2：清单带 rulings（裁定页路径 + sha，docs/freeze/ 有逐字节副本）与冻结的选择规则（数据）；缺了、副本不对、规则不对都拒绝；选择读清单里的规则', () => {
   const copy = fs.readFileSync(path.join(ROOT, 'docs/freeze/RF1116_RULING_R1_20261117.md'));
   assert.equal(sha(copy), R1_RULING.sha256);
-  assert.ok(copy.toString('utf8').includes('R1.2') && copy.toString('utf8').includes('R1.6'));
+  assert.ok(copy.toString('utf8').includes('R1.2') && copy.toString('utf8').includes('R1.6') && copy.toString('utf8').includes('R1.8'), 'revision 2 of the ruling');
   assert.deepEqual(selector.RULE, R1_SELECTION_RULE, 'selector.RULE is the R1.2 rule, written as data');
   assert.ok(Object.isFrozen(selector.RULE) && Object.isFrozen(selector.RULE.folds));
   freshData();
@@ -281,7 +281,7 @@ test('R1.5 机制登记 + R1.3 / R1.4 / R1.6 进 G-MINE 记录：留出段开启
   assert.deepEqual(mechanisms.mechanismOf(id, second).same_mechanism_in_round, [first]);
   // 打分：带现有因子序列
   const fsDir = makeFactorSeries();
-  const s = runner.scoreHoldout({ roundId: id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, factorSeriesDir: fsDir, scoredAt: '2027-01-06T10:00:00+08:00', coverageFloor: COV });
+  const s = runner.scoreHoldout({ roundId: id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, factorSeriesDir: fsDir, scoredAt: '2027-01-06T10:00:00+08:00', holdoutFloor: COV });
   assert.equal(s.opened, true);
   assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: rest[0] || first, ...M }, { writtenBy: AUTH }), code(/MINE_MECHANISM_AFTER_HOLDOUT_OPEN|MINE_MECHANISM_DUPLICATE/));
   const score = JSON.parse(fs.readFileSync(path.join(runDirOf(out, id), 'score.json'), 'utf8'));
@@ -343,6 +343,102 @@ test('命令行与容器：mechanisms 一步（不挂数据、不挂留出段、
   assert.ok(score.every((l) => l.includes('$FACTOR_SERIES:/data/factor-series:ro') && l.includes('--factor-series /data/factor-series')));
   assert.ok(require('../services/mining-sandbox/round-runner/cli').OPTIONS.mechanisms.includes('register'));
   const contract = fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_SANDBOX_V1.md'), 'utf8') + fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_ROUNDS_V1.md'), 'utf8');
-  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'ce254328']) assert.ok(contract.includes(k), k);
+  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'R1.8', 'd80ce988']) assert.ok(contract.includes(k), k);
+  const rescoreLine = runs.filter((l) => / rescore /.test(l));
+  assert.equal(rescoreLine.length, 1, 'run.sh rescore (R1.8)');
+  assert.ok(rescoreLine[0].includes('-v "$HOLDOUT:/data/holdout:ro"') && rescoreLine[0].includes(':/data/crash.log:ro') && rescoreLine[0].includes('--network none'));
   assert.ok(fs.readFileSync(path.join(ROOT, 'services/mining-sandbox/round-runner/selector.js'), 'utf8').includes('FROZEN by R1.2'));
+});
+
+/** R1.8 的一轮：选到选择记录为止（同一个 openedAt → 同一个轮次编号，干净的一轮与崩溃重打分的一轮可以逐条比）。 */
+function rescoreRound() {
+  const out = freshData();
+  const { r, sel } = toSelection(out, { openedAt: '2026-11-23T02:00:00Z' });
+  const args = { roundId: r.round_id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, scoredAt: '2027-01-06T10:00:00+08:00', holdoutFloor: COV };
+  return { out, r, sel, args };
+}
+const recordsKey = (id) => gateRecords.recordsOf(id).map((x) => [x.candidate_id, x.pass, x.codes.join(','), x.gate_result_sha256]); // 试验台账行的 hash 带登记时刻，两轮本来就不同
+
+test('R1.8：留出段开启之后崩溃，恰好一次同选集重打分；记成留出段保管的第二个事件；再崩以 FAILED_RESCORE 关轮；第三次拒绝', () => {
+  // 干净的一轮（对照）
+  const clean = rescoreRound();
+  runner.scoreHoldout(clean.args);
+  const want = recordsKey(clean.r.round_id);
+  const cleanClose = runner.close({ roundId: clean.r.round_id });
+  assert.ok(want.length >= 2);
+  // 崩在开启之后、任何记录之前 → 正常 score 被拒（不开第二次）→ 重打分一次：记录与干净的一轮逐条相同
+  const a = rescoreRound();
+  assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(a.args)), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.deepEqual([vault.openLog(a.r.round_id).length, gateRecords.recordsOf(a.r.round_id).length, rounds.roundHead(a.r.round_id).status], [1, 0, 'SCORING']);
+  assert.throws(() => runner.scoreHoldout(a.args), code(/MINE_HOLDOUT_ALREADY_OPENED/));
+  const res = runner.rescore({ ...a.args, reason: 'container OOM after open (synthetic)', log: 'synthetic crash log\nline 2' });
+  assert.equal(res.rescored, true);
+  assert.deepEqual(recordsKey(a.r.round_id), want, 'same inputs, same records as the clean run');
+  const [ev] = vault.rescoreLog(a.r.round_id);
+  assert.equal(ev.schema, 'HOLDOUT_RESCORE_V1');
+  assert.equal(ev.kind, 'RESCORE_SAME_SELECTION');
+  assert.equal(ev.reason, 'container OOM after open (synthetic)');
+  assert.equal(ev.log_sha256, sha('synthetic crash log\nline 2'));
+  assert.equal(ev.open_hash, vault.openLog(a.r.round_id)[0].record_hash);
+  assert.equal(ev.selection_record_hash, rounds.selectionOf(a.r.round_id).record_hash);
+  assert.equal(ev.inputs_sha256, vault.openLog(a.r.round_id)[0].inputs_sha256);
+  const closed = runner.close({ roundId: a.r.round_id });
+  assert.deepEqual([closed.status, closed.gmine_passes], ['CLOSED', cleanClose.gmine_passes]);
+  assert.throws(() => runner.rescore({ ...a.args, reason: 'again', log: 'x' }), code(/MINE_RUNNER_ROUND_NOT_SCORING|MINE_HOLDOUT_RESCORE_ONCE/));
+
+  // 第一次已经写了 G-MINE 记录 → 不许重打分
+  const b = rescoreRound();
+  assert.throws(() => runner.internals.withFault('AFTER_FIRST_RECORD', () => runner.scoreHoldout(b.args)), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.equal(gateRecords.recordsOf(b.r.round_id).length, 1);
+  assert.throws(() => runner.rescore({ ...b.args, reason: 'crash', log: 'x' }), code(/MINE_HOLDOUT_RESCORE_RECORDS_EXIST/));
+  assert.equal(vault.rescoreLog(b.r.round_id).length, 0);
+
+  // 选择记录变了、或封存的清单变了 → 拒绝
+  const c = rescoreRound();
+  assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(c.args)), code(/MINE_RUNNER_TEST_FAULT/));
+  const selLedger = path.join(c.out, 'research', 'mining_selections.jsonl');
+  const original = fs.readFileSync(selLedger, 'utf8');
+  const row = JSON.parse(original.trim()); row.selected = row.selected.slice(0, 1);
+  fs.writeFileSync(selLedger, `${JSON.stringify(row)}\n`);
+  assert.throws(() => runner.rescore({ ...c.args, reason: 'crash', log: 'x' }), code(/MINE_HOLDOUT_RESCORE_SELECTION_CHANGED/));
+  fs.writeFileSync(selLedger, original);
+  const changed = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r18-sums-'));
+  for (const n of fs.readdirSync(fx.dirs.holdout)) fs.copyFileSync(path.join(fx.dirs.holdout, n), path.join(changed, n));
+  fs.writeFileSync(path.join(changed, 'SHA256SUMS.sealed'), fs.readFileSync(path.join(changed, 'SHA256SUMS'), 'utf8').replace(/^[0-9a-f]{8}/, '00000000'));
+  assert.throws(() => runner.rescore({ ...c.args, holdoutDir: changed, reason: 'crash', log: 'x' }), code(/MINE_RUNNER_HOLDOUT_SHA_MISMATCH|MINE_HOLDOUT_RESCORE_INPUTS_CHANGED|SEALED/));
+  assert.equal(vault.rescoreLog(c.r.round_id).length, 0, 'a refused rescore writes no event');
+
+  // 重打分时又崩 → 下一次以 FAILED_RESCORE 关轮（不写记录，尝试照旧计入 N）；第三次拒绝
+  const d = rescoreRound();
+  const nBefore = rounds.familyN('CN_A', 5);
+  assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(d.args)), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.throws(() => runner.internals.withFault('AFTER_RESCORE_EVENT', () => runner.rescore({ ...d.args, reason: 'crash 1', log: 'x' })), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.equal(vault.rescoreLog(d.r.round_id).length, 1);
+  assert.throws(() => vault.recordRescore({ round_id: d.r.round_id, reason: 'again', log: '', inputs_sha256: vault.openLog(d.r.round_id)[0].inputs_sha256, rescoredBy: 'TEST' }),
+    code(/MINE_HOLDOUT_RESCORE_ONCE/), 'the vault itself allows one rescore event');
+  assert.throws(() => runner.rescore({ ...d.args, reason: 'crash 2', log: 'y' }), code(/MINE_RUNNER_RESCORE_FAILED/));
+  const failed = rounds.roundHead(d.r.round_id);
+  assert.deepEqual([failed.status, failed.gmine_passes, gateRecords.recordsOf(d.r.round_id).length], ['FAILED_RESCORE', 0, 0]);
+  assert.equal(failed.gmine_basis.failed_rescore.reason, 'crash 2');
+  assert.deepEqual([failed.gmine_basis.records, failed.gmine_basis.record_hashes], [0, []], 'no G-MINE record counts for a failed rescore');
+  assert.equal(rounds.familyN('CN_A', 5), nBefore, 'its attempts stay in N');
+  assert.throws(() => runner.rescore({ ...d.args, reason: 'crash 3', log: 'z' }), code(/MINE_RUNNER_ROUND_FAILED_RESCORE/));
+  assert.throws(() => runner.scoreHoldout(d.args), code(/MINE_RUNNER_ROUND_FAILED_RESCORE/));
+  assert.throws(() => runner.close({ roundId: d.r.round_id }), code(/MINE_ROUND_NOT_OPEN/));
+  process.env.QRP_DATA_DIR = dataRoot;
+});
+
+test('续跑（--resume）用的覆盖下限也写进台账（轮次行的 data_checks.resumes）', () => {
+  const out = freshData();
+  const r = runner.requestRound({ generator: GP, cap: KNOWN.length, openedAt: '2026-11-24T02:00:00Z' });
+  runner.sealHoldout({ roundId: r.round_id, dataRef: 'synthetic:holdout', dataSha256: HOLDOUT_SUMS_SHA });
+  const res = cli(['generate', '--out', out, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--resume', r.round_id, '--min-names-per-day', '5'],
+    { QRP_DATA_DIR: out, QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH });
+  assert.equal(res.status, 0, res.stderr);
+  const head = rounds.roundHead(r.round_id);
+  assert.equal(head.data_checks.resumes.length, 1);
+  assert.deepEqual(head.data_checks.resumes[0].min_names_per_day, { value: 5, default: 2000, overridden: true });
+  assert.ok(/T.*Z$/.test(head.data_checks.resumes[0].at));
+  assert.deepEqual(head.data_checks.coverage_floor, { min_names_per_day: 2000, default: 2000, overridden: false }, 'the open-time record is kept');
+  process.env.QRP_DATA_DIR = dataRoot;
 });
