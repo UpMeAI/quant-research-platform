@@ -90,16 +90,60 @@ test('MARKET_AFTER_POLL：轮询发现以后才发单，按其后第一根 1 分
 
 test('TIERED_LIMIT_STOP：2% 挂 60 秒 → 4% 挂 300 秒 → 市价；反例：第一档超时以后回来的价格不按第一档成交', () => {
   assert.deepEqual(fm.DEFAULT_TIERS, { t1Pct: 2, t1TimeoutS: 60, t2Pct: 4, t2TimeoutS: 300 });
-  const at = T0;
+  // #110：触发在第 −1 分钟里（不在整分钟上），第一根可成交的是第 0 分钟（与 MARKET_AFTER_POLL 同一口径，见下一条）
+  const at = T0 - 30000;
   // 第一档：限价 98，第 0 分钟高价 98.5 → 按 98 成交
   const l1 = 100 * (1 - 2 / 100);
-  assert.deepEqual(fm.TIERED_LIMIT_STOP({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: [bar(0, 97, 98.5, 96, 97)] }), { filled: true, tier: 1, price: l1, limit: l1, barStartMs: at });
+  assert.deepEqual(fm.TIERED_LIMIT_STOP({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: [bar(0, 97, 98.5, 96, 97)] }), { filled: true, tier: 1, price: l1, limit: l1, barStartMs: T0 });
   // 第 0 分钟够不着 98；第 1 分钟（第一档已过期）高价到 99：不按第一档的 98，按第二档 96 的限价单——开盘 97 已优于 96，按开盘价
   const r = fm.TIERED_LIMIT_STOP({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: [bar(0, 95, 97, 94, 95), bar(1, 97, 99, 96.5, 98)] });
   assert.deepEqual([r.tier, r.price], [2, 97]);
   // 两档都没成交（一直在 95 以下）→ 第 6 分钟（60 + 300 秒之后）按开盘价市价成交
   const low = Array.from({ length: 7 }, (_, i) => bar(i, 94, 95, 93, 94));
-  assert.deepEqual(fm.TIERED_LIMIT_STOP({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: low }), { filled: true, tier: 'MARKET', price: 94, barStartMs: at + 6 * M });
+  assert.deepEqual(fm.TIERED_LIMIT_STOP({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: low }), { filled: true, tier: 'MARKET', price: 94, barStartMs: T0 + 6 * M });
+});
+
+/** #110 前（QRP 76f3a41d）的 TIERED_LIMIT_STOP：档位窗口从触发时刻起，开始时刻不早于触发时刻的分钟线都算（对照用）。 */
+function tieredBefore({ triggerPrice, triggerAtMs, side, minuteBars, tiers = fm.DEFAULT_TIERS }) {
+  const after = minuteBars.filter((b) => b.startMs >= triggerAtMs);
+  const t1End = triggerAtMs + tiers.t1TimeoutS * 1000; const t2End = t1End + tiers.t2TimeoutS * 1000;
+  for (const w of [{ tier: 1, pct: tiers.t1Pct, from: triggerAtMs, to: t1End }, { tier: 2, pct: tiers.t2Pct, from: t1End, to: t2End }]) {
+    const limit = side === 'SELL' ? triggerPrice * (1 - w.pct / 100) : triggerPrice * (1 + w.pct / 100);
+    for (const b of after.filter((x) => x.startMs >= w.from && x.startMs < w.to)) {
+      if (side === 'SELL' ? b.open >= limit : b.open <= limit) return { filled: true, tier: w.tier, price: b.open, limit, barStartMs: b.startMs };
+      if (side === 'SELL' ? b.high >= limit : b.low <= limit) return { filled: true, tier: w.tier, price: limit, limit, barStartMs: b.startMs };
+    }
+  }
+  const market = after.find((b) => b.startMs >= t2End);
+  return market ? { filled: true, tier: 'MARKET', price: market.open, barStartMs: market.startMs } : { filled: false, reason: 'NO_BAR_AFTER_TIERS' };
+}
+
+test('#110 同一口径：整分钟时刻发出的单子，那一分钟（已开始）不成交——MARKET_AFTER_POLL 用其后开始的第一根，TIERED_LIMIT_STOP 的档位也从那一根算起（反例：76f3a41d 的分级止损用了触发那一分钟）', () => {
+  const at = T0; // 触发 / 轮询恰在整分钟上（回放的轮询都在整分钟上）
+  const bars = [bar(0, 99, 99.5, 97, 98), bar(1, 95, 96, 94, 95), bar(2, 96.5, 97, 96, 96.5), ...Array.from({ length: 6 }, (_, i) => bar(3 + i, 94, 95, 93, 94))];
+  const market = fm.MARKET_AFTER_POLL({ pollAtMs: at, minuteBars: bars, side: 'SELL' });
+  assert.equal(market.barStartMs, T0 + M);
+  const tiered = fm.TIERED_LIMIT_STOP({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: bars });
+  // 第一档（98）只看第 1 分钟：开盘 95、高 96 够不着；第二档（96）第 2 分钟开盘 96.5 已优于 96 → 按开盘价
+  assert.deepEqual(tiered, { filled: true, tier: 2, price: 96.5, limit: 100 * (1 - 4 / 100), barStartMs: T0 + 2 * M });
+  assert.deepEqual(tieredBefore({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: bars }).barStartMs, T0); // 改前：用了第 0 分钟的开盘价 99
+  // 两档都没成交 → 市价在第一根可成交分钟起 60 + 300 秒之后：第 7 分钟
+  const low = Array.from({ length: 9 }, (_, i) => bar(i, 94, 95, 93, 94));
+  assert.equal(fm.TIERED_LIMIT_STOP({ triggerPrice: 100, triggerAtMs: at, side: 'SELL', minuteBars: low }).barStartMs, T0 + 7 * M);
+});
+
+test('#110 不在整分钟上的触发：改前改后逐字节一致（2,000 组随机分钟线，两个方向，档位是整分钟的 60 秒 / 300 秒）', () => {
+  let seed = 110;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
+  for (let n = 0; n < 2000; n += 1) {
+    const side = n % 2 ? 'BUY' : 'SELL';
+    let p = 100;
+    const bars = Array.from({ length: 12 }, (_, i) => { const o = p * (1 + (rnd() - 0.5) * 0.06); const c = o * (1 + (rnd() - 0.5) * 0.04);
+      const b = bar(i, o, Math.max(o, c) * (1 + rnd() * 0.03), Math.min(o, c) * (1 - rnd() * 0.03), c); p = c; return b; });
+    const triggerAtMs = T0 - M + 1 + Math.floor(rnd() * (M - 1)); // 第 −1 分钟里，不在整分钟上
+    const args = { triggerPrice: 100, triggerAtMs, side, minuteBars: bars };
+    assert.equal(JSON.stringify(fm.TIERED_LIMIT_STOP(args)), JSON.stringify(tieredBefore(args)));
+  }
 });
 
 test('POLL_EVERY：只在时段窗口内每隔一段轮询；节奏反例（§2.2 第 4 条）：两次轮询之间先碰到又回来的价格，按轮询判不到', () => {

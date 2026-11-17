@@ -98,3 +98,18 @@ test('漂移核对（协调会话每次部署后用）：同一份声明换到�
   assert.equal(one.pins['ashare-v6'].commit, pinned);
   assert.throws(() => decl.verifyLocks(one, { roots: { 'ashare-v6': repo }, commits: { 'ashare-v6': 'HEAD' } }), (e) => e.code === 'FILL_DECLARATION_COMMIT_INVALID');
 });
+
+test('#110 ★5 美股滑点写进声明：US_V5 入场与盯盘的市价成交 5 bps = G-COST 美股下限（services/cost-gate FLOORS.US，锁在 QRP 自己的常量上）；分级限价不加；US_CORE 两段 5 bp 锁在实盘常量上', () => {
+  const costGate = require('../services/cost-gate');
+  const row = (book, segment) => DOC.declarations.find((d) => d.book === book && d.segment === segment);
+  for (const segment of ['ENTRY', 'INTRADAY_WATCH']) {
+    const r = row('US.US_V5', segment);
+    assert.equal(r.params.slippage_bps, costGate.FLOORS.US.total_bps_min, segment);
+    assert.deepEqual(r.params.slippage_source, { kind: 'QRP_CONSTANT', path: 'services/cost-gate/index.js', key: 'FLOORS.US.total_bps_min',
+      basis: 'ENGINE_MODELING_ACCEPTANCE_V1 ★5 (a): the G-COST US floor unless the live measured slippage is higher' }, segment);
+  }
+  assert.equal(row('US.US_V5', 'INTRADAY_WATCH').params.tiered_slippage_bps, 0);
+  for (const segment of ['DAILY_DECISION', 'TOUCH_EXIT_AND_ENTRY']) assert.equal(row('US.US_CORE', segment).params.slippage_bps, 5, segment);
+  const byId = Object.fromEntries(results.map((r) => [r.id, r]));
+  if (!missing.length) assert.equal(byId.SF_US_CORE_DAILY_COST_SIDE && byId.SF_US_CORE_DAILY_COST_SIDE.actual, '0.0005');
+});
