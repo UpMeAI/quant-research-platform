@@ -344,10 +344,34 @@ function withFault(point, cb) { const prior = fault; fault = point; try { return
 const faultAt = (point) => { if (fault === point) fail('TEST_FAULT', point); };
 
 /**
- * 开启之前的一切（第一次打分与 R1.8 的重打分共用）：选择记录与 selection.json、现有因子序列、留出段目录的核对、机制登记、
- * 以及这次打分的全部输入的 sha（inputs_sha256：重打分要与开启时一样）。不写任何东西。
+ * R1.5 的协调会话复审（MECHANISM_REVIEW_V1，最新一行算数）：打分之前必须有，且
+ *   行没被改过（record_hash 重算得出）→ 否则 MECHANISM_REVIEW_HASH_MISMATCH；选择记录里每个候选都有 APPROVED / REJECTED → 否则 _INCOMPLETE；
+ *   选择记录与机制集合 sha 等于现在的登记 → 否则 _STALE；reviewed_at 与 recorded_at 不晚于现在（第一次打分：开启记录在这次检查之后才写）、
+ *   重打分时严格早于那次开启的 opened_at → 否则 _AFTER_OPEN。
+ * 没有 → MECHANISM_REVIEW_MISSING。返回复审行与 候选 → 裁决。
  */
-function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir }) {
+function reviewedMechanisms(roundId, selRow, before, { strict = true } = {}) {
+  const mechs = require('../../mining-rounds/mechanisms');
+  const rv = mechs.latestReview(roundId);
+  need(rv, 'MECHANISM_REVIEW_MISSING', `${roundId}: no MECHANISM_REVIEW_V1 row (run.sh review)`);
+  const { record_hash: h, ...body } = rv;
+  need(require('../../trial-ledger').recordHash(body) === h, 'MECHANISM_REVIEW_HASH_MISMATCH', roundId);
+  const verdicts = new Map((rv.verdicts || []).map((v) => [v.candidate_id, v.verdict]));
+  const missing = selRow.selected.filter((id) => !mechs.VERDICTS.includes(verdicts.get(id)));
+  need(!missing.length, 'MECHANISM_REVIEW_INCOMPLETE', `${roundId}: ${missing.length} selected candidate(s) without a verdict`);
+  need(rv.selection_record_hash === selRow.record_hash && rv.mechanism_set_sha256 === mechs.mechanismSetSha(roundId).sha256, 'MECHANISM_REVIEW_STALE',
+    `${roundId}: the registrations changed after the review`);
+  // 重打分：严格早于那次开启；第一次打分：不晚于现在（检查在开启之前，开启记录在它之后才写）
+  const ok = (t) => Number.isFinite(Date.parse(t)) && (strict ? Date.parse(t) < Date.parse(before) : Date.parse(t) <= Date.parse(before));
+  need([rv.reviewed_at, rv.recorded_at].every(ok), 'MECHANISM_REVIEW_AFTER_OPEN', `${roundId}:${rv.recorded_at} vs ${before}`);
+  return { review: rv, verdicts };
+}
+
+/**
+ * 开启之前的一切（第一次打分与 R1.8 的重打分共用）：选择记录与 selection.json、现有因子序列、留出段目录的核对、机制登记与协调会话的复审、
+ * 以及这次打分的全部输入的 sha（inputs_sha256：重打分要与开启时一样）。不写任何东西。reviewBefore：复审必须早于它（默认现在）。
+ */
+function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore = null }) {
   for (const s of sources) need(!s.holdout, 'HOLDOUT_PASSED_AS_SOURCE', s.label);
   const dir = runDir(outDir, roundId);
   // 选择只信台账里那一行（复审第 3 条）：输出目录里的 selection.json 要对得上它的 sha；候选编号取这一行，公式取试验台账行
@@ -366,6 +390,7 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
   const checked = selRow.selected.length ? verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: holdoutFloor.min_names_per_day }) : null;
   // R1.5：开启之前写的机制登记（开启之后不能再写）
   const mechs = new Map(require('../../mining-rounds/mechanisms').mechanismsOf(roundId).map((m) => [m.candidate_id, m]));
+  const reviewed = selRow.selected.length ? reviewedMechanisms(roundId, selRow, reviewBefore || now(), { strict: Boolean(reviewBefore) }) : null;
   const sealedFile = holdoutDir ? path.join(holdoutDir, 'SHA256SUMS.sealed') : null;
   const inputs = {
     selection_record_hash: selRow.record_hash, selection_sha256: selRow.selection_sha256,
@@ -373,8 +398,9 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
     holdout_sealed_file_sha256: sealedFile && fs.existsSync(sealedFile) ? sha256(fs.readFileSync(sealedFile)) : null,
     factor_series_sums_sha256: factorSeries ? factorSeries.sums_sha256 : null, sources: sources.map((s) => ({ label: s.label, sums_sha256: s.sums_sha256 || null })),
     code_sha256: codeSha(), holdout_floor: holdoutFloor.min_names_per_day, mechanisms: [...mechs.values()].map((m) => m.record_hash).sort(),
+    mechanism_review: reviewed ? reviewed.review.record_hash : null,
   };
-  return { dir, selRow, formulas, validation, familySharpes, factorSeries, checked, mechs, inputs, inputs_sha256: sha256(JSON.stringify(inputs)) };
+  return { dir, selRow, formulas, validation, familySharpes, factorSeries, checked, mechs, reviewed, inputs, inputs_sha256: sha256(JSON.stringify(inputs)) };
 }
 
 /** 开启之后：建留出段面板、只经 holdout-scoring 打分、逐候选记录 G-MINE（第一次与重打分一样）。 */
@@ -384,12 +410,15 @@ function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenI
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
   const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace) })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation: p.validation,
-      familySharpes: p.familySharpes, mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt });
+      familySharpes: p.familySharpes, mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt,
+      review: p.reviewed ? { verdicts: p.reviewed.verdicts, review_hash: p.reviewed.review.record_hash, reviewed_at: p.reviewed.review.reviewed_at } : null });
   const records = results.map((res, k) => { const rec = gateRecords.recordGateResult({ round_id: roundId, candidate_id: res.candidate_id, candidate: res }); if (k === 0) faultAt('AFTER_FIRST_RECORD'); return rec; });
   const c = p.checked;
   writeJson(path.join(p.dir, rescored ? 'score.rescore.json' : 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: true, rescored, selection_record_hash: p.selRow.record_hash,
     inputs_sha256: p.inputs_sha256, factor_series: p.factorSeries ? { sums_sha256: p.factorSeries.sums_sha256, factor_ids: p.factorSeries.factor_ids } : null,
     mechanisms: [...p.mechs.values()].map((m) => ({ candidate_id: m.candidate_id, record_hash: m.record_hash })),
+    mechanism_review: p.reviewed ? { record_hash: p.reviewed.review.record_hash, mechanism_set_sha256: p.reviewed.review.mechanism_set_sha256, reviewer: p.reviewed.review.reviewer,
+      reviewed_at: p.reviewed.review.reviewed_at } : null,
     holdout: { seal_hash: c.seal_hash, data_sha256: c.data_sha256, calendar_to: c.calendar_to, open_days: c.open_days, rows_per_day: c.rows_per_day }, holdout_panel: panel.manifest, results,
     records: records.map((x) => ({ candidate_id: x.candidate_id, pass: x.pass, codes: x.codes, record_hash: x.record_hash })) });
   return records;
@@ -442,7 +471,7 @@ function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', score
     rounds.failPartial(roundId, { reason, logSha256: sha256(String(log || '')) });
     fail('RESCORE_RECORDS_EXIST', `${roundId}: ${written} G-MINE record(s) written before the crash, closed as FAILED_PARTIAL (R1.12)`);
   }
-  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir });
+  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore: open.opened_at }); // 复审要早于那一次开启
   vault.recordRescore({ round_id: roundId, reason, log, inputs_sha256: p.inputs_sha256, rescoredBy: RUNNER_ID });
   faultAt('AFTER_RESCORE_EVENT');
   const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: open.candidate_ids, segmentOpenIndex: open.segment_open_index, openedAt: open.opened_at, rescored: true });

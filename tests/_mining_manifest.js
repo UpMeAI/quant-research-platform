@@ -33,4 +33,18 @@ function nextHoldout(rounds, market, base) {
   return { from: addDays(lastEnd, 1), to: addDays(lastEnd, 60) };
 }
 
-module.exports = { R1, R1_RULING, R1_SELECTION_RULE, nextHoldout };
+/**
+ * R1.5 的协调会话复审（MECHANISM_REVIEW_V1）：给本轮选择记录里的每个候选一个裁决。测试默认：登记了机制的 APPROVED，没登记的 REJECTED；
+ * override 按候选编号改裁决。打分之前必须有这一行（执行器 MINE_RUNNER_MECHANISM_REVIEW_*）。
+ */
+function reviewAll(roundId, override = {}, opts = {}) {
+  const rounds = require('../services/mining-rounds');
+  const mechanisms = require('../services/mining-rounds/mechanisms');
+  const sel = rounds.selectionOf(roundId);
+  return mechanisms.recordReview(roundId, {
+    mechanism_set_sha256: mechanisms.mechanismSetSha(roundId).sha256, reviewer: 'coordinator (synthetic test)',
+    verdicts: sel.selected.map((id) => ({ candidate_id: id, verdict: override[id] || (mechanisms.mechanismOf(roundId, id) ? 'APPROVED' : 'REJECTED') })),
+  }, opts);
+}
+
+module.exports = { R1, R1_RULING, R1_SELECTION_RULE, nextHoldout, reviewAll };

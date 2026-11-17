@@ -57,7 +57,8 @@ function candidate() {
       benchmark: 'EQUAL_WEIGHT_UNIVERSE', annualized_excess: 0.031 },
     marginal: { book_factor_ids: gate.bookFactorIds(lib.LIBRARY, 'CN_A'), wfo_net_ir_delta: 0.05, intercept_t: 1.1 },
     correlation: { orthogonalised_against: [], pairs: sameMarket.map((f, i) => ({ factor_id: f.factor_id, rho_cross_section: 0.1 + i / 100, rho_returns: -0.2 })) },
-    mechanism: { mechanism_id: MECH_ID, economic_logic_zh: '合成：经济逻辑', failure_mode_zh: '合成：预期失效方式', written_at: '2026-11-30T09:00:00+08:00', registered_at: '2026-11-30T01:00:05.000Z' },
+    mechanism: { mechanism_id: MECH_ID, economic_logic_zh: '合成：经济逻辑', failure_mode_zh: '合成：预期失效方式', written_at: '2026-11-30T09:00:00+08:00', registered_at: '2026-11-30T01:00:05.000Z',
+      review: { verdict: 'APPROVED', review_hash: 'a'.repeat(64), reviewed_at: '2026-11-30T03:00:00.000Z' } },
     verdict: { label: '合成结论', note: '门不改写这一块' },
   };
 }
@@ -149,6 +150,10 @@ const COUNTER = [
   ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { c.mechanism.registered_at = '2026-12-01T01:30:00.000Z'; }], // 登记与开启同一刻：不早于开启
   ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { delete c.holdout.opened_at; }],
   ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { delete c.mechanism.registered_at; }],
+  // R1.5：协调会话的复审（MECHANISM_REVIEW_V1）：REJECTED → 第 9 项不过；没有裁决 → 不过
+  ['MECHANISM', 'MINE_MECHANISM_REJECTED', (c) => { c.mechanism.review.verdict = 'REJECTED'; }],
+  ['MECHANISM', 'MINE_MECHANISM_REVIEW_MISSING', (c) => { delete c.mechanism.review; }],
+  ['MECHANISM', 'MINE_MECHANISM_REVIEW_MISSING', (c) => { c.mechanism.review.verdict = 'MAYBE'; }],
   ['MECHANISM', 'MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION', (c) => { c.mechanism.written_at = '2026-11-30T09:04:00+08:00'; }], // 复审的情形：写成时刻晚于登记 4 分钟
 ];
 

@@ -286,6 +286,7 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
   assert.throws(() => runner.scoreHoldout({ roundId: r.round_id, sources: sources(), holdoutDir: hv.complete, outDir: out }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/),
     'the production floor (4,000 names) refuses the 15-name fixture before the open');
   assert.equal(vault.openLog(r.round_id).length, 0);
+  require('./_mining_manifest').reviewAll(r.round_id); // R1.5：协调会话复审机制之后才能打分
   const s = score(hv.complete);
   assert.equal(s.opened, true);
   assert.deepEqual(vault.openLog(r.round_id)[0].pre_open_checks.min_names_per_day, { value: 5, default: 4000, overridden: true }, 'the score-phase override is in the open record');
@@ -366,7 +367,7 @@ test('隔离（§4 第 7 条）：执行器启动即 lockdown，写输出目录�
   assert.deepEqual(fs.readdirSync(outside), []);
   const src = fs.readFileSync(CLI, 'utf8');
   const main = src.slice(src.indexOf('function main'));
-  assert.equal(main.split('runner.start(').length - 1, 3, 'generate, mechanisms and score all lock down first');
+  assert.equal(main.split('runner.start(').length - 1, 4, 'generate, mechanisms, review (R1.5) and score all lock down first');
   assert.ok(main.indexOf('runner.start(') < main.indexOf('runner.generate(') && main.lastIndexOf('runner.start(') < main.indexOf('runner.scoreHoldout('));
   assert.ok(main.lastIndexOf('runner.start(') > main.indexOf('runner.select('), 'the score branch has its own start');
 });
@@ -388,7 +389,7 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   for (const k of ['.git', 'var', 'tests']) assert.ok(ignore.includes(k), k);
   const sh = fs.readFileSync(path.join(dir, 'run.sh'), 'utf8');
   const runs = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
-  assert.equal(runs.length, 5); // generate、resume、mechanisms（R1.5）、rescore（R1.8）、score
+  assert.equal(runs.length, 6); // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score
   for (const l of runs) {
     for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 1000:1000', '-e QRP_DATA_DIR=/out/qrp-data']) assert.ok(l.includes(flag), `${flag} in ${l.slice(0, 60)}`);
     assert.match(l, /--cpus \d+ /); assert.match(l, /--memory \d+g /); assert.match(l, /--memory-swap \d+g /); assert.match(l, /--pids-limit \d+ /);
@@ -478,6 +479,18 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   const texts = (x) => lines(path.join(runDirOf(x.out, x.g.round_id), 'attempts.jsonl')).map((l) => l.text).join('\n');
   assert.equal(sha(texts(a)), sha(texts(b)), 'same seed, space and data: byte-identical formula list');
 
+  // R1.5：mechanisms 列出机制集合的 sha → 协调会话写裁决文件 → review 一步写 MECHANISM_REVIEW_V1 → 才能 score
+  const noReview = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5'], a.env);
+  assert.equal(noReview.status, 2); assert.equal(JSON.parse(noReview.stderr).error, 'MINE_RUNNER_MECHANISM_REVIEW_MISSING');
+  const listed = JSON.parse(cli(['mechanisms', '--out', a.out, '--round', a.g.round_id], a.env).stdout);
+  assert.match(listed.mechanism_set_sha256, /^[0-9a-f]{64}$/); assert.equal(listed.review, null);
+  const verdictFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-verdicts-')), 'verdicts.json'); // 车道上只读挂进来，不在 out/ 里
+  fs.writeFileSync(verdictFile, JSON.stringify({ mechanism_set_sha256: listed.mechanism_set_sha256, reviewer: 'coordinator',
+    verdicts: listed.survivors.map((x) => ({ candidate_id: x.candidate_id, verdict: 'REJECTED', note: 'no mechanism registered (synthetic)' })) }));
+  assert.equal(cli(['review', '--out', a.out, '--round', a.g.round_id], a.env).status, 2, '--file is required');
+  const rv = cli(['review', '--out', a.out, '--round', a.g.round_id, '--file', verdictFile], a.env);
+  assert.equal(rv.status, 0, rv.stderr);
+  assert.deepEqual([JSON.parse(rv.stdout).command, JSON.parse(rv.stdout).verdicts], ['review', { APPROVED: 0, REJECTED: listed.survivors.length }]);
   const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5'], a.env);
   assert.equal(s.status, 0, s.stderr);
   const sOut = JSON.parse(s.stdout);

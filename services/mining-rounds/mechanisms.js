@@ -14,6 +14,12 @@
  *     不是本轮过了验证折的候选 → MINE_MECHANISM_CANDIDATE_NOT_SELECTED。
  * 执行器打分时把这一行交给 G-MINE（mechanism：机制编号、两段文字、written_at、本行 hash）；没有登记的候选照样打分，mechanism 为 null，
  * 原因写 NO_MECHANISM_REGISTERED_BEFORE_OPEN，第 9 项不过。台账 research/mining_mechanisms.jsonl。
+ *
+ * 协调会话复审 MECHANISM_REVIEW_V1（R1.5「打分之前由协调会话复审这批机制」，修订 5 f904e0fe…）：台账 research/mining_mechanism_reviews.jsonl，只追加。
+ *   - 机制集合 sha（mechanismSetSha）：本轮选择记录 hash + 选择记录里每个候选（按编号排序）的机制登记行 hash（没登记的为 null）的规范 JSON 的 sha256；
+ *   - recordReview：裁决文件给 mechanism_set_sha256（必须等于现在的集合，复审人看的就是这一份）、reviewer（自由文本，不核身份）、
+ *     verdicts [{candidate_id, verdict: APPROVED | REJECTED, note?}]（候选必须在选择记录里、各一次；APPROVED 要有登记）；留出段开启之后不能再写；
+ *   - 同一轮再复审是新的一行（supersedes 指向上一行），最新的那一行算数；执行器打分之前核它（round-runner reviewedMechanisms）。
  */
 const path = require('path');
 const { dataDir, now, append, read } = require('../../packages/ledger');
@@ -23,6 +29,10 @@ const mech = require('../research-mechanism-register');
 
 const SCHEMA = 'MINING_MECHANISM_V1';
 const LEDGER = () => path.join(dataDir('research'), 'mining_mechanisms.jsonl');
+const REVIEW_SCHEMA = 'MECHANISM_REVIEW_V1';
+const REVIEWS = () => path.join(dataDir('research'), 'mining_mechanism_reviews.jsonl');
+const VERDICTS = Object.freeze(['APPROVED', 'REJECTED']);
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/;
 const BEIJING = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?\+08:00$/;
 const MARKET_OF = Object.freeze({ CN_A: 'CN_A', US: 'US_EQUITY', CRYPTO: 'CRYPTO' });
 
@@ -71,7 +81,53 @@ function registerMechanism(roundId, m = {}, { writtenBy, registeredAt = null } =
   return append(LEDGER(), rec);
 }
 
+/** 本轮的机制集合：选择记录里每个候选（按编号排序）与它的机制登记行 hash（没登记的 null），以及这份集合的 sha256。 */
+function mechanismSetSha(roundId) {
+  const sel = require('./index').selectionOf(roundId);
+  need(sel, 'MINE_MECHANISM_REVIEW_NO_SELECTION', roundId);
+  const items = [...sel.selected].sort().map((id) => { const m = mechanismOf(roundId, id); return { candidate_id: id, registration_hash: m ? m.record_hash : null }; });
+  return { sha256: require('crypto').createHash('sha256').update(trials.canonicalJson({ round_id: roundId, selection_record_hash: sel.record_hash, items })).digest('hex'),
+    selection_record_hash: sel.record_hash, items };
+}
+const reviewsOf = (roundId) => read(REVIEWS()).filter((x) => x.schema === REVIEW_SCHEMA && x.round_id === roundId);
+/** 最新的复审行（只追加，最后一行算数）；没有 → null。 */
+const latestReview = (roundId) => { const all = reviewsOf(roundId); return all.length ? all[all.length - 1] : null; };
+
+/**
+ * 协调会话写一行复审（只追加）。
+ * @param {{mechanism_set_sha256: string, reviewer: string, verdicts: Array<{candidate_id: string, verdict: 'APPROVED'|'REJECTED', note?: string}>}} v
+ * @param {{reviewedAt?: string}} opts reviewed_at 默认现在，不能在将来；recorded_at 总是系统时刻
+ */
+function recordReview(roundId, v = {}, { reviewedAt = null } = {}) {
+  const rounds = require('./index');
+  const r = rounds.roundHead(roundId);
+  need(r, 'MINE_MECHANISM_REVIEW_ROUND_NOT_FOUND', roundId);
+  need(!require('../holdout-vault').openLog(roundId).length && (r.status === 'OPEN' || r.status === 'CAP_REACHED'), 'MINE_MECHANISM_REVIEW_AFTER_HOLDOUT_OPEN', `${roundId}:${r.status}`);
+  const set = mechanismSetSha(roundId);
+  need(v.mechanism_set_sha256 === set.sha256, 'MINE_MECHANISM_REVIEW_SET_CHANGED', `${roundId}: reviewed ${String(v.mechanism_set_sha256).slice(0, 12)}, current ${set.sha256.slice(0, 12)}`);
+  need(isText(v.reviewer), 'MINE_MECHANISM_REVIEW_REVIEWER_REQUIRED', roundId);
+  const selected = new Set(set.items.map((x) => x.candidate_id));
+  const list = Array.isArray(v.verdicts) ? v.verdicts : [];
+  need(list.length > 0 && list.every((x) => x && selected.has(x.candidate_id) && VERDICTS.includes(x.verdict) && (x.note === undefined || x.note === null || typeof x.note === 'string'))
+    && new Set(list.map((x) => x.candidate_id)).size === list.length, 'MINE_MECHANISM_REVIEW_INVALID', roundId);
+  for (const x of list) if (x.verdict === 'APPROVED') need(mechanismOf(roundId, x.candidate_id), 'MINE_MECHANISM_REVIEW_APPROVED_UNREGISTERED', x.candidate_id);
+  const stamp = now();
+  const at = reviewedAt || stamp;
+  need(INSTANT.test(at) && Number.isFinite(Date.parse(at)) && Date.parse(at) <= Date.parse(stamp), 'MINE_MECHANISM_REVIEW_AT', String(at));
+  const prior = latestReview(roundId);
+  const body = {
+    schema: REVIEW_SCHEMA, round_id: roundId, selection_record_hash: set.selection_record_hash, mechanism_set_sha256: set.sha256, items: set.items,
+    verdicts: [...list].sort((a, b) => (a.candidate_id < b.candidate_id ? -1 : 1)).map((x) => ({ candidate_id: x.candidate_id, verdict: x.verdict, note: typeof x.note === 'string' ? x.note.slice(0, 2000) : null })),
+    reviewer: v.reviewer, reviewed_at: at, recorded_at: stamp, supersedes: prior ? prior.record_hash : null,
+  };
+  const rec = { ...body, record_hash: trials.recordHash(body) };
+  const res = validateRecord(rec, REVIEW_SCHEMA);
+  need(res.ok, 'MINE_MECHANISM_REVIEW_SCHEMA_INVALID', res.problems.join(','));
+  return append(REVIEWS(), rec);
+}
+
 /** 只给测试用：临时把 G-MECH 的路由换成给定值（合成 NOT_DO_SETTLED），回调结束还原。 */
 function withRoute(route, cb) { const prior = routeOverride; routeOverride = route; try { return cb(); } finally { routeOverride = prior; } }
 
-module.exports = { SCHEMA, LEDGER, MechanismError, registerMechanism, mechanismOf, mechanismsOf, internals: { withRoute } };
+module.exports = { SCHEMA, LEDGER, REVIEW_SCHEMA, REVIEWS, VERDICTS, MechanismError, registerMechanism, mechanismOf, mechanismsOf,
+  mechanismSetSha, recordReview, reviewsOf, latestReview, internals: { withRoute } };

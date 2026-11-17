@@ -11,7 +11,10 @@
  *            第 6–9 步：核留出段目录 → 开留出段（每轮一次）→ 打分 → 逐候选 G-MINE 记录 → 关轮。
  *
  *   mechanisms --out DIR --round ROUND_ID [--register FILE]
- *            协调会话裁定 R1.5：列出过了验证折的候选与机制登记状态；--register 给一个 JSONL 文件就逐条登记（留出段开启之前，只追加）。
+ *            协调会话裁定 R1.5：列出过了验证折的候选与机制登记状态、机制集合的 sha 与最新的复审；--register 给一个 JSONL 文件就逐条登记（留出段开启之前，只追加）。
+ *   review   --out DIR --round ROUND_ID --file FILE
+ *            R1.5「打分之前由协调会话复审这批机制」：裁决文件 JSON { mechanism_set_sha256, reviewer, verdicts: [{candidate_id, verdict: APPROVED|REJECTED, note?}] }
+ *            写一行 MECHANISM_REVIEW_V1（只追加，最新的算数）。score / rescore 之前必须有覆盖每个选中候选、集合 sha 对得上、早于开启的复审。
  *   score 另可 --factor-series DIR（FACTOR_SERIES_V1，R1.4：G-MINE 第 7、8 项要的现有因子序列，只读）；--min-names-per-day 是留出段的下限（默认 4,000）。
  *   rescore（score 的选项）+ --reason TEXT --crash-log FILE：协调会话裁定 R1.8，开启之后崩溃的那一轮恰好一次同选集重打分；再崩以 FAILED_RESCORE 关轮。
  *
@@ -26,6 +29,7 @@ const OPTIONS = Object.freeze({
   generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day'],
   score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series'],
   mechanisms: ['out', 'round', 'register'],
+  review: ['out', 'round', 'file'],
   rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log'],
 });
 
@@ -81,7 +85,20 @@ function main(argv) {
         registered.push(mechanisms.registerMechanism(o.round, JSON.parse(line), { writtenBy: registeredBy }).candidate_id);
       }
     }
-    return { command: 'mechanisms', round_id: o.round, survivors: runner.survivors({ roundId: o.round, outDir }), registered };
+    const latest = mechanisms.latestReview(o.round);
+    return { command: 'mechanisms', round_id: o.round, survivors: runner.survivors({ roundId: o.round, outDir }), registered,
+      mechanism_set_sha256: mechanisms.mechanismSetSha(o.round).sha256,
+      review: latest ? { record_hash: latest.record_hash, mechanism_set_sha256: latest.mechanism_set_sha256, reviewer: latest.reviewer, reviewed_at: latest.reviewed_at, verdicts: latest.verdicts } : null };
+  }
+  if (cmd === 'review') {
+    // R1.5：协调会话的复审（裁决文件只读挂进来），写 MECHANISM_REVIEW_V1
+    required(o, ['out', 'round', 'file']);
+    runner.start({ outDir: o.out });
+    const v = JSON.parse(require('fs').readFileSync(o.file, 'utf8'));
+    const row = require('../../mining-rounds/mechanisms').recordReview(o.round, v);
+    const count = (k) => row.verdicts.filter((x) => x.verdict === k).length;
+    return { command: 'review', round_id: o.round, record_hash: row.record_hash, mechanism_set_sha256: row.mechanism_set_sha256, supersedes: row.supersedes,
+      verdicts: { APPROVED: count('APPROVED'), REJECTED: count('REJECTED') } };
   }
   required(o, ['out', 'round', 'lane', 'tail', 'holdout']);
   const { outDir } = runner.start({ outDir: o.out });

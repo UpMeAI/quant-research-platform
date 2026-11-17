@@ -21,7 +21,7 @@ const { spawnSync } = require('child_process');
 const AUTH = 'TEST_R1_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
 const { makeMiningDataFixture, internals: fxi } = require('./_mining_data_fixture');
-const { R1, R1_RULING, R1_SELECTION_RULE } = require('./_mining_manifest');
+const { R1, R1_RULING, R1_SELECTION_RULE, reviewAll } = require('./_mining_manifest');
 const adapter = require('../services/mining-sandbox/data-adapter');
 const runner = require('../services/mining-sandbox/round-runner');
 const selector = require('../services/mining-sandbox/round-runner/selector');
@@ -288,7 +288,8 @@ test('R1.5 机制登记 + R1.3 / R1.4 / R1.6 进 G-MINE 记录：留出段开启
   const regCli = cli(['mechanisms', '--out', out, '--round', id, '--register', file], env);
   assert.equal(regCli.status, 0, regCli.stderr);
   assert.deepEqual(mechanisms.mechanismOf(id, second).same_mechanism_in_round, [first]);
-  // 打分：带现有因子序列
+  // 打分：带现有因子序列（R1.5：协调会话先复审机制）
+  reviewAll(id);
   const fsDir = makeFactorSeries();
   const s = runner.scoreHoldout({ roundId: id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, factorSeriesDir: fsDir, scoredAt: '2027-01-06T10:00:00+08:00', holdoutFloor: COV });
   assert.equal(s.opened, true);
@@ -372,6 +373,7 @@ test('命令行与容器：mechanisms 一步（不挂数据、不挂留出段、
 function rescoreRound() {
   const out = freshData();
   const { r, sel } = toSelection(out, { openedAt: '2026-11-23T02:00:00Z' });
+  reviewAll(r.round_id); // R1.5：打分之前的机制复审（没登记机制的候选 REJECTED）
   const args = { roundId: r.round_id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, scoredAt: '2027-01-06T10:00:00+08:00', holdoutFloor: COV };
   return { out, r, sel, args };
 }
@@ -421,7 +423,10 @@ test('R1.8：留出段开启之后崩溃，恰好一次同选集重打分；记�
   const original = fs.readFileSync(selLedger, 'utf8');
   const row = JSON.parse(original.trim()); row.selected = row.selected.slice(0, 1);
   fs.writeFileSync(selLedger, `${JSON.stringify(row)}\n`);
-  assert.throws(() => runner.rescore({ ...c.args, reason: 'crash', log: 'x' }), code(/MINE_HOLDOUT_RESCORE_SELECTION_CHANGED/));
+  // 执行器先核复审（选择变了，机制集合 sha 跟着变 → STALE）；留出段保管自己也拒（选集行与开启记录对不上）
+  assert.throws(() => runner.rescore({ ...c.args, reason: 'crash', log: 'x' }), code(/MINE_RUNNER_MECHANISM_REVIEW_STALE|MINE_HOLDOUT_RESCORE_SELECTION_CHANGED/));
+  assert.throws(() => vault.recordRescore({ round_id: c.r.round_id, reason: 'crash', log: 'x', inputs_sha256: vault.openLog(c.r.round_id)[0].inputs_sha256, rescoredBy: 'TEST' }),
+    code(/MINE_HOLDOUT_RESCORE_SELECTION_CHANGED/));
   fs.writeFileSync(selLedger, original);
   const changed = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r18-sums-'));
   for (const n of fs.readdirSync(fx.dirs.holdout)) fs.copyFileSync(path.join(fx.dirs.holdout, n), path.join(changed, n));
@@ -529,6 +534,7 @@ test('R1.5（修订 4）：机制的 written_at 不晚于登记时刻；打分�
   // 登记时刻在开启之后（台账里的 registered_at 晚于开启记录的 opened_at）→ 第 9 项不过
   const future = Date.now() + 4 * 60e3;
   mechanisms.registerMechanism(id, { candidate_id: second, ...M, written_at: beijing(future) }, { writtenBy: AUTH, registeredAt: new Date(future).toISOString() });
+  reviewAll(id);
   runner.scoreHoldout({ roundId: id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, scoredAt: '2027-01-06T10:00:00+08:00', holdoutFloor: COV });
   const [open] = vault.openLog(id);
   assert.ok(Date.parse(mechanisms.mechanismOf(id, second).registered_at) > Date.parse(open.opened_at));
