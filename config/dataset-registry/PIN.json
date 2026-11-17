@@ -15,7 +15,7 @@
     },
     {
       "repository": "smartflow",
-      "commit": "2e9585434853cbd6dc97769e32687ee530125f1c",
+      "commit": "276ebc3081b962e0f143f59ebc3abbd6f257f198",
       "path": "trading-system-v2/tests/fixtures/dataset-registry/PIN.json"
     }
   ]
