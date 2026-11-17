@@ -22,7 +22,7 @@ const refuses = (doc, code) => assert.throws(() => decl.validate(doc), (e) => e.
 test('结构：12 条（6 个账本各 2 段），节奏规则与成交规则都是库里的规则，出处指向钉住的仓库，环境开关写明来源，每条要么有锁、要么写明为什么没锁', () => {
   assert.equal(DOC.declarations.length, 12);
   assert.deepEqual([...new Set(DOC.declarations.map((d) => d.book))], [...decl.BOOKS]);
-  assert.deepEqual([DOC.pins['ashare-v6'].commit.slice(0, 8), DOC.pins.smartflow.commit.slice(0, 8)], ['83ab3af1', '3b25fb61']);
+  assert.deepEqual([DOC.pins['ashare-v6'].commit.slice(0, 8), DOC.pins.smartflow.commit.slice(0, 8)], ['4d9bc80f', '93428ef8']); // #110 复审 19:30 重钉
   assert.deepEqual([DOC.env_read.read_by, DOC.env_read.read_at], ['coordinator', '2026-11-17T00:16:00+08:00']);
   assert.deepEqual(DOC.contract_ref.spec.sha256.slice(0, 8), '90814c60');
   const usV5Watch = DOC.declarations.find((d) => d.book === 'US.US_V5' && d.segment === 'INTRADAY_WATCH');
@@ -112,4 +112,12 @@ test('#110 ★5 美股滑点写进声明：US_V5 入场与盯盘的市价成交 
   for (const segment of ['DAILY_DECISION', 'TOUCH_EXIT_AND_ENTRY']) assert.equal(row('US.US_CORE', segment).params.slippage_bps, 5, segment);
   const byId = Object.fromEntries(results.map((r) => [r.id, r]));
   if (!missing.length) assert.equal(byId.SF_US_CORE_DAILY_COST_SIDE && byId.SF_US_CORE_DAILY_COST_SIDE.actual, '0.0005');
+});
+
+test('#110 复审 19:30：重钉以后 V6 的出处行号跟着移；★5「实测更高时用实测值」这一支没有实现，写进 gaps_zh', () => {
+  const row = (book, segment) => DOC.declarations.find((d) => d.book === book && d.segment === segment);
+  assert.deepEqual(row('CN_A.INDEX_SLEEVE', 'OPEN_PLAN').live_refs, ['ashare-v6:src/index-book/paper-sleeve.js:34', 'ashare-v6:src/index-book/paper-sleeve.js:63-72']);
+  assert.equal(row('CN_A.STOCK_FIVE_STAGE', 'CLOSE_DECIDE_NEXT_OPEN').live_refs[0], 'ashare-v6:src/stock-book/five-stage/paper-simulator.js:178-181');
+  assert.equal(row('CN_A.STOCK_FIVE_STAGE', 'INTRADAY_TOUCH_EXIT').live_refs[0], 'ashare-v6:src/stock-book/five-stage/paper-simulator.js:259-291');
+  for (const segment of ['ENTRY', 'INTRADAY_WATCH']) assert.match(row('US.US_V5', segment).gaps_zh || '', /实测.*没有实现|NOT_IMPLEMENTED/, segment);
 });

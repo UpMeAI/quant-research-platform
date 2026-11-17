@@ -16,10 +16,10 @@ const load = () => require('../services/capacity-model');
 const sha = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
 
 const FILLS = [
-  { id: 'a', symbol: '600000.SH', date: '2026-11-03', side: 'BUY', desired: 50_000, prevDayVolume: 1_000_000, lotSize: 100 },
-  { id: 'b', symbol: '600001.SH', date: '2026-11-03', side: 'BUY', desired: 50_000, prevDayVolume: 123_456, lotSize: 100 },
-  { id: 'c', symbol: '600002.SH', date: '2026-11-03', side: 'SELL', desired: 10_000, prevDayVolume: null, lotSize: 100 },
-  { id: 'd', symbol: '600003.SH', date: '2026-11-03', side: 'SELL', desired: 10_000, prevDayVolume: 0, lotSize: 100 },
+  { id: 'a', symbol: '600000.SH', date: '2026-11-03', side: 'BUY', desired: 50_000, prevDayVolume: 1_000_000, prevDayVolumeDate: '2026-11-02', lotSize: 100 },
+  { id: 'b', symbol: '600001.SH', date: '2026-11-03', side: 'BUY', desired: 50_000, prevDayVolume: 123_456, prevDayVolumeDate: '2026-11-02', lotSize: 100 },
+  { id: 'c', symbol: '600002.SH', date: '2026-11-03', side: 'SELL', desired: 10_000, prevDayVolume: null, prevDayVolumeDate: null, lotSize: 100 },
+  { id: 'd', symbol: '600003.SH', date: '2026-11-03', side: 'SELL', desired: 10_000, prevDayVolume: 0, prevDayVolumeDate: '2026-10-31', lotSize: 100 },
 ];
 
 test('每笔：按前一交易日量 × 参与率封顶（就是库里的 PREV_DAY_VOLUME_CAP），报告成交数量、上限、参与率和想要的参与率', () => {
@@ -30,9 +30,9 @@ test('每笔：按前一交易日量 × 参与率封顶（就是库里的 PREV_D
   assert.equal(r.participationLimit, fm.DEFAULT_PARTICIPATION);
   const [a, b] = r.trades;
   assert.deepEqual(a, { id: 'a', symbol: '600000.SH', date: '2026-11-03', side: 'BUY', desired: 50_000, quantity: 50_000, cap: 100_000,
-    prevDayVolume: 1_000_000, participation: 0.05, desiredParticipation: 0.05, state: 'WITHIN_CAP' });
+    prevDayVolume: 1_000_000, prevDayVolumeDate: '2026-11-02', participation: 0.05, desiredParticipation: 0.05, state: 'WITHIN_CAP' });
   assert.deepEqual(b, { id: 'b', symbol: '600001.SH', date: '2026-11-03', side: 'BUY', desired: 50_000, quantity: 12_300, cap: 12_300,
-    prevDayVolume: 123_456, participation: 12_300 / 123_456, desiredParticipation: 50_000 / 123_456, state: 'CAPPED' });
+    prevDayVolume: 123_456, prevDayVolumeDate: '2026-11-02', participation: 12_300 / 123_456, desiredParticipation: 50_000 / 123_456, state: 'CAPPED' });
   // 和库里的规则逐笔一致：容量模型不另算一遍上限
   for (const f of FILLS.slice(0, 2)) {
     assert.equal(r.trades.find((t) => t.id === f.id).quantity, fm.PREV_DAY_VOLUME_CAP({ prevDayVolume: f.prevDayVolume, desired: f.desired, lotSize: f.lotSize }).quantity);
@@ -114,4 +114,17 @@ test('带了容量报告：两个适配器的容量轴 = capacityAxis(报告)，
   const b1 = bridgeAdapter().normalize_result({ ...BRIDGE_ART, capacity_report: report });
   assert.deepEqual(b1.capacity, cm.capacityAxis(report));
   assert.throws(() => ashare().normalize_result({ ...ASHARE_ART, capacity_report: { schema: 'OTHER' } }), (e) => e.code === 'CAPACITY_REPORT_INVALID');
+});
+
+test('#110 复审 19:30 反例：前一日量的日期必须早于成交日——字段名不算数；同一天或更晚的量、缺日期、日期写错都拒收（与 V6_SWAP_SAME_DAY_VOLUME 同一类）', () => {
+  const cm = load();
+  for (const prevDayVolumeDate of ['2026-11-03', '2026-11-04', undefined, null, '2026/11/02', 'x']) {
+    assert.throws(() => cm.participationReport({ fills: [{ ...FILLS[0], prevDayVolumeDate }] }), (e) => e.code === 'CAPACITY_PREV_VOLUME_DATE_INVALID', String(prevDayVolumeDate));
+  }
+  // 量读不到时日期可以没有；若写了，同样必须早于成交日
+  assert.equal(cm.participationReport({ fills: [{ ...FILLS[2], prevDayVolumeDate: undefined }] }).trades[0].state, 'PREV_VOLUME_MISSING');
+  assert.throws(() => cm.participationReport({ fills: [{ ...FILLS[2], prevDayVolumeDate: '2026-11-03' }] }), (e) => e.code === 'CAPACITY_PREV_VOLUME_DATE_INVALID');
+  // 报告里的行也核对：日期不早于成交日的报告拒收
+  const report = cm.participationReport({ fills: FILLS });
+  assert.throws(() => cm.capacityAxis({ ...report, trades: report.trades.map((t, i) => (i === 0 ? { ...t, prevDayVolumeDate: t.date } : t)) }), (e) => e.code === 'CAPACITY_REPORT_INVALID');
 });
