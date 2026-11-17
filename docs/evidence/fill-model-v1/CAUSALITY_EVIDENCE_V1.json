@@ -1,0 +1,1043 @@
+{
+ "schema": "CAUSALITY_EVIDENCE_V1",
+ "contract_ref": "artifacts/coordinator/RESEARCH_FRAMEWORK_AMENDMENT_20261112_FREEZE_1.md@c9742ea0",
+ "study_ref": "FILL_MODEL_LIBRARY_V1",
+ "k2_sha256": "90814c6075b7c7e3609b87f6a7e8fac3fd34698a5f32ee250c174fd602e062ac",
+ "code_repo": "qrp",
+ "code_sha": "e27131e2caf76224fda35f14b4c1c4f3a03a66f2",
+ "harness_version": "1.0.0",
+ "harness_sha256": "cf7e716d8a7ff8bfd5483cba66b5e1f43bbd58cfc8ee8abf9917f1d1522291c5",
+ "seed": 20261112,
+ "cut_points_per_function": 20,
+ "manifest_sha256": "670cda76565cd936db0d6591bcb6c14297736a272f0b3956a48c77bec9dd1cb2",
+ "functions": [
+  {
+   "function_id": "qrp:packages/fill-model/series.js#NEXT_OPEN",
+   "path": "packages/fill-model/series.js",
+   "entry": "NEXT_OPEN",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "daily",
+     "file": "daily.json",
+     "file_sha256": "d657118c8270996f397863da9421d411d4a58a9f704c6685fb1200466259873a",
+     "rows": 40,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "daily"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "daily"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-11-03T07:00:00.000Z",
+    "2025-11-04T07:00:00.000Z",
+    "2025-11-05T07:00:00.000Z",
+    "2025-11-07T07:00:00.000Z",
+    "2025-11-12T07:00:00.000Z",
+    "2025-11-13T07:00:00.000Z",
+    "2025-11-19T07:00:00.000Z",
+    "2025-11-20T07:00:00.000Z",
+    "2025-11-25T07:00:00.000Z",
+    "2025-12-01T07:00:00.000Z",
+    "2025-12-03T07:00:00.000Z",
+    "2025-12-05T07:00:00.000Z",
+    "2025-12-09T07:00:00.000Z",
+    "2025-12-10T07:00:00.000Z",
+    "2025-12-11T07:00:00.000Z",
+    "2025-12-12T07:00:00.000Z",
+    "2025-12-17T07:00:00.000Z",
+    "2025-12-18T07:00:00.000Z",
+    "2025-12-23T07:00:00.000Z",
+    "2025-12-24T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 40,
+    "distinct": 40,
+    "null_or_error": 1
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#GAP_THROUGH_LEVEL_AT_OPEN",
+   "path": "packages/fill-model/series.js",
+   "entry": "GAP_THROUGH_LEVEL_AT_OPEN",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "daily",
+     "file": "daily.json",
+     "file_sha256": "d657118c8270996f397863da9421d411d4a58a9f704c6685fb1200466259873a",
+     "rows": 40,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "daily"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "daily"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-11-03T07:00:00.000Z",
+    "2025-11-04T07:00:00.000Z",
+    "2025-11-07T07:00:00.000Z",
+    "2025-11-11T07:00:00.000Z",
+    "2025-11-12T07:00:00.000Z",
+    "2025-11-20T07:00:00.000Z",
+    "2025-11-21T07:00:00.000Z",
+    "2025-11-25T07:00:00.000Z",
+    "2025-11-26T07:00:00.000Z",
+    "2025-11-27T07:00:00.000Z",
+    "2025-11-28T07:00:00.000Z",
+    "2025-12-05T07:00:00.000Z",
+    "2025-12-09T07:00:00.000Z",
+    "2025-12-11T07:00:00.000Z",
+    "2025-12-12T07:00:00.000Z",
+    "2025-12-15T07:00:00.000Z",
+    "2025-12-18T07:00:00.000Z",
+    "2025-12-22T07:00:00.000Z",
+    "2025-12-23T07:00:00.000Z",
+    "2025-12-25T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 40,
+    "distinct": 9,
+    "null_or_error": 32
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#SAME_BAR_STOP_FIRST",
+   "path": "packages/fill-model/series.js",
+   "entry": "SAME_BAR_STOP_FIRST",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "file_sha256": "057a3f0366ed2d96d0ce65da91cdf32643e2b5d4ed66130e9198f20dcfd774cc",
+     "rows": 240,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:41:00.000Z",
+    "2026-01-05T01:53:00.000Z",
+    "2026-01-05T01:57:00.000Z",
+    "2026-01-05T02:07:00.000Z",
+    "2026-01-05T02:11:00.000Z",
+    "2026-01-05T02:14:00.000Z",
+    "2026-01-05T02:25:00.000Z",
+    "2026-01-05T02:30:00.000Z",
+    "2026-01-05T02:42:00.000Z",
+    "2026-01-05T02:54:00.000Z",
+    "2026-01-05T02:55:00.000Z",
+    "2026-01-05T03:16:00.000Z",
+    "2026-01-06T02:19:00.000Z",
+    "2026-01-06T02:25:00.000Z",
+    "2026-01-06T02:33:00.000Z",
+    "2026-01-06T02:41:00.000Z",
+    "2026-01-06T02:45:00.000Z",
+    "2026-01-06T03:04:00.000Z",
+    "2026-01-06T03:27:00.000Z",
+    "2026-01-06T03:29:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 240,
+    "distinct": 4,
+    "null_or_error": 1
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#LIMIT_CROSS_ONE_TICK",
+   "path": "packages/fill-model/series.js",
+   "entry": "LIMIT_CROSS_ONE_TICK",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "file_sha256": "057a3f0366ed2d96d0ce65da91cdf32643e2b5d4ed66130e9198f20dcfd774cc",
+     "rows": 240,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:38:00.000Z",
+    "2026-01-05T02:10:00.000Z",
+    "2026-01-05T02:22:00.000Z",
+    "2026-01-05T02:28:00.000Z",
+    "2026-01-05T03:01:00.000Z",
+    "2026-01-05T03:24:00.000Z",
+    "2026-01-06T01:35:00.000Z",
+    "2026-01-06T01:53:00.000Z",
+    "2026-01-06T01:58:00.000Z",
+    "2026-01-06T02:03:00.000Z",
+    "2026-01-06T02:06:00.000Z",
+    "2026-01-06T02:11:00.000Z",
+    "2026-01-06T02:25:00.000Z",
+    "2026-01-06T02:32:00.000Z",
+    "2026-01-06T02:35:00.000Z",
+    "2026-01-06T02:39:00.000Z",
+    "2026-01-06T03:03:00.000Z",
+    "2026-01-06T03:10:00.000Z",
+    "2026-01-06T03:17:00.000Z",
+    "2026-01-06T03:29:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 240,
+    "distinct": 30,
+    "null_or_error": 138
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#PREV_DAY_VOLUME_CAP",
+   "path": "packages/fill-model/series.js",
+   "entry": "PREV_DAY_VOLUME_CAP",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "daily",
+     "file": "daily.json",
+     "file_sha256": "d657118c8270996f397863da9421d411d4a58a9f704c6685fb1200466259873a",
+     "rows": 40,
+     "availability": {
+      "rule": "DATE_AT",
+      "field": "date",
+      "time": "15:00",
+      "tz": "+08:00"
+     },
+     "intraday": false,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "daily"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "daily"
+   },
+   "static_reads": [],
+   "segment_boundaries": [],
+   "cut_points": [
+    "2025-11-04T07:00:00.000Z",
+    "2025-11-05T07:00:00.000Z",
+    "2025-11-06T07:00:00.000Z",
+    "2025-11-10T07:00:00.000Z",
+    "2025-11-17T07:00:00.000Z",
+    "2025-11-20T07:00:00.000Z",
+    "2025-11-21T07:00:00.000Z",
+    "2025-11-24T07:00:00.000Z",
+    "2025-11-27T07:00:00.000Z",
+    "2025-12-01T07:00:00.000Z",
+    "2025-12-02T07:00:00.000Z",
+    "2025-12-04T07:00:00.000Z",
+    "2025-12-05T07:00:00.000Z",
+    "2025-12-10T07:00:00.000Z",
+    "2025-12-15T07:00:00.000Z",
+    "2025-12-16T07:00:00.000Z",
+    "2025-12-17T07:00:00.000Z",
+    "2025-12-18T07:00:00.000Z",
+    "2025-12-22T07:00:00.000Z",
+    "2025-12-24T07:00:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 40,
+    "distinct": 40,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#TOUCH_MINUTE_CLOSE",
+   "path": "packages/fill-model/series.js",
+   "entry": "TOUCH_MINUTE_CLOSE",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "file_sha256": "057a3f0366ed2d96d0ce65da91cdf32643e2b5d4ed66130e9198f20dcfd774cc",
+     "rows": 240,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:33:00.000Z",
+    "2026-01-05T01:38:00.000Z",
+    "2026-01-05T01:44:00.000Z",
+    "2026-01-05T02:13:00.000Z",
+    "2026-01-05T02:45:00.000Z",
+    "2026-01-05T02:57:00.000Z",
+    "2026-01-05T03:00:00.000Z",
+    "2026-01-05T03:09:00.000Z",
+    "2026-01-05T03:15:00.000Z",
+    "2026-01-06T02:09:00.000Z",
+    "2026-01-06T02:12:00.000Z",
+    "2026-01-06T02:14:00.000Z",
+    "2026-01-06T02:23:00.000Z",
+    "2026-01-06T02:29:00.000Z",
+    "2026-01-06T02:31:00.000Z",
+    "2026-01-06T02:43:00.000Z",
+    "2026-01-06T02:46:00.000Z",
+    "2026-01-06T03:08:00.000Z",
+    "2026-01-06T03:24:00.000Z",
+    "2026-01-06T03:25:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 240,
+    "distinct": 128,
+    "null_or_error": 72
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#TICKER_LAST_PLUS_SLIPPAGE",
+   "path": "packages/fill-model/series.js",
+   "entry": "TICKER_LAST_PLUS_SLIPPAGE",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "ticks",
+     "file": "ticks.json",
+     "file_sha256": "24a6b8eb2c9ba21ddbf3fd9c8a4d0890fb9ebf8f5f0f4a8ab8195a3db18a4114",
+     "rows": 360,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "ticks"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "ticks"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:33:20.000Z",
+    "2026-01-05T01:34:20.000Z",
+    "2026-01-05T01:44:20.000Z",
+    "2026-01-05T01:46:40.000Z",
+    "2026-01-05T01:48:20.000Z",
+    "2026-01-05T01:52:20.000Z",
+    "2026-01-05T01:57:00.000Z",
+    "2026-01-05T01:58:40.000Z",
+    "2026-01-05T02:04:00.000Z",
+    "2026-01-05T02:24:20.000Z",
+    "2026-01-05T02:29:40.000Z",
+    "2026-01-06T01:35:40.000Z",
+    "2026-01-06T01:37:40.000Z",
+    "2026-01-06T01:51:20.000Z",
+    "2026-01-06T01:54:40.000Z",
+    "2026-01-06T02:03:40.000Z",
+    "2026-01-06T02:13:00.000Z",
+    "2026-01-06T02:17:20.000Z",
+    "2026-01-06T02:20:20.000Z",
+    "2026-01-06T02:28:40.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 360,
+    "distinct": 319,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#MARKET_AFTER_POLL",
+   "path": "packages/fill-model/series.js",
+   "entry": "MARKET_AFTER_POLL",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "file_sha256": "057a3f0366ed2d96d0ce65da91cdf32643e2b5d4ed66130e9198f20dcfd774cc",
+     "rows": 240,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:35:00.000Z",
+    "2026-01-05T01:38:00.000Z",
+    "2026-01-05T01:39:00.000Z",
+    "2026-01-05T02:09:00.000Z",
+    "2026-01-05T02:10:00.000Z",
+    "2026-01-05T02:34:00.000Z",
+    "2026-01-05T02:37:00.000Z",
+    "2026-01-05T02:54:00.000Z",
+    "2026-01-05T02:58:00.000Z",
+    "2026-01-05T03:11:00.000Z",
+    "2026-01-05T03:25:00.000Z",
+    "2026-01-06T02:10:00.000Z",
+    "2026-01-06T02:17:00.000Z",
+    "2026-01-06T02:23:00.000Z",
+    "2026-01-06T02:41:00.000Z",
+    "2026-01-06T02:43:00.000Z",
+    "2026-01-06T03:11:00.000Z",
+    "2026-01-06T03:21:00.000Z",
+    "2026-01-06T03:27:00.000Z",
+    "2026-01-06T03:29:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 240,
+    "distinct": 125,
+    "null_or_error": 73
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#TIERED_LIMIT_STOP",
+   "path": "packages/fill-model/series.js",
+   "entry": "TIERED_LIMIT_STOP",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "file_sha256": "057a3f0366ed2d96d0ce65da91cdf32643e2b5d4ed66130e9198f20dcfd774cc",
+     "rows": 240,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:39:00.000Z",
+    "2026-01-05T02:06:00.000Z",
+    "2026-01-05T02:10:00.000Z",
+    "2026-01-05T02:22:00.000Z",
+    "2026-01-05T02:36:00.000Z",
+    "2026-01-05T02:37:00.000Z",
+    "2026-01-05T02:50:00.000Z",
+    "2026-01-05T02:55:00.000Z",
+    "2026-01-05T02:59:00.000Z",
+    "2026-01-05T03:13:00.000Z",
+    "2026-01-06T01:41:00.000Z",
+    "2026-01-06T01:46:00.000Z",
+    "2026-01-06T02:03:00.000Z",
+    "2026-01-06T02:30:00.000Z",
+    "2026-01-06T02:44:00.000Z",
+    "2026-01-06T03:00:00.000Z",
+    "2026-01-06T03:03:00.000Z",
+    "2026-01-06T03:08:00.000Z",
+    "2026-01-06T03:26:00.000Z",
+    "2026-01-06T03:28:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 240,
+    "distinct": 2,
+    "null_or_error": 5
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#POLL_EVERY",
+   "path": "packages/fill-model/series.js",
+   "entry": "POLL_EVERY",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "ticks",
+     "file": "ticks.json",
+     "file_sha256": "24a6b8eb2c9ba21ddbf3fd9c8a4d0890fb9ebf8f5f0f4a8ab8195a3db18a4114",
+     "rows": 360,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "ticks"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "ticks"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:32:20.000Z",
+    "2026-01-05T01:37:40.000Z",
+    "2026-01-05T01:43:40.000Z",
+    "2026-01-05T01:48:20.000Z",
+    "2026-01-05T01:49:40.000Z",
+    "2026-01-05T01:56:20.000Z",
+    "2026-01-05T02:14:20.000Z",
+    "2026-01-05T02:27:20.000Z",
+    "2026-01-05T02:27:40.000Z",
+    "2026-01-06T01:30:00.000Z",
+    "2026-01-06T01:30:40.000Z",
+    "2026-01-06T01:34:40.000Z",
+    "2026-01-06T01:38:00.000Z",
+    "2026-01-06T01:41:20.000Z",
+    "2026-01-06T01:41:40.000Z",
+    "2026-01-06T01:45:20.000Z",
+    "2026-01-06T02:00:40.000Z",
+    "2026-01-06T02:11:20.000Z",
+    "2026-01-06T02:22:20.000Z",
+    "2026-01-06T02:29:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 360,
+    "distinct": 116,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#FORMING_BAR_AS_OF_POLL",
+   "path": "packages/fill-model/series.js",
+   "entry": "FORMING_BAR_AS_OF_POLL",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "file_sha256": "057a3f0366ed2d96d0ce65da91cdf32643e2b5d4ed66130e9198f20dcfd774cc",
+     "rows": 240,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:32:00.000Z",
+    "2026-01-05T01:33:00.000Z",
+    "2026-01-05T01:45:00.000Z",
+    "2026-01-05T02:27:00.000Z",
+    "2026-01-05T02:36:00.000Z",
+    "2026-01-05T02:40:00.000Z",
+    "2026-01-05T02:46:00.000Z",
+    "2026-01-05T02:52:00.000Z",
+    "2026-01-05T03:09:00.000Z",
+    "2026-01-05T03:19:00.000Z",
+    "2026-01-05T03:25:00.000Z",
+    "2026-01-06T01:36:00.000Z",
+    "2026-01-06T01:52:00.000Z",
+    "2026-01-06T02:04:00.000Z",
+    "2026-01-06T02:06:00.000Z",
+    "2026-01-06T03:08:00.000Z",
+    "2026-01-06T03:17:00.000Z",
+    "2026-01-06T03:18:00.000Z",
+    "2026-01-06T03:26:00.000Z",
+    "2026-01-06T03:28:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 240,
+    "distinct": 237,
+    "null_or_error": 4
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  },
+  {
+   "function_id": "qrp:packages/fill-model/series.js#SCAN_SCHEDULE",
+   "path": "packages/fill-model/series.js",
+   "entry": "SCAN_SCHEDULE",
+   "runner": "node",
+   "role": "FILL",
+   "file_sha256": "1a97e276181799534359b523da9e3685f34d57a147a0e2f2ad4300a98b1a46e0",
+   "inputs": [
+    {
+     "name": "minutes",
+     "file": "minutes.json",
+     "file_sha256": "057a3f0366ed2d96d0ce65da91cdf32643e2b5d4ed66130e9198f20dcfd774cc",
+     "rows": 240,
+     "availability": {
+      "rule": "FIELD",
+      "field": "time"
+     },
+     "intraday": true,
+     "key_fields": [],
+     "keep_fields": []
+    }
+   ],
+   "call": {
+    "order": [
+     "minutes"
+    ]
+   },
+   "output": {
+    "align": "ALIGNED",
+    "to": "minutes"
+   },
+   "static_reads": [],
+   "session": {
+    "open": "09:30",
+    "close": "15:00",
+    "tz": "+08:00"
+   },
+   "segment_boundaries": [],
+   "cut_points": [
+    "2026-01-05T01:34:00.000Z",
+    "2026-01-05T01:36:00.000Z",
+    "2026-01-05T01:55:00.000Z",
+    "2026-01-05T02:08:00.000Z",
+    "2026-01-05T02:40:00.000Z",
+    "2026-01-05T02:47:00.000Z",
+    "2026-01-05T02:48:00.000Z",
+    "2026-01-05T03:10:00.000Z",
+    "2026-01-05T03:12:00.000Z",
+    "2026-01-06T01:44:00.000Z",
+    "2026-01-06T02:03:00.000Z",
+    "2026-01-06T02:16:00.000Z",
+    "2026-01-06T02:21:00.000Z",
+    "2026-01-06T02:30:00.000Z",
+    "2026-01-06T02:51:00.000Z",
+    "2026-01-06T03:01:00.000Z",
+    "2026-01-06T03:16:00.000Z",
+    "2026-01-06T03:23:00.000Z",
+    "2026-01-06T03:25:00.000Z",
+    "2026-01-06T03:26:00.000Z"
+   ],
+   "calls": 61,
+   "isolation": "MODULE_RELOAD",
+   "sandbox": {
+    "mode": "PERMISSION_MODEL+STUBS",
+    "runtime": {
+     "node": "v23.11.0",
+     "permission": true
+    }
+   },
+   "t_c1": "PASS",
+   "t_c2": "PASS",
+   "t_c3": "PASS",
+   "fail_reasons": {},
+   "readings_summary": {
+    "count": 240,
+    "distinct": 4,
+    "null_or_error": 0
+   },
+   "mismatch_counts": {
+    "t_c1": 0,
+    "t_c2": 0
+   },
+   "mismatches": [],
+   "forbidden_attempts": [],
+   "load_reads": []
+  }
+ ],
+ "unknown": {},
+ "production_effect": "NONE",
+ "registered_by": "claude(e2)",
+ "registered_at": "2026-11-17T09:06:42.204Z",
+ "record_hash": "edf60545704fb06ea15264412810fd430ead4bf0dce1f51ea214ca24939666a7"
+}
