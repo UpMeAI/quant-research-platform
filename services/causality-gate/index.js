@@ -27,6 +27,14 @@
  *   - K2 写 `G-CAUSAL N/A: <码>` → CAUSALITY_SCOPE_FILL_NOT_EXEMPT，只有 RISK_K_OR_ACCOUNT_LAYER 放行（§1「不适用：风控层调 k、账户层」；协调会话 11-16 裁定，以 §1 为准）；
  *   - K2 的 CF 函数在证据里没有一个标 role: FILL → CAUSALITY_FILL_FUNCTIONS_MISSING。
  * 范围之外照旧，返回值逐字节不变；范围之内返回值多一个 fill_scope 块。证据函数的 role 可选（FUNCTION_ROLES），不写的现有证据照旧有效。
+ *
+ * 门的裁定读范围（A 股导入规格 V1 修订 6；R-XM-1 ★IMP1 (a)，协调会话 2026-11-17）：K2 两样都没写（本来报 SCOPE_MISSING）时，
+ * entry.causality_ruling = { spec, scope_not_applicable: <§3.2 五类之一> }，一页按 sha256 绑定的协调会话裁定把它读作「G-CAUSAL N/A: <码>」。
+ *   - 页上要写出 DEVIATION_ACCEPTED、CAUSALITY_SCOPE_MISSING 与「G-CAUSAL N/A: <码>」，缺一个 → RULING_TEXT_DOES_NOT_STATE；
+ *   - 事实要成立：K2 里确实没有 CF 也没有 N/A（否则 RULING_FACT_NOT_HOLD），不绑证据（否则 SCOPE_CONFLICT）；A1 范围内只放过 RISK_K_OR_ACCOUNT_LAYER；
+ *   - 不和函数偏差、滞后规则混写（RULING_INVALID）；
+ *   - 锁里记 DEVIATION_ACCEPTED（不记 NOT_APPLICABLE，也不记 PASS），带不适用码、偏差与裁定页 sha256。
+ * 没有登记 scope_not_applicable 的题，代码路径与返回值逐字节不变。
  */
 const crypto = require('crypto');
 const { validateRecord } = require('../../schemas');
@@ -160,6 +168,7 @@ function applies(entry, effectiveFrom = EFFECTIVE_FROM) {
 function rulingOf(entry, rulingBytes) {
   const r = entry.causality_ruling;
   if (r === undefined || r === null) return null;
+  if (isObj(r) && r.scope_not_applicable !== undefined) return scopeRulingOf(entry, r, rulingBytes);
   need(isObj(r) && r.spec && SHA64.test(r.spec.sha256 || '') && (r.deviations || r.lag_rules), 'RULING_INVALID', entry.id);
   const deviations = r.deviations || [];
   const lagRules = r.lag_rules || [];
@@ -173,6 +182,19 @@ function rulingOf(entry, rulingBytes) {
     ...deviations.flatMap((d) => [d.function_id, TEST_LABEL[d.test]]), ...lagRules.flatMap((l) => [l.function_id, l.input])];
   for (const w of words) need(text.includes(w), 'RULING_TEXT_DOES_NOT_STATE', `${entry.id}:${w}`);
   return { ref: r.spec.ref || null, sha256: r.spec.sha256, deviations, lagRules };
+}
+
+/** 门的裁定读范围（A 股导入规格 V1 修订 6）：只有 spec 与 scope_not_applicable 两个键；码在 §3.2 五类里；页上写明三处原文。 */
+const SCOPE_MISSING_CODE = 'CAUSALITY_SCOPE_MISSING';
+function scopeRulingOf(entry, r, rulingBytes) {
+  need(r.spec && SHA64.test(r.spec.sha256 || '') && Object.keys(r).every((k) => k === 'spec' || k === 'scope_not_applicable'), 'RULING_INVALID', entry.id);
+  need(NOT_APPLICABLE_CODES.includes(r.scope_not_applicable), 'RULING_SCOPE_CODE_INVALID', `${entry.id}:${r.scope_not_applicable}`);
+  const bytes = rulingBytes();
+  need(bytes, 'RULING_FILE_MISSING', entry.id);
+  const text = bytes.toString('utf8');
+  const readAs = `G-CAUSAL N/A: ${r.scope_not_applicable}`;
+  for (const w of ['DEVIATION_ACCEPTED', SCOPE_MISSING_CODE, readAs]) need(text.includes(w), 'RULING_TEXT_DOES_NOT_STATE', `${entry.id}:${w}`);
+  return { ref: r.spec.ref || null, sha256: r.spec.sha256, deviations: [], lagRules: [], scopeNotApplicable: r.scope_not_applicable, readAs };
 }
 
 function runLogCommit(entry, runLogBytes, repo) {
@@ -229,6 +251,15 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
 
   const fill = fillScope(entry, runLogBytes);
   const { cf, na } = declaration(k2Bytes().toString('utf8'));
+  if (entry.causality_ruling && entry.causality_ruling.scope_not_applicable !== undefined) {
+    // A 股导入规格 V1 修订 6：K2 两样都没写，按裁定页读作不适用；记 DEVIATION_ACCEPTED
+    const ruling = rulingOf(entry, rulingBytes);
+    need(!cf.length && !na.length, 'RULING_FACT_NOT_HOLD', `${entry.id}:K2_DECLARES_SCOPE:${[...cf.map((x) => `CF:${x}`), ...na].join(',')}`);
+    need(!bound, 'SCOPE_CONFLICT', `${entry.id}:N/A_WITH_EVIDENCE`);
+    need(!fill || ruling.scopeNotApplicable === FILL_EXEMPT_NA, 'SCOPE_FILL_NOT_EXEMPT', `${entry.id}:${ruling.scopeNotApplicable}`);
+    return { applies: true, state: 'DEVIATION_ACCEPTED', effective_from: effectiveFrom, not_applicable_code: ruling.scopeNotApplicable,
+      deviation: { code: SCOPE_MISSING_CODE, read_as: ruling.readAs }, ruling_ref: ruling.ref, ruling_sha256: ruling.sha256, ...(fill ? { fill_scope: fill } : {}) };
+  }
   need(!(cf.length && na.length) && na.length <= 1, 'SCOPE_CONFLICT', entry.id);
   if (na.length) {
     need(NOT_APPLICABLE_CODES.includes(na[0]), 'SCOPE_CODE_INVALID', `${entry.id}:${na[0]}`);

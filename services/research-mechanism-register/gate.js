@@ -17,6 +17,14 @@
  *   AI_MINED_CANDIDATE（RF1116 §2.4、§6 第 2 条，签字 fd22876f；P1）：项要写 candidate_id 与 round_id，第 4 行写出这两个编号；
  *     entry.factor_refs 里有挖掘因子（因子库 origin AI_MINED_*）时，每个挖掘因子都要有一项 AI_MINED_CANDIDATE（候选编号与轮次和因子库的 mining 一致），
  *     否则 AI_ROLE_MINED_CANDIDATE_MISSING；协调会话裁定 2：另扫 K2 正文，出现挖掘因子编号、挖掘候选或轮次编号（按记号边界）而没有对应项 → 同一拒绝。
+ *   门的裁定（entry.mechanism_ruling，A 股导入规格 V1 修订 6；R-XM-1 ★IMP1 (a)，协调会话 2026-11-17）：一页按 sha256 绑定的协调会话裁定，
+ *     写法同 trial_gates_ruling：{ spec, deviations[], line4_text? }。只放行 RULING_DEVIATIONS 里写明的两种偏差，记 DEVIATION_ACCEPTED（不记 PASS）：
+ *     - MECHANISM_PRIOR_TABLE_NOT_IN_K2：表的 sha256 不在 K2 正文里（表在冻结之后按冻结前的数据生成）。门核实 K2 里确实没有这个 sha256，
+ *       裁定页写出表的 sha256、登记表提交与 as_of；表的其余检查（as_of 不晚于冻结、登记表提交与 sha256、逐字节重算）照旧；
+ *     - AI_ROLE_K2_LINE4_READ_AS_NONE：第 4 行以「无」开头、后面还有说明（门只认「无」），读作「无」。门核实第 4 行逐字等于 line4_text、
+ *       不是单独的「无」、行内没有大写类别记号、entry.ai_inputs 为空；裁定页写出 line4_text 原文；其余 AI 输入检查照旧。
+ *     页上缺字 → MECHANISM_RULING_TEXT_DOES_NOT_STATE；事实不成立 → MECHANISM_RULING_FACT_NOT_HOLD；不过门的题带裁定 → MECHANISM_RULING_ON_UNGATED_ENTRY。
+ *     没有登记 mechanism_ruling 的题，代码路径与返回值逐字节不变。
  */
 const crypto = require('crypto');
 const path = require('path');
@@ -35,6 +43,11 @@ const CATEGORY_TOKEN = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
 const QRP_ROOT = path.join(__dirname, '..', '..');
 const SHA64 = /^[0-9a-f]{64}$/;
 const HEX40 = /^[0-9a-f]{40}$/;
+/** 门的裁定能放行的偏差（A 股导入规格 V1 修订 6）。 */
+const NOT_IN_K2 = 'MECHANISM_PRIOR_TABLE_NOT_IN_K2';
+const LINE4_AS_NONE = 'AI_ROLE_K2_LINE4_READ_AS_NONE';
+const RULING_DEVIATIONS = Object.freeze([NOT_IN_K2, LINE4_AS_NONE]);
+const NONE_LINE = /^无[。.]?$/;
 
 class MechanismGateError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
@@ -88,7 +101,7 @@ function marketOf(entry) {
   return market;
 }
 
-function checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks }) {
+function checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks }, ruling = null) {
   const ids = entry.mechanism_ids;
   need(Array.isArray(ids) && ids.length && ids.every(isText), 'MECHANISM_IDS_MISSING', entry.id);
   const want = [...new Set(ids)].sort();
@@ -96,7 +109,12 @@ function checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks
   need(sameSet(want, named), 'MECHANISM_K2_IDS_MISMATCH', `${entry.id}:${named.join(',') || '—'}≠${want.join(',')}`);
   const spec = entry.mechanism_prior_table;
   need(isObject(spec) && SHA64.test(spec.sha256 || ''), 'MECHANISM_PRIOR_TABLE_MISSING', entry.id);
-  need(text.includes(spec.sha256), 'MECHANISM_PRIOR_TABLE_NOT_IN_K2', entry.id);
+  const ruledNotInK2 = Boolean(ruling && ruling.deviations.includes(NOT_IN_K2));
+  if (ruledNotInK2) {
+    // 裁定写的事实要成立：K2 正文里确实没有这个 sha256；裁定页写出了它
+    need(!text.includes(spec.sha256), 'MECHANISM_RULING_FACT_NOT_HOLD', `${entry.id}:${NOT_IN_K2}`);
+    need(ruling.text.includes(spec.sha256), 'MECHANISM_RULING_TEXT_DOES_NOT_STATE', `${entry.id}:${spec.sha256}`);
+  } else need(text.includes(spec.sha256), 'MECHANISM_PRIOR_TABLE_NOT_IN_K2', entry.id);
   const bytes = priorTableBytes();
   need(bytes && sha256(bytes) === spec.sha256, 'MECHANISM_PRIOR_TABLE_MISSING', `${entry.id}:bytes`);
   let table;
@@ -108,6 +126,7 @@ function checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks
     `${entry.id}:${table.query.mechanism_ids.join(',')}@${table.query.market}`);
   need(isoAt(table.as_of) && Date.parse(table.as_of) <= Date.parse(entry.k2_frozen_at), 'MECHANISM_PRIOR_TABLE_AFTER_FREEZE', `${entry.id}:${table.as_of}`);
   need(HEX40.test(table.register.commit || ''), 'MECHANISM_PRIOR_TABLE_NO_COMMIT', entry.id);
+  if (ruledNotInK2) for (const word of [table.register.commit, table.as_of]) need(ruling.text.includes(word), 'MECHANISM_RULING_TEXT_DOES_NOT_STATE', `${entry.id}:${word}`);
   const registerBytes = registerAt(table.register.commit);
   need(registerBytes && sha256(registerBytes) === table.register.sha256, 'MECHANISM_PRIOR_TABLE_REGISTER_MISMATCH', `${entry.id}:${table.register.commit}`);
   const register = mech.parse(registerBytes);
@@ -179,19 +198,54 @@ function checkAiInputs(entry, line4, { factorLibrary = defaultLibrary, minedTria
 }
 
 /**
+ * 读门的裁定（没有时返回 null）。裁定页按 sha256 复验后（导入器做），原文必须写出 DEVIATION_ACCEPTED、每个偏差码与第 4 行原文。
+ * entry.mechanism_ruling: { spec, deviations: RULING_DEVIATIONS 的非空子集, line4_text?（只在 AI_ROLE_K2_LINE4_READ_AS_NONE 时有，且不是单独的「无」） }
+ */
+function rulingOf(entry, rulingBytes) {
+  const r = entry.mechanism_ruling;
+  if (r === undefined || r === null) return null;
+  need(isObject(r) && isObject(r.spec) && SHA64.test(r.spec.sha256 || '') && Array.isArray(r.deviations) && r.deviations.length
+    && r.deviations.every((d) => RULING_DEVIATIONS.includes(d)) && new Set(r.deviations).size === r.deviations.length, 'MECHANISM_RULING_INVALID', entry.id);
+  const asNone = r.deviations.includes(LINE4_AS_NONE);
+  need(asNone ? isText(r.line4_text) && !NONE_LINE.test(r.line4_text.trim()) : r.line4_text === undefined, 'MECHANISM_RULING_INVALID', `${entry.id}:line4_text`);
+  const bytes = rulingBytes();
+  need(bytes, 'MECHANISM_RULING_FILE_MISSING', entry.id);
+  const text = bytes.toString('utf8');
+  for (const word of ['DEVIATION_ACCEPTED', ...r.deviations, ...(asNone ? [r.line4_text] : [])]) need(text.includes(word), 'MECHANISM_RULING_TEXT_DOES_NOT_STATE', `${entry.id}:${word}`);
+  return { text, sha256: r.spec.sha256, ref: r.spec.ref || null, deviations: [...r.deviations], line4Text: asNone ? r.line4_text : null };
+}
+
+/** AI_ROLE_K2_LINE4_READ_AS_NONE：事实成立时第 4 行按「无」交给 AI 输入检查，否则拒绝。 */
+function line4Read(entry, line4, ruling) {
+  if (!ruling || ruling.line4Text === null) return line4;
+  need(line4 === ruling.line4Text, 'MECHANISM_RULING_FACT_NOT_HOLD', `${entry.id}:line4:${line4}`);
+  need(line4.startsWith('无') && !NONE_LINE.test(line4), 'MECHANISM_RULING_FACT_NOT_HOLD', `${entry.id}:line4_not_none_prefixed`);
+  need(!(line4.match(CATEGORY_TOKEN) || []).length, 'MECHANISM_RULING_FACT_NOT_HOLD', `${entry.id}:line4_category_token`);
+  need(Array.isArray(entry.ai_inputs) && entry.ai_inputs.length === 0, 'MECHANISM_RULING_FACT_NOT_HOLD', `${entry.id}:ai_inputs`);
+  return '无';
+}
+
+/**
  * 导入器调用：已有校验与 G-TRIAL 之后。不过门的题返回 { applies: false, reason }，导入器照原样写锁。
  * @param {object} entry
  * @param {{k2Bytes: () => Buffer, priorTableBytes: () => Buffer|null}} files  按 sha256 复验后的 K2 与先前结论表字节（只在过门时才读）
  * @param {{effectiveFrom?: string|null, registerAt?: (commit: string) => Buffer|null, marks?: object[]|null, factorLibrary?: () => object, minedTrials?: () => object[]}} options  factorLibrary、minedTrials 只给测试用
  */
-function check(entry, { k2Bytes, priorTableBytes = () => null }, { effectiveFrom = EFFECTIVE_FROM, registerAt = gitRegisterAt, marks = null, factorLibrary, minedTrials } = {}) {
+function check(entry, { k2Bytes, priorTableBytes = () => null, rulingBytes = () => null }, { effectiveFrom = EFFECTIVE_FROM, registerAt = gitRegisterAt, marks = null, factorLibrary, minedTrials } = {}) {
   const scope = applies(entry, effectiveFrom);
-  if (!scope.applies) return { applies: false, reason: scope.reason };
+  if (!scope.applies) {
+    need(entry.mechanism_ruling === undefined || entry.mechanism_ruling === null, 'MECHANISM_RULING_ON_UNGATED_ENTRY', entry.id);
+    return { applies: false, reason: scope.reason };
+  }
+  const ruling = rulingOf(entry, rulingBytes);
   const text = k2Bytes().toString('utf8');
   const [line1, , , line4] = section0(text);
-  const mechanism = checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks });
-  const aiInputs = checkAiInputs(entry, line4, { factorLibrary, minedTrials, text });
-  return { applies: true, reason: scope.reason, effective_from: effectiveFrom, section0: 'PRESENT', ...mechanism, ai_inputs: aiInputs };
+  const mechanism = checkMechanism(entry, text, line1, priorTableBytes, { registerAt, marks }, ruling);
+  const aiInputs = checkAiInputs(entry, line4Read(entry, line4, ruling), { factorLibrary, minedTrials, text });
+  const out = { applies: true, reason: scope.reason, effective_from: effectiveFrom, section0: 'PRESENT', ...mechanism, ai_inputs: aiInputs };
+  if (!ruling) return out;
+  return { ...out, state: 'DEVIATION_ACCEPTED', deviations: ruling.deviations, ...(ruling.line4Text !== null ? { line4_read_as: '无' } : {}),
+    ruling_ref: ruling.ref, ruling_sha256: ruling.sha256 };
 }
 
-module.exports = { EFFECTIVE_FROM, LINE_LABELS, AI_CATEGORIES, MechanismGateError, applies, section0, check, internals: { gitRegisterAt, marketOf, checkAiInputs } };
+module.exports = { EFFECTIVE_FROM, LINE_LABELS, AI_CATEGORIES, RULING_DEVIATIONS, MechanismGateError, applies, section0, check, internals: { gitRegisterAt, marketOf, checkAiInputs, rulingOf, line4Read } };

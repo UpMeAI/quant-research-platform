@@ -364,7 +364,7 @@ test('门的裁定：页上缺任何一个字（DEVIATION_ACCEPTED、偏差码�
 test('门的裁定：事实不成立一律拒绝——表其实写进了 K2、第 4 行与裁定原文不同、第 4 行本来就是「无」或不以「无」开头、行内有类别记号、ai_inputs 不空；表本身的六种失败照旧', () => {
   assert.throws(() => run(ruledFx({ deviations: [NOT_IN_K2, LINE4_AS_NONE], citeTable: true })), /MECHANISM_RULING_FACT_NOT_HOLD:.*MECHANISM_PRIOR_TABLE_NOT_IN_K2/);
   assert.throws(() => run(ruledFx({ line4: '无。只用回放里抽取的事实。' })), /MECHANISM_RULING_FACT_NOT_HOLD:.*line4/);
-  assert.throws(() => run(ruledFx({ line4: '无', rulingPatch: { line4_text: '无' } })), /MECHANISM_RULING_FACT_NOT_HOLD:.*line4/);
+  assert.throws(() => run(ruledFx({ line4: '无' })), /MECHANISM_RULING_FACT_NOT_HOLD:.*line4/);
   assert.throws(() => run(ruledFx({ line4: '有：只用抽取的事实。', rulingPatch: { line4_text: '有：只用抽取的事实。' }, extraWords: ['有：只用抽取的事实。'] })), /MECHANISM_RULING_FACT_NOT_HOLD:.*line4/);
   assert.throws(() => run(ruledFx({ line4: '无。EXTRACTED_FACT 一项。', rulingPatch: { line4_text: '无。EXTRACTED_FACT 一项。' }, extraWords: ['无。EXTRACTED_FACT 一项。'] })), /MECHANISM_RULING_FACT_NOT_HOLD:.*line4/);
   assert.throws(() => run(ruledFx({ aiInputs: [{ category: 'EXTRACTED_FACT', ref: 'x', desc_zh: 'y' }] })), /MECHANISM_RULING_FACT_NOT_HOLD:.*ai_inputs/);
@@ -391,6 +391,7 @@ test('门的裁定：形状不对 → MECHANISM_RULING_INVALID（没有偏差、
   assert.throws(() => run(ruledFx({ rulingPatch: { deviations: ['LOOKS_FINE'] } })), /MECHANISM_RULING_INVALID/);
   assert.throws(() => run(ruledFx({ rulingPatch: { deviations: [NOT_IN_K2, NOT_IN_K2] } })), /MECHANISM_RULING_INVALID/);
   assert.throws(() => run(ruledFx({ rulingPatch: { line4_text: undefined } })), /MECHANISM_RULING_INVALID/);
+  assert.throws(() => run(ruledFx({ rulingPatch: { line4_text: '无' } })), /MECHANISM_RULING_INVALID/);
   assert.throws(() => run(ruledFx({ deviations: [NOT_IN_K2], line4: '无', rulingPatch: { line4_text: '无' } })), /MECHANISM_RULING_INVALID/);
   assert.throws(() => run(ruledFx({ rulingPatch: { spec: { sha256: 'nope' } } })), /MECHANISM_RULING_INVALID/);
   const early = ruledFx();
