@@ -1,10 +1,10 @@
 {
   "repository": "wendy926/knowledge-graph",
-  "commit": "a738d3b52f552f48ae62017712b72c82c9365d2c",
+  "commit": "f4b24f41befe4f31f72824915ead28355d542cd5",
   "note": "QRP pin of the KG dataset registry (RESEARCH_LIVE_PARITY_V1 ★5 (a), signature page f0fe8e5c, signed text ceb35505). Pinned copies of data/registry/datasets.v1.json and scripts/registry/dataset-registry-scan.cjs, same commit and sha256 as the production pins below. Re-pin: copy both files from the knowledge-graph commit, update the sha256 values, registry_version and production_pins here.",
-  "registry_version": "1.14.0",
+  "registry_version": "1.17.0",
   "files": {
-    "datasets.v1.json": "c5aabf570888b15eb6cb3f24e40e6e9364bbb0024bd8a217e9f8918b5775f209",
+    "datasets.v1.json": "930bae16786398496d730540677aeb2294f0ceab09fea18c285aab99f59059cb",
     "dataset-registry-scan.cjs": "461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af"
   },
   "production_pins": [

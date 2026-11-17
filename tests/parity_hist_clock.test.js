@@ -1,6 +1,6 @@
 'use strict';
 /**
- * G-PARITY 核登记表的历史时钟 pitHistoricalClock（KG 1.14.0 起；协调会话审阅意见 2026-11-17）。先红后绿，用真钉着的 1.14.0（a738d3b5，c5aabf57…）。
+ * G-PARITY 核登记表的历史时钟 pitHistoricalClock（KG 1.14.0 起；协调会话审阅意见 2026-11-17）。先红后绿，用真钉着的登记表（1.14.0 起有这个字段；现在是 1.17.0，f4b24f41，930bae16…）。
  *   记号可选字段 `|HIST=<时钟>`：钉在有这个字段的版本（≥ 1.14.0）上、且数据集写了 pitHistoricalClock 时必填（PARITY_HIST_CLOCK_REQUIRED），
  *   要等于 rule 或 bySeries[series]（PARITY_HIST_CLOCK_MISMATCH）；更早的版本 NOT_APPLICABLE_PRE_FIELD（同 BASIS）。
  *   实时 PIT 只有一个、历史时钟按序列分的数据集（V6_CN_STOCK_DAILY_BARS：daily / adj_factor），允许写 `#series=` 选时钟。
@@ -30,8 +30,8 @@ function direct(lines, registry = REG) {
 }
 const tok = (head, tail) => `\`DATA:${head}${V}|${tail}\``;
 
-test('钉着的是 1.14.0；三个数据集有历史时钟：BASIC 是 rule，BARS 与 CN_MARKET_PSYCHOLOGY 按序列', () => {
-  assert.deepEqual([REG.commit, REG.registry_version], ['a738d3b52f552f48ae62017712b72c82c9365d2c', '1.14.0']);
+test('钉着的是 1.17.0（1.14.0 起的历史时钟原样带着）；三个数据集有历史时钟：BASIC 是 rule，BARS 与 CN_MARKET_PSYCHOLOGY 按序列', () => {
+  assert.deepEqual([REG.commit, REG.registry_version], ['f4b24f41befe4f31f72824915ead28355d542cd5', '1.17.0']);
   assert.equal(REG.datasets.get('V6_CN_STOCK_DAILY_BASIC').pitHistoricalClock.rule, 'CLOSE_DATED_NEXT_OPEN_USABLE');
   assert.deepEqual(REG.datasets.get('V6_CN_STOCK_DAILY_BARS').pitHistoricalClock.bySeries, { daily: 'BAR_CLOSE', adj_factor: 'CLOSE_DATED_NEXT_OPEN_USABLE' });
   assert.ok(REG.pit_semantics.includes('CLOSE_DATED_NEXT_OPEN_USABLE') && REG.pit_semantics.includes('NEXT_DAY_0000_CST'));
@@ -130,4 +130,20 @@ const COORDINATOR_DIR = path.resolve(process.env.QRP_COORDINATOR_DIR || path.joi
 const DRAFT = path.join(COORDINATOR_DIR, 'MINING_SPACE_V1_CN_A_R1.draft.bee978ed.json');
 test('空间草稿 DRAFT_3（全是 OBSERVED_AT）在协调会话裁定之后被拒（LIVE_CLOCK_IN_HISTORY）', { skip: fs.existsSync(DRAFT) ? false : `协调会话目录里没有 ${path.basename(DRAFT)}` }, () => {
   assert.throws(() => space.parseSpace(fs.readFileSync(DRAFT), PROOF), code(/MINE_SPACE_READING_LIVE_CLOCK_IN_HISTORY/));
+});
+
+test('1.17.0 的 V6_CN_PARKING_ETF_HISTORY（R-XM-1，KG #371 在 1.15.0 登记，到 1.17.0 原样）：实时 PIT 一个（BAR_CLOSE），历史时钟按序列；BASIS PRICE/RAW；VENDOR Tushare', () => {
+  const ds = REG.datasets.get('V6_CN_PARKING_ETF_HISTORY');
+  assert.deepEqual([ds.pitSemantics, ds.vendor, ds.priceBasis], ['BAR_CLOSE', 'Tushare', 'PRICE/RAW']);
+  assert.deepEqual(ds.pitHistoricalClock.bySeries, { fund_daily: 'BAR_CLOSE', fund_adj: 'CLOSE_DATED_NEXT_OPEN_USABLE', fund_nav: 'ANNOUNCEMENT_NEXT_OPEN' });
+  const t = (s, hist) => tok(`V6_CN_PARKING_ETF_HISTORY${s ? `#series=${s}` : ''}`, `PIT=BAR_CLOSE|VENDOR=Tushare|BASIS=PRICE/RAW${hist ? `|HIST=${hist}` : ''}`);
+  const r = direct([t('fund_daily', 'BAR_CLOSE'), t('fund_adj', 'CLOSE_DATED_NEXT_OPEN_USABLE'), t('fund_nav', 'ANNOUNCEMENT_NEXT_OPEN')]);
+  assert.equal(r.state, 'PASS');
+  assert.deepEqual(r.data_inputs.map((d) => [d.series, d.registry_version, d.pin_check, d.pit_check, d.hist_check, d.basis_check, d.vendor_check]), [
+    ['fund_daily', '1.17.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH'],
+    ['fund_adj', '1.17.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH'],
+    ['fund_nav', '1.17.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH']]);
+  refuses(() => direct([t(null, 'BAR_CLOSE')]), 'SERIES_REQUIRED', 'pitHistoricalClock');
+  refuses(() => direct([t('fund_adj', 'BAR_CLOSE')]), 'HIST_CLOCK_MISMATCH', 'BAR_CLOSE≠CLOSE_DATED_NEXT_OPEN_USABLE');
+  refuses(() => direct([t('fund_daily', 'BAR_CLOSE').replace('|BASIS=PRICE/RAW', '')]), 'PRICE_BASIS_MISSING');
 });
