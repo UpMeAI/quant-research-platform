@@ -308,7 +308,8 @@ function failPartial(roundId, { reason, logSha256 = null, failedAt = null } = {}
  * 协调会话裁定 ★RF1116_ROUND1_STATE (a)（2026-11-18，第 1 轮 MR-CN_A-2026-11-e1ab63a27b）：本轮根本没被评估（例如每个候选的挖掘段分数都算不出），
  * 以 FAILED_EVALUATION 关轮。只追加一行，不改任何一行。
  *   - 只能从 OPEN / CAP_REACHED 进入，且留出段从未开启（轮次行没有 holdout_opens，留出段保管也没有开启记录）；
- *   - 必须写原因与证据（缺陷报告）的 sha256；0 个通过（gmine_basis 不收记录）；封存行、选择行原样留着；
+ *   - 必须写原因与证据（缺陷报告）的 sha256；本轮没有一个尝试算出有限分数（复审 L-7，否则 MINE_ROUND_FAILED_EVALUATION_HAS_SCORES）；
+ *     0 个通过（gmine_basis 不收记录）；封存行、选择行原样留着；
  *   - 终态：释放开轮名额；尝试照旧在试验台账里、计入 N（签字 §3.3「从不按轮清零」）；按开轮月份计入每月轮数；暂停规则按 0 个通过算。
  */
 function failEvaluation(roundId, { reason, evidenceSha256, failedAt = null } = {}) {
@@ -319,6 +320,10 @@ function failEvaluation(roundId, { reason, evidenceSha256, failedAt = null } = {
   need(SHA64.test(evidenceSha256 || ''), 'MINE_ROUND_FAILED_EVALUATION_EVIDENCE', roundId);
   const vault = require('../holdout-vault');
   need(!r.holdout_opens && !vault.openLog(roundId).length, 'MINE_ROUND_FAILED_EVALUATION_HOLDOUT_OPENED', roundId);
+  // 复审 L-7：算出过有限分数的轮是被评估过的轮，不能这样关（防止在留出段开启之前把一轮真结果丢掉）
+  const scored = [...trials.heads(trials.trialRows()).values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId
+    && t.rule_config && t.rule_config.attempt === undefined && t.metrics && Number.isFinite(t.metrics.mining_segment_score)).length;
+  need(scored === 0, 'MINE_ROUND_FAILED_EVALUATION_HAS_SCORES', `${roundId}:${scored}`);
   const sel = selectionOf(roundId);
   return write({ ...r, status: 'FAILED_EVALUATION', gmine_passes: 0,
     gmine_basis: { holdout_open_hash: null, records: 0, record_hashes: [],

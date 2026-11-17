@@ -239,7 +239,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 ## A round that was never evaluated (★RF1116_ROUND1_STATE (a))
 
 `run.sh fail-evaluation <round_id> <reason> <evidence_sha256>` closes the round as **`FAILED_EVALUATION`**. It appends one row and edits nothing, and it mounts only `out/`.
-- **When it is allowed:** only from `OPEN` or `CAP_REACHED`, and only if the holdout was never opened. It needs a reason and the sha256 of the defect report.
+- **When it is allowed:** only from `OPEN` or `CAP_REACHED`, only if the holdout was never opened, and only if no attempt has a finite mining score (a round that was evaluated is refused with `MINE_ROUND_FAILED_EVALUATION_HAS_SCORES`). It needs a reason and the sha256 of the defect report.
 - **What it records:** 0 passes. The seal and selection rows stay.
 - **What it frees:** the open-round slot.
 - **What still counts:**
