@@ -9,6 +9,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const { vendor, FILES } = require('../tools/fill-model-vendor/vendor');
+const fm = require('../packages/fill-model');
 
 /**
  * 拷贝工具与守卫模板（规格 90814c60 §1）：拷的是 QRP 某个提交的字节，PIN.json 写提交号与每个文件的 sha256；
@@ -33,7 +34,7 @@ test('拷贝：拷的是提交里的字节，PIN.json 写 QRP 提交号与每个
   fs.appendFileSync(path.join(qrp.root, 'packages', 'fill-model', 'index.js'), '\n// 未提交的改动\n');
   const target = tmp('qrp-fm-target-');
   const pin = vendor({ qrpRoot: qrp.root, target });
-  assert.deepEqual([pin.schema, pin.repository, pin.path, pin.commit, pin.version], ['FILL_MODEL_VENDOR_PIN_V1', 'UpMeAI/quant-research-platform', 'packages/fill-model', qrp.commit, '1.0.0']);
+  assert.deepEqual([pin.schema, pin.repository, pin.path, pin.commit, pin.version], ['FILL_MODEL_VENDOR_PIN_V1', 'UpMeAI/quant-research-platform', 'packages/fill-model', qrp.commit, fm.VERSION]);
   for (const f of FILES) {
     const bytes = fs.readFileSync(path.join(target, 'vendor', 'fill-model', f));
     assert.deepEqual(bytes, fs.readFileSync(path.join(SRC, f)), f);

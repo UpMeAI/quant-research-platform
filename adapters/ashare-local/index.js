@@ -12,6 +12,7 @@ const { hash, now } = require('../../packages/ledger');
 const market = require('./market_facts');
 const pit = require('./pit_store');
 const engine = require('./backtest_engine');
+const { capacityAxis } = require('../../services/capacity-model');
 const { CHAMPION_VARIANT, FWD_DAYS } = require('./strategy_vpq');
 
 const ADAPTER_VERSION = 'ashare-local/0.1.0';
@@ -450,7 +451,9 @@ function normalize_result(a) {
       evaluable_range: a.evaluable_range || null,
       replayable: true, idempotent_backtest: true,
     },
-    capacity: {
+    // 容量轴(ENGINE_MODELING_ACCEPTANCE_V1 §2.2 第 6 条):作业带了容量报告(services/capacity-model,PREV_DAY_VOLUME_CAP + 逐笔参与率)
+    // 才填;没带的照旧显式标注 NOT_IMPLEMENTED_P4,字节不变。
+    capacity: a.capacity_report !== undefined ? capacityAxis(a.capacity_report) : {
       status: 'NOT_IMPLEMENTED_P4',   // 容量/流动性/冲击模型属 §21 P4,MVP 显式不做(不留空对象假装已覆盖)
       reasonCn: '容量模型(流动性、资金区间、冲击假设)属 P4 Strategy Factory,MVP 不估算',
     },

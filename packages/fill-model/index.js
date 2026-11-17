@@ -106,7 +106,7 @@ function TICKER_LAST_PLUS_SLIPPAGE({ last, slippageBps = 0, side }) {
 }
 
 /**
- * MARKET_AFTER_POLL：轮询发现触发以后才发单，按其后第一根 1 分钟线（开始时刻严格晚于轮询时刻）的开盘价加减滑点成交。
+ * MARKET_AFTER_POLL：轮询发现触发以后才发单，按其后第一根 1 分钟线（开始时刻严格晚于轮询时刻）的开盘价加减滑点成交（下单时刻的口径见 firstMinuteAfter）。
  * minuteBars：[{ startMs, open }]，按时间升序。
  */
 function MARKET_AFTER_POLL({ pollAtMs, minuteBars, slippageBps = 0, side }) {
@@ -117,17 +117,26 @@ function MARKET_AFTER_POLL({ pollAtMs, minuteBars, slippageBps = 0, side }) {
 }
 
 /**
+ * 下单时刻的口径（#110，两条发单规则共用）：在时刻 t 发出的单子，最早在 t 之后开始的那一根 1 分钟线里成交——t 所在的那一分钟已经开始，
+ * t 恰在整分钟上时也一样（回放的轮询都在整分钟上）。MARKET_AFTER_POLL 取开始时刻严格晚于 t 的第一根；TIERED_LIMIT_STOP 的档位从
+ * t 之后的第一个整分钟（firstMinuteAfter(t)）起算。分钟线按 Unix 时间的整分钟对齐（A 股、美股、币安的 1 分钟线都是）。
+ */
+const firstMinuteAfter = (t) => Math.floor(t / MINUTE_MS) * MINUTE_MS + MINUTE_MS;
+
+/**
  * TIERED_LIMIT_STOP：触发后先挂偏离 t1Pct 的限价单 t1TimeoutS 秒，再挂 t2Pct 的 t2TimeoutS 秒，仍未成交就改市价单（其后第一根 1 分钟线的开盘价）。
  * 多头止损是 SELL（限价 = 触发价 ×(1 − pct)），空头止损是 BUY（×(1 + pct)）。限价单：开盘已经优于限价按开盘价，否则区间碰到限价按限价。
- * minuteBars：[{ startMs, open, high, low }]，按时间升序；只用开始时刻不早于触发时刻的分钟线。
+ * minuteBars：[{ startMs, open, high, low }]，按时间升序。档位从 firstMinuteAfter(触发时刻) 起算（上面的下单口径，与 MARKET_AFTER_POLL 一致）；
+ * 触发不在整分钟上时，与 1.0.0（窗口从触发时刻起、用开始时刻不早于它的分钟线）逐字节一致（档位是整分钟时）。
  */
 function TIERED_LIMIT_STOP({ triggerPrice, triggerAtMs, side, minuteBars, tiers = DEFAULT_TIERS }) {
   need(isPos(triggerPrice) && isNum(triggerAtMs) && SIDES.includes(side) && Array.isArray(minuteBars), 'ARGUMENT_INVALID', 'TIERED_LIMIT_STOP');
   need(isPos(tiers.t1Pct) && isPos(tiers.t1TimeoutS) && isPos(tiers.t2Pct) && isPos(tiers.t2TimeoutS), 'ARGUMENT_INVALID', 'tiers');
-  const after = minuteBars.filter((b) => b.startMs >= triggerAtMs);
-  const t1End = triggerAtMs + tiers.t1TimeoutS * 1000;
+  const from = firstMinuteAfter(triggerAtMs);
+  const after = minuteBars.filter((b) => b.startMs >= from);
+  const t1End = from + tiers.t1TimeoutS * 1000;
   const t2End = t1End + tiers.t2TimeoutS * 1000;
-  const windows = [{ tier: 1, pct: tiers.t1Pct, from: triggerAtMs, to: t1End }, { tier: 2, pct: tiers.t2Pct, from: t1End, to: t2End }];
+  const windows = [{ tier: 1, pct: tiers.t1Pct, from, to: t1End }, { tier: 2, pct: tiers.t2Pct, from: t1End, to: t2End }];
   for (const w of windows) {
     const limit = side === 'SELL' ? triggerPrice * (1 - w.pct / 100) : triggerPrice * (1 + w.pct / 100);
     for (const b of after.filter((x) => x.startMs >= w.from && x.startMs < w.to)) {
@@ -207,11 +216,11 @@ const PRICE_RULES = Object.freeze(['NEXT_OPEN', 'GAP_THROUGH_LEVEL_AT_OPEN', 'SA
   'TOUCH_MINUTE_CLOSE', 'TICKER_LAST_PLUS_SLIPPAGE', 'MARKET_AFTER_POLL', 'TIERED_LIMIT_STOP']);
 const CADENCE_RULES = Object.freeze(['POLL_EVERY', 'FORMING_BAR_AS_OF_POLL', 'SCAN_SCHEDULE']);
 const RULES = Object.freeze([...PRICE_RULES, ...CADENCE_RULES]);
-const VERSION = '1.0.0';
+const VERSION = '1.0.1';
 
 module.exports = {
   VERSION, RULES, PRICE_RULES, CADENCE_RULES, SIDES, DIRECTIONS, POSITIONS, DEFAULT_TIERS, DEFAULT_PARTICIPATION, MINUTE_MS, FillModelError,
   NEXT_OPEN, GAP_THROUGH_LEVEL_AT_OPEN, SAME_BAR_STOP_FIRST, LIMIT_CROSS_ONE_TICK, PREV_DAY_VOLUME_CAP, TOUCH_MINUTE_CLOSE, TICKER_LAST_PLUS_SLIPPAGE,
   MARKET_AFTER_POLL, TIERED_LIMIT_STOP, POLL_EVERY, FORMING_BAR_AS_OF_POLL, SCAN_SCHEDULE,
-  alignToTick, priceAtPoll,
+  alignToTick, priceAtPoll, firstMinuteAfter,
 };

@@ -81,22 +81,27 @@ function rootOf(pin, { env = process.env, qrpRoot = path.join(__dirname, '..', '
 
 /**
  * 锁的核对：在钉住的提交上读源文件（git show <提交>:<路径>，只读），按正则取出常量的源码文字，与 expect 逐字相等；写了 value 的再按算式比数值。
- * 返回每条锁的结果 { id, repo, path, state: PASS | FAIL | SKIPPED, actual?, reason? }；仓库不在时 SKIPPED（带原因），不算通过。
+ * 返回每条锁的结果 { id, repo, path, commit, state: PASS | FAIL | SKIPPED, actual?, reason? }；仓库不在时 SKIPPED（带原因），不算通过。
+ * commits（漂移核对，#110）：{ <仓库>: <40 位提交号> } 换一个提交核对同一份声明，例如协调会话部署之后核对新部署的提交；
+ * 声明里钉住的提交不变。只收 40 位提交号（不收分支名、HEAD），核对的是哪一个提交写在每条结果里。
  */
-function verifyLocks(doc, { roots = null, env = process.env } = {}) {
-  const rootFor = (repo) => (roots && repo in roots ? roots[repo] : rootOf(doc.pins[repo], { env }));
+function verifyLocks(doc, { roots = null, env = process.env, commits = null } = {}) {
+  for (const [repo, c] of Object.entries(commits || {})) need(doc.pins[repo] && SHA40.test(c || ''), 'COMMIT_INVALID', `${repo}:${c}`);
+  const commitOf = (repo) => (commits && commits[repo]) || doc.pins[repo].commit;
+  const rootFor = (repo) => (roots && repo in roots ? roots[repo] : rootOf({ ...doc.pins[repo], commit: commitOf(repo) }, { env }));
   const cache = new Map();
   const out = [];
   for (const d of doc.declarations) {
     for (const lock of d.locks) {
       const pin = doc.pins[lock.repo];
+      const commit = commitOf(lock.repo);
       const root = rootFor(lock.repo);
-      const base = { book: d.book, segment: d.segment, id: lock.id, repo: lock.repo, path: lock.path };
-      if (!root) { out.push({ ...base, state: 'SKIPPED', reason: `${lock.repo} not found (${pin.env_root} or ../${pin.sibling}) at ${pin.commit.slice(0, 8)}` }); continue; }
+      const base = { book: d.book, segment: d.segment, id: lock.id, repo: lock.repo, path: lock.path, commit };
+      if (!root) { out.push({ ...base, state: 'SKIPPED', reason: `${lock.repo} not found (${pin.env_root} or ../${pin.sibling}) at ${commit.slice(0, 8)}` }); continue; }
       const file = pin.package_dir ? `${pin.package_dir}/${lock.path}` : lock.path;
-      const key = `${root}|${pin.commit}|${file}`;
+      const key = `${root}|${commit}|${file}`;
       if (!cache.has(key)) {
-        try { cache.set(key, execFileSync('git', ['-C', root, 'show', `${pin.commit}:${file}`], { maxBuffer: 1 << 26 }).toString('utf8')); } catch { cache.set(key, null); }
+        try { cache.set(key, execFileSync('git', ['-C', root, 'show', `${commit}:${file}`], { maxBuffer: 1 << 26 }).toString('utf8')); } catch { cache.set(key, null); }
       }
       const text = cache.get(key);
       if (text === null) { out.push({ ...base, state: 'FAIL', reason: 'FILE_NOT_AT_COMMIT' }); continue; }

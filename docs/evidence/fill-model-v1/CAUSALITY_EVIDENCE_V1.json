@@ -4,7 +4,7 @@
  "study_ref": "FILL_MODEL_LIBRARY_V1",
  "k2_sha256": "90814c6075b7c7e3609b87f6a7e8fac3fd34698a5f32ee250c174fd602e062ac",
  "code_repo": "qrp",
- "code_sha": "fb0332a57ae5c03129ff30b0d2405a9b26d2e544",
+ "code_sha": "e27131e2caf76224fda35f14b4c1c4f3a03a66f2",
  "harness_version": "1.0.0",
  "harness_sha256": "cf7e716d8a7ff8bfd5483cba66b5e1f43bbd58cfc8ee8abf9917f1d1522291c5",
  "seed": 20261112,
@@ -766,7 +766,7 @@
    "readings_summary": {
     "count": 240,
     "distinct": 2,
-    "null_or_error": 4
+    "null_or_error": 5
    },
    "mismatch_counts": {
     "t_c1": 0,
@@ -1037,7 +1037,7 @@
  ],
  "unknown": {},
  "production_effect": "NONE",
- "registered_by": "AQuA",
- "registered_at": "2026-11-16T17:11:48.951Z",
- "record_hash": "1a7984ee281a0c4bfeb9a7066a8405e6f2e778a7850744143ce016fdb31bbd90"
+ "registered_by": "claude(e2)",
+ "registered_at": "2026-11-17T09:06:42.204Z",
+ "record_hash": "edf60545704fb06ea15264412810fd430ead4bf0dce1f51ea214ca24939666a7"
 }

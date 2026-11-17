@@ -10,6 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const { hash, now } = require('../../packages/ledger');
 const bridge = require('./index');
+const { capacityAxis } = require('../../services/capacity-model');
 
 const EXECUTION_CONTRACT = 'REPLAY_CORE_CONTRACT_V1';
 
@@ -179,7 +180,8 @@ function createReplayCoreAdapter(def) {
         input_hash: a.replay_core.input_hash,
         gaps: Array.isArray(out.gaps) ? out.gaps.length : 'NOT_REPORTED_BY_PROFILE',
       },
-      capacity: {
+      // 容量轴(ENGINE_MODELING_ACCEPTANCE_V1 §2.2 第 6 条):作业带了容量报告才填;没带的照旧,字节不变。
+      capacity: a.capacity_report !== undefined ? capacityAxis(a.capacity_report) : {
         status: 'NOT_IMPLEMENTED_P4',
         reasonCn: '容量模型(流动性、资金区间、冲击假设)属 P4,本适配器不估算',
       },
