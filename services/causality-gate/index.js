@@ -68,6 +68,8 @@ const REPO = /^[a-z0-9][a-z0-9-]*$/;
 const FUNCTION_ID = /^[a-z0-9][a-z0-9-]*:[A-Za-z0-9_./-]+#[A-Za-z0-9_.$]+$/;
 const CF_IN_TEXT = /`CF:([^`\s]+)`/g;
 const NA_IN_TEXT = /G-CAUSAL N\/A:\s*([A-Z_]+)/g;
+/** 门的裁定读范围时：K2 里任何形式的「G-CAUSAL N/A」（全角冒号、括号、小写、全角斜杠、换行）都算 K2 写了范围（审阅 #119 FIX-2）。 */
+const NA_LOOSE = /G-CAUSAL\s*N\s*[\/／]\s*A/i;
 const MAX_MISMATCHES = 20;
 /** A1：附录 1 的生效时刻（不早于 FREEZE_1）；证据函数可选的角色（修订 §3.2 列的四类加成交函数）。 */
 const FILL_EFFECTIVE_FROM = addendum1.EFFECTIVE_FROM;
@@ -255,6 +257,8 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
     // A 股导入规格 V1 修订 6：K2 两样都没写，按裁定页读作不适用；记 DEVIATION_ACCEPTED
     const ruling = rulingOf(entry, rulingBytes);
     need(!cf.length && !na.length, 'RULING_FACT_NOT_HOLD', `${entry.id}:K2_DECLARES_SCOPE:${[...cf.map((x) => `CF:${x}`), ...na].join(',')}`);
+    const loose = NA_LOOSE.exec(k2Bytes().toString('utf8'));
+    need(!loose, 'RULING_FACT_NOT_HOLD', `${entry.id}:K2_MENTIONS_NA:${loose ? loose[0].replace(/\s+/g, ' ') : ''}`);
     need(!bound, 'SCOPE_CONFLICT', `${entry.id}:N/A_WITH_EVIDENCE`);
     need(!fill || ruling.scopeNotApplicable === FILL_EXEMPT_NA, 'SCOPE_FILL_NOT_EXEMPT', `${entry.id}:${ruling.scopeNotApplicable}`);
     return { applies: true, state: 'DEVIATION_ACCEPTED', effective_from: effectiveFrom, not_applicable_code: ruling.scopeNotApplicable,
@@ -316,6 +320,6 @@ function check(entry, { k2Bytes, evidenceBytes = () => null, runLogBytes = () =>
 
 module.exports = {
   SCHEMA, FREEZE, CONTRACT_REF, EFFECTIVE_FROM, FILL_EFFECTIVE_FROM, FUNCTION_ROLES, FILL_ROLE, FILL_EXEMPT_NA, SEED, CUT_POINTS, HARNESS_VERSIONS, TESTS, TEST_LABEL, STATUSES, RUNNERS, AVAILABILITY_RULES, NOT_APPLICABLE_CODES,
-  FUNCTION_ID, SHA64, SHA40, MAX_MISMATCHES, CausalityGateError, recordHash, runCommitKey, parseEvidence, declaration, applies, check,
+  FUNCTION_ID, SHA64, SHA40, MAX_MISMATCHES, NA_LOOSE, CausalityGateError, recordHash, runCommitKey, parseEvidence, declaration, applies, check,
   internals: { rulingOf, runLogCommit, fillScope },
 };

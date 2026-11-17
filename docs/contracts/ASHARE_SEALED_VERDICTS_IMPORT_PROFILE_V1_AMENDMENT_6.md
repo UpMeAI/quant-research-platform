@@ -58,7 +58,7 @@ K2 冻结在 RF1112（2026-11-15T22:47:42+08:00）、附录 1（2026-11-17T00:00
 - **错误码：**
   - 页上缺字 → `MECHANISM_RULING_TEXT_DOES_NOT_STATE`；
   - 事实不成立 → `MECHANISM_RULING_FACT_NOT_HOLD`；
-  - 形状不对 → `MECHANISM_RULING_INVALID`；
+  - 形状不对 → `MECHANISM_RULING_INVALID`。只认 `spec`、`deviations`、`line4_text` 三个键，多出或不认得的键（例如 `status`）一律拒绝（审阅 #119 FIX-1）；
   - 页的字节缺失 → `MECHANISM_RULING_FILE_MISSING`；
   - 不过门的题带裁定 → `MECHANISM_RULING_ON_UNGATED_ENTRY`。
 - **锁行：** `mechanism_gate` 多出 `state: DEVIATION_ACCEPTED`、`deviations`、`line4_read_as`、`ruling_ref`、`ruling_sha256`。导入器把裁定页作为 `MECH_RULING` 绑定、复验并列进 refs。
@@ -69,7 +69,7 @@ K2 冻结在 RF1112（2026-11-15T22:47:42+08:00）、附录 1（2026-11-17T00:00
 - **适用情形：** K2 既没写 `CF:` 也没写「G-CAUSAL N/A」（本来报 `CAUSALITY_SCOPE_MISSING`），由裁定页读作「G-CAUSAL N/A: <码>」。
 - **门要核的：**
   - 页上写出 `DEVIATION_ACCEPTED`、`CAUSALITY_SCOPE_MISSING` 与「G-CAUSAL N/A: <码>」，缺一个 → `RULING_TEXT_DOES_NOT_STATE`；
-  - K2 里确实两样都没写，否则 `RULING_FACT_NOT_HOLD`；
+  - K2 里确实两样都没写，否则 `RULING_FACT_NOT_HOLD`。K2 里出现任何形式的「G-CAUSAL N/A」（全角冒号、括号、小写、全角斜杠、换行），也算写了范围，同样 `RULING_FACT_NOT_HOLD`（审阅 #119 FIX-2）。不带反引号的「CF:」说明（例如 K2 头部的知道时刻说明）不算范围声明；
   - 不绑证据，否则 `SCOPE_CONFLICT`；
   - 附录 1 范围内只放过 `RISK_K_OR_ACCOUNT_LAYER`，否则 `SCOPE_FILL_NOT_EXEMPT`；
   - 不和函数偏差、滞后规则混写，否则 `RULING_INVALID`。

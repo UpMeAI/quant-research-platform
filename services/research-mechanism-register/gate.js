@@ -47,6 +47,8 @@ const HEX40 = /^[0-9a-f]{40}$/;
 const NOT_IN_K2 = 'MECHANISM_PRIOR_TABLE_NOT_IN_K2';
 const LINE4_AS_NONE = 'AI_ROLE_K2_LINE4_READ_AS_NONE';
 const RULING_DEVIATIONS = Object.freeze([NOT_IN_K2, LINE4_AS_NONE]);
+/** 裁定的形状只有这三个键（修订 6 §3.1）；多出或不认得的键 → MECHANISM_RULING_INVALID（审阅 #119 FIX-1）。 */
+const RULING_KEYS = Object.freeze(['spec', 'deviations', 'line4_text']);
 const NONE_LINE = /^无[。.]?$/;
 
 class MechanismGateError extends Error {
@@ -204,6 +206,7 @@ function checkAiInputs(entry, line4, { factorLibrary = defaultLibrary, minedTria
 function rulingOf(entry, rulingBytes) {
   const r = entry.mechanism_ruling;
   if (r === undefined || r === null) return null;
+  need(isObject(r) && Object.keys(r).every((k) => RULING_KEYS.includes(k)), 'MECHANISM_RULING_INVALID', `${entry.id}:keys:${isObject(r) ? Object.keys(r).filter((k) => !RULING_KEYS.includes(k)).join(',') : typeof r}`);
   need(isObject(r) && isObject(r.spec) && SHA64.test(r.spec.sha256 || '') && Array.isArray(r.deviations) && r.deviations.length
     && r.deviations.every((d) => RULING_DEVIATIONS.includes(d)) && new Set(r.deviations).size === r.deviations.length, 'MECHANISM_RULING_INVALID', entry.id);
   const asNone = r.deviations.includes(LINE4_AS_NONE);
