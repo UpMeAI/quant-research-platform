@@ -45,6 +45,13 @@ const ACCEPTED_QUALITY = Object.freeze(['READY']);
  * 只收 READY 等于一行都不收，打分前的行业中性化就把每个值都变成 NaN。行业只用于中性化与分组，不是读数。其余各表仍只收 READY。
  */
 const ACCEPTED_INDUSTRY_QUALITY = Object.freeze(['READY', 'DEGRADED']);
+/**
+ * 行业数据的局限（独立复审 M-4，写进面板清单 industry_limits，只看本面板实际用到的数据）：
+ *   - SINGLE_SOURCE_NOT_RECONCILED：用了 DEGRADED 的成员行（V6 只有一个来源，没有第二来源核对）；
+ *   - HISTORY_BACKDATED_BY_SOURCE：SW2021 的成员按上市日回溯（例如 1991 年），first_available_at 也跟着回溯，而 SW2021 本身 2021 年才有；
+ *     面板里 2021-01-01 之前的日子用到了它，那些日子的分类是事后重述的历史（只用于中性化与分组）。
+ */
+const INDUSTRY_STANDARD_START = Object.freeze({ SW2021: '2021-01-01' });
 /** 历史时钟 → 最早可用的决策：两种都是次一交易日开盘（MINING_SANDBOX_V1：只用历史、按 P-14 次日开盘决策）。 */
 const CLOCKS = Object.freeze({ BAR_CLOSE: 'NEXT_OPEN', CLOSE_DATED_NEXT_OPEN_USABLE: 'NEXT_OPEN' });
 const LIVE_CUTOFF = 'T09:00:00+08:00';
@@ -268,7 +275,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   const mat = () => new Float64Array(cells).fill(NaN);
   const counts = {
     prices_daily: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0 }, adj_factor: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0, value_missing: 0 },
-    daily_basic: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0 }, suspension: { rows: 0 }, industry: { rows: 0, backfill: 0 },
+    daily_basic: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0 }, suspension: { rows: 0 }, industry: { rows: 0, backfill: 0, by_quality: Object.fromEntries(ACCEPTED_INDUSTRY_QUALITY.map((q) => [q, 0])), quality_skipped: 0 },
   };
   /** 一行进格子：截止前入库 → 2；没赶上 → HISTORY 回补 1 / LIVE 不用（计数）。 */
   const category = (src, t, at, c) => (at <= cutoffOf(t) ? 2 : src.mode === 'HISTORY' ? 1 : (c.late_unused += 1, 0));
@@ -344,8 +351,10 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   for (const s of sources) {
     if (!s.has('industry')) continue;
     s.forEach('industry', (r) => {
-      if (r.industry_standard !== industry.standard || r.industry_level !== industry.level || !codeIdx.has(r.security_id) || !ACCEPTED_INDUSTRY_QUALITY.includes(r.quality_state)) return;
+      if (r.industry_standard !== industry.standard || r.industry_level !== industry.level || !codeIdx.has(r.security_id)) return;
+      if (!ACCEPTED_INDUSTRY_QUALITY.includes(r.quality_state)) { counts.industry.quality_skipped += 1; return; }
       counts.industry.rows += 1;
+      counts.industry.by_quality[r.quality_state] += 1;
       const key = `${r.security_id}|${r.effective_from}`;
       if (!groups.has(key)) groups.set(key, { code: r.security_id, from: r.effective_from, revs: [] });
       groups.get(key).revs.push({ at: parseTs(r.first_available_at), rev: Number(r.revision), to: r.effective_to, value: r.industry_code || r.industry_name });
@@ -371,6 +380,10 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       if (best) { industryM[i][j] = best.value; if (backfill) counts.industry.backfill += 1; }
     }
   }
+  // 行业数据的局限（复审 M-4）：只记本面板实际用到的
+  const standardStart = INDUSTRY_STANDARD_START[industry.standard] || null;
+  const backdated = standardStart !== null && dates.some((d, i) => d < standardStart && industryM[i].some((g) => g !== null));
+  const industryLimits = [...(counts.industry.by_quality.DEGRADED > 0 ? ['SINGLE_SOURCE_NOT_RECONCILED'] : []), ...(backdated ? ['HISTORY_BACKDATED_BY_SOURCE'] : [])];
   // 股票池；同时记当天是否 ST 与板块（涨跌停用，R1.7）
   const universe = Array.from({ length: T }, () => new Array(N).fill(false));
   const st = Array.from({ length: T }, () => new Array(N).fill(false));
@@ -412,6 +425,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       calendar: { exchange: calendarExchange, open_days_in_sources: cal.length, last_date: calMax, sse_szse_disagreements: disagreements.filter((d) => d >= from && d <= to),
         sse_szse_disagreements_all: disagreements.length },
       counts,
+      industry_limits: industryLimits,
     },
   };
 }

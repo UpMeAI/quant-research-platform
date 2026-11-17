@@ -25,7 +25,7 @@ test('行业成员收 DEGRADED（V6 的每一行都是）：与 READY 的面板�
   assert.ok(v6.manifest.counts.industry.rows > 0, 'DEGRADED industry rows enter the panel');
   assert.equal(v6.manifest.counts.industry.rows, ready.manifest.counts.industry.rows);
   assert.deepEqual(v6.industry, ready.industry, 'same industries cell by cell');
-  const c = runner.checkCanary(v6);
+  const c = runner.checkCanary(v6, { min_names_per_day: 5 }); // 合成数据只有十几只（生产下限 2,000）
   assert.ok(Number.isFinite(c.formulas[0].score) && c.formulas[0].ic_days >= c.min_ic_days);
 });
 
