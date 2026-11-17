@@ -41,7 +41,7 @@ const SUFFIXED = /^_\d{8}\.csv$/;
 const ACCEPTED_QUALITY = Object.freeze(['READY']);
 /**
  * 行业成员表另收 DEGRADED（★RF1116_INDUSTRY_QUALITY，2026-11-18 第 1 轮缺陷之后）：V6 把每一行行业成员都写成 DEGRADED
- * （Ashare-V6 src/data-runtime/canonicalize.js:460，sourceReconciliationState PRIMARY_ONLY：单一来源 Tushare index_member_all，没有第二来源核对），
+ * （Ashare-V6 src/data-runtime/canonicalize.js:460：单一来源 Tushare index_member_all，没有第二来源核对），
  * 只收 READY 等于一行都不收，打分前的行业中性化就把每个值都变成 NaN。行业只用于中性化与分组，不是读数。其余各表仍只收 READY。
  */
 const ACCEPTED_INDUSTRY_QUALITY = Object.freeze(['READY', 'DEGRADED']);
