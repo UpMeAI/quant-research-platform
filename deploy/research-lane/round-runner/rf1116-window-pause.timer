@@ -1,0 +1,8 @@
+[Unit]
+Description=RF1116 generate window pause, every minute
+[Timer]
+OnCalendar=*-*-* *:*:05
+AccuracySec=5s
+Persistent=false
+[Install]
+WantedBy=timers.target
