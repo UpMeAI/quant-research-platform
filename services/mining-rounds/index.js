@@ -164,9 +164,17 @@ const manifestSha = (round) => trials.recordHash({ ...round, status: 'OPEN', can
  * 记一个算过分的候选：写一行试验台账（MINED_CANDIDATE）。到上限即停：第 cap + 1 个不入账，本轮转 CAP_REACHED。
  * @param {object} c { candidate_id, formula_canonical, formula_sha256, holding_period, mining_score, rule_config? }
  */
+const ATTEMPTS = Object.freeze(['PARSE_REFUSED', 'DEDUPED', 'UNSCORABLE']);
 function recordCandidate(roundId, c = {}, { registeredBy, registeredAt = null } = {}) {
   const r = roundHead(roundId);
   need(r, 'MINE_ROUND_NOT_FOUND', roundId);
+  // 入口（复审 L-1，第 1 轮缺陷之后）：没有 attempt 标记的必须是有限分数；带标记的只能是登记的三种，分数必须是 null
+  const attempt = c.rule_config ? c.rule_config.attempt : undefined;
+  if (attempt === undefined) need(typeof c.mining_score === 'number' && Number.isFinite(c.mining_score), 'MINE_ROUND_SCORE_NOT_FINITE', `${roundId}:${c.candidate_id}`);
+  else {
+    need(ATTEMPTS.includes(attempt), 'MINE_ROUND_ATTEMPT_UNKNOWN', `${c.candidate_id}:${attempt}`);
+    need(c.mining_score === null || c.mining_score === undefined, 'MINE_ROUND_ATTEMPT_HAS_SCORE', `${c.candidate_id}:${attempt}`);
+  }
   need(!selectionOf(roundId), 'MINE_ROUND_GENERATION_CLOSED', `${roundId}: validation-fold selection recorded`);
   if (r.status === 'CAP_REACHED') fail('MINE_ROUND_CAP_REACHED', `${roundId}:${r.candidates_scored}`);
   need(r.status === 'OPEN', 'MINE_ROUND_NOT_OPEN', `${roundId}:${r.status}`);

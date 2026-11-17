@@ -147,21 +147,46 @@ function checkCoverage(panel, floor = COVERAGE_FLOOR) {
 /**
  * 金丝雀（2026-11-18 第 1 轮 MR-CN_A-2026-11-e1ab63a27b 缺陷之后）：开轮之前，固定公式在挖掘段面板上必须算得出分。
  * 第 1 轮的行业成员一行都没进面板，打分前的中性化把每个值都变成 NaN，200 个候选的有效 IC 日都是 0，分数是 null 却记成了 SCORED。
- * 要求：每条金丝雀公式的分数是有限数，且有效 IC 日 ≥ max(MIN_IC_DAYS, ⌈min_day_share × (面板日数 − 持有期)⌉)。不过 → MINE_RUNNER_CANARY_UNSCORABLE，
- * 不开轮、不封存、不记尝试。返回 { formulas: [{ formula, score, ic_days }], min_ic_days, holding_period }（写进 generate.json）。
+ * 要求（独立复审 M-1 收紧，REVIEW.md 12a23861）：打分日 = 1 ≤ t ≤ 日数 − H − 1（第一天不算，最后 H 天没有前推收益）。
+ *   - 逐个打分日：池里、金丝雀中性化后（scoring.neutralizedValues，候选同一条路径）有限值的名字数 ≥ 覆盖下限 floor.min_names_per_day，
+ *     且 ≥ min_coverage_share × 当天的覆盖数（池里且后复权收盘价有数，同 checkCoverage）。有一天不够就拒（行业只剩一部分名字、只缺一段日子都在这里拒）；
+ *   - 分数是有限数，且有效 IC 日 ≥ max(MIN_IC_DAYS, ⌈min_day_share × 打分日数⌉)。
+ * 不过 → MINE_RUNNER_CANARY_UNSCORABLE，不开轮、不封存、不记尝试。返回 { formulas: [{ formula, score, ic_days, min_named, min_named_date, min_share, min_share_date }],
+ *   scored_days, min_ic_days, min_names_per_day, min_coverage_share, min_day_share, holding_period }（写进 generate.json）。
  */
-const CANARY = Object.freeze({ formulas: Object.freeze(['(-close_hfq)']), min_day_share: 0.5 });
-function checkCanary(panel, canary = CANARY) {
-  need(panel && panel.segment === 'MINING' && Array.isArray(panel.dates) && panel.dates.length, 'CANARY_PANEL_INVALID');
+const CANARY = Object.freeze({ formulas: Object.freeze(['(-close_hfq)']), min_coverage_share: 0.9, min_day_share: 0.95 });
+function checkCanary(panel, floor = COVERAGE_FLOOR, canary = CANARY) {
+  need(panel && panel.segment === 'MINING' && Array.isArray(panel.dates) && panel.dates.length && panel.readings && panel.readings.close_hfq, 'CANARY_PANEL_INVALID');
+  need(floor && Number.isInteger(floor.min_names_per_day) && floor.min_names_per_day >= 1, 'COVERAGE_FLOOR_INVALID', floor && floor.min_names_per_day);
   const f = loadFrozenSpace();
   const H = f.holdingPeriod;
-  const minDays = Math.max(scoring.MIN_IC_DAYS, Math.ceil(canary.min_day_share * Math.max(0, panel.dates.length - H)));
+  const T = panel.dates.length; const N = panel.codes.length;
+  const scoredDays = T - H - 1;
+  need(scoredDays > 0, 'CANARY_PANEL_INVALID', `no scored day:${T}`);
+  const minDays = Math.max(scoring.MIN_IC_DAYS, Math.ceil(canary.min_day_share * scoredDays));
   const formulas = canary.formulas.map((text) => {
-    const s = scoring.miningScore(dsl.parse(text, f.dslSpace), panel, { holding_period: H });
+    const parsed = dsl.parse(text, f.dslSpace);
+    const neu = scoring.neutralizedValues(parsed, panel).values;
+    let minNamed = Infinity; let minNamedDate = null; let minShare = Infinity; let minShareDate = null;
+    for (let t = 1; t <= scoredDays; t += 1) {
+      let cov = 0; let named = 0;
+      for (let j = 0; j < N; j += 1) {
+        if (!panel.universe[t][j]) continue;
+        if (Number.isFinite(panel.readings.close_hfq[t][j])) cov += 1;
+        if (Number.isFinite(neu[t][j])) named += 1;
+      }
+      const share = cov ? named / cov : 0;
+      if (named < minNamed) { minNamed = named; minNamedDate = panel.dates[t]; }
+      if (share < minShare) { minShare = share; minShareDate = panel.dates[t]; }
+      need(named >= floor.min_names_per_day && named >= canary.min_coverage_share * cov, 'CANARY_UNSCORABLE',
+        `${text}:${panel.dates[t]}:neutralized=${named}<max(${floor.min_names_per_day},${canary.min_coverage_share}x${cov})`);
+    }
+    const s = scoring.miningScore(parsed, panel, { holding_period: H });
     need(Number.isFinite(s.score) && s.ic_days >= minDays, 'CANARY_UNSCORABLE', `${text}:ic_days=${s.ic_days}<${minDays}`);
-    return { formula: text, score: s.score, ic_days: s.ic_days };
+    return { formula: text, score: s.score, ic_days: s.ic_days, min_named: minNamed, min_named_date: minNamedDate, min_share: minShare, min_share_date: minShareDate };
   });
-  return { formulas, min_ic_days: minDays, holding_period: H };
+  return { formulas, scored_days: scoredDays, min_ic_days: minDays, min_names_per_day: floor.min_names_per_day, min_coverage_share: canary.min_coverage_share,
+    min_day_share: canary.min_day_share, holding_period: H };
 }
 
 /**
@@ -169,7 +194,7 @@ function checkCanary(panel, canary = CANARY) {
  * 分数不是有限数的尝试记 UNSCORABLE（计入 N，不进选择，GP 不当它有分），永远不记 SCORED（第 1 轮缺陷）。
  * @returns {{round_id, status, attempts: {scored, unscorable, parse_refused, deduped}, total, canary}}
  */
-function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null, canary = null }) {
+function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null }) {
   need(Array.isArray(sources) && sources.length, 'SOURCES_MISSING');
   for (const s of sources) need(!s.holdout, 'HOLDOUT_IN_GENERATION', s.label);
   const dir = runDir(outDir, roundId);
@@ -184,6 +209,7 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
   const m = segs.SEGMENTS.MINING;
   const panel = prebuilt || adapter.buildPanel({ sources, space: f.space, segment: 'MINING', from: m.from, to: m.to });
   const coverage = checkCoverage(panel, coverageFloor); // 一个尝试都没记之前
+  const canary = checkCanary(panel, coverageFloor); // 复审 M-3：自己跑，不信调用方给的
   const counts = { scored: 0, unscorable: 0, parse_refused: 0, deduped: 0 };
   const startedAt = now();
   const log = path.join(dir, 'attempts.jsonl');

@@ -115,6 +115,13 @@ Reads the CSV directories of export spec rev 2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1
     - a `LIVE` source does not use the row (`counts.*.late_unused`);
     - a `HISTORY` source takes the state known at the earliest ingestion instant, with the highest revision recorded at that instant (`counts.*.backfill`). The P-14 backfill convention is pending the coordinator's ruling.
   - Rows whose `quality_state` is not `READY` are not used (`counts.*.quality_skipped`).
+  - **Exception: industry membership** (★RF1116_INDUSTRY_QUALITY (a), coordinator 2026-11-18) accepts `READY` and `DEGRADED`, because V6 writes every industry-membership row DEGRADED (single source). The manifest records:
+    - `rules.industry_accepted_quality`;
+    - `counts.industry.by_quality` and `counts.industry.quality_skipped`;
+    - `industry_limits`, which lists only what the panel actually used:
+      - `SINGLE_SOURCE_NOT_RECONCILED`: DEGRADED rows were used; there is one source and no second-source check.
+      - `HISTORY_BACKDATED_BY_SOURCE`: SW2021 membership is dated back to listing (for example 1991), with `first_available_at` the day before `effective_from`, although SW2021 dates from 2021. Panel days before 2021-01-01 therefore use a classification that is restated history.
+    - Industry is used only for neutralization and grouping. Every other table stays READY-only.
 - **Universe** (`universe[i][j]`, freeze prep §2.3)
   - Included: main boards, ChiNext and STAR. BSE securities are not in the panel at all.
   - Excluded on the decision day: ST, listed fewer than 120 trading days (counted on the trading calendar), suspended for the full session, not `LISTED`, or delisted.
@@ -187,8 +194,11 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
 - **Every attempt is one trial row,** written through `recordCandidate`, and counts toward the cap of 200 and toward N.
   - `PARSE_REFUSED`: the raw text, with the `MINE_DSL_*` code in `rule_config.refusal`, and no score.
   - `DEDUPED`: the canonical form was already tried in this market. No score.
-  - Both carry `rule_config.attempt` and `rule_config.attempt_id`, so each is a distinct rule config in N.
-  - Everything else is scored on the mining segment.
+  - `UNSCORABLE` (after round 1's defect, 2026-11-18): parsed and new, but its mining score is not a finite number (for example a constant formula). No score; `rule_config.ic_days` is kept.
+  - All three carry `rule_config.attempt` and `rule_config.attempt_id`, so each is a distinct rule config in N.
+  - Everything else is scored on the mining segment, with a finite score.
+  - `recordCandidate` is the front door and enforces this. A row without an attempt marker must have a finite `mining_score` (`MINE_ROUND_SCORE_NOT_FINITE`). A marked row must be one of the three, with a null score (`MINE_ROUND_ATTEMPT_UNKNOWN`, `MINE_ROUND_ATTEMPT_HAS_SCORE`).
+- **Canary (pre-open data check, with the coverage floor).** `(-close_hfq)` must be scorable through the candidates' neutralization path: on every scored day, ≥ the floor and ≥ 0.9 × coverage names have a finite neutralized value, and IC days are ≥ 0.95 × the scored days. It runs in the CLI before opening or resuming, and inside `generate()`. Otherwise `MINE_RUNNER_CANARY_UNSCORABLE`. See DEPLOY.md.
 - **Ids.** Candidate ids are `<round_id>:A<nnn>`.
 - **Audit log.** `attempts.jsonl` in the run directory lists every attempt.
 

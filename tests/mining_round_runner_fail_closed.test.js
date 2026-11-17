@@ -33,13 +33,13 @@ const freshData = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-f
 const COV = Object.freeze({ min_names_per_day: 5 });
 
 test('金丝雀：好面板上 (-close_hfq) 算得出分；行业成员一行都用不上的面板被拒 MINE_RUNNER_CANARY_UNSCORABLE（第 1 轮的样子）', () => {
-  const ok = runner.checkCanary(miningPanel(good));
+  const ok = runner.checkCanary(miningPanel(good), COV);
   assert.equal(ok.formulas.length, 1);
   assert.equal(ok.formulas[0].formula, '(-close_hfq)');
   assert.ok(Number.isFinite(ok.formulas[0].score) && ok.formulas[0].ic_days >= ok.min_ic_days, JSON.stringify(ok));
   const panel = miningPanel(broken);
   assert.equal(panel.manifest.counts.industry.rows, 0, 'the broken fixture really has no usable industry row');
-  assert.throws(() => runner.checkCanary(panel), code(/^MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):ic_days=0</));
+  assert.throws(() => runner.checkCanary(panel, COV), code(/^MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):2020-06-02:neutralized=0</));
 });
 
 test('金丝雀在开轮之前：命令行 generate 在坏数据上退出 2，没有轮被开、没有封存、试验台账一行都没有', () => {
@@ -60,8 +60,8 @@ test('算不出分的尝试记 UNSCORABLE（计入 N、不进选择、GP 不当�
   const texts = ['sign(close_hfq)', 'rank(pb)'];
   const stub = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => Array.from({ length: n }, (_, i) => texts[(view.mining_scores.length + i) % 2]) };
   const panel = miningPanel(good);
-  const canary = runner.checkCanary(panel);
-  const g = runner.internals.withGenerator(stub, () => runner.generate({ roundId: r.round_id, sources: sourcesOf(good), outDir: out, registeredBy: AUTH, coverageFloor: COV, panel, canary }));
+  const canary = runner.checkCanary(panel, COV);
+  const g = runner.internals.withGenerator(stub, () => runner.generate({ roundId: r.round_id, sources: sourcesOf(good), outDir: out, registeredBy: AUTH, coverageFloor: COV, panel }));
   assert.deepEqual(g.attempts, { scored: 1, unscorable: 1, parse_refused: 0, deduped: 198 });
   assert.deepEqual(g.canary, canary);
   const rows = [...trials.heads().values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === r.round_id);
