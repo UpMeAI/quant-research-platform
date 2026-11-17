@@ -14,6 +14,7 @@ process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
 const trials = require('../services/trial-ledger');
 const rounds = require('../services/mining-rounds');
 const records = require('../services/mining-rounds/gate-records');
+const { R1, nextHoldout } = require('./_mining_manifest');
 const vault = require('../services/holdout-vault');
 const { validateRecord } = require('../schemas');
 
@@ -30,14 +31,15 @@ const fakeGate = (c) => ({ schema: 'MINING_GATE_RESULT_V1', candidate_id: c.cand
 /** 一轮：k 个候选，全部开留出段；返回轮次与候选编号。 */
 function scoredRound(market, openedAt, k = 2) {
   n += 1;
-  const r = rounds.openRound({ market, space: { space_ref: `MS-${n}`, sha256: sha(`s-${n}`), freeze: { path: `f-${n}`, sha256: sha(`f-${n}`) } }, holding_periods: [5], generator: LLM, holdout: HOLDOUT, openedAt });
+  const r = rounds.openRound({ market, space: { space_ref: `MS-${n}`, sha256: sha(`s-${n}`), freeze: { path: `f-${n}`, sha256: sha(`f-${n}`) } }, holding_periods: [5], generator: LLM,
+    holdout: nextHoldout(rounds, market, HOLDOUT), openedAt, ...R1 }); // R1：rulings + 选择规则；R1.6：一段留出段最多 2 轮
   const ids = [];
   for (let i = 1; i <= k; i += 1) {
     const id = `${r.round_id}:C${String(i).padStart(3, '0')}`; const f = `rank(ts_mean(close,${n * 10 + i}))`;
     rounds.recordCandidate(r.round_id, { candidate_id: id, formula_canonical: f, formula_sha256: sha(f), holding_period: 5, mining_score: 0 }, { registeredBy: AUTH, registeredAt: openedAt });
     ids.push(id);
   }
-  vault.seal({ round_id: r.round_id, segment: HOLDOUT, data_ref: `lane:/holdout/${market}`, data_sha256: sha(`h-${n}`), sealedBy: 'VAULT' });
+  vault.seal({ round_id: r.round_id, segment: r.holdout, data_ref: `lane:/holdout/${market}`, data_sha256: sha(`h-${n}`), sealedBy: 'VAULT' });
   vault.open({ round_id: r.round_id, candidate_ids: ids, openedBy: 'SELECTOR' });
   return { r, ids };
 }

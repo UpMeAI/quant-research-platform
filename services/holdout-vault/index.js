@@ -17,6 +17,7 @@ const rounds = require('../mining-rounds');
 
 const SEAL_SCHEMA = 'HOLDOUT_SEAL_V1';
 const OPEN_SCHEMA = 'HOLDOUT_OPEN_V1';
+const RESCORE_SCHEMA = 'HOLDOUT_RESCORE_V1';
 const LEDGER = () => path.join(dataDir('research'), 'holdout_vault.jsonl');
 const SHA64 = /^[0-9a-f]{64}$/;
 
@@ -49,7 +50,7 @@ function seal({ round_id: roundId, segment, data_ref: dataRef, data_sha256: data
  * 开启（每轮一次）：交出数据的引用与 sha，记下这次读了哪些候选；轮次转为 SCORING。
  * @returns {{round_id, data_ref, data_sha256, segment, candidate_ids}}
  */
-function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null, checks = null } = {}) {
+function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null, checks = null, selection_record_hash: selectionRecordHash = null, inputs_sha256: inputsSha = null } = {}) {
   const r = rounds.roundHead(roundId);
   need(r, 'MINE_HOLDOUT_ROUND_NOT_FOUND', roundId);
   const [s] = rows(SEAL_SCHEMA, roundId);
@@ -60,15 +61,47 @@ function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null
   need(new Set(ids).size === ids.length, 'MINE_HOLDOUT_CANDIDATE_READ_TWICE', roundId);
   const known = new Set([...trials.heads().values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId).map((t) => t.mining.candidate_id));
   for (const id of ids) need(known.has(id), 'MINE_HOLDOUT_CANDIDATE_UNKNOWN', `${roundId}:${id}`);
-  rounds.beginScoring(roundId);
-  write({ schema: OPEN_SCHEMA, round_id: roundId, seal_hash: s.record_hash, candidate_ids: [...ids], opened_by: openedBy, opened_at: openedAt || now(),
-    pre_open_checks: checks && typeof checks === 'object' ? JSON.parse(JSON.stringify(checks)) : null }, OPEN_SCHEMA); // 开启之前执行器做过的核对（覆盖下限等）
-  return { round_id: roundId, data_ref: s.data_ref, data_sha256: s.data_sha256, segment: { ...s.segment }, candidate_ids: [...ids] };
+  // R1.6：这段留出段在本族（同市场）里被开了第几次（含这一次），写进开启记录与轮次记录
+  const sameSegment = (x) => x.market === r.market && x.segment.from === s.segment.from && x.segment.to === s.segment.to;
+  const sealsHere = new Set(read(LEDGER()).filter((x) => x.schema === SEAL_SCHEMA && sameSegment(x)).map((x) => x.round_id));
+  const index = read(LEDGER()).filter((x) => x.schema === OPEN_SCHEMA && sealsHere.has(x.round_id)).length + 1;
+  rounds.beginScoring(roundId, { holdoutOpens: { segment: { ...s.segment }, family_ids: [...r.family_ids], count: index } });
+  write({ schema: OPEN_SCHEMA, round_id: roundId, seal_hash: s.record_hash, candidate_ids: [...ids], opened_by: openedBy, opened_at: openedAt || now(), segment_open_index: index,
+    pre_open_checks: checks && typeof checks === 'object' ? JSON.parse(JSON.stringify(checks)) : null, // 开启之前执行器做过的核对（覆盖下限等）
+    selection_record_hash: selectionRecordHash, inputs_sha256: inputsSha }, OPEN_SCHEMA); // R1.8：重打分要对得上这两个
+  return { round_id: roundId, data_ref: s.data_ref, data_sha256: s.data_sha256, segment: { ...s.segment }, candidate_ids: [...ids], segment_open_index: index };
 }
+
+/**
+ * 协调会话裁定 R1.8：留出段开启之后、最后一条 G-MINE 记录写完之前崩溃 → 允许恰好一次 RESCORE_SAME_SELECTION，记成第二个事件（原因 + 日志）。条件全部满足：
+ *   1 选集的台账行（MINING_SELECTION_V1）逐字节没变：它的 record_hash 重算得出、且等于开启记录写下的那一个；SHA256SUMS.sealed 与其余输入
+ *     （执行器算的 inputs_sha256：留出段清单、封存清单、选择文件、现有因子序列、数据源、代码、下限、机制登记）与开启时一样；
+ *   2 第一次尝试没有写下任何 G-MINE 记录；
+ *   3 同样的输入，打分是确定的（执行器同一份代码、同样的输入；测试核「崩溃后重打分 = 一次跑完」）。
+ * 只许一次（MINE_HOLDOUT_RESCORE_ONCE）；轮次要在 SCORING。
+ */
+function recordRescore({ round_id: roundId, reason, log = '', inputs_sha256: inputsSha, rescoredBy, rescoredAt = null } = {}) {
+  const r = rounds.roundHead(roundId);
+  need(r, 'MINE_HOLDOUT_ROUND_NOT_FOUND', roundId);
+  need(r.status === 'SCORING', 'MINE_HOLDOUT_RESCORE_NOT_SCORING', `${roundId}:${r.status}`);
+  const [o] = rows(OPEN_SCHEMA, roundId);
+  need(o, 'MINE_HOLDOUT_NOT_OPENED', roundId);
+  need(!rows(RESCORE_SCHEMA, roundId).length, 'MINE_HOLDOUT_RESCORE_ONCE', roundId);
+  need(isText(reason) && isText(rescoredBy), 'MINE_HOLDOUT_RESCORE_INVALID', roundId);
+  need(!require('../mining-rounds/gate-records').recordsOf(roundId).length, 'MINE_HOLDOUT_RESCORE_RECORDS_EXIST', roundId);
+  const sel = rounds.selectionOf(roundId);
+  const { record_hash: selHash, ...selBody } = sel || {};
+  need(sel && trials.recordHash(selBody) === selHash && selHash === o.selection_record_hash, 'MINE_HOLDOUT_RESCORE_SELECTION_CHANGED', roundId);
+  need(isText(inputsSha) && inputsSha === o.inputs_sha256, 'MINE_HOLDOUT_RESCORE_INPUTS_CHANGED', roundId);
+  const text = String(log || '');
+  return write({ schema: RESCORE_SCHEMA, round_id: roundId, kind: 'RESCORE_SAME_SELECTION', open_hash: o.record_hash, selection_record_hash: selHash, inputs_sha256: inputsSha,
+    reason, log_sha256: require('crypto').createHash('sha256').update(text).digest('hex'), log_excerpt: text.slice(0, 4000), rescored_by: rescoredBy, rescored_at: rescoredAt || now() }, RESCORE_SCHEMA);
+}
+const rescoreLog = (roundId) => rows(RESCORE_SCHEMA, roundId);
 
 /** 开启日志（审计用）。 */
 const openLog = (roundId) => rows(OPEN_SCHEMA, roundId);
 /** 本轮的封存记录（只读；P2 执行器在开启之前用它核留出段目录的 sha）。 */
 const sealOf = (roundId) => rows(SEAL_SCHEMA, roundId)[0] || null;
 
-module.exports = { SEAL_SCHEMA, OPEN_SCHEMA, LEDGER, HoldoutError, seal, open, openLog, sealOf };
+module.exports = { SEAL_SCHEMA, OPEN_SCHEMA, RESCORE_SCHEMA, LEDGER, HoldoutError, seal, open, openLog, sealOf, recordRescore, rescoreLog };

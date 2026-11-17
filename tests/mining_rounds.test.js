@@ -27,7 +27,9 @@ let spaceN = 0;
 const space = () => { spaceN += 1; return { space_ref: `MS-SYNTH-${spaceN}`, sha256: sha(`space-${spaceN}`), freeze: { path: `synthetic/MS_${spaceN}_FREEZE.md`, sha256: sha(`freeze-${spaceN}`) } }; };
 const LLM = { mode: 'AI_MINED_LLM', model: 'synthetic-model', model_knowledge_cutoff: '2026-06-30' };
 const HOLDOUT = { from: '2026-07-01', to: '2026-10-31' };
-const open = (market, openedAt, patch = {}) => rounds.openRound({ market, space: space(), holding_periods: [5, 10], generator: LLM, holdout: HOLDOUT, openedAt, ...patch });
+const { R1, nextHoldout } = require('./_mining_manifest');
+// 协调会话裁定 R1：每份清单带 rulings 与冻结的选择规则；留出段按 R1.6 挑（一段最多 2 轮）
+const open = (market, openedAt, patch = {}) => rounds.openRound({ market, space: space(), holding_periods: [5, 10], generator: LLM, holdout: nextHoldout(rounds, market, HOLDOUT), openedAt, ...R1, ...patch });
 const cand = (r, i, h = 5, extra = {}) => {
   const f = `rank(ts_mean(close,${i}))`;
   return rounds.recordCandidate(r.round_id, { candidate_id: `${r.round_id}:C${String(i).padStart(3, '0')}`, formula_canonical: f, formula_sha256: sha(f), holding_period: h, mining_score: i / 1000, ...extra },
@@ -55,9 +57,9 @@ test('轮次（§8.3 第 8 条）：第 201 个不算分、本轮停止；同市
   assert.throws(() => cand(r1, 201), code(/MINE_ROUND_CAP_REACHED/));
   assert.equal(rounds.roundHead(r1.round_id).candidates_scored, 200);
   assert.equal(rounds.familyN('CN_A', 5), 200);
-  assert.throws(() => open('CN_A', '2026-12-02T02:00:00Z'), code(/MINE_ROUND_ALREADY_OPEN/));
+  const r2 = open('CN_A', '2026-12-02T02:00:00Z'); // R1.6：同一市场可以同时开 2 个只生成的轮次
+  assert.throws(() => open('CN_A', '2027-01-02T02:00:00Z'), code(/MINE_ROUND_ALREADY_OPEN/)); // 第 3 个不行
   rounds.closeRound(r1.round_id, { closedAt: '2026-12-05T02:00:00Z' }); // 没开留出段：G-MINE 过 0 个
-  const r2 = open('CN_A', '2026-12-10T02:00:00Z');
   cand(r2, 1001); // 去重被拒的候选：一样算过分，一样记
   cand(r2, 1002, 5, { rule_config: { formula: 'rank(ts_mean(close,1002))', orthogonalized_against: ['F_EXISTING'] } }); // 正交化版本
   cand(r2, 1003, 10);
@@ -79,7 +81,8 @@ test('暂停：某市场连续 3 轮没有候选过 G-MINE → 暂停；用那�
   }
   const p = rounds.pauseState('CRYPTO');
   assert.equal(p.paused, true);
-  assert.throws(() => rounds.openRound({ market: 'CRYPTO', space: used[2], holding_periods: [5], generator: LLM, holdout: HOLDOUT, openedAt: '2027-06-02T02:00:00Z' }), code(/MINE_MARKET_PAUSED/));
+  assert.throws(() => rounds.openRound({ market: 'CRYPTO', space: used[2], holding_periods: [5], generator: LLM, holdout: nextHoldout(rounds, 'CRYPTO', HOLDOUT), openedAt: '2027-06-02T02:00:00Z', ...R1 }),
+    code(/MINE_MARKET_PAUSED/));
   assert.equal(rounds.familyN('CRYPTO', 5), 3); // 三轮各一个（空间不同，配置不同）
   const r = open('CRYPTO', '2027-06-02T02:00:00Z');
   assert.equal(r.resumed_after_pause.length, 3);

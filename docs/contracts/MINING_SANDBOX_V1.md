@@ -214,17 +214,30 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
 - **Completeness.**
   - The SSE calendar reaches the holdout end.
   - The calendar's READY SSE rows reach the holdout end.
-  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows for at least `COVERAGE_FLOOR.min_names_per_day` (2,000) **distinct `security_id`s**. Names are counted, not rows (re-review G5).
-  - Each table also reaches at least half of its own median day (`HOLDOUT_FLOOR`). The absolute floor stops a uniformly thin export, which pulls the median down with it; the relative check still catches an isolated half-empty day above the floor.
+  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows for at least `HOLDOUT_FLOOR.min_names_per_day` (**4,000**, export spec rev 3 §3) **distinct `security_id`s**.
+    - Names are counted, not rows (re-review G5).
+    - `.BJ` ids are excluded, as in the panel.
+    - The mining-panel universe floor `COVERAGE_FLOOR` stays at 2,000, because the 2020 universe is about 3,800.
+  - Each day also reaches at least half of the median of the **sealed** days: the days covered by the files listed in `SHA256SUMS.sealed`, which cannot move after sealing (re-review G5c).
+    - A thin completion export can therefore no longer pull its own median down.
+    - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
   - The refusal is `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`. The floor used goes into the open record's `pre_open_checks`, and the generate-phase floor into the round row's `data_checks`.
   - Export spec rev 3 ships the full calendar in every export, so the calendar alone proves nothing.
 
 Any failure refuses without spending the single open. A second open gives `MINE_HOLDOUT_ALREADY_OPENED`.
 
-**Known limitation: no recovery after the open.** If the runner dies between `holdout-vault.open` and the last G-MINE record, the round stays `SCORING`.
-- Re-scoring is refused (`MINE_HOLDOUT_ALREADY_OPENED`), and closing is refused (`MINE_ROUND_GMINE_RESULT_MISSING`).
-- That is deliberate: there is no second open.
-- Recovery needs a coordinator ruling, and the pre-open checks exist to make that case rare.
+**Recovery after the open (R1.8).** If the runner dies between `holdout-vault.open` and the last G-MINE record, the round stays `SCORING`, and `scoreHoldout` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
+- **The one rescore.** `rescore` (CLI `rescore`, run.sh `rescore <round_id> <reason> <crash.log>`) allows exactly one same-selection rescore. It reruns every pre-open check through `prepareScoring`, which is shared with the first attempt. It also recomputes `inputs_sha256`:
+  - the selection row and file;
+  - the holdout manifest and `SHA256SUMS.sealed`;
+  - the factor series;
+  - the data sources;
+  - the code files;
+  - the floor;
+  - the mechanism registrations.
+- **The vault event.** The vault then records the second event, which requires everything unchanged and no G-MINE record, and the same candidates are scored.
+- **A second crash** closes the round as `FAILED_RESCORE` on the next call (`MINE_RUNNER_RESCORE_FAILED`). Afterwards everything is refused (`MINE_RUNNER_ROUND_FAILED_RESCORE`).
+- **A crash after the first record (R1.12, revision 4).** `rescore` does not rescore it: with any record written and no rescore event, it closes the round as `FAILED_PARTIAL` with the given reason and log sha256 (`MINE_RUNNER_RESCORE_RECORDS_EXIST`). The written records are kept and marked VOID, the round counts 0 passes, its attempts stay in N, its slot is released and its holdout open stays counted. Afterwards everything is refused (`MINE_RUNNER_ROUND_FAILED_PARTIAL`).
 
 **Holdout scoring** (`holdout-scoring.js`; the runner is its only caller)
 - **Scoring days.** Decision days are inside the holdout, and so are the labels.
@@ -240,3 +253,36 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **Marginal and correlation** inputs are left empty with a reason, because the library's CN_A factor series are not in the lane data.
 - **Mechanism** is `null`, because GP registers none.
 - **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
+
+## Coordinator ruling R1 in the runner (2026-11-17, revision 4 `705e2e6a…`: R1.5 and R1.6 intent stated, R1.12 added; revision 3 `5f0d0328…` corrected R1.7 and added R1.9–R1.11)
+
+- **R1.1.** Every attempt is a trial row (see "Round runner").
+- **R1.2.** `requestRound` writes `rulings` (the R1 page, verified against `docs/freeze/RF1116_RULING_R1_20261117.md`) and `selection_rule` = `selector.RULE` into the manifest. `selector.RULE` is FROZEN by R1.2, written as data. `select` reads the rule from the round row, never from the constant.
+- **R1.3 DSR on the validation folds.**
+  - `select` runs the same long-only book as the holdout, with limits and costs, over the validation decision days. It writes each candidate's monthly paired differences and SR (`validation_book`) into `selection.json`, which is sha-pinned by the selection row.
+  - At scoring, `dsrFromValidation` computes DSR with N = the family's cumulative count at that moment, and the family SRs = every evaluated candidate's validation SR.
+  - It is recorded as `overfit.dsr_segment: VALIDATION_FOLDS` with `dsr_t_months`. With fewer than 24 months it is `UNKNOWN` (`T_LT_24`). Items 3–5 stay on the holdout.
+- **R1.4 Existing factor series** (`factor-series/`, `FACTOR_SERIES_V1`).
+  - **Input.** `score --factor-series DIR` reads `factor_series.csv` (factor_id, grain STOCK|UNIT|ETF, business_date, key, value, first_available_at) and `unit_membership.csv`. Each is checked against SHA256SUMS before the open.
+  - **Clock.** A value dated D feeds only the next trading day's open, and only if `first_available_at` is before that day's 09:00. UNIT values map to stocks through the same day's membership.
+  - **Item 8.** For every same-market library factor it gives the cross-sectional Spearman and the factor-return correlation (daily OLS slopes against next-open returns) over the holdout scoring days.
+  - **Item 7.** It gives the intercept t of the candidate's factor returns regressed on every book factor's returns.
+  - **R1.9 comparison set.** Only same-market `LIVE_IN_RULE` factors covering the full stock cross-section are compared (`factorLib.comparisonFactorIds`).
+    - Excluded: ETF-level #14, and the top-ten-only #2 and #7.
+    - The exclusions and their reasons are in `correlation.excluded_factors`, in `marginal.excluded_factors` and in every G-MINE record.
+  - **What stays UNKNOWN.** Missing factors are `FACTOR_SERIES_ABSENT` or `…_NOT_PROVIDED`. Item 7 stays null while any compared factor lacks a series.
+  - **Duplicated regressors.** Exactly duplicated regressor series are dropped from the item-7 OLS and listed in `marginal.collinear_dropped`. In V6, #6 (the stock's unit score) and #12 (the unit score) have the same values, so #12 is dropped.
+  - **R1.11.** The series come from V6's live window only.
+- **R1.5.** `run.sh mechanisms <round_id> [registrations.jsonl]` (CLI `mechanisms`) lists the survivors (ids from the selection row, formulas from the trial rows) with their registration state, and registers a JSONL file.
+  - Before the open, `scoreHoldout` attaches each candidate's registration (`mechanism`: id, texts, `written_at`, `registered_at`, `registration_hash`) and the open row's `opened_at` (`holdout.opened_at`). Item 9 requires the registration to predate the open (revision 4).
+  - A candidate without one is still scored, with `mechanism: null` and `mechanism_reason: NO_MECHANISM_REGISTERED_BEFORE_OPEN`, and item 9 fails.
+- **R1.6.** The result carries `holdout.segment_open_index`.
+- **R1.7 Limits** (`price-limits.js`, copied from V6 83ab3af1).
+  - **Bands.** `config/v6/market-rules/price_limit_history_v1.json:105–116`; anything but ST reads NORMAL (`price-limit-history.js:69–90`). Main board 10%. Main-board ST 5% until 2026-07-06, then 10%. ChiNext and STAR 20%.
+  - **Board.** From the code prefix (`kernel/security/classifier.js:29–32`), falling back to the master board for non-V6 codes.
+  - **Limit price.** `roundToFen(previous_close × (1 ± band))` (`price-limit-band.js:47–48, 61–64`).
+  - **Fills.** A buy is blocked if the open ≥ limit-up − 0.005, and a sell is carried if the open ≤ limit-down + 0.005 (`paper-simulator.js:89, 122`). With no open, neither fills. Counts go in `net_of_cost.limit_events`.
+  - **Where V6 differs.**
+    - V6 registers ChiNext and STAR only from 2026-07-06. Two `RESEARCH_EXTENSION` records cover earlier validation dates: ChiNext 20% from 2020-08-24 (10% / ST 5% before), and STAR 20% throughout.
+    - The ruling text says main-board ST 5%. V6's own table says 10% from 2026-07-06, and the ruling defers to V6 item by item.
+  - **Panel inputs.** The panel carries `labels.open_raw`, `labels.prev_close_raw`, `board` and `st`.

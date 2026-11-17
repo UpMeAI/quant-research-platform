@@ -83,3 +83,65 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
   - Selected ids must be scored attempts of the round (`MINE_ROUND_SELECTION_CANDIDATE_INVALID`). A second row gives `MINE_ROUND_SELECTION_EXISTS`.
   - After the row exists, `recordCandidate` refuses with `MINE_ROUND_GENERATION_CLOSED`.
   - The holdout opens exactly the ids in this row, and the runner takes each formula from its trial row, never from the output file.
+
+## Coordinator ruling R1 (2026-11-17)
+
+Source: `RF1116_RULING_R1_20261117.md`, revision 4, sha256 `705e2e6aa9a741f94e09f708579ed0270b5220b227081d485e8f4515c8978e36`. Revision 4 states the intent of R1.5 and R1.6 (no new rule) and adds R1.12. Revision 3 (`5f0d0328…`) corrected R1.7 and added R1.9–R1.11. Revisions 3, 2 (`d80ce988…`) and 1 (`ce254328…`) are kept in the coordinator folder.
+
+A byte copy of revision 4 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `705e2e6a…`.
+
+- **R1.1 Every attempt is a trial row.** Parse-refused and deduplicated attempts are written through `recordCandidate`, unscored. They count toward the round cap of 200 and toward the family's cumulative N (signed §3.3).
+- **R1.2 The selection rule lives in the manifest, and every manifest cites its rulings.**
+  - `openRound` requires `rulings: [{path, sha256}]` (`MINE_ROUND_RULINGS_REQUIRED`). Each entry needs an in-repo copy `docs/freeze/<basename(path)>` with that sha256 (`MINE_ROUND_RULING_COPY_INVALID`).
+  - `openRound` also requires `selection_rule`, a `VALIDATION_SELECTION_V1` object (`MINE_ROUND_SELECTION_RULE_REQUIRED` / `…_INVALID`):
+    - folds ascending and non-overlapping;
+    - `mean_ic_gt` and `mining_score_gt` numbers;
+    - `positive_folds_min` an integer from 1 to the number of folds.
+  - The rule is part of the pre-registration (`manifestSha`). The runner reads it from the manifest. Changing it means a new round.
+  - Round 1 freezes the R1.2 rule: 6 half-year folds; mean IC > 0; at least 4 positive folds; mining score > 0.
+- **R1.6 Concurrent rounds and holdout segments** (`LIMITS.open_rounds_per_market` = 2, `LIMITS.rounds_per_holdout` = 2).
+  - At most 2 unclosed rounds per market (`MINE_ROUND_ALREADY_OPEN`), still at most 2 opens per month. Each round opens the holdout once.
+  - A holdout segment serves at most 2 rounds (`MINE_ROUND_HOLDOUT_EXHAUSTED`). A round either reuses the latest segment, if it is not used up, or takes a new segment that starts after every earlier segment's end. Anything else gives `MINE_ROUND_HOLDOUT_MOVED`.
+  - From round 3, a segment after 2026-12-31 is therefore required.
+  - `holdout-vault.open` counts how many times this segment has been opened in the market, including this one. The count goes into the open row (`segment_open_index`) and into the round row (`holdout_opens`), which keeps it through close.
+  - **Revision 4 (intent):** sharing a segment is allowed only before its first open. Once any round of the market has opened the segment (its round row has `holdout_opens`, or the vault has an open row), `openRound` refuses new rounds on it (`MINE_ROUND_HOLDOUT_SEGMENT_OPENED`). A round closed without opening the holdout does not count as an open. A round that already shares the segment still opens its own holdout once.
+- **R1.5 Mechanisms** (`services/mining-rounds/mechanisms.js`, `MINING_MECHANISM_V1`, `research/mining_mechanisms.jsonl`).
+  - **What can be registered.** `registerMechanism(round_id, {candidate_id, mechanism_id, economic_logic_zh, failure_mode_zh, written_at}, {writtenBy})` accepts only candidates in the round's selection row, and only before the holdout opens (`MINE_MECHANISM_AFTER_HOLDOUT_OPEN`).
+  - **Checks.** The `mechanism_id` must be registered (`…_ID_NOT_REGISTERED`). Both texts are required (`…_FIELDS`). `written_at` is Beijing time and no later than the registration time `registered_at` (`…_WRITTEN_AT`; revision 4 removed the 5-minute tolerance).
+  - **At scoring (revision 4).** G-MINE item 9 requires `written_at` ≤ `registered_at` < the vault open's `opened_at`, not the scoring time. The runner passes `holdout.opened_at` (from the open row) and `mechanism.registered_at`. A registration at or after the open, or a missing time, gives `MINE_MECHANISM_AFTER_HOLDOUT`; `written_at` after `registered_at` gives `MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION`.
+  - **G-MECH.** The G-MECH triage route must not be `NOT_DO_SETTLED` (`…_NOT_DO_SETTLED`). The route and the register sha are stored, and other candidates of the round with the same mechanism are listed in `same_mechanism_in_round`.
+  - **One per candidate,** append-only (`…_DUPLICATE`).
+- **R1.8 Recovery after a crash past the open.**
+  - **The rescore.** `holdout-vault.recordRescore` allows exactly one `RESCORE_SAME_SELECTION` per round (`MINE_HOLDOUT_RESCORE_ONCE`), as a second vault event (`HOLDOUT_RESCORE_V1`, `research/holdout_vault.jsonl`, with the reason and the log's sha256 and excerpt).
+  - **Its conditions.**
+    - The round is `SCORING`.
+    - The selection row is byte-unchanged: its `record_hash` recomputes and equals the hash the open row recorded (`…_SELECTION_CHANGED`).
+    - The runner's `inputs_sha256` equals the open row's (`…_INPUTS_CHANGED`).
+    - No G-MINE record exists for the round (`…_RECORDS_EXIST`). With any record written, R1.12 applies instead.
+  - **Determinism.** Scoring is deterministic on the same inputs and code; a test pins that a crash plus a rescore gives the same records as a clean run.
+  - **Failed rescore.** `failRescore` closes a round whose rescore also crashed as `FAILED_RESCORE`: `gmine_passes` 0, no records counted, the attempts staying in N. Any record the rescore wrote before dying is marked VOID, as in R1.12.
+  - **Pause rule and open count.** The pause rule counts a `FAILED_RESCORE` round as a failure; it no longer counts as open.
+- **R1.12 A crash after some G-MINE records were written (revision 4).**
+  - **State.** `failPartial(round_id, {reason, logSha256})` closes the round as the terminal state `FAILED_PARTIAL`. It is reachable only from `SCORING` (`MINE_ROUND_NOT_SCORING`) and needs a reason (`MINE_ROUND_FAILED_PARTIAL_REASON`).
+  - **When.** At least one record and not all of them: with none, the R1.8 rescore applies (`MINE_ROUND_FAILED_PARTIAL_NO_RECORDS`); with all, the round closes normally (`MINE_ROUND_FAILED_PARTIAL_COMPLETE`). The runner's `rescore` closes the round this way when any record exists and no rescore event does (`MINE_RUNNER_RESCORE_RECORDS_EXIST`).
+  - **Effects.**
+    - The round counts as 0 passes (`gmine_passes` 0; `gmine_basis.failed_partial` lists the reason, the log sha256, the counts and the voided record hashes).
+    - The written records keep their rows. Each gets a `MINING_GATE_RECORD_VOID_V1` row (`gate-records.voidRecords`). `recordsOf` never returns VOID records or any record of a `FAILED_*` round; `{ includeVoid: true }` returns the original rows for audit.
+    - The attempts stay in N.
+    - The open-round slot is released.
+    - The holdout use stays counted: the open row and `holdout_opens` are kept, and R1.6 refuses new rounds on that segment.
+  - **Pause rule.** It counts `FAILED_PARTIAL` as a failed round with 0 passes; VOID records, passing or not, are never counted.
+- **Resume record.** `recordResumeCheck` appends the floor used on a `--resume` run to the round row's `data_checks.resumes`.
+- **R1.9 The comparison set for G-MINE items 7–8.** Items 7–8 compare only against same-market `LIVE_IN_RULE` factors that cover the full stock cross-section.
+  - **Single source:** `factor-library` `COMPARISON_EXCLUSIONS` / `comparisonFactorIds`.
+  - **Excluded:**
+    - #14 `CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20`, which is ETF-level;
+    - #2 `CN_A.MOM.RS20_UNIT_PCT` and #7 `CN_A.COMPOSITE.STOCK_BOOK_V4`, which V6 stores for the top ten only.
+  - **Effect:** the gate's item-8 `want` set and its item-7 book both use this set, and so does the runner's comparison. Every `MINING_GATE_RECORD_V1` carries `excluded_factors: [{factor_id, reason, ruling}]`.
+  - **Also dropped:** because the set is `LIVE_IN_RULE` only, the retired `CN_A.MOM.RS20_REALIZED_CORE_POOL` no longer enters item 8 either.
+- **R1.10 Mechanisms.** GP candidates may cite only mechanisms already in the register (`MINE_MECHANISM_ID_NOT_REGISTERED`). A new mechanism needs a register PR first.
+- **R1.11 Factor series from the live window only.**
+  - Items 7–8 read V6's live tables only. They start 2026-08-26 to 2026-10-08, and the holdout 2026-10-19 → 2026-12-31 lies inside.
+  - History from 2020-06 → 2026-09-28 is only in the Q0 replay, a different producer. Using it is an open parity question.
+  - The analyst-revision factor has no history before 2025-11 anywhere.
+- **R1.7, as corrected in revision 3.** Main-board ST is 5% before 2026-07-06 and 10% from 2026-07-06 (V6 `price_limit_history_v1.json`). That is what `price-limits.js` implements.

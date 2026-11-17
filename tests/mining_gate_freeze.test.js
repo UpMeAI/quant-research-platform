@@ -86,8 +86,10 @@ const FROZEN_COPIES = Object.freeze({
   'docs/freeze/MINING_SPACE_V1_CN_A_R1_FREEZE_1.md': '4ec642b9ae87e7cd69b1bd226cc8964647dcace26a1dec60c0124df23fd8af69',
   'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json': '0d3556fa97f17d3a67b350e7f74c12fb521ca1fb60c293121601f7eb95f96637',
   'docs/freeze/RF1116_HOLDOUT_CN_A_R1_FREEZE_1.md': '0fefcd244e85d68504fbb20b761043c1f001965f005c29106740250e2e24a14b',
+  // 协调会话裁定 R1（2026-11-17）：P2 六条执行裁定；每份 MINING_ROUND_V1 清单的 rulings 引它，openRound 核这份副本
+  'docs/freeze/RF1116_RULING_R1_20261117.md': '705e2e6aa9a741f94e09f708579ed0270b5220b227081d485e8f4515c8978e36', // 修订 4（R1.5、R1.6 本意写明，R1.12）
 });
-test('守卫：仓库里四份冻结页副本的 sha256 等于签发的（门槛页、空间冻结页、空间 JSON、留出段冻结页）；docs/freeze/ 里没有别的文件', () => {
+test('守卫：仓库里五份冻结页副本的 sha256 等于签发的（门槛页、空间冻结页、空间 JSON、留出段冻结页、裁定 R1）；docs/freeze/ 里没有别的文件', () => {
   for (const [p, want] of Object.entries(FROZEN_COPIES)) assert.equal(sha(fs.readFileSync(path.join(ROOT, p))), want, p);
   assert.deepEqual(fs.readdirSync(path.join(ROOT, 'docs', 'freeze')).sort(), Object.keys(FROZEN_COPIES).map((p) => path.basename(p)).sort());
   const holdout = fs.readFileSync(path.join(ROOT, 'docs/freeze/RF1116_HOLDOUT_CN_A_R1_FREEZE_1.md'), 'utf8');
@@ -118,7 +120,7 @@ test('合成的 FROZEN 页：sha 对、写着 FROZEN 与六个数 → 门按这�
   // 逐候选记录（权威路径）：用这份文件、这一页
   const sha8 = (x) => crypto.createHash('sha256').update(String(x)).digest('hex');
   const r0 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-F', sha256: sha8('s'), freeze: { path: 'f', sha256: sha8('f') } }, holding_periods: [5],
-    generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { from: '2026-07-01', to: '2026-10-31' }, openedAt: '2027-01-02T02:00:00Z' });
+    generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { from: '2026-07-01', to: '2026-10-31' }, openedAt: '2027-01-02T02:00:00Z', ...require('./_mining_manifest').R1 });
   const id = `${r0.round_id}:C001`; const f = 'rank(close)';
   rounds.recordCandidate(r0.round_id, { candidate_id: id, formula_canonical: f, formula_sha256: sha(f), holding_period: 5, mining_score: 0 }, { registeredBy: AUTH, registeredAt: r0.opened_at });
   vault.seal({ round_id: r0.round_id, segment: { from: '2026-07-01', to: '2026-10-31' }, data_ref: 'lane:/h', data_sha256: sha8('h'), sealedBy: 'VAULT' });
@@ -131,7 +133,7 @@ test('合成的 FROZEN 页：sha 对、写着 FROZEN 与六个数 → 门按这�
   const badCfg = configWith({ frozen_ref: { path: PAGE, sha256: 'f'.repeat(64) } });
   const f2 = 'rank(volume)';
   const r1 = rounds.openRound({ market: 'US', space: { space_ref: 'MS-F2', sha256: sha8('s2'), freeze: { path: 'f2', sha256: sha8('f2') } }, holding_periods: [5],
-    generator: { mode: 'AI_MINED_GP', gp_seed: 2 }, holdout: { from: '2026-07-01', to: '2026-10-31' }, openedAt: '2027-01-02T02:00:00Z' });
+    generator: { mode: 'AI_MINED_GP', gp_seed: 2 }, holdout: { from: '2026-07-01', to: '2026-10-31' }, openedAt: '2027-01-02T02:00:00Z', ...require('./_mining_manifest').R1 });
   const idUs = `${r1.round_id}:C001`;
   rounds.recordCandidate(r1.round_id, { candidate_id: idUs, formula_canonical: f2, formula_sha256: sha(f2), holding_period: 5, mining_score: 0 }, { registeredBy: AUTH, registeredAt: r1.opened_at });
   vault.seal({ round_id: r1.round_id, segment: { from: '2026-07-01', to: '2026-10-31' }, data_ref: 'lane:/h2', data_sha256: sha8('h2'), sealedBy: 'VAULT' });

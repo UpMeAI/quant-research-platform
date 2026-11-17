@@ -17,7 +17,9 @@
  *     当天没有整日停牌、上市状态 LISTED、没退市。证券主表取决策日当天或之前最近的快照。
  *   - 行业 industry[i][j]：申万 2021 一级（industry_code）；成员按 effective_from ≤ 决策日 < effective_to 截断，修订按入库时刻同上（成员表都是回补的历史，
  *     没赶上就取最早记录）；同时有几条覆盖时取 effective_from 最晚的。市值 size = 前一交易日的 total_mv（中性化用）。
- *   - 标签 labels.exec_open[i][j] = 决策日当天开盘的后复权价（当天的原始开盘价 × 当天因子）：只给打分算前推收益，不是读数。
+ *   - 标签 labels.exec_open[i][j] = 决策日当天开盘的后复权价（当天的原始开盘价 × 当天因子）：只给打分算前推收益，不是读数；
+ *     labels.open_raw / prev_close_raw 是当天的原始开盘价与前收，board[j] 是板块（V6 的代码前缀规则，../price-limits），st[i][j] 是当天是否 ST：
+ *     只给扣成本净值判涨跌停能否成交（协调会话裁定 R1.7）。
  *   - 分段：挖掘段的面板整段在挖掘段里；验证折、留出段的面板可以带前面的历史（时序算子要回看），但不能超过本段终点；
  *     标了 holdout 的数据源只能进留出段的面板（MINE_DATA_HOLDOUT_SOURCE_OUTSIDE_HOLDOUT）。
  * 数据源：csvDirSource 读导出规格的 CSV 目录，每个文件读的同时核 SHA256SUMS；车道副本的读法可换（loadSource 的 adapter：一个导出 createSource(dir, opts) 的模块）。
@@ -28,6 +30,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { forEachCsvRow } = require('./csv');
 const segs = require('../segments');
+const limits = require('../price-limits');
 
 const FILES = Object.freeze({
   prices: 'prices_daily_stock.csv', basic: 'market_daily_basic_observation_stock.csv', adj: 'adjustment_factor_observation_stock.csv', master: 'security_master_stock.csv',
@@ -244,7 +247,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       if (r.asset_class !== 'STOCK' || r.exchange === 'BSE' || r.board === 'BSE') return;
       if (!ACCEPTED_QUALITY.includes(r.quality_state)) return;
       if (!timeline.has(r.security_id)) timeline.set(r.security_id, []);
-      timeline.get(r.security_id).push({ d: r.business_date, risk: r.risk_warning_status, status: r.listing_status, listing: r.listing_date, delisting: r.delisting_date });
+      timeline.get(r.security_id).push({ d: r.business_date, risk: r.risk_warning_status, status: r.listing_status, listing: r.listing_date, delisting: r.delisting_date, board: r.board });
     });
   }
   const codes = [...timeline.keys()].sort();
@@ -252,7 +255,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   const codeIdx = new Map(codes.map((c, j) => [c, j]));
   for (const [c, list] of timeline) {
     list.sort((a, b) => (a.d < b.d ? -1 : a.d > b.d ? 1 : 0));
-    const key = (x) => `${x.risk}|${x.status}|${x.listing}|${x.delisting}`;
+    const key = (x) => `${x.risk}|${x.status}|${x.listing}|${x.delisting}|${x.board}`;
     timeline.set(c, list.filter((x, k) => k === 0 || key(x) !== key(list[k - 1])));
   }
   const T = dates.length; const N = codes.length; const cells = T * N;
@@ -266,7 +269,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
 
   // 日线：滞后一格（读数）与当天（执行价标签）
   const P = { open: mat(), high: mat(), low: mat(), close: mat(), prev_close: mat(), amount: mat() };
-  const execOpen = mat(); const selP = selector(cells); const selPx = selector(cells);
+  const execOpen = mat(); const prevCloseX = mat(); const selP = selector(cells); const selPx = selector(cells);
   for (const s of sources) {
     if (!s.has('prices')) continue;
     s.forEach('prices', (r) => {
@@ -282,7 +285,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
           P.open[k] = num(r.open); P.high[k] = num(r.high); P.low[k] = num(r.low); P.close[k] = num(r.close); P.prev_close[k] = num(r.previous_close); P.amount[k] = num(r.turnover_amount_cny);
         }
       }
-      if (i0 !== undefined) { const k = i0 * N + j; if (selPx.take(k, 2, at, rev)) execOpen[k] = num(r.open); }
+      if (i0 !== undefined) { const k = i0 * N + j; if (selPx.take(k, 2, at, rev)) { execOpen[k] = num(r.open); prevCloseX[k] = num(r.previous_close); } }
     });
   }
   // 复权因子：同上两处
@@ -362,14 +365,17 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       if (best) { industryM[i][j] = best.value; if (backfill) counts.industry.backfill += 1; }
     }
   }
-  // 股票池
+  // 股票池；同时记当天是否 ST 与板块（涨跌停用，R1.7）
   const universe = Array.from({ length: T }, () => new Array(N).fill(false));
+  const st = Array.from({ length: T }, () => new Array(N).fill(false));
+  const board = codes.map((c) => { const tl = timeline.get(c); return limits.boardOf(c, tl[tl.length - 1].board); });
   for (let j = 0; j < N; j += 1) {
     const tl = timeline.get(codes[j]); let p = -1;
     for (let i = 0; i < T; i += 1) {
       const d = dates[i];
       while (p + 1 < tl.length && tl[p + 1].d <= d) p += 1;
       const snap = p >= 0 ? tl[p] : null;
+      st[i][j] = Boolean(snap && snap.risk === 'ST');
       if (!snap || snap.risk !== 'NORMAL' || snap.status !== 'LISTED' || !snap.listing || (snap.delisting && snap.delisting <= d)) continue;
       const sessions = lower(cal, d) - lower(cal, snap.listing);
       if (sessions < minListedSessions || suspended[i * N + j]) continue;
@@ -388,7 +394,8 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
     else out[r.name] = rows(B[r.field]);
   }
   return {
-    segment, dates, codes, readings: out, industry: industryM, size: rows(B.total_mv), universe, labels: { exec_open: rows(combine(execOpen, factorX, mul)) },
+    segment, dates, codes, readings: out, industry: industryM, size: rows(B.total_mv), universe, board, st,
+    labels: { exec_open: rows(combine(execOpen, factorX, mul)), open_raw: rows(execOpen), prev_close_raw: rows(prevCloseX) },
     manifest: {
       schema: 'MINING_PANEL_V1', segment, from, to, dates: T, codes: N, readings: readings.map((r) => ({ name: r.name, clock: r.clock })),
       sources: sources.map((s) => ({ label: s.label, mode: s.mode, kind: s.kind || null, holdout: Boolean(s.holdout), sums_sha256: s.sums_sha256 || null })),

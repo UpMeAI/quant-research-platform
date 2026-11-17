@@ -11,6 +11,8 @@
  * 每轮每个候选一行、只追加：挂本轮这个候选的试验台账行（trial_id + record_hash）和留出段开启记录（record_hash）；
  * 只有本轮已开留出段（状态 SCORING）、且候选在开启记录里，才能记；同一候选第二次 → MINE_GATE_RECORD_DUPLICATE。
  * 关轮（./index.js closeRound）只从这些记录数「过了几个」。台账 research/mining_gate_records.jsonl。
+ * VOID（裁定 R1.8、R1.12）：轮次以 FAILED_RESCORE / FAILED_PARTIAL 关了，已写的记录保留原行，另追加一行 MINING_GATE_RECORD_VOID_V1（指向原行 hash）；
+ *   recordsOf 默认不返回 VOID 的记录，也不返回 FAILED_* 轮次的任何记录（轮次行先写，VOID 行后写，中间崩了也不计数）；审计用 { includeVoid: true }。
  */
 const crypto = require('crypto');
 const path = require('path');
@@ -19,6 +21,7 @@ const { validateRecord } = require('../../schemas');
 const trials = require('../trial-ledger');
 
 const SCHEMA = 'MINING_GATE_RECORD_V1';
+const VOID_SCHEMA = 'MINING_GATE_RECORD_VOID_V1';
 const fs = require('fs');
 const THRESHOLDS_REL = 'config/mining_gate_thresholds.v1.json';
 const THRESHOLD_KEYS = Object.freeze(['ic_mean_min', 'icir_min', 'monotonicity_min', 'decay_ratio_min', 'marginal_ir_delta_min', 'marginal_intercept_t_min']);
@@ -46,7 +49,33 @@ function pinnedThresholds() {
   return { file: { path: THRESHOLDS_REL, sha256: sha256(bytes) }, used, thresholds: { ...used, source: d.source || null } };
 }
 
-const recordsOf = (roundId) => read(LEDGER()).filter((r) => r.schema === SCHEMA && r.round_id === roundId);
+const voidsOf = (roundId) => read(LEDGER()).filter((r) => r.schema === VOID_SCHEMA && r.round_id === roundId);
+/** 本轮的 G-MINE 记录。默认只给计数用的：VOID 的不给，FAILED_RESCORE / FAILED_PARTIAL 轮次的一条都不给；includeVoid 给全部原行（审计）。 */
+function recordsOf(roundId, { includeVoid = false } = {}) {
+  const all = read(LEDGER()).filter((r) => r.schema === SCHEMA && r.round_id === roundId);
+  if (includeVoid) return all;
+  const head = require('./index').roundHead(roundId);
+  if (head && require('./index').FAILED_TERMINAL.includes(head.status)) return [];
+  const voided = new Set(voidsOf(roundId).map((v) => v.voided_record_hash));
+  return all.filter((r) => !voided.has(r.record_hash));
+}
+
+/**
+ * 把本轮已写的记录标 VOID（只给 ./index.js 的 failRescore / failPartial 用，轮次行已经是 FAILED_* 之后调用）：每条没标过的追加一行，原行不动。
+ */
+function voidRecords(roundId, { roundStatus, reason, ruling, voidedAt = null } = {}) {
+  const head = require('./index').roundHead(roundId);
+  need(head && head.status === roundStatus && require('./index').FAILED_TERMINAL.includes(roundStatus), 'MINE_GATE_RECORD_VOID_ROUND_NOT_FAILED', `${roundId}:${head ? head.status : null}`);
+  const done = new Set(voidsOf(roundId).map((v) => v.voided_record_hash));
+  return recordsOf(roundId, { includeVoid: true }).filter((x) => !done.has(x.record_hash)).map((x) => {
+    const body = { schema: VOID_SCHEMA, round_id: roundId, candidate_id: x.candidate_id, voided_record_hash: x.record_hash, round_status: roundStatus,
+      reason: String(reason || ''), ruling, voided_at: voidedAt || now() };
+    const rec = { ...body, record_hash: trials.recordHash(body) };
+    const v = validateRecord(rec, VOID_SCHEMA);
+    need(v.ok, 'MINE_GATE_RECORD_SCHEMA_INVALID', v.problems.join(','));
+    return append(LEDGER(), rec);
+  });
+}
 
 /**
  * 求值并记一行。
@@ -77,6 +106,8 @@ function recordGateResult({ round_id: roundId, candidate_id: candidateId, candid
   const body = {
     schema: SCHEMA, round_id: roundId, candidate_id: candidateId, trial_id: trial.trial_id, trial_record_hash: trial.record_hash, holdout_open_hash: open.record_hash,
     gate_result_sha256: sha256(trials.canonicalJson(result)), thresholds_file: pinned.file, thresholds_used: pinned.used, family_trial_count: familyTrialCount,
+    // R1.9（协调会话裁定 R1 修订 3）：第 7、8 项没有比的因子与原因，每条记录都写
+    excluded_factors: require('../factor-library').comparisonExclusions(candidate && candidate.market ? candidate.market : trial.market),
     pass, codes: [...(result.codes || [])], items, recorded_at: recordedAt || now(),
   };
   const rec = { ...body, record_hash: trials.recordHash(body) };
@@ -99,4 +130,4 @@ function withGate(fn, cb) {
   try { return cb(); } finally { evaluateGate = prior; }
 }
 
-module.exports = { SCHEMA, LEDGER, THRESHOLDS_REL, GateRecordError, recordGateResult, recordsOf, internals: { withGate, withThresholdsFile, pinnedThresholds } };
+module.exports = { SCHEMA, VOID_SCHEMA, LEDGER, THRESHOLDS_REL, GateRecordError, recordGateResult, recordsOf, voidsOf, voidRecords, internals: { withGate, withThresholdsFile, pinnedThresholds } };

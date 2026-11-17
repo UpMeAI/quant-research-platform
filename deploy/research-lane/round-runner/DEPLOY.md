@@ -19,6 +19,7 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928/` | the lane copy in export spec rev 2 CSV layout (see below). `HISTORY` source | kayla, dirs 0755 / files 0644 | `/data/lane:ro` |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-daily-20260929-20261016/` | validation tail export (spec §1, first directory), with `SHA256SUMS` and `EXPORT_MANIFEST.json`. `LIVE` source | kayla, 0755 / 0644 | `/data/tail:ro` |
 | `/srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019/` | holdout export (spec §1, second directory) plus `SHA256SUMS.sealed` | kayla, **0700** until hand-over | `/data/holdout:ro`, **`score` only** |
+| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-live-factor-series/` | R1.4: the existing CN_A factor series in `FACTOR_SERIES_V1` (`factor_series.csv`, `unit_membership.csv`, `SHA256SUMS`), from the coordinator's registered export | kayla, 0755 / 0644 | `/data/factor-series:ro`, **`score` only**; if it is missing or unsigned, `score` refuses before the open |
 | `/srv/research-lane/rf1116-mining/out/` | `qrp-data/` (mining rounds, trials, holdout vault, G-MINE records) and `rounds/<round_id>/` (`attempts.jsonl`, `generate.json`, `selection.json`, `score.json`) | container uid 1000 (host 100999) | `/out:rw`, the only writable mount |
 
 **`out/qrp-data/` persists across rounds and is never deleted.** It holds the cumulative N of family `MINE:CN_A:H5`. Container-written files belong to host uid 100999, so kayla can read them but cannot remove them.
@@ -79,6 +80,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 ```
 
 The run does the following:
+- **records the floor on resume too:** on `resume`, the floor used is appended to the round row (`data_checks.resumes`).
 - **checks the data before anything is written:** it builds the mining-segment panel and requires at least **2,000** names per decision day (in the universe, with a back-adjusted close; the first day is exempt).
   - The floor that was used is written into the round row (`data_checks.coverage_floor`: value, default, `overridden`).
   - `--min-names-per-day` exists for synthetic tests only; never pass it on the lane.
@@ -98,6 +100,18 @@ run.sh resume <round_id>
 ```
 
 The GP continues deterministically from the ledger. After `selection.json` exists, generation for that round is closed.
+
+## Mechanisms (R1.5), before the hand-over
+
+After `generate` has written the selection, list the survivors and register their mechanisms. The coordinator writes the JSONL: one line per survivor, `{candidate_id, mechanism_id, economic_logic_zh, failure_mode_zh, written_at}`, where `written_at` is Beijing time with `+08:00`.
+
+```sh
+RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh mechanisms <round_id>                       # list
+RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh mechanisms <round_id> /path/to/mech.jsonl  # register
+```
+
+- **What it mounts.** The step mounts only `out/` (rw) and the JSONL (ro): no data, no holdout, no network.
+- **Append-only.** Registrations cannot be changed, and are refused once the holdout is open. A survivor without one is still scored but fails G-MINE item 9.
 
 ## Hand-over and scoring (steps 6–9), only after the 2026-12-31 data is in
 
@@ -121,19 +135,34 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
    - All 7 tables are present (`…_TABLE_MISSING`): prices, daily_basic, adjustment factor, security master, suspension, suspension day coverage, calendar.
 3. **The data is complete.** Rev 3 always ships the full calendar to 2026-12-31, so the calendar alone proves nothing.
    - The calendar's READY SSE rows must reach 2026-12-31.
-   - For every SSE open day 2026-10-19 → 2026-12-31, each of the prices, daily_basic and adjustment-factor tables must have READY rows for at least **2,000 distinct `security_id`s** (the same floor as generation). Names are counted, not rows, because rows include revisions.
-   - Each table must also reach at least half of its own median day.
+   - For every SSE open day 2026-10-19 → 2026-12-31, each of the prices, daily_basic and adjustment-factor tables must have READY rows for at least **4,000 distinct `security_id`s** (export spec rev 3 §3).
+     - Names are counted, not rows, because rows include revisions.
+     - `.BJ` ids are not counted, since the panel excludes BSE.
+   - Each day must also reach at least half of the median of the **sealed** days, meaning the days in the files listed by `SHA256SUMS.sealed`, which cannot move after sealing. A thin completion export therefore cannot pull its own median down.
+   - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
    - Otherwise it refuses with `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`.
    - The floor used is written into the vault's open record (`pre_open_checks`).
 4. **The selection is the recorded one.** The `MINING_SELECTION_V1` row exists, and `selection.json` matches its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). The formulas are taken from the trial rows, not from the file.
 
 If any check fails it refuses, and the single open is not spent.
 
-**Known limitation: no recovery after the open.** If the score container dies after `holdout-vault.open` but before every candidate's G-MINE record is written, the round stays in `SCORING`.
-- A second `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`), and `close` is refused (`MINE_ROUND_GMINE_RESULT_MISSING`).
-- That is deliberate: the single open is never repeated.
-- Recovering such a round needs a coordinator ruling.
-- The checks above exist so that every data problem stops the run before the open.
+**Recovery after a crash past the open (R1.8 and R1.12, ruling R1 revision 4 `705e2e6a…`).** If the score container dies after `holdout-vault.open` but before the last G-MINE record, the round stays in `SCORING`, and `score` is refused (`MINE_HOLDOUT_ALREADY_OPENED`).
+
+Exactly one rescore of the same selection is allowed:
+
+```sh
+RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh rescore <round_id> "<crash reason>" /path/to/crash.log
+```
+
+- **It is accepted only if all of these hold:**
+  - the selection row is byte-unchanged;
+  - every input is the same as at the open (the holdout manifest and `SHA256SUMS.sealed`, `selection.json`, the factor series, the data sources, the code and the floor), compared through `inputs_sha256`;
+  - the first attempt wrote **no** G-MINE record.
+
+  Otherwise it is refused: `MINE_HOLDOUT_RESCORE_SELECTION_CHANGED`, `…_INPUTS_CHANGED` or `…_RECORDS_EXIST`.
+- **What it records.** The rescore is the vault's second event (`HOLDOUT_RESCORE_V1`: the reason, the log's sha256 and its first 4,000 characters). Then the same candidates are scored and the round is closed.
+- **If the rescore itself crashes,** the next `rescore` closes the round as **`FAILED_RESCORE`**. No G-MINE record counts, but the attempts stay in N. After that, any further attempt is refused.
+- **A crash after the first record** cannot be rescored (ruling R1.12, revision 4). The same `rescore` command closes the round as **`FAILED_PARTIAL`** with the reason and the log's sha256 (`MINE_RUNNER_RESCORE_RECORDS_EXIST`): 0 passes, the written G-MINE records kept and marked VOID, the attempts in N, the open-round slot released, the holdout open still counted (no new round on that segment). After that, any further attempt is refused.
 
 **After the checks** it does the following:
 - opens the vault once;

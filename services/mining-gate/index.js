@@ -28,6 +28,8 @@ const PENDING_FREEZE = 'PENDING_FREEZE';
 const FROZEN = 'FROZEN';
 const SHA64 = /^[0-9a-f]{64}$/;
 const BEIJING = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?\+08:00$/;
+/** 带时区的时刻（系统写的 registered_at / opened_at 是 UTC 的 Z，也可以是 +08:00）。 */
+const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(v) && Number.isFinite(Date.parse(v));
 
 /**
  * ★e：草稿 §4 第 3–5、7 项的建议值。冻结前不得用来放行任何候选。唯一出处是 QRP git 里钉住的 config/mining_gate_thresholds.v1.json
@@ -185,8 +187,8 @@ function checkNetOfCost(c) {
   return result(6, 'NET_OF_COST', [...new Set(codes)], { floor_market: costGate.floorMarketOf(market) });
 }
 
-/** 现有账本：库里同市场 LIVE_IN_RULE 的因子（P0 读法）。 */
-const bookFactorIds = (library, market) => factorLib.bookFactorIds(library, market);
+/** 现有账本（第 7 项）与第 8 项的比较集：库里同市场 LIVE_IN_RULE 的因子，去掉 R1.9 排除的（ETF 级、只存前十名的；协调会话裁定 R1 修订 3）。 */
+const bookFactorIds = (library, market) => factorLib.comparisonFactorIds(library, market);
 
 /** 7 对现有账本的边际贡献。 */
 function checkMarginal(c, ctx = {}) {
@@ -206,7 +208,7 @@ function checkCorrelation(c, ctx = {}) {
   const library = ctx.library || factorLib.LIBRARY;
   const k = at(c, 'correlation'); const codes = [];
   const pairs = Array.isArray(at(k, 'pairs')) ? k.pairs : [];
-  const want = library.factors.filter((f) => f.market === at(c, 'market')).map((f) => f.factor_id);
+  const want = factorLib.comparisonFactorIds(library, at(c, 'market')); // R1.9：只和覆盖全部股票截面的 LIVE_IN_RULE 因子比
   const have = new Set(pairs.map((p) => p && p.factor_id));
   if (want.some((id) => !have.has(id))) codes.push('MINE_CORRELATION_LIBRARY_INCOMPLETE');
   const orth = Array.isArray(at(k, 'orthogonalised_against')) ? k.orthogonalised_against : [];
@@ -222,15 +224,22 @@ function checkCorrelation(c, ctx = {}) {
   return result(8, 'CORRELATION', codes, { rho_max: factorLib.DEDUPE.RHO_MAX, conflicts: decision.conflicts });
 }
 
-/** 9 机制：已登记、写了经济逻辑与失效方式、写成时刻早于留出段打分、G-MECH 分诊不是 NOT_DO_SETTLED。 */
+/**
+ * 9 机制：已登记、写了经济逻辑与失效方式、G-MECH 分诊不是 NOT_DO_SETTLED；时刻（协调会话裁定 R1.5，修订 4 705e2e6a）：
+ *   机制登记（mechanism.registered_at）与写成时刻（written_at，北京时间）都早于留出段开启（holdout.opened_at，不是打分时刻），
+ *   否则 MINE_MECHANISM_AFTER_HOLDOUT（缺任何一个时刻也是）；written_at 晚于登记时刻 → MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION。
+ */
 function checkMechanism(c, ctx = {}) {
   const m = at(c, 'mechanism'); const codes = [];
   const id = at(m, 'mechanism_id');
   const register = ctx.registerBytes ? mech.parse(ctx.registerBytes) : mech.REGISTER;
   if (!mech.isRegistered(id, register)) return result(9, 'MECHANISM', ['MINE_MECHANISM_UNKNOWN']);
   if (!isText(at(m, 'economic_logic_zh')) || !isText(at(m, 'failure_mode_zh'))) codes.push('MINE_MECHANISM_FIELDS');
-  const written = at(m, 'written_at'); const scored = at(at(c, 'holdout'), 'scored_at');
-  if (!BEIJING.test(written || '') || !BEIJING.test(scored || '') || !(Date.parse(written) < Date.parse(scored))) codes.push('MINE_MECHANISM_AFTER_HOLDOUT');
+  const written = at(m, 'written_at'); const registered = at(m, 'registered_at');
+  const opened = at(at(c, 'holdout'), 'opened_at'); const scored = at(at(c, 'holdout'), 'scored_at');
+  const wOk = BEIJING.test(written || ''); const rOk = isInstant(registered);
+  if (!wOk || !rOk || !isInstant(opened) || !(Date.parse(registered) < Date.parse(opened)) || !(Date.parse(written) < Date.parse(opened))) codes.push('MINE_MECHANISM_AFTER_HOLDOUT');
+  if (wOk && rOk && Date.parse(written) > Date.parse(registered)) codes.push('MINE_MECHANISM_WRITTEN_AFTER_REGISTRATION');
   let route = null;
   if (BEIJING.test(scored || '')) {
     try {
