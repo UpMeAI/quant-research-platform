@@ -77,6 +77,8 @@ function recordGateResult({ round_id: roundId, candidate_id: candidateId, candid
   const body = {
     schema: SCHEMA, round_id: roundId, candidate_id: candidateId, trial_id: trial.trial_id, trial_record_hash: trial.record_hash, holdout_open_hash: open.record_hash,
     gate_result_sha256: sha256(trials.canonicalJson(result)), thresholds_file: pinned.file, thresholds_used: pinned.used, family_trial_count: familyTrialCount,
+    // R1.9（协调会话裁定 R1 修订 3）：第 7、8 项没有比的因子与原因，每条记录都写
+    excluded_factors: require('../factor-library').comparisonExclusions(candidate && candidate.market ? candidate.market : trial.market),
     pass, codes: [...(result.codes || [])], items, recorded_at: recordedAt || now(),
   };
   const rec = { ...body, record_hash: trials.recordHash(body) };

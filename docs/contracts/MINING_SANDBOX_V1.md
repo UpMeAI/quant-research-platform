@@ -254,7 +254,7 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **Mechanism** is `null`, because GP registers none.
 - **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
 
-## Coordinator ruling R1 in the runner (2026-11-17, revision 2 `d80ce988…`, which adds R1.8)
+## Coordinator ruling R1 in the runner (2026-11-17, revision 3 `5f0d0328…`: R1.7 corrected, R1.9–R1.11 added)
 
 - **R1.1.** Every attempt is a trial row (see "Round runner").
 - **R1.2.** `requestRound` writes `rulings` (the R1 page, verified against `docs/freeze/RF1116_RULING_R1_20261117.md`) and `selection_rule` = `selector.RULE` into the manifest. `selector.RULE` is FROZEN by R1.2, written as data. `select` reads the rule from the round row, never from the constant.
@@ -267,7 +267,12 @@ Any failure refuses without spending the single open. A second open gives `MINE_
   - **Clock.** A value dated D feeds only the next trading day's open, and only if `first_available_at` is before that day's 09:00. UNIT values map to stocks through the same day's membership.
   - **Item 8.** For every same-market library factor it gives the cross-sectional Spearman and the factor-return correlation (daily OLS slopes against next-open returns) over the holdout scoring days.
   - **Item 7.** It gives the intercept t of the candidate's factor returns regressed on every book factor's returns.
-  - **What stays UNKNOWN.** ETF-grain factors are `ETF_GRAIN_NOT_MAPPABLE_TO_STOCKS`; missing factors are `FACTOR_SERIES_ABSENT` or `…_NOT_PROVIDED`. Item 7 stays null while any book factor lacks a series. Since `CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20` is a CN_A library and book factor, items 7–8 cannot pass for stock-level candidates until the coordinator rules on its comparison set.
+  - **R1.9 comparison set.** Only same-market `LIVE_IN_RULE` factors covering the full stock cross-section are compared (`factorLib.comparisonFactorIds`).
+    - Excluded: ETF-level #14, and the top-ten-only #2 and #7.
+    - The exclusions and their reasons are in `correlation.excluded_factors`, in `marginal.excluded_factors` and in every G-MINE record.
+  - **What stays UNKNOWN.** Missing factors are `FACTOR_SERIES_ABSENT` or `…_NOT_PROVIDED`. Item 7 stays null while any compared factor lacks a series.
+  - **Duplicated regressors.** Exactly duplicated regressor series are dropped from the item-7 OLS and listed in `marginal.collinear_dropped`. In V6, #6 (the stock's unit score) and #12 (the unit score) have the same values, so #12 is dropped.
+  - **R1.11.** The series come from V6's live window only.
 - **R1.5.** `run.sh mechanisms <round_id> [registrations.jsonl]` (CLI `mechanisms`) lists the survivors (ids from the selection row, formulas from the trial rows) with their registration state, and registers a JSONL file.
   - Before the open, `scoreHoldout` attaches each candidate's registration (`mechanism`: id, texts, `written_at`, `registration_hash`).
   - A candidate without one is still scored, with `mechanism: null` and `mechanism_reason: NO_MECHANISM_REGISTERED_BEFORE_OPEN`, and item 9 fails.

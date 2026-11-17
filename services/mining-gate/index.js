@@ -185,8 +185,8 @@ function checkNetOfCost(c) {
   return result(6, 'NET_OF_COST', [...new Set(codes)], { floor_market: costGate.floorMarketOf(market) });
 }
 
-/** 现有账本：库里同市场 LIVE_IN_RULE 的因子（P0 读法）。 */
-const bookFactorIds = (library, market) => factorLib.bookFactorIds(library, market);
+/** 现有账本（第 7 项）与第 8 项的比较集：库里同市场 LIVE_IN_RULE 的因子，去掉 R1.9 排除的（ETF 级、只存前十名的；协调会话裁定 R1 修订 3）。 */
+const bookFactorIds = (library, market) => factorLib.comparisonFactorIds(library, market);
 
 /** 7 对现有账本的边际贡献。 */
 function checkMarginal(c, ctx = {}) {
@@ -206,7 +206,7 @@ function checkCorrelation(c, ctx = {}) {
   const library = ctx.library || factorLib.LIBRARY;
   const k = at(c, 'correlation'); const codes = [];
   const pairs = Array.isArray(at(k, 'pairs')) ? k.pairs : [];
-  const want = library.factors.filter((f) => f.market === at(c, 'market')).map((f) => f.factor_id);
+  const want = factorLib.comparisonFactorIds(library, at(c, 'market')); // R1.9：只和覆盖全部股票截面的 LIVE_IN_RULE 因子比
   const have = new Set(pairs.map((p) => p && p.factor_id));
   if (want.some((id) => !have.has(id))) codes.push('MINE_CORRELATION_LIBRARY_INCOMPLETE');
   const orth = Array.isArray(at(k, 'orthogonalised_against')) ? k.orthogonalised_against : [];

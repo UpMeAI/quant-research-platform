@@ -64,7 +64,7 @@ function toSelection(out, { openedAt = '2026-11-21T02:00:00Z', manifest = null }
 test('R1.2：清单带 rulings（裁定页路径 + sha，docs/freeze/ 有逐字节副本）与冻结的选择规则（数据）；缺了、副本不对、规则不对都拒绝；选择读清单里的规则', () => {
   const copy = fs.readFileSync(path.join(ROOT, 'docs/freeze/RF1116_RULING_R1_20261117.md'));
   assert.equal(sha(copy), R1_RULING.sha256);
-  assert.ok(copy.toString('utf8').includes('R1.2') && copy.toString('utf8').includes('R1.6') && copy.toString('utf8').includes('R1.8'), 'revision 2 of the ruling');
+  assert.ok(copy.toString('utf8').includes('R1.2') && copy.toString('utf8').includes('R1.6') && copy.toString('utf8').includes('R1.8') && copy.toString('utf8').includes('R1.9') && copy.toString('utf8').includes('R1.11'), 'revision 3 of the ruling');
   assert.deepEqual(selector.RULE, R1_SELECTION_RULE, 'selector.RULE is the R1.2 rule, written as data');
   assert.ok(Object.isFrozen(selector.RULE) && Object.isFrozen(selector.RULE.folds));
   freshData();
@@ -198,23 +198,32 @@ test('R1.7：涨跌停按 V6 实盘的板块规则（price_limit_history_v1：�
   assert.equal(hp.st[i][j], false);
 });
 
-/** 合成的现有因子序列导出（FACTOR_SERIES_V1）：两个个股级、一个单元级（按单元成员映射到个股）、一个 ETF 级；一行入库迟到。 */
+/**
+ * 合成的现有因子序列导出（FACTOR_SERIES_V1）：比较集里的 11 个（个股级 1、3、4、5、13，单元级 6、8–12；6 与 12 同值，同 V6）全给，
+ * 再给一个 ETF 级（第 14 个，R1.9 排除）与一个只存前几名的（第 7 个，排除）；第 3 个有一行入库迟到。
+ */
 function makeFactorSeries() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-factor-series-'));
   const days = fx.calendar.filter((d) => d >= '2026-09-01' && d <= '2026-12-31');
-  const codes = ['S01.SH', 'S02.SH', 'S03.SH', 'S04.SZ', 'S05.SZ', 'S06.SZ', 'S07.SH', 'S08.SZ', 'S09.SH', 'S10.SZ', 'S11.SH', 'S12.SZ'];
+  const codes = ['S01.SH', 'S02.SH', 'S03.SH', 'S04.SZ', 'S05.SZ', 'S06.SZ', 'S07.SH', 'S08.SZ', 'S09.SH', 'S10.SZ', 'S11.SH', 'S12.SZ', 'T01.SH', 'P01.SZ', 'N01.SZ'];
+  const units = ['SW2021:801010', 'SW2021:801030', 'SW2021:801050', 'SW2021:801080'];
   const rows = []; const members = [];
   const noise = (k, d, c) => (parseInt(sha(`${k}|${d}|${c}`).slice(0, 8), 16) / 0xffffffff) - 0.5;
+  const STOCK = ['CN_A.MOM.RS60_MARKET_PCT', 'CN_A.QUALITY.STRUCTURAL_SCORE', 'CN_A.GROWTH.NETPROFIT_YOY_PCT', 'CN_A.VALUE.VALUATION_GATE_INV', 'CN_A.SENT.ANALYST_REVISION_BREADTH'];
+  const UNIT = ['CN_A_IND.MOM.INDUSTRY_RS60_PCT', 'CN_A_IND.MOM.TREND_BREADTH', 'CN_A_IND.VP.VOLUME_EXPANSION_PCT', 'CN_A_IND.MOM.LEADER_RS20_Q90', 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7'];
   for (const d of days) {
     const at = `${d} 18:40:00+08`;
     codes.forEach((c, n) => {
-      rows.push({ factor_id: 'CN_A.MOM.RS60_MARKET_PCT', grain: 'STOCK', business_date: d, key: c, value: (n * 7 + noise(1, d, c) * 10).toFixed(4), first_available_at: at });
-      rows.push({ factor_id: 'CN_A.QUALITY.STRUCTURAL_SCORE', grain: 'STOCK', business_date: d, key: c, value: (noise(2, d, c) * 100).toFixed(4),
-        first_available_at: d === '2026-10-20' && c === 'S01.SH' ? '2026-10-22 08:00:00+08' : at });
-      members.push({ business_date: d, security_id: c, unit_key: n % 2 ? 'SW2021:801010' : 'SW2021:801030' });
+      STOCK.forEach((fid, k) => rows.push({ factor_id: fid, grain: 'STOCK', business_date: d, key: c, value: ((k === 0 ? n * 7 : 0) + noise(k, d, c) * 10).toFixed(4),
+        first_available_at: fid === 'CN_A.QUALITY.STRUCTURAL_SCORE' && d === '2026-10-20' && c === 'S01.SH' ? '2026-10-22 08:00:00+08' : at }));
+      members.push({ business_date: d, security_id: c, unit_key: units[n % units.length] });
     });
-    for (const u of ['SW2021:801010', 'SW2021:801030']) rows.push({ factor_id: 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7', grain: 'UNIT', business_date: d, key: u, value: (50 + noise(3, d, u) * 40).toFixed(4), first_available_at: at });
-    rows.push({ factor_id: 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', grain: 'ETF', business_date: d, key: '512480.SH', value: noise(4, d, 'e').toFixed(4), first_available_at: at });
+    for (const u of units) {
+      UNIT.forEach((fid, k) => rows.push({ factor_id: fid, grain: 'UNIT', business_date: d, key: u, value: (50 + noise(10 + k, d, u) * 40).toFixed(4), first_available_at: at }));
+      rows.push({ factor_id: 'CN_A.MAINLINE.UNIT_SCORE', grain: 'UNIT', business_date: d, key: u, value: (50 + noise(14, d, u) * 40).toFixed(4), first_available_at: at }); // = 第 12 个
+    }
+    rows.push({ factor_id: 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', grain: 'ETF', business_date: d, key: '512480.SH', value: noise(20, d, 'e').toFixed(4), first_available_at: at });
+    rows.push({ factor_id: 'CN_A.COMPOSITE.STOCK_BOOK_V4', grain: 'STOCK', business_date: d, key: 'S01.SH', value: '80', first_available_at: at });
   }
   fs.writeFileSync(path.join(dir, 'factor_series.csv'), fxi.csv(['factor_id', 'grain', 'business_date', 'key', 'value', 'first_available_at'], rows));
   fs.writeFileSync(path.join(dir, 'unit_membership.csv'), fxi.csv(['business_date', 'security_id', 'unit_key'], members));
@@ -226,7 +235,7 @@ function makeFactorSeries() {
 test('R1.4：现有因子序列（FACTOR_SERIES_V1）按 business_date 收盘记、次一交易日开盘起用（迟到的行不用）；单元级按成员映射到个股；ETF 级对不上个股；最小二乘截距 t 手算一致', () => {
   const dir = makeFactorSeries();
   const fs1 = factorSeries.loadFactorSeries(dir);
-  assert.deepEqual(fs1.factor_ids.sort(), ['CN_A.MOM.RS60_MARKET_PCT', 'CN_A.QUALITY.STRUCTURAL_SCORE', 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7']);
+  assert.equal(fs1.factor_ids.length, 13);
   const hp = adapter.buildPanel({ sources: [...sources(), adapter.csvDirSource(fx.dirs.holdout, { mode: 'LIVE', label: 'holdout', holdout: true })], space: JSON.parse(fs.readFileSync(path.join(ROOT,
     'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json'), 'utf8')), segment: 'HOLDOUT', from: '2026-09-01', to: '2026-12-31' });
   const p = factorSeries.stockPanel(fs1, 'CN_A.QUALITY.STRUCTURAL_SCORE', hp);
@@ -235,9 +244,9 @@ test('R1.4：现有因子序列（FACTOR_SERIES_V1）按 business_date 收盘记
   assert.ok(Number.isFinite(row('2026-10-21').values['S02.SH']));
   assert.ok(Number.isFinite(row('2026-10-20').values['S01.SH']), 'the 10-19 row feeds the 10-20 open');
   const u = factorSeries.stockPanel(fs1, 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7', hp);
-  assert.equal(u.find((x) => x.date === '2026-10-21').values['S02.SH'], u.find((x) => x.date === '2026-10-21').values['S04.SZ'], 'members of one unit share its value');
+  assert.equal(u.find((x) => x.date === '2026-10-21').values['S01.SH'], u.find((x) => x.date === '2026-10-21').values['S05.SZ'], 'members of one unit share its value');
   assert.throws(() => factorSeries.stockPanel(fs1, 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', hp), code(/MINE_FACTOR_SERIES_GRAIN_NOT_STOCK_MAPPABLE/));
-  assert.equal(factorSeries.stockPanel(fs1, 'CN_A.SENT.ANALYST_REVISION_BREADTH', hp), null, 'absent factor');
+  assert.equal(factorSeries.stockPanel(fs1, 'CN_A_IND.NOT.IN_THE_EXPORT', hp), null, 'absent factor');
   // 截距 t：y = 0.5 + 2x + e，一个解释变量时与闭式一致
   const x = Array.from({ length: 40 }, (_, k) => Math.sin(k)); const y = x.map((v, k) => 0.5 + 2 * v + 0.1 * Math.cos(3 * k));
   const t = holdoutScoring.internals.olsInterceptT(y, x.map((v) => [v]));
@@ -310,19 +319,25 @@ test('R1.5 机制登记 + R1.3 / R1.4 / R1.6 进 G-MINE 记录：留出段开启
     const want = holdoutScoring.dsrFromValidation({ monthly_d: selFile.candidates.find((c) => c.candidate_id === x.candidate_id).validation_book.monthly_d, N: rounds.familyN('CN_A', 5), familySharpes: famSr });
     assert.deepEqual(x.overfit.dsr, want.dsr, 'DSR = validation monthly series, N = family count, family SRs = every evaluated candidate');
   }
-  // R1.4：库里每个 CN_A 因子都有一对相关；给了序列的个股级、单元级算得出，ETF 级与没给的照实 UNKNOWN；第 7 项缺序列时不算（写原因）
-  const want = factorLib.LIBRARY.factors.filter((f) => f.market === 'CN_A').map((f) => f.factor_id).sort();
+  // R1.4 + R1.9：比较集 = 覆盖全部股票截面的 LIVE_IN_RULE 因子（11 个）；ETF 级与只存前十名的不进，原因写进结果与每条 G-MINE 记录
+  const set = factorLib.comparisonFactorIds(factorLib.LIBRARY, 'CN_A');
+  const EXCLUDED = ['CN_A.COMPOSITE.STOCK_BOOK_V4', 'CN_A.MOM.RS20_UNIT_PCT', 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20'];
   const pairs = new Map(res.get(first).correlation.pairs.map((q) => [q.factor_id, q]));
-  assert.deepEqual([...pairs.keys()].sort(), want);
-  for (const fid of ['CN_A.MOM.RS60_MARKET_PCT', 'CN_A.QUALITY.STRUCTURAL_SCORE', 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7']) {
-    assert.ok(Number.isFinite(pairs.get(fid).rho_cross_section.value ?? pairs.get(fid).rho_cross_section), fid);
-    assert.ok(Number.isFinite(pairs.get(fid).rho_returns.value ?? pairs.get(fid).rho_returns), fid);
+  assert.deepEqual([...pairs.keys()].sort(), set);
+  for (const id of EXCLUDED) assert.ok(!pairs.has(id), `${id} does not enter item 8`);
+  for (const [fid, q] of pairs) {
+    assert.ok(Number.isFinite(q.rho_cross_section.value), `${fid} cross-section`);
+    assert.ok(Number.isFinite(q.rho_returns.value), `${fid} returns`);
   }
-  assert.equal(pairs.get('CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20').rho_cross_section.reason, 'ETF_GRAIN_NOT_MAPPABLE_TO_STOCKS');
-  assert.equal(pairs.get('CN_A.SENT.ANALYST_REVISION_BREADTH').rho_cross_section.reason, 'FACTOR_SERIES_ABSENT');
-  assert.equal(res.get(first).marginal.intercept_t, null);
-  assert.ok(res.get(first).marginal.unknown_reason.startsWith('BOOK_FACTOR_SERIES_MISSING:'));
-  assert.ok(recs.get(first).codes.includes('MINE_CORRELATION_UNKNOWN') && recs.get(first).codes.includes('MINE_MARGINAL_INPUT'));
+  assert.deepEqual(res.get(first).marginal.book_factor_ids, set, 'item 7 regresses on the same set');
+  assert.ok(Number.isFinite(res.get(first).marginal.intercept_t), 'item 7 is computed once every compared factor has a series');
+  assert.deepEqual(res.get(first).marginal.collinear_dropped, ['CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7'], 'factor 12 duplicates factor 6 (same unit score) and is dropped from the OLS, disclosed');
+  for (const x of recs.values()) {
+    assert.deepEqual(x.excluded_factors.map((e) => e.factor_id).sort(), EXCLUDED, 'every record names the excluded factors');
+    assert.ok(x.excluded_factors.every((e) => e.ruling === 'R1.9' && /ETF|TOP_TEN/.test(e.reason)));
+    for (const c of ['MINE_CORRELATION_UNKNOWN', 'MINE_CORRELATION_LIBRARY_INCOMPLETE', 'MINE_MARGINAL_INPUT', 'MINE_MARGINAL_BOOK_MISMATCH']) assert.ok(!x.codes.includes(c), `${x.candidate_id}:${c}`);
+  }
+  assert.deepEqual(res.get(first).correlation.excluded_factors.map((e) => e.factor_id).sort(), EXCLUDED);
   // R1.6：留出段开启次数写进结果
   assert.equal(res.get(first).holdout.segment_open_index, 1);
   assert.equal(rounds.roundHead(id).holdout_opens.count, 1);
@@ -343,7 +358,7 @@ test('命令行与容器：mechanisms 一步（不挂数据、不挂留出段、
   assert.ok(score.every((l) => l.includes('$FACTOR_SERIES:/data/factor-series:ro') && l.includes('--factor-series /data/factor-series')));
   assert.ok(require('../services/mining-sandbox/round-runner/cli').OPTIONS.mechanisms.includes('register'));
   const contract = fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_SANDBOX_V1.md'), 'utf8') + fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_ROUNDS_V1.md'), 'utf8');
-  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'R1.8', 'd80ce988']) assert.ok(contract.includes(k), k);
+  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'R1.8', 'R1.9', 'R1.10', 'R1.11', '5f0d0328']) assert.ok(contract.includes(k), k);
   const rescoreLine = runs.filter((l) => / rescore /.test(l));
   assert.equal(rescoreLine.length, 1, 'run.sh rescore (R1.8)');
   assert.ok(rescoreLine[0].includes('-v "$HOLDOUT:/data/holdout:ro"') && rescoreLine[0].includes(':/data/crash.log:ro') && rescoreLine[0].includes('--network none'));

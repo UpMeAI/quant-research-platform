@@ -167,8 +167,10 @@ const libPanel = (matrix, panel, days) => days.map((t) => ({ date: panel.dates[t
 function libraryComparison(values, panel, days, { market, factorSeries: fsrc = null }) {
   const corr = require('../../factor-library/correlation');
   const series = require('../factor-series');
-  const libIds = factorLib.LIBRARY.factors.filter((f) => f.market === market).map((f) => f.factor_id).sort();
-  const book = factorLib.bookFactorIds(factorLib.LIBRARY, market);
+  // R1.9：第 7、8 项只和覆盖全部股票截面的 LIVE_IN_RULE 因子比；排除的写进结果
+  const libIds = factorLib.comparisonFactorIds(factorLib.LIBRARY, market);
+  const book = libIds;
+  const excluded = factorLib.comparisonExclusions(market);
   const ex = panel.labels.exec_open;
   const ret1 = panel.dates.map((_, t) => panel.codes.map((_, j) => (t + 1 < panel.dates.length && ex[t][j] > 0 && ex[t + 1][j] > 0 ? ex[t + 1][j] / ex[t][j] - 1 : NaN)));
   const cand = libPanel(values, panel, days); const retP = libPanel(ret1, panel, days);
@@ -189,15 +191,21 @@ function libraryComparison(values, panel, days, { market, factorSeries: fsrc = n
     return { factor_id: fid, rho_cross_section: corr.crossSectionalSpearman(cand, fh), rho_returns: corr.returnSeriesCorrelation(candRet, fRet) };
   });
   const missing = book.filter((id) => !retSeries.has(id));
-  let marginal = { book_factor_ids: book, wfo_net_ir_delta: null, intercept_t: null, unknown_reason: null, periods: 0 };
+  let marginal = { book_factor_ids: book, wfo_net_ir_delta: null, intercept_t: null, unknown_reason: null, periods: 0, collinear_dropped: [], excluded_factors: excluded };
   if (missing.length) marginal.unknown_reason = `BOOK_FACTOR_SERIES_MISSING:${missing.join(',')}`;
   else {
     const maps = book.map((id) => new Map(retSeries.get(id).map((p) => [p.date, p.value])));
     const rows = candRet.filter((p) => isNum(p.value) && maps.every((m) => isNum(m.get(p.date))));
-    const fit = olsInterceptT(rows.map((p) => p.value), rows.map((p) => maps.map((m) => m.get(p.date))));
-    marginal = { ...marginal, intercept_t: fit ? fit.t : null, unknown_reason: fit ? null : 'OLS_SINGULAR_OR_TOO_FEW_PERIODS', periods: rows.length };
+    // 逐期完全相同的解释变量（第 6 个「所在单元分」与第 12 个单元分在 V6 里同值）只留第一个，丢掉的照实写
+    const keep = []; const dropped = [];
+    book.forEach((id, k) => {
+      const col = rows.map((p) => maps[k].get(p.date));
+      if (keep.some((j) => rows.every((p, i) => maps[j].get(p.date) === col[i]))) dropped.push(id); else keep.push(k);
+    });
+    const fit = olsInterceptT(rows.map((p) => p.value), rows.map((p) => keep.map((k) => maps[k].get(p.date))));
+    marginal = { ...marginal, intercept_t: fit ? fit.t : null, unknown_reason: fit ? null : 'OLS_SINGULAR_OR_TOO_FEW_PERIODS', periods: rows.length, collinear_dropped: dropped };
   }
-  return { correlation: { pairs, orthogonalised_against: [], new_attempt: false, source: fsrc ? { sums_sha256: fsrc.sums_sha256 } : null }, marginal };
+  return { correlation: { pairs, orthogonalised_against: [], new_attempt: false, excluded_factors: excluded, source: fsrc ? { sums_sha256: fsrc.sums_sha256 } : null }, marginal };
 }
 
 /**

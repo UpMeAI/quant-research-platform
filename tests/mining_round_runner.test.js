@@ -515,6 +515,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
     assert.equal(x.family_trial_count, 24);
     // R1.3：DSR 在验证折上算得出（不再是 UNKNOWN）；R1.4：没给现有因子序列 → 第 7、8 项照实 UNKNOWN；R1.5：没登记机制 → 第 9 项不过
     for (const c of ['MINE_MARGINAL_INPUT', 'MINE_CORRELATION_UNKNOWN', 'MINE_MECHANISM_UNKNOWN']) assert.ok(x.codes.includes(c), `${x.candidate_id}:${c}`);
+    assert.equal(x.excluded_factors.length, 3, 'R1.9 exclusions are named even without a factor series');
     assert.ok(!x.codes.includes('MINE_DSR_UNKNOWN'), `${x.candidate_id}: DSR on the validation folds`);
     for (const c of ['MINE_NOT_NEUTRALIZED', 'MINE_DSR_N_NOT_CUMULATIVE', 'MINE_PBO_SCOPE', 'MINE_NET_SCOPE', 'MINE_NET_COST_BELOW_FLOOR', 'MINE_ICIR_OVERLAPPING']) assert.ok(!x.codes.includes(c), c);
   }

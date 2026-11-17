@@ -140,8 +140,8 @@ const COUNTER = [
   ['MARGINAL', 'MINE_MARGINAL_NOT_POSITIVE', (c) => { c.marginal.wfo_net_ir_delta = 0; c.marginal.intercept_t = 1.99; }],
   ['MARGINAL', 'MINE_MARGINAL_BOOK_MISMATCH', (c) => { c.marginal.book_factor_ids = c.marginal.book_factor_ids.slice(1); }],
   ['CORRELATION', 'MINE_CORRELATION_ABOVE_MAX', (c) => { c.correlation.pairs[0].rho_cross_section = 0.71; }],
-  ['CORRELATION', 'MINE_CORRELATION_LIBRARY_INCOMPLETE', (c) => { c.correlation.pairs.pop(); }],
-  ['CORRELATION', 'MINE_CORRELATION_UNKNOWN', (c) => { c.correlation.pairs[1].rho_returns = 'UNKNOWN'; }],
+  ['CORRELATION', 'MINE_CORRELATION_LIBRARY_INCOMPLETE', (c) => { c.correlation.pairs = c.correlation.pairs.filter((p) => p.factor_id !== 'CN_A.MOM.RS60_MARKET_PCT'); }],
+  ['CORRELATION', 'MINE_CORRELATION_UNKNOWN', (c) => { c.correlation.pairs.find((p) => p.factor_id === 'CN_A.QUALITY.STRUCTURAL_SCORE').rho_returns = 'UNKNOWN'; }], // R1.9：取比较集里的一个
   ['MECHANISM', 'MINE_MECHANISM_UNKNOWN', (c) => { c.mechanism.mechanism_id = 'SEL.NOPE.NOPE'; }],
   ['MECHANISM', 'MINE_MECHANISM_FIELDS', (c) => { c.mechanism.failure_mode_zh = ''; }],
   ['MECHANISM', 'MINE_MECHANISM_AFTER_HOLDOUT', (c) => { c.mechanism.written_at = '2026-12-01T10:00:01+08:00'; }],
@@ -204,4 +204,29 @@ test('不接任何导入器：除测试外只有挖掘轮次的逐候选记录�
   };
   for (const d of ['services', 'apps', 'packages', 'adapters', 'tools']) if (fs.existsSync(path.join(ROOT, d))) walk(path.join(ROOT, d));
   assert.deepEqual(hits, ['services/mining-rounds/gate-records.js']);
+});
+
+test('R1.9（协调会话裁定 R1 修订 3）：第 7、8 项只和覆盖全部股票截面的 LIVE_IN_RULE 因子比；ETF 级（第 14 个）与只存前十名的（第 2、7 个）不进比较集', () => {
+  const ex = lib.COMPARISON_EXCLUSIONS.map((x) => x.factor_id).sort();
+  assert.deepEqual(ex, ['CN_A.COMPOSITE.STOCK_BOOK_V4', 'CN_A.MOM.RS20_UNIT_PCT', 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20']);
+  assert.ok(lib.COMPARISON_EXCLUSIONS.every((x) => x.ruling === 'R1.9' && typeof x.reason === 'string' && x.reason.length > 0));
+  const set = lib.comparisonFactorIds(lib.LIBRARY, 'CN_A');
+  assert.equal(set.length, 11);
+  assert.ok(set.includes('CN_A.MOM.RS60_MARKET_PCT') && set.includes('CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7'), 'full cross-section factors stay compared');
+  for (const id of ex) assert.ok(!set.includes(id), id);
+  assert.deepEqual(gate.bookFactorIds(lib.LIBRARY, 'CN_A'), set, 'item 7 regresses on the same set');
+  // 排除的因子不进第 7、8 项：没有它们的 pair、账本里没有它们，第 7、8 项照样过
+  const c = candidate();
+  c.correlation.pairs = c.correlation.pairs.filter((p) => !ex.includes(p.factor_id));
+  const r = gate.evaluate(c, ctx());
+  assert.deepEqual(itemOf(r, 'CORRELATION').codes, []);
+  assert.deepEqual(itemOf(r, 'MARGINAL').codes, []);
+  // 排除的因子即使相关很高也不判冲突
+  const c2 = candidate();
+  c2.correlation.pairs.find((p) => p.factor_id === 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20').rho_cross_section = 0.95;
+  assert.deepEqual(itemOf(gate.evaluate(c2, ctx()), 'CORRELATION').codes, []);
+  // 比较集里的因子照样比：相关太高 → 冲突
+  const c3 = candidate();
+  c3.correlation.pairs.find((p) => p.factor_id === 'CN_A.MOM.RS60_MARKET_PCT').rho_cross_section = 0.95;
+  assert.ok(itemOf(gate.evaluate(c3, ctx()), 'CORRELATION').codes.includes('MINE_CORRELATION_ABOVE_MAX'));
 });

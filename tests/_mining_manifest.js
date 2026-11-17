@@ -1,12 +1,12 @@
 'use strict';
 /**
- * 每份 MINING_ROUND_V1 清单都要带的两项（协调会话裁定 R1，修订 2 d80ce988…，2026-11-17）：
+ * 每份 MINING_ROUND_V1 清单都要带的两项（协调会话裁定 R1，修订 3 5f0d0328…，2026-11-17）：
  *   rulings —— 引用裁定页（协调目录的路径 + sha256；仓库 docs/freeze/ 里有逐字节副本，车道上能核）；
  *   selection_rule —— R1.2 冻结的验证折选择规则（6 个半年折、均值 IC > 0、≥ 4 折为正、挖掘段分数 > 0），作为数据写进清单。
  * 测试直接调 openRound 时用这一份；执行器（round-runner）开轮时写的是同一份。
  */
-// 修订 2（加了 R1.8）：d80ce988…；修订 1 ce254328… 留在协调目录的 …R1_20261117.ce254328.md
-const R1_RULING = Object.freeze({ path: 'artifacts/coordinator/RF1116_RULING_R1_20261117.md', sha256: 'd80ce98862e90efbf5ac5b5e2dd5ee6c04dc7d6421f19ef6c598be145fdb3eaa' });
+// 修订 3（R1.7 更正、加 R1.9–R1.11）：5f0d0328…；修订 2 d80ce988…、修订 1 ce254328… 留在协调目录
+const R1_RULING = Object.freeze({ path: 'artifacts/coordinator/RF1116_RULING_R1_20261117.md', sha256: '5f0d03288f6522aa981fee285f5d936d074077d5d727f0866a90a8e3378048d2' });
 const R1_SELECTION_RULE = Object.freeze({
   schema: 'VALIDATION_SELECTION_V1', state: 'FROZEN', ruling: 'R1.2', ic: 'NEUTRALIZED_DAILY_RANK_IC_MEAN',
   folds: Object.freeze([

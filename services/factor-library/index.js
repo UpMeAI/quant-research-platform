@@ -332,6 +332,19 @@ const verifySources = (doc = library(), options = {}) => bindingsOf(doc).map((b)
 /** §4 第 7 项的「现有账本」：库里同市场、状态 LIVE_IN_RULE 的因子（P0 的读法，冻结时可改）。 */
 const bookFactorIds = (doc, market) => doc.factors.filter((f) => f.market === market && f.status === 'LIVE_IN_RULE').map((f) => f.factor_id).sort();
 
+/**
+ * G-MINE 第 7、8 项的比较集（协调会话裁定 R1 修订 3，R1.9，5f0d0328）：只和覆盖全部股票截面的同市场 LIVE_IN_RULE 因子比。
+ * 排除的因子与原因（编号按 R1.4 导出文档 16360992）；每条 G-MINE 记录照抄这张表（MINING_GATE_RECORD_V1.excluded_factors）。
+ */
+const COMPARISON_EXCLUSIONS = Object.freeze([
+  Object.freeze({ factor_id: 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', market: 'CN_A', reason: 'ETF_GRAIN_NOT_STOCK_CROSS_SECTION (#14: ETF-level values, no mapping to stocks)', ruling: 'R1.9' }),
+  Object.freeze({ factor_id: 'CN_A.MOM.RS20_UNIT_PCT', market: 'CN_A', reason: 'TOP_TEN_ONLY_NOT_FULL_CROSS_SECTION (#2: V6 stores the shortlist top ten only)', ruling: 'R1.9' }),
+  Object.freeze({ factor_id: 'CN_A.COMPOSITE.STOCK_BOOK_V4', market: 'CN_A', reason: 'TOP_TEN_ONLY_NOT_FULL_CROSS_SECTION (#7: V6 stores the shortlist and ranked rejects only)', ruling: 'R1.9' }),
+]);
+const comparisonExclusions = (market) => COMPARISON_EXCLUSIONS.filter((x) => x.market === market).map((x) => ({ factor_id: x.factor_id, reason: x.reason, ruling: x.ruling }));
+/** 第 7、8 项的比较集：同市场、LIVE_IN_RULE、不在 R1.9 的排除表里。 */
+const comparisonFactorIds = (doc, market) => bookFactorIds(doc, market).filter((id) => !COMPARISON_EXCLUSIONS.some((x) => x.factor_id === id));
+
 /** 提交的因子库（首次读取时校验并缓存；文件不合规就抛错）。build.js 写文件之前不读它。 */
 let cached = null;
 function library() {
@@ -342,5 +355,6 @@ function library() {
 module.exports = {
   FILE, LIBRARY_PATH, SCHEMA, ENTRY_SCHEMA, PRODUCER, CONTRACT_REF, LAYERS, CLASSES, ORIGINS, STATUSES, MARKETS, DEDUPE_DECISIONS, REPO_ROOTS, DEDUPE,
   FactorLibraryError, validate, parse, build, bytes, library, bindingsOf, rootOf, verifyBinding, verifySources, bookFactorIds,
+  COMPARISON_EXCLUSIONS, comparisonExclusions, comparisonFactorIds,
 };
 Object.defineProperty(module.exports, 'LIBRARY', { enumerable: true, get: library });

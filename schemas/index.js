@@ -378,7 +378,7 @@ const SCHEMAS = Object.freeze({
   MINING_GATE_RECORD_V1: {
     _doc: 'G-MINE 逐候选记录（RF1116 §3.6；协调会话 2026-11-17 裁定 3）：G-MINE 求值这条路写（services/mining-rounds/gate-records.js 调用门求值），每轮每个候选一行、只追加；挂本轮的试验台账行与留出段开启记录；过 = 门判 pass 且九项全过；门槛只读钉住的 config/mining_gate_thresholds.v1.json（不收调用方的），记下文件 sha256 与用到的数、本族 N；关轮从这些记录数「过了几个」',
     round_id: 's', candidate_id: 's', trial_id: 's', trial_record_hash: 's', holdout_open_hash: 's', gate_result_sha256: 's', thresholds_file: 'o', thresholds_used: 'o',
-    family_trial_count: 'n', pass: 'b', codes: 'a', items: 'a',
+    family_trial_count: 'n', excluded_factors: 'a', pass: 'b', codes: 'a', items: 'a',
     recorded_at: 's', record_hash: 's',
   },
   HOLDOUT_SEAL_V1: {

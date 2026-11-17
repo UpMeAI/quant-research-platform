@@ -86,9 +86,9 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 
 ## Coordinator ruling R1 (2026-11-17)
 
-Source: `RF1116_RULING_R1_20261117.md`, revision 2 with R1.8, sha256 `d80ce98862e90efbf5ac5b5e2dd5ee6c04dc7d6421f19ef6c598be145fdb3eaa`. Revision 1 (`ce254328…`) is kept in the coordinator folder.
+Source: `RF1116_RULING_R1_20261117.md`, revision 3, sha256 `5f0d03288f6522aa981fee285f5d936d074077d5d727f0866a90a8e3378048d2`. Revision 3 corrects R1.7 and adds R1.9–R1.11. Revisions 2 (`d80ce988…`) and 1 (`ce254328…`) are kept in the coordinator folder.
 
-A byte copy of revision 2 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `d80ce988…`.
+A byte copy of revision 3 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it. Every manifest cites `5f0d0328…`.
 
 - **R1.1 Every attempt is a trial row.** Parse-refused and deduplicated attempts are written through `recordCandidate`, unscored. They count toward the round cap of 200 and toward the family's cumulative N (signed §3.3).
 - **R1.2 The selection rule lives in the manifest, and every manifest cites its rulings.**
@@ -120,3 +120,16 @@ A byte copy of revision 2 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and 
   - **Failed rescore.** `failRescore` closes a round whose rescore also crashed as `FAILED_RESCORE`: `gmine_passes` 0, no records counted, the attempts staying in N.
   - **Pause rule and open count.** The pause rule counts a `FAILED_RESCORE` round as a failure; it no longer counts as open.
 - **Resume record.** `recordResumeCheck` appends the floor used on a `--resume` run to the round row's `data_checks.resumes`.
+- **R1.9 The comparison set for G-MINE items 7–8.** Items 7–8 compare only against same-market `LIVE_IN_RULE` factors that cover the full stock cross-section.
+  - **Single source:** `factor-library` `COMPARISON_EXCLUSIONS` / `comparisonFactorIds`.
+  - **Excluded:**
+    - #14 `CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20`, which is ETF-level;
+    - #2 `CN_A.MOM.RS20_UNIT_PCT` and #7 `CN_A.COMPOSITE.STOCK_BOOK_V4`, which V6 stores for the top ten only.
+  - **Effect:** the gate's item-8 `want` set and its item-7 book both use this set, and so does the runner's comparison. Every `MINING_GATE_RECORD_V1` carries `excluded_factors: [{factor_id, reason, ruling}]`.
+  - **Also dropped:** because the set is `LIVE_IN_RULE` only, the retired `CN_A.MOM.RS20_REALIZED_CORE_POOL` no longer enters item 8 either.
+- **R1.10 Mechanisms.** GP candidates may cite only mechanisms already in the register (`MINE_MECHANISM_ID_NOT_REGISTERED`). A new mechanism needs a register PR first.
+- **R1.11 Factor series from the live window only.**
+  - Items 7–8 read V6's live tables only. They start 2026-08-26 to 2026-10-08, and the holdout 2026-10-19 → 2026-12-31 lies inside.
+  - History from 2020-06 → 2026-09-28 is only in the Q0 replay, a different producer. Using it is an open parity question.
+  - The analyst-revision factor has no history before 2025-11 anywhere.
+- **R1.7, as corrected in revision 3.** Main-board ST is 5% before 2026-07-06 and 10% from 2026-07-06 (V6 `price_limit_history_v1.json`). That is what `price-limits.js` implements.
