@@ -40,6 +40,9 @@ const FROZEN_INPUTS = Object.freeze({
   space: Object.freeze({ path: 'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json', sha256: '0d3556fa97f17d3a67b350e7f74c12fb521ca1fb60c293121601f7eb95f96637' }),
   space_freeze: Object.freeze({ path: 'docs/freeze/MINING_SPACE_V1_CN_A_R1_FREEZE_1.md', sha256: '4ec642b9ae87e7cd69b1bd226cc8964647dcace26a1dec60c0124df23fd8af69' }),
   holdout_freeze: segs.FREEZE_PAGE,
+  // 协调会话裁定 R1（2026-11-17）：每份清单的 rulings 引它；协调目录的路径写进清单，车道上核仓库副本
+  ruling_r1: Object.freeze({ path: 'docs/freeze/RF1116_RULING_R1_20261117.md', sha256: 'ce25432851b8bfc6447809de7fb220111d80d418da1b31f1f07982b2037f4269',
+    coordinator_path: 'artifacts/coordinator/RF1116_RULING_R1_20261117.md' }),
 });
 
 /**
@@ -93,6 +96,7 @@ function loadFrozenSpace() {
   const page = read1(frozenInputs.space_freeze);
   const freeze = spaceMod.verifyFreeze(space, { path: frozenInputs.space_freeze.path, bytes: page, sha256: frozenInputs.space_freeze.sha256 });
   read1(frozenInputs.holdout_freeze);
+  read1(frozenInputs.ruling_r1);
   need(space.holding_periods.length === 1, 'HOLDING_PERIODS_UNSUPPORTED', space.holding_periods.join(','));
   return { space, dslSpace: spaceMod.dslSpaceOf(space), freeze, holdingPeriod: space.holding_periods[0] };
 }
@@ -110,6 +114,9 @@ function requestRound({ generator, cap = rounds.LIMITS.candidates_per_round, ope
     generator: { mode: 'AI_MINED_GP', gp_seed: generator.gp_seed }, holdout: { from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }, cap, openedAt: openedAt || undefined,
     data_checks: { coverage_floor: { min_names_per_day: coverageFloor.min_names_per_day, default: COVERAGE_FLOOR.min_names_per_day,
       overridden: coverageFloor.min_names_per_day !== COVERAGE_FLOOR.min_names_per_day } },
+    // R1.2：引裁定页；验证折选择规则作为数据冻结进清单（轮中不改）
+    rulings: [{ path: frozenInputs.ruling_r1.coordinator_path, sha256: frozenInputs.ruling_r1.sha256 }],
+    selection_rule: JSON.parse(JSON.stringify(selector.RULE)),
   });
 }
 
@@ -218,17 +225,25 @@ function select({ roundId, sources, outDir }) {
   const dir = runDir(outDir, roundId);
   const f = loadFrozenSpace();
   const v = segs.SEGMENTS.VALIDATION;
+  // R1.2：规则读本轮清单（不读常量）
+  const rule = r.selection_rule;
+  need(rule && rule.schema === 'VALIDATION_SELECTION_V1', 'SELECTION_RULE_MISSING', roundId);
   const panel = adapter.buildPanel({ sources, space: f.space, segment: 'VALIDATION', from: segs.SEGMENTS.MINING.from, to: v.to });
+  const valDays = panel.dates.map((d, t) => (d >= v.from ? t : -1)).filter((t) => t >= 0);
   const candidates = scoredAttempts(roundId).map((c) => {
-    const st = selector.validationStats(dsl.parse(c.formula, f.dslSpace), panel, { holding_period: f.holdingPeriod });
-    return { candidate_id: c.candidate_id, formula: c.formula, mining_score: c.mining_score, ...st, selected: selector.passes(st, c.mining_score) };
+    const { values, ...st } = selector.validationStats(dsl.parse(c.formula, f.dslSpace), panel, { holding_period: f.holdingPeriod, rule });
+    // R1.3：验证折上的只做多月度配对差（DSR 的样本段），与留出段同一套持仓与成本（含涨跌停）
+    const book = holdoutScoring.longOnly(values, panel, f.holdingPeriod, valDays);
+    const sr = require('../../trial-ledger/overfit').moments(book.monthly_d).sr;
+    return { candidate_id: c.candidate_id, formula: c.formula, mining_score: c.mining_score, ...st, selected: selector.passes(st, c.mining_score, rule),
+      validation_book: { months: book.monthly_d.length, monthly_d: book.monthly_d, month_keys: book.months, sr: typeof sr === 'number' && Number.isFinite(sr) ? sr : null, limit_events: book.events } };
   });
-  const out = { schema: 'MINING_VALIDATION_SELECTION_V1', round_id: roundId, rule: selector.RULE, folds: selector.folds(), holding_period: f.holdingPeriod,
+  const out = { schema: 'MINING_VALIDATION_SELECTION_V1', round_id: roundId, rule, folds: selector.folds(rule), holding_period: f.holdingPeriod,
     candidates, selected: candidates.filter((c) => c.selected).map((c) => c.candidate_id), validation_panel: panel.manifest, created_at: now() };
   writeJson(path.join(dir, 'selection.json'), out);
   // 台账里只追加一行：文件的 sha 与过了的候选编号（打分时只信这一行，不信输出目录里的文件）
   rounds.recordSelection(roundId, { selection_sha256: sha256(fs.readFileSync(path.join(dir, 'selection.json'))), selected: out.selected, evaluated: candidates.length,
-    rule: { ...selector.RULE } });
+    rule: JSON.parse(JSON.stringify(rule)) });
   return out;
 }
 
@@ -309,7 +324,7 @@ const floorRecord = (floor) => ({ min_names_per_day: { value: floor.min_names_pe
  * 第 6–8 步：核留出段目录 → holdout-vault.open（每轮一次）→ 只经 holdout-scoring 打分 → 每个候选 recordGateResult。
  * 没有候选过验证折：不开留出段，返回 { opened: false }（关轮记 0）。
  */
-function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, coverageFloor = COVERAGE_FLOOR }) {
+function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, coverageFloor = COVERAGE_FLOOR, factorSeriesDir = null }) {
   for (const s of sources) need(!s.holdout, 'HOLDOUT_PASSED_AS_SOURCE', s.label);
   const dir = runDir(outDir, roundId);
   // 选择只信台账里那一行（复审第 3 条）：输出目录里的 selection.json 要对得上它的 sha；候选编号取这一行，公式取试验台账行
@@ -320,18 +335,48 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, c
   const formulas = new Map(scoredAttempts(roundId).map((c) => [c.candidate_id, c.formula]));
   for (const id of selRow.selected) need(formulas.has(id), 'SELECTION_CANDIDATE_UNKNOWN', id);
   if (!selRow.selected.length) { writeJson(path.join(dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
+  // R1.3：验证折的月度序列来自已核过 sha 的 selection.json
+  const selection = JSON.parse(fs.readFileSync(selFile, 'utf8'));
+  const validation = new Map(selection.candidates.map((c) => [c.candidate_id, c.validation_book]));
+  const familySharpes = selection.candidates.map((c) => (c.validation_book ? c.validation_book.sr : null)).filter((x) => typeof x === 'number');
+  // R1.4：现有因子序列（给了就读、核 sha；在开启之前读完）
+  const factorSeries = factorSeriesDir ? require('../factor-series').loadFactorSeries(factorSeriesDir) : null;
   const checked = verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: coverageFloor.min_names_per_day });
+  // R1.5：开启之前写的机制登记（开启之后不能再写）
+  const mechs = new Map(require('../../mining-rounds/mechanisms').mechanismsOf(roundId).map((m) => [m.candidate_id, m]));
   const opened = vault.open({ round_id: roundId, candidate_ids: [...selRow.selected], openedBy: RUNNER_ID,
     checks: { ...floorRecord(coverageFloor), holdout_dir: { open_days: checked.open_days, calendar_to: checked.calendar_to, rows_per_day: checked.rows_per_day } } });
   const f = loadFrozenSpace();
   const panel = adapter.buildPanel({ sources: [...sources, checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
   const results = holdoutScoring.roundResults(opened.candidate_ids.map((id) => ({ candidate_id: id, formula: formulas.get(id), parsed: dsl.parse(formulas.get(id), f.dslSpace) })),
-    panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp });
+    panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation, familySharpes,
+      mechanisms: mechs, factorSeries, segmentOpenIndex: opened.segment_open_index });
   const records = results.map((res) => gateRecords.recordGateResult({ round_id: roundId, candidate_id: res.candidate_id, candidate: res }));
   writeJson(path.join(dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: true, selection_record_hash: selRow.record_hash,
+    factor_series: factorSeries ? { sums_sha256: factorSeries.sums_sha256, factor_ids: factorSeries.factor_ids } : null,
+    mechanisms: [...mechs.values()].map((m) => ({ candidate_id: m.candidate_id, record_hash: m.record_hash })),
     holdout: { seal_hash: checked.seal_hash, data_sha256: checked.data_sha256, calendar_to: checked.calendar_to, open_days: checked.open_days, rows_per_day: checked.rows_per_day }, holdout_panel: panel.manifest, results, records: records.map((x) => ({ candidate_id: x.candidate_id, pass: x.pass, codes: x.codes, record_hash: x.record_hash })) });
   return { opened: true, records };
+}
+
+/**
+ * R1.5：过了验证折的候选（幸存者）与它们的机制登记状态，给命令行 mechanisms 用。候选编号取选择记录，公式取试验台账行，
+ * 验证折的读数取已核过 sha 的 selection.json。
+ */
+function survivors({ roundId, outDir }) {
+  const selRow = rounds.selectionOf(roundId);
+  need(selRow, 'SELECTION_MISSING', roundId);
+  const selFile = path.join(runDir(outDir, roundId), 'selection.json');
+  need(fs.existsSync(selFile) && sha256(fs.readFileSync(selFile)) === selRow.selection_sha256, 'SELECTION_FILE_MISMATCH', roundId);
+  const sel = new Map(JSON.parse(fs.readFileSync(selFile, 'utf8')).candidates.map((c) => [c.candidate_id, c]));
+  const formulas = new Map(scoredAttempts(roundId).map((c) => [c.candidate_id, c]));
+  const mechs = require('../../mining-rounds/mechanisms');
+  return selRow.selected.map((id) => {
+    const m = mechs.mechanismOf(roundId, id); const c = sel.get(id) || {};
+    return { candidate_id: id, formula: formulas.get(id).formula, mining_score: formulas.get(id).mining_score, validation_mean_ic: c.mean_ic ?? null, positive_folds: c.positive_folds ?? null,
+      registered: Boolean(m), mechanism_id: m ? m.mechanism_id : null, written_at: m ? m.written_at : null };
+  });
 }
 
 /** 第 9 步：关轮（过了几个由记录数出来）。 */
@@ -345,6 +390,6 @@ function withGenerator(gen, cb) { const prior = generatorOverride; generatorOver
 
 module.exports = {
   MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, start, loadFrozenSpace, checkCoverage, requestRound, sealHoldout, generate, select,
-  holdoutDirCheck, verifyHoldoutDir, scoreHoldout, close, scoredAttempts,
+  holdoutDirCheck, verifyHoldoutDir, scoreHoldout, close, scoredAttempts, survivors,
   internals: { withGenerator, withFrozenInputs, attemptId },
 };

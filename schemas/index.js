@@ -361,13 +361,19 @@ const SCHEMAS = Object.freeze({
     space_ref: 's', market: 's', readings: 'a', operators: 'a', constants: 'a', lookbacks: 'a', holding_periods: 'a', max_tokens: 'n', max_depth: 'n', operator_evidence: 'o',
   },
   MINING_ROUND_V1: {
-    _doc: '研究框架修订 2026-11-16 §3.3、§3.4（RF1116，签字 fd22876f / 39f8c17c）—— 一轮挖掘的冻结清单（= 预登记）与状态：搜索空间 sha 与冻结页、持有期与族、生成方式（模型与知识截止日 / GP 种子）、上限 ≤ 200、留出段（第一轮冻结，以后不挪）；状态 OPEN → CAP_REACHED → SCORING（留出段已开）→ CLOSED（G-MINE 过了几个由逐候选记录数出来，gmine_basis 记依据，给暂停规则用）；台账 research/mining_rounds.jsonl（services/mining-rounds）',
+    _doc: '研究框架修订 2026-11-16 §3.3、§3.4（RF1116，签字 fd22876f / 39f8c17c）；协调会话裁定 R1（ce254328）：rulings 引裁定页、selection_rule 是冻结的验证折选择规则、holdout_opens 是留出段开启次数 —— 一轮挖掘的冻结清单（= 预登记）与状态：搜索空间 sha 与冻结页、持有期与族、生成方式（模型与知识截止日 / GP 种子）、上限 ≤ 200、留出段（第一轮冻结，以后不挪）；状态 OPEN → CAP_REACHED → SCORING（留出段已开）→ CLOSED（G-MINE 过了几个由逐候选记录数出来，gmine_basis 记依据，给暂停规则用）；台账 research/mining_rounds.jsonl（services/mining-rounds）',
     round_id: 's', market: 's', month: 's', space: 'o', holding_periods: 'a', family_ids: 'a', generator: 'o', holdout: 'o', cap: 'n', resumed_after_pause: 'a',
     status: 's', candidates_scored: 'n', gmine_passes: 'n?', gmine_basis: 'o?', opened_at: 's', closed_at: 's?', record_hash: 's', data_checks: 'o?',
+    rulings: 'a', selection_rule: 'o', holdout_opens: 'o?',
   },
   MINING_SELECTION_V1: {
     _doc: '验证折选择记录（RF1116 §3.4；P2 独立复审 2026-11-17）：一轮一行、只追加，写输出目录里 selection.json 的 sha256 与过了验证折的候选编号；写了之后本轮不再记候选；留出段只开这些候选，公式取试验台账行（services/mining-rounds recordSelection）',
     round_id: 's', market: 's', manifest_sha256: 's', selection_sha256: 's', selected: 'a', evaluated: 'n', rule: 'o?', recorded_at: 's', record_hash: 's',
+  },
+  MINING_MECHANISM_V1: {
+    _doc: '挖掘候选的机制登记（协调会话裁定 R1.5，ce254328）：过了验证折的候选在留出段开启之前写一条，只追加、每个候选一条；机制编号在钉住的机制登记表里、过 G-MECH 同机制去重（路由不是 NOT_DO_SETTLED）；G-MINE 第 9 项读它（services/mining-rounds/mechanisms.js）',
+    round_id: 's', candidate_id: 's', mechanism_id: 's', economic_logic_zh: 's', failure_mode_zh: 's', written_at: 's', written_by: 's', registered_at: 's',
+    selection_record_hash: 's', gmech: 'o', same_mechanism_in_round: 'a', record_hash: 's',
   },
   MINING_GATE_RECORD_V1: {
     _doc: 'G-MINE 逐候选记录（RF1116 §3.6；协调会话 2026-11-17 裁定 3）：G-MINE 求值这条路写（services/mining-rounds/gate-records.js 调用门求值），每轮每个候选一行、只追加；挂本轮的试验台账行与留出段开启记录；过 = 门判 pass 且九项全过；门槛只读钉住的 config/mining_gate_thresholds.v1.json（不收调用方的），记下文件 sha256 与用到的数、本族 N；关轮从这些记录数「过了几个」',
@@ -380,8 +386,8 @@ const SCHEMAS = Object.freeze({
     round_id: 's', market: 's', segment: 'o', data_ref: 's', data_sha256: 's', sealed_by: 's', sealed_at: 's', record_hash: 's',
   },
   HOLDOUT_OPEN_V1: {
-    _doc: '留出段开启日志（RF1116 §3.4）：每轮只开一次，记读了哪些候选（每个只读一次）、谁开、何时开',
-    round_id: 's', seal_hash: 's', candidate_ids: 'a', opened_by: 's', opened_at: 's', pre_open_checks: 'o?', record_hash: 's',
+    _doc: '留出段开启日志（RF1116 §3.4）：每轮只开一次，记读了哪些候选（每个只读一次）、谁开、何时开；segment_open_index = 这段留出段在本族（同市场）里第几次被开（协调会话裁定 R1.6）',
+    round_id: 's', seal_hash: 's', candidate_ids: 'a', opened_by: 's', opened_at: 's', segment_open_index: 'n', pre_open_checks: 'o?', record_hash: 's',
   },
   RACE_MANIFEST_V1: {
     _doc: '研究框架修订 2026-11-16 §4.3（RF1116，签字 fd22876f / 39f8c17c）—— 赛马清单：一个市场、一个分区（层）、冠军与挑战者、同一引擎 / 窗口 / 成本模型、主指标、护栏、晋级名额（≤ 2）；协调会话冻结（冻结页写出清单 sha256 与 FROZEN），清单 sha 写进每个参赛者的试验台账行（k2_sha256）',

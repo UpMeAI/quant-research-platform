@@ -352,7 +352,7 @@ test('隔离（§4 第 7 条）：执行器启动即 lockdown，写输出目录�
   assert.deepEqual(fs.readdirSync(outside), []);
   const src = fs.readFileSync(CLI, 'utf8');
   const main = src.slice(src.indexOf('function main'));
-  assert.equal(main.split('runner.start(').length - 1, 2, 'generate and score both lock down first');
+  assert.equal(main.split('runner.start(').length - 1, 3, 'generate, mechanisms and score all lock down first');
   assert.ok(main.indexOf('runner.start(') < main.indexOf('runner.generate(') && main.lastIndexOf('runner.start(') < main.indexOf('runner.scoreHoldout('));
   assert.ok(main.lastIndexOf('runner.start(') > main.indexOf('runner.select('), 'the score branch has its own start');
 });
@@ -374,7 +374,7 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   for (const k of ['.git', 'var', 'tests']) assert.ok(ignore.includes(k), k);
   const sh = fs.readFileSync(path.join(dir, 'run.sh'), 'utf8');
   const runs = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
-  assert.equal(runs.length, 3);
+  assert.equal(runs.length, 4); // generate、resume、mechanisms（R1.5）、score
   for (const l of runs) {
     for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 1000:1000', '-e QRP_DATA_DIR=/out/qrp-data']) assert.ok(l.includes(flag), `${flag} in ${l.slice(0, 60)}`);
     assert.match(l, /--cpus \d+ /); assert.match(l, /--memory \d+g /); assert.match(l, /--memory-swap \d+g /); assert.match(l, /--pids-limit \d+ /);
@@ -396,7 +396,7 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   for (const t of ['canonical_calendar_observation', 'canonical_security_observation', 'a24afab2', '--pull=false', 'c3de60bf', '2,000']) assert.ok(deploy.includes(t), `DEPLOY.md: ${t}`);
 });
 
-test('选择规则 VALIDATION_SELECTION_V1（默认，待协调会话审）：全折均值 > 0、正折 ≥ 4/6、挖掘段分数 > 0', () => {
+test('选择规则 VALIDATION_SELECTION_V1（R1.2 冻结）：全折均值 > 0、正折 ≥ 4/6、挖掘段分数 > 0', () => {
   const st = (mean_ic, positive_folds) => ({ mean_ic, positive_folds });
   assert.equal(selector.passes(st(0.01, 4), 0.01), true);
   assert.equal(selector.passes(st(0.01, 3), 0.01), false);
@@ -404,7 +404,7 @@ test('选择规则 VALIDATION_SELECTION_V1（默认，待协调会话审）：�
   assert.equal(selector.passes(st(0.01, 6), -0.01), false);
   assert.equal(selector.passes(st(null, 6), 0.01), false);
   assert.equal(selector.passes(st(0.01, 6), null), false);
-  assert.equal(selector.RULE.status, 'DEFAULT_PENDING_COORDINATOR_REVIEW');
+  assert.equal(selector.RULE.state, 'FROZEN'); // R1.2
 });
 
 test('留出段打分的口径（手算得出）：五分组、IC、只做多前 20% 扣佣金滑点、卖出加印花税、相对等权池的年化超额', () => {
@@ -413,8 +413,10 @@ test('留出段打分的口径（手算得出）：五分组、IC、只做多前
   const grow = (j) => 1 + 0.001 * (j + 1);
   const ex = dates.map((_, t) => codes.map((_, j) => 10 * grow(j) ** t));
   const pb = dates.map((_, t) => codes.map((_, j) => (t < 4 ? j : -j)));
+  // 涨跌停的输入（R1.7）：开盘 = 前收，从不触及涨跌停
   const panel = { segment: 'HOLDOUT', dates, codes, readings: { pb }, industry: dates.map(() => codes.map(() => '801010')), size: dates.map(() => codes.map(() => 1e9)),
-    universe: dates.map(() => codes.map(() => true)), labels: { exec_open: ex } };
+    universe: dates.map(() => codes.map(() => true)), board: codes.map(() => 'MAIN'), st: dates.map(() => codes.map(() => false)),
+    labels: { exec_open: ex, open_raw: dates.map(() => codes.map(() => 10)), prev_close_raw: dates.map(() => codes.map(() => 10)) } };
   const parsed = require('../services/mining-sandbox/dsl').parse('pb', require('../services/mining-sandbox/space').dslSpaceOf(SPACE));
   const H = 2; const s = holdoutScoring.scoreCandidate(parsed, panel, { holding_period: H });
   const fwd = (j) => grow(j) ** H - 1; const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
@@ -496,7 +498,9 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
     assert.equal(x.pass, false);
     assert.equal(x.thresholds_used.state, 'FROZEN');
     assert.equal(x.family_trial_count, 24);
-    for (const c of ['MINE_DSR_UNKNOWN', 'MINE_MARGINAL_INPUT', 'MINE_CORRELATION_LIBRARY_INCOMPLETE', 'MINE_MECHANISM_UNKNOWN']) assert.ok(x.codes.includes(c), `${x.candidate_id}:${c}`);
+    // R1.3：DSR 在验证折上算得出（不再是 UNKNOWN）；R1.4：没给现有因子序列 → 第 7、8 项照实 UNKNOWN；R1.5：没登记机制 → 第 9 项不过
+    for (const c of ['MINE_MARGINAL_INPUT', 'MINE_CORRELATION_UNKNOWN', 'MINE_MECHANISM_UNKNOWN']) assert.ok(x.codes.includes(c), `${x.candidate_id}:${c}`);
+    assert.ok(!x.codes.includes('MINE_DSR_UNKNOWN'), `${x.candidate_id}: DSR on the validation folds`);
     for (const c of ['MINE_NOT_NEUTRALIZED', 'MINE_DSR_N_NOT_CUMULATIVE', 'MINE_PBO_SCOPE', 'MINE_NET_SCOPE', 'MINE_NET_COST_BELOW_FLOOR', 'MINE_ICIR_OVERLAPPING']) assert.ok(!x.codes.includes(c), c);
   }
   assert.deepEqual(round.gmine_basis.record_hashes, recs.map((x) => x.record_hash));

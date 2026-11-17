@@ -27,7 +27,13 @@ const SELECTION_SCHEMA = 'MINING_SELECTION_V1';
 const SELECTIONS = () => path.join(dataDir('research'), 'mining_selections.jsonl');
 const MARKETS = Object.freeze(['CN_A', 'US', 'CRYPTO']);
 const GENERATORS = Object.freeze(['AI_MINED_LLM', 'AI_MINED_GP']);
-const LIMITS = Object.freeze({ candidates_per_round: 200, rounds_per_month: 2, pause_after_failed_rounds: 3 });
+/**
+ * 上限（签字 §3.3 ★b；协调会话裁定 R1.6，ce254328…）：每轮 200 个尝试；每市场每月 ≤ 2 轮；连续 3 轮没过 G-MINE 暂停；
+ * 每个市场最多同时开 2 个没关的轮（第一次打分之前，两轮只生成、各等自己那一次留出段开启）；一段留出段最多给 2 轮用，第 3 轮起要新段（整段在旧段之后）。
+ */
+const LIMITS = Object.freeze({ candidates_per_round: 200, rounds_per_month: 2, pause_after_failed_rounds: 3, open_rounds_per_market: 2, rounds_per_holdout: 2 });
+/** 裁定页的仓库副本放在这里（车道上照它核，不读协调目录）。 */
+const FREEZE_DIR = path.join(__dirname, '..', '..', 'docs', 'freeze');
 const SHA64 = /^[0-9a-f]{64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
@@ -39,6 +45,32 @@ const fail = (code, detail) => { throw new MiningRoundError(code, detail); };
 const need = (c, code, detail) => { if (!c) fail(code, detail); };
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const fsx = require('fs');
+/**
+ * 清单里的 rulings（R1.2）：每条 { path（协调目录里的裁定页）, sha256 }，仓库 docs/freeze/ 下要有同名的逐字节副本，sha 对得上。
+ */
+function checkRulings(list) {
+  need(Array.isArray(list) && list.length, 'MINE_ROUND_RULINGS_REQUIRED');
+  return list.map((x) => {
+    need(isObj(x) && isText(x.path) && SHA64.test(x.sha256 || ''), 'MINE_ROUND_RULING_COPY_INVALID', JSON.stringify(x));
+    const copy = path.join(FREEZE_DIR, path.basename(x.path));
+    need(fsx.existsSync(copy) && sha256(fsx.readFileSync(copy)) === x.sha256, 'MINE_ROUND_RULING_COPY_INVALID', `${x.path}:${path.basename(x.path)}`);
+    return { path: x.path, sha256: x.sha256 };
+  });
+}
+/**
+ * 清单里的验证折选择规则（R1.2：冻结进清单，作为数据；轮中不改，要改就是新的一轮）：VALIDATION_SELECTION_V1，
+ * folds = 按日期升序、不重叠的 { fold, from, to }；mean_ic_gt、mining_score_gt 是数；positive_folds_min 是 1 … 折数的整数。
+ */
+function checkSelectionRule(rule) {
+  need(rule !== undefined && rule !== null, 'MINE_ROUND_SELECTION_RULE_REQUIRED');
+  const okFolds = isObj(rule) && Array.isArray(rule.folds) && rule.folds.length > 0 && rule.folds.every((f, k) => isObj(f) && f.fold === k + 1 && DATE.test(f.from || '') && DATE.test(f.to || '')
+    && f.from <= f.to && (k === 0 || rule.folds[k - 1].to < f.from));
+  need(isObj(rule) && rule.schema === 'VALIDATION_SELECTION_V1' && okFolds && typeof rule.mean_ic_gt === 'number' && Number.isFinite(rule.mean_ic_gt)
+    && typeof rule.mining_score_gt === 'number' && Number.isFinite(rule.mining_score_gt) && Number.isInteger(rule.positive_folds_min)
+    && rule.positive_folds_min >= 1 && rule.positive_folds_min <= rule.folds.length, 'MINE_ROUND_SELECTION_RULE_INVALID', JSON.stringify(rule).slice(0, 200));
+  return JSON.parse(JSON.stringify(rule));
+}
 const monthCst = (iso) => new Date(Date.parse(iso) + 8 * 3600e3).toISOString().slice(0, 7);
 
 function heads() { const m = new Map(); for (const r of read(LEDGER())) if (r.schema === SCHEMA) m.set(r.round_id, r); return m; }
@@ -64,7 +96,7 @@ function pauseState(market) {
 /**
  * 开一轮（冻结的轮次清单）。
  * @param {object} o { market, space: { space_ref, sha256, freeze: { path, sha256 } }, holding_periods: [交易日…], generator: { mode, model?, model_knowledge_cutoff?, gp_seed? },
- *   holdout: { from, to }, cap?: ≤ 200, openedAt? }
+ *   holdout: { from, to }, cap?: ≤ 200, openedAt?, rulings: [{ path, sha256 }], selection_rule: VALIDATION_SELECTION_V1 }（后两项协调会话裁定 R1.2，每份清单必带）
  */
 function openRound(o = {}) {
   need(MARKETS.includes(o.market), 'MINE_ROUND_MARKET_INVALID', o.market);
@@ -79,11 +111,20 @@ function openRound(o = {}) {
   if (g.mode === 'AI_MINED_LLM') need(o.holdout.from > g.model_knowledge_cutoff, 'MINE_ROUND_HOLDOUT_BEFORE_CUTOFF', `${o.holdout.from}<=${g.model_knowledge_cutoff}`);
   const cap = o.cap === undefined ? LIMITS.candidates_per_round : o.cap;
   need(Number.isInteger(cap) && cap >= 1 && cap <= LIMITS.candidates_per_round, 'MINE_ROUND_CAP_INVALID', cap);
+  const rulings = checkRulings(o.rulings);
+  const selectionRule = checkSelectionRule(o.selection_rule);
   const openedAt = o.openedAt || now();
   const prior = roundsOf(o.market);
-  // 留出段第一轮之前冻结，以后不能挪作挖掘段或验证折
-  if (prior.length) need(prior[0].holdout.from === o.holdout.from && prior[0].holdout.to === o.holdout.to, 'MINE_ROUND_HOLDOUT_MOVED', `${prior[0].holdout.from}..${prior[0].holdout.to}`);
-  need(prior.every((r) => r.status === 'CLOSED'), 'MINE_ROUND_ALREADY_OPEN', o.market);
+  // 留出段（R1.6）：一段最多给 rounds_per_holdout 轮用；要么沿用最新那一段（还没用满），要么换一段整段在以前各段之后的新段；
+  // 其余（重叠、往前挪）一律 MINE_ROUND_HOLDOUT_MOVED，用满了 MINE_ROUND_HOLDOUT_EXHAUSTED
+  if (prior.length) {
+    const same = (h) => h.from === o.holdout.from && h.to === o.holdout.to;
+    const latest = prior[prior.length - 1].holdout;
+    const lastEnd = prior.reduce((m, r) => (r.holdout.to > m ? r.holdout.to : m), '');
+    if (same(latest)) need(prior.filter((r) => same(r.holdout)).length < LIMITS.rounds_per_holdout, 'MINE_ROUND_HOLDOUT_EXHAUSTED', `${latest.from}..${latest.to}`);
+    else need(o.holdout.from > lastEnd, 'MINE_ROUND_HOLDOUT_MOVED', `${o.holdout.from}..${o.holdout.to} vs ${latest.from}..${latest.to}`);
+  }
+  need(prior.filter((r) => r.status !== 'CLOSED').length < LIMITS.open_rounds_per_market, 'MINE_ROUND_ALREADY_OPEN', `${o.market}:${prior.filter((r) => r.status !== 'CLOSED').length}`);
   const month = monthCst(openedAt);
   need(prior.filter((r) => r.month === month).length < LIMITS.rounds_per_month, 'MINE_ROUND_MONTHLY_CAP', `${o.market}:${month}`);
   const pause = pauseState(o.market);
@@ -93,7 +134,7 @@ function openRound(o = {}) {
     space: { space_ref: o.space.space_ref, sha256: o.space.sha256, freeze: { path: o.space.freeze.path, sha256: o.space.freeze.sha256 } },
     holding_periods: [...o.holding_periods], family_ids: o.holding_periods.map((h) => `MINE:${o.market}:H${h}`),
     generator: { mode: g.mode, model: g.model || null, model_knowledge_cutoff: g.model_knowledge_cutoff || null, gp_seed: g.mode === 'AI_MINED_GP' ? g.gp_seed : null },
-    holdout: { from: o.holdout.from, to: o.holdout.to }, cap, resumed_after_pause: pause.paused ? pause.failed_rounds : [],
+    holdout: { from: o.holdout.from, to: o.holdout.to }, cap, resumed_after_pause: pause.paused ? pause.failed_rounds : [], rulings, selection_rule: selectionRule, holdout_opens: null,
     status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, opened_at: openedAt, closed_at: null,
     data_checks: isObj(o.data_checks) ? JSON.parse(JSON.stringify(o.data_checks)) : null, // 执行器开轮前做过的数据核对（覆盖下限，压低了也照实写）
   };
@@ -101,7 +142,7 @@ function openRound(o = {}) {
 }
 
 /** 本轮的清单 sha（预登记：候选的试验台账行把它写成 k2_sha256）。 */
-const manifestSha = (round) => trials.recordHash({ ...round, status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, closed_at: null, record_hash: undefined });
+const manifestSha = (round) => trials.recordHash({ ...round, status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, closed_at: null, holdout_opens: null, record_hash: undefined });
 
 /**
  * 记一个算过分的候选：写一行试验台账（MINED_CANDIDATE）。到上限即停：第 cap + 1 个不入账，本轮转 CAP_REACHED。
@@ -156,12 +197,15 @@ function recordSelection(roundId, sel = {}, { recordedAt = null } = {}) {
   return append(SELECTIONS(), rec);
 }
 
-/** 留出段开启（services/holdout-vault 调用）：本轮生成结束，转 SCORING，之后不能再记候选。 */
-function beginScoring(roundId) {
+/**
+ * 留出段开启（services/holdout-vault 调用）：本轮生成结束，转 SCORING，之后不能再记候选。
+ * holdoutOpens（R1.6）：这段留出段在本族（同市场）里被开了第几次（含这一次），写进轮次记录并一直带到关轮。
+ */
+function beginScoring(roundId, { holdoutOpens = null } = {}) {
   const r = roundHead(roundId);
   need(r, 'MINE_ROUND_NOT_FOUND', roundId);
   need(r.status === 'OPEN' || r.status === 'CAP_REACHED', 'MINE_ROUND_NOT_OPEN', `${roundId}:${r.status}`);
-  return write({ ...r, status: 'SCORING' });
+  return write({ ...r, status: 'SCORING', holdout_opens: holdoutOpens });
 }
 
 /**

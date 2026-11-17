@@ -19,6 +19,7 @@ The coordinator deploys this. Nothing here is run from the Mac. The runner cover
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928/` | the lane copy in export spec rev 2 CSV layout (see below). `HISTORY` source | kayla, dirs 0755 / files 0644 | `/data/lane:ro` |
 | `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-daily-20260929-20261016/` | validation tail export (spec §1, first directory), with `SHA256SUMS` and `EXPORT_MANIFEST.json`. `LIVE` source | kayla, 0755 / 0644 | `/data/tail:ro` |
 | `/srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019/` | holdout export (spec §1, second directory) plus `SHA256SUMS.sealed` | kayla, **0700** until hand-over | `/data/holdout:ro`, **`score` only** |
+| `/srv/research-lane/rf1116-mining/data/rf1116-cn-a-live-factor-series/` | R1.4: the existing CN_A factor series in `FACTOR_SERIES_V1` (`factor_series.csv`, `unit_membership.csv`, `SHA256SUMS`), from the coordinator's registered export | kayla, 0755 / 0644 | `/data/factor-series:ro`, **`score` only**; if it is missing or unsigned, `score` refuses before the open |
 | `/srv/research-lane/rf1116-mining/out/` | `qrp-data/` (mining rounds, trials, holdout vault, G-MINE records) and `rounds/<round_id>/` (`attempts.jsonl`, `generate.json`, `selection.json`, `score.json`) | container uid 1000 (host 100999) | `/out:rw`, the only writable mount |
 
 **`out/qrp-data/` persists across rounds and is never deleted.** It holds the cumulative N of family `MINE:CN_A:H5`. Container-written files belong to host uid 100999, so kayla can read them but cannot remove them.
@@ -98,6 +99,18 @@ run.sh resume <round_id>
 ```
 
 The GP continues deterministically from the ledger. After `selection.json` exists, generation for that round is closed.
+
+## Mechanisms (R1.5), before the hand-over
+
+After `generate` has written the selection, list the survivors and register their mechanisms. The coordinator writes the JSONL: one line per survivor, `{candidate_id, mechanism_id, economic_logic_zh, failure_mode_zh, written_at}`, where `written_at` is Beijing time with `+08:00`.
+
+```sh
+RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh mechanisms <round_id>                       # list
+RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh mechanisms <round_id> /path/to/mech.jsonl  # register
+```
+
+- **What it mounts.** The step mounts only `out/` (rw) and the JSONL (ro): no data, no holdout, no network.
+- **Append-only.** Registrations cannot be changed, and are refused once the holdout is open. A survivor without one is still scored but fails G-MINE item 9.
 
 ## Hand-over and scoring (steps 6–9), only after the 2026-12-31 data is in
 

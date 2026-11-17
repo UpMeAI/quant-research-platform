@@ -240,3 +240,31 @@ Any failure refuses without spending the single open. A second open gives `MINE_
 - **Marginal and correlation** inputs are left empty with a reason, because the library's CN_A factor series are not in the lane data.
 - **Mechanism** is `null`, because GP registers none.
 - **Effect.** G-MINE therefore records `pass: false` for every GP candidate until those inputs exist.
+
+## Coordinator ruling R1 in the runner (2026-11-17, `ce254328…`)
+
+- **R1.1.** Every attempt is a trial row (see "Round runner").
+- **R1.2.** `requestRound` writes `rulings` (the R1 page, verified against `docs/freeze/RF1116_RULING_R1_20261117.md`) and `selection_rule` = `selector.RULE` into the manifest. `selector.RULE` is FROZEN by R1.2, written as data. `select` reads the rule from the round row, never from the constant.
+- **R1.3 DSR on the validation folds.**
+  - `select` runs the same long-only book as the holdout, with limits and costs, over the validation decision days. It writes each candidate's monthly paired differences and SR (`validation_book`) into `selection.json`, which is sha-pinned by the selection row.
+  - At scoring, `dsrFromValidation` computes DSR with N = the family's cumulative count at that moment, and the family SRs = every evaluated candidate's validation SR.
+  - It is recorded as `overfit.dsr_segment: VALIDATION_FOLDS` with `dsr_t_months`. With fewer than 24 months it is `UNKNOWN` (`T_LT_24`). Items 3–5 stay on the holdout.
+- **R1.4 Existing factor series** (`factor-series/`, `FACTOR_SERIES_V1`).
+  - **Input.** `score --factor-series DIR` reads `factor_series.csv` (factor_id, grain STOCK|UNIT|ETF, business_date, key, value, first_available_at) and `unit_membership.csv`. Each is checked against SHA256SUMS before the open.
+  - **Clock.** A value dated D feeds only the next trading day's open, and only if `first_available_at` is before that day's 09:00. UNIT values map to stocks through the same day's membership.
+  - **Item 8.** For every same-market library factor it gives the cross-sectional Spearman and the factor-return correlation (daily OLS slopes against next-open returns) over the holdout scoring days.
+  - **Item 7.** It gives the intercept t of the candidate's factor returns regressed on every book factor's returns.
+  - **What stays UNKNOWN.** ETF-grain factors are `ETF_GRAIN_NOT_MAPPABLE_TO_STOCKS`; missing factors are `FACTOR_SERIES_ABSENT` or `…_NOT_PROVIDED`. Item 7 stays null while any book factor lacks a series. Since `CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20` is a CN_A library and book factor, items 7–8 cannot pass for stock-level candidates until the coordinator rules on its comparison set.
+- **R1.5.** `run.sh mechanisms <round_id> [registrations.jsonl]` (CLI `mechanisms`) lists the survivors (ids from the selection row, formulas from the trial rows) with their registration state, and registers a JSONL file.
+  - Before the open, `scoreHoldout` attaches each candidate's registration (`mechanism`: id, texts, `written_at`, `registration_hash`).
+  - A candidate without one is still scored, with `mechanism: null` and `mechanism_reason: NO_MECHANISM_REGISTERED_BEFORE_OPEN`, and item 9 fails.
+- **R1.6.** The result carries `holdout.segment_open_index`.
+- **R1.7 Limits** (`price-limits.js`, copied from V6 83ab3af1).
+  - **Bands.** `config/v6/market-rules/price_limit_history_v1.json:105–116`; anything but ST reads NORMAL (`price-limit-history.js:69–90`). Main board 10%. Main-board ST 5% until 2026-07-06, then 10%. ChiNext and STAR 20%.
+  - **Board.** From the code prefix (`kernel/security/classifier.js:29–32`), falling back to the master board for non-V6 codes.
+  - **Limit price.** `roundToFen(previous_close × (1 ± band))` (`price-limit-band.js:47–48, 61–64`).
+  - **Fills.** A buy is blocked if the open ≥ limit-up − 0.005, and a sell is carried if the open ≤ limit-down + 0.005 (`paper-simulator.js:89, 122`). With no open, neither fills. Counts go in `net_of_cost.limit_events`.
+  - **Where V6 differs.**
+    - V6 registers ChiNext and STAR only from 2026-07-06. Two `RESEARCH_EXTENSION` records cover earlier validation dates: ChiNext 20% from 2020-08-24 (10% / ST 5% before), and STAR 20% throughout.
+    - The ruling text says main-board ST 5%. V6's own table says 10% from 2026-07-06, and the ruling defers to V6 item by item.
+  - **Panel inputs.** The panel carries `labels.open_raw`, `labels.prev_close_raw`, `board` and `st`.

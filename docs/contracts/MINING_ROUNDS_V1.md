@@ -83,3 +83,27 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
   - Selected ids must be scored attempts of the round (`MINE_ROUND_SELECTION_CANDIDATE_INVALID`). A second row gives `MINE_ROUND_SELECTION_EXISTS`.
   - After the row exists, `recordCandidate` refuses with `MINE_ROUND_GENERATION_CLOSED`.
   - The holdout opens exactly the ids in this row, and the runner takes each formula from its trial row, never from the output file.
+
+## Coordinator ruling R1 (2026-11-17)
+
+Source: `RF1116_RULING_R1_20261117.md` (sha256 `ce25432851b8bfc6447809de7fb220111d80d418da1b31f1f07982b2037f4269`). A byte copy is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and the docs/freeze guard test pins it.
+
+- **R1.1 Every attempt is a trial row.** Parse-refused and deduplicated attempts are written through `recordCandidate`, unscored. They count toward the round cap of 200 and toward the family's cumulative N (signed §3.3).
+- **R1.2 The selection rule lives in the manifest, and every manifest cites its rulings.**
+  - `openRound` requires `rulings: [{path, sha256}]` (`MINE_ROUND_RULINGS_REQUIRED`). Each entry needs an in-repo copy `docs/freeze/<basename(path)>` with that sha256 (`MINE_ROUND_RULING_COPY_INVALID`).
+  - `openRound` also requires `selection_rule`, a `VALIDATION_SELECTION_V1` object (`MINE_ROUND_SELECTION_RULE_REQUIRED` / `…_INVALID`):
+    - folds ascending and non-overlapping;
+    - `mean_ic_gt` and `mining_score_gt` numbers;
+    - `positive_folds_min` an integer from 1 to the number of folds.
+  - The rule is part of the pre-registration (`manifestSha`). The runner reads it from the manifest. Changing it means a new round.
+  - Round 1 freezes the R1.2 rule: 6 half-year folds; mean IC > 0; at least 4 positive folds; mining score > 0.
+- **R1.6 Concurrent rounds and holdout segments** (`LIMITS.open_rounds_per_market` = 2, `LIMITS.rounds_per_holdout` = 2).
+  - At most 2 unclosed rounds per market (`MINE_ROUND_ALREADY_OPEN`), still at most 2 opens per month. Each round opens the holdout once.
+  - A holdout segment serves at most 2 rounds (`MINE_ROUND_HOLDOUT_EXHAUSTED`). A round either reuses the latest segment, if it is not used up, or takes a new segment that starts after every earlier segment's end. Anything else gives `MINE_ROUND_HOLDOUT_MOVED`.
+  - From round 3, a segment after 2026-12-31 is therefore required.
+  - `holdout-vault.open` counts how many times this segment has been opened in the market, including this one. The count goes into the open row (`segment_open_index`) and into the round row (`holdout_opens`), which keeps it through close.
+- **R1.5 Mechanisms** (`services/mining-rounds/mechanisms.js`, `MINING_MECHANISM_V1`, `research/mining_mechanisms.jsonl`).
+  - **What can be registered.** `registerMechanism(round_id, {candidate_id, mechanism_id, economic_logic_zh, failure_mode_zh, written_at}, {writtenBy})` accepts only candidates in the round's selection row, and only before the holdout opens (`MINE_MECHANISM_AFTER_HOLDOUT_OPEN`).
+  - **Checks.** The `mechanism_id` must be registered (`…_ID_NOT_REGISTERED`). Both texts are required (`…_FIELDS`). `written_at` is Beijing time and not in the future (`…_WRITTEN_AT`).
+  - **G-MECH.** The G-MECH triage route must not be `NOT_DO_SETTLED` (`…_NOT_DO_SETTLED`). The route and the register sha are stored, and other candidates of the round with the same mechanism are listed in `same_mechanism_in_round`.
+  - **One per candidate,** append-only (`…_DUPLICATE`).

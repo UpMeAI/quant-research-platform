@@ -60,10 +60,14 @@ function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null
   need(new Set(ids).size === ids.length, 'MINE_HOLDOUT_CANDIDATE_READ_TWICE', roundId);
   const known = new Set([...trials.heads().values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId).map((t) => t.mining.candidate_id));
   for (const id of ids) need(known.has(id), 'MINE_HOLDOUT_CANDIDATE_UNKNOWN', `${roundId}:${id}`);
-  rounds.beginScoring(roundId);
-  write({ schema: OPEN_SCHEMA, round_id: roundId, seal_hash: s.record_hash, candidate_ids: [...ids], opened_by: openedBy, opened_at: openedAt || now(),
+  // R1.6：这段留出段在本族（同市场）里被开了第几次（含这一次），写进开启记录与轮次记录
+  const sameSegment = (x) => x.market === r.market && x.segment.from === s.segment.from && x.segment.to === s.segment.to;
+  const sealsHere = new Set(read(LEDGER()).filter((x) => x.schema === SEAL_SCHEMA && sameSegment(x)).map((x) => x.round_id));
+  const index = read(LEDGER()).filter((x) => x.schema === OPEN_SCHEMA && sealsHere.has(x.round_id)).length + 1;
+  rounds.beginScoring(roundId, { holdoutOpens: { segment: { ...s.segment }, family_ids: [...r.family_ids], count: index } });
+  write({ schema: OPEN_SCHEMA, round_id: roundId, seal_hash: s.record_hash, candidate_ids: [...ids], opened_by: openedBy, opened_at: openedAt || now(), segment_open_index: index,
     pre_open_checks: checks && typeof checks === 'object' ? JSON.parse(JSON.stringify(checks)) : null }, OPEN_SCHEMA); // 开启之前执行器做过的核对（覆盖下限等）
-  return { round_id: roundId, data_ref: s.data_ref, data_sha256: s.data_sha256, segment: { ...s.segment }, candidate_ids: [...ids] };
+  return { round_id: roundId, data_ref: s.data_ref, data_sha256: s.data_sha256, segment: { ...s.segment }, candidate_ids: [...ids], segment_open_index: index };
 }
 
 /** 开启日志（审计用）。 */

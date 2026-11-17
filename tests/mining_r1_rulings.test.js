@@ -1,0 +1,348 @@
+'use strict';
+/**
+ * 协调会话裁定 R1（RF1116_RULING_R1_20261117.md，ce254328…，2026-11-17）在 P2 执行器与 P1 轮次上的落地（P2c）。先红后绿，全部是合成数据。
+ *   R1.1 每次尝试都是一行试验台账（P2b 已做，合同里引 R1.1）；
+ *   R1.2 验证折选择规则冻结进清单（数据，不是常量）；每份清单 rulings 引裁定页，仓库 docs/freeze/ 有逐字节副本；
+ *   R1.3 DSR 在前推验证折的月度收益上算，N = 本族累计尝试数（≥ 24 个月才算得出）；
+ *   R1.4 第 7、8 项要的现有因子序列：读登记过的导出（FACTOR_SERIES_V1），能对上个股的算，对不上的照实写 UNKNOWN；
+ *   R1.5 第 9 项：留出段开启之前写机制登记（带时间戳、只追加、过 G-MECH 去重），没有登记的照样打分、第 9 项不过并写原因；命令行 mechanisms；
+ *   R1.6 每个市场最多同时开 2 个只生成的轮次；每段留出段最多给 2 轮用，第 3 轮起要新的（在旧段之后）；留出段开启次数按族累计并写进轮次记录；
+ *   R1.7 涨跌停按 V6 实盘的板块规则：涨停开盘买不进、跌停开盘卖不出（第 6 项扣成本净值用它）。
+ */
+const { dataRoot } = require('./_env');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const { spawnSync } = require('child_process');
+
+const AUTH = 'TEST_R1_AUTHORITY';
+process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
+const { makeMiningDataFixture, internals: fxi } = require('./_mining_data_fixture');
+const { R1, R1_RULING, R1_SELECTION_RULE } = require('./_mining_manifest');
+const adapter = require('../services/mining-sandbox/data-adapter');
+const runner = require('../services/mining-sandbox/round-runner');
+const selector = require('../services/mining-sandbox/round-runner/selector');
+const holdoutScoring = require('../services/mining-sandbox/round-runner/holdout-scoring');
+const limits = require('../services/mining-sandbox/price-limits');
+const factorSeries = require('../services/mining-sandbox/factor-series');
+const rounds = require('../services/mining-rounds');
+const mechanisms = require('../services/mining-rounds/mechanisms');
+const vault = require('../services/holdout-vault');
+const gateRecords = require('../services/mining-rounds/gate-records');
+const gate = require('../services/mining-gate');
+const trials = require('../services/trial-ledger');
+const factorLib = require('../services/factor-library');
+
+const ROOT = path.join(__dirname, '..');
+const CLI = path.join(ROOT, 'services/mining-sandbox/round-runner/cli.js');
+const fx = makeMiningDataFixture(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r1-fx-')));
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const code = (re) => (e) => { assert.match(e.message, re); return true; };
+const sources = () => [adapter.csvDirSource(fx.dirs.lane, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(fx.dirs.tail, { mode: 'LIVE', label: 'tail' })];
+const freshData = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r1-data-')); process.env.QRP_DATA_DIR = d; return d; };
+const HOLDOUT_SUMS_SHA = sha(fs.readFileSync(path.join(fx.dirs.holdout, 'SHA256SUMS')));
+const COV = Object.freeze({ min_names_per_day: 5 });
+const KNOWN = ['rank((-ret_1d))', 'zscore((-ret_1d))', 'rank((-ts_mean(ret_1d,5)))', 'rank(pb)', 'rank(ts_delta(close_hfq,1))', 'zscore(turnover_f)'];
+const knownGen = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => KNOWN.slice(view.mining_scores.length, view.mining_scores.length + n) };
+const GP = Object.freeze({ mode: 'AI_MINED_GP', gp_seed: 1 });
+const H1 = Object.freeze({ from: '2026-10-19', to: '2026-12-31' });
+const runDirOf = (out, id) => path.join(out, 'rounds', id.replace(/[^A-Za-z0-9_-]/g, '_'));
+const roundTrials = (roundId) => [...trials.heads().values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId);
+const cli = (args, env) => spawnSync(process.execPath, [CLI, ...args], { env: { ...process.env, ...env }, encoding: 'utf8' });
+/** 开到选择为止（GP 换成已知的六个公式，跑得快、结果可控）。 */
+function toSelection(out, { openedAt = '2026-11-21T02:00:00Z', manifest = null } = {}) {
+  const r = manifest ? rounds.openRound(manifest) : runner.requestRound({ generator: GP, cap: KNOWN.length, openedAt });
+  runner.sealHoldout({ roundId: r.round_id, dataRef: 'synthetic:holdout', dataSha256: HOLDOUT_SUMS_SHA });
+  runner.internals.withGenerator(knownGen, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: COV }));
+  const sel = runner.select({ roundId: r.round_id, sources: sources(), outDir: out });
+  return { r, sel };
+}
+
+test('R1.2：清单带 rulings（裁定页路径 + sha，docs/freeze/ 有逐字节副本）与冻结的选择规则（数据）；缺了、副本不对、规则不对都拒绝；选择读清单里的规则', () => {
+  const copy = fs.readFileSync(path.join(ROOT, 'docs/freeze/RF1116_RULING_R1_20261117.md'));
+  assert.equal(sha(copy), R1_RULING.sha256);
+  assert.ok(copy.toString('utf8').includes('R1.2') && copy.toString('utf8').includes('R1.6'));
+  assert.deepEqual(selector.RULE, R1_SELECTION_RULE, 'selector.RULE is the R1.2 rule, written as data');
+  assert.ok(Object.isFrozen(selector.RULE) && Object.isFrozen(selector.RULE.folds));
+  freshData();
+  const r = runner.requestRound({ generator: GP, cap: KNOWN.length, openedAt: '2026-11-20T02:00:00Z' });
+  assert.deepEqual(r.rulings, [R1_RULING]);
+  assert.deepEqual(r.selection_rule, R1_SELECTION_RULE);
+  assert.notEqual(rounds.manifestSha({ ...r, selection_rule: { ...r.selection_rule, positive_folds_min: 5 } }), rounds.manifestSha(r), 'the rule is part of the pre-registration');
+  const f = runner.loadFrozenSpace();
+  const base = { market: 'CN_A', space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze }, holding_periods: [5], generator: GP, holdout: H1, cap: 6, openedAt: '2026-11-22T02:00:00Z' };
+  freshData();
+  assert.throws(() => rounds.openRound({ ...base, selection_rule: R1_SELECTION_RULE }), code(/MINE_ROUND_RULINGS_REQUIRED/));
+  assert.throws(() => rounds.openRound({ ...base, ...R1, rulings: [{ ...R1_RULING, sha256: 'f'.repeat(64) }] }), code(/MINE_ROUND_RULING_COPY_INVALID/));
+  assert.throws(() => rounds.openRound({ ...base, ...R1, rulings: [{ path: 'artifacts/coordinator/NOT_THERE.md', sha256: R1_RULING.sha256 }] }), code(/MINE_ROUND_RULING_COPY_INVALID/));
+  assert.throws(() => rounds.openRound({ ...base, rulings: [R1_RULING] }), code(/MINE_ROUND_SELECTION_RULE_REQUIRED/));
+  for (const bad of [{ positive_folds_min: 7 }, { mean_ic_gt: 'zero' }, { folds: [R1_SELECTION_RULE.folds[1], R1_SELECTION_RULE.folds[0]] },
+    { folds: [{ fold: 1, from: '2024-01-02', to: '2024-07-31' }, { fold: 2, from: '2024-07-01', to: '2024-12-31' }] }, { schema: 'OTHER' }]) {
+    assert.throws(() => rounds.openRound({ ...base, ...R1, selection_rule: { ...R1_SELECTION_RULE, ...bad } }), code(/MINE_ROUND_SELECTION_RULE_INVALID/), JSON.stringify(bad));
+  }
+  // 同样的六个公式：R1.2 的规则选得出反转公式；清单里写一条更严的规则，选择就照它（读清单，不读常量）
+  const outA = freshData(); const a = toSelection(outA);
+  assert.ok(a.sel.selected.includes(`${a.r.round_id}:A001`));
+  assert.deepEqual(a.sel.rule, R1_SELECTION_RULE);
+  const outB = freshData();
+  const strict = { ...R1_SELECTION_RULE, mean_ic_gt: 0.9 };
+  const b = toSelection(outB, { manifest: { ...base, ...R1, selection_rule: strict } });
+  assert.deepEqual(b.sel.selected, []);
+  assert.deepEqual(b.sel.rule, strict);
+  assert.deepEqual(rounds.selectionOf(b.r.round_id).rule, strict);
+});
+
+test('R1.6：每个市场最多同时开 2 个只生成的轮次；每轮各开一次留出段，开启次数按族累计写进轮次与开启记录；一段留出段最多 2 轮用，第 3 轮要新段（在旧段之后）', () => {
+  freshData();
+  const sp = (n) => ({ space_ref: `MS-R16-${n}`, sha256: sha(`r16-space-${n}`), freeze: { path: `f-${n}`, sha256: sha(`r16-freeze-${n}`) } });
+  const open = (n, at, holdout = H1) => rounds.openRound({ market: 'CN_A', space: sp(n), holding_periods: [5], generator: GP, holdout, openedAt: at, ...R1 });
+  const a = open(1, '2026-11-17T04:00:00Z'); const b = open(2, '2026-11-18T04:00:00Z');
+  assert.deepEqual([a.status, b.status], ['OPEN', 'OPEN'], 'two generation-only rounds at once');
+  assert.throws(() => open(3, '2026-12-01T04:00:00Z', { from: '2027-01-04', to: '2027-03-31' }), code(/MINE_ROUND_ALREADY_OPEN/), 'a third concurrent round');
+  assert.equal(rounds.LIMITS.open_rounds_per_market, 2);
+  assert.equal(rounds.LIMITS.rounds_per_holdout, 2);
+  const cand = (r, k) => rounds.recordCandidate(r.round_id, { candidate_id: `${r.round_id}:A00${k}`, formula_canonical: `rank(ts_mean(pb,${k}))`, formula_sha256: sha(`rank(ts_mean(pb,${k}))`),
+    holding_period: 5, mining_score: 0.01 }, { registeredBy: AUTH });
+  cand(a, 5); cand(b, 5);
+  for (const r of [a, b]) vault.seal({ round_id: r.round_id, segment: H1, data_ref: 'synthetic', data_sha256: sha('h'), sealedBy: 'TEST' });
+  vault.open({ round_id: a.round_id, candidate_ids: [`${a.round_id}:A005`], openedBy: 'TEST' });
+  vault.open({ round_id: b.round_id, candidate_ids: [`${b.round_id}:A005`], openedBy: 'TEST' });
+  assert.throws(() => vault.open({ round_id: a.round_id, candidate_ids: [`${a.round_id}:A005`], openedBy: 'TEST' }), code(/MINE_HOLDOUT_ALREADY_OPENED/));
+  assert.deepEqual(vault.openLog(a.round_id).map((x) => x.segment_open_index), [1]);
+  assert.deepEqual(vault.openLog(b.round_id).map((x) => x.segment_open_index), [2]);
+  assert.deepEqual(rounds.roundHead(a.round_id).holdout_opens, { segment: { ...H1 }, family_ids: ['MINE:CN_A:H5'], count: 1 });
+  assert.deepEqual(rounds.roundHead(b.round_id).holdout_opens, { segment: { ...H1 }, family_ids: ['MINE:CN_A:H5'], count: 2 });
+  const stubRecord = (r) => gateRecords.internals.withGate(() => ({ pass: false, codes: ['SYNTHETIC'], items: [] }),
+    () => gateRecords.recordGateResult({ round_id: r.round_id, candidate_id: `${r.round_id}:A005`, candidate: {} }));
+  stubRecord(a); stubRecord(b);
+  assert.equal(rounds.closeRound(a.round_id).holdout_opens.count, 1, 'the counter stays on the closed row');
+  rounds.closeRound(b.round_id);
+  assert.throws(() => open(3, '2027-01-04T04:00:00Z'), code(/MINE_ROUND_HOLDOUT_EXHAUSTED/), 'a third round may not reuse 10-19 → 12-31');
+  assert.throws(() => open(3, '2027-01-04T04:00:00Z', { from: '2026-12-01', to: '2027-02-26' }), code(/MINE_ROUND_HOLDOUT_MOVED/), 'overlapping the old segment');
+  assert.throws(() => open(3, '2027-01-04T04:00:00Z', { from: '2026-06-01', to: '2026-09-30' }), code(/MINE_ROUND_HOLDOUT_MOVED/), 'before the old segment');
+  const H2 = { from: '2027-01-04', to: '2027-03-31' };
+  const c = open(3, '2027-01-04T04:00:00Z', H2);
+  assert.deepEqual(c.holdout, H2);
+  assert.equal(open(4, '2027-01-05T04:00:00Z', H2).holdout.from, '2027-01-04');
+});
+
+test('R1.3：DSR 在前推验证折的月度收益上算，N = 本族累计尝试数；≥ 24 个月过 DSR 的输入核对，不足 24 个月是 UNKNOWN', () => {
+  const series = (n, mu) => Array.from({ length: n }, (_, k) => mu + 0.02 * Math.sin(k * 1.7 + 0.3));
+  const fam = [0.1, 0.25, -0.05, 0.3, 0.15, 0.2, 0.05];
+  const ok = holdoutScoring.dsrFromValidation({ monthly_d: series(33, 0.01), N: 12, familySharpes: fam });
+  assert.equal(ok.segment, 'VALIDATION_FOLDS');
+  assert.equal(ok.t_months, 33);
+  assert.ok(Number.isFinite(ok.dsr), String(ok.dsr));
+  const short = holdoutScoring.dsrFromValidation({ monthly_d: series(20, 0.01), N: 12, familySharpes: fam });
+  assert.deepEqual([short.dsr.value, short.dsr.reason], ['UNKNOWN', 'T_LT_24']);
+  const item1 = (dsr) => gate.checkDsr({ overfit: { dsr, n_trials: 12 } }, { familyTrialCount: 12 }).codes;
+  assert.ok(!item1(ok.dsr).includes('MINE_DSR_UNKNOWN'));
+  assert.ok(item1(short.dsr).includes('MINE_DSR_UNKNOWN'));
+  assert.ok(item1(ok.dsr).every((c) => c !== 'MINE_DSR_N_NOT_CUMULATIVE'));
+});
+
+test('R1.7：涨跌停按 V6 实盘的板块规则（price_limit_history_v1：主板 10%，主板 ST 5% 到 2026-07-06、之后 10%；创业板、科创板 20%）；价格四舍五入到分；涨停开盘买不进、跌停开盘卖不出', () => {
+  assert.equal(limits.bandOf({ board: 'MAIN', st: false, date: '2026-10-20' }).pct, 0.10);
+  assert.equal(limits.bandOf({ board: 'MAIN', st: true, date: '2026-07-03' }).pct, 0.05);
+  assert.equal(limits.bandOf({ board: 'MAIN', st: true, date: '2026-07-06' }).pct, 0.10);
+  assert.deepEqual([limits.bandOf({ board: 'CHINEXT', st: false, date: '2026-10-20' }).pct, limits.bandOf({ board: 'CHINEXT', st: false, date: '2026-10-20' }).source], [0.20, 'V6']);
+  assert.deepEqual([limits.bandOf({ board: 'CHINEXT', st: true, date: '2025-03-03' }).pct, limits.bandOf({ board: 'CHINEXT', st: true, date: '2025-03-03' }).source], [0.20, 'RESEARCH_EXTENSION']);
+  assert.equal(limits.bandOf({ board: 'CHINEXT', st: false, date: '2020-07-01' }).pct, 0.10);
+  assert.equal(limits.bandOf({ board: 'STAR', st: false, date: '2024-05-06' }).pct, 0.20);
+  assert.throws(() => limits.bandOf({ board: 'BSE', st: false, date: '2026-10-20' }), code(/MINE_LIMIT_BOARD_UNSUPPORTED/));
+  assert.equal(limits.boardOf('300750.SZ', 'MAIN'), 'CHINEXT', 'V6 classifies by the code prefix');
+  assert.equal(limits.boardOf('688981.SH', 'MAIN'), 'STAR');
+  assert.equal(limits.boardOf('600000.SH', 'STAR'), 'MAIN');
+  assert.equal(limits.boardOf('S03.SH', 'STAR'), 'STAR', 'non-numeric synthetic codes fall back to the master board');
+  assert.deepEqual(limits.limitPrices(10.005, 0.10), { up: 11.01, down: 9 });
+  assert.equal(limits.canBuy({ open: 11.0, prevClose: 10, pct: 0.10 }), false, 'open at the limit-up price');
+  assert.equal(limits.canBuy({ open: 10.99, prevClose: 10, pct: 0.10 }), true);
+  assert.equal(limits.canSell({ open: 9.0, prevClose: 10, pct: 0.10 }), false, 'open at the limit-down price');
+  assert.equal(limits.canSell({ open: 9.01, prevClose: 10, pct: 0.10 }), true);
+  assert.equal(limits.canBuy({ open: NaN, prevClose: 10, pct: 0.10 }), false, 'no open = suspended = not tradable');
+
+  // 手算：X9 在 t=0 涨停开盘买不进，t=2 才买进；t=4 换仓时 X8 跌停开盘卖不出、留到 t=6
+  const dates = []; for (let d = '2026-12-14'; d <= '2026-12-31'; d = new Date(Date.parse(`${d}T00:00:00Z`) + 864e5).toISOString().slice(0, 10)) if (![0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay())) dates.push(d);
+  const T = dates.length; const N = 10; const codes = Array.from({ length: N }, (_, j) => `X${j}`);
+  const grow = (j) => 1 + 0.001 * (j + 1);
+  const ex = dates.map((_, t) => codes.map((_, j) => 10 * grow(j) ** t));
+  const openRaw = dates.map((_, t) => codes.map((_, j) => (t === 0 && j === 9 ? 11.0 : t === 4 && j === 8 ? 9.0 : 10.0)));
+  const panel = { segment: 'HOLDOUT', dates, codes, readings: { pb: dates.map((_, t) => codes.map((_, j) => (t < 4 ? j : -j))) }, industry: dates.map(() => codes.map(() => '801010')),
+    size: dates.map(() => codes.map(() => 1e9)), universe: dates.map(() => codes.map(() => true)), board: codes.map(() => 'MAIN'), st: dates.map(() => codes.map(() => false)),
+    labels: { exec_open: ex, open_raw: openRaw, prev_close_raw: dates.map(() => codes.map(() => 10)) } };
+  const parsed = require('../services/mining-sandbox/dsl').parse('pb', require('../services/mining-sandbox/space').dslSpaceOf(JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json'), 'utf8'))));
+  const H = 2; const s = holdoutScoring.scoreCandidate(parsed, panel, { holding_period: H });
+  const fwd = (j) => grow(j) ** H - 1; const mean = (xs) => xs.reduce((x, y) => x + y, 0) / xs.length;
+  const c = holdoutScoring.NET.cost; const one = (c.commission_bps + c.slippage_bps) / 1e4; const sell = one + c.stamp_duty_bps / 1e4;
+  const net = [mean([fwd(8)]) - one, mean([fwd(8), fwd(9)]) - 0.5 * one, mean([fwd(8), fwd(0), fwd(1)]) - (2 / 3) * one - 0.5 * sell, mean([fwd(0), fwd(1)]) - (1 / 3) * sell,
+    mean([fwd(0), fwd(1)]), mean([fwd(0), fwd(1)])];
+  const bench = net.map(() => mean(codes.map((_, j) => fwd(j))));
+  const prod = (xs) => xs.reduce((a, x) => a * (1 + x), 1);
+  const want = (prod(net) / prod(bench)) ** (242 / (net.length * H)) - 1;
+  assert.equal(s.net_of_cost.periods, 6);
+  assert.ok(Math.abs(s.net_of_cost.annualized_excess - want) < 1e-12, `${s.net_of_cost.annualized_excess} vs ${want}`);
+  assert.deepEqual(s.net_of_cost.limit_events, { entry_blocked_limit_up: 1, exit_carried_limit_down: 1, entry_blocked_no_open: 0, exit_carried_no_open: 0 });
+  assert.equal(s.net_of_cost.limit_moves, 'MODELLED_V6_BOARD_BANDS');
+  const { open_raw: _o, ...noLimits } = panel.labels;
+  assert.throws(() => holdoutScoring.scoreCandidate(parsed, { ...panel, labels: noLimits }, { holding_period: H }), code(/MINE_HOLDOUT_SCORE_LIMIT_INPUT_MISSING/));
+  // 适配器给出的面板带这几项
+  const hp = adapter.buildPanel({ sources: [...sources(), adapter.csvDirSource(fx.dirs.holdout, { mode: 'LIVE', label: 'holdout', holdout: true })], space: JSON.parse(fs.readFileSync(path.join(ROOT,
+    'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json'), 'utf8')), segment: 'HOLDOUT', from: '2026-09-01', to: '2026-12-31' });
+  const j = hp.codes.indexOf('S01.SH'); const i = hp.dates.indexOf('2026-10-20');
+  const raw = []; adapter.internals.forEachCsvRow(path.join(fx.dirs.holdout, 'prices_daily_stock.csv'), (r) => { if (r.security_id === 'S01.SH' && r.trade_date === '2026-10-20') raw.push(r); });
+  assert.deepEqual([hp.labels.open_raw[i][j], hp.labels.prev_close_raw[i][j]], [Number(raw[0].open), Number(raw[0].previous_close)]);
+  assert.equal(hp.board[hp.codes.indexOf('S03.SH')], 'STAR');
+  assert.equal(hp.st[i][j], false);
+});
+
+/** 合成的现有因子序列导出（FACTOR_SERIES_V1）：两个个股级、一个单元级（按单元成员映射到个股）、一个 ETF 级；一行入库迟到。 */
+function makeFactorSeries() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-factor-series-'));
+  const days = fx.calendar.filter((d) => d >= '2026-09-01' && d <= '2026-12-31');
+  const codes = ['S01.SH', 'S02.SH', 'S03.SH', 'S04.SZ', 'S05.SZ', 'S06.SZ', 'S07.SH', 'S08.SZ', 'S09.SH', 'S10.SZ', 'S11.SH', 'S12.SZ'];
+  const rows = []; const members = [];
+  const noise = (k, d, c) => (parseInt(sha(`${k}|${d}|${c}`).slice(0, 8), 16) / 0xffffffff) - 0.5;
+  for (const d of days) {
+    const at = `${d} 18:40:00+08`;
+    codes.forEach((c, n) => {
+      rows.push({ factor_id: 'CN_A.MOM.RS60_MARKET_PCT', grain: 'STOCK', business_date: d, key: c, value: (n * 7 + noise(1, d, c) * 10).toFixed(4), first_available_at: at });
+      rows.push({ factor_id: 'CN_A.QUALITY.STRUCTURAL_SCORE', grain: 'STOCK', business_date: d, key: c, value: (noise(2, d, c) * 100).toFixed(4),
+        first_available_at: d === '2026-10-20' && c === 'S01.SH' ? '2026-10-22 08:00:00+08' : at });
+      members.push({ business_date: d, security_id: c, unit_key: n % 2 ? 'SW2021:801010' : 'SW2021:801030' });
+    });
+    for (const u of ['SW2021:801010', 'SW2021:801030']) rows.push({ factor_id: 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7', grain: 'UNIT', business_date: d, key: u, value: (50 + noise(3, d, u) * 40).toFixed(4), first_available_at: at });
+    rows.push({ factor_id: 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', grain: 'ETF', business_date: d, key: '512480.SH', value: noise(4, d, 'e').toFixed(4), first_available_at: at });
+  }
+  fs.writeFileSync(path.join(dir, 'factor_series.csv'), fxi.csv(['factor_id', 'grain', 'business_date', 'key', 'value', 'first_available_at'], rows));
+  fs.writeFileSync(path.join(dir, 'unit_membership.csv'), fxi.csv(['business_date', 'security_id', 'unit_key'], members));
+  const files = ['factor_series.csv', 'unit_membership.csv'];
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${files.map((n) => `${sha(fs.readFileSync(path.join(dir, n)))}  ${n}`).join('\n')}\n`);
+  return dir;
+}
+
+test('R1.4：现有因子序列（FACTOR_SERIES_V1）按 business_date 收盘记、次一交易日开盘起用（迟到的行不用）；单元级按成员映射到个股；ETF 级对不上个股；最小二乘截距 t 手算一致', () => {
+  const dir = makeFactorSeries();
+  const fs1 = factorSeries.loadFactorSeries(dir);
+  assert.deepEqual(fs1.factor_ids.sort(), ['CN_A.MOM.RS60_MARKET_PCT', 'CN_A.QUALITY.STRUCTURAL_SCORE', 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7']);
+  const hp = adapter.buildPanel({ sources: [...sources(), adapter.csvDirSource(fx.dirs.holdout, { mode: 'LIVE', label: 'holdout', holdout: true })], space: JSON.parse(fs.readFileSync(path.join(ROOT,
+    'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json'), 'utf8')), segment: 'HOLDOUT', from: '2026-09-01', to: '2026-12-31' });
+  const p = factorSeries.stockPanel(fs1, 'CN_A.QUALITY.STRUCTURAL_SCORE', hp);
+  const row = (d) => p.find((x) => x.date === d);
+  assert.equal(row('2026-10-21').values['S01.SH'], undefined, 'the 10-20 row arrived after 10-21 09:00, so the 10-21 open cannot use it');
+  assert.ok(Number.isFinite(row('2026-10-21').values['S02.SH']));
+  assert.ok(Number.isFinite(row('2026-10-20').values['S01.SH']), 'the 10-19 row feeds the 10-20 open');
+  const u = factorSeries.stockPanel(fs1, 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7', hp);
+  assert.equal(u.find((x) => x.date === '2026-10-21').values['S02.SH'], u.find((x) => x.date === '2026-10-21').values['S04.SZ'], 'members of one unit share its value');
+  assert.throws(() => factorSeries.stockPanel(fs1, 'CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20', hp), code(/MINE_FACTOR_SERIES_GRAIN_NOT_STOCK_MAPPABLE/));
+  assert.equal(factorSeries.stockPanel(fs1, 'CN_A.SENT.ANALYST_REVISION_BREADTH', hp), null, 'absent factor');
+  // 截距 t：y = 0.5 + 2x + e，一个解释变量时与闭式一致
+  const x = Array.from({ length: 40 }, (_, k) => Math.sin(k)); const y = x.map((v, k) => 0.5 + 2 * v + 0.1 * Math.cos(3 * k));
+  const t = holdoutScoring.internals.olsInterceptT(y, x.map((v) => [v]));
+  const n = x.length; const mx = x.reduce((a, b) => a + b, 0) / n; const my = y.reduce((a, b) => a + b, 0) / n;
+  const sxx = x.reduce((a, v) => a + (v - mx) ** 2, 0); const beta = x.reduce((a, v, k) => a + (v - mx) * (y[k] - my), 0) / sxx; const alpha = my - beta * mx;
+  const s2 = y.reduce((a, v, k) => a + (v - alpha - beta * x[k]) ** 2, 0) / (n - 2); const se = Math.sqrt(s2 * (1 / n + (mx * mx) / sxx));
+  assert.ok(Math.abs(t.intercept - alpha) < 1e-10 && Math.abs(t.t - alpha / se) < 1e-8, JSON.stringify(t));
+});
+
+test('R1.5 机制登记 + R1.3 / R1.4 / R1.6 进 G-MINE 记录：留出段开启之前写、只追加、过 G-MECH；没登记的照样打分、第 9 项不过并写原因；命令行 mechanisms 列出幸存者并登记', () => {
+  const out = freshData();
+  const { r, sel } = toSelection(out);
+  const id = r.round_id; const [first, second, ...rest] = sel.selected;
+  assert.ok(first && second, `need two survivors (${sel.selected.length})`);
+  // 命令行：列出幸存者与登记状态
+  const env = { QRP_DATA_DIR: out, QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH };
+  const list = cli(['mechanisms', '--out', out, '--round', id], env);
+  assert.equal(list.status, 0, list.stderr);
+  const listed = JSON.parse(list.stdout);
+  assert.deepEqual(listed.survivors.map((x) => x.candidate_id), sel.selected);
+  assert.ok(listed.survivors.every((x) => x.registered === false && x.formula === roundTrials(id).find((t) => t.mining.candidate_id === x.candidate_id).rule_config.formula));
+  const M = { mechanism_id: 'SEL.MEANREV.SWING_BAND', economic_logic_zh: '前一日的过度反应在随后几日部分回吐（合成测试文本）', failure_mode_zh: '趋势行情里反转失效（合成测试文本）', written_at: '2026-11-17T09:00:00+08:00' };
+  const reg = mechanisms.registerMechanism(id, { candidate_id: first, ...M }, { writtenBy: AUTH });
+  assert.equal(reg.schema, 'MINING_MECHANISM_V1');
+  assert.equal(reg.gmech.route === 'NOT_DO_SETTLED', false);
+  assert.ok(/^[0-9a-f]{64}$/.test(reg.gmech.register_sha256));
+  assert.deepEqual(reg.same_mechanism_in_round, []);
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: first, ...M }, { writtenBy: AUTH }), code(/MINE_MECHANISM_DUPLICATE/));
+  const notSurvivor = sel.candidates.find((c) => !c.selected);
+  if (notSurvivor) assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: notSurvivor.candidate_id, ...M }, { writtenBy: AUTH }), code(/MINE_MECHANISM_CANDIDATE_NOT_SELECTED/));
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: second, ...M, mechanism_id: 'SEL.NOT.REGISTERED' }, { writtenBy: AUTH }), code(/MINE_MECHANISM_ID_NOT_REGISTERED/));
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: second, ...M, failure_mode_zh: '' }, { writtenBy: AUTH }), code(/MINE_MECHANISM_FIELDS/));
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: second, ...M, written_at: '2026-11-21 14:00' }, { writtenBy: AUTH }), code(/MINE_MECHANISM_WRITTEN_AT/));
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: second, ...M, written_at: '2099-01-01T00:00:00+08:00' }, { writtenBy: AUTH }), code(/MINE_MECHANISM_WRITTEN_AT/));
+  assert.throws(() => mechanisms.internals.withRoute('NOT_DO_SETTLED', () => mechanisms.registerMechanism(id, { candidate_id: second, ...M }, { writtenBy: AUTH })), code(/MINE_MECHANISM_NOT_DO_SETTLED/));
+  // 命令行登记第二个（同一机制 → 去重披露）
+  const file = path.join(out, 'mechanisms-input.jsonl');
+  fs.writeFileSync(file, `${JSON.stringify({ candidate_id: second, ...M, written_at: '2026-11-17T09:05:00+08:00' })}\n`);
+  const regCli = cli(['mechanisms', '--out', out, '--round', id, '--register', file], env);
+  assert.equal(regCli.status, 0, regCli.stderr);
+  assert.deepEqual(mechanisms.mechanismOf(id, second).same_mechanism_in_round, [first]);
+  // 打分：带现有因子序列
+  const fsDir = makeFactorSeries();
+  const s = runner.scoreHoldout({ roundId: id, sources: sources(), holdoutDir: fx.dirs.holdout, outDir: out, factorSeriesDir: fsDir, scoredAt: '2027-01-06T10:00:00+08:00', coverageFloor: COV });
+  assert.equal(s.opened, true);
+  assert.throws(() => mechanisms.registerMechanism(id, { candidate_id: rest[0] || first, ...M }, { writtenBy: AUTH }), code(/MINE_MECHANISM_AFTER_HOLDOUT_OPEN|MINE_MECHANISM_DUPLICATE/));
+  const score = JSON.parse(fs.readFileSync(path.join(runDirOf(out, id), 'score.json'), 'utf8'));
+  const res = new Map(score.results.map((x) => [x.candidate_id, x]));
+  assert.equal(res.get(first).mechanism.mechanism_id, M.mechanism_id);
+  assert.equal(res.get(first).mechanism.written_at, M.written_at);
+  assert.equal(res.get(first).mechanism.registration_hash, mechanisms.mechanismOf(id, first).record_hash);
+  for (const other of rest) {
+    assert.equal(res.get(other).mechanism, null);
+    assert.equal(res.get(other).mechanism_reason, 'NO_MECHANISM_REGISTERED_BEFORE_OPEN');
+  }
+  const recs = new Map(gateRecords.recordsOf(id).map((x) => [x.candidate_id, x]));
+  assert.ok(!recs.get(first).codes.includes('MINE_MECHANISM_UNKNOWN'));
+  for (const other of rest) assert.ok(recs.get(other).codes.includes('MINE_MECHANISM_UNKNOWN'));
+  // R1.3：DSR 在验证折上（≥ 24 个月），不再是 UNKNOWN
+  for (const x of score.results) {
+    assert.equal(x.overfit.dsr_segment, 'VALIDATION_FOLDS');
+    assert.ok(x.overfit.dsr_t_months >= 24, String(x.overfit.dsr_t_months));
+    assert.equal(x.overfit.n_trials, KNOWN.length);
+  }
+  for (const x of recs.values()) assert.ok(!x.codes.includes('MINE_DSR_UNKNOWN') && !x.codes.includes('MINE_DSR_N_NOT_CUMULATIVE'), x.codes.join(','));
+  const selFile = JSON.parse(fs.readFileSync(path.join(runDirOf(out, id), 'selection.json'), 'utf8'));
+  assert.ok(selFile.candidates.every((c) => c.validation_book.months >= 24 && c.validation_book.monthly_d.length === c.validation_book.months));
+  const famSr = selFile.candidates.map((c) => c.validation_book.sr).filter((x) => typeof x === 'number');
+  for (const x of score.results) {
+    const want = holdoutScoring.dsrFromValidation({ monthly_d: selFile.candidates.find((c) => c.candidate_id === x.candidate_id).validation_book.monthly_d, N: rounds.familyN('CN_A', 5), familySharpes: famSr });
+    assert.deepEqual(x.overfit.dsr, want.dsr, 'DSR = validation monthly series, N = family count, family SRs = every evaluated candidate');
+  }
+  // R1.4：库里每个 CN_A 因子都有一对相关；给了序列的个股级、单元级算得出，ETF 级与没给的照实 UNKNOWN；第 7 项缺序列时不算（写原因）
+  const want = factorLib.LIBRARY.factors.filter((f) => f.market === 'CN_A').map((f) => f.factor_id).sort();
+  const pairs = new Map(res.get(first).correlation.pairs.map((q) => [q.factor_id, q]));
+  assert.deepEqual([...pairs.keys()].sort(), want);
+  for (const fid of ['CN_A.MOM.RS60_MARKET_PCT', 'CN_A.QUALITY.STRUCTURAL_SCORE', 'CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7']) {
+    assert.ok(Number.isFinite(pairs.get(fid).rho_cross_section.value ?? pairs.get(fid).rho_cross_section), fid);
+    assert.ok(Number.isFinite(pairs.get(fid).rho_returns.value ?? pairs.get(fid).rho_returns), fid);
+  }
+  assert.equal(pairs.get('CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20').rho_cross_section.reason, 'ETF_GRAIN_NOT_MAPPABLE_TO_STOCKS');
+  assert.equal(pairs.get('CN_A.SENT.ANALYST_REVISION_BREADTH').rho_cross_section.reason, 'FACTOR_SERIES_ABSENT');
+  assert.equal(res.get(first).marginal.intercept_t, null);
+  assert.ok(res.get(first).marginal.unknown_reason.startsWith('BOOK_FACTOR_SERIES_MISSING:'));
+  assert.ok(recs.get(first).codes.includes('MINE_CORRELATION_UNKNOWN') && recs.get(first).codes.includes('MINE_MARGINAL_INPUT'));
+  // R1.6：留出段开启次数写进结果
+  assert.equal(res.get(first).holdout.segment_open_index, 1);
+  assert.equal(rounds.roundHead(id).holdout_opens.count, 1);
+  // R1.7：第 6 项按板块规则建模了涨跌停
+  assert.equal(res.get(first).net_of_cost.limit_moves, 'MODELLED_V6_BOARD_BANDS');
+  process.env.QRP_DATA_DIR = dataRoot;
+});
+
+test('命令行与容器：mechanisms 一步（不挂数据、不挂留出段、不出网）；score 可以挂现有因子序列（只读）；R1.1 写进合同', () => {
+  const sh = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/run.sh'), 'utf8');
+  const runs = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
+  const mech = runs.filter((l) => / mechanisms /.test(l));
+  assert.equal(mech.length, 1);
+  for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 1000:1000']) assert.ok(mech[0].includes(flag), flag);
+  assert.ok(!mech[0].includes('$HOLDOUT:') && !mech[0].includes('/data/lane') && !mech[0].includes('/data/tail'));
+  assert.ok(mech[0].includes(':/data/mechanisms.jsonl:ro'));
+  const score = runs.filter((l) => / score /.test(l));
+  assert.ok(score.every((l) => l.includes('$FACTOR_SERIES:/data/factor-series:ro') && l.includes('--factor-series /data/factor-series')));
+  assert.ok(require('../services/mining-sandbox/round-runner/cli').OPTIONS.mechanisms.includes('register'));
+  const contract = fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_SANDBOX_V1.md'), 'utf8') + fs.readFileSync(path.join(ROOT, 'docs/contracts/MINING_ROUNDS_V1.md'), 'utf8');
+  for (const k of ['R1.1', 'R1.2', 'R1.3', 'R1.4', 'R1.5', 'R1.6', 'R1.7', 'ce254328']) assert.ok(contract.includes(k), k);
+  assert.ok(fs.readFileSync(path.join(ROOT, 'services/mining-sandbox/round-runner/selector.js'), 'utf8').includes('FROZEN by R1.2'));
+});

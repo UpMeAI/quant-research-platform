@@ -7,16 +7,23 @@
  *   验证折 2024-01-02 → 2026-10-16 按自然半年切：2024H1、2024H2、2025H1、2025H2、2026H1、2026-07-01 → 2026-10-16。
  *   挖出的公式没有要拟合的参数，所以「训练窗」不选任何东西；每折只是一段样本外。
  * 每个候选每折：中性化（行业 + 市值，求值器的 neutralizeForScoring）后的逐日 rank IC 的均值；标签不越出验证折（面板到验证折终点为止）。
- * 选择规则 VALIDATION_SELECTION_V1（协调会话没有定，先按 DEFAULT_A 取最朴素的一条，交协调会话审）：
- *   全验证折的 IC 均值 > 0，且 IC 均值为正的折 ≥ ⌈2/3 × 折数⌉，且挖掘段分数也为正（方向一致）。
- * 输出只进执行器的输出目录（selection.json），不进试验台账、不进 generatorView；选完之后本轮不能再生成。
+ * 选择规则 VALIDATION_SELECTION_V1 —— FROZEN by R1.2（协调会话裁定 R1，RF1116_RULING_R1_20261117.md，ce254328…）：
+ *   6 个半年折；全验证折的 IC 均值 > 0，且 6 折中至少 4 折 IC 均值 > 0，且挖掘段分数 > 0。
+ *   规则作为数据写进每一轮的 MINING_ROUND_V1 清单（selection_rule），执行器从清单读，不读这里的常量；轮中不改，要改就是新的一轮。
+ * 输出只进执行器的输出目录（selection.json）与一行只追加的选择记录（文件 sha + 过了的候选编号），不进试验台账的指标、不进 generatorView；选完之后本轮不能再生成。
  */
 const segs = require('../segments');
 const scoring = require('../scoring');
 
+/** FROZEN by R1.2 —— 开轮时原样写进清单；改它不影响已开的轮（它们读自己的清单）。 */
 const RULE = Object.freeze({
-  schema: 'VALIDATION_SELECTION_V1', status: 'DEFAULT_PENDING_COORDINATOR_REVIEW', folds: 'HALF_YEAR_TEST_WINDOWS_11_10_S7_2', ic: 'NEUTRALIZED_DAILY_RANK_IC_MEAN',
-  mean_ic_gt: 0, positive_fold_share_min: 2 / 3, mining_score_gt: 0,
+  schema: 'VALIDATION_SELECTION_V1', state: 'FROZEN', ruling: 'R1.2', ic: 'NEUTRALIZED_DAILY_RANK_IC_MEAN',
+  folds: Object.freeze([
+    Object.freeze({ fold: 1, from: '2024-01-02', to: '2024-06-30' }), Object.freeze({ fold: 2, from: '2024-07-01', to: '2024-12-31' }),
+    Object.freeze({ fold: 3, from: '2025-01-01', to: '2025-06-30' }), Object.freeze({ fold: 4, from: '2025-07-01', to: '2025-12-31' }),
+    Object.freeze({ fold: 5, from: '2026-01-01', to: '2026-06-30' }), Object.freeze({ fold: 6, from: '2026-07-01', to: '2026-10-16' }),
+  ]),
+  mean_ic_gt: 0, positive_folds_min: 4, mining_score_gt: 0,
 });
 
 class SelectorError extends Error {
@@ -25,17 +32,8 @@ class SelectorError extends Error {
 const fail = (code, detail) => { throw new SelectorError(`MINE_SELECT_${code}`, detail); };
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
-/** 验证折的半年窗（按决策日）。 */
-function folds(seg = segs.SEGMENTS.VALIDATION) {
-  const out = []; let y = Number(seg.from.slice(0, 4)); let h = Number(seg.from.slice(5, 7)) <= 6 ? 1 : 2;
-  for (;;) {
-    const from = h === 1 ? `${y}-01-01` : `${y}-07-01`; const to = h === 1 ? `${y}-06-30` : `${y}-12-31`;
-    if (from > seg.to) break;
-    out.push({ fold: out.length + 1, from: from < seg.from ? seg.from : from, to: to > seg.to ? seg.to : to });
-    if (h === 1) h = 2; else { h = 1; y += 1; }
-  }
-  return out;
-}
+/** 规则里的折（按决策日）；默认是 R1.2 的六个半年折。 */
+const folds = (rule = RULE) => rule.folds.map((f) => ({ ...f }));
 
 function assertValidationPanel(panel) {
   const v = segs.SEGMENTS.VALIDATION; const d = panel && panel.dates;
@@ -46,24 +44,23 @@ function assertValidationPanel(panel) {
  * 一个候选在各折上的 IC。
  * @returns {{fold_ic: Array<{fold, from, to, ic_mean, ic_days}>, mean_ic: number|null, ic_days: number, positive_folds: number}}
  */
-function validationStats(parsed, panel, { holding_period: H }) {
+function validationStats(parsed, panel, { holding_period: H, rule = RULE }) {
   assertValidationPanel(panel);
   const neu = scoring.neutralizedValues(parsed, panel);
   const ic = scoring.dailyRankIc(neu.values, scoring.forwardReturns(panel, H), panel.universe);
-  const fs = folds();
+  const fs = folds(rule);
   const per = fs.map((f) => {
     const xs = panel.dates.map((d, t) => (d >= f.from && d <= f.to ? ic[t] : NaN)).filter(isNum);
     return { fold: f.fold, from: f.from, to: f.to, ic_mean: xs.length ? scoring.meanFinite(xs) : null, ic_days: xs.length };
   });
   const all = panel.dates.map((d, t) => (d >= segs.SEGMENTS.VALIDATION.from ? ic[t] : NaN)).filter(isNum);
   return { fold_ic: per, mean_ic: all.length ? scoring.meanFinite(all) : null, ic_days: all.length, positive_folds: per.filter((f) => isNum(f.ic_mean) && f.ic_mean > 0).length,
-    neutralization: neu.neutralization };
+    neutralization: neu.neutralization, values: neu.values };
 }
 
-/** 规则：全折均值 > 0、正折占比 ≥ 2/3、挖掘段分数 > 0。 */
-function passes(stats, miningScore) {
-  const need = Math.ceil(RULE.positive_fold_share_min * folds().length - 1e-9);
-  return isNum(stats.mean_ic) && stats.mean_ic > RULE.mean_ic_gt && stats.positive_folds >= need && isNum(miningScore) && miningScore > RULE.mining_score_gt;
+/** 规则（清单里的那一条）：全折均值 > mean_ic_gt、正折 ≥ positive_folds_min、挖掘段分数 > mining_score_gt。 */
+function passes(stats, miningScore, rule = RULE) {
+  return isNum(stats.mean_ic) && stats.mean_ic > rule.mean_ic_gt && stats.positive_folds >= rule.positive_folds_min && isNum(miningScore) && miningScore > rule.mining_score_gt;
 }
 
 module.exports = { RULE, SelectorError, folds, validationStats, passes, assertValidationPanel };
