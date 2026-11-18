@@ -124,6 +124,10 @@
   - 两边都有的 4 个 ERR 是比较脚本对 R-XM-1 两题的门只探范围、不给文件字节（`MECHANISM_RULING_FILE_MISSING`、`COST_MODEL_RUN_LOG_MISSING`），新旧相同，不是回归。
 - **note_zh 抄值核对：** `copycheck.js` 核了两题 note_zh 与用途里 37 个带小数的数，都在本题封存 JSON、结果页或附注里原样出现，0 个不符。
 - **测试（Linux，nice 19 + ionice -c3）：**
-  - 相关 8 个文件 120 条：119 过、0 失败、1 跳过。
+  - 相关 8 个文件 120 条：119 过、0 失败、1 跳过。逐个文件（审阅 #128 P3-6，head a030ad3）：desk_review_sealed_return 16、trial_ledger_gates 15、cost_gate 12（1 跳过）、parity_gate 10、research_mechanism_gate 13、causality_gate 12、causality_fill_a1 12、trial_ledger 30。
   - 全套：基线 `d99fac5` 980 条、104 失败；本分支 982 条（多出本修订的 2 条）、104 失败。两边失败的测试名逐条相同（`9887feb0…`），都是既有失败。
 - **预演包：** `research-data/x07b_d4_import_v1/`（`SHA256SUMS`）。
+- **审阅 #128 之后再预演一次（head a030ad3，D4 绑 16 个文件）：**
+  - 用的是协调会话写过 §4.1 之后的真实台账副本：trials `91d81eae…`、披露 `e7cf24db…`、A 股锁 `867ac2e7…`。
+  - 走命令行 `stage`（19 题、68 个文件）加 `import`：17 把旧锁走重放，新增 `ASV-CN-R-STK-1-D4-63e91f82312c`（做，refs 16，其中 11 个 K2_NOTE，不带门的字段）与 `ASV-CN-X07B-4c84761fc7f9`（不做，trial PASS/PASS，OVD-3de5192f506536aa，refs 10）。
+  - 副本里前 17 行与真实台账逐字节相同；再导一次 19 题全是重放，行数仍是 19；真实台账前后 sha256 不变。
