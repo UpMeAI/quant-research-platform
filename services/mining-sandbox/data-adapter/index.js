@@ -39,6 +39,21 @@ const FILES = Object.freeze({
 const MODES = Object.freeze(['HISTORY', 'LIVE']);
 const SUFFIXED = /^_\d{8}\.csv$/;
 const ACCEPTED_QUALITY = Object.freeze(['READY']);
+/**
+ * 行业成员表另收 DEGRADED（★RF1116_INDUSTRY_QUALITY，2026-11-18 第 1 轮缺陷之后）：V6 把每一行行业成员都写成 DEGRADED
+ * （Ashare-V6 src/data-runtime/canonicalize.js:460：单一来源 Tushare index_member_all，没有第二来源核对），
+ * 只收 READY 等于一行都不收，打分前的行业中性化就把每个值都变成 NaN。行业只用于中性化与分组，不是读数。其余各表仍只收 READY。
+ */
+const ACCEPTED_INDUSTRY_QUALITY = Object.freeze(['READY', 'DEGRADED']);
+/**
+ * 行业数据的局限（独立复审 M-4，写进面板清单 industry_limits，只看本面板实际用到的数据）：
+ *   - SINGLE_SOURCE_NOT_RECONCILED：用了 DEGRADED 的成员行（V6 只有一个来源，没有第二来源核对）；
+ *   - HISTORY_BACKDATED_BY_SOURCE：SW2021 的成员按上市日回溯（例如 1991 年），first_available_at 也跟着回溯，而 SW2021 本身 2021 年才有；
+ *     面板里 2021-01-01 之前的日子用到了它，那些日子的分类是事后重述的历史（只用于中性化与分组）。
+ */
+const INDUSTRY_STANDARD_START = Object.freeze({ SW2021: '2021-01-01' });
+/** 成员的 effective_to 含当天（★RF1116_INDUSTRY_END_INCLUSIVE (a)）；用到了写有 effective_to 的成员时，局限里写 END_DATE_INCLUSIVE_V6_READS_EXCLUSIVE（直到 V6 改）。 */
+const INDUSTRY_EFFECTIVE_TO = 'INCLUSIVE';
 /** 历史时钟 → 最早可用的决策：两种都是次一交易日开盘（MINING_SANDBOX_V1：只用历史、按 P-14 次日开盘决策）。 */
 const CLOCKS = Object.freeze({ BAR_CLOSE: 'NEXT_OPEN', CLOSE_DATED_NEXT_OPEN_USABLE: 'NEXT_OPEN' });
 const LIVE_CUTOFF = 'T09:00:00+08:00';
@@ -66,6 +81,19 @@ class DataError extends Error {
 const fail = (code, detail) => { throw new DataError(`MINE_DATA_${code}`, detail); };
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const num = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+/**
+ * V6 的取值形状（第 1 轮的第二个数据原因，2026-11-18 车道探针）：market_daily_basic_observation.values 的每个字段是 { state, value }。
+ * PRESENT → value；ZERO → 0；MISSING 与其他任何 state → NaN（调用方计入 value_missing）；裸数照收；别的形状（对象、字符串里不是数）→ NaN。
+ * 原来 Number(对象) 恒为 NaN：七个 daily_basic 读数与市值全是 NaN，市值中性化把每个值都变成 NaN。
+ */
+const VALUE_STATES = Object.freeze({ PRESENT: 'VALUE', ZERO: 'ZERO' });
+function stateValue(x) {
+  if (x !== null && typeof x === 'object' && !Array.isArray(x)) {
+    const how = VALUE_STATES[x.state];
+    return how === 'ZERO' ? 0 : how === 'VALUE' ? num(x.value) : NaN;
+  }
+  return typeof x === 'number' || typeof x === 'string' ? num(x) : NaN;
+}
 
 // ── 时刻与日历 ───────────────────────────────────────────────────────────────
 
@@ -262,7 +290,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   const mat = () => new Float64Array(cells).fill(NaN);
   const counts = {
     prices_daily: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0 }, adj_factor: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0, value_missing: 0 },
-    daily_basic: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0 }, suspension: { rows: 0 }, industry: { rows: 0, backfill: 0 },
+    daily_basic: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0, value_missing: 0 }, suspension: { rows: 0 }, industry: { rows: 0, backfill: 0, by_quality: Object.fromEntries(ACCEPTED_INDUSTRY_QUALITY.map((q) => [q, 0])), quality_skipped: 0 },
   };
   /** 一行进格子：截止前入库 → 2；没赶上 → HISTORY 回补 1 / LIVE 不用（计数）。 */
   const category = (src, t, at, c) => (at <= cutoffOf(t) ? 2 : src.mode === 'HISTORY' ? 1 : (c.late_unused += 1, 0));
@@ -319,7 +347,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       const c = category(s, r.trade_date, at, counts.daily_basic);
       if (!c || !selB.take(k, c, at, Number(r.revision))) return;
       let v; try { v = JSON.parse(r.values); } catch { fail('BASIC_VALUES_INVALID', `${r.security_id}:${r.trade_date}`); }
-      for (const [name, key] of Object.entries(BASIC_FIELDS)) B[name][k] = num(v ? v[key] : null);
+      for (const [name, key] of Object.entries(BASIC_FIELDS)) { const x = stateValue(v ? v[key] : null); if (!Number.isFinite(x)) counts.daily_basic.value_missing += 1; B[name][k] = x; }
     });
   }
   counts.prices_daily.backfill = selP.backfilled(); counts.adj_factor.backfill = selA.backfilled(); counts.daily_basic.backfill = selB.backfilled();
@@ -334,15 +362,18 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
     });
   }
   // 行业成员：按 (证券, effective_from) 分组，组内按入库时刻选修订
-  const groups = new Map();
+  const groups = new Map(); let endDated = false;
   for (const s of sources) {
     if (!s.has('industry')) continue;
     s.forEach('industry', (r) => {
-      if (r.industry_standard !== industry.standard || r.industry_level !== industry.level || !codeIdx.has(r.security_id) || !ACCEPTED_QUALITY.includes(r.quality_state)) return;
+      if (r.industry_standard !== industry.standard || r.industry_level !== industry.level || !codeIdx.has(r.security_id)) return;
+      if (!ACCEPTED_INDUSTRY_QUALITY.includes(r.quality_state)) { counts.industry.quality_skipped += 1; return; }
       counts.industry.rows += 1;
+      counts.industry.by_quality[r.quality_state] += 1;
       const key = `${r.security_id}|${r.effective_from}`;
       if (!groups.has(key)) groups.set(key, { code: r.security_id, from: r.effective_from, revs: [] });
       groups.get(key).revs.push({ at: parseTs(r.first_available_at), rev: Number(r.revision), to: r.effective_to, value: r.industry_code || r.industry_name });
+      if (r.effective_to) endDated = true;
     });
   }
   const byCode = new Map();
@@ -359,12 +390,19 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
         const known = g.revs.filter((x) => x.at <= cutoff);
         const pick = known.length ? known.reduce((a, b) => (b.at > a.at || (b.at === a.at && b.rev >= a.rev) ? b : a))
           : g.revs.reduce((a, b) => (b.at < a.at || (b.at === a.at && b.rev >= a.rev) ? b : a));
-        if (pick.to && !(d < pick.to)) continue;
+        // ★RF1116_INDUSTRY_END_INCLUSIVE (a)：effective_to 是成员的最后一天（含）。V6 真实数据里新成员的 effective_from 是它的下一天；
+        // 按不含读（V6 现在的读法），换行业的股票在最后一天没有行业（2021-07-29 有 564 只）。V6 的读法另有修复，清单里写明差别。
+        if (pick.to && d > pick.to) continue;
         if (!best || g.from >= best.from) { best = { from: g.from, value: pick.value }; backfill = !known.length; }
       }
       if (best) { industryM[i][j] = best.value; if (backfill) counts.industry.backfill += 1; }
     }
   }
+  // 行业数据的局限（复审 M-4）：只记本面板实际用到的
+  const standardStart = INDUSTRY_STANDARD_START[industry.standard] || null;
+  const backdated = standardStart !== null && dates.some((d, i) => d < standardStart && industryM[i].some((g) => g !== null));
+  const industryLimits = [...(counts.industry.by_quality.DEGRADED > 0 ? ['SINGLE_SOURCE_NOT_RECONCILED'] : []), ...(backdated ? ['HISTORY_BACKDATED_BY_SOURCE'] : []),
+    ...(endDated && counts.industry.rows > 0 ? ['END_DATE_INCLUSIVE_V6_READS_EXCLUSIVE'] : [])];
   // 股票池；同时记当天是否 ST 与板块（涨跌停用，R1.7）
   const universe = Array.from({ length: T }, () => new Array(N).fill(false));
   const st = Array.from({ length: T }, () => new Array(N).fill(false));
@@ -401,16 +439,17 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       sources: sources.map((s) => ({ label: s.label, mode: s.mode, kind: s.kind || null, holdout: Boolean(s.holdout), sums_sha256: s.sums_sha256 || null })),
       rules: {
         decision: 'NEXT_OPEN', live_cutoff: `next trading day ${LIVE_CUTOFF.slice(1)}`, revision_known: 'LATEST_FIRST_AVAILABLE_BY_CUTOFF', revision_history_backfill: 'EARLIEST_RECORDED_INSTANT_HIGHEST_REVISION',
-        accepted_quality: [...ACCEPTED_QUALITY], min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_exchange: calendarExchange, exchanges_excluded: ['BSE'],
+        accepted_quality: [...ACCEPTED_QUALITY], industry_accepted_quality: [...ACCEPTED_INDUSTRY_QUALITY], industry_effective_to: INDUSTRY_EFFECTIVE_TO, min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_exchange: calendarExchange, exchanges_excluded: ['BSE'],
       },
       calendar: { exchange: calendarExchange, open_days_in_sources: cal.length, last_date: calMax, sse_szse_disagreements: disagreements.filter((d) => d >= from && d <= to),
         sse_szse_disagreements_all: disagreements.length },
       counts,
+      industry_limits: industryLimits,
     },
   };
 }
 
 module.exports = {
-  FILES, MODES, ACCEPTED_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, DataError,
+  FILES, MODES, ACCEPTED_QUALITY, ACCEPTED_INDUSTRY_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, DataError,
   csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, internals: { forEachCsvRow, parseTs, clockOf, mapReadings },
 };

@@ -47,8 +47,9 @@ const FACTS = Object.freeze({
   conflict: { code: 'S07.SH', date: '2021-08-02' },
   calendarDisagree: { date: '2021-04-07', sse: 't', szse: 'f' },
   industryRevision: { code: 'S08.SZ', from: '2015-01-05', before: '801080', after: '801050', at: '2026-10-12 10:00:00+08' },
-  reclass: { code: 'S06.SZ', date: '2023-07-03', from: '801010', to: '801080' },
-  membershipEnds: { code: 'S12.SZ', date: '2023-07-17' },
+  // ★RF1116_INDUSTRY_END_INCLUSIVE (a)：effective_to 是成员的最后一天（含），与 V6 真实数据一样（新成员的 effective_from 是旧成员 effective_to 之后的下一天）
+  reclass: { code: 'S06.SZ', date: '2023-07-03', lastOld: '2023-06-30', from: '801010', to: '801080' },
+  membershipEnds: { code: 'S12.SZ', date: '2023-07-17' }, // date = 最后一个还属于该行业的交易日
 });
 
 function mulberry32(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -92,9 +93,14 @@ const ingestAt = (d) => (segOf(d) === 'lane' && d < '2026-09-01' ? BACKFILL_AT :
 /**
  * 写出三个目录。返回 { root, dirs: { lane, tail, holdout }, facts, calendar: [开市日…] }。
  * opts.stocks（默认全部 16 只）可以只取前几只，给端到端测试提速；opts.seed 换随机序列。
- * opts.industryQuality（默认 READY）是行业成员表每一行的 quality_state（2026-11-18 第 1 轮缺陷：V6 的行业成员全是 DEGRADED）。
+ * opts.basicShape（默认 'V6'，与 V6 一样 { state, value }；'FLAT' 是裸数）：daily_basic 的 values 形状（第 1 轮第二个缺陷之前夹具写的是裸数）。
+ * opts.industryQuality（默认 DEGRADED，与 V6 一样：canonicalize.js:460 把每一行行业成员都写成 DEGRADED）是行业成员表每一行的 quality_state；
+ *   第 1 轮缺陷（2026-11-18）之前这里写的是 READY，测试因此没碰到生产的数据。
  */
-function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, industryQuality = 'READY' } = {}) {
+/** V6 的 daily_basic 取值形状（market_daily_basic_observation.values）：每个字段 { state, value }；0 记 ZERO，没有值记 MISSING。 */
+const v6Values = (v) => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === null || x === undefined || !Number.isFinite(x) ? { state: 'MISSING', value: null } : { state: x === 0 ? 'ZERO' : 'PRESENT', value: x }]));
+
+function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, industryQuality = 'DEGRADED', basicShape = 'V6' } = {}) {
   const rng = mulberry32(seed);
   const cal = calendar(CAL_FROM, SEGMENTS.holdout[1]);
   const openDays = cal.filter((c) => c.open).map((c) => c.date);
@@ -144,7 +150,7 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, 
       const values = { close: round(close), turnover_rate: round(1 + 4 * rng()), turnover_rate_f: round(1 + 5 * rng()), volume_ratio: round(0.5 + rng()), pe: round(10 + 40 * rng()), pe_ttm: round(10 + 40 * rng()),
         pb: round(1 + 4 * rng()), ps: round(1 + 9 * rng()), ps_ttm: round(1 + 9 * rng()), dv_ratio: round(3 * rng()), dv_ttm: round(3 * rng()), total_share: shares / 1e4, float_share: shares * 0.8 / 1e4,
         free_share: shares * 0.6 / 1e4, total_mv: mv / 1e4, circ_mv: round(mv * 0.8 / 1e4, 2) };
-      const basic = (v, rev, a) => ({ record_id: `db:${id}:${d}:${rev}`, raw_record_id: `dbr:${id}:${d}:${rev}`, security_id: id, trade_date: d, values: JSON.stringify(v), first_available_at: a, ingested_at: a,
+      const basic = (v, rev, a) => ({ record_id: `db:${id}:${d}:${rev}`, raw_record_id: `dbr:${id}:${d}:${rev}`, security_id: id, trade_date: d, values: JSON.stringify(basicShape === 'V6' ? v6Values(v) : v), first_available_at: a, ingested_at: a,
         source_record_id: `ts:db:${id}:${d}`, revision: rev, schema_version: 'synthetic-v1', quality_state: 'READY', source_reconciliation_state: 'MATCHED' });
       const f = FACTS;
       if (id === f.lookAhead.code && d === f.lookAhead.date) push(d, 'basic', basic({ ...values, pb: f.lookAhead.pb }, 1, at));
@@ -161,7 +167,7 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, 
       effective_from: from, effective_to: to, first_available_at: at, ingested_at: at, source_record_id: `sw:${id}:${from}`, revision: rev, schema_version: 'synthetic-v1', quality_state: industryQuality });
     if (id === FACTS.reclass.code) {
       tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', null, 1, BACKFILL_AT));
-      tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', FACTS.reclass.date, 2, BACKFILL_AT));
+      tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', FACTS.reclass.lastOld, 2, BACKFILL_AT));
       tables.tail.ind.push(ind(FACTS.reclass.to, FACTS.reclass.date, null, 1, BACKFILL_AT));
     } else if (id === FACTS.membershipEnds.code) {
       tables.tail.ind.push(ind(industry, '2015-01-05', null, 1, BACKFILL_AT));
