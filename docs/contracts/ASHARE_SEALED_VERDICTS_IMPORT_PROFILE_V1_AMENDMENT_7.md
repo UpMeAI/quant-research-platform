@@ -20,7 +20,9 @@
   - 结果页附注 1 `…_RESULT_1_NOTE_1.md`（`32fb2a41…`）；
   - 封存目录的 `SHA256SUMS`（`36b8bb26…`）。
 - **K2：** 冻结页 `R_STK_D4_SCREEN_RANKING_K2_V1_FREEZE_1.md`（`571806b6…`，正文逐字保留草稿 `55247349…`）。不另绑冻结页。
-- **K2 附注（K2_NOTE）：** 附注 1–7、NOTE_8（`bd908704…`）与 NOTE_8 澄清 1（`4e04d69d…`），共 9 页，按 sha256 绑定。判定运行的 ACCEPTANCE 门核过的就是冻结页、附注 1–7 与 NOTE_8，澄清 1 是运行头部点名的另一页。
+- **K2 附注（K2_NOTE）：** 附注 1–7、NOTE_8（`bd908704…`）与 NOTE_8 澄清 1（`4e04d69d…`），再加 NOTE_7、NOTE_8 的正文草稿（`…_NOTE_7.draft.md` `6b955f49…`、`…_NOTE_8.draft.md` `9b7a75d8…`），共 11 个文件，按 sha256 绑定。
+  - 判定运行的 ACCEPTANCE 门核过的是冻结页、附注 1–7 与 NOTE_8；澄清 1 是运行头部点名的另一页。
+  - NOTE_7、NOTE_8 两页只是冻结记录（「冻结后它就是 Note N 的正文」），正文在它们按 sha256 点名的草稿里。NOTE_8 §2 是各臂跑的基线修正。所以正文紧跟各自的冻结页一并绑定（审阅 #128 P3-1）。
 - **读法：** INSUFFICIENT 按 `resolve` 写成「做」，用途写前向影子的去向（结果页 §4）。
 - **note_zh：** 写 J2、J1、排序效应与 T_RS 基座的读数，都照封存 JSON 原样（年化 g，小数，不换算、不取整）。另写结果页 §5 的披露与结果页附注 1 的两节。
 
@@ -53,7 +55,7 @@
   - **(a)** 一行，只读 J2（全改动，结果页 §4 的机械判定）；J1（初筛增量，另写）与排序效应只写在 note_zh。
   - (b) J1、J2 各一行。
 - **★A7-2 D4 绑哪些 K2 文件：**
-  - **(a)** K2 = 冻结页，附注 1–7、NOTE_8 与澄清 1 作 K2_NOTE。
+  - **(a)** K2 = 冻结页，附注 1–7、NOTE_8、澄清 1 与 NOTE_7 / NOTE_8 的正文草稿作 K2_NOTE（11 个）。
   - (b) 只绑冻结页。
 
   附注只在 G-PARITY 适用时才被读，所以 (a) 只是把判定所依的文本钉进锁行。
@@ -78,6 +80,8 @@
 - **★A7-9 X07b 只绑本题自己的 K2 文件：**
   - **(a)** ACCEPTANCE 另核的 R-STK-1 FREEZE_1（`6eefdcbb…`）与附录 1 FREEZE_1（`dfe264b6…`）只在 note_zh 里按 sha 点名。
   - (b) 也作 ALSO 绑定。
+
+**绑定规则（审阅 #128 P3-5）：** 本题自己的 K2 家族（K2、冻结页、附注，以及附注页点名的正文）里，判定运行的 ACCEPTANCE 门读过的文件都按 sha256 绑定；别题的冻结页只按 ★A7-9 在 note_zh 里点名（X07b 的 R-STK-1 FREEZE_1 `6eefdcbb…`、附录 1 FREEZE_1 `dfe264b6…`）。
 
 ## 4. 真导入
 
@@ -108,7 +112,7 @@
 
 预期：
 - 登记表 17 → 19 题，新增两把锁；原有 17 把锁走幂等重放，不改。
-- `ASV-CN-R-STK-1-D4-63e91f82312c`：做；不带门的字段；refs 14 个（FILE、3 个 ALSO、K2、9 个 K2_NOTE）。
+- `ASV-CN-R-STK-1-D4-63e91f82312c`：做；不带门的字段；refs 16 个（FILE、3 个 ALSO、K2、11 个 K2_NOTE）。
 - `ASV-CN-X07B-4c84761fc7f9`：不做；`trial_gates` pre PASS / seal PASS，run_log_runs 3，disclosure_id OVD-3de5192f506536aa；refs 10 个（FILE、2 个 ALSO、K2、FREEZE、4 个 K2_NOTE、RUN_LOG）。
 
 ### 4.3 预演（Mac，真实文件 + 台账副本，真实台账前后 sha256 不变）
