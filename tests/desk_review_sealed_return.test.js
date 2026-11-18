@@ -469,7 +469,8 @@ test('A 股修订 7：X07b 从封存 X07B_RESULT.json 的 judged.verdict_zh 读�
   assert.equal(got.decision, '不做');
   assert.equal(got.strength, 'U_G_AT_OR_BELOW_ZERO');
   assert.equal(entry.resolve, undefined);
-  for (const zh of ['做（证据不足）', '做（有支持证据）', null]) assert.notEqual(overseas.internals.readVerdict(entry, { judged: { ...doc.judged, verdict_zh: zh } }).raw, entry.expect, String(zh));
+  for (const zh of ['做（证据不足）', '做（有支持证据）', '做']) assert.notEqual(overseas.internals.readVerdict(entry, { judged: { ...doc.judged, verdict_zh: zh } }).raw, entry.expect, zh);
+  assert.throws(() => overseas.internals.readVerdict(entry, { judged: { ...doc.judged, verdict_zh: null } }), /VERDICT_FIELD_MISSING/);
   assert.deepEqual(entry.read, { decision: 'judged.verdict_zh', state: 'judged.state', strength: 'judged.reason_code', use: null, text: null });
   assert.deepEqual([entry.strategy_ref, entry.kind, entry.sealed_on, entry.k2_frozen_at], ['ASHARE_V6_PAPER', 'RESULT', '2026-11-18', '2026-11-14T23:39:05+08:00']);
   assert.deepEqual(pick(entry.file), C('evidence/x07b-sealed-20261118/X07B_RESULT.json', '4c84761fc7f9909909172a3800dff32ca93c41b4ba711ee28e8a3f8adca72f74'));
