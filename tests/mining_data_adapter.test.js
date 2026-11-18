@@ -142,11 +142,14 @@ test('股票池：不含北交所；当天 ST、上市不满 120 个交易日、
 test('行业：申万 2021 一级，按 effective_from 截断（旧成员的修订 2 写了 effective_to）；二级不用；市值 = 前一交易日的 total_mv', () => {
   const p = adapter.buildPanel({ sources: [lane(), tail()], space: SPACE, segment: 'MINING', from: '2023-06-15', to: '2023-07-31' });
   const ind = (d, sec) => { const { i, j } = cell(p, null, d, sec); return p.industry[i][j]; };
-  assert.equal(ind(prevOpen(FACTS.reclass.date), FACTS.reclass.code), FACTS.reclass.from);
+  // ★RF1116_INDUSTRY_END_INCLUSIVE (a)：effective_to 含当天（旧成员的修订 2 写的是最后一个交易日 lastOld）
+  assert.equal(prevOpen(FACTS.reclass.date), FACTS.reclass.lastOld);
+  assert.equal(ind(FACTS.reclass.lastOld, FACTS.reclass.code), FACTS.reclass.from, 'the last day still belongs to the old industry');
   assert.equal(ind(FACTS.reclass.date, FACTS.reclass.code), FACTS.reclass.to);
   assert.equal(ind('2023-07-03', 'S01.SH'), '801010');
-  assert.equal(ind(prevOpen(FACTS.membershipEnds.date), FACTS.membershipEnds.code), '801080');
-  assert.equal(ind(FACTS.membershipEnds.date, FACTS.membershipEnds.code), null);
+  assert.equal(ind(FACTS.membershipEnds.date, FACTS.membershipEnds.code), '801080', 'effective_to is inclusive');
+  const after = fx.calendar[fx.calendar.indexOf(FACTS.membershipEnds.date) + 1];
+  assert.equal(ind(after, FACTS.membershipEnds.code), null, 'no industry from the next trading day');
   const { i, j } = cell(p, null, '2023-07-03', 'S01.SH');
   assert.equal(p.size[i][j], p.readings.total_mv[i][j]);
   assert.ok(Number.isFinite(p.size[i][j]));

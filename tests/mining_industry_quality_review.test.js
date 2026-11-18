@@ -55,13 +55,14 @@ test('M-4 面板清单：行业成员按质量的行数、被滤掉的行数，�
   assert.ok(c.by_quality && c.by_quality.DEGRADED > 0 && c.by_quality.DEGRADED === c.rows, JSON.stringify(c));
   assert.equal(c.by_quality.READY, 0);
   assert.equal(c.quality_skipped, 0);
-  assert.deepEqual(base.manifest.industry_limits, ['SINGLE_SOURCE_NOT_RECONCILED', 'HISTORY_BACKDATED_BY_SOURCE']);
+  assert.deepEqual(base.manifest.industry_limits, ['SINGLE_SOURCE_NOT_RECONCILED', 'HISTORY_BACKDATED_BY_SOURCE', 'END_DATE_INCLUSIVE_V6_READS_EXCLUSIVE']);
+  assert.equal(base.manifest.rules.industry_effective_to, 'INCLUSIVE');
   const conflict = panelOf(makeMiningDataFixture(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-iqr-c-')), { industryQuality: 'CONFLICT' }).dirs);
   assert.equal(conflict.manifest.counts.industry.rows, 0);
   assert.ok(conflict.manifest.counts.industry.quality_skipped > 0, 'refused rows are counted');
   assert.deepEqual(conflict.manifest.industry_limits, [], 'no industry row used: nothing to disclose');
   const ready = panelOf(makeMiningDataFixture(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-iqr-r-')), { industryQuality: 'READY' }).dirs);
-  assert.deepEqual(ready.manifest.industry_limits, ['HISTORY_BACKDATED_BY_SOURCE'], 'READY rows: not single-source; still backdated before 2021');
+  assert.deepEqual(ready.manifest.industry_limits, ['HISTORY_BACKDATED_BY_SOURCE', 'END_DATE_INCLUSIVE_V6_READS_EXCLUSIVE'], 'READY rows: not single-source; still backdated before 2021; end dates read inclusive'); 
 });
 
 test('L-6 日线写成 DEGRADED 的行不用（quality_skipped 增加，那只的后复权收盘价全是 NaN）', () => {
