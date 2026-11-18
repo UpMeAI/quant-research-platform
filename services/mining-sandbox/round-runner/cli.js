@@ -17,6 +17,7 @@
  *            写一行 MECHANISM_REVIEW_V1（只追加，最新的算数）。score / rescore 之前必须有覆盖每个选中候选、集合 sha 对得上、早于开启的复审。
  *   score 另可 --factor-series DIR（FACTOR_SERIES_V1，R1.4：G-MINE 第 7、8 项要的现有因子序列，只读）；--min-names-per-day 是留出段的下限（默认 4,000）。
  *   rescore（score 的选项）+ --reason TEXT --crash-log FILE：协调会话裁定 R1.8，开启之后崩溃的那一轮恰好一次同选集重打分；再崩以 FAILED_RESCORE 关轮。
+ *   fail-evaluation --out DIR --round ROUND_ID --reason TEXT --evidence-sha256 SHA：★RF1116_ROUND1_STATE (a)，留出段从未开启、本轮没被评估 → FAILED_EVALUATION（只追加）。
  *
  * 启动即 lockdown（只许写 --out）；QRP_DATA_DIR 必须在 --out 里。登记人取 QRP_PRODUCT_MILESTONE_AUTHORITY。
  * 只有 GP：--generator 给别的（比如 AI_MINED_LLM）→ MINE_LLM_NOT_ENABLED / MINE_GENERATOR_UNKNOWN。认不出的选项一律拒绝（generate 没有 --holdout）。
@@ -31,6 +32,7 @@ const OPTIONS = Object.freeze({
   mechanisms: ['out', 'round', 'register'],
   review: ['out', 'round', 'file'],
   rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log'],
+  'fail-evaluation': ['out', 'round', 'reason', 'evidence-sha256', 'failed-at'],
 });
 
 function parseArgs(argv) {
@@ -100,6 +102,14 @@ function main(argv) {
     const count = (k) => row.verdicts.filter((x) => x.verdict === k).length;
     return { command: 'review', round_id: o.round, record_hash: row.record_hash, mechanism_set_sha256: row.mechanism_set_sha256, supersedes: row.supersedes,
       verdicts: { APPROVED: count('APPROVED'), REJECTED: count('REJECTED') } };
+  }
+  if (cmd === 'fail-evaluation') {
+    // ★RF1116_ROUND1_STATE (a)：没被评估的轮（留出段从未开启）以 FAILED_EVALUATION 关轮，证据是缺陷报告的 sha256
+    required(o, ['out', 'round', 'reason', 'evidence-sha256']);
+    runner.start({ outDir: o.out });
+    const row = require('../../mining-rounds').failEvaluation(o.round, { reason: o.reason, evidenceSha256: o['evidence-sha256'], failedAt: o['failed-at'] || null });
+    return { command: 'fail-evaluation', round_id: o.round, status: row.status, gmine_passes: row.gmine_passes, evidence_sha256: row.gmine_basis.failed_evaluation.evidence_sha256,
+      attempts: row.gmine_basis.failed_evaluation.attempts, record_hash: row.record_hash, closed_at: row.closed_at };
   }
   required(o, ['out', 'round', 'lane', 'tail', 'holdout']);
   const { outDir } = runner.start({ outDir: o.out });

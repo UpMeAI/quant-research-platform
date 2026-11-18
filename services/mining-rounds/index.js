@@ -13,6 +13,7 @@
  *     第 201 个不算分、不入账，本轮停止（MINE_ROUND_CAP_REACHED，状态 CAP_REACHED，不补）。去重被拒的、正交化的版本照样各记一行。
  *   关轮：G-MINE 过了几个由逐候选的 G-MINE 记录数出来（./gate-records.js；不收调用方报的数），只给暂停规则用。
  *   失败终态（裁定 R1.8、R1.12）：FAILED_RESCORE、FAILED_PARTIAL，都按 0 个通过、记录标 VOID、尝试留在 N、释放名额、留出段开启照旧计数。
+ *   FAILED_EVALUATION（★RF1116_ROUND1_STATE (a)，2026-11-18）：留出段从未开启、本轮根本没算出分（第 1 轮缺陷）→ 0 个通过、尝试留在 N、释放名额、计入当月轮数。
  *   生成方能看到的（generatorView）：搜索空间、挖掘段分数、已试过的公式；看不到验证折、留出段、赛马、模拟盘的结果，也看不到 G-MINE 过没过。
  * 错误码 MINE_ROUND_* / MINE_MARKET_*；台账 research/mining_rounds.jsonl 与试验台账（只追加）。
  */
@@ -90,8 +91,8 @@ function write(body) {
  * 终态：CLOSED；R1.8 重打分又崩的 FAILED_RESCORE；R1.12 写了一部分 G-MINE 记录之后崩的 FAILED_PARTIAL。
  * 两个 FAILED_* 都按 0 个通过算（暂停规则把它们当「没过」的已关轮），都不占开轮名额，留出段的开启照旧计数。
  */
-const TERMINAL = Object.freeze(['CLOSED', 'FAILED_RESCORE', 'FAILED_PARTIAL']);
-const FAILED_TERMINAL = Object.freeze(['FAILED_RESCORE', 'FAILED_PARTIAL']);
+const TERMINAL = Object.freeze(['CLOSED', 'FAILED_RESCORE', 'FAILED_PARTIAL', 'FAILED_EVALUATION']);
+const FAILED_TERMINAL = Object.freeze(['FAILED_RESCORE', 'FAILED_PARTIAL', 'FAILED_EVALUATION']);
 
 /** 市场是否暂停：最近连续 3 个已关的轮都没有候选过 G-MINE。返回那几轮用过的空间 sha（解除要换一份新的）。 */
 function pauseState(market) {
@@ -303,6 +304,34 @@ function failPartial(roundId, { reason, logSha256 = null, failedAt = null } = {}
   return row;
 }
 
+/**
+ * 协调会话裁定 ★RF1116_ROUND1_STATE (a)（2026-11-18，第 1 轮 MR-CN_A-2026-11-e1ab63a27b）：本轮根本没被评估（例如每个候选的挖掘段分数都算不出），
+ * 以 FAILED_EVALUATION 关轮。只追加一行，不改任何一行。
+ *   - 只能从 OPEN / CAP_REACHED 进入，且留出段从未开启（轮次行没有 holdout_opens，留出段保管也没有开启记录）；
+ *   - 必须写原因与证据（缺陷报告）的 sha256；本轮没有一个尝试算出有限分数（复审 L-7，否则 MINE_ROUND_FAILED_EVALUATION_HAS_SCORES）；
+ *     0 个通过（gmine_basis 不收记录）；封存行、选择行原样留着；
+ *   - 终态：释放开轮名额；尝试照旧在试验台账里、计入 N（签字 §3.3「从不按轮清零」）；按开轮月份计入每月轮数；暂停规则按 0 个通过算。
+ */
+function failEvaluation(roundId, { reason, evidenceSha256, failedAt = null } = {}) {
+  const r = roundHead(roundId);
+  need(r, 'MINE_ROUND_NOT_FOUND', roundId);
+  need(r.status === 'OPEN' || r.status === 'CAP_REACHED', 'MINE_ROUND_FAILED_EVALUATION_NOT_ALLOWED', `${roundId}:${r.status}`);
+  need(isText(reason), 'MINE_ROUND_FAILED_EVALUATION_REASON', roundId);
+  need(SHA64.test(evidenceSha256 || ''), 'MINE_ROUND_FAILED_EVALUATION_EVIDENCE', roundId);
+  const vault = require('../holdout-vault');
+  need(!r.holdout_opens && !vault.openLog(roundId).length, 'MINE_ROUND_FAILED_EVALUATION_HOLDOUT_OPENED', roundId);
+  // 复审 L-7：算出过有限分数的轮是被评估过的轮，不能这样关（防止在留出段开启之前把一轮真结果丢掉）
+  const scored = [...trials.heads(trials.trialRows()).values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId
+    && t.rule_config && t.rule_config.attempt === undefined && t.metrics && Number.isFinite(t.metrics.mining_segment_score)).length;
+  need(scored === 0, 'MINE_ROUND_FAILED_EVALUATION_HAS_SCORES', `${roundId}:${scored}`);
+  const sel = selectionOf(roundId);
+  return write({ ...r, status: 'FAILED_EVALUATION', gmine_passes: 0,
+    gmine_basis: { holdout_open_hash: null, records: 0, record_hashes: [],
+      failed_evaluation: { reason, evidence_sha256: evidenceSha256, ruling: '★RF1116_ROUND1_STATE (a)', attempts: r.candidates_scored,
+        selected: sel ? sel.selected.length : null, holdout_sealed: Boolean(vault.sealOf(roundId)) } },
+    closed_at: failedAt || now() });
+}
+
 /** 续跑（--resume）时用过的数据核对（覆盖下限）也写进轮次行（data_checks.resumes，只追加）。 */
 function recordResumeCheck(roundId, check) {
   const r = roundHead(roundId);
@@ -333,5 +362,5 @@ function generatorView(roundId) {
 }
 
 module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, TERMINAL, FAILED_TERMINAL, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf,
-  beginScoring, closeRound, failRescore, failPartial, recordResumeCheck,
+  beginScoring, closeRound, failRescore, failPartial, failEvaluation, recordResumeCheck,
   roundHead, roundsOf, pauseState, familyN, generatorView, manifestSha };

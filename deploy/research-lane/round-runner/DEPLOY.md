@@ -236,6 +236,26 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 - writes one `MINING_GATE_RECORD_V1` per candidate;
 - closes the round.
 
+## A round that was never evaluated (★RF1116_ROUND1_STATE (a))
+
+`run.sh fail-evaluation <round_id> <reason> <evidence_sha256>` closes the round as **`FAILED_EVALUATION`**. It appends one row and edits nothing, and it mounts only `out/`.
+- **When it is allowed:** only from `OPEN` or `CAP_REACHED`, only if the holdout was never opened, and only if no attempt has a finite mining score (a round that was evaluated is refused with `MINE_ROUND_FAILED_EVALUATION_HAS_SCORES`). It needs a reason and the sha256 of the defect report.
+- **What it records:** 0 passes. The seal and selection rows stay.
+- **What it frees:** the open-round slot.
+- **What still counts:**
+  - the attempts stay in N (signed §3.3: never reset by round);
+  - the round counts toward its month's 2 rounds;
+  - the pause rule counts it as 0 passes.
+- After it, no candidate can be recorded and the holdout cannot be opened or scored.
+
+**Round 1** (`MR-CN_A-2026-11-e1ab63a27b`, 2026-11-18): every mining score was null because no industry-membership row entered the panel (fixed by the canary and the industry-quality change). Run this once, with the image redeployed from the merge that contains this command:
+
+```sh
+RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh fail-evaluation MR-CN_A-2026-11-e1ab63a27b "RF1116 round 1 (2026-11-18): no industry-membership row entered the panel (V6 writes DEGRADED, the adapter accepted READY only), so every mining score was null; ROUND1_DEFECT_STOP" 3e3c70fcdc792e716c8fe09fc774c92427a636a8f3719b064fc95d4be89aa4f9
+```
+
+The evidence sha256 is that of `artifacts/coordinator/evidence/rf1116-round1-defect-aqua-20261118/ROUND1_DEFECT_REPORT.md` (read-only). It prints one JSON line: `status: FAILED_EVALUATION`, `gmine_passes: 0` and the row's `record_hash`. Round 2 is then November's last round. It may share the 2026-10-19 → 12-31 holdout, because round 1 never opened it.
+
 ## Limits and timing
 
 | item | value |
