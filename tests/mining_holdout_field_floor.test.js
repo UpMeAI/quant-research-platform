@@ -54,6 +54,17 @@ function holdout(segment, { sealed = {}, appended = {} } = {}) {
   if (Object.keys(appended).length) resum(dir);
   return { dir, seal: { data_sha256: sha256(fs.readFileSync(path.join(dir, 'SHA256SUMS.sealed'))), segment } };
 }
+/** 真实行夹具的副本当「之前的源」（验证尾段）：日线、daily_basic、复权因子只留交易日早于 cut 的行（extra：{ [file]: rows } 追加的行）。 */
+function cutCopy(cut, extra = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-hff-tail-'));
+  for (const f of fs.readdirSync(FIXTURE)) if (f.endsWith('.csv')) fs.copyFileSync(path.join(FIXTURE, f), path.join(dir, f));
+  for (const file of [PRICES, BASIC, 'adjustment_factor_observation_stock.csv']) {
+    const rows = readRows(path.join(dir, file)); const cols = Object.keys(rows[0]);
+    writeRows(path.join(dir, file), cols, [...rows.filter((r) => r.trade_date < cut), ...(extra[file] || [])]);
+  }
+  resum(dir);
+  return dir;
+}
 /** daily_basic 的某些行改 values（fn(r, v) 返回 true 才写回）。 */
 const basicEdit = (fn) => (rows) => rows.map((r) => { const v = JSON.parse(r.values); return fn(r, v) ? { ...r, values: JSON.stringify(v) } : r; });
 /** 一行的晚到修订：revision + 1、入库时刻在截止之后。 */
@@ -157,11 +168,11 @@ test('复审 P3-2：第一个决策日的前一天在之前的 LIVE 源（验证
   const drop = (rows) => rows.filter((r) => r.trade_date !== '2026-10-12');
   const h = holdout(FULL, { sealed: { [BASIC]: drop, [PRICES]: drop, 'adjustment_factor_observation_stock.csv': drop } });
   assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, MIN), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-10-12:0$/));
-  const tail = adapter.csvDirSource(FIXTURE, { mode: 'LIVE', label: 'tail' });
+  const tail = adapter.csvDirSource(cutCopy('2026-10-13'), { mode: 'LIVE', label: 'tail' }); // 尾段只到第一个决策日之前（导出规格 rev 5：截到 D1）
   const c = runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [tail] });
   assert.deepEqual(c.trade_dates.prior_sources, ['tail']);
   assert.ok(c.field_states_per_day.total_mv.min >= 20);
-  const history = adapter.csvDirSource(FIXTURE, { mode: 'HISTORY', label: 'lane' });
+  const history = adapter.csvDirSource(cutCopy('2026-10-13'), { mode: 'HISTORY', label: 'lane' });
   assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [history] }), code(/HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-10-12:0$/), 'only LIVE sources feed the check');
 });
 
@@ -192,4 +203,35 @@ test('复审 P3-1：排除文件（HOLDOUT_FIELD_EXCLUSIONS_V1，sha 钉住）�
   assert.throws(() => runner.loadFieldExclusions(mv.f, mv.sha, ROUND), code(/MINE_RUNNER_FIELD_EXCLUSION_NOT_ALLOWED:2026-10-14:total_mv/));
   const offDay = write(doc([{ trade_date: '2026-10-16', field: 'turnover_rate_f', reason: 'x' }]));
   assert.throws(() => runner.holdoutDirCheck(gap.dir, gap.seal, { ...MIN, fieldExclusions: runner.loadFieldExclusions(offDay.f, offDay.sha, ROUND) }), code(/MINE_RUNNER_FIELD_EXCLUSION_DAY_UNKNOWN:2026-10-16:turnover_rate_f/));
+});
+
+test('跟进 A（复审 R9 / R9b）：留出段以外的源里有交易日落在第一个决策日或之后的日线 / daily_basic / 复权因子行 → 开启之前就拒（面板会拿它顶替封存的行）', () => {
+  const h = holdout(FULL);
+  // 整份夹具当尾段：它有 10-13..10-16 的行
+  assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [adapter.csvDirSource(FIXTURE, { mode: 'LIVE', label: 'tail' })] }),
+    code(/MINE_RUNNER_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE:tail:(prices_daily_stock|market_daily_basic_observation_stock|adjustment_factor_observation_stock)\.csv:2026-10-1[3-6]$/));
+  // HISTORY 源（车道副本）也一样
+  assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [adapter.csvDirSource(FIXTURE, { mode: 'HISTORY', label: 'lane' })] }),
+    code(/MINE_RUNNER_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE:lane:/));
+  // R9b：尾段截到第一个决策日之前，只多一行 10-14 的 daily_basic 修订（total_mv MISSING）→ 拒，点名那张表与那一天
+  const one = readRows(path.join(FIXTURE, BASIC)).find((r) => r.trade_date === DAY);
+  const v = JSON.parse(one.values); v.total_mv = MISSING;
+  const r9b = cutCopy('2026-10-13', { [BASIC]: [{ ...one, record_id: `${one.record_id}:tail`, revision: String(Number(one.revision || 0) + 1), values: JSON.stringify(v) }] });
+  assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [adapter.csvDirSource(r9b, { mode: 'LIVE', label: 'tail' })] }),
+    code(/MINE_RUNNER_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE:tail:market_daily_basic_observation_stock\.csv:2026-10-14$/));
+  // 截到第一个决策日之前的尾段 → 过
+  assert.ok(runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [adapter.csvDirSource(cutCopy('2026-10-13'), { mode: 'LIVE', label: 'tail' })] }).field_states_per_day.total_mv.min >= 20);
+});
+
+test('跟进 B（★RF1116_PRESENT_NULL = refuse）：PRESENT 但 value 是 null 的格子当 MISSING 算（只看有没有值，不读值的大小）', () => {
+  const h = holdout(FULL, { sealed: { [BASIC]: basicEdit((r, v) => { if (r.trade_date !== DAY) return false; v.total_mv = { state: 'PRESENT', value: null }; return true; }) } });
+  assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, MIN), code(/HOLDOUT_FIELD_INCOMPLETE:market_daily_basic_observation_stock\.csv:total_mv:2026-10-14:0$/));
+  const missingValue = holdout(FULL, { sealed: { [BASIC]: basicEdit((r, v) => { if (r.trade_date !== DAY) return false; v.pb = { state: 'PRESENT' }; return true; }) } });
+  assert.throws(() => runner.holdoutDirCheck(missingValue.dir, missingValue.seal, MIN), code(/HOLDOUT_FIELD_INCOMPLETE:market_daily_basic_observation_stock\.csv:pb:2026-10-14:0$/));
+});
+
+test('跟进 D：total_mv 不许排除——直接调 holdoutDirCheck、手写的排除也拒（不只在 loadFieldExclusions 里拒）', () => {
+  const h = holdout(FULL, { sealed: { [BASIC]: basicEdit((r, v) => { if (r.trade_date !== DAY) return false; v.total_mv = MISSING; return true; }) } });
+  const handBuilt = { sha256: 'c'.repeat(64), ruling: { path: 'x', sha256: 'd'.repeat(64) }, pairs: [{ trade_date: DAY, field: 'total_mv', reason: 'hand-built' }] };
+  assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, fieldExclusions: handBuilt }), code(/MINE_RUNNER_FIELD_EXCLUSION_NOT_ALLOWED:2026-10-14:total_mv/));
 });
