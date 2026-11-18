@@ -107,6 +107,15 @@ The run does the following:
   - `--min-names-per-day` exists for synthetic tests only; never pass it on the lane.
   - Otherwise it refuses with `MINE_RUNNER_COVERAGE_BELOW_FLOOR:<day>:<n><2000>`. No round is opened and nothing enters N.
   - The 2020-06 universe is about 3,800 names before exclusions.
+- **checks that the panel can score at all (canary, added after round 1's defect of 2026-11-18, tightened after the independent review):** before any round is opened or resumed, and again inside `generate()`, `(-close_hfq)` is run through the candidates' own neutralization path. A scored day is 1 ≤ t ≤ days − H − 1.
+  - On every scored day, the universe names with a finite neutralized value must number ≥ the coverage floor (**2,000**) and ≥ **0.9** × that day's coverage count (universe names with a finite `close_hfq`).
+  - The mining score must be finite, with IC days ≥ **0.95** × the scored days.
+  - Otherwise it refuses with `MINE_RUNNER_CANARY_UNSCORABLE:<formula>:<date>:neutralized=<n><max(<floor>,0.9x<coverage>)>` or `…:ic_days=<n><<min>`. No round is opened, no resume is recorded, nothing is sealed and nothing enters N.
+  - `generate.json` carries the result (`canary`: per formula `min_named`, `min_named_date`, `min_share`, `min_share_date`, plus the thresholds). `generate()` computes it itself and ignores any value passed in.
+  - Round 1 (`MR-CN_A-2026-11-e1ab63a27b`) had no usable industry-membership row. Scoring neutralization turned every value into NaN, and all 200 attempts had 0 IC days.
+- **never records a null score as scored:** an attempt whose mining score is not a finite number is recorded as `UNSCORABLE`, with its `ic_days`.
+  - Like a parse-refused or deduplicated attempt, it counts in N and is never selected.
+  - `generate.json` counts it under `attempts.unscorable`.
 - opens a CN_A GP round with the frozen space `0d3556fa…`, freeze page `4ec642b9…`, holding period 5, cap 200 and holdout 2026-10-19 → 2026-12-31;
 - seals the holdout (data_ref + `<holdout_sha256>`);
 - generates and scores on the mining segment. **Every attempt is a trial row** (parse-refused and deduplicated included), and the run stops at 200;

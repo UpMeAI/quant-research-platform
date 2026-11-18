@@ -63,6 +63,7 @@ function main(argv) {
     const m = require('../segments').SEGMENTS.MINING;
     const panel = adapter.buildPanel({ sources, space: runner.loadFrozenSpace().space, segment: 'MINING', from: m.from, to: m.to });
     runner.checkCoverage(panel, floor);
+    runner.checkCanary(panel, floor); // 第 1 轮缺陷之后：固定公式算不出分就不开轮、不记续跑（generate() 里再核一次并写进 generate.json）
     let roundId = o.resume;
     if (roundId) runner.noteResume({ roundId, coverageFloor: floor }); // 续跑用的下限也写进台账
     if (!roundId) {

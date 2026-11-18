@@ -92,8 +92,9 @@ const ingestAt = (d) => (segOf(d) === 'lane' && d < '2026-09-01' ? BACKFILL_AT :
 /**
  * 写出三个目录。返回 { root, dirs: { lane, tail, holdout }, facts, calendar: [开市日…] }。
  * opts.stocks（默认全部 16 只）可以只取前几只，给端到端测试提速；opts.seed 换随机序列。
+ * opts.industryQuality（默认 READY）是行业成员表每一行的 quality_state（2026-11-18 第 1 轮缺陷：V6 的行业成员全是 DEGRADED）。
  */
-function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length } = {}) {
+function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, industryQuality = 'READY' } = {}) {
   const rng = mulberry32(seed);
   const cal = calendar(CAL_FROM, SEGMENTS.holdout[1]);
   const openDays = cal.filter((c) => c.open).map((c) => c.date);
@@ -157,7 +158,7 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length }
       } else push(d, 'basic', basic(values, 1, at));
     }
     const ind = (code, from, to, rev, at) => ({ record_id: `im:${id}:${from}:${rev}`, security_id: id, industry_standard: 'SW2021', industry_level: 'L1', industry_code: code, industry_name: `行业${code}`,
-      effective_from: from, effective_to: to, first_available_at: at, ingested_at: at, source_record_id: `sw:${id}:${from}`, revision: rev, schema_version: 'synthetic-v1', quality_state: 'READY' });
+      effective_from: from, effective_to: to, first_available_at: at, ingested_at: at, source_record_id: `sw:${id}:${from}`, revision: rev, schema_version: 'synthetic-v1', quality_state: industryQuality });
     if (id === FACTS.reclass.code) {
       tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', null, 1, BACKFILL_AT));
       tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', FACTS.reclass.date, 2, BACKFILL_AT));

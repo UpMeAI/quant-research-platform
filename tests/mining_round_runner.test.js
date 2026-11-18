@@ -120,7 +120,7 @@ test('尝试计数（§4 第 5 条）：解析不过、去重被拒的都记一�
   // 这个生成方不守本批的 n（多给 7 个）：执行器自己到上限就停，不记第 201 个
   const stub = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => Array.from({ length: n + 7 }, (_, i) => texts[(view.mining_scores.length + i) % 4]) };
   const g = runner.internals.withGenerator(stub, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: COV }));
-  assert.deepEqual(g.attempts, { scored: 1, parse_refused: 100, deduped: 99 });
+  assert.deepEqual(g.attempts, { scored: 1, unscorable: 0, parse_refused: 100, deduped: 99 });
   assert.equal(g.total, 200);
   const head = rounds.roundHead(r.round_id);
   assert.deepEqual([head.status, head.candidates_scored], ['CAP_REACHED', 200]);
@@ -502,7 +502,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   };
   const a = run(7);
   assert.equal(a.g.total, 24);
-  assert.equal(a.g.attempts.scored + a.g.attempts.parse_refused + a.g.attempts.deduped, 24);
+  assert.equal(a.g.attempts.scored + a.g.attempts.unscorable + a.g.attempts.parse_refused + a.g.attempts.deduped, 24);
   assert.equal(a.g.attempts.parse_refused, 0, 'GP emits only legal DSL');
   assert.ok(a.g.selected >= 1, `some GP candidate passes the folds (${a.g.selected})`);
   const b = run(7);
