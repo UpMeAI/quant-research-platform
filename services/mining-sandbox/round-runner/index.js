@@ -357,6 +357,7 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     if (own && r.calendar_date > last) last = r.calendar_date;
   });
   const prior = priorSources.filter((s) => s.mode === 'LIVE' && !s.holdout);
+  const others = priorSources.filter((s) => !s.holdout); // 跟进 A：所有留出段以外的源（LIVE 与 HISTORY）都要核没有留出段日子的行
   for (const s of prior) if (s.has('calendar')) readCal(s, false);
   readCal(src, true);
   need(last >= seal.segment.to, 'HOLDOUT_INCOMPLETE', `trading_calendar.csv:${seal.segment.to}`);
@@ -369,6 +370,12 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   need(k0 > 0, 'HOLDOUT_INCOMPLETE', `trading_calendar.csv:no open day before ${days[0]}`);
   const feedDays = days.map((d) => openAll[openAll.indexOf(d) - 1]);
   const feedSet = new Set(feedDays); const daySet = new Set(days);
+  // 跟进 A（复审 R9 / R9b）：面板把所有源合在一起读，留出段以外的源里交易日落在第一个决策日或之后的日线 / daily_basic / 复权因子行，
+  // 会与封存的行争同一格（更晚的修订就顶替）。导出规格 rev 5：尾段截到 D1。这样的行一行都不许有，开启之前就拒。
+  for (const s of others) for (const [key, file] of [['prices', 'prices_daily_stock.csv'], ['basic', 'market_daily_basic_observation_stock.csv'], ['adj', 'adjustment_factor_observation_stock.csv']]) {
+    if (!s.has(key)) continue;
+    s.forEach(key, (r) => { need(!(r.trade_date >= days[0]), 'HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE', `${s.label}:${file}:${r.trade_date}`); });
+  }
   const cutoffOf = adapter.liveCutoffs(openAll);
   const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
   const partsOf = (file) => { const stem = file.slice(0, -'.csv'.length); return listed.map((x) => x.name).filter((n) => n === file || (n.startsWith(stem) && /^_\d{8}\.csv$/.test(n.slice(stem.length)))).sort(); };
@@ -403,7 +410,8 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
         if (isBasic) { // 复审 P2-1、P2-2：values 解析不过 → 开启之前就拒；只读状态，不读数、不留原文
           let v; try { v = JSON.parse(r.values); } catch { v = undefined; }
           need(v !== null && typeof v === 'object' && !Array.isArray(v), 'HOLDOUT_FIELD_VALUES_INVALID', `${file}:${r.trade_date}:${r.security_id}:${part}`);
-          fieldKeys.forEach((f, i) => { const x = v[f]; if (x !== null && typeof x === 'object' && USABLE.has(x.state)) mask |= 1 << i; });
+          // ★RF1116_PRESENT_NULL = refuse：PRESENT 却没有值（null / 缺这个键）当 MISSING 算——只看有没有值，不读值的大小
+          fieldKeys.forEach((f, i) => { const x = v[f]; if (x !== null && typeof x === 'object' && USABLE.has(x.state) && !(x.state === 'PRESENT' && (x.value === null || x.value === undefined))) mask |= 1 << i; });
         }
         if (at <= cutoffOf(r.trade_date)) { // 面板（LIVE）只用截止前入库的行
           add(lagAll, r.trade_date, r.security_id); if (sealed) add(lagSealed, r.trade_date, r.security_id);
@@ -423,12 +431,16 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   // total_mv 另要 ≥ 名字数下限。协调会话的排除文件（sha 钉住）列出的（日, 字段）不判，照实写进结果。
   const fieldStates = {};
   const excluded = new Set((fieldExclusions ? fieldExclusions.pairs : []).map((x) => `${x.field}|${x.trade_date}`));
-  if (fieldExclusions) for (const x of fieldExclusions.pairs) need(feedSet.has(x.trade_date), 'FIELD_EXCLUSION_DAY_UNKNOWN', `${x.trade_date}:${x.field}`);
+  if (fieldExclusions) for (const x of fieldExclusions.pairs) {
+    need(!HOLDOUT_FIELD_FLOOR.absolute_floor_fields.includes(x.field), 'FIELD_EXCLUSION_NOT_ALLOWED', `${x.trade_date}:${x.field}`); // 跟进 D：核对自己也拒，不只读文件时拒
+    need(feedSet.has(x.trade_date), 'FIELD_EXCLUSION_DAY_UNKNOWN', `${x.trade_date}:${x.field}`);
+  }
   {
     const file = HOLDOUT_FIELD_FLOOR.file;
     const tally = (m) => { const out = new Map(); for (const row of m.values()) fieldKeys.forEach((f, i) => { if (row.mask & (1 << i)) { const key = `${f}|${row.d}`; out.set(key, (out.get(key) || 0) + 1); } }); return out; };
     const all = tally(bestAll); const sealedT = tally(bestSealed);
-    const sealedDays = feedDays.filter((d) => [...bestSealed.values()].some((row) => row.d === d));
+    const sealedDaySet = new Set(); for (const row of bestSealed.values()) sealedDaySet.add(row.d);
+    const sealedDays = feedDays.filter((d) => sealedDaySet.has(d));
     for (const k of fieldKeys) {
       const per = feedDays.map((d) => all.get(`${k}|${d}`) || 0);
       const sealedCounts = sealedDays.map((d) => sealedT.get(`${k}|${d}`) || 0);
