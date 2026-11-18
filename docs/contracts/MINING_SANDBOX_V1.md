@@ -226,7 +226,11 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
 - **Completeness.**
   - The SSE calendar reaches the holdout end.
   - The calendar's READY SSE rows reach the holdout end.
-  - For every SSE open day in the holdout, the prices, daily_basic and adjustment-factor tables have READY rows for at least `HOLDOUT_FLOOR.min_names_per_day` (**4,000**, export spec rev 3 §3) **distinct `security_id`s**.
+  - **Which trade dates (review #127 P3-2).** The check counts the trade dates the panel actually reads, not the decision days.
+    - Readings are close-dated and used at the next open, so a decision day d reads the rows of the open day before d. The first decision day (10-19) is fed by 10-16, which lives in the validation tail. The check reads it from the LIVE sources passed with the directory (`priorSources`; `prepareScoring` passes the run's sources, and only LIVE ones are read). The last day's daily_basic feeds no decision day and is not checked.
+    - Prices and adjustment factors are also used on the decision day itself, as execution prices for the labels. Those rows are counted a second time over the decision days, with no cutoff (`label_rows_per_day`, refusal `…_HOLDOUT_INCOMPLETE:<file>:LABEL:<day>:<names>`).
+  - **Which rows (review #127 P1-1).** For the trade dates the panel reads, only READY rows that arrived by the LIVE cutoff count: 09:00 +08 on the next open day. Among those, the latest revision counts. The rule is the adapter's own (`adapter.liveCutoffs`, `adapter.laterRevision`), shared with `buildPanel`, so the check and the panel cannot disagree. A revision that lands later is ignored by both.
+  - For every such trade date, the prices, daily_basic and adjustment-factor tables have rows for at least `HOLDOUT_FLOOR.min_names_per_day` (**4,000**, export spec rev 3 §3) **distinct `security_id`s**.
     - Names are counted, not rows (re-review G5).
     - `.BJ` ids are excluded, as in the panel.
     - The mining-panel universe floor `COVERAGE_FLOOR` stays at 2,000, because the 2020 universe is about 3,800.
@@ -235,6 +239,12 @@ It runs only inside the research lane's rootless container (`deploy/research-lan
     - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
   - The refusal is `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`. The floor used goes into the open record's `pre_open_checks`, and the generate-phase floor into the round row's `data_checks`.
   - Export spec rev 3 ships the full calendar in every export, so the calendar alone proves nothing.
+- **Field states (`HOLDOUT_FIELD_FLOOR`, review #127).** Rows are not enough: V6 has days on which one daily_basic field is MISSING for every stock.
+  - For each of the 7 daily_basic fields and each trade date read (above), the check counts the names whose counted row has a usable **state**: PRESENT or ZERO (`adapter.USABLE_BASIC_STATES`). Values are never read or kept; each row is held as a 7-bit state mask (P2-2).
+  - Each count must reach **0.9** × the median of that field over the sealed days (★RF1116_FIELD_FLOOR_SHARE = 0.9, coordinator 2026-11-18, DEFAULT_A; P2-4). `total_mv`, which size neutralization uses, must also reach the names-per-day floor.
+  - Refusals: `…_HOLDOUT_FIELD_INCOMPLETE:<file>:<field>:<day>:<names>`; a field with no usable state on any sealed day gives `…_HOLDOUT_FIELD_EMPTY:<file>:<field>`; a READY row whose `values` is not a JSON object gives `…_HOLDOUT_FIELD_VALUES_INVALID:<file>:<day>:<security>:<part>` before the open (P2-1; the panel would throw only after it).
+  - **Exclusions (P3-1).** All 7 fields are floored. The only way to admit a field gap is a coordinator ruling file `HOLDOUT_FIELD_EXCLUSIONS_V1` passed with its sha256 (`score` / `rescore --field-exclusions FILE --field-exclusions-sha256 SHA`; `run.sh score <round> [file sha]`). It lists `{trade_date, field, reason}` pairs and cites the ruling `{path, sha256}`. Refusals: `…_FIELD_EXCLUSIONS_SHA_MISMATCH`, `…_FIELD_EXCLUSIONS_INVALID` (schema, round, shape, duplicates), `…_FIELD_EXCLUSION_NOT_ALLOWED` (`total_mv`), `…_FIELD_EXCLUSION_DAY_UNKNOWN` (a day the check does not read). Without the file nothing is excluded. Its sha goes into `inputs_sha256`.
+  - The counts (`field_states_per_day`, with `excluded_days` per field), the field floor and the exclusions go into the open record's `pre_open_checks.holdout_dir` and into `score.json` `holdout` (P2-3).
 
 Any failure refuses without spending the single open. A second open gives `MINE_HOLDOUT_ALREADY_OPENED`.
 

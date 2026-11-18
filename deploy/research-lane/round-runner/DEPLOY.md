@@ -205,12 +205,13 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
    - Each day must also reach at least half of the median of the **sealed** days, meaning the days in the files listed by `SHA256SUMS.sealed`, which cannot move after sealing. A thin completion export therefore cannot pull its own median down.
    - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
    - Otherwise it refuses with `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`.
-   - **Field states per day (added 2026-11-18 after the re-review; must be in the image before any score).** Rows are not enough: V6 has days on which one daily_basic field is MISSING for every stock (the -r4 tail: `turnover_rate_f` and `dv_ttm` on 2026-09-29, 10-08 and 10-09).
-     - For each daily_basic reading, the check counts the names whose latest READY row has a usable value under the adapter's `{state, value}` reading (PRESENT or ZERO).
-     - Every holdout day must reach at least half the median of the sealed days for that field. `total_mv`, which size neutralization uses, must also reach the names-per-day floor.
-     - Otherwise it refuses with `…_HOLDOUT_FIELD_INCOMPLETE:<file>:<field>:<day>:<names>`. A field with no usable value on any sealed day refuses with `…_HOLDOUT_FIELD_EMPTY:<file>:<field>`.
-     - The counts are returned as `field_states_per_day`. If the real holdout has such a day, the open is refused and needs a coordinator ruling (exclude the day or the field); it is never spent silently.
-   - The floor used is written into the vault's open record (`pre_open_checks`).
+   - **Which rows and days (review #127, 2026-11-18).** The check counts what the panel reads: the trade dates that feed the decision days (10-16 → 12-30; 10-16 comes from the validation tail), only rows in by 09:00 +08 on the next open day, latest revision first. A late re-collect therefore cannot make a day look complete. Prices and adjustment factors are counted once more over the decision days 10-19 → 12-31 for the execution labels.
+   - **Field states per day (must be in the image before any score).** Rows are not enough: V6 has days on which one daily_basic field is MISSING for every stock (the -r4 tail: `turnover_rate_f` and `dv_ttm` on 2026-09-29, 10-08 and 10-09).
+     - For each daily_basic field, the check counts the names whose counted row has a usable state (PRESENT or ZERO). It reads states only, never values.
+     - Every trade date must reach **0.9** × the median of the sealed days for that field (★RF1116_FIELD_FLOOR_SHARE). `total_mv` must also reach the names-per-day floor.
+     - Otherwise it refuses with `…_HOLDOUT_FIELD_INCOMPLETE:<file>:<field>:<day>:<names>`. A field with no usable value on any sealed day refuses with `…_HOLDOUT_FIELD_EMPTY:<file>:<field>`. A `values` cell that is not JSON refuses with `…_HOLDOUT_FIELD_VALUES_INVALID` before the open.
+     - **If the real holdout has such a day:** the open is refused. To go ahead, the coordinator writes a ruling and an exclusions file `HOLDOUT_FIELD_EXCLUSIONS_V1` `{schema, round_id, ruling: {path, sha256}, exclusions: [{trade_date, field, reason}]}` and runs `run.sh score <round_id> <exclusions.json> <its sha256>`. `total_mv` cannot be excluded. The file is mounted read-only; its sha, the pairs and the per-field counts go into the open record. Without the file nothing is excluded.
+   - The floors used, `field_states_per_day`, `field_floor` and any exclusions are written into the vault's open record (`pre_open_checks.holdout_dir`) and `score.json`.
 4. **The selection is the recorded one.** The `MINING_SELECTION_V1` row exists, and `selection.json` matches its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). The formulas are taken from the trial rows, not from the file.
 
 If any check fails it refuses, and the single open is not spent.
