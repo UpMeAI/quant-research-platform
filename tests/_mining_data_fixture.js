@@ -47,8 +47,9 @@ const FACTS = Object.freeze({
   conflict: { code: 'S07.SH', date: '2021-08-02' },
   calendarDisagree: { date: '2021-04-07', sse: 't', szse: 'f' },
   industryRevision: { code: 'S08.SZ', from: '2015-01-05', before: '801080', after: '801050', at: '2026-10-12 10:00:00+08' },
-  reclass: { code: 'S06.SZ', date: '2023-07-03', from: '801010', to: '801080' },
-  membershipEnds: { code: 'S12.SZ', date: '2023-07-17' },
+  // ★RF1116_INDUSTRY_END_INCLUSIVE (a)：effective_to 是成员的最后一天（含），与 V6 真实数据一样（新成员的 effective_from 是旧成员 effective_to 之后的下一天）
+  reclass: { code: 'S06.SZ', date: '2023-07-03', lastOld: '2023-06-30', from: '801010', to: '801080' },
+  membershipEnds: { code: 'S12.SZ', date: '2023-07-17' }, // date = 最后一个还属于该行业的交易日
 });
 
 function mulberry32(seed) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -166,7 +167,7 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, 
       effective_from: from, effective_to: to, first_available_at: at, ingested_at: at, source_record_id: `sw:${id}:${from}`, revision: rev, schema_version: 'synthetic-v1', quality_state: industryQuality });
     if (id === FACTS.reclass.code) {
       tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', null, 1, BACKFILL_AT));
-      tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', FACTS.reclass.date, 2, BACKFILL_AT));
+      tables.tail.ind.push(ind(FACTS.reclass.from, '2015-01-05', FACTS.reclass.lastOld, 2, BACKFILL_AT));
       tables.tail.ind.push(ind(FACTS.reclass.to, FACTS.reclass.date, null, 1, BACKFILL_AT));
     } else if (id === FACTS.membershipEnds.code) {
       tables.tail.ind.push(ind(industry, '2015-01-05', null, 1, BACKFILL_AT));

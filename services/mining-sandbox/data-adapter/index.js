@@ -52,6 +52,8 @@ const ACCEPTED_INDUSTRY_QUALITY = Object.freeze(['READY', 'DEGRADED']);
  *     面板里 2021-01-01 之前的日子用到了它，那些日子的分类是事后重述的历史（只用于中性化与分组）。
  */
 const INDUSTRY_STANDARD_START = Object.freeze({ SW2021: '2021-01-01' });
+/** 成员的 effective_to 含当天（★RF1116_INDUSTRY_END_INCLUSIVE (a)）；用到了写有 effective_to 的成员时，局限里写 END_DATE_INCLUSIVE_V6_READS_EXCLUSIVE（直到 V6 改）。 */
+const INDUSTRY_EFFECTIVE_TO = 'INCLUSIVE';
 /** 历史时钟 → 最早可用的决策：两种都是次一交易日开盘（MINING_SANDBOX_V1：只用历史、按 P-14 次日开盘决策）。 */
 const CLOCKS = Object.freeze({ BAR_CLOSE: 'NEXT_OPEN', CLOSE_DATED_NEXT_OPEN_USABLE: 'NEXT_OPEN' });
 const LIVE_CUTOFF = 'T09:00:00+08:00';
@@ -360,7 +362,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
     });
   }
   // 行业成员：按 (证券, effective_from) 分组，组内按入库时刻选修订
-  const groups = new Map();
+  const groups = new Map(); let endDated = false;
   for (const s of sources) {
     if (!s.has('industry')) continue;
     s.forEach('industry', (r) => {
@@ -371,6 +373,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       const key = `${r.security_id}|${r.effective_from}`;
       if (!groups.has(key)) groups.set(key, { code: r.security_id, from: r.effective_from, revs: [] });
       groups.get(key).revs.push({ at: parseTs(r.first_available_at), rev: Number(r.revision), to: r.effective_to, value: r.industry_code || r.industry_name });
+      if (r.effective_to) endDated = true;
     });
   }
   const byCode = new Map();
@@ -387,7 +390,9 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
         const known = g.revs.filter((x) => x.at <= cutoff);
         const pick = known.length ? known.reduce((a, b) => (b.at > a.at || (b.at === a.at && b.rev >= a.rev) ? b : a))
           : g.revs.reduce((a, b) => (b.at < a.at || (b.at === a.at && b.rev >= a.rev) ? b : a));
-        if (pick.to && !(d < pick.to)) continue;
+        // ★RF1116_INDUSTRY_END_INCLUSIVE (a)：effective_to 是成员的最后一天（含）。V6 真实数据里新成员的 effective_from 是它的下一天；
+        // 按不含读（V6 现在的读法），换行业的股票在最后一天没有行业（2021-07-29 有 564 只）。V6 的读法另有修复，清单里写明差别。
+        if (pick.to && d > pick.to) continue;
         if (!best || g.from >= best.from) { best = { from: g.from, value: pick.value }; backfill = !known.length; }
       }
       if (best) { industryM[i][j] = best.value; if (backfill) counts.industry.backfill += 1; }
@@ -396,7 +401,8 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   // 行业数据的局限（复审 M-4）：只记本面板实际用到的
   const standardStart = INDUSTRY_STANDARD_START[industry.standard] || null;
   const backdated = standardStart !== null && dates.some((d, i) => d < standardStart && industryM[i].some((g) => g !== null));
-  const industryLimits = [...(counts.industry.by_quality.DEGRADED > 0 ? ['SINGLE_SOURCE_NOT_RECONCILED'] : []), ...(backdated ? ['HISTORY_BACKDATED_BY_SOURCE'] : [])];
+  const industryLimits = [...(counts.industry.by_quality.DEGRADED > 0 ? ['SINGLE_SOURCE_NOT_RECONCILED'] : []), ...(backdated ? ['HISTORY_BACKDATED_BY_SOURCE'] : []),
+    ...(endDated && counts.industry.rows > 0 ? ['END_DATE_INCLUSIVE_V6_READS_EXCLUSIVE'] : [])];
   // 股票池；同时记当天是否 ST 与板块（涨跌停用，R1.7）
   const universe = Array.from({ length: T }, () => new Array(N).fill(false));
   const st = Array.from({ length: T }, () => new Array(N).fill(false));
@@ -433,7 +439,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       sources: sources.map((s) => ({ label: s.label, mode: s.mode, kind: s.kind || null, holdout: Boolean(s.holdout), sums_sha256: s.sums_sha256 || null })),
       rules: {
         decision: 'NEXT_OPEN', live_cutoff: `next trading day ${LIVE_CUTOFF.slice(1)}`, revision_known: 'LATEST_FIRST_AVAILABLE_BY_CUTOFF', revision_history_backfill: 'EARLIEST_RECORDED_INSTANT_HIGHEST_REVISION',
-        accepted_quality: [...ACCEPTED_QUALITY], industry_accepted_quality: [...ACCEPTED_INDUSTRY_QUALITY], min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_exchange: calendarExchange, exchanges_excluded: ['BSE'],
+        accepted_quality: [...ACCEPTED_QUALITY], industry_accepted_quality: [...ACCEPTED_INDUSTRY_QUALITY], industry_effective_to: INDUSTRY_EFFECTIVE_TO, min_listed_sessions: minListedSessions, industry: { ...industry }, calendar_exchange: calendarExchange, exchanges_excluded: ['BSE'],
       },
       calendar: { exchange: calendarExchange, open_days_in_sources: cal.length, last_date: calMax, sse_szse_disagreements: disagreements.filter((d) => d >= from && d <= to),
         sse_szse_disagreements_all: disagreements.length },
