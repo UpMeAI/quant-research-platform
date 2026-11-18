@@ -79,6 +79,19 @@ class DataError extends Error {
 const fail = (code, detail) => { throw new DataError(`MINE_DATA_${code}`, detail); };
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const num = (v) => (v === null || v === undefined || v === '' ? NaN : Number(v));
+/**
+ * V6 的取值形状（第 1 轮的第二个数据原因，2026-11-18 车道探针）：market_daily_basic_observation.values 的每个字段是 { state, value }。
+ * PRESENT → value；ZERO → 0；MISSING 与其他任何 state → NaN（调用方计入 value_missing）；裸数照收；别的形状（对象、字符串里不是数）→ NaN。
+ * 原来 Number(对象) 恒为 NaN：七个 daily_basic 读数与市值全是 NaN，市值中性化把每个值都变成 NaN。
+ */
+const VALUE_STATES = Object.freeze({ PRESENT: 'VALUE', ZERO: 'ZERO' });
+function stateValue(x) {
+  if (x !== null && typeof x === 'object' && !Array.isArray(x)) {
+    const how = VALUE_STATES[x.state];
+    return how === 'ZERO' ? 0 : how === 'VALUE' ? num(x.value) : NaN;
+  }
+  return typeof x === 'number' || typeof x === 'string' ? num(x) : NaN;
+}
 
 // ── 时刻与日历 ───────────────────────────────────────────────────────────────
 
@@ -275,7 +288,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   const mat = () => new Float64Array(cells).fill(NaN);
   const counts = {
     prices_daily: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0 }, adj_factor: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0, value_missing: 0 },
-    daily_basic: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0 }, suspension: { rows: 0 }, industry: { rows: 0, backfill: 0, by_quality: Object.fromEntries(ACCEPTED_INDUSTRY_QUALITY.map((q) => [q, 0])), quality_skipped: 0 },
+    daily_basic: { rows: 0, quality_skipped: 0, late_unused: 0, backfill: 0, value_missing: 0 }, suspension: { rows: 0 }, industry: { rows: 0, backfill: 0, by_quality: Object.fromEntries(ACCEPTED_INDUSTRY_QUALITY.map((q) => [q, 0])), quality_skipped: 0 },
   };
   /** 一行进格子：截止前入库 → 2；没赶上 → HISTORY 回补 1 / LIVE 不用（计数）。 */
   const category = (src, t, at, c) => (at <= cutoffOf(t) ? 2 : src.mode === 'HISTORY' ? 1 : (c.late_unused += 1, 0));
@@ -332,7 +345,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
       const c = category(s, r.trade_date, at, counts.daily_basic);
       if (!c || !selB.take(k, c, at, Number(r.revision))) return;
       let v; try { v = JSON.parse(r.values); } catch { fail('BASIC_VALUES_INVALID', `${r.security_id}:${r.trade_date}`); }
-      for (const [name, key] of Object.entries(BASIC_FIELDS)) B[name][k] = num(v ? v[key] : null);
+      for (const [name, key] of Object.entries(BASIC_FIELDS)) { const x = stateValue(v ? v[key] : null); if (!Number.isFinite(x)) counts.daily_basic.value_missing += 1; B[name][k] = x; }
     });
   }
   counts.prices_daily.backfill = selP.backfilled(); counts.adj_factor.backfill = selA.backfilled(); counts.daily_basic.backfill = selB.backfilled();
