@@ -80,9 +80,9 @@ test.beforeEach(() => {
   overseas.clearCache();
 });
 
-test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY、修订 6 的两题、修订 7 的 C17-NMSEL、修订 8 的两个 KELLY-M-S8 单元、A 股修订 2 的 CN-SECTOR-ETF-LEFT-1、A 股修订 3 的 CN-X07A、A 股修订 4 的 CN-R8、A 股修订 5 的 CN-R21-RN、CN-R21-RP 和 A 股修订 6 的 CN-RXM1-M、CN-RXM1-B 过门（11-11 起冻结）；修订 4–6 与 A 股修订 3、5、6 带门的裁定，修订 7 与 A 股修订 2、4 不带；其余都在修订生效前冻结或封存', () => {
+test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前推单元、修订 5 的 QS-KDECAY、修订 6 的两题、修订 7 的 C17-NMSEL、修订 8 的两个 KELLY-M-S8 单元、A 股修订 2 的 CN-SECTOR-ETF-LEFT-1、A 股修订 3 的 CN-X07A、A 股修订 4 的 CN-R8、A 股修订 5 的 CN-R21-RN、CN-R21-RP、A 股修订 6 的 CN-RXM1-M、CN-RXM1-B 和 A 股修订 7 的 CN-X07B 过门（11-11 起冻结）；修订 4–6 与 A 股修订 3、5、6 带门的裁定，修订 7 与 A 股修订 2、4、7 不带；其余（含 A 股修订 7 的 CN-R-STK-1-D4）都在修订生效前冻结或封存', () => {
   const gated = [...overseas.ENTRIES, ...ashare.ENTRIES].filter((entry) => gates.applies(entry).applies).map((entry) => entry.id);
-  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK', 'C17-NMSEL', 'US5-KMS8', 'US5-KMS8-BUCKET', 'CN-SECTOR-ETF-LEFT-1', 'CN-X07A', 'CN-R8', 'CN-R21-RN', 'CN-R21-RP', 'CN-RXM1-M', 'CN-RXM1-B']);
+  assert.deepEqual(gated, ['US5-KWFO', 'UC-KWFO', 'C17-KWFO', 'QS-KWFO', 'US5-KWFO-BUCKET', 'C17-KWFO-PAIR', 'QS-KWFO-PAIR', 'QS-KDECAY', 'C17-COSTSEL', 'UC-ACCTRISK', 'C17-NMSEL', 'US5-KMS8', 'US5-KMS8-BUCKET', 'CN-SECTOR-ETF-LEFT-1', 'CN-X07A', 'CN-R8', 'CN-R21-RN', 'CN-R21-RP', 'CN-RXM1-M', 'CN-RXM1-B', 'CN-X07B']);
   for (const id of gated.filter((x) => x.includes('KWFO'))) {
     const entry = overseas.ENTRIES.find((e) => e.id === id);
     assert.equal(entry.trial_gates_ruling.spec.sha256, '99203316f27d00aff6e5f42f47229ff79ea2617dcdd0a0c3b897ea71d427113f', id);
@@ -159,6 +159,16 @@ test('现行登记表（海外、A 股）：只有修订 4 的七个凯利 m 前
     assert.equal(rxm1.run_log.sha256, '5f253bb3de10ce25fea6bbfd915b9105647ceb9aaa3c09e8efc71ddadeae5bb9', id);
     assert.equal(rxm1.k2.sha256, '480ec87fdc39880f1d44e7bd71642b56af1d4af56fb6179c18cf0fc845eb182e', id);
   }
+  // A 股修订 7：X07b 的 K2（草稿终稿 3fae758b）点名的 3 行在冻结（2026-11-14T23:39:05+08:00 = 15:39:05Z）前 53 秒预登记（15:38:12.308Z），PRE 照常过，不带门的裁定；
+  // 运行日志按封存事实写（协调会话目录，sha256 绑定）；D4 的 K2 在 11-10 00:57 冻结，不过门
+  const x07b = ashare.ENTRIES.find((e) => e.id === 'CN-X07B');
+  assert.equal(x07b.k2_frozen_at, '2026-11-14T23:39:05+08:00');
+  assert.equal(x07b.trial_gates_ruling, undefined);
+  assert.equal(x07b.k2.sha256, '3fae758b7c724c3c2c36b3b1ccd6a7a7e1bcb12296373ca5931a0ad3d9d35558');
+  assert.equal(x07b.run_log.path, 'X07B_ASHARE_RISK_LINES_RESEARCH_RUN_LOG_V1.json');
+  const d4 = ashare.ENTRIES.find((e) => e.id === 'CN-R-STK-1-D4');
+  assert.equal(d4.k2_frozen_at, '2026-11-10T00:57:00+08:00');
+  assert.equal(gates.applies(d4).applies, false);
   assert.equal(gates.EFFECTIVE_FROM, '2026-11-11T00:00:00+08:00');
 });
 

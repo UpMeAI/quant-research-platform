@@ -120,6 +120,56 @@ const rxm1Entry = (id, row, code, expect, labelZh, titleZh, noteZh) => ({ id, la
   read: Object.freeze({ decision: `rows.${row}.verdict`, strength: null, use: null, text: null }), expect,
   note_zh: `${noteZh}${RXM1_SOURCE}` });
 
+// 修订 7（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_7.md）：R-STK-1 D4（③ 排序净化加价值底线初筛，个股簿）与 X07b（按 k 分档的日 / 周亏损锁，个股簿）。
+// 结论文件直接绑 Mac 封存副本里的那一份（协调会话目录 evidence/<封存目录>/，与 Linux 封存逐字节相同），封存目录的 SHA256SUMS 与结果页一并绑定。
+// D4：K2 冻结页 2026-11-10 00:57:00 CST（早于 G-TRIAL 11-11 与之后的各道门）→ 五道门都不适用；之后冻结的附注不重新冻结 K2。判定只读 J2（全改动），J1 与排序效应写在 note_zh；
+// 结果页附注 1（32fb2a41）的报表覆盖说明作为披露写在 note_zh，附注页按 sha256 绑定。
+// X07b：K2 = 草稿终稿 3fae758b（台账行的 k2_sha256），冻结页 2026-11-14T23:39:05+08:00；3 行在冻结前 53 秒预登记，G-TRIAL 两道门照常过、不带门的裁定；
+// 冻结早于 RF1112、附录 1 与 G-PARITY，其余四道门不适用。运行日志按封存事实写（build-x07b-seal-kit.js），结果行与披露由协调会话导入前写入台账（修订 7 §4）。
+const D4_SEAL = 'evidence/rstkd4-sealed-20261118';
+const D4_NOTES = Object.freeze([
+  ['NOTE_1', '561362074691ddbcd94211ddd54ea8caffccc6afd95c536e62656a85b8f43dfa'], ['NOTE_2', '364e87b8c5ab98c8182da02819a3ef0a8aeca028f584635c6b706984531eec43'],
+  ['NOTE_3', '70850b411f712dfd435fcb72f82f71f36bef725f2d7da904c7acec230317b032'], ['NOTE_4', 'dc7c2431cbe73ba127ff89dafd16bdd3dbd33c549716cf79855cc690d56cf472'],
+  ['NOTE_5', '12bd9c3b943058783c030f5f9754a6f24159a9c063e054b63666554271d8a2e0'], ['NOTE_6', '68acf5cc94228078e52671a40e990bebd5bc5618e0f457529b3e51a6cc2754c8'],
+  // NOTE_7、NOTE_8 两页只是冻结记录，正文是它们按 sha256 点名的草稿（NOTE_8 §2：各臂跑的基线修正）；正文紧跟各自的冻结页一并绑定（审阅 #128 P3-1）
+  ['NOTE_7', '31c5ae5cfaac024e6c1040a24514667a212cabd28c2e894bbe2de457faf22184'], ['NOTE_7.draft', '6b955f49860b40cb9c071b7f2e2c2d8c5dd87adb133412be817eb222479da5a1'],
+  ['NOTE_8', 'bd9087041f662ec802d2bf77e087778d179484c2d7f4b7a98f683a1d03d77a32'], ['NOTE_8.draft', '9b7a75d88221500d165b4fa8874480b05f97a308d123643a3906786ded23a1c6'],
+  ['NOTE_8_CLARIFICATION_1', '4e04d69d181232659f259bd7d0f3d80d78fda577e76d5ffe74ee796be49e24eb'],
+].map(([n, s]) => coord(`R_STK_D4_SCREEN_RANKING_K2_V1_FREEZE_1_${n}.md`, s)));
+const D4_USE = '前向影子：候选 C_RS_FLOOR 记成现有 A 股个股前向记录器里的一个模块（Owner 11-09 不按策略开新账本），在 FWD 车道、★C3FWD_STATEMENT_SCOPE=B 之后跑；'
+  + '验收草稿 R_STK_D4_FWD_SHADOW_ACCEPTANCE_V1（e0687b02）冻结之前不开；只记相对读数；盘中一半修好之前沿用收盘判定、次日开盘（K2 Q-7）；研究账本不进生产（修订 2 §2），生产规则 ③ 不变';
+const D4_NOTE = 'INSUFFICIENT（CI_SPANS_ZERO）→ 做 = 前向影子，候选 C_RS_FLOOR（新排序加价值底线初筛，C_RS 基座）。判定基座 C_RS（R-STK-1 的 T_RS 对 C_RS 不是 SUPPORTED，机械规则；T_RS 基座只报）。'
+  + '读数是年化配对 g（小数），照封存 JSON 原样，月块自助 10000 次、种子 20261025、95 %、δ_g = 0：'
+  + 'J2（全改动，判定）g(C_RS_FLOOR − C_RS) 0.002984，[−0.010106, 0.015913]，第 2 阶段 −0.003903、第 1 阶段 0.012039，1537 个会话、76 个月；G1 满足（C_RS_FLOOR 成熟交易 152、C_RS 140，改变的入场 216）。'
+  + 'J1（初筛增量，另写）g(C_RS_FLOOR − C_RS_RANK) −0.005054，[−0.015592, 0.005826]，第 2 阶段 −0.008976、第 1 阶段 0.000101，G1 满足（152、108、204），INSUFFICIENT（CI_SPANS_ZERO），'
+  + '不是 NOT_PASSED，§6「初筛门槛交 Owner」一条不适用；J1 与 J2 方向相反，两阶段方向也相反。'
+  + '只报：排序效应 g(C_RS_RANK − C_RS) 0.008039，[−0.002981, 0.018311]；T_RS 基座的 J1 −0.004613、J2 0.005917、排序效应 0.01053，都 INSUFFICIENT。'
+  + '12 道运行门全 PASS（COMPLETE，blocked_by []），G_INERT（rstkd4c）INERTNESS_PASS，臂 4c2ecde5（14 个账本 × 阶段组合都是它）。'
+  + '披露（结果页 §5）：各账本绝对收益都为负（第 1 阶段 A −3.80%、C_RS −6.67%），D4 只判相对差；oos_reuse: true（OOS_REUSED_FOR_SELECTION）；'
+  + '普查之后改过门槛（pe_ttm 空值 95% → 90%，SCREEN_READ 的 Q 上限 10% → 45%，改时没读收益或账户）；pe_ttm 空值读作亏损（第 1 阶段 97.9%）；'
+  + '结构状态 UNKNOWN 的名字跳过 Q 初筛（打分名字的 24–27%）；盘中一半是另一份规格，BLOCKED（LEVEL_READ:FAIL），不出结论。'
+  + '结果页附注 1（32fb2a41）：P-15 计数 276 个名字、4,466 个持仓会话，21 个在除权日，复权因子缺 0。'
+  + '报表覆盖说明：回放读到的报表比实盘 V6 多——实盘 V6 共 76,069 个报表单元，fina_indicator_vip 从 2026-08-26 起，income / balancesheet / cashflow 从 2026-09-13 起（实际只有 2024 年起的报告期有 fina）；'
+  + 'D4 回放（2020-06-01 → 2026-09-28）读的是 Q0 回放底的完整历史 PIT（ann_date+1），这是 D4 冻结时的规则（KNOWNAT_EARLY_BASE_ORIGIN），封存照旧。报表只经 8 个 fina 特征字段进决策（Value V2 关）；'
+  + 'C_RS_FLOOR 前向要在 FWD 车道、★C3FWD_STATEMENT_SCOPE=B 之后跑（11-18 F00 核对：79 个有成交的近期上市名字 8 季窗口不同）；'
+  + '前向影子验收草稿 R_STK_D4_FWD_SHADOW_ACCEPTANCE_V1（e0687b02）在重盖 v3 与 F01 干净比对之后才冻结。'
+  + '依据：C3-FWD 报表覆盖报告 v2（a5146af1）§8，生产只读导出 PROD_STMT_KEYS.tsv.gz（0cbc00c9）。'
+  + '来源：Linux 封存 scratch/rstkd4-sealed-20261118（SHA256SUMS 36b8bb26；Mac 副本 evidence/rstkd4-sealed-20261118 逐字节相同），封存读取条目 38，封存 2026-11-18，结果页 722931c2。';
+const X07B_SEAL = 'evidence/x07b-sealed-20261118';
+const X07B_NOTE = '不做（NOT_PASSED，U_G_AT_OR_BELOW_ZERO；FREEZE_1 ★X7B-4 (a)、读法裁定第 1 条，机械）：J = g(X7B_KLINES_K − X7B_BASE_K)，X7B_BASE_K = C_RS（NOTE_2）。'
+  + '读数是年化配对 g（252 × 日对数收益差均值，小数），照封存 JSON 原样，月块自助 10000 次、种子 20261025、95 %、δ_g = 0：两阶段合并（判定）−0.000195，[−0.000578, −5e-06]，1537 个会话、76 个月；'
+  + '第 2 阶段 0，[0, 0]（873 个会话，复测（已读），只报）；第 1 阶段 −0.000451，[−0.001338, −1.2e-05]（664 个会话，只报）。'
+  + 'G1（锁的计数）不满足：锁仓会话 1、被挡下或放出的新开仓 2（各要 ≥ 30；按股数的改变入场 1，读法裁定第 3 条），候选成熟交易 139；Q4 表第一行不带 G1 条件，U_g ≤ 0 → 不做，不是证据不足。'
+  + '§5.2 风险否决 CLEAR：mdd_deeper_pp 0.001066（结果页：深 0.11 个百分点，否决线 1 个百分点），S16（15%）两本两阶段都没有触及。'
+  + '只报：NOLOCK = g(X7B_NOLOCK_K − C_RS) 0，[0, 0]，两阶段都与 C_RS 逐日相同（C_RS 已按 k 定仓，D1），J 的差全部来自锁。'
+  + '锁在 1537 个会话里只触发 1 次（第 1 阶段，k = 0.3 档，DAILY），挡下 2 笔新开仓，第 2 阶段没有锁；C_RS 平均敞口 1.4–1.6%、约 43% 的会话持仓，K2 范围内的日 / 周亏损线（0.03 / 0.06 × k_t）很少触到；'
+  + '本题不回答线对敞口更大的账本有没有用（那是新 K2）。各账本绝对收益为负（第 2 阶段 C_RS −3.68%、第 1 阶段 −6.67%），只判相对差；oos_reuse（与 R-STK-1、D4 同一决策样本）；'
+  + '后处理直接读 Linux 运行目录（读法裁定第 7 条，是对执行简报 27e4ae87 的偏离，不是对 K2）；G_STACK 带不上的缺口照写：Q0 锁 475bdc64 早于 MAINLINE_RANKING v6 与 KLINE_LIVE_TIMING v3。'
+  + '过拟合列不适用（只加在「做（有支持证据）」上）；披露 J 一行，PBO 由 overfit.js 记 NOT_APPLICABLE（CONFIGS_LT_4，3 个配置）。'
+  + '运行门 14 道 PASS、INDEX_READ / BARS_READ 不适用（COMPLETE，blocked_by []）；G-REPRO 两阶段 BINDING PASS（873/873、664/664），G_INERT 两半 PASS。'
+  + '来源：Linux 封存 scratch/x07b-sealed-20261118（SHA256SUMS dccfdb24，17 个文件；Mac 副本 shasum -c 0 不符），运行代码 x07b-verdict.sh 52bc87a7，臂 3e356eda，封存读取条目 41，封存 2026-11-18，结果页 ee39f38e；'
+  + 'ACCEPTANCE 另核 R-STK-1 FREEZE_1（6eefdcbb）与附录 1 FREEZE_1（dfe264b6）。生产不变：X07b 的线从未上线，不开前向影子。';
+
 const ENTRIES = Object.freeze([
   { id: 'CN-R-ETF-1', label_zh: 'R-ETF-1', strategy_ref: INDEX, kind: 'RESULT', sealed_on: '2026-11-05', title_zh: '宽基 ETF 波动率网格 VG 对现行档位规则 C',
     file: v6('84adf8b97268d59318dda22be5363953e7939b6a', 'research/index-grid/r-etf-1/result-r-etf-1.json', '6eda510cd7dd3aea7ae2f27b83d9e9fb2595aa93c0b69b782473d065f652d3b0'),
@@ -195,6 +245,32 @@ const ENTRIES = Object.freeze([
   rxm1Entry('CN-RXM1-B', 'RXM1_B', '511010.SH', '不做', 'R-XM-1 闲置现金停放（短债 ETF）', '个股本闲置现金按同一规则停放 511010.SH 上证 5 年期国债 ETF（B），开盘成交，对现金基线 C（2020-06-01 → 2026-09-28）',
     '不做：配对 g +2.24 %/年，95 % [+1.00 %, +3.37 %]，但 T0 缺口 34 次 53,415 元（2020-08-27 → 2021-02-08 债市下跌期，2 次落在本的买入日），「T0 缺口为 0」是 K2 §5.5 的必要条件；'
     + 'NOTE_2 的封顶读法下仍是 34 次，最宽读法下也有 31 次。过拟合披露 OVD-02f289abe66f0225 原样保留（证据门对「不做」不起作用；★R1 (b) 读法下 DSR 0.785）。裁定页 28bf76ca。'),
+  { id: 'CN-R-STK-1-D4', label_zh: 'R-STK-1 D4 初筛与排序', strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-18',
+    title_zh: '个股簿 ③ 排序净化加价值底线初筛：C_RS_FLOOR（新排序加初筛）对现行 C_RS，两阶段合并（2020-06-01 → 2026-09-28）',
+    file: coord(`${D4_SEAL}/RSTKD4_VERDICT.json`, '63e91f82312ce61ebe990edb503185c8bff8e9430c1a49ac63dc39340e5a4446'),
+    also: Object.freeze([coord('R_STK_D4_SCREEN_RANKING_K2_V1_RESULT_1.md', '722931c223629aa103ecb25cf5b404abc06a8153cdc2dd7a9214cc5e60531df3'),
+      coord('R_STK_D4_SCREEN_RANKING_K2_V1_RESULT_1_NOTE_1.md', '32fb2a41894e3f3add3b46b3c86ed60baec1747bb51cb61fa0405114713146b3'),
+      coord(`${D4_SEAL}/SHA256SUMS`, '36b8bb2655ec748c45e2d485b7af06500aa0cb989dcaaf654f24de9e9128cf09')]),
+    k2: coord('R_STK_D4_SCREEN_RANKING_K2_V1_FREEZE_1.md', '571806b6e914a36c626ab8b24d767485cff8c4c79eb8d74e8d2c8a47a176c49c'), freeze: null, k2_notes: D4_NOTES,
+    k2_frozen_at: '2026-11-10T00:57:00+08:00',
+    read: Object.freeze({ decision: 'd4.pairs.C_RS.J2.state', strength: 'd4.pairs.C_RS.J2.reason_code', use: null, text: 'd4.pairs.C_RS.J2.verdict_zh' }), expect: 'INSUFFICIENT',
+    resolve: Object.freeze({ INSUFFICIENT: Object.freeze({ decision: '做', use_zh: D4_USE }) }),
+    note_zh: D4_NOTE },
+  { id: 'CN-X07B', label_zh: 'X07b A 股风控线', strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-18',
+    title_zh: '个股簿按 k 分档的日 / 周亏损锁（日线 3% × k_t、周线 6% × k_t，只锁新开仓）：X7B_KLINES_K 对 C_RS，两阶段合并（2020-06-01 → 2026-09-28）',
+    file: coord(`${X07B_SEAL}/X07B_RESULT.json`, '4c84761fc7f9909909172a3800dff32ca93c41b4ba711ee28e8a3f8adca72f74'),
+    also: Object.freeze([coord('X07B_ASHARE_RISK_LINES_K2_V1_RESULT_1.md', 'ee39f38e1b8123b2d5e4dc7dcaea3798d38e2f406ac27398f7b2aef12e66ce89'),
+      coord(`${X07B_SEAL}/SHA256SUMS`, 'dccfdb24f3209efcb9f7fd13aafff83f72d6a2ea4baf2f2e1a0b98c82be8b3d3')]),
+    k2: coord('X07B_ASHARE_RISK_LINES_K2_V1.draft.md', '3fae758b7c724c3c2c36b3b1ccd6a7a7e1bcb12296373ca5931a0ad3d9d35558'),
+    freeze: coord('X07B_ASHARE_RISK_LINES_K2_V1_FREEZE_1.md', 'c82975b3ea3e69b65c7bb4ee9bbce855cd7950c23490fc978b0c217b504a8349'),
+    k2_notes: Object.freeze([coord('X07B_ASHARE_RISK_LINES_K2_V1_FREEZE_1_NOTE_1.md', 'f829092e0976466748e432640bb263f861b8ae1dc769752cbb51b2a4493aa716'),
+      coord('X07B_ASHARE_RISK_LINES_K2_V1_FREEZE_1_NOTE_2.md', 'f90872a1174f7bd546a31e777f1b353fbe18888a3ef31368e0f4a30fcd023a83'),
+      coord('X07B_ASHARE_RISK_LINES_K2_V1_FREEZE_1_NOTE_2_RECEIPT_1.md', '2a24fc2b9e6a49fe6b65225079725fecaa41bcb03b77e98bad8c173dccf44a0e'),
+      coord('X07B_ASHARE_RISK_LINES_K2_V1_FREEZE_1_NOTE_3.md', '2d3012ccc826f3f30e54a425a747c102bf26174fea3c0e683765dce58bf1f1cf')]),
+    run_log: coord('X07B_ASHARE_RISK_LINES_RESEARCH_RUN_LOG_V1.json', 'd7ba7f8935c6bd389a2801740bd8753054d354d2f525ee4248b12e04274b9edf'),
+    k2_frozen_at: '2026-11-14T23:39:05+08:00',
+    read: Object.freeze({ decision: 'judged.verdict_zh', state: 'judged.state', strength: 'judged.reason_code', use: null, text: null }), expect: '不做',
+    note_zh: X07B_NOTE },
 ]);
 
 const locks = (strategyRef = null) => overseas.locks(strategyRef, STORE);
