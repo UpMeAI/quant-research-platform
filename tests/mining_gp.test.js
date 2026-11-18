@@ -5,7 +5,7 @@
  *   - 只产出合法的 DSL（过 dsl.parse、在冻结空间里、≤ 20 记号、≤ 5 层）；
  *   - 适应度只用挖掘段：中性化后的 rank IC 均值减长度惩罚；喂进验证折或留出段的面板就抛错；
  *   - 只看 generatorView：视图里出现验证折、留出段、选择、G-MINE 之类的字段就拒绝；模块不引用数据、打分、留出段、门，也不引用任何网络模块；
- *   - 要大模型生成方 → MINE_LLM_NOT_ENABLED。
+ *   - 大模型生成方（RF1116 LLM_GEN，2026-11-18）已接上：assertGeneratorEnabled 认它；generatorFor 没有交换目录与计量就拒（见 mining_llm_generator.test.js）。
  */
 require('./_env');
 const test = require('node:test');
@@ -137,7 +137,7 @@ test('只看 generatorView：视图带验证折、留出段、选择或 G-MINE �
   }
 });
 
-test('生成方：GP 要整数种子；要大模型 → MINE_LLM_NOT_ENABLED（密钥没放之前不开）；不认识的方式拒绝', () => {
+test('生成方：GP 要整数种子；大模型认得、但没有交换目录与计量就不建；不认识的方式拒绝', () => {
   assert.throws(() => gp.createGp({ seed: 1.5, space: DSL_SPACE, holdingPeriod: 5 }), code(/MINE_GP_SEED_REQUIRED/));
   assert.throws(() => gp.createGp({ seed: 1, space: DSL_SPACE, holdingPeriod: 0 }), code(/MINE_GP_HOLDING_PERIOD/));
   const g = generators.generatorFor({ mode: 'AI_MINED_GP', gp_seed: 9 }, { space: DSL_SPACE, holdingPeriod: 5 });
@@ -145,8 +145,9 @@ test('生成方：GP 要整数种子；要大模型 → MINE_LLM_NOT_ENABLED（�
   assert.equal(g.seed, 9);
   assert.deepEqual(g.params, gp.GP_PARAMS);
   assert.throws(() => generators.generatorFor({ mode: 'AI_MINED_LLM', model: 'deepseek-v4-pro', model_knowledge_cutoff: '2026-08-13' }, { space: DSL_SPACE, holdingPeriod: 5 }),
-    code(/MINE_LLM_NOT_ENABLED/));
-  assert.throws(() => generators.assertGeneratorEnabled({ mode: 'AI_MINED_LLM' }), code(/MINE_LLM_NOT_ENABLED/));
+    code(/MINE_LLM_GENERATOR_OPTIONS_MISSING/));
+  assert.equal(generators.assertGeneratorEnabled({ mode: 'AI_MINED_LLM' }), 'AI_MINED_LLM');
+  assert.deepEqual(generators.ENABLED, { AI_MINED_GP: true, AI_MINED_LLM: true });
   assert.throws(() => generators.generatorFor({ mode: 'HUMAN' }, { space: DSL_SPACE, holdingPeriod: 5 }), code(/MINE_GENERATOR_UNKNOWN/));
   assert.ok(Object.isFrozen(gp.GP_PARAMS));
 });

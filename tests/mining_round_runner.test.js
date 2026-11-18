@@ -1,7 +1,7 @@
 'use strict';
 /**
  * 挖掘轮次执行器（RF1116 P2 规格 §1 九步；§4 第 5、6、7、9 条；MINING_ROUNDS_V1「P2 requirements」）。先红后绿，全部是合成数据。
- *   - 大模型：开轮之前就拒（MINE_LLM_NOT_ENABLED），命令行也一样；generate 没有 --holdout；
+ *   - 冻结输入的 sha 核对；数据先核再开轮；generate 没有 --holdout（大模型生成方自 RF1116 LLM_GEN 2026-11-18 起接上，见 mining_llm_round.test.js）；
  *   - 尝试计数：解析不过、去重被拒的都记一行试验台账、都计入 N，到 200 停、不补；
  *   - 验证折选择不回生成方：选完 generatorView 与试验台账一字不变，选择结果只在输出目录；选完不能再生成；
  *   - 留出段只在开启时交出：目录先核（封存的 sha、补导只追加、日历到 12-31），核不过不开、不耗那一次；开一次之后第二次被拒；
@@ -83,20 +83,17 @@ test('run.sh：文件参数先用 realpath -e 解析成绝对路径再挂（裸�
   }
 });
 
-test('大模型（★K 没定之前）：开轮之前就拒 MINE_LLM_NOT_ENABLED，没有轮被开；命令行也拒；generate 没有 --holdout 这个选项', () => {
+test('冻结输入的 sha 对不上就拒；数据先核、覆盖不够不开轮；generate 没有 --holdout 这个选项', () => {
   const out = freshData();
   assert.equal(runner.loadFrozenSpace().space.sha256, runner.FROZEN_INPUTS.space.sha256);
   for (const k of ['space', 'space_freeze', 'holdout_freeze']) {
     assert.throws(() => runner.internals.withFrozenInputs({ [k]: { ...runner.FROZEN_INPUTS[k], sha256: 'f'.repeat(64) } }, () => runner.loadFrozenSpace()), code(/MINE_RUNNER_FROZEN_INPUT_MISMATCH/), k);
   }
-  assert.throws(() => runner.requestRound({ generator: { mode: 'AI_MINED_LLM', model: 'deepseek-v4-pro', model_knowledge_cutoff: '2026-08-13' } }), code(/MINE_LLM_NOT_ENABLED/));
   assert.equal(rounds.roundsOf('CN_A').length, 0);
   const base = ['--out', out, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--seed', '1', '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', HOLDOUT_SUMS_SHA];
-  const llm = cli(['generate', ...base, '--generator', 'AI_MINED_LLM'], { QRP_DATA_DIR: out });
-  assert.equal(llm.status, 2);
-  assert.equal(JSON.parse(llm.stderr).error, 'MINE_LLM_NOT_ENABLED');
-  const resumeLlm = cli(['generate', '--out', out, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--resume', 'MR-CN_A-2026-11-x', '--generator', 'AI_MINED_LLM'], { QRP_DATA_DIR: out });
-  assert.equal(JSON.parse(resumeLlm.stderr).error, 'MINE_LLM_NOT_ENABLED');
+  const unknown = cli(['generate', ...base, '--generator', 'HUMAN'], { QRP_DATA_DIR: out });
+  assert.equal(unknown.status, 2);
+  assert.equal(JSON.parse(unknown.stderr).error, 'MINE_GENERATOR_UNKNOWN');
   const thin = cli(['generate', ...base, '--min-names-per-day', '100'], { QRP_DATA_DIR: out });
   assert.equal(thin.status, 2);
   assert.equal(JSON.parse(thin.stderr).error, 'MINE_RUNNER_COVERAGE_BELOW_FLOOR', 'data checked before the round is opened');
@@ -431,8 +428,26 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   const ignore = fs.readFileSync(path.join(dir, 'Dockerfile.dockerignore'), 'utf8').split('\n');
   for (const k of ['.git', 'var', 'tests']) assert.ok(ignore.includes(k), k);
   const sh = fs.readFileSync(path.join(dir, 'run.sh'), 'utf8');
-  const runs = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
-  assert.equal(runs.length, 7); // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score、fail-evaluation（★RF1116_ROUND1_STATE (a)）
+  const all = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
+  // RF1116 LLM_GEN（2026-11-18）：网络那一步（services/mining-llm-step）是唯一连网的容器，单独核；其余照旧 --network none
+  const stepRuns = all.filter((l) => l.includes('services/mining-llm-step/cli.js'));
+  const runs = all.filter((l) => !stepRuns.includes(l));
+  // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score、fail-evaluation（★RF1116_ROUND1_STATE (a)）；
+  // 大模型：llm-init（建交换目录）、generate-llm、resume-llm
+  assert.equal(runs.length, 10);
+  assert.equal(stepRuns.length, 2, 'llm step: serve (detached) and ping');
+  const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/mining_llm_generator.v1.json'), 'utf8'));
+  assert.ok(new RegExp(`^KEY_FILE="?${cfg.key.host_path.replace(/[.]/g, '\\.')}"?$`, 'm').test(sh), 'KEY_FILE is the configured host path');
+  assert.match(sh, /^EXCHANGE="\$OUT\/llm-exchange"$/m);
+  for (const l of stepRuns) {
+    for (const flag of ['--network bridge', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '--entrypoint node']) assert.ok(l.includes(flag), `step: ${flag}`);
+    assert.match(l, /--cpus \d+ /); assert.match(l, /--memory \d+g /); assert.match(l, /--memory-swap \d+g /); assert.match(l, /--pids-limit \d+ /);
+    const mounts = [...l.matchAll(/-v "([^"]+)"/g)].map((m) => m[1]);
+    assert.deepEqual(mounts, [`$KEY_FILE:${cfg.key.container_path}:ro`, '$EXCHANGE:/exchange:rw'], 'step mounts only the key (ro) and the exchange directory');
+    assert.ok(!/ -e |--env/.test(l), 'no environment passed to the step (the key is a read-only file)');
+    for (const v of ['$OUT:', '$LANE_COPY', '$VAL_TAIL', '$HOLDOUT', '$FACTOR_SERIES', 'QRP_DATA_DIR']) assert.ok(!l.includes(v), `step must not see ${v}`);
+    assert.ok(!/--privileged|--network host|--cap-add|docker\.sock:/.test(l));
+  }
   for (const l of runs) {
     for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 1000:1000', '-e QRP_DATA_DIR=/out/qrp-data']) assert.ok(l.includes(flag), `${flag} in ${l.slice(0, 60)}`);
     assert.match(l, /--cpus \d+ /); assert.match(l, /--memory \d+g /); assert.match(l, /--memory-swap \d+g /); assert.match(l, /--pids-limit \d+ /);
@@ -441,7 +456,9 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
     assert.ok(!/--privileged|--network host|--cap-add|docker\.sock:/.test(l));
   }
   const score = runs.filter((l) => / score /.test(l)); const gen = runs.filter((l) => / generate /.test(l));
-  assert.equal(gen.length, 2, 'generate and resume');
+  assert.equal(gen.length, 4, 'generate and resume, GP and LLM');
+  assert.equal(gen.filter((l) => l.includes('--generator AI_MINED_LLM')).length, 2);
+  assert.ok(gen.filter((l) => l.includes('--generator AI_MINED_LLM')).every((l) => /--name "?rf1116-generate-llm/.test(l)), 'LLM generate containers match the window pause (rf1116-generate-*)');
   assert.equal(score.length, 1);
   assert.ok(score[0].includes('-v "$HOLDOUT:/data/holdout:ro"'));
   assert.ok(gen.every((l) => !/\$HOLDOUT[:"]/.test(l) && !l.includes('/data/holdout') && !l.includes('--holdout ')));
