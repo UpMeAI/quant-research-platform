@@ -3,7 +3,7 @@
  * 真实行夹具（协调会话 2026-11-18：第 1 轮的三处数据原因都出在手写夹具与 V6 真实编码不同——行业成员全是 DEGRADED、daily_basic 的 { state, value }、
  * SW2021 effective_to 含当天）。tests/fixtures/mining-real-rows-20261118/ 是从协调会话只读导出的 -r4 验证尾段（导出规格 rev 4 33093147，
  * SHA256SUMS 758323e8）按 MAKE.py 取的 34 只股票的全部行（ST、北交所、新上市、退市、整日停牌、写了 effective_to 的、科创、创业、缺 pe_ttm、主板），
- * 交易日历截到 2025-06-01 起。SHA256SUMS 的 sha 钉在下面。只读这个目录，按 VALIDATION 段建面板（2026-09-29 → 2026-10-16）。
+ * 交易日历截在 2025-06-01 → 2026-10-16（留出段里的日子一行都不带，2026-11-18 复审）。SHA256SUMS 的 sha 钉在下面。只读这个目录，按 VALIDATION 段建面板（2026-09-29 → 2026-10-16）。
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -19,7 +19,7 @@ const dsl = require('../services/mining-sandbox/dsl');
 const { forEachCsvRow } = require('../services/mining-sandbox/data-adapter/csv');
 
 const DIR = path.join(__dirname, 'fixtures', 'mining-real-rows-20261118');
-const SUMS_SHA256 = '246e35d2ba056fc3ad726778816fa791eec1e00a735812445081626537191f22';
+const SUMS_SHA256 = 'b6c7becb35cb90392d06a021c626ae5f9d8a790accbb9472bc8f88c1a32da088';
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const rowsOf = (file) => { const out = []; forEachCsvRow(path.join(DIR, file), (r) => out.push(r)); return out; };
 const f = runner.loadFrozenSpace();
