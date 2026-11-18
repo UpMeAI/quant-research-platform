@@ -371,8 +371,11 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   const feedDays = days.map((d) => openAll[openAll.indexOf(d) - 1]);
   const feedSet = new Set(feedDays); const daySet = new Set(days);
   // 跟进 A（复审 R9 / R9b）：面板把所有源合在一起读，留出段以外的源里交易日落在第一个决策日或之后的日线 / daily_basic / 复权因子行，
-  // 会与封存的行争同一格（更晚的修订就顶替）。导出规格 rev 5：尾段截到 D1。这样的行一行都不许有，开启之前就拒。
-  for (const s of others) for (const [key, file] of [['prices', 'prices_daily_stock.csv'], ['basic', 'market_daily_basic_observation_stock.csv'], ['adj', 'adjustment_factor_observation_stock.csv']]) {
+  // 会与封存的行争同一格（更晚的修订就顶替）；停牌两张表的行会多记停牌（★RF1116_SUSPENSION_CUT = (a)）。
+  // 导出规格 rev 5（0aac3303）改动三：这五张表截到 D1。这样的行一行都不许有，开启之前就拒。
+  const CUT_TABLES = [['prices', 'prices_daily_stock.csv'], ['basic', 'market_daily_basic_observation_stock.csv'], ['adj', 'adjustment_factor_observation_stock.csv'],
+    ['suspension', 'security_suspension_observation.csv'], ['suspension_coverage', 'security_suspension_day_coverage.csv']];
+  for (const s of others) for (const [key, file] of CUT_TABLES) {
     if (!s.has(key)) continue;
     s.forEach(key, (r) => { need(!(r.trade_date >= days[0]), 'HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE', `${s.label}:${file}:${r.trade_date}`); });
   }

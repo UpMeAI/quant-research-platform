@@ -181,8 +181,11 @@ Under R1.5 the AQuA session writes the mechanisms and the coordinator reviews th
 
 The completion export goes into **the same holdout directory**:
 - new files are named `<table>_<YYYYMMDD>.csv`;
+- under export spec rev 5 (`0aac3303`) it also carries `industry_membership_sw2021_<YYYYMMDD>.csv`: the membership rows with `first_available_at` from 2026-10-17 00:00+08 up to B's D1. Like every completion file it is append-only;
 - `SHA256SUMS` is recomputed;
 - `SHA256SUMS.sealed` is left untouched.
+
+Rev 5 change three also requires the lane copy and the validation tail to hold no prices, daily_basic, adjustment-factor or suspension (observation and day-coverage) row dated after their own D1. The runner refuses such a source before the open (`…_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE`).
 
 **Hand-over** is the only point where the runner gets the holdout:
 
@@ -205,7 +208,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
    - Each day must also reach at least half of the median of the **sealed** days, meaning the days in the files listed by `SHA256SUMS.sealed`, which cannot move after sealing. A thin completion export therefore cannot pull its own median down.
    - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
    - Otherwise it refuses with `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`.
-   - **No holdout days outside the holdout (re-review follow-up A).** The lane copy and the validation tail must hold no prices, daily_basic or adjustment-factor row dated on or after the first decision day (2026-10-19); export spec rev 5 cuts the tail at its D1. Otherwise it refuses with `…_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE:<source>:<file>:<day>`, because the panel merges all sources and such a row would replace a sealed one. This adds one pass over those three tables of every source before the open.
+   - **No holdout days outside the holdout (re-review follow-up A).** The lane copy and the validation tail must hold no prices, daily_basic, adjustment-factor or suspension (observation and day-coverage) row dated on or after the first decision day (2026-10-19); export spec rev 5 cuts all five tables at D1. Otherwise it refuses with `…_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE:<source>:<file>:<day>`, because the panel merges all sources and such a row would replace a sealed one. This adds one pass over those three tables of every source before the open.
    - **Which rows and days (review #127, 2026-11-18).** The check counts what the panel reads: the trade dates that feed the decision days (10-16 → 12-30; 10-16 comes from the validation tail), only rows in by 09:00 +08 on the next open day, latest revision first. A late re-collect therefore cannot make a day look complete. Prices and adjustment factors are counted once more over the decision days 10-19 → 12-31 for the execution labels.
    - **Field states per day (must be in the image before any score).** Rows are not enough: V6 has days on which one daily_basic field is MISSING for every stock (the -r4 tail: `turnover_rate_f` and `dv_ttm` on 2026-09-29, 10-08 and 10-09).
      - For each daily_basic field, the check counts the names whose counted row has a usable state (PRESENT or ZERO). It reads states only, never values. A PRESENT state with a null or absent value counts as MISSING (★RF1116_PRESENT_NULL = refuse).

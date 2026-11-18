@@ -35,6 +35,7 @@ const limits = require('../price-limits');
 const FILES = Object.freeze({
   prices: 'prices_daily_stock.csv', basic: 'market_daily_basic_observation_stock.csv', adj: 'adjustment_factor_observation_stock.csv', master: 'security_master_stock.csv',
   suspension: 'security_suspension_observation.csv', calendar: 'trading_calendar.csv', industry: 'industry_membership_sw2021.csv',
+  suspension_coverage: 'security_suspension_day_coverage.csv', // 面板不读；留出段核对用（导出规格 rev 5 改动三：截到 D1）
 });
 const MODES = Object.freeze(['HISTORY', 'LIVE']);
 const SUFFIXED = /^_\d{8}\.csv$/;
