@@ -237,7 +237,7 @@ test('只有 SSE 的日历（车道副本的 BASE 库：每个日历日一行 SS
   const runner = require('../services/mining-sandbox/round-runner');
   const holdSse = sseOnly(fx.dirs.holdout);
   const seal = { data_sha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(holdSse, 'SHA256SUMS'))).digest('hex'), segment: { from: '2026-10-19', to: '2026-12-31' } };
-  const c = runner.holdoutDirCheck(holdSse, seal, { minNamesPerDay: 5 });
+  const c = runner.holdoutDirCheck(holdSse, seal, { minNamesPerDay: 5, priorSources: [adapter.csvDirSource(sseOnly(fx.dirs.tail), { mode: 'LIVE', label: 'tail' })] });
   assert.equal(c.calendar_to, '2026-12-31');
 });
 
