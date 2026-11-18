@@ -121,6 +121,7 @@ Reads the CSV directories of export spec rev 2 (`RF1116_CN_A_LANE_EXPORT_SPEC_V1
     - `industry_limits`, which lists only what the panel actually used:
       - `SINGLE_SOURCE_NOT_RECONCILED`: DEGRADED rows were used; there is one source and no second-source check.
       - `HISTORY_BACKDATED_BY_SOURCE`: SW2021 membership is dated back to listing (for example 1991), with `first_available_at` the day before `effective_from`, although SW2021 dates from 2021. Panel days before 2021-01-01 therefore use a classification that is restated history.
+      - `END_DATE_INCLUSIVE_V6_READS_EXCLUSIVE`: membership is read as `effective_from ≤ d ≤ effective_to` (★RF1116_INDUSTRY_END_INCLUSIVE (a), coordinator 2026-11-18; `rules.industry_effective_to: INCLUSIVE`). In V6's data the next membership starts the day after `effective_to`. V6's readers still use `effective_to > d`, so they drop a reclassified stock on its last day; that is fixed separately in V6, and until then this is disclosed.
     - Industry is used only for neutralization and grouping. Every other table stays READY-only.
   - **daily_basic values** (round 1's second data cause, 2026-11-18). V6 writes `market_daily_basic_observation.values` as `{field: {state, value}}`. The adapter reads PRESENT → `value`, ZERO → 0, and MISSING or any other state → NaN, counted per field in `counts.daily_basic.value_missing`. A bare number is still accepted. Before this fix, `Number(object)` made all seven readings NaN, `total_mv` (size) included.
 - **Universe** (`universe[i][j]`, freeze prep §2.3)
