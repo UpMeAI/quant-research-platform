@@ -2,7 +2,7 @@
 SHA256SUMS 758323e8...). Not run by the tests; kept for provenance.
 Usage: python3 -I MAKE.py <export dir> <out dir>
 Picks about 30 securities deterministically (sorted ids, first k of each kind) and keeps every row of theirs with every field unchanged
-(rows are re-written with Python's csv module, minimal quoting); trading_calendar is cut to calendar_date >= 2025-06-01;
+(rows are re-written with Python's csv module, minimal quoting); trading_calendar is cut to 2025-06-01 <= calendar_date <= 2026-10-16 (nothing dated inside the holdout segment);
 security_suspension_day_coverage is kept whole."""
 import csv, json, sys, hashlib, os
 csv.field_size_limit(10**9)
@@ -38,7 +38,7 @@ os.makedirs(out, exist_ok=True)
 sums = []
 for f in H:
     rows = T[f]
-    if f == 'trading_calendar.csv': rows = [r for r in rows if r[col(f, 'calendar_date')] >= '2025-06-01']
+    if f == 'trading_calendar.csv': rows = [r for r in rows if '2025-06-01' <= r[col(f, 'calendar_date')] <= '2026-10-16']  # 2026-11-18 re-review: nothing dated inside the holdout segment
     elif f != 'security_suspension_day_coverage.csv': rows = [r for r in rows if r[col(f, 'security_id')] in keep]
     p = os.path.join(out, f)
     with open(p, 'w', encoding='utf-8', newline='') as fh:
