@@ -54,11 +54,15 @@ function holdout(segment, { sealed = {}, appended = {} } = {}) {
   if (Object.keys(appended).length) resum(dir);
   return { dir, seal: { data_sha256: sha256(fs.readFileSync(path.join(dir, 'SHA256SUMS.sealed'))), segment } };
 }
-/** 真实行夹具的副本当「之前的源」（验证尾段）：日线、daily_basic、复权因子只留交易日早于 cut 的行（extra：{ [file]: rows } 追加的行）。 */
-function cutCopy(cut, extra = {}) {
+/**
+ * 真实行夹具的副本当「之前的源」（验证尾段）：导出规格 rev 5 改动三的五张表（日线、daily_basic、复权因子、两张停牌表）只留交易日早于 cut 的行；
+ * extra：{ [file]: rows } 追加的行；keep：不截的表（测试拒绝用）。
+ */
+const CUT_TABLES = Object.freeze([PRICES, BASIC, 'adjustment_factor_observation_stock.csv', 'security_suspension_observation.csv', 'security_suspension_day_coverage.csv']);
+function cutCopy(cut, extra = {}, keep = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-hff-tail-'));
   for (const f of fs.readdirSync(FIXTURE)) if (f.endsWith('.csv')) fs.copyFileSync(path.join(FIXTURE, f), path.join(dir, f));
-  for (const file of [PRICES, BASIC, 'adjustment_factor_observation_stock.csv']) {
+  for (const file of CUT_TABLES.filter((f) => !keep.includes(f))) {
     const rows = readRows(path.join(dir, file)); const cols = Object.keys(rows[0]);
     writeRows(path.join(dir, file), cols, [...rows.filter((r) => r.trade_date < cut), ...(extra[file] || [])]);
   }
@@ -234,4 +238,15 @@ test('跟进 D：total_mv 不许排除——直接调 holdoutDirCheck、手写�
   const h = holdout(FULL, { sealed: { [BASIC]: basicEdit((r, v) => { if (r.trade_date !== DAY) return false; v.total_mv = MISSING; return true; }) } });
   const handBuilt = { sha256: 'c'.repeat(64), ruling: { path: 'x', sha256: 'd'.repeat(64) }, pairs: [{ trade_date: DAY, field: 'total_mv', reason: 'hand-built' }] };
   assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, fieldExclusions: handBuilt }), code(/MINE_RUNNER_FIELD_EXCLUSION_NOT_ALLOWED:2026-10-14:total_mv/));
+});
+
+test('导出规格 rev 5 ★RF1116_SUSPENSION_CUT = (a)：留出段以外的源里，两张停牌表有交易日落在第一个决策日或之后的行 → 开启之前就拒（面板会多记停牌）', () => {
+  const h = holdout(FULL);
+  for (const file of ['security_suspension_observation.csv', 'security_suspension_day_coverage.csv']) {
+    const tail = adapter.csvDirSource(cutCopy('2026-10-13', {}, [file]), { mode: 'LIVE', label: 'tail' });
+    assert.throws(() => runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [tail] }),
+      code(new RegExp(`MINE_RUNNER_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE:tail:${file.replace(/\./g, '\\.')}:2026-10-1[3-6]$`)), file);
+  }
+  // 五张表都截到第一个决策日之前 → 过
+  assert.ok(runner.holdoutDirCheck(h.dir, h.seal, { ...MIN, priorSources: [adapter.csvDirSource(cutCopy('2026-10-13'), { mode: 'LIVE', label: 'tail' })] }).field_states_per_day.total_mv.min >= 20);
 });
