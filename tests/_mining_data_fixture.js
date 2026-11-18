@@ -92,10 +92,14 @@ const ingestAt = (d) => (segOf(d) === 'lane' && d < '2026-09-01' ? BACKFILL_AT :
 /**
  * 写出三个目录。返回 { root, dirs: { lane, tail, holdout }, facts, calendar: [开市日…] }。
  * opts.stocks（默认全部 16 只）可以只取前几只，给端到端测试提速；opts.seed 换随机序列。
+ * opts.basicShape（'V6' | 'FLAT'）：daily_basic 的 values 写成 V6 的 { state, value } 形状还是裸数（第 1 轮第二个缺陷：V6 是前者）。
  * opts.industryQuality（默认 DEGRADED，与 V6 一样：canonicalize.js:460 把每一行行业成员都写成 DEGRADED）是行业成员表每一行的 quality_state；
  *   第 1 轮缺陷（2026-11-18）之前这里写的是 READY，测试因此没碰到生产的数据。
  */
-function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, industryQuality = 'DEGRADED' } = {}) {
+/** V6 的 daily_basic 取值形状（market_daily_basic_observation.values）：每个字段 { state, value }；0 记 ZERO，没有值记 MISSING。 */
+const v6Values = (v) => Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === null || x === undefined || !Number.isFinite(x) ? { state: 'MISSING', value: null } : { state: x === 0 ? 'ZERO' : 'PRESENT', value: x }]));
+
+function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, industryQuality = 'DEGRADED', basicShape = 'FLAT' } = {}) {
   const rng = mulberry32(seed);
   const cal = calendar(CAL_FROM, SEGMENTS.holdout[1]);
   const openDays = cal.filter((c) => c.open).map((c) => c.date);
@@ -145,7 +149,7 @@ function makeMiningDataFixture(root, { seed = 20261117, stocks = STOCKS.length, 
       const values = { close: round(close), turnover_rate: round(1 + 4 * rng()), turnover_rate_f: round(1 + 5 * rng()), volume_ratio: round(0.5 + rng()), pe: round(10 + 40 * rng()), pe_ttm: round(10 + 40 * rng()),
         pb: round(1 + 4 * rng()), ps: round(1 + 9 * rng()), ps_ttm: round(1 + 9 * rng()), dv_ratio: round(3 * rng()), dv_ttm: round(3 * rng()), total_share: shares / 1e4, float_share: shares * 0.8 / 1e4,
         free_share: shares * 0.6 / 1e4, total_mv: mv / 1e4, circ_mv: round(mv * 0.8 / 1e4, 2) };
-      const basic = (v, rev, a) => ({ record_id: `db:${id}:${d}:${rev}`, raw_record_id: `dbr:${id}:${d}:${rev}`, security_id: id, trade_date: d, values: JSON.stringify(v), first_available_at: a, ingested_at: a,
+      const basic = (v, rev, a) => ({ record_id: `db:${id}:${d}:${rev}`, raw_record_id: `dbr:${id}:${d}:${rev}`, security_id: id, trade_date: d, values: JSON.stringify(basicShape === 'V6' ? v6Values(v) : v), first_available_at: a, ingested_at: a,
         source_record_id: `ts:db:${id}:${d}`, revision: rev, schema_version: 'synthetic-v1', quality_state: 'READY', source_reconciliation_state: 'MATCHED' });
       const f = FACTS;
       if (id === f.lookAhead.code && d === f.lookAhead.date) push(d, 'basic', basic({ ...values, pb: f.lookAhead.pb }, 1, at));
