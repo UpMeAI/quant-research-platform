@@ -116,6 +116,10 @@
 - **没写 §4.1 时：** 两题一起导入，整批拒绝 `TRIAL_LEDGER_SEAL_RESULT_MISSING:CN-X07B:TRL-1f8384c03cf967cf`，失败即关。D4 单独导入照常成锁。
 - **写了 §4.1 之后：** 两题都成锁，读数同 §4.2；重导是幂等重放。
 - **已有各题不变：** 用 main `d99fac5` 与本分支各跑同一个只读比较脚本（`research-data/r_xm_1_v1/import/compare.js`），读真实台账的副本，比较 62 道已有题目的锁投影、17 把 A 股锁的现场复验、result_id、绑定文件与 G-MECH / G-CAUSAL 的范围判断。
-  - 两次输出逐字节相同（`6d891b14…`）。
+  - 两次输出逐字节相同：比较体 sha256 `6d891b14…`，输出文件 `55734259…`（`research-data/x07b_d4_import_v1/rehearsal/cmp-old.json` = `cmp-new.json`）。
   - 两边都有的 4 个 ERR 是比较脚本对 R-XM-1 两题的门只探范围、不给文件字节（`MECHANISM_RULING_FILE_MISSING`、`COST_MODEL_RUN_LOG_MISSING`），新旧相同，不是回归。
 - **note_zh 抄值核对：** `copycheck.js` 核了两题 note_zh 与用途里 37 个带小数的数，都在本题封存 JSON、结果页或附注里原样出现，0 个不符。
+- **测试（Linux，nice 19 + ionice -c3）：**
+  - 相关 8 个文件 120 条：119 过、0 失败、1 跳过。
+  - 全套：基线 `d99fac5` 980 条、104 失败；本分支 982 条（多出本修订的 2 条）、104 失败。两边失败的测试名逐条相同（`9887feb0…`），都是既有失败。
+- **预演包：** `research-data/x07b_d4_import_v1/`（`SHA256SUMS`）。
