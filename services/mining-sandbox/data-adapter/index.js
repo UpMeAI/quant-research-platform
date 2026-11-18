@@ -35,6 +35,7 @@ const limits = require('../price-limits');
 const FILES = Object.freeze({
   prices: 'prices_daily_stock.csv', basic: 'market_daily_basic_observation_stock.csv', adj: 'adjustment_factor_observation_stock.csv', master: 'security_master_stock.csv',
   suspension: 'security_suspension_observation.csv', calendar: 'trading_calendar.csv', industry: 'industry_membership_sw2021.csv',
+  suspension_coverage: 'security_suspension_day_coverage.csv', // 面板不读；留出段核对用（导出规格 rev 5 改动三：截到 D1）
 });
 const MODES = Object.freeze(['HISTORY', 'LIVE']);
 const SUFFIXED = /^_\d{8}\.csv$/;
@@ -207,13 +208,28 @@ function mapReadings(space) {
  * 修订的选择状态（每个格子一份）：cat 2 = 截止前入库，1 = 回补（只在 HISTORY），0 = 没有。
  * 截止前入库的取入库最晚的；回补的取「最早入库那一刻的知识」：入库最早的时刻，同一时刻有几个修订取修订号大的。
  */
+/** 同一格两行谁算数（LATEST_FIRST_AVAILABLE_BY_CUTOFF 里「截止前入库」那一类）：入库晚的；同一时刻修订号大的（相等取后读到的）。面板与留出段核对共用。 */
+const laterRevision = (curAt, curRev, at, rev) => at > curAt || (at === curAt && rev >= curRev);
+/** LIVE 源的截止：t 日收盘记的行，要在下一个开市日 09:00 +08 之前入库才算数（CLOSE_DATED_NEXT_OPEN_USABLE）；日历里没有下一个开市日 → -Infinity（没有决策日读它）。
+ *  面板与留出段核对共用这一份（复审 #127 P1-1：不再各写一份）。cal = 排好序的开市日。 */
+function liveCutoffs(cal) {
+  const cache = new Map();
+  return (t) => {
+    let c = cache.get(t);
+    if (c === undefined) { const d = usableFrom(t, 'CLOSE_DATED_NEXT_OPEN_USABLE', cal); c = d ? Date.parse(`${d}${LIVE_CUTOFF}`) : -Infinity; cache.set(t, c); }
+    return c;
+  };
+}
+/** daily_basic 的 values 里哪些状态读得出数（stateValue：PRESENT → value，ZERO → 0，其余 NaN）。留出段核对只数状态，不读数。 */
+const USABLE_BASIC_STATES = Object.freeze(Object.keys(VALUE_STATES));
+
 function selector(cells) {
   const cat = new Int8Array(cells); const fa = new Float64Array(cells); const rev = new Int32Array(cells);
   return {
     cat,
     take(k, c, at, r) {
       const cur = cat[k];
-      const better = c === 2 ? (cur < 2 || at > fa[k] || (at === fa[k] && r >= rev[k]))
+      const better = c === 2 ? (cur < 2 || laterRevision(fa[k], rev[k], at, r))
         : c === 1 ? (cur === 0 || (cur === 1 && (at < fa[k] || (at === fa[k] && r >= rev[k])))) : false;
       if (better) { cat[k] = c; fa[k] = at; rev[k] = r; }
       return better;
@@ -259,12 +275,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
   const dates = cal.filter((d) => d >= from && d <= to);
   if (!dates.length) fail('NO_TRADING_DAYS', `${from}..${to}`);
   const dateIdx = new Map(dates.map((d, i) => [d, i]));
-  const cutoffCache = new Map();
-  const cutoffOf = (t) => {
-    let c = cutoffCache.get(t);
-    if (c === undefined) { const d = usableFrom(t, 'CLOSE_DATED_NEXT_OPEN_USABLE', cal); c = d ? Date.parse(`${d}${LIVE_CUTOFF}`) : -Infinity; cutoffCache.set(t, c); }
-    return c;
-  };
+  const cutoffOf = liveCutoffs(cal);
   const placeOf = (t) => { const d = usableFrom(t, 'CLOSE_DATED_NEXT_OPEN_USABLE', cal); return d === null ? undefined : dateIdx.get(d); };
 
   // 证券主表：股票、非北交所；每只记快照的变化点
@@ -450,6 +461,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
 }
 
 module.exports = {
-  FILES, MODES, ACCEPTED_QUALITY, ACCEPTED_INDUSTRY_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, DataError,
-  csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, internals: { forEachCsvRow, parseTs, clockOf, mapReadings },
+  FILES, MODES, ACCEPTED_QUALITY, ACCEPTED_INDUSTRY_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, BASIC_FIELDS, DataError,
+  csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, liveCutoffs, laterRevision, USABLE_BASIC_STATES, LIVE_CUTOFF,
+  internals: { forEachCsvRow, parseTs, clockOf, mapReadings, stateValue },
 };

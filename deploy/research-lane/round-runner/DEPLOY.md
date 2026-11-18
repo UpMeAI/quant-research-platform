@@ -181,8 +181,11 @@ Under R1.5 the AQuA session writes the mechanisms and the coordinator reviews th
 
 The completion export goes into **the same holdout directory**:
 - new files are named `<table>_<YYYYMMDD>.csv`;
+- under export spec rev 5 (`0aac3303`) it also carries `industry_membership_sw2021_<YYYYMMDD>.csv`: the membership rows with `first_available_at` from 2026-10-17 00:00+08 up to B's D1. Like every completion file it is append-only;
 - `SHA256SUMS` is recomputed;
 - `SHA256SUMS.sealed` is left untouched.
+
+Rev 5 change three also requires the lane copy and the validation tail to hold no prices, daily_basic, adjustment-factor or suspension (observation and day-coverage) row dated after their own D1. The runner refuses such a source before the open (`…_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE`).
 
 **Hand-over** is the only point where the runner gets the holdout:
 
@@ -205,7 +208,14 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
    - Each day must also reach at least half of the median of the **sealed** days, meaning the days in the files listed by `SHA256SUMS.sealed`, which cannot move after sealing. A thin completion export therefore cannot pull its own median down.
    - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
    - Otherwise it refuses with `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`.
-   - The floor used is written into the vault's open record (`pre_open_checks`).
+   - **No holdout days outside the holdout (re-review follow-up A).** The lane copy and the validation tail must hold no prices, daily_basic, adjustment-factor or suspension (observation and day-coverage) row dated on or after the first decision day (2026-10-19); export spec rev 5 cuts all five tables at D1. Otherwise it refuses with `…_HOLDOUT_DAY_IN_NON_HOLDOUT_SOURCE:<source>:<file>:<day>`, because the panel merges all sources and such a row would replace a sealed one. This adds one pass over those three tables of every source before the open.
+   - **Which rows and days (review #127, 2026-11-18).** The check counts what the panel reads: the trade dates that feed the decision days (10-16 → 12-30; 10-16 comes from the validation tail), only rows in by 09:00 +08 on the next open day, latest revision first. A late re-collect therefore cannot make a day look complete. Prices and adjustment factors are counted once more over the decision days 10-19 → 12-31 for the execution labels.
+   - **Field states per day (must be in the image before any score).** Rows are not enough: V6 has days on which one daily_basic field is MISSING for every stock (the -r4 tail: `turnover_rate_f` and `dv_ttm` on 2026-09-29, 10-08 and 10-09).
+     - For each daily_basic field, the check counts the names whose counted row has a usable state (PRESENT or ZERO). It reads states only, never values. A PRESENT state with a null or absent value counts as MISSING (★RF1116_PRESENT_NULL = refuse).
+     - Every trade date must reach **0.9** × the median of the sealed days for that field (★RF1116_FIELD_FLOOR_SHARE). `total_mv` must also reach the names-per-day floor.
+     - Otherwise it refuses with `…_HOLDOUT_FIELD_INCOMPLETE:<file>:<field>:<day>:<names>`. A field with no usable value on any sealed day refuses with `…_HOLDOUT_FIELD_EMPTY:<file>:<field>`. A `values` cell that is not JSON refuses with `…_HOLDOUT_FIELD_VALUES_INVALID` before the open.
+     - **If the real holdout has such a day:** the open is refused. To go ahead, the coordinator writes a ruling and an exclusions file `HOLDOUT_FIELD_EXCLUSIONS_V1` `{schema, round_id, ruling: {path, sha256}, exclusions: [{trade_date, field, reason}]}` and runs `run.sh score <round_id> <exclusions.json> <its sha256>`. `total_mv` cannot be excluded. The file is mounted read-only; its sha, the pairs and the per-field counts go into the open record. Without the file nothing is excluded.
+   - The floors used, `field_states_per_day`, `field_floor` and any exclusions are written into the vault's open record (`pre_open_checks.holdout_dir`) and `score.json`.
 4. **The selection is the recorded one.** The `MINING_SELECTION_V1` row exists, and `selection.json` matches its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). The formulas are taken from the trial rows, not from the file.
 
 If any check fails it refuses, and the single open is not spent.
@@ -220,7 +230,7 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 
 - **It is accepted only if all of these hold:**
   - the selection row is byte-unchanged;
-  - every input is the same as at the open (the holdout manifest and `SHA256SUMS.sealed`, `selection.json`, the factor series, the data sources, the code, the floor, the mechanism registrations and the mechanism review), compared through `inputs_sha256`;
+  - every input is the same as at the open (the holdout manifest and `SHA256SUMS.sealed`, `selection.json`, the factor series, the data sources, the code, the floor, the mechanism registrations, the mechanism review and, if the score used one, the field-exclusions file), compared through `inputs_sha256`. **A rescore must pass the same `<exclusions.json> <sha256>` as the score** (`run.sh rescore <round> <reason> <crash.log> <exclusions.json> <sha256>`); without it the inputs differ and the rescore is refused;
   - the latest mechanism review predates the open;
   - the first attempt wrote **no** G-MINE record.
 

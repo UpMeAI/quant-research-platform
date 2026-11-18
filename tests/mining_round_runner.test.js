@@ -154,7 +154,7 @@ test('尝试计数（§4 第 5 条）：解析不过、去重被拒的都记一�
  */
 function holdoutVariants() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-holdout-variants-'));
-  const names = ['partial', 'complete', 'tampered', 'unsealed', 'forged', 'corrupt', 'unlisted', 'thin', 'g5a', 'g5b', 'half', 'dupes', 'g5c', 'emptyseal'];
+  const names = ['partial', 'complete', 'tampered', 'unsealed', 'forged', 'corrupt', 'unlisted', 'thin', 'g5a', 'g5b', 'half', 'dupes', 'g5c', 'emptyseal', 'fieldgap'];
   const THIN = new Set(['S01.SH', 'S02.SH']); const HALF = new Set(['S01.SH', 'S02.SH', 'S03.SH', 'S04.SZ', 'S05.SZ', 'S06.SZ']); const SIX = HALF;
   const DATA = /^(prices_daily|market_daily_basic|adjustment_factor)/;
   const v = Object.fromEntries(names.map((n) => { const d = path.join(root, n); fs.mkdirSync(d); return [n, d]; }));
@@ -183,12 +183,15 @@ function holdoutVariants() {
             : n === 'dupes' && name === 'prices_daily_stock.csv' ? late.filter((r) => THIN.has(r.security_id)).flatMap((r) => [1, 2, 3].map((k) => ({ ...r, revision: String(k), record_id: `${r.record_id}:r${k}` })))
               // G5c（再审 3）：补导每天 15 只里只有 6 只，过了测试的绝对下限 5，但不到封存那段中位数（15）的一半
               : n === 'g5c' && DATA.test(name) ? late.filter((r) => SIX.has(r.security_id))
-                : n === 'emptyseal' && DATA.test(name) ? [...early, ...late] : late;
+                : n === 'emptyseal' && DATA.test(name) ? [...early, ...late]
+                  // fieldgap（复审 #127 P3-4）：补导的 daily_basic 在 12-15 每只 total_mv 都 MISSING——行数够，字段不够
+                  : n === 'fieldgap' && name === 'market_daily_basic_observation_stock.csv'
+                    ? late.map((r) => (r.trade_date === '2026-12-15' ? { ...r, values: JSON.stringify({ ...JSON.parse(r.values), total_mv: { state: 'MISSING', value: null } }) } : r)) : late;
       fs.writeFileSync(path.join(v[n], name.replace(/\.csv$/, '_20270105.csv')), fixtureInternals.csv(cols, keep));
     }
   }
   sums(v.partial);
-  for (const n of ['complete', 'tampered', 'corrupt', 'unlisted', 'thin', 'g5a', 'half', 'dupes', 'g5c']) fs.copyFileSync(path.join(v.partial, 'SHA256SUMS'), path.join(v[n], 'SHA256SUMS.sealed'));
+  for (const n of ['complete', 'tampered', 'corrupt', 'unlisted', 'thin', 'g5a', 'half', 'dupes', 'g5c', 'fieldgap']) fs.copyFileSync(path.join(v.partial, 'SHA256SUMS'), path.join(v[n], 'SHA256SUMS.sealed'));
   // G5b 的封存件是它自己那一份（封存时就薄）
   const g5bEarly = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-g5b-early-'));
   for (const n of fs.readdirSync(v.g5b).filter((x) => x.endsWith('.csv'))) fs.copyFileSync(path.join(v.g5b, n), path.join(g5bEarly, n));
@@ -209,7 +212,8 @@ function holdoutVariants() {
 test('留出段目录的核对（开 vault 之前，纯函数）：每个列出的文件都核 sha、补导只追加、清单外的 CSV 拒绝、7 张表都要在、每个 SSE 开市日都有足够的 READY 日线 / daily_basic / 复权因子', () => {
   const hv = holdoutVariants();
   const seal = { data_sha256: hv.sealSha, segment: { from: '2026-10-19', to: '2026-12-31' } };
-  const check = (dir, s = seal) => runner.holdoutDirCheck(dir, s, { minNamesPerDay: COV.min_names_per_day });
+  // 复审 #127 P3-2：第一个决策日（10-19）由 10-16 的行喂，那一天在验证尾段（LIVE）里，一并核
+  const check = (dir, s = seal) => runner.holdoutDirCheck(dir, s, { minNamesPerDay: COV.min_names_per_day, priorSources: sources() });
   assert.throws(() => check(hv.partial), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-11-18/), 'the full calendar does not make a partial export look complete');
   assert.throws(() => check(hv.unsealed), code(/MINE_RUNNER_HOLDOUT_SHA_MISMATCH/));
   assert.throws(() => check(hv.forged), code(/MINE_RUNNER_HOLDOUT_SHA_MISMATCH/));
@@ -228,7 +232,9 @@ test('留出段目录的核对（开 vault 之前，纯函数）：每个列出�
   // 过了绝对下限、但不到中位数一半的日子（12-15 只剩 6 只）也拒绝：两条都留着
   assert.throws(() => check(hv.half), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-12-15:6$/));
   // 生产默认的下限（每天 2,000 只）：16 只的合成数据一律不够
-  assert.throws(() => runner.holdoutDirCheck(hv.complete, seal), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-10-19:\d+$/));
+  assert.throws(() => runner.holdoutDirCheck(hv.complete, seal, { priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-10-16:\d+$/));
+  // 没给验证尾段：喂第一个决策日的 10-16 没有行 → 拒（不默认跳过）
+  assert.throws(() => runner.holdoutDirCheck(hv.complete, seal, { minNamesPerDay: COV.min_names_per_day }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv:2026-10-16:0$/));
   const ok = check(hv.complete);
   assert.equal(ok.open_days, 54);
   assert.deepEqual(ok.floor, { min_names_per_day: 5, min_share_of_sealed_median: 0.5, basis: 'DISTINCT_SECURITY_ID_READY_EXCL_BJ', anchor: 'SEALED_DAYS_MEDIAN' });
@@ -304,6 +310,7 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
   assert.throws(() => score(hv.tampered), code(/MINE_RUNNER_HOLDOUT_SEALED_FILES_CHANGED/));
   assert.throws(() => score(hv.forged), code(/MINE_RUNNER_HOLDOUT_SHA_MISMATCH/));
   assert.throws(() => score(hv.corrupt), code(/MINE_RUNNER_HOLDOUT_FILE_SHA_MISMATCH/), 'G3: a bad file is caught before the open, not after');
+  assert.throws(() => score(hv.fieldgap), code(/MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE:market_daily_basic_observation_stock\.csv:total_mv:2026-12-15:0$/), '#127 P3-4: the field floor is wired into score');
   // G2：输出目录里的 selection.json 被改（换公式、塞进没过验证折的候选）→ 对不上台账里的 sha，拒绝
   const selFile = path.join(runDirOf(out, r.round_id), 'selection.json'); const selBytes = fs.readFileSync(selFile);
   const forgedSel = JSON.parse(selBytes); forgedSel.candidates.find((c) => c.candidate_id === sel.selected[0]).formula = 'rank(ts_mean(amount,20))';
@@ -323,10 +330,16 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
   assert.equal(s.records.length, sel.selected.length);
   const [open] = vault.openLog(r.round_id);
   assert.deepEqual(open.candidate_ids, sel.selected);
+  // 复审 #127 P2-3：逐字段的计数、字段下限、排除文件进开启记录与 score.json
+  const hd = open.pre_open_checks.holdout_dir;
+  assert.ok(hd.field_states_per_day && hd.field_states_per_day.total_mv.min >= 5 && hd.field_floor.min_share_of_sealed_median === 0.9 && hd.field_exclusions === null, JSON.stringify(hd.field_floor));
+  assert.deepEqual([hd.trade_dates.from, hd.trade_dates.to], ['2026-10-16', '2026-12-30']);
   const scoreFile = JSON.parse(fs.readFileSync(path.join(runDirOf(out, r.round_id), 'score.json'), 'utf8'));
   const trialFormula = new Map(roundTrials(r.round_id).map((t) => [t.mining.candidate_id, t.rule_config.formula]));
   assert.ok(scoreFile.results.every((x) => x.formula === trialFormula.get(x.candidate_id)), 'formulas come from the trial rows');
   assert.equal(scoreFile.holdout_panel.to, '2026-12-31', 'the date-suffixed completion files were read');
+  assert.deepEqual(scoreFile.holdout.field_states_per_day, hd.field_states_per_day);
+  assert.deepEqual(scoreFile.holdout.field_floor, hd.field_floor);
   assert.ok(scoreFile.results.every((x) => x.holdout.neutralization.industry === 'APPLIED' && Number.isFinite(x.holdout.ic_mean) && x.holdout.icir_non_overlapping === true));
   const scoring = require('../services/mining-sandbox/scoring');
   const dslSpace = require('../services/mining-sandbox/space').dslSpaceOf(SPACE);
@@ -521,6 +534,12 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   const rv = cli(['review', '--out', a.out, '--round', a.g.round_id, '--file', verdictFile], a.env);
   assert.equal(rv.status, 0, rv.stderr);
   assert.deepEqual([JSON.parse(rv.stdout).command, JSON.parse(rv.stdout).verdicts], ['review', { APPROVED: 0, REJECTED: listed.survivors.length }]);
+  // 复审 #127 P3-4：命令行 score 也在开启之前核字段（字段缺了的补导 → 退出码 2，不开）；排除文件的两个选项要一起给
+  const gapDir = require('./_holdout_field_gap').holdoutWithFieldGap(fx.dirs.holdout, '2026-12-15');
+  const gap = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', gapDir, '--min-names-per-day', '5'], a.env);
+  assert.equal(gap.status, 2); assert.equal(JSON.parse(gap.stderr).error, 'MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE'); assert.match(gap.stderr, /total_mv:2026-12-15:0/);
+  const half = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--field-exclusions', gapDir], a.env);
+  assert.equal(half.status, 2); assert.equal(JSON.parse(half.stderr).error, 'MINE_RUNNER_OPTION_REQUIRED'); assert.match(half.stderr, /--field-exclusions-sha256/);
   const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5'], a.env);
   assert.equal(s.status, 0, s.stderr);
   const sOut = JSON.parse(s.stdout);

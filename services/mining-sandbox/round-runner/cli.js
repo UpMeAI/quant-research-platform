@@ -16,6 +16,7 @@
  *            R1.5「打分之前由协调会话复审这批机制」：裁决文件 JSON { mechanism_set_sha256, reviewer, verdicts: [{candidate_id, verdict: APPROVED|REJECTED, note?}] }
  *            写一行 MECHANISM_REVIEW_V1（只追加，最新的算数）。score / rescore 之前必须有覆盖每个选中候选、集合 sha 对得上、早于开启的复审。
  *   score 另可 --factor-series DIR（FACTOR_SERIES_V1，R1.4：G-MINE 第 7、8 项要的现有因子序列，只读）；--min-names-per-day 是留出段的下限（默认 4,000）。
+ *   score / rescore 另可 --field-exclusions FILE --field-exclusions-sha256 SHA（两个一起给）：协调会话的字段排除文件 HOLDOUT_FIELD_EXCLUSIONS_V1，sha 钉住，写进开启记录（复审 #127 P3-1）。
  *   rescore（score 的选项）+ --reason TEXT --crash-log FILE：协调会话裁定 R1.8，开启之后崩溃的那一轮恰好一次同选集重打分；再崩以 FAILED_RESCORE 关轮。
  *   fail-evaluation --out DIR --round ROUND_ID --reason TEXT --evidence-sha256 SHA：★RF1116_ROUND1_STATE (a)，留出段从未开启、本轮没被评估 → FAILED_EVALUATION（只追加）。
  *
@@ -28,10 +29,10 @@ const adapter = require('../data-adapter');
 
 const OPTIONS = Object.freeze({
   generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day'],
-  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series'],
+  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256'],
   mechanisms: ['out', 'round', 'register'],
   review: ['out', 'round', 'file'],
-  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log'],
+  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256'],
   'fail-evaluation': ['out', 'round', 'reason', 'evidence-sha256', 'failed-at'],
 });
 
@@ -114,17 +115,21 @@ function main(argv) {
   required(o, ['out', 'round', 'lane', 'tail', 'holdout']);
   const { outDir } = runner.start({ outDir: o.out });
   const floor = o['min-names-per-day'] === undefined ? runner.HOLDOUT_FLOOR : { min_names_per_day: Number(o['min-names-per-day']) };
+  // 复审 #127 P3-1：协调会话的字段排除文件，两个选项要么都给、要么都不给（sha 由协调会话钉住）
+  const hasEx = o['field-exclusions'] !== undefined; const hasExSha = o['field-exclusions-sha256'] !== undefined;
+  if (hasEx !== hasExSha) throw new runner.RunnerError('MINE_RUNNER_OPTION_REQUIRED', hasEx ? '--field-exclusions-sha256' : '--field-exclusions');
+  const fieldExclusions = hasEx ? { file: o['field-exclusions'], sha256: o['field-exclusions-sha256'] } : null;
   if (cmd === 'rescore') {
     // R1.8：开启之后崩溃，恰好一次同选集重打分（原因与崩溃日志写进留出段保管的第二个事件）
     required(o, ['reason', 'crash-log']);
     const log = require('fs').readFileSync(o['crash-log'], 'utf8');
     const rr = runner.rescore({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log });
+      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions });
     const closedR = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
     return { command: 'rescore', round_id: o.round, rescored: rr.rescored, records: rr.records.length, passes: closedR.gmine_passes, status: closedR.status };
   }
   const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-    factorSeriesDir: o['factor-series'] || null });
+    factorSeriesDir: o['factor-series'] || null, fieldExclusions });
   const closed = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };
 }

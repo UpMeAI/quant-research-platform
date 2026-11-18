@@ -391,6 +391,9 @@ test('R1.8：留出段开启之后崩溃，恰好一次同选集重打分；记�
   assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(a.args)), code(/MINE_RUNNER_TEST_FAULT/));
   assert.deepEqual([vault.openLog(a.r.round_id).length, gateRecords.recordsOf(a.r.round_id).length, rounds.roundHead(a.r.round_id).status], [1, 0, 'SCORING']);
   assert.throws(() => runner.scoreHoldout(a.args), code(/MINE_HOLDOUT_ALREADY_OPENED/));
+  // 复审 #127 P3-4：重打分也先核字段（字段缺了的补导 → 拒，不记重打分事件）
+  const gapDir = require('./_holdout_field_gap').holdoutWithFieldGap(a.args.holdoutDir, '2026-12-15');
+  assert.throws(() => runner.rescore({ ...a.args, holdoutDir: gapDir, reason: 'crash', log: 'x' }), code(/MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE:market_daily_basic_observation_stock\.csv:total_mv:2026-12-15:0$/));
   const res = runner.rescore({ ...a.args, reason: 'container OOM after open (synthetic)', log: 'synthetic crash log\nline 2' });
   assert.equal(res.rescored, true);
   assert.deepEqual(recordsKey(a.r.round_id), want, 'same inputs, same records as the clean run');
