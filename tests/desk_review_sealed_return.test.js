@@ -420,18 +420,20 @@ test('A 股修订 7：R-STK-1 D4 从封存 RSTKD4_VERDICT.json 的 d4.pairs.C_RS
     C('R_STK_D4_SCREEN_RANKING_K2_V1_RESULT_1.md', '722931c223629aa103ecb25cf5b404abc06a8153cdc2dd7a9214cc5e60531df3'),
     C('R_STK_D4_SCREEN_RANKING_K2_V1_RESULT_1_NOTE_1.md', '32fb2a41894e3f3add3b46b3c86ed60baec1747bb51cb61fa0405114713146b3'),
     C('evidence/rstkd4-sealed-20261118/SHA256SUMS', '36b8bb2655ec748c45e2d485b7af06500aa0cb989dcaaf654f24de9e9128cf09')]);
-  // K2 = 冻结页（正文逐字保留草稿 55247349）；附注 1–7、NOTE_8 与它的澄清 1 按 sha256 绑定（判定运行的 ACCEPTANCE 门核过的那些文件）
+  // K2 = 冻结页（正文逐字保留草稿 55247349）；附注 1–7、NOTE_8 与它的澄清 1 按 sha256 绑定（判定运行的 ACCEPTANCE 门核过的那些文件），
+  // NOTE_7、NOTE_8 两页只是冻结记录，正文是它们点名的草稿（6b955f49、9b7a75d8，NOTE_8 §2 是各臂跑的基线修正）：正文也绑（审阅 #128 P3-1）
   assert.deepEqual(pick(entry.k2), C('R_STK_D4_SCREEN_RANKING_K2_V1_FREEZE_1.md', '571806b6e914a36c626ab8b24d767485cff8c4c79eb8d74e8d2c8a47a176c49c'));
   assert.equal(entry.freeze, null);
   assert.deepEqual(entry.k2_notes.map(pick), [
     ['NOTE_1', '561362074691ddbcd94211ddd54ea8caffccc6afd95c536e62656a85b8f43dfa'], ['NOTE_2', '364e87b8c5ab98c8182da02819a3ef0a8aeca028f584635c6b706984531eec43'],
     ['NOTE_3', '70850b411f712dfd435fcb72f82f71f36bef725f2d7da904c7acec230317b032'], ['NOTE_4', 'dc7c2431cbe73ba127ff89dafd16bdd3dbd33c549716cf79855cc690d56cf472'],
     ['NOTE_5', '12bd9c3b943058783c030f5f9754a6f24159a9c063e054b63666554271d8a2e0'], ['NOTE_6', '68acf5cc94228078e52671a40e990bebd5bc5618e0f457529b3e51a6cc2754c8'],
-    ['NOTE_7', '31c5ae5cfaac024e6c1040a24514667a212cabd28c2e894bbe2de457faf22184'], ['NOTE_8', 'bd9087041f662ec802d2bf77e087778d179484c2d7f4b7a98f683a1d03d77a32'],
+    ['NOTE_7', '31c5ae5cfaac024e6c1040a24514667a212cabd28c2e894bbe2de457faf22184'], ['NOTE_7.draft', '6b955f49860b40cb9c071b7f2e2c2d8c5dd87adb133412be817eb222479da5a1'],
+    ['NOTE_8', 'bd9087041f662ec802d2bf77e087778d179484c2d7f4b7a98f683a1d03d77a32'], ['NOTE_8.draft', '9b7a75d88221500d165b4fa8874480b05f97a308d123643a3906786ded23a1c6'],
     ['NOTE_8_CLARIFICATION_1', '4e04d69d181232659f259bd7d0f3d80d78fda577e76d5ffe74ee796be49e24eb'],
   ].map(([n, s]) => C(`R_STK_D4_SCREEN_RANKING_K2_V1_FREEZE_1_${n}.md`, s)));
   assert.equal(entry.run_log, undefined);
-  assert.deepEqual(overseas.internals.boundFiles(entry).map((f) => f.role), ['FILE', 'ALSO', 'ALSO', 'ALSO', 'K2', ...Array(9).fill('K2_NOTE')]);
+  assert.deepEqual(overseas.internals.boundFiles(entry).map((f) => f.role), ['FILE', 'ALSO', 'ALSO', 'ALSO', 'K2', ...Array(11).fill('K2_NOTE')]);
   // K2 冻结（2026-11-10 00:57:00 CST）早于 G-TRIAL（11-11）、RF1112（11-15）、附录 1（11-17）与 G-PARITY：五道门都不适用，锁行不加门的字段；
   // 之后冻结的附注（4–8、澄清 1）不重新冻结 K2，不挪 k2_frozen_at
   assert.deepEqual(gates.applies(entry), { applies: false, reason: 'FROZEN_BEFORE_AMENDMENT' });
