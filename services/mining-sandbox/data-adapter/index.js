@@ -450,6 +450,6 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
 }
 
 module.exports = {
-  FILES, MODES, ACCEPTED_QUALITY, ACCEPTED_INDUSTRY_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, DataError,
-  csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, internals: { forEachCsvRow, parseTs, clockOf, mapReadings },
+  FILES, MODES, ACCEPTED_QUALITY, ACCEPTED_INDUSTRY_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, BASIC_FIELDS, DataError,
+  csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, internals: { forEachCsvRow, parseTs, clockOf, mapReadings, stateValue },
 };

@@ -60,6 +60,14 @@ const COVERAGE_FLOOR = Object.freeze({ min_names_per_day: 2000 });
  * 挖掘段面板的股票池下限（COVERAGE_FLOOR，2,000）是另一回事：那是池里的名字，2020 年全市场才三千多只，不能用 4,000。
  */
 const HOLDOUT_FLOOR = Object.freeze({ min_names_per_day: 4000, min_share_of_sealed_median: 0.5, basis: 'DISTINCT_SECURITY_ID_READY_EXCL_BJ', anchor: 'SEALED_DAYS_MEDIAN' });
+/**
+ * daily_basic 逐字段的取值状态下限（独立复审第二轮 2026-11-18，协调会话：打分之前必须合并）：只数行不够，V6 有整天某个字段全是 MISSING 的日子
+ * （-r4 尾段 2026-09-29、10-08、10-09 的 turnover_rate_f 与 dv_ttm）。对每个 daily_basic 读数（适配器的 BASIC_FIELDS）：同一 (日期, 证券) 取入库最晚、
+ * 同刻修订号大的那一行，按适配器的 { state, value } 读法（stateValue）可用的名字数，每天 ≥ 封存那一份各日中位数的 min_share_of_sealed_median；
+ * 封存那一份里一天都没有可用值 → HOLDOUT_FIELD_EMPTY；total_mv（市值中性化）另要 ≥ 每天的名字数下限。
+ */
+const HOLDOUT_FIELD_FLOOR = Object.freeze({ file: 'market_daily_basic_observation_stock.csv', min_share_of_sealed_median: 0.5, absolute_floor_fields: Object.freeze(['total_mv']),
+  basis: 'LATEST_REVISION_READY_EXCL_BJ_STATE_USABLE', anchor: 'SEALED_DAYS_MEDIAN' });
 /** 留出段目录必须有的 7 张表（导出规格 rev 3 §2；行业成员只在 A 目录）。 */
 const HOLDOUT_TABLES = Object.freeze(['prices_daily_stock.csv', 'market_daily_basic_observation_stock.csv', 'adjustment_factor_observation_stock.csv', 'security_master_stock.csv',
   'security_suspension_observation.csv', 'security_suspension_day_coverage.csv', 'trading_calendar.csv']);
@@ -372,8 +380,43 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     });
     rowsPerDay[file] = { min_names: Math.min(...per), median_names: median(per), sealed_days: sealedCounts.length, sealed_median_names: anchor };
   }
+  // daily_basic 逐字段的取值状态（HOLDOUT_FIELD_FLOOR）
+  const fieldStates = {};
+  {
+    const file = HOLDOUT_FIELD_FLOOR.file; const stem = file.slice(0, -'.csv'.length);
+    const parts = listed.map((x) => x.name).filter((n) => n === file || (n.startsWith(stem) && /^_\d{8}\.csv$/.test(n.slice(stem.length)))).sort();
+    const bestAll = new Map(); const bestSealed = new Map();
+    const keep = (m, key, row) => { const cur = m.get(key); if (!cur || row.at > cur.at || (row.at === cur.at && row.rev >= cur.rev)) m.set(key, row); };
+    for (const part of parts) {
+      adapter.internals.forEachCsvRow(path.join(dir, part), (r) => {
+        if (r.quality_state !== 'READY' || !(r.trade_date >= seal.segment.from && r.trade_date <= seal.segment.to) || /\.BJ$/i.test(r.security_id || '')) return;
+        const row = { at: adapter.internals.parseTs(r.first_available_at), rev: Number(r.revision || 0), values: r.values, d: r.trade_date };
+        keep(bestAll, `${r.trade_date}|${r.security_id}`, row);
+        if (sealedNames.has(part)) keep(bestSealed, `${r.trade_date}|${r.security_id}`, row);
+      });
+    }
+    const keys = Object.values(adapter.BASIC_FIELDS);
+    const tally = (m) => { const out = new Map(); for (const row of m.values()) {
+      let v = null; try { v = JSON.parse(row.values); } catch { v = null; }
+      for (const k of keys) if (Number.isFinite(adapter.internals.stateValue(v ? v[k] : null))) { const key = `${k}|${row.d}`; out.set(key, (out.get(key) || 0) + 1); }
+    } return out; };
+    const all = tally(bestAll); const sealedT = tally(bestSealed);
+    const sealedDays = days.filter((d) => [...bestSealed.values()].some((row) => row.d === d));
+    for (const k of keys) {
+      const per = days.map((d) => all.get(`${k}|${d}`) || 0);
+      const sealedCounts = sealedDays.map((d) => sealedT.get(`${k}|${d}`) || 0);
+      const anchor = sealedCounts.length ? median(sealedCounts) : 0;
+      need(anchor > 0, 'HOLDOUT_FIELD_EMPTY', `${file}:${k}`);
+      const abs = HOLDOUT_FIELD_FLOOR.absolute_floor_fields.includes(k);
+      days.forEach((d, i) => {
+        need(per[i] >= HOLDOUT_FIELD_FLOOR.min_share_of_sealed_median * anchor && (!abs || per[i] >= minNamesPerDay), 'HOLDOUT_FIELD_INCOMPLETE', `${file}:${k}:${d}:${per[i]}`);
+      });
+      fieldStates[k] = { min: Math.min(...per), median: median(per), sealed_median: anchor };
+    }
+  }
   const { min_names_per_day: _d, ...rest } = HOLDOUT_FLOOR;
-  return { calendar_to: last, open_days: days.length, rows_per_day: rowsPerDay, floor: { min_names_per_day: minNamesPerDay, ...rest }, source: src };
+  return { calendar_to: last, open_days: days.length, rows_per_day: rowsPerDay, field_states_per_day: fieldStates, floor: { min_names_per_day: minNamesPerDay, ...rest },
+    field_floor: { ...HOLDOUT_FIELD_FLOOR, absolute_floor_fields: [...HOLDOUT_FIELD_FLOOR.absolute_floor_fields] }, source: src };
 }
 
 /** 对着本轮的封存记录核留出段目录。 */
@@ -565,7 +608,7 @@ function withFrozenInputs(patch, cb) { const prior = frozenInputs; frozenInputs 
 function withGenerator(gen, cb) { const prior = generatorOverride; generatorOverride = gen; try { return cb(); } finally { generatorOverride = prior; } }
 
 module.exports = {
-  MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
+  MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, HOLDOUT_FIELD_FLOOR, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
   holdoutDirCheck, verifyHoldoutDir, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha,
   internals: { withGenerator, withFrozenInputs, withFault, attemptId },
 };

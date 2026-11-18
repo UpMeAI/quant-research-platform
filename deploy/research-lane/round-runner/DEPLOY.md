@@ -205,6 +205,11 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
    - Each day must also reach at least half of the median of the **sealed** days, meaning the days in the files listed by `SHA256SUMS.sealed`, which cannot move after sealing. A thin completion export therefore cannot pull its own median down.
    - If the sealed files hold no holdout day, it refuses with `…_HOLDOUT_SEALED_DAYS_EMPTY`.
    - Otherwise it refuses with `…_HOLDOUT_INCOMPLETE:<file>:<day>:<names>`.
+   - **Field states per day (added 2026-11-18 after the re-review; must be in the image before any score).** Rows are not enough: V6 has days on which one daily_basic field is MISSING for every stock (the -r4 tail: `turnover_rate_f` and `dv_ttm` on 2026-09-29, 10-08 and 10-09).
+     - For each daily_basic reading, the check counts the names whose latest READY row has a usable value under the adapter's `{state, value}` reading (PRESENT or ZERO).
+     - Every holdout day must reach at least half the median of the sealed days for that field. `total_mv`, which size neutralization uses, must also reach the names-per-day floor.
+     - Otherwise it refuses with `…_HOLDOUT_FIELD_INCOMPLETE:<file>:<field>:<day>:<names>`. A field with no usable value on any sealed day refuses with `…_HOLDOUT_FIELD_EMPTY:<file>:<field>`.
+     - The counts are returned as `field_states_per_day`. If the real holdout has such a day, the open is refused and needs a coordinator ruling (exclude the day or the field); it is never spent silently.
    - The floor used is written into the vault's open record (`pre_open_checks`).
 4. **The selection is the recorded one.** The `MINING_SELECTION_V1` row exists, and `selection.json` matches its sha (`MINE_RUNNER_SELECTION_FILE_MISMATCH`). The formulas are taken from the trial rows, not from the file.
 
