@@ -149,7 +149,8 @@ const D4_NOTE = 'INSUFFICIENT（CI_SPANS_ZERO）→ 做 = 前向影子，候选 
   + '结果页附注 1（32fb2a41）：P-15 计数 276 个名字、4,466 个持仓会话，21 个在除权日，复权因子缺 0。'
   + '报表覆盖说明：回放读到的报表比实盘 V6 多——实盘 V6 共 76,069 个报表单元，fina_indicator_vip 从 2026-08-26 起，income / balancesheet / cashflow 从 2026-09-13 起（实际只有 2024 年起的报告期有 fina）；'
   + 'D4 回放（2020-06-01 → 2026-09-28）读的是 Q0 回放底的完整历史 PIT（ann_date+1），这是 D4 冻结时的规则（KNOWNAT_EARLY_BASE_ORIGIN），封存照旧。报表只经 8 个 fina 特征字段进决策（Value V2 关）；'
-  + 'C_RS_FLOOR 前向要在 FWD 车道、★C3FWD_STATEMENT_SCOPE=B 之后跑（11-18 F00 核对：79 个有成交的近期上市名字 8 季窗口不同）。'
+  + 'C_RS_FLOOR 前向要在 FWD 车道、★C3FWD_STATEMENT_SCOPE=B 之后跑（11-18 F00 核对：79 个有成交的近期上市名字 8 季窗口不同）；'
+  + '前向影子验收草稿 R_STK_D4_FWD_SHADOW_ACCEPTANCE_V1（e0687b02）在重盖 v3 与 F01 干净比对之后才冻结。'
   + '依据：C3-FWD 报表覆盖报告 v2（a5146af1）§8，生产只读导出 PROD_STMT_KEYS.tsv.gz（0cbc00c9）。'
   + '来源：Linux 封存 scratch/rstkd4-sealed-20261118（SHA256SUMS 36b8bb26；Mac 副本 evidence/rstkd4-sealed-20261118 逐字节相同），封存读取条目 38，封存 2026-11-18，结果页 722931c2。';
 const X07B_SEAL = 'evidence/x07b-sealed-20261118';
