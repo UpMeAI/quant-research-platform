@@ -21,9 +21,9 @@
   },
   "sources": {
     "master_table": {
-      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev88.json",
-      "revision": 88,
-      "sha256": "a73bfdb00aafc2d7f383e26305b6e86592b1c60e948fdd868b27385d956d4915"
+      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev92.json",
+      "revision": 92,
+      "sha256": "b14b51cb17d6d8645e7a53fb2f61bdbcce0fd8ee53fe172b6d7b9922002c61dc"
     }
   },
   "registered_at": "2026-11-16T02:16:03+08:00",
@@ -422,6 +422,41 @@
       "decision_point": "ENTRY",
       "title_zh": "择时摩擦带",
       "description_zh": "在择时信号切换处加缓冲带或确认天数，减少来回切换"
+    },
+    {
+      "mechanism_id": "SEL.XSEC.VALUE_YIELD",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "截面低估值高股息",
+      "description_zh": "截面选股偏向市盈率、市销率、市净率低或股息率高的股票"
+    },
+    {
+      "mechanism_id": "SEL.XSEC.LOW_TURNOVER",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "截面低换手低成交",
+      "description_zh": "截面选股偏向换手率或成交额相对同规模股票低的股票"
+    },
+    {
+      "mechanism_id": "SEL.XSEC.REVERSAL",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "截面反转",
+      "description_zh": "截面选股偏向近期价格或估值排位下跌较多的股票，窗口从 1 日到 1 年"
+    },
+    {
+      "mechanism_id": "SEL.XSEC.LOW_VOLATILITY",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "截面低波动",
+      "description_zh": "截面选股偏向近期价格波动小的股票"
+    },
+    {
+      "mechanism_id": "SEL.XSEC.PRICE_VOLUME_CORR",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "截面量价背离",
+      "description_zh": "截面选股偏向近期成交额与价格同向变动程度低的股票"
     }
   ],
   "entries": [
@@ -3405,6 +3440,20 @@
       ],
       "classified_by": "overseas-research-proposal",
       "reason_zh": "§4.1 Owner 11-17 立题：US_V5 入场由已收盘 1 小时线确认改为预写触发价、盘中 60 秒观测触价入场；不是换一个已收盘 K 线周期（BAR-1 的 30 分钟对 1 小时），所以登记为 SEL.CONFIRM.BAR_TIMEFRAME 的子机制"
+    },
+    {
+      "item_id": "RF1116-CN_A",
+      "strategy_ref": "RF1116-CN_A",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.XSEC.VALUE_YIELD",
+        "SEL.XSEC.LOW_TURNOVER",
+        "SEL.XSEC.REVERSAL",
+        "SEL.XSEC.LOW_VOLATILITY",
+        "SEL.XSEC.PRICE_VOLUME_CORR"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "总表 rev 92 RF1116-CN_A（A 股个股横截面因子挖掘）：第 2 轮 MR-CN_A-2026-11-2a1d2c9c82 过了验证折的 GP 候选里，协调会话复审可批的引用这 5 个截面效应（研究框架修订 2026-11-12 §4.2；裁定 R1.5 机制登记、R1.10 先登记机制；11-18 12:07 Decision 2 收窄：小市值是评分中性化留下的市值暴露，不登记）；在研，没有封存结论，不写结论块"
     }
   ]
 }
