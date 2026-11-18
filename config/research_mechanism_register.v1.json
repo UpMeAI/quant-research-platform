@@ -21,9 +21,9 @@
   },
   "sources": {
     "master_table": {
-      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev92.json",
-      "revision": 92,
-      "sha256": "b14b51cb17d6d8645e7a53fb2f61bdbcce0fd8ee53fe172b6d7b9922002c61dc"
+      "path": "artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev94.json",
+      "revision": 94,
+      "sha256": "bb3caebd07669cb0a57ec485ea890ad62e1c1b5b05da5f4e103a5eaf1cf7dea9"
     }
   },
   "registered_at": "2026-11-16T02:16:03+08:00",
@@ -457,6 +457,13 @@
       "decision_point": "SELECT",
       "title_zh": "截面量价背离",
       "description_zh": "截面选股偏向近期成交额与价格同向变动程度低的股票"
+    },
+    {
+      "mechanism_id": "SEL.VALUE.MARGIN_RANK",
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "title_zh": "主线内按价值排序选股",
+      "description_zh": "在已过初筛的主线成员里，按价格相对自身估值历史与隐含增长偏低的程度排序选出入围；买卖时点仍由技术条件决定"
     }
   ],
   "entries": [
@@ -3454,6 +3461,16 @@
       ],
       "classified_by": "coordinator-proposal",
       "reason_zh": "总表 rev 92 RF1116-CN_A（A 股个股横截面因子挖掘）：第 2 轮 MR-CN_A-2026-11-2a1d2c9c82 过了验证折的 GP 候选里，协调会话复审可批的引用这 5 个截面效应（研究框架修订 2026-11-12 §4.2；裁定 R1.5 机制登记、R1.10 先登记机制；11-18 12:07 Decision 2 收窄：小市值是评分中性化留下的市值暴露，不登记）；在研，没有封存结论，不写结论块"
+    },
+    {
+      "item_id": "R-STK-MAINLINE-VALUE-ORDER",
+      "strategy_ref": "ASHARE_V6_PAPER",
+      "market": "CN_A",
+      "mechanism_ids": [
+        "SEL.VALUE.MARGIN_RANK"
+      ],
+      "classified_by": "coordinator-proposal",
+      "reason_zh": "总表 rev 94 R-STK-MAINLINE-VALUE-ORDER（三层合同修订 3 §3 K2-②，study_ref R_STK_MAINLINE_VALUE_ORDER_K2_V1）：在 D4 初筛通过的主线成员里按估值闸长期门分（价格相对自身估值历史与隐含增长）排序选入围，替换按技术强度排序，买卖时点两本相同；SEL.SCREEN.FUNDAMENTAL 只排除、不参与排序，本题越过这条线，所以另立机制（K2 草稿 §1 第 10 条、★M (a)）；在研，没有封存结论，不写结论块"
     }
   ]
 }

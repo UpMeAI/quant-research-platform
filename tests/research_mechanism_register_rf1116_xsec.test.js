@@ -45,12 +45,14 @@ test('RF1116 截面机制：由 RF1116-CN_A 一条 entry 引用（A 股，在研
   assert.deepEqual(mech.REGISTER.entries.filter((x) => x !== e && x.mechanism_ids.some((id) => id.startsWith('SEL.XSEC.'))).map((x) => x.item_id), []);
 });
 
-test('登记表绑定总表 rev 92（RF1116-CN_A 那一行所在的一版）', () => {
-  assert.deepEqual(RAW.sources.master_table, {
-    path: 'artifacts/coordinator/master-table-revs/RESEARCH_MASTER_TABLE_20261110.rev92.json',
-    revision: 92,
-    sha256: 'b14b51cb17d6d8645e7a53fb2f61bdbcce0fd8ee53fe172b6d7b9922002c61dc',
-  });
+test('登记表绑定的总表不早于 rev 92（RF1116-CN_A 那一行所在的一版）；这一版是 rev 92 时 sha256 照抄', () => {
+  // 之后的登记 PR 会把 sources.master_table 换到更新的一版（行是否都在由 research_mechanism_backreg 对那一版核）
+  const src = RAW.sources.master_table;
+  const m = /^artifacts\/coordinator\/master-table-revs\/RESEARCH_MASTER_TABLE_20261110\.rev(\d+)\.json$/.exec(src.path);
+  assert.ok(m, src.path);
+  assert.equal(Number(m[1]), src.revision);
+  assert.ok(src.revision >= 92, `rev ${src.revision}`);
+  if (src.revision === 92) assert.equal(src.sha256, 'b14b51cb17d6d8645e7a53fb2f61bdbcce0fd8ee53fe172b6d7b9922002c61dc');
 });
 
 test('RF1116 截面机制在 CN_A 的分诊：同机制同市场没有先前结论 → NORMAL_NO_PRIOR，不是 NOT_DO_SETTLED', () => {
