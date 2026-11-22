@@ -243,7 +243,7 @@
     "US_EQUITY"
    ],
    "subject_keys": "week, market, fact-pack sha256, prompt-admission sha256",
-   "launch": "consumer child process in rq-consumer.service (User=research-queue, NoNewPrivileges, empty capability set, IPAddressDeny=any, AF_UNIX only) against /run/rq-gw/rq-gw.sock; no systemctl, no polkit rule",
+   "launch": "UNPINNED placeholder: the HK launch design is replaced in the follow-up PR (spool hand-off to rq-agent.service); this entry is not admissible",
    "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
    "gateway": {
     "unit": "rq-deepseek-gateway.service (system, User=rq-gw)",
@@ -329,7 +329,7 @@
     "US_EQUITY"
    ],
    "subject_keys": "checked task_id, gate-record sha256, prompt-admission sha256",
-   "launch": "consumer child process in rq-consumer.service (User=research-queue, NoNewPrivileges, empty capability set, IPAddressDeny=any, AF_UNIX only) against /run/rq-gw/rq-gw.sock; no systemctl, no polkit rule",
+   "launch": "UNPINNED placeholder: the HK launch design is replaced in the follow-up PR (spool hand-off to rq-agent.service); this entry is not admissible",
    "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
    "gateway": {
     "unit": "rq-deepseek-gateway.service (system, User=rq-gw)",

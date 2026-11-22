@@ -30,16 +30,18 @@ class ShippedTemplates(unittest.TestCase):
     def test_pins_match_the_computed_shas_one_per_template(self):
         reg = shipped()
         pins = {p["template_id"]: p for p in reg.pins}
-        self.assertEqual(sorted(pins), sorted(IDS))
-        self.assertEqual(len(reg.pins), len(IDS), "one pin per frozen template, no stray pins")
-        for tid in IDS:
+        self.assertEqual(sorted(pins), sorted(IDS[:2]), "only the Linux templates are pinned (plan-coord 11-23)")
+        self.assertEqual(len(reg.pins), 2)
+        for tid in IDS[2:]:
+            self.assertFalse(reg.is_frozen(reg.get(tid)), tid)
+        for tid in IDS[:2]:
             t = reg.get(tid)
             self.assertEqual(pins[tid]["template_sha256"], templates.template_sha256(t), tid)
             self.assertRegex(pins[tid]["template_sha256"], r"^[0-9a-f]{64}$")
             self.assertTrue(reg.is_frozen(t), tid)
             self.assertIn("frozen_page_sha256", pins[tid])
             self.assertTrue(pins[tid]["frozen_page_sha256"] is None or len(pins[tid]["frozen_page_sha256"]) == 64, tid)
-        self.assertEqual(len({p["template_sha256"] for p in reg.pins}), len(IDS), "four distinct shas")
+        self.assertEqual(len({p["template_sha256"] for p in reg.pins}), 2)
 
     def test_unpinned_template_is_refused(self):
         reg = shipped()
@@ -86,31 +88,18 @@ class ShippedTemplates(unittest.TestCase):
 
 
 class HkLaunch(unittest.TestCase):
-    """HK: the unprivileged consumer starts the agent itself, inside its own sandbox and slice. No systemctl, no polkit, no second unit."""
-
-    def test_hk_argv_has_no_systemctl_and_names_the_launcher(self):
+    def test_hk_templates_are_not_admissible_and_nothing_hk_is_launched_by_child(self):
         reg = shipped()
-        for tid in (IDS[2], IDS[3]):
-            argv = reg.get(tid)["argv"]
-            self.assertEqual(argv, ["/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh"], tid)
-            self.assertNotIn("systemctl", " ".join(argv))
-        for tid in (IDS[0], IDS[1]):
-            self.assertEqual(reg.get(tid)["argv"], ["/srv/research-lane/research-queue/code/current/deploy/research-queue-ai/linux/run-agent.sh"], tid)
+        for tid in IDS[2:]:
+            self.assertFalse(reg.is_frozen(reg.get(tid)), tid)
+        self.assertFalse((DEPLOY / "research-queue-ai" / "hk" / "run-agent.sh").exists())
+        u = (DEPLOY / "research-queue" / "hk" / "rq-consumer.service").read_text()
+        self.assertNotIn("RestrictAddressFamilies", u)
 
-    def test_hk_launcher_is_keyless_unprivileged_and_fails_closed_without_staged_input(self):
-        sh = DEPLOY / "research-queue-ai" / "hk" / "run-agent.sh"
-        self.assertTrue(sh.exists())
-        self.assertTrue(os.access(sh, os.X_OK))
-        self.assertEqual(subprocess.run(["sh", "-n", str(sh)]).returncode, 0)
-        s = "\n".join(l for l in sh.read_text().splitlines() if not l.lstrip().startswith("#"))  # code, not comments
-        for bad in ("DEEPSEEK", "sudo", "systemctl", "systemd-run", "polkit", "curl", "wget", "--host LINUX"):
-            self.assertNotIn(bad, s, bad)
-        for need in ("RQ_ATTEMPT_DIR", "--host HK", "/run/rq-gw/rq-gw.sock", "exit 66"):
-            self.assertIn(need, s, need)
-        with tempfile.TemporaryDirectory() as d:  # no in/task.json staged: structured refusal exit 66, never a silent pass
-            r = subprocess.run(["sh", str(sh)], env={"RQ_ATTEMPT_DIR": d, "PATH": "/usr/bin:/bin"}, capture_output=True, text=True)
-            self.assertEqual(r.returncode, 66, r.stderr)
-            self.assertIn("RQ_AGENT_INPUT_NOT_STAGED", r.stderr)
+    def test_linux_argv(self):
+        reg = shipped()
+        for tid in IDS[:2]:
+            self.assertEqual(reg.get(tid)["argv"], ["/srv/research-lane/research-queue/code/current/deploy/research-queue-ai/linux/run-agent.sh"], tid)
 
     def test_linux_launcher_defaults_to_the_attempt_dir_and_keeps_its_flags(self):
         s = (DEPLOY / "research-queue-ai" / "linux" / "run-agent.sh").read_text()
@@ -125,14 +114,6 @@ class HkLaunch(unittest.TestCase):
         self.assertIn("--socket-mode 0660", u)
         self.assertNotIn("Group=rq-gw", u)
         self.assertIn("m research-queue rq", (DEPLOY / "research-queue" / "hk" / "rq.sysusers.conf").read_text())
-
-    def test_consumer_unit_stays_unprivileged_and_gains_af_unix_only(self):
-        u = (DEPLOY / "research-queue" / "hk" / "rq-consumer.service").read_text()
-        for need in ("User=research-queue", "NoNewPrivileges=yes", "CapabilityBoundingSet=\n", "IPAddressDeny=any", "ProtectSystem=strict", "RestrictAddressFamilies=AF_UNIX", "Slice=research.slice"):
-            self.assertIn(need, u, need)
-        self.assertNotIn("AmbientCapabilities", u)
-        self.assertFalse(list((DEPLOY).rglob("*.rules")), "no polkit rule is shipped")
-        self.assertFalse(list((DEPLOY).rglob("*sudoers*")))
 
 
 class ShippedAdmission(Base):
@@ -168,21 +149,15 @@ class ShippedAdmission(Base):
 class ShippedAdmissionHK(Base):
     host = "HK"
 
-    def test_hk_admits_us_and_crypto_cards_and_checks_and_refuses_cn_a(self):
+    def test_hk_templates_are_refused_until_pinned(self):
         reg = shipped()
         d = self.cfg.inbox_dir / "fact-packs"
         d.mkdir(parents=True)
-        for m in ("US_EQUITY", "CRYPTO", "CN_A"):
+        for m in ("US_EQUITY", "CRYPTO"):
             (d / ("2026-W48-%s.json" % m)).write_text(json.dumps({"schema": "REVIEW_AI_FACT_PACK_V1", "week": "2026-W48", "market": m, "facts": []}))
         producer.tick(self.conn, self.cfg, reg, at(10, 0, day=28))
-        rows = self.conn.execute("select market, state, template_id from task order by market").fetchall()
-        self.assertEqual([(r[0], r[1], r[2]) for r in rows if r[1] == "READY"], [("CRYPTO", "READY", IDS[2]), ("US_EQUITY", "READY", IDS[2])])
-        self.assertEqual([r[0] for r in rows if r[1] != "READY"], ["CN_A"])
-        t = reg.get(IDS[3])
-        for m in ("US_EQUITY", "CRYPTO"):
-            r = self.admit(reg, req(t, market=m, params={}, kind="AI_CHECK", subject={"task": "RQT-HK-20261130-bbbbbbbb", "m": m, "gate_record_sha256": "b" * 64, "prompt_admission_sha256": t["prompt_admission_sha256"]}))
-            self.assertEqual((r.state, r.code), ("READY", ""), m)
-        self.assertEqual(self.admit(reg, req(t, market="CN_A", params={}, kind="AI_CHECK", subject={"n": 9})).code, "AGENT_HOST_MISMATCH")
+        rows = self.conn.execute("select state, state_reason from task").fetchall()
+        self.assertEqual({(r[0], r[1]) for r in rows}, {("REFUSED_ADMISSION", "TEMPLATE_NOT_FROZEN")})
 
 
 if __name__ == "__main__":

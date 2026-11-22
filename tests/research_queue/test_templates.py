@@ -169,8 +169,8 @@ class TemplateFiles(unittest.TestCase):
     def test_shipped_registry_is_valid_and_only_the_q3b_templates_are_pinned(self):
         reg = templates.Registry.load(ROOT / "config/research_queue_templates.v1.json", ROOT / "config/research_queue_template_pins.v1.json")
         ids = {t["template_id"] for t in reg.templates}
-        pinned = {"T-AI-REVIEW-CARD-V1-LINUX-CN_A", "T-AI-CHECK-V1-LINUX-CN_A", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO"}
-        self.assertTrue(pinned | {"T-AI-PREREG-V1"} <= ids)
+        pinned = {"T-AI-REVIEW-CARD-V1-LINUX-CN_A", "T-AI-CHECK-V1-LINUX-CN_A"}
+        self.assertTrue(pinned | {"T-AI-PREREG-V1", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO"} <= ids)
         for t in reg.templates:
             self.assertEqual(templates.validate_template(t), [], t["template_id"])
             self.assertEqual(t["weight_class"], "NET")

@@ -15,6 +15,14 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 1. `install -m 0644 hk/rq.sysusers.conf /etc/sysusers.d/rq.conf; systemd-sysusers; install -m 0644 hk/rq.tmpfiles.conf /etc/tmpfiles.d/rq.conf; systemd-tmpfiles --create`.
 2. Code in `/opt/research-queue/<sha>/` with `current` symlink; config `/etc/research-queue/rq.json` (host `HK`, `root` `/var/lib/research-queue`, `process_pause_unit` `rq-consumer.service`); manifest as above.
 3. `install -m 0644 hk/*.service hk/*.timer hk/research.slice /etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
+4. HK agent templates are not pinned yet (follow-up PR); only the Linux card and check run. Gateway socket group (`research-queue-ai/hk/rq-deepseek-gateway.service`, `Group=rq`): confirm at the HK install that `rq-agent` can connect to `/run/rq-gw/rq-gw.sock` and `portfolio-desk` cannot.
+5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
+
+## HK (system units, root, coordinator only; NET tasks only)
+
+1. `install -m 0644 hk/rq.sysusers.conf /etc/sysusers.d/rq.conf; systemd-sysusers; install -m 0644 hk/rq.tmpfiles.conf /etc/tmpfiles.d/rq.conf; systemd-tmpfiles --create`.
+2. Code in `/opt/research-queue/<sha>/` with `current` symlink; config `/etc/research-queue/rq.json` (host `HK`, `root` `/var/lib/research-queue`, `process_pause_unit` `rq-consumer.service`); manifest as above.
+3. `install -m 0644 hk/*.service hk/*.timer hk/research.slice /etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
 4. Agent launch (Q3b, no new privilege): the HK templates run `/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh` as a child of `rq-consumer.service`. Do not install a polkit rule or a sudoers entry, and do not start `rq-agent.service` from the queue. The gateway unit (`research-queue-ai/hk/rq-deepseek-gateway.service`, `Group=rq`) gives the consumer group the socket `/run/rq-gw/rq-gw.sock`; check `systemctl show rq-consumer.service -p RestrictAddressFamilies -p IPAddressDeny` and that `research-queue` can connect to the socket while `portfolio-desk` cannot.
 5. Cap proof (AQ-17H, 14:00-16:00 CST): `cap-proof.sh HK`. Limits are the ops-coord plan (1 CPU, 512 MB, nice 19) and are confirmed here.
 

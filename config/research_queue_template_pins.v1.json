@@ -1,6 +1,6 @@
 {
  "schema": "RESEARCH_QUEUE_TEMPLATE_PINS_V1",
- "note": "One {template_id, template_sha256, frozen_page_sha256} per frozen template. template_sha256 is rq.templates.template_sha256(template). frozen_page_sha256 is null until the coordinator's template freeze page exists; the queue checks template_id and template_sha256 only. Empty or unlisted = not admissible.",
+ "note": "One {template_id, template_sha256, frozen_page_sha256} per frozen template. template_sha256 is rq.templates.template_sha256(template). frozen_page_sha256 is null until the coordinator's template freeze page exists; the queue checks template_id and template_sha256 only. Empty or unlisted = not admissible. The two HK templates are unpinned for now (plan-coord 11-23): their launch design is replaced in the follow-up PR and they are not admissible.",
  "pins": [
   {
    "template_id": "T-AI-REVIEW-CARD-V1-LINUX-CN_A",
@@ -10,16 +10,6 @@
   {
    "template_id": "T-AI-CHECK-V1-LINUX-CN_A",
    "template_sha256": "4de786fb2c9a65cffcf4d4aef34194c14fbcbd396fac0e17f2db5a1193033a1e",
-   "frozen_page_sha256": null
-  },
-  {
-   "template_id": "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO",
-   "template_sha256": "795dc85b09dae670130b66209b4d9de51d26ab45c18c40e73dd859b19460f95a",
-   "frozen_page_sha256": null
-  },
-  {
-   "template_id": "T-AI-CHECK-V1-HK-US-CRYPTO",
-   "template_sha256": "934f0bc40e7c17b2960a52b9bcb0f1b4ce56cef2d50f61047324e37ac32347a3",
    "frozen_page_sha256": null
   }
  ]
