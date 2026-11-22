@@ -1,0 +1,10 @@
+{
+  "schema": "PAPER_COST_MODEL_VENDOR_PIN_V1",
+  "contract": "PAPER_TRADING_COST_MODEL_V1",
+  "contractSha256": "1be6e0807995a9501e8b3393427c6367af47cd333e5bf89a0a95c03cc21e76fb",
+  "registryRevision": 2,
+  "source": "PAPER_COST_MODEL_V1.r2.json (frozen by plan-coord; copied byte for byte, renamed)",
+  "files": {
+    "PAPER_COST_MODEL_V1.json": "44cdebd53a28d25c195690696bf99050573ef7f647d81c7b65a464c4b4607776"
+  }
+}

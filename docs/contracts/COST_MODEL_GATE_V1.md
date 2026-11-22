@@ -92,3 +92,12 @@
   "cost_models": [{ "model_id": "REPLAY_CORE_PROFILE_COSTS", "source": "adapters/crypto-replay-core" },
                   { "model_id": "…", "source": "RUN_LOG_ROW", "floor_market": "CN_A", "commission_bps": 2.5, "slippage_bps": 10 }] }
 ```
+
+## 6. 覆盖面检查（PAPER_TRADING_COST_MODEL_V1 ★C4）
+
+- 依据：`PAPER_TRADING_COST_MODEL_V1`（sha256 `1be6e0807995a9501e8b3393427c6367af47cd333e5bf89a0a95c03cc21e76fb`）§5 ★C4；机器登记 r2 sha256 `44cdebd53a28d25c195690696bf99050573ef7f647d81c7b65a464c4b4607776`。
+- 内容：门内的行（§3）除 §4 的佣金与滑点下限（不变）外，必须收齐登记文件里该市场标为 `CHARGED` 的每一项（印花税、过户费、经手费、SEC / TAF / CAT、资金费等）。缺一项、`UNKNOWN`、金额不是非负数、必收项写成 `NOT_APPLICABLE`、同一项重复，整行 `NET_PARTIAL`，不算净值行，门拒绝导入（`COST_MODEL_NET_PARTIAL`，细节点名缺的项）。
+- 行字段（运行日志）：`cost_breakdown.items`（合同 §4 的 `items` 形状：`item`、`state`、`amount`）、`cost_book`（登记里的簿：A 股 `STOCK_BOOK` / `INDEX_SLEEVE_ETF`，加密 `BINANCE_USDT_PERP` / `BINANCE_SPOT`，可为数组；美股只有一个簿，可省）、可选 `cost_flags`（`E1: true` 时个股簿红利税变为必收）。
+- 登记里为 `UNKNOWN` 的项（现为 ETF 过户费，待 r3）不要求，但在结果的 `registry_unknown_items` 里列出，不得当 0。
+- 唯一来源：`vendor/paper-cost-model/`（`PAPER_COST_MODEL_V1.json` 即 r2 原字节，`PIN.json` 钉合同与文件 sha256，加载器 `services/cost-gate/coverage.js` 先复验）；检查代码不写任何费率或成本项清单。
+- 生效：K2 的 `k2_frozen_at` ≥ `2026-11-22T17:35:16+08:00`（合同冻结时刻，含边界）。更早冻结的 K2 保留各自写明的成本：门的结果逐字节不变，不读覆盖面。过门的锁里多一块 `cost_coverage`（登记与合同的 sha256、检查行数）。
