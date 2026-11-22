@@ -116,7 +116,18 @@ test('AQ-38 bundle builder: whitelist of kinds, deterministic bytes and sha, no 
   assert.throws(() => bundle.build({ market: 'MOON', root, files, outDir: tmp(), builtAt: '2026-11-24T09:00:00+08:00' }), /BUNDLE_MARKET_INVALID/);
 });
 
-test('AQ-38 sealed canary: the start self-test passes only when planted canaries in sealed-like dirs cannot be read', { skip: process.getuid && process.getuid() === 0 ? 'root can read 0000 files' : false }, () => {
+test('AQ-38 canary self-test classifies read errors without relying on file permissions: only a refused read (EACCES/EPERM) is unreadable; a missing canary or any other error is UNKNOWN; a successful read is READABLE', () => {
+  const err = (code) => () => { throw Object.assign(new Error(code), { code }); };
+  const probes = [{ label: 'a', file: '/x/a' }, { label: 'b', file: '/x/b' }];
+  assert.deepEqual(canary.selfTest(probes, err('EACCES')), { self_test: 'PASS', probes: [{ label: 'a', readable: false }, { label: 'b', readable: false }] });
+  assert.deepEqual(canary.selfTest(probes, err('EPERM')).probes.map((p) => p.readable), [false, false]);
+  for (const code of ['ENOENT', 'EIO', 'ENOTDIR']) assert.throws(() => canary.selfTest(probes, err(code)), /PREREG_ISOLATION_CANARY_UNKNOWN:a,b/, code);
+  assert.throws(() => canary.selfTest([{ label: 'ok', file: '/x/o' }, { label: 'gone', file: '/x/g' }], (f) => { if (f === '/x/g') throw Object.assign(new Error('x'), { code: 'ENOENT' }); }), /PREREG_ISOLATION_CANARY_READABLE:ok/);
+  assert.throws(() => canary.selfTest([{ label: 'ok', file: '/x/o' }], () => Buffer.from('secret')), /PREREG_ISOLATION_CANARY_READABLE:ok/);
+  assert.throws(() => canary.selfTest([]), /PREREG_ISOLATION_CANARY_UNKNOWN/);
+});
+
+test('AQ-38 sealed canary on real files: the start self-test passes only when planted canaries in sealed-like dirs cannot be read', { skip: process.getuid && process.getuid() === 0 ? 'root can read 0000 files' : false }, () => {
   const base = tmp('k2prog-canary-');
   const dirA = path.join(base, 'sealed_research_results');
   const dirB = path.join(base, 'holdout-vault');

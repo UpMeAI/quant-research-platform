@@ -242,4 +242,12 @@ test('AQ-43 caps: the 3rd freeze of a market in a CST week and the 7th in a CST 
   d20.arms = armsOf(20);
   d20.comparison.baseline_label = 'BASE';
   assert.equal(prog.prepare(d20, baseCtx()).state, 'WAITING_EXTERNAL');
+  // the 21st counted arm is refused at the boundary (BASELINE does not count, so 21 verdict arms = 21 counted)
+  const d21 = baseDraft();
+  d21.arms = armsOf(21);
+  d21.comparison.baseline_label = 'BASE';
+  const r21 = prog.prepare(d21, baseCtx());
+  assert.equal(r21.state, 'REFUSED');
+  assert.deepEqual(failing(r21), ['V11']);
+  assert.ok(codesOf(r21, 'V11').some((c) => c.startsWith('PREREG_CAP_ARMS:21>20')), codesOf(r21, 'V11'));
 });
