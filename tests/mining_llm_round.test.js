@@ -326,3 +326,38 @@ test('B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；gene
   }
   assert.notEqual(run(['generate-llm']).status, 0, 'holdout sha required');
 });
+
+test('B9 台账：MINING_LLM_CALL_V1 的 seq 必须是下一个、只能记在 LLM 轮、记 token 必须是非负整数；LLM 轮清单的 llm 块缺键或带多余键被拒；累计用量按行算', () => {
+  freshData();
+  const gp = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, openedAt: '2026-12-01T02:00:00Z' });
+  const row = (seq, o = {}) => ({ seq, key: `x:C${seq}`, outcome: 'OK', final: true, sent: true, http_status: 200, n_requested: 10, formulas_returned: 10, lines_dropped: 0, lines_overflow: 0, usage: null,
+    tokens_metered: 100, tokens_basis: 'USAGE', model_requested: 'm', model_reported: 'm', served_version: null, finish_reason: null, system_fingerprint: null, request_sha256: null, response_sha256: null,
+    prompt_sha256: null, config_sha256: 'a'.repeat(64), raw_error: null, reason: null, ...o });
+  assert.throws(() => rounds.recordLlmCall(gp.round_id, row(1)), code(/MINE_ROUND_LLM_CALL_NOT_LLM_ROUND/));
+  freshData();
+  const r = runner.requestRound({ generator: { mode: 'AI_MINED_LLM' }, openedAt: '2026-12-01T02:00:00Z' });
+  assert.deepEqual(rounds.llmUsage(r.round_id), { calls: 0, tokens_metered: 0, last_outcome: null });
+  assert.equal(rounds.llmState(r.round_id), null);
+  assert.throws(() => rounds.recordLlmCall(r.round_id, row(2)), code(/MINE_ROUND_LLM_CALL_SEQ/), 'the first row must be seq 1');
+  rounds.recordLlmCall(r.round_id, row(1, { tokens_metered: 100 }));
+  rounds.recordLlmCall(r.round_id, row(2, { outcome: 'WAITING_KEY_ABSENT', sent: false, tokens_metered: 0, tokens_basis: 'NONE' }));
+  assert.throws(() => rounds.recordLlmCall(r.round_id, row(2)), code(/MINE_ROUND_LLM_CALL_SEQ/), 'no repeat');
+  assert.throws(() => rounds.recordLlmCall(r.round_id, row(4)), code(/MINE_ROUND_LLM_CALL_SEQ/), 'no skip');
+  for (const bad of [{ tokens_metered: -1 }, { tokens_metered: 1.5 }, { tokens_basis: 'GUESS' }]) assert.throws(() => rounds.recordLlmCall(r.round_id, row(3, bad)), code(/MINE_ROUND_LLM_CALL_INVALID|MINE_ROUND_SCHEMA_INVALID/), JSON.stringify(bad));
+  assert.deepEqual(rounds.llmUsage(r.round_id), { calls: 1, tokens_metered: 100, last_outcome: 'WAITING_KEY_ABSENT' }, 'calls counts only rows that reached the provider');
+  assert.equal(rounds.llmCalls(r.round_id).length, 2);
+  assert.ok(rounds.llmCalls(r.round_id).every((x) => /^[0-9a-f]{64}$/.test(x.record_hash)));
+  // 清单的 llm 块
+  freshData();
+  const base = { market: 'CN_A', space: { space_ref: 'S', sha256: 'a'.repeat(64), freeze: { path: 'p', sha256: 'b'.repeat(64) } }, holding_periods: [5], holdout: { from: '2026-10-19', to: '2026-12-31' },
+    openedAt: '2026-12-01T02:00:00Z', rulings: [{ path: runner.FROZEN_INPUTS.ruling_r1.coordinator_path, sha256: runner.FROZEN_INPUTS.ruling_r1.sha256 }], selection_rule: JSON.parse(JSON.stringify(require('../services/mining-sandbox/round-runner/selector').RULE)) };
+  const llmBlockOk = runner.requestRound({ generator: { mode: 'AI_MINED_LLM' }, openedAt: '2026-12-01T02:00:00Z' }).generator.llm;
+  freshData();
+  const open = (llmBlock) => rounds.openRound({ ...base, generator: { mode: 'AI_MINED_LLM', model: 'm', model_knowledge_cutoff: '2026-08-13', ...(llmBlock === undefined ? {} : { llm: llmBlock }) } });
+  const { config_sha256: _drop, ...missing } = llmBlockOk;
+  assert.throws(() => open(missing), code(/MINE_ROUND_GENERATOR_INVALID/));
+  assert.throws(() => open({ ...llmBlockOk, extra: 1 }), code(/MINE_ROUND_GENERATOR_INVALID/));
+  assert.throws(() => open({ ...llmBlockOk, tokens_per_round: 0 }), code(/MINE_ROUND_GENERATOR_INVALID/));
+  assert.throws(() => open({ ...llmBlockOk, config_sha256: 'xyz' }), code(/MINE_ROUND_GENERATOR_INVALID/));
+  assert.equal(open(llmBlockOk).generator.llm.config_sha256, llmBlockOk.config_sha256);
+});
