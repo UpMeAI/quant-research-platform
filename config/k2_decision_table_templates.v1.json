@@ -1,0 +1,142 @@
+{
+ "schema": "K2_DECISION_TABLE_TEMPLATES_V1",
+ "version": 1,
+ "_comment": "Frozen decision-table templates for K2_FREEZE_PROGRAM_V1 (RF1118 star P5 (a)). A draft picks one template and numbers inside the ranges; it cannot add rules. Outcomes are computed from the frozen table by the run, never by the program or an AI. PROPOSED for the coordinator to review at merge; the pin is in services/k2-freeze-program/templates.js.",
+ "templates": [
+  {
+   "template_id": "DT-DELTA-VS-BASELINE-V1",
+   "title_zh": "相对基线的差值",
+   "outcomes": [
+    "PASS",
+    "FAIL",
+    "INSUFFICIENT"
+   ],
+   "rules_zh": {
+    "PASS": "样本不少于下限，且差值的置信区间下界大于 0",
+    "FAIL": "样本不少于下限，且差值的置信区间上界小于 0",
+    "INSUFFICIENT": "样本少于下限，或区间跨过 0；不是否定"
+   },
+   "params": {
+    "alpha": {
+     "type": "number",
+     "min": 0.01,
+     "max": 0.1
+    },
+    "power_target": {
+     "type": "number",
+     "min": 0.8,
+     "max": 0.95
+    },
+    "min_sample_n": {
+     "type": "integer",
+     "min": 20,
+     "max": 100000
+    },
+    "min_effect_sd": {
+     "type": "number",
+     "min": 0.1,
+     "max": 1
+    },
+    "ci_level": {
+     "type": "enum",
+     "values": [
+      0.9,
+      0.95
+     ]
+    }
+   }
+  },
+  {
+   "template_id": "DT-NON-INFERIORITY-V1",
+   "title_zh": "不劣于基线（风险类规则）",
+   "outcomes": [
+    "PASS",
+    "FAIL",
+    "INSUFFICIENT"
+   ],
+   "rules_zh": {
+    "PASS": "样本不少于下限，且差值的置信区间下界大于负的容忍量",
+    "FAIL": "样本不少于下限，且区间上界小于负的容忍量",
+    "INSUFFICIENT": "样本少于下限，或区间跨过容忍线；不是否定"
+   },
+   "params": {
+    "alpha": {
+     "type": "number",
+     "min": 0.01,
+     "max": 0.1
+    },
+    "power_target": {
+     "type": "number",
+     "min": 0.8,
+     "max": 0.95
+    },
+    "min_sample_n": {
+     "type": "integer",
+     "min": 20,
+     "max": 100000
+    },
+    "min_effect_sd": {
+     "type": "number",
+     "min": 0.1,
+     "max": 1
+    },
+    "ci_level": {
+     "type": "enum",
+     "values": [
+      0.9,
+      0.95
+     ]
+    },
+    "margin_sd": {
+     "type": "number",
+     "min": 0.05,
+     "max": 0.5
+    }
+   }
+  },
+  {
+   "template_id": "DT-SIGNAL-HIT-RATE-V1",
+   "title_zh": "信号命中率对零假设",
+   "outcomes": [
+    "PASS",
+    "FAIL",
+    "INSUFFICIENT"
+   ],
+   "rules_zh": {
+    "PASS": "样本不少于下限，且命中率的置信区间下界大于零假设水平",
+    "FAIL": "样本不少于下限，且区间上界小于零假设水平",
+    "INSUFFICIENT": "样本少于下限，或区间含零假设水平；不是否定"
+   },
+   "params": {
+    "alpha": {
+     "type": "number",
+     "min": 0.01,
+     "max": 0.1
+    },
+    "power_target": {
+     "type": "number",
+     "min": 0.8,
+     "max": 0.95
+    },
+    "min_sample_n": {
+     "type": "integer",
+     "min": 30,
+     "max": 100000
+    },
+    "min_effect_sd": {
+     "type": "number",
+     "min": 0.1,
+     "max": 1
+    },
+    "ci_level": {
+     "type": "enum",
+     "values": [
+      0.9,
+      0.95
+     ]
+    }
+   }
+  }
+ ],
+ "library_sha256": "1ba53c0f18c6c16a287dec5b93997428d8a3ed90e2c02d19deba366a0b94f1de"
+}

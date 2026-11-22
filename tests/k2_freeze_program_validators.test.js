@@ -46,7 +46,7 @@ const PREPARE_CASES = [
   ['V1', 'a deviation code is requested by the draft', (d) => { d.deviation_codes = ['PRE_NO_TRIAL_ID_IN_K2']; }, null, 'PREREG_SCHEMA_DEVIATION_NOT_ALLOWED'],
   ['V1', 'free text that forges a token (backtick / TRL id / label)', (d) => { d.section0.failure_mode_zh = '见 `CF:qrp:x#y` 与 TRL-0123456789abcdef'; }, null, 'PREREG_SCHEMA_TEXT_FORBIDDEN'],
   ['V2', 'unknown decision-table template', (d) => { d.decision_table.template_id = 'DT-FREE-V1'; }, null, 'PREREG_DECISION_TABLE_UNKNOWN_TEMPLATE'],
-  ['V2', 'a parameter outside the registered range', (d) => { d.decision_table.params.ci_level = 0.93; }, null, 'PREREG_DECISION_TABLE_PARAM_RANGE'],
+  ['V2', 'a parameter outside the registered range', (d) => { d.decision_table.params.min_sample_n = 200000; }, null, 'PREREG_DECISION_TABLE_PARAM_RANGE'],
   ['V2', 'free text in the table', (d) => { d.decision_table.rules_zh = '看着办'; }, null, 'PREREG_DECISION_TABLE_FREE_TEXT'],
   ['V3', 'n_required differs from the power tool (31 vs 32)', (d) => { d.power.n_required = 31; }, null, 'PREREG_POWER_MISMATCH'],
   ['V3', 'a number in the criteria text is not a tool number', (d) => { d.desk_items.decision_criteria_zh = d.desk_items.decision_criteria_zh.replace('32', '20'); }, null, 'PREREG_POWER_MISMATCH'],
