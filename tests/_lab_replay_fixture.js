@@ -23,8 +23,9 @@ function makeReplay({ days = 504, edge = 0.0004, seed = 7, from = '2025-01-02' }
     trades.push({ date, code: i % 2 ? '600000.SH' : '000001.SZ', st: false, side: 'BUY', notional: 100000, open: 10.1, prev_close: 10, participation: 0.02 });
     trades.push({ date, code: i % 2 ? '600000.SH' : '000001.SZ', st: false, side: 'SELL', notional: 100000, open: 10.2, prev_close: 10.1, participation: 0.02 });
   });
-  const without = base.map((b) => ({ date: b.date, net: b.gross - b.cost }));
-  const withC = base.map((b, i) => ({ date: b.date, net: b.gross - b.cost + (cand[i].gross - b.gross) * 0.2 - (cand[i].cost - b.cost) * 0.2 }));
+  const rb = mulberry32(seed + 1); // the existing book is its own series (NOTE_1 overlap = |rho| of the candidate net against it), independent of the baseline
+  const without = base.map((b) => ({ date: b.date, net: 0.0003 + (rb() - 0.5) * 0.01 }));
+  const withC = without.map((w, i) => ({ date: w.date, net: w.net + (cand[i].gross - base[i].gross) * 0.2 - (cand[i].cost - base[i].cost) * 0.2 }));
   return {
     schema: 'LAB_REPLAY_OUTPUT_V1', candidate_id: 'AIP-CNA-001', market: 'CN_A', cost_model_ref: 'W24B_FIXTURE_COSTS_V1', cost_book: 'STOCK_BOOK', cost_flags: {},
     arms: { baseline: { daily: base }, candidate: { daily: cand } }, trades,

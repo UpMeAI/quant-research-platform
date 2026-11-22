@@ -86,9 +86,9 @@ test('S4 producer: marginal net contribution, tail, stress and overlap from the 
   assert.ok(b.marginal_net_contribution.ci.lower > 0 && b.n >= 200);
   assert.equal(b.tail_ok, true); assert.equal(b.stress_ok, true);
   assert.deepEqual(b.race, { partition: 'SELECTION_TIMING' });
-  assert.ok(Math.abs(b.overlap.holdings - 0.2) < 1e-9 && b.overlap.risk >= 0 && b.overlap.risk <= 1);
+  assert.ok(b.overlap.risk >= 0 && b.overlap.risk < 0.3 && b.overlap.holdings === b.overlap.risk, 'both = full-sample |rho| of the candidate net against the book (NOTE_1)');
   assert.equal(evalStage('S4', b, t).verdict, 'PASS');
-  const hot = R.makeReplay(); hot.portfolio.holdings_overlap = hot.portfolio.holdings_overlap.map((x) => ({ ...x, jaccard: 0.9 }));
+  const hot = R.makeReplay(); hot.portfolio.without = hot.arms.candidate.daily.map((x) => ({ date: x.date, net: x.gross - x.cost })); hot.portfolio.with = hot.portfolio.without; // the book IS the candidate: |rho| = 1
   assert.equal(evalStage('S4', s4.produce({ replay: hot, terms: t, star: STAR }).body, t).verdict, 'FAIL');
   const stress = R.makeReplay(); stress.portfolio.stress[0].delta = -0.01;
   assert.equal(s4.produce({ replay: stress, terms: t, star: STAR }).body.stress_ok, false);
