@@ -154,3 +154,8 @@ A byte copy of revision 5 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and 
   - History from 2020-06 → 2026-09-28 is only in the Q0 replay, a different producer. Using it is an open parity question.
   - The analyst-revision factor has no history before 2025-11 anywhere.
 - **R1.7, as corrected in revision 3.** Main-board ST is 5% before 2026-07-06 and 10% from 2026-07-06 (V6 `price_limit_history_v1.json`). That is what `price-limits.js` implements.
+- **Scoring neutralization follows the round (RF1116 amendment 「评分的市值中性化 V2」, FREEZE_1 1aaf43e0, N2/N4).**
+  - **Manifest field:** `scoring_neutralization`. `openRound` writes `RANK_GAUSS_V2` for every new round; the runner's `requestRound` never passes another value. Rounds `MR-CN_A-2026-11-e1ab63a27b` and `MR-CN_A-2026-11-2a1d2c9c82` predate the field and are listed in `LEGACY_LINEAR_RAW_V1_ROUNDS` (frozen, never extended).
+  - **`neutralizationOf(head)`** (exported by `services/mining-rounds/neutralization.js` and the runner): legacy list → `LINEAR_RAW_V1`, a different written value → `MINE_RUNNER_NEUTRALIZATION_LEGACY_CONFLICT`; otherwise the written known value; anything else → `MINE_RUNNER_NEUTRALIZATION_UNKNOWN`.
+  - **Thresholds follow the version:** a `RANK_GAUSS_V2` round's records read `config/mining_gate_thresholds.v2.json`, a `LINEAR_RAW_V1` round's read v1. A result whose stamp version differs from the round's is refused (`MINE_GATE_RECORD_NEUTRALIZATION_MISMATCH`); a result with no stamp reaches item 8 as `MINE_SIZE_EXPOSURE_UNKNOWN`.
+  - **Round 2 stays `LINEAR_RAW_V1`**, as frozen; its selection `cccd65af` is unchanged.
