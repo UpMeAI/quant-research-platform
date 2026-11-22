@@ -246,7 +246,7 @@ test('A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITIN
     assert.equal(r.content, null);
   }
   // 密钥原文打码，即使它不是 sk- 开头、也不在 Bearer 后面（上游回显的任何位置）
-  const PLAIN = 'research-key-9f3a-not-sk-prefixed-4411';
+  const PLAIN = 'research-key-9f3a-plain-4411'; // no sk- anywhere in it, so only the exact-value redaction can catch it
   const echo = await step.callModel({ body, config, key: PLAIN, transport: mockTransport([{ status: 500, body: `upstream echo: key=${PLAIN}; again ${PLAIN}` }]) });
   assert.match(echo.raw_error, /upstream echo/);
   assert.ok(!echo.raw_error.includes(PLAIN), 'exact key value redacted wherever it appears');
