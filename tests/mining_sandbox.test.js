@@ -98,10 +98,10 @@ test('求值器：时序、截面与中性化的数对得上；只往回看—�
 
 test('中性化（§8.3 第 12 条）：打分前按行业、市值中性化并记 APPLIED；G-MINE 的 IC、单调性、衰减读数没有这一记 → MINE_NOT_NEUTRALIZED', () => {
   const p = panel();
-  const n = evaluator.neutralizeForScoring(evaluator.run('close', SPACE, p), p);
-  assert.deepEqual(n.neutralization, gate.NEUTRALIZED);
+  const n = evaluator.neutralizeForScoring(evaluator.run('close', SPACE, p), p, { neutralization: 'LINEAR_RAW_V1' });
+  assert.deepEqual({ industry: n.neutralization.industry, size: n.neutralization.size }, gate.NEUTRALIZED);
   assert.ok(Math.abs(n.values[2].reduce((a, b) => a + b, 0)) < 1e-9);
-  assert.throws(() => evaluator.neutralizeForScoring(evaluator.run('close', SPACE, p), { ...p, industry: undefined }), code(/MINE_EVAL_INDUSTRY_MISSING/));
+  assert.throws(() => evaluator.neutralizeForScoring(evaluator.run('close', SPACE, p), { ...p, industry: undefined }, { neutralization: 'LINEAR_RAW_V1' }), code(/MINE_EVAL_INDUSTRY_MISSING/));
   const thresholds = { ...gate.THRESHOLDS, state: gate.FROZEN, frozen_ref: { path: 'synthetic/FREEZE.md', sha256: 'a'.repeat(64) } };
   const holdout = { ic_mean: 0.05, icir: 0.5, icir_non_overlapping: true, ic_double_horizon: 0.03, quintile_mean_returns: [0.01, 0.02, 0.03, 0.04, 0.05] };
   const raw = { holdout };

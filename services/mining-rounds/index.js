@@ -22,6 +22,7 @@ const path = require('path');
 const { dataDir, now, append, read } = require('../../packages/ledger');
 const { validateRecord } = require('../../schemas');
 const trials = require('../trial-ledger');
+const { NEW_ROUND_NEUTRALIZATION, legacyForTests } = require('./neutralization');
 
 const SCHEMA = 'MINING_ROUND_V1';
 const LEDGER = () => path.join(dataDir('research'), 'mining_rounds.jsonl');
@@ -121,6 +122,8 @@ function openRound(o = {}) {
   const cap = o.cap === undefined ? LIMITS.candidates_per_round : o.cap;
   need(Number.isInteger(cap) && cap >= 1 && cap <= LIMITS.candidates_per_round, 'MINE_ROUND_CAP_INVALID', cap);
   const rulings = checkRulings(o.rulings);
+  // 版本：新开的轮只能是 RANK_GAUSS_V2（不给就是它）；LINEAR_RAW_V1 只在测试的环境开关下认（neutralization.js 的 legacyForTests），生产没有这个口子
+  need(o.scoring_neutralization === undefined || o.scoring_neutralization === NEW_ROUND_NEUTRALIZATION || (o.scoring_neutralization === 'LINEAR_RAW_V1' && legacyForTests()), 'MINE_ROUND_NEUTRALIZATION_INVALID', String(o.scoring_neutralization));
   const selectionRule = checkSelectionRule(o.selection_rule);
   const openedAt = o.openedAt || now();
   const prior = roundsOf(o.market);
@@ -151,6 +154,7 @@ function openRound(o = {}) {
     holding_periods: [...o.holding_periods], family_ids: o.holding_periods.map((h) => `MINE:${o.market}:H${h}`),
     generator: { mode: g.mode, model: g.model || null, model_knowledge_cutoff: g.model_knowledge_cutoff || null, gp_seed: g.mode === 'AI_MINED_GP' ? g.gp_seed : null },
     holdout: { from: o.holdout.from, to: o.holdout.to }, cap, resumed_after_pause: pause.paused ? pause.failed_rounds : [], rulings, selection_rule: selectionRule, holdout_opens: null,
+    scoring_neutralization: o.scoring_neutralization === undefined ? NEW_ROUND_NEUTRALIZATION : o.scoring_neutralization, // 修订 SIZE_V2 N2：新开的轮一律 RANK_GAUSS_V2（第 1、2 轮在 neutralization.js 的名单里）
     status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, opened_at: openedAt, closed_at: null,
     data_checks: isObj(o.data_checks) ? JSON.parse(JSON.stringify(o.data_checks)) : null, // 执行器开轮前做过的数据核对（覆盖下限，压低了也照实写）
   };

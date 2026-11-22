@@ -12,6 +12,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
+const cleanEnv = require('./_clean_env');
 
 const AUTH = 'TEST_ROUND_RUNNER_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
@@ -33,20 +34,20 @@ const freshData = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-f
 const COV = Object.freeze({ min_names_per_day: 5 });
 
 test('金丝雀：好面板上 (-close_hfq) 算得出分；行业成员一行都用不上的面板被拒 MINE_RUNNER_CANARY_UNSCORABLE（第 1 轮的样子）', () => {
-  const ok = runner.checkCanary(miningPanel(good), COV);
+  const ok = runner.checkCanary(miningPanel(good), COV, undefined, { neutralization: 'RANK_GAUSS_V2' });
   assert.equal(ok.formulas.length, 1);
   assert.equal(ok.formulas[0].formula, '(-close_hfq)');
   assert.ok(Number.isFinite(ok.formulas[0].score) && ok.formulas[0].ic_days >= ok.min_ic_days, JSON.stringify(ok));
   const panel = miningPanel(broken);
   assert.equal(panel.manifest.counts.industry.rows, 0, 'the broken fixture really has no usable industry row');
-  assert.throws(() => runner.checkCanary(panel, COV), code(/^MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):2020-06-02:neutralized=0</));
+  assert.throws(() => runner.checkCanary(panel, COV, undefined, { neutralization: 'RANK_GAUSS_V2' }), code(/^MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):2020-06-02:neutralized=0</));
 });
 
 test('金丝雀在开轮之前：命令行 generate 在坏数据上退出 2，没有轮被开、没有封存、试验台账一行都没有', () => {
   const out = freshData();
   const sums = crypto.createHash('sha256').update(fs.readFileSync(path.join(broken.dirs.holdout, 'SHA256SUMS'))).digest('hex');
   const r = spawnSync(process.execPath, [CLI, 'generate', '--out', out, '--lane', broken.dirs.lane, '--tail', broken.dirs.tail, '--seed', '1',
-    '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', sums, '--min-names-per-day', '5'], { env: { ...process.env, QRP_DATA_DIR: out }, encoding: 'utf8' });
+    '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', sums, '--min-names-per-day', '5'], { env: { ...cleanEnv(), QRP_DATA_DIR: out }, encoding: 'utf8' });
   assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.equal(JSON.parse(r.stderr).error, 'MINE_RUNNER_CANARY_UNSCORABLE');
   assert.ok(!fs.existsSync(path.join(out, 'research', 'mining_rounds.jsonl')), 'no round opened');
@@ -60,7 +61,7 @@ test('算不出分的尝试记 UNSCORABLE（计入 N、不进选择、GP 不当�
   const texts = ['sign(close_hfq)', 'rank(pb)'];
   const stub = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => Array.from({ length: n }, (_, i) => texts[(view.mining_scores.length + i) % 2]) };
   const panel = miningPanel(good);
-  const canary = runner.checkCanary(panel, COV);
+  const canary = runner.checkCanary(panel, COV, undefined, { neutralization: 'RANK_GAUSS_V2' });
   const g = runner.internals.withGenerator(stub, () => runner.generate({ roundId: r.round_id, sources: sourcesOf(good), outDir: out, registeredBy: AUTH, coverageFloor: COV, panel }));
   assert.deepEqual(g.attempts, { scored: 1, unscorable: 1, parse_refused: 0, deduped: 198 });
   assert.deepEqual(g.canary, canary);

@@ -43,6 +43,18 @@ const THRESHOLDS = (() => {
     marginal_ir_delta_min: d.marginal_ir_delta_min, marginal_intercept_t_min: d.marginal_intercept_t_min });
 })();
 const THRESHOLD_KEYS = Object.freeze(['ic_mean_min', 'icir_min', 'monotonicity_min', 'decay_ratio_min', 'marginal_ir_delta_min', 'marginal_intercept_t_min']);
+/**
+ * 门槛 v2（RF1116 修订「评分的市值中性化 V2」N4）：v1 的六个数加 size_exposure_abs_max（第 8 项的市值暴露上限，★S2 0.10）。第 1、2 轮读 v1，V2 的轮读 v2。
+ * 两份文件都是唯一出处；v1 字节不变。PENDING_FREEZE 期间门一律失败即关，与 v1 同。
+ */
+const THRESHOLDS_FILE_V2 = require('path').join(__dirname, '..', '..', 'config', 'mining_gate_thresholds.v2.json');
+const SIZE_EXPOSURE_KEY = 'size_exposure_abs_max';
+const THRESHOLDS_V2 = (() => {
+  const d = JSON.parse(require('fs').readFileSync(THRESHOLDS_FILE_V2, 'utf8'));
+  return Object.freeze({ state: d.state, source: Object.freeze({ ...d.source }), frozen_ref: d.frozen_ref ? Object.freeze({ ...d.frozen_ref }) : null,
+    ic_mean_min: d.ic_mean_min, icir_min: d.icir_min, monotonicity_min: d.monotonicity_min, decay_ratio_min: d.decay_ratio_min,
+    marginal_ir_delta_min: d.marginal_ir_delta_min, marginal_intercept_t_min: d.marginal_intercept_t_min, [SIZE_EXPOSURE_KEY]: d[SIZE_EXPOSURE_KEY] });
+})();
 
 /** 第 6 项的口径（草稿 §4 第 6 项与附录 1 §2.4，不是 ★e 新数）。 */
 const NET_SPEC = Object.freeze({ top_fraction: 0.2, benchmark: 'EQUAL_WEIGHT_UNIVERSE', long_only_markets: Object.freeze(['CN_A']), stamp_duty_markets: Object.freeze(['CN_A']) });
@@ -63,6 +75,8 @@ const at = (o, key) => (isObject(o) ? o[key] : undefined);
 const REPO_ROOT = require('path').join(__dirname, '..', '..');
 let FREEZE_ROOT = REPO_ROOT;
 const FREEZE_DIR = 'docs/freeze/';
+/** 要核的数：六个，门槛块带了 size_exposure_abs_max 就加上它（冻结页也要写着）。 */
+const keysOf = (t) => (isObject(t) && t[SIZE_EXPOSURE_KEY] !== undefined ? [...THRESHOLD_KEYS, SIZE_EXPOSURE_KEY] : THRESHOLD_KEYS);
 function verifyFreezeRef(t) {
   const fsx = require('fs'); const px = require('path');
   const ref = isObject(t) ? t.frozen_ref : null;
@@ -76,7 +90,7 @@ function verifyFreezeRef(t) {
   const text = bytes.toString('utf8');
   if (!/\bFROZEN\b/.test(text)) return 'PAGE_NOT_FROZEN';
   const lines = text.split('\n');
-  for (const k of THRESHOLD_KEYS) {
+  for (const k of keysOf(t)) {
     const ok = lines.some((l) => new RegExp(`(^|[^A-Za-z0-9_])${k}([^A-Za-z0-9_]|$)`).test(l)
       && (l.match(/-?\d+(?:\.\d+)?/g) || []).some((n) => Number(n) === t[k]));
     if (!ok) return `PAGE_VALUE_MISSING:${k}`;
@@ -92,7 +106,7 @@ function thresholdState(t, { checkFreeze = false } = {}) {
   if (!isObject(t) || t.state !== FROZEN) return 'MINE_THRESHOLDS_UNFROZEN';
   const ref = t.frozen_ref;
   if (!isObject(ref) || !isText(ref.path) || !SHA64.test(ref.sha256 || '')) return 'MINE_THRESHOLDS_INVALID';
-  if (!THRESHOLD_KEYS.every((k) => isNum(t[k]))) return 'MINE_THRESHOLDS_INVALID';
+  if (!keysOf(t).every((k) => isNum(t[k]))) return 'MINE_THRESHOLDS_INVALID';
   if (checkFreeze && verifyFreezeRef(t)) return 'MINE_THRESHOLDS_FREEZE_REF_INVALID';
   return null;
 }
@@ -221,7 +235,33 @@ function checkCorrelation(c, ctx = {}) {
   if (decision.decision === 'CORRELATION_UNKNOWN') codes.push('MINE_CORRELATION_UNKNOWN');
   else if (decision.conflicts.length && decision.decision !== 'ORTHOGONALISED') codes.push('MINE_CORRELATION_ABOVE_MAX');
   else if (orth.length && at(k, 'new_attempt') !== true) codes.push('MINE_CORRELATION_ORTHOGONALISED_NOT_COUNTED');
-  return result(8, 'CORRELATION', codes, { rho_max: factorLib.DEDUPE.RHO_MAX, conflicts: decision.conflicts });
+  const size = checkSizeExposure(c, ctx);
+  codes.push(...size.codes);
+  return result(8, 'CORRELATION', codes, { rho_max: factorLib.DEDUPE.RHO_MAX, conflicts: decision.conflicts, ...size.detail });
+}
+
+/**
+ * 8 的市值暴露检查（修订 SIZE_V2 N3、★S2）：留出段结果带 size_exposure { statistic, value, days, neutralization_version }，取自与 IC 同一份中性化后的值。
+ *   - 中性化版本取留出段戳里的 version：RANK_GAUSS_V2 → 判 |value| ≤ size_exposure_abs_max，否则 MINE_SIZE_EXPOSURE_ABOVE_MAX；
+ *     值缺失、非有限、天数 < MIN_IC_DAYS、统计量或版本对不上、门槛里没有这个数 → MINE_SIZE_EXPOSURE_UNKNOWN（失败即关）；
+ *   - LINEAR_RAW_V1（第 1、2 轮，规则冻结）→ 不判，写 detail.size_exposure_check = NOT_APPLICABLE_ROUND_FROZEN_V1，值照实带着；
+ *   - 版本缺失或不认识 → MINE_SIZE_EXPOSURE_UNKNOWN。
+ * 注意：这一项只拦 V1 那种大泄漏（0.48–0.82）。V2 下纯市值替身的暴露只有 0.067–0.074，这一项拦不住它们，靠第 3 项（IC ≥ 0.02）拦（冻结页 FREEZE_1 §1 ★S2）。
+ */
+const SIZE_EXPOSURE_STATISTIC = 'MEAN_DAILY_SPEARMAN_VS_LOG_TOTAL_MV';
+function checkSizeExposure(c, ctx = {}) {
+  const version = at(at(at(c, 'holdout'), 'neutralization'), 'version');
+  const e = at(c, 'size_exposure');
+  const value = at(e, 'value'); const days = at(e, 'days');
+  const reported = { size_exposure: isNum(value) ? value : null, size_exposure_days: Number.isInteger(days) ? days : null, neutralization_version: typeof version === 'string' ? version : null };
+  if (version === 'LINEAR_RAW_V1') return { codes: [], detail: { ...reported, size_exposure_check: 'NOT_APPLICABLE_ROUND_FROZEN_V1' } };
+  if (version !== 'RANK_GAUSS_V2') return { codes: ['MINE_SIZE_EXPOSURE_UNKNOWN'], detail: { ...reported, size_exposure_check: 'VERSION_UNKNOWN' } };
+  const max = at(ctx.thresholds, SIZE_EXPOSURE_KEY);
+  const minDays = require('../mining-sandbox/scoring').MIN_IC_DAYS;
+  const known = isObject(e) && e.statistic === SIZE_EXPOSURE_STATISTIC && e.neutralization_version === version && isNum(value) && Number.isInteger(days) && days >= minDays && isNum(max);
+  if (!known) return { codes: ['MINE_SIZE_EXPOSURE_UNKNOWN'], detail: { ...reported, size_exposure_check: 'UNKNOWN', size_exposure_abs_max: isNum(max) ? max : null } };
+  const above = Math.abs(value) > max;
+  return { codes: above ? ['MINE_SIZE_EXPOSURE_ABOVE_MAX'] : [], detail: { ...reported, size_exposure_check: above ? 'ABOVE_MAX' : 'WITHIN_MAX', size_exposure_abs_max: max } };
 }
 
 /**
@@ -297,7 +337,7 @@ function evaluate(candidate, ctx = {}) {
 function withFreezeRoot(root, cb) { const prior = FREEZE_ROOT; FREEZE_ROOT = root; try { return cb(); } finally { FREEZE_ROOT = prior; } }
 
 module.exports = {
-  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLD_KEYS, FREEZE_DIR, verifyFreezeRef, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
+  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLDS_V2, THRESHOLDS_FILE_V2, SIZE_EXPOSURE_KEY, SIZE_EXPOSURE_STATISTIC, THRESHOLD_KEYS, FREEZE_DIR, verifyFreezeRef, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
   thresholdState, bookFactorIds, evaluate,
   checkDsr, checkPbo, checkIcIcir, checkMonotonicity, checkDecay, checkNetOfCost, checkMarginal, checkCorrelation, checkMechanism,
   internals: { withFreezeRoot },

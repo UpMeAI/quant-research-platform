@@ -73,7 +73,7 @@ test('真实编码：ST、新上市不满 120 个交易日不进池；整日停�
 
 test('真实编码：(-close_hfq) 经打分前的中性化（行业 + 市值），逐日有限值的名字 ≥ 当天覆盖数的 0.9', () => {
   const neu = evaluator.neutralizeForScoring(evaluator.evaluate(dsl.parse('(-close_hfq)', f.dslSpace), panel), {
-    ...panel, industry: panel.industry.map((row, t) => row.map((g, j) => (panel.universe[t][j] ? g : null))) }).values;
+    ...panel, industry: panel.industry.map((row, t) => row.map((g, j) => (panel.universe[t][j] ? g : null))) }, { neutralization: 'RANK_GAUSS_V2' }).values;
   for (let t = 1; t < panel.dates.length; t += 1) {
     let cov = 0; let n = 0;
     panel.codes.forEach((_, j) => { if (!panel.universe[t][j]) return; if (Number.isFinite(panel.readings.close_hfq[t][j])) cov += 1; if (Number.isFinite(neu[t][j])) n += 1; });

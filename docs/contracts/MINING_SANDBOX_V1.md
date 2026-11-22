@@ -26,7 +26,12 @@ All refusals happen at parse time. `parse()` returns the tree, a canonical form 
 
 - **Input.** It takes a panel (dates × codes) whose readings are already cut at their PIT availability, and it only looks back. Time-series windows end on the current day, and an incomplete window gives NaN. Cross-section operators use only the current day. Missing values propagate as NaN and are never filled.
 - **One implementation.** The evaluator and the causality evidence call the same functions in `evaluator/operators.js`.
-- **Neutralization before scoring.** `neutralizeForScoring` subtracts the industry mean, then takes the residual of a regression on log size, and stamps `neutralization {industry: APPLIED, size: APPLIED}`. G-MINE items 3–5 (IC/ICIR, monotonicity, decay) refuse holdout readings without that stamp with `MINE_NOT_NEUTRALIZED` (§3.6, §8.3 item 12).
+- **Neutralization before scoring, by version (RF1116 amendment 「评分的市值中性化 V2」, FREEZE_1 1aaf43e0, body f67701e9).** `neutralizeForScoring(result, panel, { neutralization })` requires the version: missing → `MINE_EVAL_NEUTRALIZATION_REQUIRED`, unknown → `MINE_EVAL_NEUTRALIZATION_UNKNOWN`. There is no default. The version is the round's (`neutralizationOf(head)`); every caller (generate score, canary, select, validation book, holdout scoring, rescore) passes it.
+  - **`LINEAR_RAW_V1`** (rounds 1 and 2, byte-identical to the frozen algorithm): subtract the industry mean, then take the residual of a regression on log size. Stamp `{industry: APPLIED, size: APPLIED, version: LINEAR_RAW_V1, pre_transform: NONE, size_regressor: LOG_TOTAL_MV}`.
+  - **`RANK_GAUSS_V2`** (every new round, ★S1 (a)), per day over the participants (finite value, known industry, `total_mv` > 0, inside the scoring universe): g = Φ⁻¹((r + 0.5) / n) with ties averaged; demean g within industry; OLS residual on rank-gauss(`total_mv`) of the same names. Fewer than 3 participants → the day is all NaN. Stamp `{…, version: RANK_GAUSS_V2, pre_transform: RANK_GAUSS, size_regressor: RANK_GAUSS_TOTAL_MV}`.
+  - **Why:** V1 passes right-skewed raw inputs through almost unchanged in rank (raw `total_mv` scores −0.82 against log size under V1, +0.074 under V2(a)).
+  - **Size exposure (N3).** Each holdout result carries `size_exposure { statistic: MEAN_DAILY_SPEARMAN_VS_LOG_TOTAL_MV, value, days, neutralization_version }`, computed on the holdout days from the same neutralized values and the same names as the IC.
+  - G-MINE items 3–5 still check only the stamp's `industry` and `size` entries (`MINE_NOT_NEUTRALIZED`). G-MINE items 3–5 (IC/ICIR, monotonicity, decay) refuse holdout readings without that stamp with `MINE_NOT_NEUTRALIZED` (§3.6, §8.3 item 12).
 
 ## Search space `MINING_SPACE_V1` (`space.js`)
 

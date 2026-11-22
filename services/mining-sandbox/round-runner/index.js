@@ -31,6 +31,7 @@ const segs = require('../segments');
 const { lockdown } = require('../isolation');
 const selector = require('./selector');
 const holdoutScoring = require('./holdout-scoring');
+const { LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf } = require('../../mining-rounds/neutralization');
 
 const REPO = path.join(__dirname, '..', '..', '..');
 const MARKET = 'CN_A';
@@ -88,6 +89,7 @@ let frozenInputs = FROZEN_INPUTS;
 
 /** 启动：输出目录要在、台账目录要在输出目录里；然后 lockdown（之后本进程只能写输出目录）。 */
 function start({ outDir } = {}) {
+  need(process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION === undefined, 'TEST_SEAM_SET', 'QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION must not be set when the runner starts'); // 测试的口子（旧版本的轮）不许带进执行器
   need(outDir && fs.existsSync(outDir) && fs.statSync(outDir).isDirectory(), 'OUT_DIR_INVALID', outDir);
   const real = fs.realpathSync(outDir);
   const data = process.env.QRP_DATA_DIR ? path.resolve(process.env.QRP_DATA_DIR) : null; // 台账目录（packages/ledger 的 dataDir 取同一个变量）
@@ -164,7 +166,7 @@ function checkCoverage(panel, floor = COVERAGE_FLOOR) {
  *   scored_days, min_ic_days, min_names_per_day, min_coverage_share, min_day_share, holding_period }（写进 generate.json）。
  */
 const CANARY = Object.freeze({ formulas: Object.freeze(['(-close_hfq)']), min_coverage_share: 0.9, min_day_share: 0.95 });
-function checkCanary(panel, floor = COVERAGE_FLOOR, canary = CANARY) {
+function checkCanary(panel, floor = COVERAGE_FLOOR, canary = CANARY, { neutralization } = {}) {
   need(panel && panel.segment === 'MINING' && Array.isArray(panel.dates) && panel.dates.length && panel.readings && panel.readings.close_hfq, 'CANARY_PANEL_INVALID');
   need(floor && Number.isInteger(floor.min_names_per_day) && floor.min_names_per_day >= 1, 'COVERAGE_FLOOR_INVALID', floor && floor.min_names_per_day);
   const f = loadFrozenSpace();
@@ -175,7 +177,7 @@ function checkCanary(panel, floor = COVERAGE_FLOOR, canary = CANARY) {
   const minDays = Math.max(scoring.MIN_IC_DAYS, Math.ceil(canary.min_day_share * scoredDays));
   const formulas = canary.formulas.map((text) => {
     const parsed = dsl.parse(text, f.dslSpace);
-    const neu = scoring.neutralizedValues(parsed, panel).values;
+    const neu = scoring.neutralizedValues(parsed, panel, { neutralization }).values;
     let minNamed = Infinity; let minNamedDate = null; let minShare = Infinity; let minShareDate = null;
     for (let t = 1; t <= scoredDays; t += 1) {
       let cov = 0; let named = 0;
@@ -190,7 +192,7 @@ function checkCanary(panel, floor = COVERAGE_FLOOR, canary = CANARY) {
       need(named >= floor.min_names_per_day && named >= canary.min_coverage_share * cov, 'CANARY_UNSCORABLE',
         `${text}:${panel.dates[t]}:neutralized=${named}<max(${floor.min_names_per_day},${canary.min_coverage_share}x${cov})`);
     }
-    const s = scoring.miningScore(parsed, panel, { holding_period: H });
+    const s = scoring.miningScore(parsed, panel, { holding_period: H, neutralization });
     need(Number.isFinite(s.score) && s.ic_days >= minDays, 'CANARY_UNSCORABLE', `${text}:ic_days=${s.ic_days}<${minDays}`);
     return { formula: text, score: s.score, ic_days: s.ic_days, min_named: minNamed, min_named_date: minNamedDate, min_share: minShare, min_share_date: minShareDate };
   });
@@ -218,7 +220,8 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
   const m = segs.SEGMENTS.MINING;
   const panel = prebuilt || adapter.buildPanel({ sources, space: f.space, segment: 'MINING', from: m.from, to: m.to });
   const coverage = checkCoverage(panel, coverageFloor); // 一个尝试都没记之前
-  const canary = checkCanary(panel, coverageFloor); // 复审 M-3：自己跑，不信调用方给的
+  const neutralization = neutralizationOf(r); // 版本跟着轮走（修订 SIZE_V2 N2），不设默认
+  const canary = checkCanary(panel, coverageFloor, CANARY, { neutralization }); // 复审 M-3：自己跑，不信调用方给的
   const counts = { scored: 0, unscorable: 0, parse_refused: 0, deduped: 0 };
   const startedAt = now();
   const log = path.join(dir, 'attempts.jsonl');
@@ -245,7 +248,7 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
           rule_config: { formula: parsed.canonical, ...base, attempt: 'DEDUPED', attempt_id: id } };
         counts.deduped += 1;
       } else {
-        const s = scoring.miningScore(parsed, panel, { holding_period: H });
+        const s = scoring.miningScore(parsed, panel, { holding_period: H, neutralization });
         if (Number.isFinite(s.score)) {
           rec = { candidate_id: id, formula_canonical: parsed.canonical, formula_sha256: parsed.sha256, holding_period: H, mining_score: s.score };
           counts.scored += 1;
@@ -290,11 +293,12 @@ function select({ roundId, sources, outDir }) {
   const v = segs.SEGMENTS.VALIDATION;
   // R1.2：规则读本轮清单（不读常量）
   const rule = r.selection_rule;
+  const neutralization = neutralizationOf(r); // 修订 SIZE_V2 N2
   need(rule && rule.schema === 'VALIDATION_SELECTION_V1', 'SELECTION_RULE_MISSING', roundId);
   const panel = adapter.buildPanel({ sources, space: f.space, segment: 'VALIDATION', from: segs.SEGMENTS.MINING.from, to: v.to });
   const valDays = panel.dates.map((d, t) => (d >= v.from ? t : -1)).filter((t) => t >= 0);
   const candidates = scoredAttempts(roundId).map((c) => {
-    const { values, ...st } = selector.validationStats(dsl.parse(c.formula, f.dslSpace), panel, { holding_period: f.holdingPeriod, rule });
+    const { values, ...st } = selector.validationStats(dsl.parse(c.formula, f.dslSpace), panel, { holding_period: f.holdingPeriod, rule, neutralization });
     // R1.3：验证折上的只做多月度配对差（DSR 的样本段），与留出段同一套持仓与成本（含涨跌停）
     const book = holdoutScoring.longOnly(values, panel, f.holdingPeriod, valDays);
     const sr = require('../../trial-ledger/overfit').moments(book.monthly_d).sr;
@@ -583,7 +587,7 @@ function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenI
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
   const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace) })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation: p.validation,
-      familySharpes: p.familySharpes, mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt,
+      familySharpes: p.familySharpes, neutralization: neutralizationOf(rounds.roundHead(roundId)), mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt,
       review: p.reviewed ? { verdicts: p.reviewed.verdicts, review_hash: p.reviewed.review.record_hash, reviewed_at: p.reviewed.review.reviewed_at } : null });
   const records = results.map((res, k) => { const rec = gateRecords.recordGateResult({ round_id: roundId, candidate_id: res.candidate_id, candidate: res }); if (k === 0) faultAt('AFTER_FIRST_RECORD'); return rec; });
   const c = p.checked;
@@ -686,6 +690,6 @@ function withGenerator(gen, cb) { const prior = generatorOverride; generatorOver
 
 module.exports = {
   MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, HOLDOUT_FIELD_FLOOR, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
-  holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha,
+  holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha, LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf,
   internals: { withGenerator, withFrozenInputs, withFault, attemptId },
 };
