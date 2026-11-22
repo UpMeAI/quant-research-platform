@@ -13,10 +13,13 @@ need_node = unittest.skipUnless(NODE, "node not available")
 FACTS = None
 
 
+VALUES = [{"signals": 12, "window_days": 60}, {"hit_rate_pct": 41.5, "n": 87}, {"lag_days": 3}, {"count": 3, "key": "LATE_ENTRY"}, {"missing": ["RS60"]}]
+
+
 def fact_pack(week="2026-W47", market="CN_A"):
     return {"schema": "REVIEW_AI_FACT_PACK_V1", "week": week, "market": market,
-            "facts": [{"id": "F-%03d" % n, "source": {"path": "runs/RQT-LINUX-20261122-aaaa1111/attempt-1/evidence/%d.json" % n, "sha256": sha("src%d" % n), "pointer": "/rows/%d" % n},
-                       "at": "2026-11-20T18:00:00+08:00", "value": {"n": n}} for n in range(1, 6)],
+            "facts": [{"id": "F-%03d" % (i + 1), "source": {"path": "runs/RQT-LINUX-20261122-aaaa1111/attempt-1/evidence/%d.json" % (i + 1), "sha256": sha("src%d" % (i + 1)), "pointer": "/rows/%d" % (i + 1)},
+                       "at": "2026-11-20T18:00:00+08:00", "value": v} for i, v in enumerate(VALUES)],
             "code_counts": [{"key": "LATE_ENTRY", "count": 3, "fact_id": "F-004"}]}
 
 
@@ -194,10 +197,10 @@ class SpoolScripts(unittest.TestCase):
         (self.spool / "in" / "RQT-HK-9-a1").mkdir()
         (self.spool / "in" / "RQT-HK-9-a1" / "task.json").write_text("{}")
         (self.spool / "in" / "RQT-HK-9-a1" / "bundle.json").write_text("{}")
-        (self.spool / "pause").write_text("")
+        (self.spool / "in" / ".pause").write_text("")
         self.drain()
         self.assertFalse((self.spool / "out" / "RQT-HK-9-a1").exists(), "a pause file stops the drain")
-        (self.spool / "pause").unlink()
+        (self.spool / "in" / ".pause").unlink()
         self.drain()
         self.assertTrue((self.spool / "out" / "RQT-HK-9-a1" / "result.json").exists())
         mtime = (self.spool / "out" / "RQT-HK-9-a1" / "result.json").stat().st_mtime_ns
@@ -254,7 +257,7 @@ class SpoolUnits(unittest.TestCase):
         self.assertEqual(g("BindPaths"), "/var/lib/rq-spool/out")
         self.assertNotIn(("[Service]", "EnvironmentFile"), u)
         t = unit(AI / "rq-agent.timer")
-        self.assertIn("*:0/5", t[("[Timer]", "OnCalendar")][-1])
+        self.assertRegex(t[("[Timer]", "OnCalendar")][-1], r"10\.\.21:0/5")
         self.assertEqual(t[("[Timer]", "Unit")][-1] if ("[Timer]", "Unit") in t else "rq-agent.service", "rq-agent.service")
 
     def test_groups_keep_the_agent_out_of_the_queue_group_and_the_socket_belongs_to_the_agent_group(self):
@@ -285,7 +288,7 @@ class SpoolPause(Base):
         from test_pause import Sensors
         self.Sensors = Sensors
         spool = self.root / "spool"
-        spool.mkdir()
+        (spool / "in").mkdir(parents=True)
         self.cfg.spool_dir = str(spool)
         t = net_tpl()
         r = self.admit(registry([t]), req(t, market="US_EQUITY", params={"mode": "sleep"}), at(11, 0))
@@ -304,11 +307,11 @@ class SpoolPause(Base):
         sf = self.cfg.state_dir / "pause-state.json"
         pause.tick(self.conn, self.cfg, at(11, 1), pauser, self.Sensors(load5=4.0), [], sf)
         self.assertEqual(sorted(a[-1] for a in calls if a[:2] == ["systemctl", "freeze"]), ["rq-agent.service", "rq-consumer.service"])
-        self.assertTrue((spool / "pause").exists())
+        self.assertTrue((spool / "in" / ".pause").exists())
         calls.clear()
         pause.tick(self.conn, self.cfg, at(11, 30), pauser, self.Sensors(load5=0.5), [], sf)
         self.assertEqual(self.state(r.task_id), "RUNNING")
-        self.assertFalse((spool / "pause").exists())
+        self.assertFalse((spool / "in" / ".pause").exists())
         self.assertIn(["systemctl", "thaw", "rq-agent.service"], calls)
         self.assertIn(["systemctl", "thaw", "rq-consumer.service"], calls)
 
@@ -318,7 +321,7 @@ class SpoolPause(Base):
         res = pause.tick(self.conn, self.cfg, at(11, 1), pauser, self.Sensors(load5=4.0), [], self.cfg.state_dir / "pause-state.json")
         self.assertEqual(res["paused"], [r.task_id])
         self.assertEqual(self.state(r.task_id), "PAUSED")
-        self.assertTrue((spool / "pause").exists(), "the pause file still stops a drain that starts later")
+        self.assertTrue((spool / "in" / ".pause").exists(), "the pause file still stops a drain that starts later")
 
 
 class HkTemplates(unittest.TestCase):

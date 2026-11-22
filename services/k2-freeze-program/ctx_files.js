@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const mechGate = require('../research-mechanism-register/gate');
 const { isObj } = require('./common');
+const termsStar = require('./terms_star');
 
 /** Earlier program freezes found under dir (one level of <ID>/ directories), for the RF1118 caps. */
 function loadPriorFreezes(dir) {
@@ -37,7 +38,7 @@ function fromSpec(spec, { baseDir = '.' } = {}) {
     priorFreezes: spec.priorFreezes || loadPriorFreezes(abs(spec.priorFreezesDir || spec.outDir)),
     queueLogText: spec.queueLogText !== undefined ? spec.queueLogText : (spec.queueLogFile ? fs.readFileSync(abs(spec.queueLogFile), 'utf8') : ''),
     pinnedCodeShas: spec.pinnedCodeShas || {}, freezeMode: spec.freezeMode || 'PROGRAM', downgradedClasses: spec.downgradedClasses || [],
-    powerOutputs: spec.powerOutputs || null, riskRules: spec.riskRules || null, promotionTermsStar: spec.promotionTermsStar || null,
+    powerOutputs: spec.powerOutputs || null, riskRules: spec.riskRules || null, promotionTermsStar: spec.promotionTermsStar || termsStar.load(), // the registered starred values (config/promotion_terms_star.v1.json), unless the spec carries its own
     clockOffsets: spec.clockOffsets || null,
     registeredComponents: spec.registeredComponents || { readings: [], ruleParts: [] },
     evidenceBytes: spec.evidenceDir ? (sha) => { const f = path.join(abs(spec.evidenceDir), `${sha}.json`); return fs.existsSync(f) ? fs.readFileSync(f) : null; } : () => null,

@@ -84,7 +84,7 @@ class HKUnits(unittest.TestCase):
             self.assertEqual(val(u, "Service", "IPAddressDeny"), "any", n)
             for k, v in (("User", "research-queue"), ("Slice", "research.slice"), ("Nice", "19"), ("IOSchedulingClass", "idle"),
                          ("OOMScoreAdjust", "1000"), ("NoNewPrivileges", "yes"), ("PrivateTmp", "yes"), ("ProtectSystem", "strict"),
-                         ("ProtectHome", "yes"), ("ReadWritePaths", "/var/lib/research-queue")):
+                         ("ProtectHome", "yes"), ("ReadWritePaths", "/var/lib/research-queue /var/lib/rq-spool" if n == "rq-consumer.service" else "/var/lib/research-queue")):  # Q3c: the consumer also writes the agent spool
                 self.assertEqual(val(u, "Service", k), v, "%s %s" % (n, k))
             self.assertEqual(val(u, "Service", "CapabilityBoundingSet"), "")
         self.assertEqual(val(unit("hk", "rq-consumer.service"), "Service", "KillMode"), "process")

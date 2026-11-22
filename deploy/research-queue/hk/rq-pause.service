@@ -8,7 +8,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/var/lib/research-queue
+ReadWritePaths=/var/lib/research-queue /var/lib/rq-spool
 IPAddressDeny=any
 Environment=PYTHONPATH=/opt/research-queue/current/services/research-queue
 Environment=RQ_CONFIG=/etc/research-queue/rq.json

@@ -35,7 +35,33 @@ function factPackRead(bundle, task) {
   return { dataset: 'REVIEW_FACT_PACK_V1', from: days.length ? days[0] : fallback, to: days.length ? days[days.length - 1] : fallback };
 }
 
+/** Consumer-side subcommands (Q3c): `stage` writes in/task.json + in/bundle.json, `validate` re-validates a result. Both print JSON; a validation verdict is exit 0, a crash is not. */
+function consumerCommand(sub, argv) {
+  const a = args(argv);
+  const readJson = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+  if (sub === 'stage') {
+    for (const k of ['row-json', 'input', 'out']) if (!a[k]) usage(`--${k} is required`);
+    const { stageFiles } = require('./stage');
+    const { buildRegistryView } = require('./registries');
+    const s = stageFiles({ row: JSON.parse(a['row-json']), input: readJson(a.input), buildRegistry: (market) => buildRegistryView({ market }) });
+    fs.mkdirSync(a.out, { recursive: true });
+    for (const [name, doc] of [['task.json', s.task], ['bundle.json', s.bundle]]) {
+      fs.writeFileSync(path.join(a.out, `${name}.tmp`), `${canonicalJson(doc)}\n`);
+      fs.renameSync(path.join(a.out, `${name}.tmp`), path.join(a.out, name));
+    }
+    process.stdout.write(`${canonicalJson({ staged: true, task_id: s.task.task_id })}\n`);
+    return;
+  }
+  for (const k of ['task', 'bundle', 'result']) if (!a[k]) usage(`--${k} is required`);
+  const { validateResult } = require('./validate-result');
+  const task = readJson(a.task); const bundle = readJson(a.bundle);
+  let result = null;
+  try { result = readJson(a.result); } catch (e) { process.stdout.write(`${canonicalJson({ ok: false, codes: ['RESULT_UNPARSEABLE'], output_sha256: null })}\n`); return; }
+  process.stdout.write(`${canonicalJson(validateResult({ task, bundle, result }))}\n`);
+}
+
 async function main() {
+  if (['stage', 'validate'].includes(process.argv[2])) { consumerCommand(process.argv[2], process.argv.slice(3)); return; }
   try { assertKeylessEnv(process.env); } catch (e) { process.stderr.write(`${e.message}\n`); process.exit(3); }
   const a = args(process.argv.slice(2));
   for (const k of ['task', 'bundle', 'out', 'socket', 'host']) if (!a[k]) usage(`--${k} is required`);

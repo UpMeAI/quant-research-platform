@@ -1,0 +1,47 @@
+{
+  "schema": "PROMOTION_TERMS_STAR_V1",
+  "_comment": "The starred default values a K2's PROMOTION_TERMS_V1 may take, copied verbatim from the frozen plan texts, one source reference each (document, section, quoted words, the number as written, its unit). Nothing here is invented: a value with no source in those texts is absent (see not_set), and a layer whose metric is not yet defined is not usable. Supplied to the K2 freeze program as ctx.promotionTermsStar; an AI-authored draft must equal it, a human-authored one states its own values. To be frozen by plan-coord from the PR that adds it.",
+  "sources": {
+    "V1_1": { "doc": "三市场量化研究与交易计划系统_完整优化方案_V1.1", "sha256": "af34af3862c59d064d35748b82b4790c8a444805742cb87e63fa32e40cd662f7" },
+    "AMENDMENT_1": { "doc": "PLAN_V1_1_AMENDMENT_1_AI_RESEARCH_LAB", "sha256": "0e2f3181d98902f28b67c53ffd068a32e35e96bb75c1b32b62eb3ab9f45bde43" }
+  },
+  "insufficient_policy": {
+    "values": { "horizon_months": 12, "p_threshold": 0.5, "budget_share_max": 0.2, "resume_sample_fraction": 0.5, "max_failed_rechecks": 3 },
+    "sources": {
+      "horizon_months": { "doc": "AMENDMENT_1", "section": "4.2 item 2", "quote": "12 个月 ★", "quote_number": 12, "unit": "months" },
+      "p_threshold": { "doc": "AMENDMENT_1", "section": "4.2 item 2", "quote": "低于 50% ★", "quote_number": 50, "unit": "percent" },
+      "budget_share_max": { "doc": "AMENDMENT_1", "section": "4.2 item 3", "quote": "月度研究预算的 20% ★", "quote_number": 20, "unit": "percent" },
+      "resume_sample_fraction": { "doc": "AMENDMENT_1", "section": "4.2 item 2", "quote": "所需样本的 50% ★", "quote_number": 50, "unit": "percent" },
+      "max_failed_rechecks": { "doc": "AMENDMENT_1", "section": "4.3", "quote": "连续 3 次 ★", "quote_number": 3, "unit": "count" }
+    }
+  },
+  "layers": {
+    "ALPHA": {
+      "usable": true,
+      "min_economic_value": { "metric": "DELTA_G_PER_YEAR", "value": 0.02 },
+      "thresholds": { "s3": { "cost_multiple": 2 } },
+      "sources": {
+        "min_economic_value": { "doc": "V1_1", "section": "5.2 A", "quote": "至少 2 个百分点／年", "quote_number": 2, "unit": "pp" },
+        "thresholds.s3.cost_multiple": { "doc": "V1_1", "section": "5.2 C", "quote": "提高至基准 2 倍", "quote_number": 2, "unit": "multiple" }
+      }
+    },
+    "RISK": {
+      "usable": false,
+      "reason": "CVaR5 has no frozen definition yet: V1.1 5.2 B says it is defined first in METRIC_DEFINITIONS V1.1 and until then risk questions keep the existing non-inferiority gates; the recorded values are for when it is defined",
+      "recorded": { "min_economic_value": { "metric": "CVAR5_IMPROVEMENT", "value": 0.1 }, "thresholds": { "s3": { "cost_multiple": 2, "max_growth_sacrifice": 0.01 } } },
+      "sources": {
+        "min_economic_value": { "doc": "V1_1", "section": "5.2 B", "quote": "改善 至少 10%", "quote_number": 10, "unit": "percent" },
+        "thresholds.s3.max_growth_sacrifice": { "doc": "V1_1", "section": "5.2 B", "quote": "不超过 1 个百分点", "quote_number": 1, "unit": "pp" },
+        "thresholds.s3.cost_multiple": { "doc": "V1_1", "section": "5.2 C", "quote": "提高至基准 2 倍", "quote_number": 2, "unit": "multiple" }
+      }
+    },
+    "EXECUTION": {
+      "usable": false,
+      "reason": "V1.1 5.2 C gives no economic-value number for execution and plan improvements (only the cost x2 check)"
+    }
+  },
+  "not_set": [
+    "thresholds.s4.max_overlap: no value in V1.1 5.2 or Amendment 1 (S4 says only that too high an overlap is rejected by rule)",
+    "min_economic_value for EXECUTION: none in V1.1 5.2 C"
+  ]
+}

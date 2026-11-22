@@ -5,9 +5,23 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 ## Linux (user units, kayla, linger)
 
 1. Code: `git archive <sha> services/research-queue config docs/contracts/RESEARCH_QUEUE_V1.md | tar -x -C /srv/research-lane/research-queue/code/<sha>/` and `ln -sfn <sha> /srv/research-lane/research-queue/code/current`.
-2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
+2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher; on both hosts `node_bin` (HK: `/opt/node22/bin/node`) is used by the consumer to stage inputs and to re-validate results, and HK sets `spool_dir` `/var/lib/rq-spool`, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
 3. `install -m 0644 linux/* ~/.config/systemd/user/`, `systemctl --user daemon-reload`.
 4. Pause authority (RQ8): `systemctl --user disable --now rf1116-window-pause.timer`, then `systemctl --user enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
+5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
+
+## HK (system units, root, coordinator only; NET tasks only)
+
+1. `install -m 0644 hk/rq.sysusers.conf /etc/sysusers.d/rq.conf; systemd-sysusers; install -m 0644 hk/rq.tmpfiles.conf /etc/tmpfiles.d/rq.conf; systemd-tmpfiles --create`.
+2. Code in `/opt/research-queue/<sha>/` with `current` symlink; config `/etc/research-queue/rq.json` (host `HK`, `root` `/var/lib/research-queue`, `process_pause_unit` `rq-consumer.service`); manifest as above.
+3. `install -m 0644 hk/*.service hk/*.timer hk/research.slice /etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
+4. HK agent (Q3c): the agent runs as `rq-agent`, never as `research-queue`; the two meet only in the spool `/var/lib/rq-spool` (`in/` written by the consumer, `out/` written by the agent). Install, in this order:
+   - `rq.sysusers.conf` no longer puts `rq-agent` in group `rq` (the queue tree is `2770 research-queue:rq`): after `systemd-sysusers`, run `gpasswd -d rq-agent rq` if the user already exists, and check `id rq-agent` shows no `rq`.
+   - `rq.tmpfiles.conf` creates the spool (`0750`/`2750`/`2770`, owner `research-queue`, group `rq-agent`).
+   - **`research-queue-ai/hk/rq-deepseek-gateway.service` now has `Group=rq-agent`; this supersedes `Group=rq` of #148** (the socket `/run/rq-gw/rq-gw.sock` is group `rq-agent`, as in the design table). If #148's unit is already installed, replace it, `daemon-reload`, restart the gateway.
+   - `install -m 0644 research-queue-ai/hk/rq-agent.service research-queue-ai/hk/rq-agent.timer /etc/systemd/system/`, `systemctl enable --now rq-agent.timer`. `rq-agent.service` is a timer-started oneshot that drains the spool and exits; do not enable it as a long-running service, and do not install a polkit rule or a sudoers entry.
+   - Checks (AQ-17H/18/33/34): as `rq-agent`, the queue database and state dir are not readable; `research-queue` and `portfolio-desk` cannot read the key file or `/proc/<gw>/environ`; `rq-agent` can connect to the gateway socket and `portfolio-desk` cannot; an external TCP connect from `rq-agent` fails.
+   - Pause: the root `rq-pause` tick freezes `rq-consumer.service` and `rq-agent.service` (an inactive oneshot cannot be frozen, which is fine) and writes `/var/lib/rq-spool/in/.pause`, which stops a drain that starts later.
 5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
 
 ## HK (system units, root, coordinator only; NET tasks only)
