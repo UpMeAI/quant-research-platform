@@ -80,17 +80,13 @@ async function buildWorld({ asOf = AS_OF, patch = null } = {}) {
   const draft = K.baseDraft({ section0: { ...K.baseDraft().section0, mechanism_ids: [MECH] } });
   files.k2_draft = write('k2_draft.json', `${canonicalJson(draft)}\n`);
 
-  const spies = { executed: 0, termsCalls: 0, registered: 0 };
+  const spies = { executed: 0, registered: 0 };
   const k2Ctx = K.baseCtx();
   const services = {
     bundle: () => bundleOf(),
     k2: {
       ctx: (phase) => (phase === 'PREPARE' ? k2Ctx : { ...k2Ctx, now: K.NOW_FREEZE, ledgerRows: K.ledgerRows() }),
       register: (prepared) => { spies.registered += 1; return K.registerAt(prepared); },
-    },
-    promotionTerms: (freeze) => {
-      spies.termsCalls += 1;
-      return P.terms({ candidate_id: freeze.draft.draft_id, k2_sha256: freeze.k2_sha256, k2_frozen_at: freeze.k2_frozen_at, mechanism_ids: [MECH], market: 'CN_A', layer: 'ALPHA' });
     },
     experiment: (() => { const e = inProcessExecutor({ outDir: path.join(work, 'lane-out'), asOf }); fs.mkdirSync(path.join(work, 'lane-out')); return { execute: (a) => { spies.executed += 1; return e.execute(a); } }; })(),
     nextPack: () => F.makePack({ week_id: '2026-W48' }),

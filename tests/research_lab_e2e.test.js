@@ -49,7 +49,7 @@ test('full chain on the fixture: card to feedback, terminal FROZEN_AWAITING_HOLD
   assert.equal(res.status, 'COMPLETE', JSON.stringify(res));
   assert.equal(res.terminal_state, 'FROZEN_AWAITING_HOLDOUT');
   assert.equal(res.reason_code, null);
-  assert.deepEqual(w.spies, { executed: 1, termsCalls: 1, registered: 1 });
+  assert.deepEqual(w.spies, { executed: 1, registered: 1 });
   const lineage = json(res.lineage_path);
   assert.equal(lineage.schema, 'LAB_LINEAGE_V1');
   assert.equal(lineage.card_id, w.card.task_id);
@@ -157,22 +157,18 @@ test('stops at the first refusal with a reason code; later steps never run', asy
   assert.equal(w.spies.executed, 0, 'no experiment on an unfrozen K2');
 
   w = await buildWorld();
-  w.services.promotionTerms = (f) => P.terms({ candidate_id: f.draft.draft_id, k2_sha256: 'b'.repeat(64), k2_frozen_at: f.k2_frozen_at, mechanism_ids: [W.MECH] });
+  const noTerms = json(w.files.k2_draft); delete noTerms.promotion_terms; fs.writeFileSync(w.files.k2_draft, JSON.stringify(noTerms));
   r = lab.run(w.job, w.services);
-  assert.deepEqual([r.status, r.stopped_at, r.reason_code], ['REFUSED', 'K2_FREEZE', 'LAB_TERMS_K2_MISMATCH']);
+  assert.deepEqual([r.status, r.stopped_at, r.reason_code], ['REFUSED', 'K2_FREEZE', 'LAB_K2_FREEZE_PREREG_TERMS_SHA_MISSING'], 'Q3b: a draft without promotion terms cannot be frozen');
   assert.equal(w.spies.executed, 0);
 });
 
-test('legal waiting states are not refusals: the Mac registrar receipt and the Q3b terms freezer are external, the experiment does not start before them', async () => {
+test('legal waiting states are not refusals: the Mac registrar receipt is external, the experiment does not start before it', async () => {
   let w = await buildWorld();
   w.services.k2.register = () => null;
   let r = lab.run(w.job, w.services);
   assert.deepEqual([r.status, r.stopped_at, r.waiting], ['WAITING_EXTERNAL', 'K2_FREEZE', 'TRL_RECEIPT']);
   assert.equal(r.reason_code, null);
-  w = await buildWorld();
-  delete w.services.promotionTerms;
-  r = lab.run(w.job, w.services);
-  assert.deepEqual([r.status, r.stopped_at, r.waiting], ['WAITING_EXTERNAL', 'K2_FREEZE', 'PROMOTION_TERMS']);
   assert.equal(w.spies.executed, 0);
 });
 

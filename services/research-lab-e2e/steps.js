@@ -120,28 +120,29 @@ function k2Freeze(S) {
   if (frozen.state === 'REFUSED' || frozen.state === 'WAITING_FREEZE') return { reason: `LAB_K2_FREEZE_${first(frozen.codes)}` };
   if (frozen.state === 'WAITING_EXTERNAL') return { wait: first([frozen.code]) };
   if (frozen.state !== 'FROZEN') return { reason: `LAB_K2_FREEZE_STATE_${frozen.state}` };
-  // The Q3b seam (coordinator note 11-23): PROMOTION_TERMS_V1 is frozen with the K2 by the Q3b program. Its registered star values arrive as ctx.promotionTermsStar
-  // (config/promotion_terms_star.v1.json, supplied by the Q3b follow-up). The frozen terms never name stage evidence shas (the evidence does not exist yet): each stage's
-  // PROMOTION_STAGE_EVIDENCE_V1 goes to the engine separately, chained by prior_output_sha256 (verdict.js). Until Q3b is merged the terms come through services.promotionTerms.
-  const star = fctx.promotionTermsStar || null;
-  let terms = frozen.promotion_terms || null;
-  if (!terms && typeof services.promotionTerms !== 'function') return { wait: 'PROMOTION_TERMS' };
-  if (!terms) terms = services.promotionTerms({ draft, k2_sha256: frozen.k2_sha256, k2_frozen_at: frozen.k2_frozen_at, freeze: frozen, promotionTermsStar: star });
-  if (!terms) return { wait: 'PROMOTION_TERMS' };
-  if (!isObj(terms) || terms.k2_sha256 !== frozen.k2_sha256) return { reason: 'LAB_TERMS_K2_MISMATCH' };
-  const bad = engine.validateTerms(terms, { asOf: S.asOf });
-  if (bad.length) return { reason: `LAB_TERMS_${first(bad)}` };
-  if (!terms.mechanism_ids.includes(S.data.mechanism.id)) return { reason: 'LAB_TERMS_MECHANISM_MISMATCH' };
+  // Q3b (QRP #148): the freeze program writes the candidate's PROMOTION_TERMS_V1 in the same event as the K2 (bound by k2_sha256, terms_frozen_at = k2_frozen_at) and names it
+  // on the freeze page. The registered star values for AI-authored terms arrive as ctx.promotionTermsStar (config/promotion_terms_star.v1.json, Q3b follow-up) in services.k2.ctx.
+  // The frozen terms never name stage evidence shas (the evidence does not exist yet): each stage's PROMOTION_STAGE_EVIDENCE_V1 goes to the engine separately, chained by
+  // prior_output_sha256 (verdict.js).
   const dir = path.join(fctx.outDir, draft.draft_id);
   const sha8 = frozen.k2_sha256.slice(0, 8);
   const k2File = `${draft.draft_id}_K2_V1.frozen.${sha8}.md`; const pageFile = `${draft.draft_id}_K2_V1_FREEZE_PROGRAM_1.md`; const reportFile = `${draft.draft_id}_K2_V1_VALIDATION_REPORT_1.json`;
   const k2Bytes = fs.readFileSync(path.join(dir, k2File)); const page = fs.readFileSync(path.join(dir, pageFile)); const report = fs.readFileSync(path.join(dir, reportFile));
   if (sha256(k2Bytes) !== frozen.k2_sha256) return { reason: 'LAB_K2_FREEZE_FILE_SHA_MISMATCH' };
+  const block = JSON.parse(/```json K2_PROGRAM_FREEZE_PAGE_V1\n([\s\S]*?)\n```/.exec(page.toString('utf8'))[1]);
+  if (!block.promotion_terms) return { wait: 'PROMOTION_TERMS' }; // a freeze made before Q3b carries no terms file
+  const termsBytes = fs.readFileSync(path.join(dir, block.promotion_terms.file));
+  if (sha256(termsBytes) !== block.promotion_terms.sha256) return { reason: 'LAB_TERMS_FILE_SHA_MISMATCH' };
+  const terms = JSON.parse(termsBytes.toString('utf8'));
+  if (terms.k2_sha256 !== frozen.k2_sha256) return { reason: 'LAB_TERMS_K2_MISMATCH' };
+  const bad = engine.validateTerms(terms, { asOf: S.asOf });
+  if (bad.length) return { reason: `LAB_TERMS_${first(bad)}` };
+  if (!terms.mechanism_ids.includes(S.data.mechanism.id)) return { reason: 'LAB_TERMS_MECHANISM_MISMATCH' };
   const binding = {
     schema: 'LAB_K2_BINDING_V1', draft_id: draft.draft_id, draft_sha256: sha256(canonicalJson(draft)), family_id: draft.family_id, k2_sha256: frozen.k2_sha256, k2_frozen_at: frozen.k2_frozen_at,
     k2_file: { name: k2File, sha256: sha256(k2Bytes) }, freeze_page: { name: pageFile, sha256: sha256(page) }, report: { name: reportFile, sha256: sha256(report) },
     validators: frozen.results.map((r) => ({ v: r.v, state: r.state, reason: r.reason || null })), trial_ids: [...frozen.trial_ids].sort(), idea_id: S.data.idea.idea_id,
-    dsl_formula_sha256: S.data.dsl.candidate.formula_sha256, promotion_terms: terms,
+    dsl_formula_sha256: S.data.dsl.candidate.formula_sha256, promotion_terms: terms, robustness_declaration_sha256: block.robustness_declaration_sha256,
   };
   S.data.freeze = { binding, terms, k2Bytes, results: frozen.results };
   return { files: { 'k2_binding.json': text(binding), 'k2.frozen.md': k2Bytes }, primary: 'k2_binding.json' };

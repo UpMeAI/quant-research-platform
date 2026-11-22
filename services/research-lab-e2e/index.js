@@ -8,7 +8,7 @@
  * Deterministic: no clock read (as_of is in the job), no randomness. Calls existing services only. Contract: docs/contracts/RESEARCH_LAB_E2E_V1.md.
  *
  * job      { schema: 'LAB_E2E_JOB_V1', card_id, market, as_of (+08:00), out_dir, idea_id?, files: { card_result, review_agent_access_log, dsl, k2_draft } }
- * services { bundle(), mechanism?.triage, k2: { ctx(phase), register(prepared) }, promotionTerms?(freeze) (Q3b seam), experiment: { execute({formulas, as_of}) },
+ * services { bundle(), mechanism?.triage, k2: { ctx(phase), register(prepared) }, experiment: { execute({formulas, as_of}) },
  *            ledger?, nextPack(), holdoutScored?(roundId), evidence?: { verifier(view) }, engine? }
  */
 const { path, fs, STEPS, HOLDOUT_NOT_BEFORE, CST_STAMP, text, sha256, isObj, beforeHoldout, defaultLedger, readJson } = require('./common');
