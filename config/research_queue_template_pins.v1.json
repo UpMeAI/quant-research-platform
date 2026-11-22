@@ -1,0 +1,5 @@
+{
+ "schema": "RESEARCH_QUEUE_TEMPLATE_PINS_V1",
+ "note": "Written from the coordinator's freeze page: one {template_id, template_sha256, frozen_page_sha256} per frozen template. Empty = nothing admissible.",
+ "pins": []
+}

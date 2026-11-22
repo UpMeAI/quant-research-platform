@@ -1,0 +1,15 @@
+[Unit]
+Description=Research queue pause authority (root; acts only on rq-* names)
+[Service]
+Type=oneshot
+Slice=research.slice
+Nice=19
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/research-queue
+IPAddressDeny=any
+Environment=PYTHONPATH=/opt/research-queue/current/services/research-queue
+Environment=RQ_CONFIG=/etc/research-queue/rq.json
+ExecStart=/usr/bin/python3 -m rq pause-tick

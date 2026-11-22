@@ -1,0 +1,16 @@
+[Unit]
+Description=Research queue consumer (claim, launch, adopt, finalize)
+[Service]
+Type=simple
+Slice=research.slice
+Environment=PYTHONPATH=/srv/research-lane/research-queue/code/current/services/research-queue
+Environment=RQ_CONFIG=%h/.config/research-queue/rq.json
+ExecStart=/usr/bin/python3 -m rq consumer-run
+Restart=always
+RestartSec=5
+# A consumer crash or restart must not kill running tasks: they are adopted by the next consumer (AQ-04, AQ-05).
+KillMode=process
+Nice=10
+NoNewPrivileges=yes
+[Install]
+WantedBy=default.target

@@ -1,0 +1,25 @@
+[Unit]
+Description=Research queue consumer (NET tasks, one at a time)
+[Service]
+Type=simple
+User=research-queue
+Slice=research.slice
+Nice=19
+IOSchedulingClass=idle
+OOMScoreAdjust=1000
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/research-queue
+CapabilityBoundingSet=
+IPAddressDeny=any
+Environment=PYTHONPATH=/opt/research-queue/current/services/research-queue
+Environment=RQ_CONFIG=/etc/research-queue/rq.json
+ExecStart=/usr/bin/python3 -m rq consumer-run
+Restart=always
+RestartSec=5
+# Tasks run in this unit's cgroup; the pause authority freezes this unit. A restart leaves running tasks to be adopted.
+KillMode=process
+[Install]
+WantedBy=multi-user.target
