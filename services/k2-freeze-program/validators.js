@@ -80,22 +80,24 @@ function cstKeys(stamp) {
 
 const V = {};
 
-V.V2 = ({ draft }) => templates.validate(draft.decision_table);
+V.V2 = ({ draft, ctx }) => templates.validate(draft.decision_table, { riskRules: ctx.riskRules || null, ruleRef: draft.desk_items.rule_ref });
 
-V.V3 = ({ draft }) => {
+V.V3 = ({ draft, ctx }) => {
   const codes = [];
   const p = draft.power;
-  let n = null;
-  try { n = power.requiredN(p); } catch (e) { return [codeOf(e)]; }
-  if (p.n_required !== n) codes.push(`PREREG_POWER_MISMATCH:n_required:${p.n_required}!=${n}`);
+  const out = ctx.powerOutputs;
+  // POWER_OUTPUTS come from the deterministic bundle, never from the drafter; without them (unknown) the draft is refused
+  if (!isObj(out)) return ['PREREG_POWER_OUTPUTS_MISSING'];
+  let tool;
+  try { tool = power.outputs(out.effect_size_sd); } catch (e) { return [codeOf(e)]; }
+  for (const k of ['effect_size_sd', 'alpha', 'power_target', 'n_required']) if (out[k] !== tool[k]) return [`PREREG_POWER_MISMATCH:power_outputs_not_tool:${k}`];
+  for (const k of ['effect_size_sd', 'alpha', 'power_target', 'n_required']) if (p[k] !== out[k]) codes.push(`PREREG_POWER_MISMATCH:${k}:${p[k]}!=${out[k]}`);
+  // the table copies min_sample_n and min_effect_sd exactly from the power outputs
   const t = isObj(draft.decision_table) && isObj(draft.decision_table.params) ? draft.decision_table.params : {};
-  const num = (x) => typeof x === 'number';
-  if (num(t.alpha) && t.alpha !== p.alpha) codes.push('PREREG_POWER_MISMATCH:alpha');
-  if (num(t.power_target) && t.power_target !== p.power_target) codes.push('PREREG_POWER_MISMATCH:power_target');
-  if (num(t.min_effect_sd) && t.min_effect_sd !== p.effect_size_sd) codes.push('PREREG_POWER_MISMATCH:effect_size_sd');
-  if (num(t.min_sample_n) && t.min_sample_n < n) codes.push(`PREREG_POWER_MISMATCH:min_sample_n:${t.min_sample_n}<${n}`);
-  // numbers written in the criteria text must be numbers the tool or the table produced
-  const allowed = new Set([0, n, p.n_required, p.alpha, p.power_target, p.effect_size_sd, t.min_sample_n, t.ci_level, num(t.ci_level) ? Math.round(t.ci_level * 100) : null].filter((x) => x !== null && x !== undefined));
+  if (typeof t.min_sample_n === 'number' && t.min_sample_n !== out.n_required) codes.push(`PREREG_POWER_MISMATCH:copy:min_sample_n:${t.min_sample_n}!=${out.n_required}`);
+  if (typeof t.min_effect_sd === 'number' && t.min_effect_sd !== out.effect_size_sd) codes.push(`PREREG_POWER_MISMATCH:copy:min_effect_sd:${t.min_effect_sd}!=${out.effect_size_sd}`);
+  // numbers written in the criteria text must be tool numbers or the fixed rates
+  const allowed = new Set([0, out.n_required, out.alpha, out.power_target, out.effect_size_sd, power.FIXED_RATES.ci_level, Math.round(power.FIXED_RATES.ci_level * 100)]);
   for (const tok of draft.desk_items.decision_criteria_zh.match(/\d+(?:\.\d+)?/g) || NO_NUMBER) if (!allowed.has(Number(tok))) codes.push(`PREREG_POWER_MISMATCH:text_number:${tok}`);
   return codes;
 };

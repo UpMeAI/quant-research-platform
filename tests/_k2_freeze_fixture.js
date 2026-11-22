@@ -82,6 +82,7 @@ function baseCtx(over = {}) {
     now: NOW_PREPARE, host: 'LINUX', outDir: tmp(), bundle, receipt: receipt(bundle.sha256),
     admissions: [{ prompt_id: 'RQ_PROMPT_AI_PREREG_V1', kind: 'AI_PREREG', system_sha256: PROMPT, state: 'ADMITTED' }],
     registerBytes: REGISTER_BYTES, registerCommit: REGISTER_COMMIT, registerAt: (c) => (c === REGISTER_COMMIT ? REGISTER_BYTES : null),
+    powerOutputs: require('../services/k2-freeze-program/power').outputs(0.5), riskRules: { 'CN_A.RULE.CONCURRENCY': { margin_sd: 0.2 } },
     marks: [], inventory: new Set([DATASET]), evidenceBytes: () => null, pinnedCodeShas: {}, ledgerRows: [], priorFreezes: [], queueLogText: '', ...over,
   };
 }
@@ -100,5 +101,7 @@ const armsOf = (n) => [{ config_label: 'BASE', role: 'BASELINE', stage: 'BOOK', 
 const failing = (res) => (res.results || []).filter((r) => r.state === 'REFUSED').map((r) => r.v);
 const codesOf = (res, v) => ((res.results || []).find((r) => r.v === v) || { codes: [] }).codes;
 
-module.exports = { armsOf, AUTH, sha, tmp, baseDraft, baseCtx, receipt, registerAt, ledgerRows, failing, codesOf, clone, pinned, trials, mech, datasetRegistry,
+const niDraftMut = (margin, ruleRef = 'CN_A.RULE.CONCURRENCY') => (d) => { d.decision_table = { template_id: 'DT-NON-INFERIORITY-V1', params: { ...d.decision_table.params, margin_sd: margin } }; d.desk_items.rule_ref = ruleRef; };
+
+module.exports = { niDraftMut, armsOf, AUTH, sha, tmp, baseDraft, baseCtx, receipt, registerAt, ledgerRows, failing, codesOf, clone, pinned, trials, mech, datasetRegistry,
   NOW_PREPARE, NOW_FREEZE, REGISTERED_AT, PROMPT, SCHEMA, MECH_OK, MECH_SHADOW, MECH_LIVE, FACTOR, FACTOR2, DATASET, REGISTER_BYTES, REGISTER_COMMIT };

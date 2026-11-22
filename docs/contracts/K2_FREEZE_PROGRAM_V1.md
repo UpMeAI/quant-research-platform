@@ -21,8 +21,8 @@
 | V | Check (service reused) | Codes |
 |---|---|---|
 | V1 | `K2_DRAFT_V1` structure: sections, types, enums, no unknown keys, no forged tokens in free text, the 8 desk items, no deviation codes | `PREREG_SCHEMA_{MISSING,TYPE,ENUM,EXTRA_KEY,DUPLICATE,REFERENCE,TEXT_FORBIDDEN,DESK_ITEM_MISSING,DEVIATION_NOT_ALLOWED}` |
-| V2 | decision table only from `K2_DECISION_TABLE_TEMPLATES_V1`, parameters inside ranges | `PREREG_DECISION_TABLE_{UNKNOWN_TEMPLATE,FREE_TEXT,PARAM_MISSING,PARAM_TYPE,PARAM_RANGE,PARAM_UNKNOWN}` |
-| V3 | power tool (`power.js`) equals the draft's `n_required`; table alpha, power, effect, sample floor agree; numbers in the criteria text are tool or table numbers | `PREREG_POWER_MISMATCH`, `PREREG_POWER_INPUT_INVALID` |
+| V2 | decision table only from `K2_DECISION_TABLE_TEMPLATES_V1`; the drafter picks the template only: `alpha` 0.05, `ci_level` 0.95, `power_target` 0.8 are fixed values (no ranges); `margin_sd` (non-inferiority) must equal the registered risk rule the question cites (`ctx.riskRules[rule_ref]`), no registered margin refuses | `PREREG_DECISION_TABLE_{UNKNOWN_TEMPLATE,FREE_TEXT,PARAM_MISSING,PARAM_TYPE,PARAM_FIXED,PARAM_UNKNOWN,MARGIN_NOT_REGISTERED,MARGIN_MISMATCH}` |
+| V3 | `ctx.powerOutputs` (the bundle's POWER_OUTPUTS) must be the power tool's own output at the fixed rates; the draft's power block and the table's `min_sample_n` / `min_effect_sd` are exact copies; numbers in the criteria text are tool numbers or the fixed rates | `PREREG_POWER_MISMATCH`, `PREREG_POWER_OUTPUTS_MISSING`, `PREREG_POWER_INPUT_INVALID` |
 | V4 | `research-mechanism-register` `query()` routing (refuse `NOT_DO_SETTLED`, `ATTACH_TO_SHADOW`, `QUARTERLY_ABLATION`), then `gate.js` `check()` on the rendered K2 | `PREREG_ROUTED_*`, `MECHANISM_*`, `AI_ROLE_*`, `K2_SECTION0_*` |
 | V5 | G-CAUSAL scope (`CF:` or `N/A` code, Addendum 1 fill rule) and function-level evidence (`causality-gate` parse and constants) | `CAUSAL_*` |
 | V6 | `parity-gate` `check()` on the rendered K2 | `PARITY_*` |
@@ -67,7 +67,7 @@ Codes `K2_FREEZE_PROGRAM_{PAGE_MISSING,PAGE_SHA256_MISMATCH,PAGE_INVALID,K2_SHA2
 
 ## 6. Other pieces
 
-- `templates.js` + `config/k2_decision_table_templates.v1.json`: three templates (`DT-DELTA-VS-BASELINE-V1`, `DT-NON-INFERIORITY-V1`, `DT-SIGNAL-HIT-RATE-V1`); outcome rules in words (INSUFFICIENT is not a rejection); the library sha256 is pinned both in the file and in the code.
+- `templates.js` + `config/k2_decision_table_templates.v1.json`: three templates (`DT-DELTA-VS-BASELINE-V1`, `DT-NON-INFERIORITY-V1`, `DT-SIGNAL-HIT-RATE-V1`); outcome rules in words (INSUFFICIENT is not a rejection; the mapping to do / not-do stays in the verdict program); every number is fixed, copied from the power outputs or from the registered risk rule (plan-coord review of #142); the library sha256 is pinned both in the file and in the code.
 - `power.js`: `n = ceil(((z(1-alpha/2) + z(power)) / effect_size_sd)^2)`, z rounded to 6 decimals.
 - `bundle.js`: `K2_BUNDLE_V1` builder; whitelist of kinds; forbidden path segments (`sealed*`, `holdout*`, `vault`, `race*`, `paper*`, `production*`, `restore_*`, `out`, `.git`, `.env*`), DB-dump extensions, symlinks resolved before the check, canary content refused; bytes depend only on inputs and the injected `built_at`.
 - `canary.js`: planted canaries in sealed-like directories; the start self-test passes only if every read is refused; a missing canary is UNKNOWN (AQ-38).

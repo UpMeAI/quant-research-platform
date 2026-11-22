@@ -24,7 +24,7 @@ const overseas = require('../services/overseas-sealed-verdicts');
 const { baseDraft, baseCtx, tmp, sha } = fx;
 const ROOT = path.join(__dirname, '..');
 
-test('K2_DECISION_TABLE_TEMPLATES_V1: a frozen library with a pinned sha; every template has typed, ranged parameters and no free text', () => {
+test('K2_DECISION_TABLE_TEMPLATES_V1: a frozen library with a pinned sha; error rates are fixed values, sample floor and effect come from the power outputs, margin from the registered risk rule; no free text', () => {
   const lib = templates.LIBRARY;
   assert.equal(lib.schema, 'K2_DECISION_TABLE_TEMPLATES_V1');
   assert.ok(lib.templates.length >= 3);
@@ -33,17 +33,31 @@ test('K2_DECISION_TABLE_TEMPLATES_V1: a frozen library with a pinned sha; every 
   for (const t of lib.templates) {
     assert.match(t.template_id, /^DT-[A-Z0-9-]+-V1$/);
     assert.deepEqual(t.outcomes, ['PASS', 'FAIL', 'INSUFFICIENT']);
-    for (const spec of Object.values(t.params)) assert.ok(spec.type === 'enum' ? Array.isArray(spec.values) : Number.isFinite(spec.min) && Number.isFinite(spec.max));
+    for (const [name, spec] of Object.entries(t.params)) {
+      assert.ok(['fixed', 'copy', 'risk_rule'].includes(spec.type), `${t.template_id}.${name}: no ranges, only fixed / copied / registered`);
+      if (spec.type === 'fixed') assert.equal(spec.value, power.FIXED_RATES[name], name);
+    }
+    assert.equal('margin_sd' in t.params, t.template_id === 'DT-NON-INFERIORITY-V1');
   }
-  assert.deepEqual(templates.validate({ template_id: 'DT-DELTA-VS-BASELINE-V1', params: { alpha: 0.05, power_target: 0.8, min_sample_n: 32, min_effect_sd: 0.5, ci_level: 0.95 } }), []);
-  assert.deepEqual(templates.validate({ template_id: 'DT-DELTA-VS-BASELINE-V1', params: { alpha: 0.5, power_target: 0.8, min_sample_n: 32, min_effect_sd: 0.5, ci_level: 0.95 } }), ['PREREG_DECISION_TABLE_PARAM_RANGE:alpha']);
-  assert.deepEqual(templates.validate({ template_id: 'DT-DELTA-VS-BASELINE-V1', params: { alpha: 0.05, power_target: 0.8, min_sample_n: 32.5, min_effect_sd: 0.5, ci_level: 0.95 } }), ['PREREG_DECISION_TABLE_PARAM_TYPE:min_sample_n']);
-  assert.deepEqual(templates.validate({ template_id: 'DT-DELTA-VS-BASELINE-V1', params: { alpha: 0.05, power_target: 0.8, min_sample_n: 32, min_effect_sd: 0.5 } }), ['PREREG_DECISION_TABLE_PARAM_MISSING:ci_level']);
-  assert.deepEqual(templates.validate({ template_id: 'DT-DELTA-VS-BASELINE-V1', params: { alpha: 0.05, power_target: 0.8, min_sample_n: 32, min_effect_sd: 0.5, ci_level: 0.95, extra: 1 } }), ['PREREG_DECISION_TABLE_PARAM_UNKNOWN:extra']);
-  assert.deepEqual(templates.validate({ template_id: 'DT-DELTA-VS-BASELINE-V1', params: { alpha: 0.05, power_target: 0.8, min_sample_n: 32, min_effect_sd: 0.5, ci_level: 0.93 } }), ['PREREG_DECISION_TABLE_PARAM_RANGE:ci_level']);
-  // a tampered library (one range widened) no longer matches its pinned sha
+  const ok = { alpha: 0.05, power_target: 0.8, min_sample_n: 32, min_effect_sd: 0.5, ci_level: 0.95 };
+  const v = (params, template_id = 'DT-DELTA-VS-BASELINE-V1', opts) => templates.validate({ template_id, params }, opts);
+  assert.deepEqual(v(ok), []);
+  assert.deepEqual(v({ ...ok, alpha: 0.1 }), ['PREREG_DECISION_TABLE_PARAM_FIXED:alpha']);
+  assert.deepEqual(v({ ...ok, power_target: 0.9 }), ['PREREG_DECISION_TABLE_PARAM_FIXED:power_target']);
+  assert.deepEqual(v({ ...ok, ci_level: 0.9 }), ['PREREG_DECISION_TABLE_PARAM_FIXED:ci_level']);
+  assert.deepEqual(v({ ...ok, min_sample_n: 32.5 }), ['PREREG_DECISION_TABLE_PARAM_TYPE:min_sample_n']);
+  const { ci_level: _c, ...noCi } = ok;
+  assert.deepEqual(v(noCi), ['PREREG_DECISION_TABLE_PARAM_MISSING:ci_level']);
+  assert.deepEqual(v({ ...ok, extra: 1 }), ['PREREG_DECISION_TABLE_PARAM_UNKNOWN:extra']);
+  const ni = (margin, rules, ref = 'R1') => v({ ...ok, margin_sd: margin }, 'DT-NON-INFERIORITY-V1', { riskRules: rules, ruleRef: ref });
+  assert.deepEqual(ni(0.2, { R1: { margin_sd: 0.2 } }), []);
+  assert.deepEqual(ni(0.2, { R1: { margin_sd: 0.3 } }), ['PREREG_DECISION_TABLE_MARGIN_MISMATCH:margin_sd']);
+  assert.deepEqual(ni(0.2, {}), ['PREREG_DECISION_TABLE_MARGIN_NOT_REGISTERED:R1']);
+  assert.deepEqual(ni(0.2, null), ['PREREG_DECISION_TABLE_MARGIN_NOT_REGISTERED:R1']);
+  assert.deepEqual(ni(0.2, { R1: {} }), ['PREREG_DECISION_TABLE_MARGIN_NOT_REGISTERED:R1']);
+  // a tampered library (a fixed value changed) no longer matches its pinned sha
   const widened = JSON.parse(JSON.stringify(lib));
-  widened.templates[0].params.alpha.max = 0.5;
+  widened.templates[0].params.alpha.value = 0.1;
   assert.notEqual(templates.librarySha256(widened), lib.library_sha256);
   assert.throws(() => templates.assertPinned(widened), /PREREG_DECISION_TABLE_LIBRARY_PIN_MISMATCH/);
 });
@@ -55,6 +69,8 @@ test('power tool: deterministic closed form; known values; invalid input refuses
   assert.equal(power.requiredN({ effect_size_sd: 0.2, alpha: 0.05, power_target: 0.8 }), 197);
   assert.equal(power.requiredN({ effect_size_sd: 0.5, alpha: 0.05, power_target: 0.9 }), 43);
   assert.equal(power.requiredN({ effect_size_sd: 0.3, alpha: 0.01, power_target: 0.8 }), 130);
+  assert.deepEqual(power.outputs(0.5), { effect_size_sd: 0.5, alpha: 0.05, power_target: 0.8, n_required: 32 });
+  assert.deepEqual(power.FIXED_RATES, { alpha: 0.05, power_target: 0.8, ci_level: 0.95 });
   assert.equal(power.requiredN({ effect_size_sd: 0.5, alpha: 0.05, power_target: 0.8 }), power.requiredN({ effect_size_sd: 0.5, alpha: 0.05, power_target: 0.8 }));
   for (const bad of [{ effect_size_sd: 0, alpha: 0.05, power_target: 0.8 }, { effect_size_sd: 0.5, alpha: 0, power_target: 0.8 }, { effect_size_sd: 0.5, alpha: 0.05, power_target: 1 },
     { effect_size_sd: -1, alpha: 0.05, power_target: 0.8 }, { effect_size_sd: NaN, alpha: 0.05, power_target: 0.8 }, { effect_size_sd: 0.5, alpha: '0.05', power_target: 0.8 }]) {
@@ -254,7 +270,7 @@ test('CLI exit codes: k2_freeze_program prepare: 0 waiting, 65 refused, 66 waiti
     const c = baseCtx();
     const f = path.join(dir, `ctx-${Math.random().toString(16).slice(2)}.json`);
     fs.writeFileSync(f, JSON.stringify({ now: c.now, host: 'LINUX', outDir: path.join(dir, 'out'), bundle: c.bundle, receipt: c.receipt, admissions: c.admissions, registerCommit: fx.REGISTER_COMMIT,
-      registerFile: require('../services/research-mechanism-register').FILE, inventory: [fx.DATASET], marks: [], ledgerRows: [], priorFreezes: [], queueLogText: '', ...over }));
+      registerFile: require('../services/research-mechanism-register').FILE, inventory: [fx.DATASET], powerOutputs: c.powerOutputs, riskRules: c.riskRules, marks: [], ledgerRows: [], priorFreezes: [], queueLogText: '', ...over }));
     return f;
   };
   const run = (draft, ctx, cmd = 'prepare') => {
@@ -295,5 +311,5 @@ test('AI_PREREG prompt: sha pinned, admission entry has the Q2 shape and is PROP
   const q2 = require('../config/research_queue_prompt_admissions.v1.json');
   assert.ok(!q2.entries.some((x) => x.kind === 'AI_PREREG'));
   assert.ok(!q2.entries.some((x) => x.system_sha256 === e.system_sha256));
-  for (const w of ['Do not predict', 'Do not write any formula', 'should be adopted or rejected']) assert.ok(prompt.SYSTEM_TEXT.includes(w), w);
+  for (const w of ['Do not predict', 'Do not write any formula', 'should be adopted or rejected', 'Choose only the decision-table template', 'never choose a parameter', 'alpha is 0.05', 'copied exactly from power_outputs', 'risk_rules']) assert.ok(prompt.SYSTEM_TEXT.includes(w), w);
 });

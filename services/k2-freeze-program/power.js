@@ -42,4 +42,13 @@ function requiredN({ effect_size_sd: effect, alpha, power_target: target } = {})
   return Math.ceil(round6((z / effect) ** 2));
 }
 
-module.exports = { zInv, requiredN };
+/** Error rates are fixed by the program, never chosen by the drafter (plan-coord review of #142). */
+const FIXED_RATES = Object.freeze({ alpha: 0.05, power_target: 0.8, ci_level: 0.95 });
+
+/** The power tool's output for one effect size at the fixed rates: what the bundle carries as POWER_OUTPUTS and what a draft must copy. */
+function outputs(effectSizeSd) {
+  const n = requiredN({ effect_size_sd: effectSizeSd, alpha: FIXED_RATES.alpha, power_target: FIXED_RATES.power_target });
+  return { effect_size_sd: effectSizeSd, alpha: FIXED_RATES.alpha, power_target: FIXED_RATES.power_target, n_required: n };
+}
+
+module.exports = { zInv, requiredN, FIXED_RATES, outputs };
