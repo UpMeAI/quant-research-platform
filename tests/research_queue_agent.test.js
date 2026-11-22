@@ -462,7 +462,7 @@ test('config: the shipped prompt admissions and the gateway config agree with th
   assert.deepEqual(V.agent.MODELS, { FLASH: cfg.purposes.RQ_AGENT.models[0], PRO: cfg.purposes.RQ_AGENT_PRO_FALLBACK.models[0] });
   assert.equal(V.agent.MAX_TOKENS, cfg.purposes.RQ_AGENT.max_tokens);
   const adm = require('../config/research_queue_prompt_admissions.v1.json');
-  assert.equal(adm.entries.length, 2);
+  assert.equal(adm.entries.length, 3, 'AI_CHECK, AI_REVIEW_CARD, and (Q3b, plan-coord read 11-23) AI_PREREG');
   for (const e of cfg.admissions || []) assert.fail('admissions live in their own file');
   assert.equal(cfg.prompt_admissions_file, 'research_queue_prompt_admissions.v1.json');
 });

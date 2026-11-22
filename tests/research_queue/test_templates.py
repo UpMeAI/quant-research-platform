@@ -166,15 +166,16 @@ class Intake(Base):
 
 
 class TemplateFiles(unittest.TestCase):
-    def test_shipped_registry_is_valid_and_unpinned(self):
+    def test_shipped_registry_is_valid_and_only_the_q3b_templates_are_pinned(self):
         reg = templates.Registry.load(ROOT / "config/research_queue_templates.v1.json", ROOT / "config/research_queue_template_pins.v1.json")
         ids = {t["template_id"] for t in reg.templates}
-        self.assertTrue({"T-AI-REVIEW-CARD-V1", "T-AI-CHECK-V1", "T-AI-PREREG-V1"} <= ids)
+        pinned = {"T-AI-REVIEW-CARD-V1-LINUX-CN_A", "T-AI-CHECK-V1-LINUX-CN_A", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO"}
+        self.assertTrue(pinned | {"T-AI-PREREG-V1"} <= ids)
         for t in reg.templates:
             self.assertEqual(templates.validate_template(t), [], t["template_id"])
             self.assertEqual(t["weight_class"], "NET")
-            self.assertFalse(reg.is_frozen(t))  # the coordinator's freeze page adds the pins, not this PR
-        self.assertEqual(reg.pins, [])
+            self.assertEqual(reg.is_frozen(t), t["template_id"] in pinned, t["template_id"])  # T-AI-PREREG-V1 waits for its own freeze page
+        self.assertEqual({p["template_id"] for p in reg.pins}, pinned)
 
     def test_validate_template_rejects_bad_shapes(self):
         t = tpl("T-X-V1")

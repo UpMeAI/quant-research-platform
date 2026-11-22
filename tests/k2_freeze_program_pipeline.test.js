@@ -46,7 +46,8 @@ test('AQ-39 freeze artifacts: frozen text, validation report, freeze page and th
   const files = readDir(dir);
   const text = `${d.draft_id}_K2_V1.frozen.${p.k2_sha256.slice(0, 8)}.md`;
   const table = `${d.draft_id}_K2_V1.prior_table.${p.prior_table_sha256.slice(0, 8)}.json`;
-  const names = [text, `${text}.sha256`, table, `${table}.sha256`, `${d.draft_id}_K2_V1_VALIDATION_REPORT_1.json`, `${d.draft_id}_K2_V1_VALIDATION_REPORT_1.json.sha256`,
+  const termsFile = `${d.draft_id}_K2_V1.promotion_terms.${JSON.parse(fs.readFileSync(path.join(dir, `${d.draft_id}_K2_V1_VALIDATION_REPORT_1.json`))).promotion_terms_sha256.slice(0, 8)}.json`;
+  const names = [text, `${text}.sha256`, termsFile, `${termsFile}.sha256`, table, `${table}.sha256`, `${d.draft_id}_K2_V1_VALIDATION_REPORT_1.json`, `${d.draft_id}_K2_V1_VALIDATION_REPORT_1.json.sha256`,
     `${d.draft_id}_K2_V1_FREEZE_PROGRAM_1.md`, `${d.draft_id}_K2_V1_FREEZE_PROGRAM_1.md.sha256`].sort();
   assert.deepEqual(Object.keys(files), names);
   for (const n of names) assert.equal(fs.statSync(path.join(dir, n)).mode & 0o777, 0o444, n);
