@@ -28,20 +28,20 @@ test('terms star file: schema, the two source documents by full sha, every value
     if (!l.usable) { assert.ok(typeof l.reason === 'string' && l.reason, `${layer} unusable needs a reason`); continue; }
     for (const k of ['min_economic_value', 'thresholds.s3.cost_multiple']) assert.ok(l.sources[k] && f.sources[l.sources[k].doc] && l.sources[k].section && l.sources[k].quote, `${layer}.${k}`);
   }
-  assert.ok(Array.isArray(f.not_set) && f.not_set.some((x) => /max_overlap/.test(x)), 'S4 max_overlap has no source value and is recorded as not set');
+  assert.ok(Array.isArray(f.not_set) && !f.not_set.some((x) => /max_overlap/.test(x)), 'S4 max_overlap is set by Amendment 1 NOTE_1');
+  assert.ok(f.sources.AMENDMENT_1_NOTE_1.sha256.startsWith('6b3be10d'));
 });
 
-test('terms star values are exactly the frozen texts: alpha delta-g 2 pp per year, cost x2, policy 12 months / 0.5 / 20% / 0.5 / 3; no overlap threshold invented', () => {
+test('terms star values are exactly the frozen texts: alpha delta-g 2 pp per year, cost x2, S4 max_overlap 0.7 (NOTE_1), policy 12 months / 0.5 / 20% / 0.5 / 3', () => {
   const s = star.load();
-  assert.deepEqual(s.by_layer.ALPHA, { min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.02 }, thresholds: { s3: { cost_multiple: 2 } } });
+  assert.deepEqual(s.by_layer.ALPHA, { min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.02 }, thresholds: { s3: { cost_multiple: 2 }, s4: { max_overlap: 0.7 } } });
   assert.deepEqual(s.insufficient_policy, { horizon_months: 12, p_threshold: 0.5, budget_share_max: 0.2, resume_sample_fraction: 0.5, max_failed_rechecks: 3 });
   const d = insufficient.AMENDMENT_1_DEFAULT_POLICY;
   for (const k of Object.keys(s.insufficient_policy)) assert.equal(s.insufficient_policy[k], d[k], `engine default ${k}`);
   assert.equal(s.by_layer.RISK.gate, 'NON_INFERIORITY_FALLBACK', 'V1.1 5.2 B fallback until CVaR5 is defined (plan-coord 11-23)');
   assert.deepEqual(s.by_layer.RISK.min_economic_value, { metrics: ['NON_INFERIORITY_D8', 'TOUCH_PROBABILITY_DIFF_X06'], value: 0 });
-  assert.deepEqual(s.by_layer.RISK.thresholds, { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 } });
+  assert.deepEqual(s.by_layer.RISK.thresholds, { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.7 } });
   assert.equal(s.by_layer.EXECUTION, undefined, 'V1.1 5.2 C names no economic-value number: stays refused');
-  assert.equal('s4' in s.by_layer.ALPHA.thresholds, false);
   const f = raw();
   assert.equal(f.layers.RISK.usable, true);
   assert.equal(f.layers.RISK.fallback_quote, '在此之前，风险题沿用现行的门：不劣于对照（D8，d38f87a9）或触线概率差（X06）');
@@ -117,4 +117,27 @@ test('engine terms: RISK accepts NON_INFERIORITY_D8 and TOUCH_PROBABILITY_DIFF_X
     assert.ok(v({ layer: 'ALPHA', min_economic_value: { metric, value: 0 } }).includes('PROMOTION_TERMS_ENUM:min_economic_value.metric'), `${metric} not for ALPHA`);
   }
   assert.ok(v({ min_economic_value: { metric: 'SOMETHING_ELSE', value: 0 } }).includes('PROMOTION_TERMS_ENUM:min_economic_value.metric'));
+});
+
+test('terms star S4 max_overlap 0.7: quoted from Amendment 1 NOTE_1, equals the factor library DEDUPE.RHO_MAX, strictly-greater rule and measure recorded; a changed value or source refuses', () => {
+  const rho = require('../services/factor-library').DEDUPE.RHO_MAX;
+  const f = raw();
+  for (const L of ['ALPHA', 'RISK']) {
+    const s = f.layers[L].sources['thresholds.s4.max_overlap'];
+    assert.equal(f.layers[L].thresholds.s4.max_overlap, rho);
+    assert.equal(s.doc, 'AMENDMENT_1_NOTE_1');
+    assert.equal(s.quote, 'max_overlap = 0.7');
+    assert.equal(s.decision_quote, '严格大于 0.7 算重合过高');
+    assert.match(s.measure, /daily net returns/);
+    assert.equal(s.corroboration.value, rho);
+  }
+  assert.equal(star.load().by_layer.ALPHA.thresholds.s4.max_overlap, 0.7);
+  const bad = JSON.parse(JSON.stringify(f)); bad.layers.ALPHA.thresholds.s4.max_overlap = 0.8;
+  assert.throws(() => star.parse(bad), /TERMS_STAR_VALUE_NOT_VERBATIM/);
+  const noSrc = JSON.parse(JSON.stringify(f)); delete noSrc.layers.RISK.sources['thresholds.s4.max_overlap'];
+  assert.throws(() => star.parse(noSrc), /TERMS_STAR_UNSOURCED/);
+  const sha = JSON.parse(JSON.stringify(f)); sha.sources.AMENDMENT_1_NOTE_1.sha256 = 'f'.repeat(64);
+  assert.throws(() => star.parse(sha), /TERMS_STAR_SOURCE_SHA/);
+  const corr = JSON.parse(JSON.stringify(f)); corr.layers.ALPHA.sources['thresholds.s4.max_overlap'].corroboration.value = 0.6;
+  assert.throws(() => star.parse(corr), /TERMS_STAR_VALUE_NOT_VERBATIM/);
 });

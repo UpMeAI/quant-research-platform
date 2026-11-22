@@ -9,6 +9,10 @@
     "AMENDMENT_1": {
       "doc": "PLAN_V1_1_AMENDMENT_1_AI_RESEARCH_LAB",
       "sha256": "0e2f3181d98902f28b67c53ffd068a32e35e96bb75c1b32b62eb3ab9f45bde43"
+    },
+    "AMENDMENT_1_NOTE_1": {
+      "doc": "PLAN_V1_1_AMENDMENT_1_FREEZE_1_NOTE_1",
+      "sha256": "6b3be10da39a5518e162a7422f19097b577fa8fb437e4bb71ceb48aa128b5f50"
     }
   },
   "insufficient_policy": {
@@ -67,6 +71,9 @@
       "thresholds": {
         "s3": {
           "cost_multiple": 2
+        },
+        "s4": {
+          "max_overlap": 0.7
         }
       },
       "sources": {
@@ -83,6 +90,19 @@
           "quote": "提高至基准 2 倍",
           "quote_number": 2,
           "unit": "multiple"
+        },
+        "thresholds.s4.max_overlap": {
+          "doc": "AMENDMENT_1_NOTE_1",
+          "section": "S4 max_overlap default",
+          "quote": "max_overlap = 0.7",
+          "quote_number": 0.7,
+          "unit": "ratio",
+          "decision_quote": "严格大于 0.7 算重合过高",
+          "measure": "|rho| of the candidate strategy's daily net returns against the existing market portfolio's daily net returns; strictly greater than max_overlap refuses",
+          "corroboration": {
+            "doc": "factor-library DEDUPE.RHO_MAX (signed text fd22876f section 2.3)",
+            "value": 0.7
+          }
         }
       }
     },
@@ -102,6 +122,9 @@
         "s3": {
           "cost_multiple": 2,
           "max_growth_sacrifice": 0.01
+        },
+        "s4": {
+          "max_overlap": 0.7
         }
       },
       "sources": {
@@ -125,6 +148,19 @@
           "quote": "提高至基准 2 倍",
           "quote_number": 2,
           "unit": "multiple"
+        },
+        "thresholds.s4.max_overlap": {
+          "doc": "AMENDMENT_1_NOTE_1",
+          "section": "S4 max_overlap default",
+          "quote": "max_overlap = 0.7",
+          "quote_number": 0.7,
+          "unit": "ratio",
+          "decision_quote": "严格大于 0.7 算重合过高",
+          "measure": "|rho| of the candidate strategy's daily net returns against the existing market portfolio's daily net returns; strictly greater than max_overlap refuses",
+          "corroboration": {
+            "doc": "factor-library DEDUPE.RHO_MAX (signed text fd22876f section 2.3)",
+            "value": 0.7
+          }
         }
       },
       "cvar5": {
@@ -158,9 +194,7 @@
     }
   },
   "not_set": [
-    "thresholds.s4.max_overlap: no value in V1.1 5.2 or Amendment 1 (S4 says only that too high an overlap is rejected by rule)",
     "RISK CVaR5 improvement (10%): recorded under layers.RISK.cvar5, not usable until METRIC_DEFINITIONS V1.1 defines CVaR5",
-    "min_economic_value for EXECUTION: none in V1.1 5.2 C (plan-coord 11-23: stays refused as star_missing)",
-    "thresholds.s4.max_overlap: plan-coord 11-23: unset on purpose; S4 refuses with star_missing until a plan NOTE sets it (before the 12-31 holdout)"
+    "min_economic_value for EXECUTION: none in V1.1 5.2 C (plan-coord 11-23: stays refused as star_missing)"
   ]
 }

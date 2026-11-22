@@ -12,15 +12,19 @@ const { fail, isObj, SHA64, canonicalJson } = require('./common');
 const { METRIC_OF, RISK_FALLBACK_METRICS } = require('../promotion-engine/terms');
 
 const FILE = path.join(__dirname, '..', '..', 'config', 'promotion_terms_star.v1.json');
-const SOURCE_SHA = Object.freeze({ V1_1: /^af34af38[0-9a-f]{56}$/, AMENDMENT_1: /^0e2f3181d98902f28b67c53ffd068a32e35e96bb75c1b32b62eb3ab9f45bde43$/ });
-const UNITS = Object.freeze({ pp: (n) => n / 100, percent: (n) => n / 100, months: (n) => n, count: (n) => n, multiple: (n) => n, non_inferiority: () => 0 });
+const SOURCE_SHA = Object.freeze({ AMENDMENT_1_NOTE_1: /^6b3be10da39a5518e162a7422f19097b577fa8fb437e4bb71ceb48aa128b5f50$/, V1_1: /^af34af38[0-9a-f]{56}$/, AMENDMENT_1: /^0e2f3181d98902f28b67c53ffd068a32e35e96bb75c1b32b62eb3ab9f45bde43$/ });
+const UNITS = Object.freeze({ pp: (n) => n / 100, percent: (n) => n / 100, months: (n) => n, count: (n) => n, multiple: (n) => n, ratio: (n) => n, non_inferiority: () => 0 });
 
 function checkValue(sources, key, value) {
   const s = isObj(sources) ? sources[key] : null;
-  if (!isObj(s) || !['V1_1', 'AMENDMENT_1'].includes(s.doc) || typeof s.section !== 'string' || typeof s.quote !== 'string' || !s.quote) fail('TERMS_STAR_UNSOURCED', key);
+  if (!isObj(s) || !['V1_1', 'AMENDMENT_1', 'AMENDMENT_1_NOTE_1'].includes(s.doc) || typeof s.section !== 'string' || typeof s.quote !== 'string' || !s.quote) fail('TERMS_STAR_UNSOURCED', key);
   const wordsOk = s.unit === 'non_inferiority' ? s.quote.includes('不劣于对照') : s.quote.includes(String(s.quote_number));
   if (!UNITS[s.unit] || typeof s.quote_number !== 'number' || !wordsOk) fail('TERMS_STAR_UNSOURCED', `${key}:quote`);
   if (UNITS[s.unit](s.quote_number) !== value) fail('TERMS_STAR_VALUE_NOT_VERBATIM', `${key}:${value}`);
+  if (key === 'thresholds.s4.max_overlap') {  // one scale with the factor library's de-duplication gate (signed text fd22876f 2.3)
+    const rho = require('../factor-library').DEDUPE.RHO_MAX;
+    if (!isObj(s.corroboration) || s.corroboration.value !== rho || value !== rho) fail('TERMS_STAR_VALUE_NOT_VERBATIM', `${key}:RHO_MAX`);
+  }
 }
 
 const leaves = (obj, prefix, out = []) => {
