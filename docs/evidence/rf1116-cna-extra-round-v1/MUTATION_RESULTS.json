@@ -1,0 +1,255 @@
+{
+  "schema": "MINING_CNA_EXTRA_ROUND_MUTATION_RESULTS_V1",
+  "baseline": "GREEN",
+  "mutants": 16,
+  "killed": 16,
+  "survived": [],
+  "bad": [],
+  "heads": [
+    "c0ca769"
+  ],
+  "results": [
+    {
+      "id": "N01",
+      "guard": "monthly exception applies only to its month",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动",
+        "✖ E2 12 月仍是 2 轮；11-30 24:00 CST 之前算 11 月、之后算 12 月（月份按北京时间）",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N02",
+      "guard": "monthly exception applies only to its market",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动",
+        "✖ E3 别的市场 2026-11 仍是 2 轮",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N03",
+      "guard": "the exception cap is exactly 3",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动",
+        "✖ E1 CN_A 2026-11：第 3 轮开得了，第 4 轮 MINE_ROUND_MONTHLY_CAP（已关的 FAILED_EVALUATION 照样计入当月）",
+        "✖ E2 12 月仍是 2 轮；11-30 24:00 CST 之前算 11 月、之后算 12 月（月份按北京时间）",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N04",
+      "guard": "the exception is read (monthlyCapOf ignores nothing)",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动",
+        "✖ E1 CN_A 2026-11：第 3 轮开得了，第 4 轮 MINE_ROUND_MONTHLY_CAP（已关的 FAILED_EVALUATION 照样计入当月）",
+        "✖ E2 12 月仍是 2 轮；11-30 24:00 CST 之前算 11 月、之后算 12 月（月份按北京时间）",
+        "✖ E4 留出段计数：以 FAILED_EVALUATION 关闭、留出段未开启、选择记录写 0 个的轮不计 → 第 3 轮可以和第 2 轮共用同一段；一段仍然只评价两轮",
+        "✖ E10 重放真实台账的形状：第 1 轮 FAILED_EVALUATION（选 0、未开启），第 2 轮 CAP_REACHED → 11-23 开第 3 轮；第 3 轮开了之后 12-01 的轮被 HOLDOUT_EXHAUSTED（第 2、3 轮占满这一段）"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N05",
+      "guard": "the global monthly limit stays 2",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动",
+        "✖ E2 12 月仍是 2 轮；11-30 24:00 CST 之前算 11 月、之后算 12 月（月份按北京时间）",
+        "✖ E3 别的市场 2026-11 仍是 2 轮",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N06",
+      "guard": "openRound uses monthlyCapOf",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E1 CN_A 2026-11：第 3 轮开得了，第 4 轮 MINE_ROUND_MONTHLY_CAP（已关的 FAILED_EVALUATION 照样计入当月）",
+        "✖ E4 留出段计数：以 FAILED_EVALUATION 关闭、留出段未开启、选择记录写 0 个的轮不计 → 第 3 轮可以和第 2 轮共用同一段；一段仍然只评价两轮",
+        "✖ E10 重放真实台账的形状：第 1 轮 FAILED_EVALUATION（选 0、未开启），第 2 轮 CAP_REACHED → 11-23 开第 3 轮；第 3 轮开了之后 12-01 的轮被 HOLDOUT_EXHAUSTED（第 2、3 轮占满这一段）",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N07",
+      "guard": "only FAILED_EVALUATION rounds are left out of the holdout count",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E4 留出段计数：以 FAILED_EVALUATION 关闭、留出段未开启、选择记录写 0 个的轮不计 → 第 3 轮可以和第 2 轮共用同一段；一段仍然只评价两轮",
+        "✖ E8 反例：只有 FAILED_EVALUATION 不计；正常 CLOSED（没开留出段、选择 0 个）、FAILED_PARTIAL、FAILED_RESCORE 照旧计数",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N08",
+      "guard": "a round with holdout_opens on its row still counts",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E7 反例：开启过留出段的轮照旧计数（轮次行有 holdout_opens，或留出段保管里有开启记录，哪怕轮次行没记）",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N09",
+      "guard": "a round with a vault open row still counts",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E7 反例：开启过留出段的轮照旧计数（轮次行有 holdout_opens，或留出段保管里有开启记录，哪怕轮次行没记）",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N10",
+      "guard": "a missing selection row is unknown, not 0 (still counts)",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E6 反例：没有选择记录的 FAILED_EVALUATION 照旧计数（缺失 ≠ 0）；选择记录写了候选的照旧计数",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N11",
+      "guard": "a round that selected candidates still counts",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E6 反例：没有选择记录的 FAILED_EVALUATION 照旧计数（缺失 ≠ 0）；选择记录写了候选的照旧计数",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N12",
+      "guard": "FAILED_PARTIAL is not left out",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E8 反例：只有 FAILED_EVALUATION 不计；正常 CLOSED（没开留出段、选择 0 个）、FAILED_PARTIAL、FAILED_RESCORE 照旧计数",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N13",
+      "guard": "the holdout count uses the exclusion",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E4 留出段计数：以 FAILED_EVALUATION 关闭、留出段未开启、选择记录写 0 个的轮不计 → 第 3 轮可以和第 2 轮共用同一段；一段仍然只评价两轮",
+        "✖ E5 这条同样适用于 12 月那一轮：第 1 轮不计时，12-01 能和第 2 轮共用这一段",
+        "✖ E9 MINE_ROUND_HOLDOUT_SEGMENT_OPENED 不变：这一段被任何一轮开启过，就不再开新轮（被排除的轮不改变它）",
+        "✖ E10 重放真实台账的形状：第 1 轮 FAILED_EVALUATION（选 0、未开启），第 2 轮 CAP_REACHED → 11-23 开第 3 轮；第 3 轮开了之后 12-01 的轮被 HOLDOUT_EXHAUSTED（第 2、3 轮占满这一段）",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N14",
+      "guard": "a segment still serves at most 2 counted rounds",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E4 留出段计数：以 FAILED_EVALUATION 关闭、留出段未开启、选择记录写 0 个的轮不计 → 第 3 轮可以和第 2 轮共用同一段；一段仍然只评价两轮",
+        "✖ E6 反例：没有选择记录的 FAILED_EVALUATION 照旧计数（缺失 ≠ 0）；选择记录写了候选的照旧计数",
+        "✖ E7 反例：开启过留出段的轮照旧计数（轮次行有 holdout_opens，或留出段保管里有开启记录，哪怕轮次行没记）",
+        "✖ E8 反例：只有 FAILED_EVALUATION 不计；正常 CLOSED（没开留出段、选择 0 个）、FAILED_PARTIAL、FAILED_RESCORE 照旧计数",
+        "✖ E10 重放真实台账的形状：第 1 轮 FAILED_EVALUATION（选 0、未开启），第 2 轮 CAP_REACHED → 11-23 开第 3 轮；第 3 轮开了之后 12-01 的轮被 HOLDOUT_EXHAUSTED（第 2、3 轮占满这一段）"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N15",
+      "guard": "the cited page sha is checked against the repo copy",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    },
+    {
+      "id": "N16",
+      "guard": "an unopened-holdout rule still refuses a new round on an opened segment",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_extra_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ E9 MINE_ROUND_HOLDOUT_SEGMENT_OPENED 不变：这一段被任何一轮开启过，就不再开新轮（被排除的轮不改变它）",
+        "✖ failing tests:"
+      ],
+      "head": "c0ca769"
+    }
+  ]
+}
