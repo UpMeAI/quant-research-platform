@@ -1,0 +1,49 @@
+{
+  "schema": "RQ_DEEPSEEK_GATEWAY_CONFIG_V1",
+  "_comment": "AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 (sha 52418471, draft) §5.2-§5.4. 唯一的单一事实来源：模型、purpose、max_tokens 上限、价格表、非高峰时段；网关（services/rq-deepseek-gateway）与代理（services/research-queue-agent）都读它。没有花费或 token 总量上限（Owner 11-22 「不设置每月费用上限」）；max_tokens 只是单次响应的失控保护。价格与时段是 PROVISIONAL：首次实调之前必须按官网价目页重读（§5.4），见 price_table.status。",
+  "upstream": { "host": "api.deepseek.com", "port": 443 },
+  "timeout_s": 180,
+  "purposes": {
+    "RQ_AGENT": { "models": ["deepseek-flash"], "max_tokens": 4000, "admission": true, "peak_refused": true, "requires_quality_gate": false },
+    "RQ_AGENT_PRO_FALLBACK": { "models": ["deepseek-v4-pro"], "max_tokens": 4000, "admission": true, "peak_refused": true, "requires_quality_gate": true },
+    "MINING_LLM": { "models": ["deepseek-v4-pro"], "max_tokens": 16384, "admission": false, "peak_refused": false, "requires_quality_gate": false }
+  },
+  "keys": {
+    "LINUX_RESEARCH": {
+      "purposes": ["RQ_AGENT", "RQ_AGENT_PRO_FALLBACK", "MINING_LLM"],
+      "source": "FILE",
+      "path": "~/.config/qrp-research-key/deepseek-research.env",
+      "env_var": "DEEPSEEK_RESEARCH_API_KEY"
+    },
+    "HK_REVIEW": {
+      "purposes": ["RQ_AGENT", "RQ_AGENT_PRO_FALLBACK"],
+      "source": "ENV",
+      "env_var": "DEEPSEEK_REVIEW_API_KEY"
+    }
+  },
+  "peak": {
+    "status": "DERIVED_FROM_DESIGN_3.5_NOT_VERIFIED_AGAINST_THE_PRICING_PAGE",
+    "weekday_off_peak_cst": [["12:00", "14:00"], ["18:00", "24:00"]],
+    "weekend_all_off_peak": true
+  },
+  "price_table": {
+    "id": "DEEPSEEK_PRICE_TABLE_V1",
+    "status": "PROVISIONAL_RE_READ_BEFORE_FIRST_LIVE_CALL",
+    "hit_priced_as_miss_when_null": true,
+    "sources": {
+      "deepseek-flash": "AUTONOMOUS_RESEARCH_QUEUE_V1 §5.4 estimate row: off-peak cache-miss CNY 1 in / 4 out per 1M",
+      "deepseek-v4-pro": "QRP PR #136 body: pro off-peak list prices CNY 4.5 in / 13.5 out per 1M, all cache misses"
+    },
+    "models": {
+      "deepseek-flash": {
+        "cny_per_m": { "off_peak": { "hit": null, "miss": 1.0, "out": 4.0 }, "peak": { "hit": null, "miss": null, "out": null } },
+        "usd_per_m": { "off_peak": { "hit": null, "miss": null, "out": null }, "peak": { "hit": null, "miss": null, "out": null } }
+      },
+      "deepseek-v4-pro": {
+        "cny_per_m": { "off_peak": { "hit": null, "miss": 4.5, "out": 13.5 }, "peak": { "hit": null, "miss": null, "out": null } },
+        "usd_per_m": { "off_peak": { "hit": null, "miss": null, "out": null }, "peak": { "hit": null, "miss": null, "out": null } }
+      }
+    }
+  },
+  "prompt_admissions_file": "research_queue_prompt_admissions.v1.json"
+}
