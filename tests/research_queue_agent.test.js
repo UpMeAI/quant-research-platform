@@ -15,7 +15,18 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
+
+/** 异步跑子进程：同进程里的桩网关要能响应，不能用 spawnSync 堵住事件循环。 */
+function runNode(args, env) {
+  return new Promise((resolve) => {
+    const p = spawn(process.execPath, args, { env });
+    let stdout = ''; let stderr = '';
+    p.stdout.on('data', (d) => { stdout += d; });
+    p.stderr.on('data', (d) => { stderr += d; });
+    p.on('close', (status) => resolve({ status, stdout, stderr }));
+  });
+}
 const F = require('./_rq_agent_fixture');
 const V = require('../services/research-queue-agent');
 
@@ -297,6 +308,16 @@ test('check task: a pack over the per-call token budget is split by matrix row, 
   assert.deepEqual(r.outputs.check_report.unknowns, ['样本量']);
 });
 
+test('AQ-48 only one pro call per task even when a split check has two failing parts: the second part is blocked, never given a second pro', async () => {
+  const bad = { verdict: 'CONSISTENT', items: [], hold_reasons: [], unknowns: [] };
+  const good1 = { verdict: 'CONSISTENT', items: [{ req_id: 'R1', status: 'COVERED', fact_ids: ['F-001'], note_zh: '有记录' }], hold_reasons: [], unknowns: [] };
+  const client = mockClient([okResp(bad), okResp(bad), okResp(bad), okResp(bad), okResp(good1, 'deepseek-v4-pro'), okResp(bad), okResp(bad), okResp(bad), okResp(bad)]);
+  const r = await V.runAgentTask(checkTask(), checkBundle(), opts(client, { maxPackTokens: 100 }));
+  assert.deepEqual([r.status, r.reason_code], ['BLOCKED_DETERMINISTIC', 'RQ_PRO_ALREADY_USED']);
+  assert.equal(client.calls.filter((c) => c.purpose === 'RQ_AGENT_PRO_FALLBACK').length, 1);
+  assert.equal(client.calls.length, 9);
+});
+
 test('check task: a pack with an author row equal to the checker admission is refused before any call (AQ-44)', async () => {
   const author = { kind: 'AI_PREREG', prompt_admission_sha256: F.sha(V.prompts.CHECK_SYSTEM_TEXT), model: 'deepseek-flash' };
   const client = mockClient([okResp(F.makeCheckReport())]);
@@ -317,8 +338,11 @@ test('AQ-21 results carry no raw provider text: a gateway error message that con
   assert.equal(JSON.stringify(r).includes(leak), false);
   assert.equal(/sk-[A-Za-z0-9]{16,}/.test(JSON.stringify(r)), false);
   const echoed = okResp(F.makeCard({ supporting: [{ text_zh: `见 ${leak}`, fact_ids: ['F-001'] }] }));
-  const r2 = await V.runAgentTask(cardTask(), cardBundle(), opts(mockClient([echoed, okResp(F.makeCard())])));
+  const echoedClient = mockClient([echoed, okResp(F.makeCard())]);
+  const r2 = await V.runAgentTask(cardTask(), cardBundle(), opts(echoedClient));
   assert.equal(/sk-[A-Za-z0-9]{16,}/.test(JSON.stringify(r2)), false);
+  assert.equal(echoedClient.calls.length, 2, 'a key-shaped answer is rejected by the validator and re-asked');
+  assert.ok(r2.calls[0].validator_codes.includes('CARD_SECRET_SHAPED'));
 });
 
 /* ---------------------------------------------------------------- 网关客户端（真 unix socket） */
@@ -380,13 +404,13 @@ test('CLI end to end: reads the task and bundle files, talks to a stub gateway o
     fs.writeFileSync(path.join(inDir, 'bundle.json'), JSON.stringify(cardBundle()));
     const cli = path.join(DIR, 'cli.js');
     const env = { PATH: process.env.PATH, HOME: dir };
-    const run = (extra = [], e = env) => spawnSync(process.execPath, [cli, '--task', path.join(inDir, 'task.json'), '--bundle', path.join(inDir, 'bundle.json'), '--out', out, '--socket', sock, '--host', 'LINUX', ...extra], { env: e, encoding: 'utf8' });
-    const keyed = run([], { ...env, DEEPSEEK_RESEARCH_API_KEY: fakeKey });
+    const run = (extra = [], e = env) => runNode([cli, '--task', path.join(inDir, 'task.json'), '--bundle', path.join(inDir, 'bundle.json'), '--out', out, '--socket', sock, '--host', 'LINUX', ...extra], e);
+    const keyed = await run([], { ...env, DEEPSEEK_RESEARCH_API_KEY: fakeKey });
     assert.notEqual(keyed.status, 0);
     assert.match(keyed.stderr, /RQ_AGENT_ENV_HAS_KEY/);
     assert.equal(keyed.stderr.includes(fakeKey), false);
     assert.equal(fs.existsSync(out), false, 'a refused start writes nothing');
-    const r = run();
+    const r = await run();
     assert.equal(r.status, 0, r.stderr);
     const names = fs.readdirSync(out).sort();
     assert.deepEqual(names, ['card.json', 'factor_ideas.jsonl', 'idea_routes.jsonl', 'proposals.jsonl', 'result.json']);
@@ -400,7 +424,7 @@ test('CLI end to end: reads the task and bundle files, talks to a stub gateway o
       assert.equal(t.includes(fakeKey), false, n);
     }
     assert.equal(/sk-[A-Za-z0-9]{16,}/.test(r.stdout + r.stderr), false);
-    const noSock = spawnSync(process.execPath, [cli, '--task', path.join(inDir, 'task.json'), '--bundle', path.join(inDir, 'bundle.json'), '--out', path.join(dir, 'out2')], { env, encoding: 'utf8' });
+    const noSock = await runNode([cli, '--task', path.join(inDir, 'task.json'), '--bundle', path.join(inDir, 'bundle.json'), '--out', path.join(dir, 'out2')], env);
     assert.notEqual(noSock.status, 0);
     assert.match(noSock.stderr, /RQ_CLI_USAGE/);
   });
@@ -412,7 +436,8 @@ test('AQ-33/34 static: only the gateway units carry an EnvironmentFile; agent un
   const gw = ['linux/rq-deepseek-gateway.service', 'hk/rq-deepseek-gateway.service'];
   const agents = ['hk/rq-agent.service'];
   const read = (f) => fs.readFileSync(path.join(DEPLOY, f), 'utf8');
-  assert.match(read('linux/rq-deepseek-gateway.service'), /EnvironmentFile=-%h\/\.config\/qrp-research-key\/deepseek-research\.env/);
+  assert.equal(/EnvironmentFile/.test(read('linux/rq-deepseek-gateway.service')), false, 'Linux gateway reads the key file itself (re-read per call), no env copy');
+  assert.equal(/DEEPSEEK/.test(read('linux/rq-deepseek-gateway.service')), false);
   assert.match(read('hk/rq-deepseek-gateway.service'), /EnvironmentFile=-\/root\/\.config\/research-queue\/deepseek-review\.env/);
   assert.match(read('hk/rq-deepseek-gateway.service'), /User=rq-gw/);
   assert.match(read('linux/rq-deepseek-gateway.service'), /rq-gw\.sock/);
@@ -439,5 +464,5 @@ test('config: the shipped prompt admissions and the gateway config agree with th
   const adm = require('../config/research_queue_prompt_admissions.v1.json');
   assert.equal(adm.entries.length, 2);
   for (const e of cfg.admissions || []) assert.fail('admissions live in their own file');
-  assert.equal(cfg.prompt_admissions_file, 'config/research_queue_prompt_admissions.v1.json');
+  assert.equal(cfg.prompt_admissions_file, 'research_queue_prompt_admissions.v1.json');
 });

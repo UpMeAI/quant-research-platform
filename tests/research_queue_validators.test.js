@@ -429,3 +429,31 @@ test('mechanism admission stub: a NEW idea is queued as WAITING, never admitted 
   assert.throws(() => V.admission.proposeAdmission(idea({})), /MECHANISM_PROPOSAL_NOT_NEW/);
   assert.equal(typeof V.admission.admit, 'undefined', 'the admission program itself is RF1118 C4, not in Q2');
 });
+
+test('registry view builder (host side): mechanisms with layers from the real register, factor-library readings with PIT copied, frozen-space readings as SPACE', () => {
+  const { buildRegistryView } = require('../services/research-queue-agent/registries');
+  const reg = buildRegistryView({ market: 'CN_A', space: { readings: [{ name: 'RS60', pit_available_at: 'T 日收盘后' }], holding_periods: [5, 10] } });
+  const m = reg.mechanisms.find((x) => x.mechanism_id === 'SEL.XSEC.REVERSAL');
+  assert.deepEqual([m.layer, m.decision_point], ['SELECTION_TIMING', 'SELECT']);
+  assert.deepEqual(reg.readings.RS60, { pit_available_at: 'T 日收盘后', origin: 'SPACE' });
+  assert.equal(reg.readings['CN_A.MOM.RS60_MARKET_PCT'].origin, 'FACTOR_LIBRARY');
+  assert.equal(typeof reg.readings['CN_A.MOM.RS60_MARKET_PCT'].pit_available_at, 'string');
+  assert.deepEqual(reg.holding_periods, [5, 10]);
+  assert.equal(Object.values(reg.readings).some((r) => r.origin === 'FACTOR_LIBRARY' && r.pit_available_at === undefined), false);
+});
+
+test('numbers: an uncited free string (unknowns) may use a number that sits in any fact of the pack; a pack with a key-shaped string is refused', () => {
+  const x = F.makeCheckReport({ unknowns: ['样本 87 是否足够'] });
+  assert.equal(V.validateCheckReport(JSON.stringify(x), F.makePack()).ok, true);
+  const pack = F.makePack();
+  pack.facts[0].value = { note: 'sk-' + 'A'.repeat(30) };
+  assert.ok(V.checkPack(pack, { purpose: 'CARD' }).errors.some((e) => e.code === 'PACK_SECRET_SHAPED'));
+  const leak = F.makeCheckReport();
+  leak.items[0].note_zh = `见 sk-${'B'.repeat(30)}`;
+  assert.ok(V.validateCheckReport(JSON.stringify(leak), F.makePack()).errors.some((e) => e.code === 'CHECK_SECRET_SHAPED'));
+});
+
+test('card: a question proposal with direction wording is refused (ideas and questions carry no direction)', () => {
+  const c = F.makeCard({ question_proposals: [{ mechanism_id: 'NEW', layer: 'RISK', decision_point: 'SIZING', market: 'CN_A', question_zh: '回撤后是否应当做空？', fact_ids: ['F-001'] }] });
+  assert.ok(codes(V.validateCard(JSON.stringify(c), F.ctx())).includes('CARD_DIRECTION_WORDING'));
+});

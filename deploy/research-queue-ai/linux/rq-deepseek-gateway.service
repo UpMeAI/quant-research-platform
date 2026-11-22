@@ -1,0 +1,21 @@
+# AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 §3.6, §5.3 (Linux, user unit, kayla, linger). Installed by the coordinator; NOT installed by the Q2 PR.
+# The only unit that touches the research key. The gateway reads the key file itself (read-only, mode 0600/0400, re-read on every call),
+# so a restored or replaced file resumes without a restart (AQ-32) and the key is never copied into this unit's environment.
+# `current` is a symlink to the git-archived code dir /srv/research-lane/research-queue/code/<sha>/ set at install.
+[Unit]
+Description=rq-deepseek-gateway (Linux, LINUX_RESEARCH key)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /srv/research-lane/research-queue/code/current/services/rq-deepseek-gateway/rq_gateway.py serve --config /srv/research-lane/research-queue/code/current/config/rq_deepseek_gateway.v1.json --key-id LINUX_RESEARCH --db %h/.local/state/research-queue/gateway.sqlite --socket %t/rq-gw.sock --socket-mode 0600
+Restart=on-failure
+RestartSec=10
+Nice=10
+CPUQuota=25%
+MemoryMax=256M
+NoNewPrivileges=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=default.target

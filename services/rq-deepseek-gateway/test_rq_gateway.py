@@ -258,7 +258,8 @@ class TestRunawayGuardNoCostCap(Base):  # AQ-11
         self.assertEqual(total, 30_000_000)
 
     def test_source_has_no_budget_state(self):
-        src = open(os.path.join(HERE, 'rq_gateway.py'), encoding='utf-8').read()
+        with open(os.path.join(HERE, 'rq_gateway.py'), encoding='utf-8') as f:
+            src = f.read()
         for needle in ('WAITING_BUDGET', 'MONTHLY_CAP', 'monthly_cap', 'spend_cap', 'token_cap', 'daily_cap'):
             self.assertNotIn(needle, src)
 
@@ -418,12 +419,12 @@ class TestLedger(Base):  # AQ-31
 
     def test_month_boundary_is_cst(self):
         g = self.make(Stub(ok_response(), ok_response()))
-        self.now = datetime(2026, 11, 30, 23, 59, tzinfo=CST)
+        self.now = datetime(2026, 10, 31, 23, 59, tzinfo=CST)     # Saturday
         self.post(g)
-        self.now = datetime(2026, 12, 1, 0, 1, tzinfo=CST)
+        self.now = datetime(2026, 11, 1, 0, 1, tzinfo=CST)        # Sunday
         self.post(g)
+        self.assertEqual(gw.monthly_spend(self.db, 'LINUX_RESEARCH', '2026-10')['total']['calls'], 1)
         self.assertEqual(gw.monthly_spend(self.db, 'LINUX_RESEARCH', '2026-11')['total']['calls'], 1)
-        self.assertEqual(gw.monthly_spend(self.db, 'LINUX_RESEARCH', '2026-12')['total']['calls'], 1)
 
     def test_spend_by_purpose_includes_pro_fallback_and_mining(self):
         g = self.make(Stub(ok_response(), ok_response(model='deepseek-v4-pro'), ok_response(model='deepseek-v4-pro')))
@@ -589,6 +590,34 @@ class TestKeyHandling(Base):  # AQ-21, AQ-32, AQ-33 (code side)
                 with open(self.db + ext, 'rb') as f:
                     self.assertNotIn(FAKE_KEY.encode(), f.read())
 
+    def test_other_bearer_tokens_in_an_echo_are_redacted_too(self):
+        g = self.make(Stub(err_response(401, 'sent Bearer abc.def-OTHERtoken123 and sk-' + 'Q' * 30)))
+        b = self.post(g)[2]
+        self.assertNotIn(b'OTHERtoken123', b)
+        self.assertNotIn(b'sk-QQQQ', b)
+
+    def test_success_body_never_carries_the_key_even_if_upstream_echoes_it(self):
+        ok = ok_response()
+        d = json.loads(ok[2])
+        d['choices'][0]['message']['content'] = 'the key is ' + FAKE_KEY
+        g = self.make(Stub((200, {}, json.dumps(d).encode())))
+        s, _, b = self.post(g)
+        self.assertEqual(s, 200)
+        self.assertNotIn(FAKE_KEY.encode(), b)
+
+    def test_production_transport_refuses_any_other_host_or_path_before_connecting(self):
+        for host, port, path in (('x.invalid', 443, '/chat/completions'), ('api.deepseek.com', 8443, '/chat/completions'), ('api.deepseek.com', 443, '/v1/models')):
+            with self.assertRaises(OSError) as cm:
+                gw.https_transport('POST', host, port, path, {}, b'', 1)
+            self.assertIn('refused: not the DeepSeek chat API', str(cm.exception))
+
+    def test_ledger_connections_use_full_sync_and_wal(self):
+        g = self.make()
+        with g._conn() as c:
+            self.assertEqual(c.execute('PRAGMA synchronous').fetchone()[0], 2)
+            self.assertEqual(c.execute('PRAGMA journal_mode').fetchone()[0].lower(), 'wal')
+            self.assertEqual(c.execute('PRAGMA busy_timeout').fetchone()[0], 5000)
+
     def test_startup_log_names_the_fingerprint_only(self):
         g = self.make()
         g.announce()
@@ -611,7 +640,8 @@ class TestKeyHandling(Base):  # AQ-21, AQ-32, AQ-33 (code side)
         self.assertNotIn(FAKE_KEY, str(st))
 
     def test_source_never_prints_or_logs_the_key_variable(self):
-        src = open(os.path.join(HERE, 'rq_gateway.py'), encoding='utf-8').read()
+        with open(os.path.join(HERE, 'rq_gateway.py'), encoding='utf-8') as f:
+            src = f.read()
         self.assertNotIn('print(', src)
 
 

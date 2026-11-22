@@ -1,0 +1,27 @@
+# AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 §3.6 (HK agent, oneshot). Reference invocation: the queue consumer (Q1) supplies the per-task in/out names.
+# No environment file and no key of any kind; the agent refuses to start if its environment has one (RQ_AGENT_ENV_HAS_KEY).
+# No IP at all: the only thing it can reach is the gateway's unix socket.
+[Unit]
+Description=rq-agent (HK, tool-less DeepSeek agent task)
+After=rq-deepseek-gateway.service
+
+[Service]
+Type=oneshot
+User=rq-agent
+Group=rq
+ExecStart=/opt/node22/bin/node /opt/research-queue/current/services/research-queue-agent/cli.js --task /var/lib/research-queue/agent/in/task.json --bundle /var/lib/research-queue/agent/in/bundle.json --out /var/lib/research-queue/agent/out/current --socket /run/rq-gw/rq-gw.sock --host HK
+Slice=research.slice
+MemoryMax=256M
+Nice=19
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+TemporaryFileSystem=/var/lib:ro
+BindReadOnlyPaths=/var/lib/research-queue/agent/in
+BindPaths=/var/lib/research-queue/agent/out
+ProtectProc=invisible
+ProcSubset=pid
