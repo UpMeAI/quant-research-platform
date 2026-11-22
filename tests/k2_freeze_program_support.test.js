@@ -281,7 +281,7 @@ test('CLI exit codes: k2_freeze_program prepare: 0 waiting, 65 refused, 66 waiti
     const c = baseCtx();
     const f = path.join(dir, `ctx-${Math.random().toString(16).slice(2)}.json`);
     fs.writeFileSync(f, JSON.stringify({ now: c.now, host: 'LINUX', outDir: path.join(dir, 'out'), bundle: c.bundle, receipt: c.receipt, admissions: c.admissions, registerCommit: fx.REGISTER_COMMIT,
-      registerFile: require('../services/research-mechanism-register').FILE, inventory: [fx.DATASET], powerOutputs: c.powerOutputs, riskRules: c.riskRules, marks: [], ledgerRows: [], priorFreezes: [], queueLogText: '', ...over }));
+      registerFile: require('../services/research-mechanism-register').FILE, inventory: [fx.DATASET], powerOutputs: c.powerOutputs, riskRules: c.riskRules, promotionTermsStar: c.promotionTermsStar, marks: [], ledgerRows: [], priorFreezes: [], queueLogText: '', ...over }));
     return f;
   };
   const run = (draft, ctx, cmd = 'prepare') => {
@@ -314,13 +314,15 @@ test('clock preflight parses chronyc, timedatectl and sntp status; unparseable i
   assert.deepEqual([o.registrar_offset_ms, o.program_offset_ms, o.tolerance_ms], [500, 200, 1000]);
 });
 
-test('AI_PREREG prompt: sha pinned, admission entry has the Q2 shape and is PROPOSED (not edited into the Q2 admissions file); the system text forbids prediction and formulas', () => {
+test('AI_PREREG prompt: sha pinned, the entry in the Q2 admissions file (ADMITTED in Q3b) matches the shape and pins in code; the system text forbids prediction and formulas', () => {
   const prompt = require('../services/k2-freeze-program/prompt');
   assert.equal(prompt.SYSTEM_SHA256, sha(prompt.SYSTEM_TEXT));
   const e = prompt.admissionEntry();
   assert.deepEqual([e.kind, e.state, e.system_sha256], ['AI_PREREG', 'PROPOSED', prompt.SYSTEM_SHA256]);
   const q2 = require('../config/research_queue_prompt_admissions.v1.json');
-  assert.ok(!q2.entries.some((x) => x.kind === 'AI_PREREG'));
-  assert.ok(!q2.entries.some((x) => x.system_sha256 === e.system_sha256));
+  const live = q2.entries.find((x) => x.kind === 'AI_PREREG');
+  assert.equal(live.state, 'ADMITTED');
+  assert.equal(live.system_sha256, e.system_sha256);
+  assert.equal(live.schema_sha256, e.schema_sha256);
   for (const w of ['Do not predict', 'Do not write any formula', 'should be adopted or rejected', 'Choose only the decision-table template', 'never choose a parameter', 'alpha is 0.05', 'copied exactly from power_outputs', 'risk_rules']) assert.ok(prompt.SYSTEM_TEXT.includes(w), w);
 });

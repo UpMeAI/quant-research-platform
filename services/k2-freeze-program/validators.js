@@ -20,11 +20,12 @@ const power = require('./power');
 const rf1118 = require('./rf1118');
 const bundleBuilder = require('./bundle');
 const queueLine = require('./queue_line');
+const promotionTerms = require('./promotion_terms');
 const schema = require('./schema');
 const FLASH_MODEL = 'deepseek-flash';
 
 const NAMES = Object.freeze({
-  V1: 'schema and required sections', V2: 'decision table from frozen templates only', V3: 'power tool match', V4: 'G-MECH routing', V5: 'G-CAUSAL', V6: 'G-PARITY check()', V7: 'no new formula (RF1116)',
+  V1: 'schema and required sections', V2: 'decision table from frozen templates only, promotion terms, robustness declaration', V3: 'power tool match', V4: 'G-MECH routing', V5: 'G-CAUSAL', V6: 'G-PARITY check()', V7: 'no new formula (RF1116)',
   V8: 'data scope', V9: 'TRL rows before the freeze page', V10: 'isolation proof', V11: 'scope and caps', V12: 'frozen artifacts', V13: 'one queue line per freeze', V14: 'prompt and model pin',
 });
 const ORDER = Object.freeze(Object.keys(NAMES));
@@ -80,7 +81,13 @@ function cstKeys(stamp) {
 
 const V = {};
 
-V.V2 = ({ draft, ctx }) => templates.validate(draft.decision_table, { riskRules: ctx.riskRules || null, ruleRef: draft.desk_items.rule_ref });
+// V2 also judges what the K2 freezes for the engine and the verifier (Q3b): the PROMOTION_TERMS_V1 it would write (the engine's own validator, registered values for an AI draft)
+// and the robustness declaration (the verifier's required kinds and cost multiplier).
+V.V2 = ({ draft, ctx, k2Sha }) => [
+  ...templates.validate(draft.decision_table, { riskRules: ctx.riskRules || null, ruleRef: draft.desk_items.rule_ref }),
+  ...promotionTerms.validateTerms(draft, ctx, { k2Sha256: k2Sha, frozenAt: ctx.now }),
+  ...promotionTerms.validateDeclaration(draft.robustness_declaration),
+];
 
 V.V3 = ({ draft, ctx }) => {
   const codes = [];

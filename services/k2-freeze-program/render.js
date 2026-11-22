@@ -7,6 +7,7 @@
 const trials = require('../trial-ledger');
 const { sha256, canonicalJson, prettyJson } = require('./common');
 const rf1118 = require('./rf1118');
+const promotionTerms = require('./promotion_terms');
 
 const NONE_LINE = '无';
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -109,6 +110,7 @@ function renderK2(draft, { priorTableSha256 }) {
   L('|---|---|---|---|');
   for (const a of draft.arms) L(`| ${a.config_label} | ${a.role} | ${a.stage} | ${trialIdOf(draft, a)} |`);
   L();
+  for (const x of promotionTerms.renderSections(draft)) L(x);
   return `${lines.join('\n')}\n`;
 }
 
@@ -121,9 +123,10 @@ function trlRequest(draft, k2Sha256, segmentLabels) {
   };
 }
 
-function renderReport({ draft, draftSha256, k2Sha256, k2FrozenAt, results, programSha256, libSha256 }) {
+function renderReport({ draft, draftSha256, k2Sha256, k2FrozenAt, results, programSha256, libSha256, promotionTermsSha256, robustnessDeclarationSha256 }) {
   return prettyJson({ schema: 'K2_PREREG_VALIDATION_REPORT_V1', program: 'K2_FREEZE_PROGRAM_V1', program_sha256: programSha256, rf1118: { path: rf1118.FREEZE.path, sha256: rf1118.FREEZE.sha256 },
     template_library_sha256: libSha256, draft_id: draft.draft_id, draft_sha256: draftSha256, k2_sha256: k2Sha256, k2_frozen_at: k2FrozenAt, market: draft.market,
+    promotion_terms_sha256: promotionTermsSha256, robustness_declaration_sha256: robustnessDeclarationSha256,
     results: results.map(({ v, name, state, codes, reason }) => ({ v, name, state, codes: codes || [], ...(reason ? { reason } : {}) })), all_pass: results.every((r) => r.state === 'PASS' || r.state === 'NOT_APPLICABLE') });
 }
 
@@ -136,6 +139,9 @@ function renderPage({ block }) {
     `- 依据：RF1118 修订 2，冻结页 ${block.rf1118.sha256}（生效 ${block.rf1118.effective_from}）。`,
     `- 作者：${block.authored_by.kind}。`,
     `- 预登记试验：${block.trial_ids.join('、')}；族 ${block.family_n.family_id} 的 N（不同配置）= ${block.family_n.n_distinct_configs}。`,
+    `- 晋级条款文件 ${block.promotion_terms.file}（与本 K2 同一次冻结，以 k2_sha256 绑定）。`,
+    `PROMOTION_TERMS_SHA256: ${block.promotion_terms.sha256}`,
+    `ROBUSTNESS_DECLARATION_SHA256: ${block.robustness_declaration_sha256}`,
     '- 协调会话事后审计；撤回只用 `…_REVOCATION_1.md` 页，本页不改。',
     '',
     '```json K2_PROGRAM_FREEZE_PAGE_V1',

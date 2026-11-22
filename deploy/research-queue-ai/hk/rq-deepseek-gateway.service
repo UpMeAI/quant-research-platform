@@ -1,6 +1,7 @@
 # AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 §3.6, §5.3 (HK, system unit). Installed by the coordinator at the HK install; NOT installed by the Q2 PR.
 # The only unit with the key: PID 1 reads the file as root and drops to rq-gw; `-` means a missing file starts the unit keyless
 # (every call answers RQ_CREDENTIAL_ABSENT -> tasks WAITING_CREDENTIAL, AQ-32). Egress is open at IP level (DeepSeek is a CDN);
+# Group=rq (Q3b): the socket (0660) and /run/rq-gw (0750) belong to group rq, whose only members are research-queue (the consumer that launches the agent) and rq-agent; the key file stays root 0600 and the state dir rq-gw 0700.
 # the code forwards only to api.deepseek.com:443 paths /chat/completions and /user/balance.
 [Unit]
 Description=rq-deepseek-gateway (HK, HK_REVIEW key)
@@ -9,7 +10,7 @@ After=network-online.target
 [Service]
 Type=simple
 User=rq-gw
-Group=rq-gw
+Group=rq
 EnvironmentFile=-/root/.config/research-queue/deepseek-review.env
 RuntimeDirectory=rq-gw
 RuntimeDirectoryMode=0750

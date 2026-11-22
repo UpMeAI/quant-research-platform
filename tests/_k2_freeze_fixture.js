@@ -33,6 +33,13 @@ const FACTOR2 = 'CN_A.MOM.RS20_UNIT_PCT';
 const DATASET = 'ALL_A_CROSS_SECTION';
 let counter = 0;
 
+/** Registered promotion-terms values for tests (the real ones come from the deterministic bundle, like margin_sd from the risk rules). */
+const POLICY = { horizon_months: 12, p_threshold: 0.5, budget_share_max: 0.2, resume_sample_fraction: 0.5, max_failed_rechecks: 3 };
+const TH = { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.8 } };
+const TERMS_STAR = { insufficient_policy: POLICY, by_layer: {
+  ALPHA: { min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.02 }, thresholds: TH }, EXECUTION: { min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.01 }, thresholds: TH },
+  RISK: { min_economic_value: { metric: 'CVAR5_IMPROVEMENT', value: 0.01 }, thresholds: TH } } };
+
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const pinned = datasetRegistry.pinned();
 
@@ -60,6 +67,14 @@ function baseDraft(over = {}) {
     power: { effect_size_sd: 0.5, alpha: 0.05, power_target: 0.8, n_required: 32 },
     scope: { live_class: 'NONE', research_only: true, new_data_fetch: false, unseal: false, production_config_touch: false },
     deviation_codes: [],
+    // Q3b: what the K2 freezes for the promotion engine and for W20 V-5 (values are the registered ones in TERMS_STAR below)
+    promotion_terms: { layer: 'RISK', min_economic_value: TERMS_STAR.by_layer.RISK.min_economic_value, thresholds: TERMS_STAR.by_layer.RISK.thresholds, insufficient_policy: TERMS_STAR.insufficient_policy,
+      review_endpoint: { kind: 'DATE', value: '2026-12-31' } },
+    robustness_declaration: { tests: [
+      { id: 'COST_X2', kind: 'COST_MULTIPLIER', metric: 'delta_g_ci_lower', op: '>', threshold: 0, multiplier: 2 },
+      { id: 'PARAM_PERTURB', kind: 'PARAM_PERTURBATION', metric: 'delta_g_ci_lower', op: '>', threshold: 0 },
+      { id: 'SUB_PERIOD', kind: 'SUB_PERIOD', metric: 'delta_g_ci_lower', op: '>=', threshold: 0 },
+    ] },
   };
   return merge(draft, over);
 }
@@ -83,7 +98,7 @@ function baseCtx(over = {}) {
     admissions: [{ prompt_id: 'RQ_PROMPT_AI_PREREG_V1', kind: 'AI_PREREG', system_sha256: PROMPT, state: 'ADMITTED' }],
     registerBytes: REGISTER_BYTES, registerCommit: REGISTER_COMMIT, registerAt: (c) => (c === REGISTER_COMMIT ? REGISTER_BYTES : null),
     powerOutputs: require('../services/k2-freeze-program/power').outputs(0.5), riskRules: { 'CN_A.RULE.CONCURRENCY': { margin_sd: 0.2 } },
-    marks: [], inventory: new Set([DATASET]), evidenceBytes: () => null, pinnedCodeShas: {}, ledgerRows: [], priorFreezes: [], queueLogText: '', ...over,
+    promotionTermsStar: TERMS_STAR, marks: [], inventory: new Set([DATASET]), evidenceBytes: () => null, pinnedCodeShas: {}, ledgerRows: [], priorFreezes: [], queueLogText: '', ...over,
   };
 }
 
@@ -103,5 +118,5 @@ const codesOf = (res, v) => ((res.results || []).find((r) => r.v === v) || { cod
 
 const niDraftMut = (margin, ruleRef = 'CN_A.RULE.CONCURRENCY') => (d) => { d.decision_table = { template_id: 'DT-NON-INFERIORITY-V1', params: { ...d.decision_table.params, margin_sd: margin } }; d.desk_items.rule_ref = ruleRef; };
 
-module.exports = { niDraftMut, armsOf, AUTH, sha, tmp, baseDraft, baseCtx, receipt, registerAt, ledgerRows, failing, codesOf, clone, pinned, trials, mech, datasetRegistry,
+module.exports = { TERMS_STAR, niDraftMut, armsOf, AUTH, sha, tmp, baseDraft, baseCtx, receipt, registerAt, ledgerRows, failing, codesOf, clone, pinned, trials, mech, datasetRegistry,
   NOW_PREPARE, NOW_FREEZE, REGISTERED_AT, PROMPT, SCHEMA, MECH_OK, MECH_SHADOW, MECH_LIVE, FACTOR, FACTOR2, DATASET, REGISTER_BYTES, REGISTER_COMMIT };

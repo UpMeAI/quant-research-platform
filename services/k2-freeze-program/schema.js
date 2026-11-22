@@ -7,6 +7,7 @@
  */
 const trials = require('../trial-ledger');
 const { isObj, SHA64 } = require('./common');
+const promotionTerms = require('./promotion_terms');
 
 const MARKETS = Object.freeze(['CN_A', 'US_EQUITY', 'CRYPTO']);
 const ROLES = Object.freeze(['VERDICT_ARM', 'BASELINE', 'REPORT_ONLY_VARIANT', 'DIAGNOSTIC_ARM']);
@@ -16,7 +17,10 @@ const LIVE_CLASSES = Object.freeze(['NONE', 'NEEDS_SIGNATURE']);
 /** REVIEW_LOOP_ACCEPTANCE_V1 section 5.7 (desk, 05cabd2d): the eight items a research draft must state (item 1 is two keys). */
 const DESK_ITEMS = Object.freeze(['candidate_ref', 'rule_ref', 'change_and_window_zh', 'decision_criteria_zh', 'data_limits_zh', 'round2_plan_zh', 'lease_ref', 'measurement_plan_zh', 'paper_stop_zh']);
 const TOP = Object.freeze(['schema', 'draft_id', 'market', 'family_id', 'study_ref', 'title_zh', 'revision', 'authored_by', 'section0', 'data_inputs', 'causality', 'desk_items', 'arms', 'comparison', 'sample',
-  'decision_table', 'power', 'scope', 'deviation_codes']);
+  'decision_table', 'power', 'scope', 'deviation_codes', 'promotion_terms', 'robustness_declaration']);
+/** Q3b: a missing section has its own code (the freeze cannot record a terms sha or a V-5 declaration sha without it). */
+const MISSING_CODE = Object.freeze({ promotion_terms: 'PREREG_TERMS_SHA_MISSING', robustness_declaration: 'PREREG_ROBUSTNESS_DECLARATION_MISSING' });
+const TERMS_LAYERS = Object.freeze(['ALPHA', 'RISK', 'EXECUTION']);
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const LABEL = /^[A-Za-z0-9_.-]{1,40}$/;
 const FORBIDDEN_TEXT = /[`\r\n]|\*\*|TRL-|DATA:|CF:|G-CAUSAL|DEVIATION_ACCEPTED|K2_PROGRAM_FROZEN|FREEZE_PROGRAM/;
@@ -37,7 +41,7 @@ function validate(draft) {
 
   if (!isObj(draft)) return ['PREREG_SCHEMA_TYPE:draft'];
   keysOf(draft, TOP, '', codes);
-  for (const k of TOP) if (!(k in draft)) miss(k);
+  for (const k of TOP) if (!(k in draft)) { if (MISSING_CODE[k]) codes.push(MISSING_CODE[k]); else miss(k); }
   if ('schema' in draft && draft.schema !== 'K2_DRAFT_V1') type('schema');
   for (const k of ['draft_id', 'family_id', 'study_ref']) if (k in draft) token(draft[k], k);
   if ('title_zh' in draft) text(draft.title_zh, 'title_zh');
@@ -186,6 +190,46 @@ function validate(draft) {
     }
   }
 
+  if ('promotion_terms' in draft) {
+    const t = draft.promotion_terms;
+    if (!isObj(t)) type('promotion_terms');
+    else {
+      keysOf(t, promotionTerms.TERMS_KEYS, 'promotion_terms', codes);
+      for (const k of promotionTerms.TERMS_REQUIRED) if (!(k in t)) miss(`promotion_terms.${k}`);
+      if ('layer' in t && !TERMS_LAYERS.includes(t.layer)) enumBad('promotion_terms.layer');
+      // every key and leaf is a number, a boolean or a label-safe string: this part of the draft is rendered into the K2 text (V2 judges the values)
+      const leaf = (v, at, depth) => {
+        if (typeof v === 'number') { if (!Number.isFinite(v)) type(at); return; }
+        if (typeof v === 'boolean') return;
+        if (typeof v === 'string') { if (!(LABEL.test(v) && !FORBIDDEN_TEXT.test(v))) codes.push(`PREREG_SCHEMA_TEXT_FORBIDDEN:${at}`); return; }
+        if (depth > 3 || !(isObj(v) || Array.isArray(v))) { type(at); return; }
+        for (const [k, x] of Object.entries(v)) { if (!(LABEL.test(k) && !FORBIDDEN_TEXT.test(k))) codes.push(`PREREG_SCHEMA_TEXT_FORBIDDEN:${at}.key`); else leaf(x, `${at}.${k}`, depth + 1); }
+      };
+      for (const k of Object.keys(t)) if (promotionTerms.TERMS_KEYS.includes(k) && k !== 'layer') leaf(t[k], `promotion_terms.${k}`, 0);
+    }
+  }
+
+  if ('robustness_declaration' in draft) {
+    const r = draft.robustness_declaration;
+    if (!isObj(r)) type('robustness_declaration');
+    else {
+      keysOf(r, ['tests'], 'robustness_declaration', codes);
+      if (!Array.isArray(r.tests)) type('robustness_declaration.tests');
+      else {
+        r.tests.forEach((t, i) => {
+          const at = `robustness_declaration.tests[${i}]`;
+          if (!isObj(t)) { type(at); return; }
+          keysOf(t, promotionTerms.TEST_KEYS, at, codes);
+          for (const k of ['id', 'kind', 'metric', 'op']) if (!(k in t)) miss(`${at}.${k}`);
+          for (const k of ['id', 'kind', 'metric']) if (k in t && !(typeof t[k] === 'string' && LABEL.test(t[k]) && !FORBIDDEN_TEXT.test(t[k]))) codes.push(`PREREG_SCHEMA_TEXT_FORBIDDEN:${at}.${k}`);
+          if ('op' in t && typeof t.op !== 'string') type(`${at}.op`); // the allowed operators are judged by V2 against the verifier's own list
+          if (!('threshold' in t)) miss(`${at}.threshold`); else if (typeof t.threshold !== 'number' || !Number.isFinite(t.threshold)) type(`${at}.threshold`);
+          if ('multiplier' in t && (typeof t.multiplier !== 'number' || !Number.isFinite(t.multiplier))) type(`${at}.multiplier`);
+        });
+      }
+    }
+  }
+
   if ('deviation_codes' in draft) {
     if (!Array.isArray(draft.deviation_codes)) type('deviation_codes');
     else if (draft.deviation_codes.length) codes.push('PREREG_SCHEMA_DEVIATION_NOT_ALLOWED');
@@ -194,6 +238,6 @@ function validate(draft) {
 }
 
 /** Pin of the K2_DRAFT_V1 structure the prompt admission names (V14): changes whenever a key list or enum above changes. */
-const SCHEMA_SHA256 = require('crypto').createHash('sha256').update(JSON.stringify({ TOP, DESK_ITEMS, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, LIVE_CLASSES })).digest('hex');
+const SCHEMA_SHA256 = require('crypto').createHash('sha256').update(JSON.stringify({ TOP, DESK_ITEMS, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, LIVE_CLASSES, TERMS: [promotionTerms.TERMS_KEYS, promotionTerms.TERMS_REQUIRED, TERMS_LAYERS], DECLARATION: [promotionTerms.TEST_KEYS] })).digest('hex');
 
 module.exports = { SCHEMA_SHA256, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, DESK_ITEMS, TOP, validate };
