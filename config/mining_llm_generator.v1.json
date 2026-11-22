@@ -40,7 +40,8 @@
   "limits": {
     "tokens_per_round": 1000000,
     "tokens_per_round_status": "PROPOSED 2026-11-22 by the LLM_GEN build, pending the plan coordinator's ruling (PR body: about 200k tokens and ¥1.5 expected per round; the cap is a runaway guard, worst case ¥13.5 per round off-peak)",
-    "calls_per_round": 40
+    "calls_per_round": 40,
+    "empty_replies_stop": 3
   },
   "exchange": {
     "poll_ms": 1000,
@@ -56,14 +57,10 @@
         "SEL.XSEC.LOW_TURNOVER",
         "SEL.XSEC.REVERSAL",
         "SEL.XSEC.LOW_VOLATILITY",
-        "SEL.XSEC.PRICE_VOLUME_CORR",
-        "SEL.VALUE.MARGIN_RANK"
+        "SEL.XSEC.PRICE_VOLUME_CORR"
       ],
-      "why": "only the registered SELECT mechanisms the 13 frozen readings can express (per-stock price, turnover and valuation readings); the mainline, sector-cycle, universe and portfolio mechanisms need readings the frozen space does not have"
+      "why": "only the registered SELECT mechanisms the 13 frozen readings can express: per-stock price, turnover and valuation readings (SEL.XSEC.*). The mainline, sector-cycle, universe and portfolio mechanisms, and SEL.VALUE.MARGIN_RANK (mainline members, implied growth), need data the frozen space does not have"
     },
     "max_line_chars": 200
-  },
-  "ping": {
-    "max_tokens": 64
   }
 }

@@ -276,7 +276,7 @@ function roundResults(candidates, panel, { holding_period: H, market, familyTria
     const cmp = libraryComparison(s.comparison.values, panel, s.comparison.days, { market, factorSeries });
     const m = mechanisms.get(c.candidate_id) || null;
     return {
-      schema: 'MINED_CANDIDATE_RESULT_V1', candidate_id: c.candidate_id, factor_id: c.candidate_id, market, formula: c.formula, generator: 'AI_MINED_GP',
+      schema: 'MINED_CANDIDATE_RESULT_V1', candidate_id: c.candidate_id, factor_id: c.candidate_id, market, formula: c.formula, generator: c.generator || 'AI_MINED_GP',
       holdout: { ...s.holdout, opened_at: openedAt, scored_at: scoredAt, segment_open_index: segmentOpenIndex },
       net_of_cost: s.net_of_cost,
       overfit: { dsr: dsr.dsr, dsr_segment: dsr.segment, dsr_t_months: dsr.t_months, n_trials: familyTrialCount, pbo: isNum(pbo.value) ? pbo.value : pbo, pbo_scope: 'ROUND_CANDIDATE_SET',

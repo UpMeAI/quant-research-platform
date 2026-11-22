@@ -67,12 +67,11 @@ function loadConfig({ bytes = null } = {}) {
   need(isObj(c.request) && Object.keys(c.request).every((x) => REQUEST_SECTION_KEYS.includes(x)) && REQUEST_SECTION_KEYS.every((x) => Number.isFinite(c.request[x])), 'CONFIG_INVALID', 'request');
   need(c.request.max_tokens >= 1 && c.request.timeout_ms >= 1000, 'CONFIG_INVALID', 'request range');
   need(isObj(c.batch) && isPosInt(c.batch.formulas_per_call) && c.batch.formulas_per_call <= 50, 'CONFIG_INVALID', 'batch');
-  need(isObj(c.limits) && isPosInt(c.limits.tokens_per_round) && isPosInt(c.limits.calls_per_round), 'CONFIG_INVALID', 'limits');
+  need(isObj(c.limits) && isPosInt(c.limits.tokens_per_round) && isPosInt(c.limits.calls_per_round) && isPosInt(c.limits.empty_replies_stop), 'CONFIG_INVALID', 'limits');
   need(isObj(c.exchange) && isPosInt(c.exchange.poll_ms) && isPosInt(c.exchange.wait_polls), 'CONFIG_INVALID', 'exchange');
   const p = c.prompt;
   need(isObj(p) && isText(p.version) && isObj(p.mechanisms) && isText(p.mechanisms.layer) && isText(p.mechanisms.decision_point) && Array.isArray(p.mechanisms.ids) && p.mechanisms.ids.length >= 1
     && isPosInt(p.max_line_chars), 'CONFIG_INVALID', 'prompt');
-  need(isObj(c.ping) && isPosInt(c.ping.max_tokens) && c.ping.max_tokens <= 64 && c.ping.max_tokens <= c.request.max_tokens, 'CONFIG_INVALID', 'ping');
   return { config: c, sha256: sha256(buf), path: CONFIG_PATH };
 }
 
@@ -159,8 +158,8 @@ function buildPrompt({ view, space, mechanisms, holdingPeriod, n, miningSegment,
   return { messages, sha256: sha256(JSON.stringify(messages)), version: config.prompt.version };
 }
 
-/** token 数的上界（不是计量：计量用接口报的用量）。按 UTF-8 字节数的一半估，多了不少。 */
-const estimateTokens = (messages) => messages.reduce((a, m) => a + Math.ceil(Buffer.byteLength(m.content, 'utf8') / 2) + 8, 0);
+/** token 数的上界（不是计量：计量用接口报的用量）：每个 UTF-8 字节最多一个 token（数字多的行接近这个数），每条消息再加 8。 */
+const estimateTokens = (messages) => messages.reduce((a, m) => a + Buffer.byteLength(m.content, 'utf8') + 8, 0);
 
 // ── 3 请求 ───────────────────────────────────────────────────────────────
 
@@ -169,9 +168,9 @@ function buildRequest({ messages, config, maxTokens = null }) {
   return { model: config.model.api_model, messages, max_tokens: maxTokens || config.request.max_tokens, temperature: config.request.temperature, stream: false };
 }
 
-/** 探活请求：一条不含公式的请求。 */
+/** 探活请求：一条不含公式的请求。max_tokens 用生产值（它只是上限，回答一个词花的一样多），这样接口不认这个值，开轮之前就看得到。 */
 function pingRequest(config) {
-  return buildRequest({ messages: [{ role: 'system', content: 'You are a connectivity check.' }, { role: 'user', content: 'Reply with the single word OK.' }], config, maxTokens: config.ping.max_tokens });
+  return buildRequest({ messages: [{ role: 'system', content: 'You are a connectivity check.' }, { role: 'user', content: 'Reply with the single word OK.' }], config });
 }
 
 /** 发出之前核请求体（网络那一步在发之前再核一遍）。 */
@@ -210,7 +209,7 @@ function parseFormulas(content, n) {
   for (const raw of content.split('\n')) {
     const line = raw.replace(/\r$/, '').trim();
     if (!line) continue;
-    if (line.startsWith('```')) { dropped += 1; continue; }
+    if (/^```[A-Za-z0-9_+-]*$/.test(line)) { dropped += 1; continue; } // 只丢单独成行的围栏标记；围栏里同一行的公式照样算一个尝试
     all.push(line);
   }
   return { formulas: all.slice(0, n), lines_dropped: dropped, lines_overflow: Math.max(0, all.length - n) };
@@ -241,10 +240,10 @@ function createGenerator({ config, mechanisms, space, holdingPeriod }) {
 
 // ── 5 交换目录 ───────────────────────────────────────────────────────────
 
-const EXCHANGE_MODE = 0o777; // 执行器容器与网络那一步容器在宿主机上是不同的 uid，目录要对两边都可写
+const EXCHANGE_MODE = 0o1777; // 执行器容器与网络那一步容器在宿主机上是不同的 uid，目录要对两边都可写；粘滞位：各自只删自己的文件
 const exchangeName = (key) => String(key).replace(/[^A-Za-z0-9_-]/g, '_');
 
-/** 建交换目录（已有也行），模式 0777。 */
+/** 建交换目录（已有也行），模式 1777。 */
 function ensureExchangeDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
   fs.chmodSync(dir, EXCHANGE_MODE);
@@ -265,6 +264,25 @@ function writeRequest(dir, { kind, key, round_id: roundId, body }, { writtenAt =
   if (!fs.existsSync(file)) writeAtomic(file, `${JSON.stringify(rec)}\n`);
   return { file, request_sha256: rec.request_sha256 };
 }
+/**
+ * 撤回没人答的旧请求：写一个 WITHDRAWN_BY_RUNNER 应答，网络那一步见到应答就不再答（花了钱没有记账的口子就此堵上）。
+ *   - roundId 不给：全部撤回（llm-init 做，在网络那一步容器起来之前：这时留在目录里的请求都属于已经结束的上一次运行）；
+ *   - roundId 给了：只撤回本轮、GENERATE、键不是 keepKey 的（generate 在写新请求之前做；别的轮的请求、探活请求不动）。
+ * @returns {string[]} 被撤回的键
+ */
+function withdrawUnanswered(dir, { roundId = null, keepKey = null, now = () => new Date().toISOString() } = {}) {
+  const withdrawn = [];
+  for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.req.json')).sort()) {
+    const req = readJson(path.join(dir, name));
+    if (!req || req.schema !== 'MINING_LLM_REQUEST_V1' || typeof req.key !== 'string') continue;
+    if (roundId !== null && (req.kind !== 'GENERATE' || req.round_id !== roundId || req.key === keepKey)) continue;
+    if (readResponse(dir, req.key)) continue;
+    writeAtomic(path.join(dir, `${exchangeName(req.key)}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: req.key, kind: req.kind, round_id: req.round_id,
+      request_sha256: req.request_sha256, answered_at: now(), outcome: 'WITHDRAWN_BY_RUNNER', sent: false, reason: roundId === null ? 'WITHDRAWN_AT_INIT' : 'PROMPT_CHANGED_BEFORE_ANSWER' })}\n`);
+    withdrawn.push(req.key);
+  }
+  return withdrawn;
+}
 /** 读应答（没有 → null）。 */
 function readResponse(dir, key) { return readJson(path.join(dir, `${exchangeName(key)}.res.json`)); }
 
@@ -283,5 +301,5 @@ function waitResponse(dir, key, { pollMs, waitPolls }) {
 module.exports = {
   CONFIG_PATH, VIEW_KEYS, SCORE_KEYS, REQUEST_KEYS, NOT_REPORTED, LlmError,
   loadConfig, mechanismsFor, createGenerator, formatScore, buildPrompt, estimateTokens, buildRequest, pingRequest, checkRequestBody, checkResponseModel, parseFormulas,
-  exchangeName, ensureExchangeDir, writeAtomic, readJson, writeRequest, readResponse, waitResponse, sleepMs,
+  exchangeName, ensureExchangeDir, writeAtomic, readJson, writeRequest, withdrawUnanswered, readResponse, waitResponse, sleepMs,
 };

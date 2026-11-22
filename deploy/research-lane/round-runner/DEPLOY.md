@@ -270,7 +270,7 @@ The evidence sha256 is that of `artifacts/coordinator/evidence/rf1116-round1-def
 
 Brief 93a93509 + addendum 2 5ab7b720. The first real LLM round is 2026-12-01 (November's two rounds are used); nothing here opens one earlier.
 
-**Containers.** `generate-llm` and `resume-llm` start `rf1116-llm-step` detached, run the generate container (`--network none`, name `rf1116-generate-llm` or `rf1116-generate-llm-resume`, so the window pause matches `rf1116-generate-*`), and stop the step container whatever the exit code. `llm-ping` runs the ping container. The exchange directory `$OUT/llm-exchange` is created by `llm-init` (the runner image, mode 0777).
+**Containers.** `generate-llm` and `resume-llm` start `rf1116-llm-step` detached, run the generate container (`--network none`, name `rf1116-generate-llm` or `rf1116-generate-llm-resume`, so the window pause matches `rf1116-generate-*`), and stop the step container whatever the exit code. `llm-ping` runs the ping container. The exchange directory `$OUT/llm-exchange` is created by `llm-init` (the runner image, mode 1777), which also withdraws every unanswered request left by the previous run, before the step container exists. The step container is stopped by an EXIT trap (also on SIGTERM, SIGHUP, SIGINT), so it does not outlive `run.sh`; only SIGKILL skips it.
 
 | | `rf1116-llm-step` / `rf1116-llm-ping` | generate containers |
 |---|---|---|
@@ -280,7 +280,7 @@ Brief 93a93509 + addendum 2 5ab7b720. The first real LLM round is 2026-12-01 (No
 | environment | none (the key is a file, not a variable) | `QRP_DATA_DIR`, `QRP_PRODUCT_MILESTONE_AUTHORITY` |
 | limits | 1 CPU, 1g, 64 pids, read-only root, 16m tmpfs | as for GP |
 
-**The key (★K (b)).** Host file `/home/kayla/.config/qrp-research-key/deepseek-research.env`, variable `DEEPSEEK_RESEARCH_API_KEY`, mode 0600 (0400 also works), owner kayla. The Owner places it with `~/ops/linux-deepseek-research-key/install-deepseek-research-key.sh`. It is mounted read-only into the step container at `/run/secrets/deepseek-research.env`, and nowhere else. It is never printed, logged, written to a file or committed. A group- or other-readable file counts as absent.
+**The key (★K (b)).** Host file `/home/kayla/.config/qrp-research-key/deepseek-research.env`, variable `DEEPSEEK_RESEARCH_API_KEY`, mode 0600 (0400 also works), owner kayla. The Owner places it with `~/ops/linux-deepseek-research-key/install-deepseek-research-key.sh`. It is mounted read-only into the step container at `/run/secrets/deepseek-research.env`, and nowhere else, **only if the file exists**: Docker's `-v` creates a directory for a missing host path, which would turn the key path into a directory and break the installer. Without the file the step reports `FILE_ABSENT` and the run waits (exit 75). It is never printed, logged, written to a file or committed. A group- or other-readable file counts as absent.
 
 **Commands** (from the code directory, with `RF1116_RUNNER_IMAGE` set as for the other commands; build the image from the merge commit):
 
@@ -290,13 +290,17 @@ run.sh generate-llm <holdout_sha256> # probe, open, seal, generate, select. Exit
 run.sh resume-llm <round_id>         # probe, then continue the same round, then select
 ```
 
-**Waiting (exit 75).** The round stays `OPEN`. Read the last row of `out/qrp-data/research/mining_llm_calls.jsonl` (or `generate.json` → `llm.state`) for the state and the raw provider error. Key absent: place the key. Quota (402): top up the account. Rate limit (429): wait. Model mismatch: the coordinator re-checks the changelog and decides; no formula from that reply is used. Then `resume-llm <round_id>`. Nothing is retried automatically.
+**Waiting (exit 75).** `WAITING_METER_UNKNOWN` (a reply with no usage block; the cost cannot be metered, so the formulas are not used) is one of the states. The round stays `OPEN`. Read the last row of `out/qrp-data/research/mining_llm_calls.jsonl` (or `generate.json` → `llm.state`) for the state and the raw provider error. Key absent: place the key. Quota (402): top up the account. Rate limit (429): wait. Model mismatch: the coordinator re-checks the changelog and decides; no formula from that reply is used. Then `resume-llm <round_id>`. Nothing is retried automatically.
 
-**Stopped (exit 3).** `STOPPED_TOKEN_CAP` or `STOPPED_CALL_CAP`: the config's per-round limit is reached. Raising it is a config change, which changes the config sha and so stops every open round that froze the old one (`MINE_RUNNER_LLM_CONFIG_CHANGED`); the coordinator rules on it. `STOPPED_REQUEST_INVALID`: read the raw error (for example `max_tokens` above what the API allows for the model).
+**Stopped (exit 3).**
+- `STOPPED_TOKEN_CAP`, `STOPPED_CALL_CAP`, `STOPPED_EMPTY_REPLIES`: the per-round limit or the model's ability is used up. The command has already run the validation-fold selection on the attempts so far (when there is at least one), so the round goes on to `mechanisms`, `review` and `score` like any other. Raising a limit is a config change, which changes the config sha and so stops every open round that froze the old one (`MINE_RUNNER_LLM_CONFIG_CHANGED`); the coordinator rules on it.
+- `STOPPED_REQUEST_INVALID`, or a stop with no attempt: nothing is selected. Read the raw error (for example `max_tokens` above what the API allows for the model; the probe sends the production value, so this shows before a round opens). The coordinator closes the round with `fail-evaluation` (0 passes, attempts stay in N, the slot is freed).
 
 **Window pause.** The generate containers are paused like the GP ones (name match). The step container is idle while generate is paused and is not paused. Run only outside the V6 windows.
 
-**Per-round cost** (arithmetic in the PR body; token numbers are estimates until round 1's metered usage replaces them): about 20 calls of 10 formulas, about 125k input and 60k output tokens, about ¥1.4 off-peak; the hard cap is `limits.tokens_per_round` in the config.
+**Per-round cost** (arithmetic in the PR body; token numbers are estimates until round 1's metered usage replaces them): about 20 calls of 10 formulas, about 130k input and 70k output tokens, about ¥1.5 off-peak; the hard cap is `limits.tokens_per_round` in the config.
+
+**Exchange directory risk.** Mode 1777 lets any local user who can reach `$OUT` plant a request (which would spend money) or a forged reply. The lane host is single-user (kayla) plus root; keep it that way.
 
 ## Limits and timing
 

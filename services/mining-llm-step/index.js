@@ -79,6 +79,8 @@ function lockEgress({ host, port }) {
   wrap(tls, 'connect', guardConnect('tls.connect'));
   wrap(net.Socket.prototype, 'connect', guardConnect('socket.connect'));
   dgram.createSocket = () => refuse('dgram');
+  // 直接 new dgram.Socket 也不行：发与连都拒（UDP 不是模型接口）
+  for (const m of ['send', 'connect']) dgram.Socket.prototype[m] = function refusedUdp() { return refuse(`dgram.Socket.${m}`); };
   globalThis.fetch = () => Promise.reject(new EgressError('fetch'));
   return LOCK;
 }
@@ -112,8 +114,12 @@ function readKey({ file, variable }) {
 /** 原始错误：打码（密钥原文、Bearer、sk- 开头的串），截断。 */
 function redact(text, key = null) {
   let t = String(text);
-  if (key) t = t.split(key).join('[REDACTED]');
-  t = t.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, 'Bearer [REDACTED]').replace(/sk-[A-Za-z0-9_-]{12,}/g, '[REDACTED]');
+  if (key) {
+    t = t.split(key).join('[REDACTED]');
+    // 上游常回显「掩码 + 末几位」：末位（4 到 16 个字符，长的先替）也不留
+    for (let n = Math.min(16, key.length - 1); n >= 4; n -= 1) t = t.split(key.slice(-n)).join('[REDACTED]');
+  }
+  t = t.replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, 'Bearer [REDACTED]').replace(/[A-Za-z0-9_-]*\*{2,}[A-Za-z0-9_-]*/g, '[REDACTED]').replace(/sk-[A-Za-z0-9_-]{12,}/g, '[REDACTED]');
   return t.length > RAW_ERROR_MAX ? `${t.slice(0, RAW_ERROR_MAX)}…[truncated ${t.length - RAW_ERROR_MAX} chars]` : t;
 }
 

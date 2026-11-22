@@ -52,9 +52,16 @@ field_exclusions() {
 llm_init() {
   docker run --rm --name "rf1116-llm-init" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" "$IMAGE" llm-init --out /out
 }
+# Docker's -v CREATES A DIRECTORY for a missing host path, which would turn the key path into a directory (and break the Owner's installer).
+# So the key mount exists only when the key file does; without it the step reports FILE_ABSENT and the run waits (exit 75).
+llm_key_mount() { KEYM=(); if [ -f "$KEY_FILE" ]; then KEYM=(-v "$KEY_FILE:/run/secrets/deepseek-research.env:ro"); fi; }
 # The step runs as container root (rootless Docker: host uid 1000 = the key file's owner), so it can read the 0600 key file without any capability.
+# It is stopped by an EXIT trap, so it does not outlive run.sh however run.sh ends (exit, SIGTERM, SIGHUP, SIGINT); only SIGKILL skips it.
 llm_step_up() {
-  docker run -d --rm --name "rf1116-llm-step" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 -v "$KEY_FILE:/run/secrets/deepseek-research.env:ro" -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange
+  llm_key_mount
+  trap 'docker stop rf1116-llm-step > /dev/null 2>&1 || true' EXIT
+  trap 'exit 143' TERM HUP INT
+  docker run -d --rm --name "rf1116-llm-step" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 ${KEYM[@]+"${KEYM[@]}"} -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange
 }
 
 cmd="${1:?generate|resume|mechanisms|review|score|rescore|fail-evaluation|llm-ping|generate-llm|resume-llm}"
@@ -89,7 +96,8 @@ case "$cmd" in
     ;;
   llm-ping)
     llm_init
-    docker run --rm --name "rf1116-llm-ping" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 -v "$KEY_FILE:/run/secrets/deepseek-research.env:ro" -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js ping --exchange /exchange
+    llm_key_mount
+    docker run --rm --name "rf1116-llm-ping" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 ${KEYM[@]+"${KEYM[@]}"} -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js ping --exchange /exchange
     ;;
   generate-llm)
     sums="${2:?sha256 of the holdout SHA256SUMS at seal time}"
@@ -99,7 +107,6 @@ case "$cmd" in
     docker run --rm --name "rf1116-generate-llm" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$OUT:/out:rw" "$IMAGE" generate --generator AI_MINED_LLM --out /out --lane /data/lane --tail /data/tail --holdout-ref "$HOLDOUT_REF" --holdout-sha256 "$sums"
     rc=$?
     set -e
-    docker stop rf1116-llm-step > /dev/null || true
     exit "$rc"
     ;;
   resume-llm)
@@ -110,7 +117,6 @@ case "$cmd" in
     docker run --rm --name "rf1116-generate-llm-resume" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$OUT:/out:rw" "$IMAGE" generate --generator AI_MINED_LLM --out /out --lane /data/lane --tail /data/tail --resume "$round"
     rc=$?
     set -e
-    docker stop rf1116-llm-step > /dev/null || true
     exit "$rc"
     ;;
   *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | llm-ping | generate-llm <holdout_sha256> | resume-llm <round_id> | resume <round_id> | mechanisms <round_id> [file] | review <round_id> <verdicts.json> | score <round_id> [field-exclusions.json <sha256>] | rescore <round_id> <reason> <crash.log> [field-exclusions.json <sha256>] | fail-evaluation <round_id> <reason> <evidence_sha256>" >&2; exit 64 ;;

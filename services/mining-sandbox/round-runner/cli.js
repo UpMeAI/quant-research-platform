@@ -25,7 +25,7 @@
  *   开新轮或续跑之前先探活：一条不含公式的请求经 <out>/llm-exchange 交给网络那一步（services/mining-llm-step，唯一连网的容器）；探活不过 → 不开轮、退出码 75）。
  *   别的 → MINE_GENERATOR_UNKNOWN。认不出的选项一律拒绝（generate 没有 --holdout）。
  *   --llm-poll-ms N、--llm-wait-seconds N：等交换目录里应答的间隔与最长时间（探活与每次调用；默认取配置）。
- *   llm-init --out DIR：建交换目录（模式 0777，因为执行器容器与网络那一步容器在宿主机上是不同的 uid）；run.sh 在起网络那一步之前先跑它。
+ *   llm-init --out DIR：建交换目录（模式 1777，因为执行器容器与网络那一步容器在宿主机上是不同的 uid）并撤回上一次运行留下的、没人答的请求；run.sh 在起网络那一步之前先跑它。
  * 成功：stdout 一行 JSON，退出码 0；失败：stderr 一行 JSON { error }，退出码 2；
  *   等待：stdout 一行 JSON（status WAITING，llm_state 写原因），退出码 75（密钥不在、额度 / 限流、版本对不上、网络那一步没答；本轮留在 OPEN，续跑接着来）；
  *   停止：stdout 一行 JSON（status STOPPED），退出码 3（token 上限、调用次数上限、请求体不合规）。
@@ -65,7 +65,10 @@ function main(argv) {
   if (cmd === 'llm-init') {
     required(o, ['out']);
     const { outDir } = runner.start({ outDir: o.out });
-    return { command: 'llm-init', exchange: require('../llm').ensureExchangeDir(require('path').join(outDir, 'llm-exchange')) };
+    const llmMod = require('../llm');
+    const exchange = llmMod.ensureExchangeDir(require('path').join(outDir, 'llm-exchange'));
+    // 网络那一步容器起来之前：上一次运行留下的、没人答的请求全部撤回（不然新起的那一步会悄悄答掉，花了钱没有记账）
+    return { command: 'llm-init', exchange, withdrawn: llmMod.withdrawUnanswered(exchange) };
   }
   if (cmd === 'generate') {
     const generator = { mode: o.generator || 'AI_MINED_GP', gp_seed: o.seed === undefined ? undefined : Number(o.seed) };
@@ -99,8 +102,15 @@ function main(argv) {
     const wait = isLlm ? { pollMs: llmOpts.pollMs, waitPolls: llmOpts.waitSeconds === null ? null : Math.ceil(llmOpts.waitSeconds * 1000 / (llmOpts.pollMs || require('../llm').loadConfig().config.exchange.poll_ms)) } : {};
     const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel, llm: wait });
     if (g.llm && g.llm.halted) {
-      return { command: 'generate', round_id: roundId, status: String(g.llm.state).startsWith('WAITING_') ? 'WAITING' : 'STOPPED', round_status: g.status, llm_state: g.llm.state, total: g.total, attempts: g.attempts,
-        llm: g.llm, ping: llmOpts.ping };
+      const halted = { command: 'generate', round_id: roundId, status: String(g.llm.state).startsWith('WAITING_') ? 'WAITING' : 'STOPPED', round_status: g.status, llm_state: g.llm.state, total: g.total,
+        attempts: g.attempts, llm: g.llm, ping: llmOpts.ping };
+      // 预算 / 能力用尽（token 上限、调用次数上限、连续空应答）= 生成到此为止：有尝试就选择，让本轮能继续往下走（退出码仍是 3，让人看到它是被截断的）。
+      // 没有一个尝试、请求体不合规、等待态：不选择，由协调会话看（fail-evaluation 或续跑）
+      if (g.llm.generation_closed && g.total > 0) {
+        const s = runner.select({ roundId, sources, outDir });
+        return { ...halted, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length };
+      }
+      return halted;
     }
     const s = runner.select({ roundId, sources, outDir });
     return { command: 'generate', round_id: roundId, status: g.status, total: g.total, attempts: g.attempts, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length,

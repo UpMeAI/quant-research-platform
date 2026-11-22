@@ -507,23 +507,47 @@ test('B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续�
   noKeyIn([o1, o2, o3, o4], [a.stdout, b.stdout, c.stdout, d.stdout]);
 });
 
-test('B14 重新提交之前，本轮没人答的旧请求被撤回（提示词变了之后旧请求不会被后起的网络那一步悄悄答掉、花钱不记账）；超时 / 连接重置按上界计量', async () => {
+test('B14 没人答的旧请求被撤回（llm-init 在网络那一步起来之前撤全部；generate 写新请求之前撤本轮的旧请求，别的轮不动）；超时 / 连接重置按上界计量', async () => {
+  // 阶段 1：llm-init（这时没有网络那一步）：留在目录里的请求全部撤回，同键的也撤回；之后新起的那一步一个都不答，生成换一个键重发
   const out = freshData();
   const r = openLlm({ cap: 20 });
   const dir = llm.ensureExchangeDir(path.join(out, 'llm-exchange'));
   const staleBody = { ...llm.pingRequest(llm.loadConfig().config), messages: [{ role: 'system', content: 'stale' }, { role: 'user', content: 'stale prompt from before the view changed' }] };
   const staleKey = `${r.round_id}:C001-deadbeef`;
   llm.writeRequest(dir, { kind: 'GENERATE', key: staleKey, round_id: r.round_id, body: staleBody });
-  const other = llm.writeRequest(dir, { kind: 'GENERATE', key: 'MR-OTHER-2026-12-x:C001-cafe0000', round_id: 'MR-OTHER-2026-12-x', body: staleBody });
+  const otherKey = 'MR-OTHER-2026-12-x:C001-cafe0000';
+  llm.writeRequest(dir, { kind: 'GENERATE', key: otherKey, round_id: 'MR-OTHER-2026-12-x', body: staleBody });
+  llm.writeRequest(dir, { kind: 'PING', key: 'PING-old', round_id: null, body: llm.pingRequest(llm.loadConfig().config) });
+  const L = llm.loadConfig();
+  const register = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/research_mechanism_register.v1.json'), 'utf8'));
+  const g0 = require('../services/mining-sandbox/generators').generatorFor(rounds.roundHead(r.round_id).generator,
+    { space: runner.loadFrozenSpace().dslSpace, holdingPeriod: 5, llm: { config: L.config, mechanisms: llm.mechanismsFor(register, L.config.prompt.mechanisms) } });
+  const prep0 = g0.prepare(rounds.generatorView(r.round_id), { n: 10 });
+  const sameKey = `${r.round_id}:C001-${prep0.request_sha256.slice(0, 8)}`;
+  llm.writeRequest(dir, { kind: 'GENERATE', key: sameKey, round_id: r.round_id, body: prep0.body });
+  assert.deepEqual(llm.withdrawUnanswered(dir).sort(), [otherKey, 'PING-old', sameKey, staleKey].sort());
+  for (const k of [staleKey, otherKey, 'PING-old', sameKey]) assert.equal(llm.readResponse(dir, k).outcome, 'WITHDRAWN_BY_RUNNER', k);
+  assert.deepEqual(llm.withdrawUnanswered(dir), [], 'a second pass finds nothing');
   const s = startStep(out, [{ content: C2 }]);
   let g;
   try { g = gen(out, r.round_id); } finally { await s.stop(); }
-  assert.equal(g.llm.state, null);
-  assert.equal(s.calls().length, 1, 'only the current request was sent; the stale one never reached the provider');
-  const stale = llm.readResponse(dir, staleKey);
-  assert.deepEqual([stale.outcome, stale.sent], ['WITHDRAWN_BY_RUNNER', false]);
-  assert.equal(llm.readResponse(dir, 'MR-OTHER-2026-12-x:C001-cafe0000'), null, "another round's request is not touched");
-  assert.ok(fs.existsSync(other.file));
+  assert.deepEqual([g.llm.state, g.total], [null, 20]);
+  assert.equal(s.calls().length, 2, 'the step answered only the two new requests; none of the four withdrawn ones reached the provider');
+  assert.deepEqual(rounds.llmCalls(r.round_id).map((c) => c.key), [`${sameKey}-w1`, `${r.round_id}:C002-${rounds.llmCalls(r.round_id)[1].request_sha256.slice(0, 8)}`], 'the withdrawn key is not reused as an answer');
+  // 阶段 2：generate 写新请求之前，本轮的旧请求（键不同）被撤回；别的轮的请求、探活请求不动（这里没有网络那一步，应答是预先写好的）
+  const outP2 = freshData();
+  const rP2 = openLlm({ cap: 10 });
+  const dirP2 = llm.ensureExchangeDir(path.join(outP2, 'llm-exchange'));
+  const staleP2 = `${rP2.round_id}:C001-deadbeef`;
+  llm.writeRequest(dirP2, { kind: 'GENERATE', key: staleP2, round_id: rP2.round_id, body: staleBody });
+  llm.writeRequest(dirP2, { kind: 'GENERATE', key: otherKey, round_id: 'MR-OTHER-2026-12-x', body: staleBody });
+  llm.writeRequest(dirP2, { kind: 'PING', key: 'PING-old', round_id: null, body: llm.pingRequest(llm.loadConfig().config) });
+  prewrite(outP2, rP2.round_id, 10, { content: C2.join('\n') });
+  const gP2 = gen(outP2, rP2.round_id);
+  assert.deepEqual([gP2.llm.state, gP2.total], [null, 10]);
+  assert.equal(llm.readResponse(dirP2, staleP2).outcome, 'WITHDRAWN_BY_RUNNER');
+  assert.equal(llm.readResponse(dirP2, otherKey), null, "another round's request is not touched");
+  assert.equal(llm.readResponse(dirP2, 'PING-old'), null, 'a probe request is not touched');
   // 超时：请求发出去了，是否计费不知道 → 按上界计量；402 / 429 / 401 是接口明确拒绝，不计
   const out2 = freshData();
   const r2 = openLlm({ cap: 20 });
@@ -538,4 +562,21 @@ test('B14 重新提交之前，本轮没人答的旧请求被撤回（提示词�
   try { gen(out3, r3.round_id); } finally { await s3.stop(); }
   const row3 = rounds.llmState(r3.round_id);
   assert.deepEqual([row3.outcome, row3.tokens_basis, row3.tokens_metered], ['WAITING_RATE_LIMITED', 'NONE', 0]);
+});
+
+test('B15 CLI llm-init：建交换目录（粘滞位）并撤回上一次运行留下的、没人答的请求；已有应答的不动', () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-llm-init-'));
+  const ex = path.join(out, 'llm-exchange');
+  llm.ensureExchangeDir(ex);
+  const cfg = llm.loadConfig().config;
+  llm.writeRequest(ex, { kind: 'GENERATE', key: 'MR-X:C001-aaaa0000', round_id: 'MR-X', body: llm.pingRequest(cfg) });
+  llm.writeRequest(ex, { kind: 'GENERATE', key: 'MR-X:C002-bbbb0000', round_id: 'MR-X', body: llm.pingRequest(cfg) });
+  fs.writeFileSync(path.join(ex, `${llm.exchangeName('MR-X:C002-bbbb0000')}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: 'MR-X:C002-bbbb0000', outcome: 'OK' })}\n`);
+  const r = spawnSync(process.execPath, [CLI, 'llm-init', '--out', out], { env: { ...process.env, QRP_DATA_DIR: path.join(out, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH }, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const o = JSON.parse(r.stdout);
+  assert.deepEqual([o.command, o.withdrawn], ['llm-init', ['MR-X:C001-aaaa0000']]);
+  assert.equal(llm.readResponse(ex, 'MR-X:C001-aaaa0000').outcome, 'WITHDRAWN_BY_RUNNER');
+  assert.equal(llm.readResponse(ex, 'MR-X:C002-bbbb0000').outcome, 'OK', 'an answered request is left alone');
+  assert.ok(fs.statSync(ex).mode & 0o1000, 'sticky');
 });

@@ -325,7 +325,9 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
   if (isLlm) {
     const u = rounds.llmUsage(roundId);
     out.llm = { state: halt ? halt.state : null, halted: Boolean(halt), calls: u.calls, tokens_metered: u.tokens_metered, tokens_per_round: L.config.limits.tokens_per_round, calls_per_round: L.config.limits.calls_per_round,
-      last_outcome: u.last_outcome, config_sha256: L.sha256, pending_key: halt && halt.key ? halt.key : null };
+      last_outcome: u.last_outcome, config_sha256: L.sha256, pending_key: halt && halt.key ? halt.key : null,
+      // 预算 / 能力用尽（token 上限、调用次数上限、连续空应答）= 本轮生成到此为止，带着已有的尝试往下走；别的停与等待要有人看
+      generation_closed: Boolean(halt && halt.closed) };
   }
   writeJson(path.join(dir, 'generate.json'), out);
   return out;
@@ -342,7 +344,8 @@ const usageTokens = (u) => (u && Number.isFinite(u.total_tokens) ? u.total_token
 function llmCall({ roundId, view, want, cfg, gen, outDir, opts }) {
   const { config } = cfg;
   const dir = llmMod.ensureExchangeDir(path.join(outDir, 'llm-exchange'));
-  const seq = rounds.llmCalls(roundId).length + 1;
+  const prior = rounds.llmCalls(roundId);
+  const seq = prior.length + 1;
   const used = rounds.llmUsage(roundId);
   const plain = `${roundId}:C${String(seq).padStart(3, '0')}`;
   const blank = { seq, key: plain, final: false, sent: false, http_status: null, n_requested: want, formulas_returned: 0, lines_dropped: 0, lines_overflow: 0, usage: null, tokens_metered: 0, tokens_basis: 'NONE',
@@ -351,19 +354,34 @@ function llmCall({ roundId, view, want, cfg, gen, outDir, opts }) {
   const record = (row) => rounds.recordLlmCall(roundId, { ...blank, ...row }, { recordedAt: now() });
   if (used.calls >= config.limits.calls_per_round) {
     record({ outcome: 'STOPPED_CALL_CAP', reason: `calls ${used.calls} >= ${config.limits.calls_per_round}` });
-    return { halt: true, state: 'STOPPED_CALL_CAP' };
+    return { halt: true, state: 'STOPPED_CALL_CAP', closed: true };
+  }
+  // 连续空应答（常见于 finish_reason: length）不写尝试，会白花到调用次数上限：到数就停
+  let trailing = 0;
+  for (let i = prior.length - 1; i >= 0 && prior[i].outcome === 'OK' && prior[i].formulas_returned === 0; i -= 1) trailing += 1;
+  if (trailing >= config.limits.empty_replies_stop) {
+    record({ outcome: 'STOPPED_EMPTY_REPLIES', reason: `${trailing} consecutive replies without a formula` });
+    return { halt: true, state: 'STOPPED_EMPTY_REPLIES', closed: true };
   }
   const prep = gen.prepare(view, { n: want });
   const key = `${plain}-${prep.request_sha256.slice(0, 8)}`;
   if (used.tokens_metered + prep.tokens_upper_bound > config.limits.tokens_per_round) {
     record({ key, outcome: 'STOPPED_TOKEN_CAP', request_sha256: prep.request_sha256, prompt_sha256: prep.prompt_sha256, reason: `used ${used.tokens_metered} + bound ${prep.tokens_upper_bound} > ${config.limits.tokens_per_round}` });
-    return { halt: true, state: 'STOPPED_TOKEN_CAP' };
+    return { halt: true, state: 'STOPPED_TOKEN_CAP', closed: true };
   }
-  llmMod.writeRequest(dir, { kind: 'GENERATE', key, round_id: roundId, body: prep.body });
+  // 提示词变了（别的轮加了已试公式）之后，本轮没人答的旧请求要撤回，免得后起的网络那一步悄悄答掉：花了钱没有记账
+  // 同一个请求（同序号、同提示词）在 llm-init 里被撤回过：换一个键重新发，不拿「已撤回」当答案
+  let useKey = key;
+  for (let n = 1; ; n += 1) {
+    const prev = llmMod.readResponse(dir, useKey);
+    if (prev && prev.outcome === 'WITHDRAWN_BY_RUNNER') useKey = `${key}-w${n}`; else break;
+  }
+  llmMod.withdrawUnanswered(dir, { roundId, keepKey: useKey, now });
+  llmMod.writeRequest(dir, { kind: 'GENERATE', key: useKey, round_id: roundId, body: prep.body });
   const every = opts.pollMs || config.exchange.poll_ms;
-  const res = llmMod.waitResponse(dir, key, { pollMs: every, waitPolls: opts.waitPolls || config.exchange.wait_polls });
-  if (!res) return { halt: true, state: 'WAITING_STEP_NO_RESPONSE', key };
-  const base = { key, final: true, sent: Boolean(res.sent), http_status: res.http_status === undefined ? null : res.http_status, request_sha256: res.request_sha256 || prep.request_sha256,
+  const res = llmMod.waitResponse(dir, useKey, { pollMs: every, waitPolls: opts.waitPolls || config.exchange.wait_polls });
+  if (!res) return { halt: true, state: 'WAITING_STEP_NO_RESPONSE', key: useKey };
+  const base = { key: useKey, final: true, sent: Boolean(res.sent), http_status: res.http_status === undefined ? null : res.http_status, request_sha256: res.request_sha256 || prep.request_sha256,
     response_sha256: res.response_sha256 || null, prompt_sha256: prep.prompt_sha256, raw_error: res.raw_error || null, reason: res.reason || null, model_reported: res.model || null,
     finish_reason: res.finish_reason || null, system_fingerprint: res.system_fingerprint || null, usage: res.usage || null };
   if (res.outcome === 'OK') {
@@ -374,12 +392,17 @@ function llmCall({ roundId, view, want, cfg, gen, outDir, opts }) {
       record({ ...base, ...meter, outcome: it.outcome, model_reported: it.model_reported, reason: `served model ${it.model_reported} is not the pinned ${config.model.served_version}` });
       return { halt: true, state: it.outcome };
     }
+    if (reported === null) { // 计量不明就失败即关：按上界计量，这批公式不用，本轮等待（plan-coord 2026-11-22）
+      record({ ...base, ...meter, outcome: 'WAITING_METER_UNKNOWN', reason: 'the reply carries no usage block: the cost cannot be metered, so the round waits and its formulas are not used' });
+      return { halt: true, state: 'WAITING_METER_UNKNOWN' };
+    }
     record({ ...base, ...meter, outcome: 'OK', model_reported: it.model_reported, served_version: it.served_version, formulas_returned: it.formulas.length, lines_dropped: it.lines_dropped, lines_overflow: it.lines_overflow });
     return { halt: false, formulas: it.formulas };
   }
-  // 等待 / 停止：原始错误照留。网络那一步在调用途中崩了：调用可能已经计费，按上界计量（宁多不少）
-  const crashed = res.outcome === 'WAITING_STEP_CRASHED_MID_CALL';
-  record({ ...base, outcome: res.outcome, tokens_metered: crashed ? prep.tokens_upper_bound : 0, tokens_basis: crashed ? 'UPPER_BOUND' : 'NONE' });
+  // 等待 / 停止：原始错误照留
+  // 超时、连接重置、读不懂的 200：请求已经发出，是否计费不知道，同样按上界计量。402 / 429 / 401 / 400 是接口明确拒绝，不计
+  const unknownCost = res.sent && (res.outcome === 'WAITING_STEP_CRASHED_MID_CALL' || res.outcome === 'WAITING_PROVIDER_UNAVAILABLE');
+  record({ ...base, outcome: res.outcome, tokens_metered: unknownCost ? prep.tokens_upper_bound : 0, tokens_basis: unknownCost ? 'UPPER_BOUND' : 'NONE' });
   return { halt: true, state: res.outcome };
 }
 
@@ -695,7 +718,8 @@ function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenI
   const f = loadFrozenSpace();
   const panel = adapter.buildPanel({ sources: [...sources, p.checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
-  const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace) })),
+  const generatorMode = rounds.roundHead(roundId).generator.mode; // 结果记的生成方式来自轮次清单（LLM 轮不能记成 GP）
+  const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace), generator: generatorMode })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation: p.validation,
       familySharpes: p.familySharpes, mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt,
       review: p.reviewed ? { verdicts: p.reviewed.verdicts, review_hash: p.reviewed.review.record_hash, reviewed_at: p.reviewed.review.reviewed_at } : null });
