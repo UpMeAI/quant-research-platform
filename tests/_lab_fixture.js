@@ -86,7 +86,7 @@ function inProcessExecutor({ outDir, asOf, incident = false }) {
  * @param {{asOf?: string, patch?: (parts: object) => void}} [o]
  * @returns {Promise<{job: object, services: object, work: string, outDir: string, spies: object, draft: object, card: object}>}
  */
-async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_DATE, formulas = FORMULAS, candidateFormula = CANDIDATE_FORMULA, incident = false, backtestRules = { rebalance: 'WEEKLY', quantile: 0.2 }, realBacktest = false } = {}) {
+async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_DATE, formulas = FORMULAS, candidateFormula = CANDIDATE_FORMULA, incident = false, backtestRules = { rebalance: 'WEEKLY', quantile: 0.2 }, realBacktest = false, idleBook = 0 } = {}) {
   const work = tmp('qrp-w24-world-');
   process.env.QRP_DATA_DIR = path.join(work, 'data'); fs.mkdirSync(process.env.QRP_DATA_DIR);
   const outDir = path.join(work, 'out'); fs.mkdirSync(outDir);
@@ -120,7 +120,7 @@ async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_
       register: (prepared) => { spies.registered += 1; return K.registerAt(prepared); },
     },
     // default: a well-behaved synthetic replay output (the 15-stock fixture's own economics cannot pass S3 after costs); realBacktest: true runs the QRP backtester on the fixture tables
-    backtest: { run: ({ formula, candidateId }) => { if (!realBacktest) return { replay: require('./_lab_replay_fixture').makeReplay({ days: 504 }) }; const fx = miningFixture();
+    backtest: { run: ({ formula, candidateId }) => { if (!realBacktest) { const rp = require('./_lab_replay_fixture').makeReplay({ days: 504 }); if (idleBook) { const keep = Math.round(rp.portfolio.without.length * (1 - idleBook)); rp.portfolio.without = rp.portfolio.without.map((x, i) => (i < keep ? x : { ...x, net: 0 })); } return { replay: rp }; } const fx = miningFixture();
       const r = backtester.run({ formula, candidateId, sources: [adapter.csvDirSource(fx.dirs.lane, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(fx.dirs.tail, { mode: 'LIVE', label: 'tail' })], rules: backtestRules,
         existingBook: existingBook(), market: 'CN_A', costBook: 'STOCK_BOOK', costModelRef: 'W24_QRP_BACKTEST_COSTS_V1' }); if (r.refusal) return { refusal: r.refusal };
       // the fixture's synthetic codes (S01.SH) carry no board prefix: map them to real-format codes for V-4's board and price-limit functions

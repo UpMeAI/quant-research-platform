@@ -222,3 +222,17 @@ test('S4 overlap threshold 0.7 (NOTE_1): exactly 0.7 passes, strictly greater re
   assert.equal(over.verdict, 'FAIL');
   assert.ok(over.reasonCodes.includes('S4_OVERLAP_ABOVE_MAX'));
 });
+
+test('S4 existing_book_active_share: the share of days the existing book moved; below 20% the body carries limitation EXISTING_BOOK_MOSTLY_IDLE, from 20% up it does not; the engine verdict is unchanged', () => {
+  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.7 } } });
+  const active = s4.produce({ replay: R.makeReplay(), terms: t, star: STAR }).body;
+  assert.equal(active.existing_book_active_share, 1);
+  assert.equal('limitation' in active, false);
+  const idle = (share) => { const r = R.makeReplay(); const n = r.portfolio.without.length; const keep = Math.round(n * share); r.portfolio.without = r.portfolio.without.map((x, i) => (i < keep ? x : { ...x, net: 0 })); r.portfolio.with = r.portfolio.with.map((x, i) => (i < keep ? x : { ...x, net: x.net })); return r; };
+  const low = s4.produce({ replay: idle(0.193), terms: t, star: STAR }).body;
+  assert.ok(Math.abs(low.existing_book_active_share - 0.193) < 0.002, String(low.existing_book_active_share));
+  assert.equal(low.limitation, 'EXISTING_BOOK_MOSTLY_IDLE');
+  const edge = s4.produce({ replay: idle(0.2), terms: t, star: STAR }).body;
+  assert.equal('limitation' in edge, false, '20% is not below 20%');
+  assert.equal(evalStage('S4', { ...low }, t).verdict, evalStage('S4', { ...low, limitation: undefined }, t).verdict, 'the limitation is a label, not an input of the decision');
+});
