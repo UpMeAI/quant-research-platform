@@ -10,6 +10,8 @@
     "verifier": ["services/independent-verifier", "config/independent_verifier.v1.json", "tools/independent-verifier-host-evidence.js"],
     "decisionTables": ["config/independent_verifier.v1.json", "config/mining_gate_thresholds.v1.json", "docs/freeze"]
   },
+  "pboScope": "ROUND_CANDIDATE_SET",
+  "pboScopeSource": "G-MINE PBO_SCOPE (RF1116 section 3.6 item 2): PBO is computed on the round candidate set",
   "bhyAlpha": 0.05,
   "bhyAlphaSource": "docs/contracts/RACE_V2.md guardrails (bhy_alpha 0.05, risk layer); star default, freeze before first formal use",
   "participationCap": 0.1,

@@ -4,7 +4,8 @@
  * V-1…V-6（PLAN V1.1 修订 1 §2.1）。每项只调用现有闸门，不重写：
  *   V1  ../causality-gate（G-CAUSAL）、../parity-gate（研究实盘一致口令门）
  *   V2  ../mining-sandbox/segments（三段切分）、../trial-ledger segmentsFor（W05 SEEN/UNSEEN）、./authority 的留出段读取台账（与 ../holdout-vault 的一轮一开一致）
- *   V3  ../mining-gate checkDsr / checkPbo（门槛读 ../trial-ledger/overfit）、overfit.bhy、../factor-library DEDUPE.RHO_MAX
+ *   V3  ../trial-ledger/overfit 的 DSR_MIN / PBO_MAX（G-MINE 读的是同一处）与 bhy、../factor-library DEDUPE.RHO_MAX；
+      G-MINE 服务本身只许挖掘轮次的逐候选记录调用（tests/mining_gate.test.js 的守卫），所以这里不 require 它，只读它读的那几个门槛，原因码沿用 MINE_ 前缀
  *   V4  ../cost-gate（FLOORS + coverage，QRP #143）、../mining-sandbox/price-limits（涨跌停成交约束）
  *   V5  K2 事先写明的鲁棒性声明（声明的 sha256 写在冻结的 K2 里），只做声明里的检验
  *   V6  晋级引擎的 S4 合同（W16 并行 PR）；引擎未合并前读文件合同 {candidateId, s4Evidence}
@@ -17,7 +18,6 @@ const overfit = require('../trial-ledger/overfit');
 const causality = require('../causality-gate');
 const parity = require('../parity-gate');
 const costGate = require('../cost-gate');
-const miningGate = require('../mining-gate');
 const factorLib = require('../factor-library');
 const limits = require('../mining-sandbox/price-limits');
 const { SEGMENTS } = require('../mining-sandbox/segments');
@@ -114,8 +114,11 @@ function v3(bundle) {
     if (dup.some((p) => p.familyId !== bundle.familyId)) codes.push('RESUBMISSION_FAMILY_SPLIT');
     if (dup.some((p) => !(t.familyTrialCount > p.nTrialsAtFailure))) codes.push('RESUBMISSION_N_NOT_CUMULATIVE');
   }
-  const cand = { overfit: t.overfit };
-  codes.push(...miningGate.checkDsr(cand, { familyTrialCount: t.familyTrialCount }).codes, ...miningGate.checkPbo(cand).codes);
+  const o = isObj(t.overfit) ? t.overfit : {};
+  if (!isNum(o.dsr)) codes.push('MINE_DSR_UNKNOWN'); else if (!(o.dsr >= overfit.DSR_MIN)) codes.push('MINE_DSR_BELOW_MIN');
+  if (!Number.isInteger(t.familyTrialCount) || t.familyTrialCount < 1) codes.push('MINE_DSR_N_UNKNOWN'); else if (o.n_trials !== t.familyTrialCount) codes.push('MINE_DSR_N_NOT_CUMULATIVE');
+  if (!isNum(o.pbo)) codes.push('MINE_PBO_UNKNOWN'); else if (!(o.pbo <= overfit.PBO_MAX)) codes.push('MINE_PBO_ABOVE_MAX');
+  if (o.pbo_scope !== bundle.cfg.pboScope) codes.push('MINE_PBO_SCOPE');
   const b = t.overfit && t.overfit.bhy;
   if (!isObj(b) || !Array.isArray(b.pValues) || !Number.isInteger(b.index)) codes.push('BHY_INPUT_MISSING');
   else if (!(overfit.bhy(b.pValues)[b.index] <= bundle.cfg.bhyAlpha)) codes.push('BHY_NOT_SIGNIFICANT');

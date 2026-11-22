@@ -21,7 +21,7 @@ const { canonicalJson } = require('../trial-ledger');
 const ROOT = path.join(__dirname, '..', '..');
 const CONFIG_FILE = path.join(ROOT, 'config', 'independent_verifier.v1.json');
 /** 配置的 canonicalJson 的 sha256；改配置必须同时改这一行，两处都在评审过的提交里。 */
-const CONFIG_SHA256 = 'a5a13b5e16ee68f1e5cfc799d516a19d70577fa66cf17b5dc683261fbb737198';
+const CONFIG_SHA256 = '835775c57a3cd110b3811404d8b041b46f40bae0efb45ed28254dc32c92c83a6';
 const ACTIONS = Object.freeze(['WRITE_FILE', 'MODIFY_DECISION_TABLE', 'REQUEST_METRICS', 'REQUEST_VERDICT_DETAIL', 'READ_FILE', 'HOLDOUT_READ']);
 
 class VerifierAuthorityError extends Error {

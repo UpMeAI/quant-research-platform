@@ -12,7 +12,7 @@ Code: `services/independent-verifier/` (`index.js` orchestrator, `stages.js`, `a
 |---|---|---|
 | V1 | time causality + research/live parity | `services/causality-gate` (G-CAUSAL), `services/parity-gate` |
 | V2 | sample isolation: generator reads never past the validation segment end; holdout read at most once per frozen candidate and not before 2026-12-31; a claimed UNSEEN window holds no SEEN day | `services/mining-sandbox/segments`, `services/trial-ledger` `segmentsFor` (W05 labels), holdout-read grants in `authority.js` |
-| V3 | multiple testing: DSR, PBO, BHY with the trial-family N; near-duplicate resubmission after a holdout failure | `services/mining-gate` `checkDsr`/`checkPbo`, `trial-ledger/overfit` `bhy`, `factor-library` `DEDUPE.RHO_MAX` |
+| V3 | multiple testing: DSR, PBO, BHY with the trial-family N; near-duplicate resubmission after a holdout failure | `trial-ledger/overfit` `DSR_MIN`/`PBO_MAX`/`bhy` (G-MINE reads the same constants; the G-MINE service itself is not required, see `tests/mining_gate.test.js` guard), `factor-library` `DEDUPE.RHO_MAX` |
 | V4 | cost and trading constraints | `services/cost-gate` (`assessCostModel` floors, `coverage.requireComplete` from #143), `mining-sandbox/price-limits`, participation cap |
 | V5 | robustness exactly as the frozen K2 declares (cost x2, parameter perturbation, sub-period) | the K2 carries `ROBUSTNESS_DECLARATION_SHA256: <sha256 of canonicalJson(declaration)>` |
 | V6 | portfolio increment (S4) | promotion engine S4 (W16, parallel PR); file contract below until it lands |
