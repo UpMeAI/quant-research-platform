@@ -454,6 +454,8 @@ const boundFiles = (entry) => [
   // 研究框架修订 2026-11-12 §3.4 G-CAUSAL：因果证据与因果门的裁定（只有登记了的题才有，之前的题不变）
   ...(entry.causality_evidence ? [{ role: 'CAUSALITY_EVIDENCE', spec: entry.causality_evidence }] : []),
   ...(entry.causality_ruling ? [{ role: 'CAUSALITY_RULING', spec: entry.causality_ruling.spec }] : []),
+  // RF1118 C3 / AQ-39: the freeze page and the validation report of a K2 frozen by K2_FREEZE_PROGRAM_V1 (only entries that declare freeze_program have them)
+  ...(entry.freeze_program ? [{ role: 'PROGRAM_FREEZE_PAGE', spec: entry.freeze_program.page }, { role: 'PROGRAM_VALIDATION_REPORT', spec: entry.freeze_program.report }] : []),
 ];
 const evidencePath = (dir, spec) => (spec.source === 'coordinator' ? path.join(dir, 'coordinator', spec.path) : path.join(dir, spec.source, spec.commit.slice(0, 12), spec.path));
 
@@ -516,7 +518,7 @@ function headLock(entryId, store = STORE) {
 }
 
 /** 校验一题（不写）：绑定文件全部在证据目录且 sha256 与旁注一致；RESULT 的结论等于登记的期望值。 */
-function checkEntry(entry, evidenceDir, store = STORE, { mechanismGate: mechanismGateOptions = {}, causalityGate: causalityGateOptions = {} } = {}) {
+function checkEntry(entry, evidenceDir, store = STORE, { mechanismGate: mechanismGateOptions = {}, causalityGate: causalityGateOptions = {}, programFreezeGate: programFreezeOptions = {} } = {}) {
   const identity = store.identityOf(entry);
   const refs = boundFiles(entry).map(({ role, spec }) => {
     const file = evidencePath(evidenceDir, spec);
@@ -552,21 +554,28 @@ function checkEntry(entry, evidenceDir, store = STORE, { mechanismGate: mechanis
   // G-PARITY（RESEARCH_LIVE_PARITY_V1 §3，docs/contracts/G_PARITY_V1.md）：G-COST 之后；签字之后冻结的 K2，数据输入、PIN、PIT 语义、AI 钉值与生产不一致即拒绝，不改结论
   const parity = require('../parity-gate').check(entry, { k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
     noteBytes: () => (entry.k2_notes || []).map((n) => readBound(evidencePath(evidenceDir, n), n.sha256)) });
-  return { identity, refs, verdict, trial, mechanism, causality, cost, parity };
+  // RF1118 C3 (AQ-39): a K2 frozen by K2_FREEZE_PROGRAM_V1 needs its freeze page, a 14-pass report and exactly one K2_PROGRAM_FROZEN queue line; other K2s are untouched
+  const programFreeze = require('../k2-freeze-program/program_freeze_gate').check(entry, {
+    k2Bytes: () => readBound(evidencePath(evidenceDir, entry.k2), entry.k2.sha256),
+    pageBytes: () => (entry.freeze_program ? readBound(evidencePath(evidenceDir, entry.freeze_program.page), entry.freeze_program.page.sha256) : null),
+    reportBytes: () => (entry.freeze_program ? readBound(evidencePath(evidenceDir, entry.freeze_program.report), entry.freeze_program.report.sha256) : null),
+    queueLogText: programFreezeOptions.queueLogText || (() => null),
+  }, programFreezeOptions.effectiveFrom ? { effectiveFrom: programFreezeOptions.effectiveFrom } : {});
+  return { identity, refs, verdict, trial, mechanism, causality, cost, parity, programFreeze };
 }
 
 /**
  * 导入并锁定（命令行，完成权威）。整批先校验，全部通过才写；同一文件重复导入是幂等重放。
  * 某题已有另一份锁时拒绝，除非 supersedes 是那份锁的 result_id 并给出缺陷引用与理由（旧锁保留）。
  */
-function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = STORE, supersedes = {}, defectRef = null, reason = null, lockedAt = null, mechanismGate: mechanismGateOptions = {}, causalityGate: causalityGateOptions = {} } = {}) {
+function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = STORE, supersedes = {}, defectRef = null, reason = null, lockedAt = null, mechanismGate: mechanismGateOptions = {}, causalityGate: causalityGateOptions = {}, programFreezeGate: programFreezeOptions = {} } = {}) {
   authority(registeredBy);
   need(evidenceDir && fs.existsSync(evidenceDir), E('EVIDENCE_DIR_MISSING'), evidenceDir);
   const ids = new Set();
   const plan = entries.map((entry) => {
     need(!ids.has(entry.id), E('DUPLICATE_ENTRY'), entry.id);
     ids.add(entry.id);
-    const checked = checkEntry(entry, evidenceDir, store, { mechanismGate: mechanismGateOptions, causalityGate: causalityGateOptions });
+    const checked = checkEntry(entry, evidenceDir, store, { mechanismGate: mechanismGateOptions, causalityGate: causalityGateOptions, programFreezeGate: programFreezeOptions });
     const resultId = resultIdOf(entry, store);
     const head = headLock(entry.id, store);
     if (head && head.result_id === resultId) return { replay: head };
@@ -593,6 +602,7 @@ function importVerdicts(evidenceDir, { registeredBy, entries = ENTRIES, store = 
     if (checked.causality.applies || checked.causality.report_only) body.causality_gate = checked.causality;
     if (checked.cost.applies) body.cost_gate = checked.cost;
     if (checked.parity.applies) body.parity_gate = checked.parity;
+    if (checked.programFreeze.applies) body.program_freeze_gate = checked.programFreeze;
     body.lock_hash = sha256(canonical(body));
     return append(store.ledger(), body);
   });
