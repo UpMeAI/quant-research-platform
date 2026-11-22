@@ -19,17 +19,17 @@ const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const PIN = JSON.parse(fs.readFileSync(path.join(DIR, 'PIN.json'), 'utf8'));
 const scan = require(path.join(DIR, 'dataset-registry-scan.cjs'));
 
-test('DRQ-0 登记表与扫描器是钉住的 KG 副本（f4b24f41，登记表 930bae16…，1.17.0，45 个数据集，R-XM-1）；生产两端：V6 85d188ec（1.14.0），smartflow 276ebc30（#165，1.14.0，KG a738d3b5，登记表 c5aabf57）', () => {
+test('DRQ-0 登记表与扫描器是钉住的 KG 副本（36214c21，登记表 7d316ca2…，1.20.0，48 个数据集，R-US-ENTRY-TOUCH-1 运行前置 ③④）；生产两端：V6 85d188ec（1.14.0），smartflow 8dbdc957（#182，1.20.0，KG 36214c21，登记表 7d316ca2）', () => {
   assert.equal(PIN.repository, 'wendy926/knowledge-graph');
-  assert.equal(PIN.commit, 'f4b24f41befe4f31f72824915ead28355d542cd5');
-  assert.equal(PIN.files['datasets.v1.json'], '930bae16786398496d730540677aeb2294f0ceab09fea18c285aab99f59059cb');
+  assert.equal(PIN.commit, '36214c21fd4e79d3ef4e3b9ab79d584dadfa5723');
+  assert.equal(PIN.files['datasets.v1.json'], '7d316ca2b1a39ae35fe0656740b5cf254651a31fd22af12ade26cfb4ff1b00e8');
   assert.equal(PIN.files['dataset-registry-scan.cjs'], '461611f5467c228850162a6ed677a479f1dc79c426310c2f1ef3fcc9db9c40af');
   for (const [file, hash] of Object.entries(PIN.files)) assert.equal(sha256(fs.readFileSync(path.join(DIR, file))), hash, file);
   const pinned = datasetRegistry.pinned();
-  assert.deepEqual([pinned.commit, pinned.registry_version, pinned.registry_sha256, pinned.datasets.size], [PIN.commit, '1.17.0', PIN.files['datasets.v1.json'], 45]);
+  assert.deepEqual([pinned.commit, pinned.registry_version, pinned.registry_sha256, pinned.datasets.size], [PIN.commit, '1.20.0', PIN.files['datasets.v1.json'], 48]);
   assert.deepEqual(PIN.production_pins.map((p) => [p.repository, p.commit]), [
     ['ashare-v6', '85d188ec7294962a45b71632a3684d913b2f28c2'],
-    ['smartflow', '276ebc3081b962e0f143f59ebc3abbd6f257f198'],
+    ['smartflow', '8dbdc9573367b40e4e53e5ae8aad08417cccd567'],
   ]);
 });
 
@@ -48,7 +48,7 @@ test('DRQ-4 钉过的每一份都留在 history/（按 sha，逐个文件复验�
   const pinned = datasetRegistry.pinned();
   assert.ok(history.has(`${pinned.registry_version}#${pinned.registry_sha256}`));
   // 1.13.0、1.14.0 留着：K2 里可能已有钉在这两版的记号（1.15.0、1.16.0 QRP 没钉过，不在历史里）
-  assert.deepEqual([...history.values()].map((h) => h.registry_version), ['1.11.0', '1.13.0', '1.14.0', '1.17.0']);
+  assert.deepEqual([...history.values()].map((h) => h.registry_version), ['1.11.0', '1.13.0', '1.14.0', '1.17.0', '1.20.0']);
   for (const h of history.values()) assert.equal(h.dir, `${h.registry_version}-${h.registry_sha256.slice(0, 8)}`);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-drq-h-'));
   fs.cpSync(DIR, dir, { recursive: true });

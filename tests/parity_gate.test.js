@@ -21,7 +21,7 @@ const { read } = require('../packages/ledger');
  */
 const AUTH = 'TEST_PARITY_AUTHORITY';
 // 门的机制测试按没有 pitSemantics / priceBasis / vendor 字段的 1.11.0 写（KG 12afd2fc，从 config/dataset-registry/history 读）；
-// 现在钉的那份（1.17.0，KG f4b24f41）另测（见末尾一条）。
+// 现在钉的那份（1.20.0，KG 36214c21）另测（见末尾两条）。
 const REG = [...datasetRegistry.history().values()].find((h) => h.registry_version === '1.11.0');
 const CURRENT = datasetRegistry.pinned();
 const VERSION = REG.registry_version;
@@ -161,12 +161,12 @@ test('导入器：默认生效时刻下（K2 早于 11-17 00:24）照原样导�
   assert.equal(count(), 1);
 });
 
-test('现在钉的 1.17.0（KG f4b24f41）：记号按它的字段写 → PASS（PIT、BASIS 核过，VENDOR 相符）；钉在 1.11.0 的旧记号照现行字段核 PIT', () => {
-  assert.deepEqual([CURRENT.commit, CURRENT.registry_version], ['f4b24f41befe4f31f72824915ead28355d542cd5', '1.17.0']);
+test('现在钉的 1.20.0（KG 36214c21）：记号按它的字段写 → PASS（PIT、BASIS 核过，VENDOR 相符）；钉在 1.11.0 的旧记号照现行字段核 PIT', () => {
+  assert.deepEqual([CURRENT.commit, CURRENT.registry_version], ['36214c21fd4e79d3ef4e3b9ab79d584dadfa5723', '1.20.0']);
   const cur = { version: CURRENT.registry_version, sha256: CURRENT.registry_sha256 };
   const tok = `\`DATA:V6_CSI300_INDEX_DAILY@${cur.version}#${cur.sha256}|PIT=OBSERVED_AT|VENDOR=Tushare|BASIS=PRICE/RAW\``;
   const r = direct({ lines: [tok], opts: { registry: CURRENT } });
-  assert.deepEqual([r.state, r.registry.registry_version], ['PASS', '1.17.0']);
+  assert.deepEqual([r.state, r.registry.registry_version], ['PASS', '1.20.0']);
   const [row] = r.data_inputs;
   assert.deepEqual([row.pin_check, row.pit_check, row.basis_check, row.vendor_check], ['CURRENT', 'CHECKED', 'CHECKED', 'MATCH']);
   refuses(() => direct({ lines: [tok.replace('|BASIS=PRICE/RAW', '')], opts: { registry: CURRENT } }), 'PRICE_BASIS_MISSING');
@@ -174,4 +174,22 @@ test('现在钉的 1.17.0（KG f4b24f41）：记号按它的字段写 → PASS�
   const old = direct({ lines: [data('V6_CSI300_INDEX_DAILY', { pit: 'OBSERVED_AT' })], opts: { registry: CURRENT } }).data_inputs[0];
   assert.deepEqual([old.pin_check, old.pit_check, old.basis_check], ['HISTORY_UNCHANGED', 'CHECKED', 'NOT_APPLICABLE_PRE_FIELD']);
   refuses(() => direct({ lines: [data('V6_CSI300_INDEX_DAILY')], opts: { registry: CURRENT } }), 'PIT_SEMANTICS_MISMATCH');
+});
+
+test('现在钉的 1.20.0 的两个新数据集（R-US-ENTRY-TOUCH-1 运行前置 ③ SMARTFLOW_US_REGIME_INDICES_HISTORY、④ SMARTFLOW_FOMC_CALENDAR）：③ 的记号要写登记表的 PIT（VISIBLE_PARTIAL_BAR，实盘盘中读当天未收完的日线，研究只有收盘值是登记表写明的缺口）加 BASIS=PRICE/RAW 才过；写成研究读到的 BAR_CLOSE 被拒；④ OBSERVED_AT 过', () => {
+  assert.equal(CURRENT.registry_version, '1.20.0');
+  const ds3 = CURRENT.datasets.get('SMARTFLOW_US_REGIME_INDICES_HISTORY');
+  const ds4 = CURRENT.datasets.get('SMARTFLOW_FOMC_CALENDAR');
+  assert.deepEqual([ds3.owner, ds3.pitSemantics, ds3.pitParity.research, ds3.vendor, ds3.priceBasis], ['SMARTFLOW', 'VISIBLE_PARTIAL_BAR', 'BAR_CLOSE', 'Yahoo', 'PRICE/RAW']);
+  assert.deepEqual([ds4.owner, ds4.pitSemantics, ds4.vendor], ['SMARTFLOW', 'OBSERVED_AT', 'federalreserve.gov']);
+  const at = `@${CURRENT.registry_version}#${CURRENT.registry_sha256}`;
+  const t3 = (pit, basis = '|BASIS=PRICE/RAW') => `\`DATA:SMARTFLOW_US_REGIME_INDICES_HISTORY${at}|PIT=${pit}|VENDOR=Yahoo${basis}\``;
+  const t4 = `\`DATA:SMARTFLOW_FOMC_CALENDAR${at}|PIT=OBSERVED_AT|VENDOR=federalreserve.gov\``;
+  const r = direct({ lines: [t3('VISIBLE_PARTIAL_BAR'), t4], opts: { registry: CURRENT } });
+  assert.equal(r.state, 'PASS');
+  assert.deepEqual(r.data_inputs.map((d) => [d.dataset_id, d.pin_check, d.pit_check, d.basis_check, d.vendor_check]), [
+    ['SMARTFLOW_US_REGIME_INDICES_HISTORY', 'CURRENT', 'CHECKED', 'CHECKED', 'MATCH'],
+    ['SMARTFLOW_FOMC_CALENDAR', 'CURRENT', 'CHECKED', 'PENDING_REGISTRY_FIELD', 'MATCH']]);
+  refuses(() => direct({ lines: [t3('BAR_CLOSE')], opts: { registry: CURRENT } }), 'PIT_SEMANTICS_MISMATCH');
+  refuses(() => direct({ lines: [t3('VISIBLE_PARTIAL_BAR', '')], opts: { registry: CURRENT } }), 'PRICE_BASIS_MISSING');
 });

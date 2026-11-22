@@ -30,8 +30,8 @@ function direct(lines, registry = REG) {
 }
 const tok = (head, tail) => `\`DATA:${head}${V}|${tail}\``;
 
-test('钉着的是 1.17.0（1.14.0 起的历史时钟原样带着）；三个数据集有历史时钟：BASIC 是 rule，BARS 与 CN_MARKET_PSYCHOLOGY 按序列', () => {
-  assert.deepEqual([REG.commit, REG.registry_version], ['f4b24f41befe4f31f72824915ead28355d542cd5', '1.17.0']);
+test('钉着的是 1.20.0（1.14.0 起的历史时钟原样带着）；三个数据集有历史时钟：BASIC 是 rule，BARS 与 CN_MARKET_PSYCHOLOGY 按序列', () => {
+  assert.deepEqual([REG.commit, REG.registry_version], ['36214c21fd4e79d3ef4e3b9ab79d584dadfa5723', '1.20.0']);
   assert.equal(REG.datasets.get('V6_CN_STOCK_DAILY_BASIC').pitHistoricalClock.rule, 'CLOSE_DATED_NEXT_OPEN_USABLE');
   assert.deepEqual(REG.datasets.get('V6_CN_STOCK_DAILY_BARS').pitHistoricalClock.bySeries, { daily: 'BAR_CLOSE', adj_factor: 'CLOSE_DATED_NEXT_OPEN_USABLE' });
   assert.ok(REG.pit_semantics.includes('CLOSE_DATED_NEXT_OPEN_USABLE') && REG.pit_semantics.includes('NEXT_DAY_0000_CST'));
@@ -132,7 +132,7 @@ test('空间草稿 DRAFT_3（全是 OBSERVED_AT）在协调会话裁定之后被
   assert.throws(() => space.parseSpace(fs.readFileSync(DRAFT), PROOF), code(/MINE_SPACE_READING_LIVE_CLOCK_IN_HISTORY/));
 });
 
-test('1.17.0 的 V6_CN_PARKING_ETF_HISTORY（R-XM-1，KG #371 在 1.15.0 登记，到 1.17.0 原样）：实时 PIT 一个（BAR_CLOSE），历史时钟按序列；BASIS PRICE/RAW；VENDOR Tushare', () => {
+test('1.20.0 的 V6_CN_PARKING_ETF_HISTORY（R-XM-1，KG #371 在 1.15.0 登记，到 1.20.0 原样）：实时 PIT 一个（BAR_CLOSE），历史时钟按序列；BASIS PRICE/RAW；VENDOR Tushare', () => {
   const ds = REG.datasets.get('V6_CN_PARKING_ETF_HISTORY');
   assert.deepEqual([ds.pitSemantics, ds.vendor, ds.priceBasis], ['BAR_CLOSE', 'Tushare', 'PRICE/RAW']);
   assert.deepEqual(ds.pitHistoricalClock.bySeries, { fund_daily: 'BAR_CLOSE', fund_adj: 'CLOSE_DATED_NEXT_OPEN_USABLE', fund_nav: 'ANNOUNCEMENT_NEXT_OPEN' });
@@ -140,9 +140,9 @@ test('1.17.0 的 V6_CN_PARKING_ETF_HISTORY（R-XM-1，KG #371 在 1.15.0 登记�
   const r = direct([t('fund_daily', 'BAR_CLOSE'), t('fund_adj', 'CLOSE_DATED_NEXT_OPEN_USABLE'), t('fund_nav', 'ANNOUNCEMENT_NEXT_OPEN')]);
   assert.equal(r.state, 'PASS');
   assert.deepEqual(r.data_inputs.map((d) => [d.series, d.registry_version, d.pin_check, d.pit_check, d.hist_check, d.basis_check, d.vendor_check]), [
-    ['fund_daily', '1.17.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH'],
-    ['fund_adj', '1.17.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH'],
-    ['fund_nav', '1.17.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH']]);
+    ['fund_daily', '1.20.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH'],
+    ['fund_adj', '1.20.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH'],
+    ['fund_nav', '1.20.0', 'CURRENT', 'CHECKED', 'CHECKED', 'CHECKED', 'MATCH']]);
   refuses(() => direct([t(null, 'BAR_CLOSE')]), 'SERIES_REQUIRED', 'pitHistoricalClock');
   refuses(() => direct([t('fund_adj', 'BAR_CLOSE')]), 'HIST_CLOCK_MISMATCH', 'BAR_CLOSE≠CLOSE_DATED_NEXT_OPEN_USABLE');
   refuses(() => direct([t('fund_daily', 'BAR_CLOSE').replace('|BASIS=PRICE/RAW', '')]), 'PRICE_BASIS_MISSING');
