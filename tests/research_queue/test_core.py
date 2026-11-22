@@ -72,6 +72,15 @@ class AtomicClaim(Base):
         self.assertEqual(second["task_id"], a.task_id)  # c is not_before t0+2h
         self.assertEqual(self.state(c.task_id), "READY")
 
+    def test_claim_order_is_deterministic_for_equal_priority_and_time(self):
+        reg = registry([tpl("T-STUB-W0-V1")])
+        ids = [self.admit(reg, req(tpl("T-STUB-W0-V1"), subject={"n": i})).task_id for i in range(12)]
+        got = []
+        for _ in ids:
+            c = core.claim(self.conn, host="LINUX", worker="w", now=self.t0, slots=False)
+            got.append(c["task_id"])
+        self.assertEqual(got, ids)  # admission order, not task-id order
+
     def test_dependencies_gate_claim(self):
         reg = registry([tpl("T-STUB-W0-V1")])
         a = self.admit(reg, req(tpl("T-STUB-W0-V1"), subject={"n": 1}))

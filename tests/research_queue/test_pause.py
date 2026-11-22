@@ -51,6 +51,16 @@ class Windows(unittest.TestCase):
         self.assertIsNotNone(pause.window_reason("HK", at(10, 0, day=23), io=False))  # Mon 09:55-10:45 stays denied
 
 
+class Timezone(unittest.TestCase):
+    def test_windows_use_asia_shanghai_whatever_the_process_tz(self):
+        import datetime as d
+        utc = d.datetime(2026, 11, 24, 1, 20, tzinfo=d.timezone.utc)  # 09:20 CST Tuesday
+        self.assertIsNotNone(pause.window_reason("LINUX", utc, io=False))
+        la = d.datetime(2026, 11, 23, 17, 20, tzinfo=d.timezone(d.timedelta(hours=-8)))  # same instant
+        self.assertIsNotNone(pause.window_reason("LINUX", la, io=False))
+        self.assertIsNone(pause.window_reason("LINUX", d.datetime(2026, 11, 24, 8, 20, tzinfo=d.timezone.utc), io=False))  # 16:20 CST
+
+
 class Blackouts(unittest.TestCase):
     def test_aq09_entries_block_and_freeze_or_stop(self):
         bl = pause.parse_blackouts({"entries": [

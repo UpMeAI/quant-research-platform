@@ -17,7 +17,8 @@ def touch_consumer_heartbeat(cfg, now):
 
 
 def month_spend(gateway_db, now):
-    month = now.astimezone(core.CST).strftime("%Y-%m")
+    now = now.astimezone(core.CST)
+    month = now.strftime("%Y-%m")
     if not gateway_db or not pathlib.Path(gateway_db).exists():
         return {"month": month, "keys": {}, "ledger": "ABSENT"}
     start = dt.datetime(now.year, now.month, 1, tzinfo=core.CST)

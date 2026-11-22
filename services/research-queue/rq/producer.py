@@ -47,6 +47,7 @@ def _canon_request(request):
 
 
 def _refuse(conn, cfg, request, now, code):
+    now = now.astimezone(core.CST)
     base = core.canonical({"template_id": request.get("template_id"), "template_sha256": request.get("template_sha256"),
                            "subject": request.get("subject") or {}, "params": request.get("params") or {}})
     idem = core.sha256_hex(base + "|refused|" + code)
@@ -61,6 +62,7 @@ def _refuse(conn, cfg, request, now, code):
 
 
 def admit(conn, cfg, registry, request, now, extra_input_prefixes=()):
+    now = now.astimezone(core.CST)
     """Admit one request under a frozen template. Same key + same admission -> same task; same key + other admission -> IDEM_CONFLICT."""
     tpl_id, tpl_sha = request.get("template_id"), request.get("template_sha256")
     subject, params = request.get("subject") or {}, request.get("params") or {}

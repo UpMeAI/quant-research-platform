@@ -29,6 +29,7 @@ def _hm(now):
 
 def window_reason(host, now, io=False):
     """Return a reason string if tasks of this host must not run at `now`, else None. Times are CST."""
+    now = now.astimezone(core.CST)
     t = _hm(now)
     if host == "LINUX":
         if now.weekday() < 5:

@@ -71,6 +71,7 @@ def now_cst():
 
 
 def iso(t):
+    # every stored time is Asia/Shanghai, whatever the process TZ is
     return t.astimezone(CST).isoformat(timespec="seconds")
 
 
@@ -343,7 +344,7 @@ def claim(conn, *, host, worker, now, ttl=600, slots=True, blocked=None, bundle_
         occupied = {slot_class(dict(zip(cols, r))) for r in cur.fetchall()}
         cur = conn.execute(
             "select * from task where state='READY' and ((weight_class!='NET' and host=?) or (weight_class='NET' and agent_host=?))"
-            " and (not_before is null or not_before<=?) order by priority, created_at, task_id", (host, host, iso(now)))
+            " and (not_before is null or not_before<=?) order by priority, created_at, rowid", (host, host, iso(now)))
         cols = [d[0] for d in cur.description]
         for r in cur.fetchall():
             row = dict(zip(cols, r))

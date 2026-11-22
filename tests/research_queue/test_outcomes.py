@@ -80,7 +80,7 @@ class Waits(Base):
     def test_aq10_safety_and_external(self):
         tid, st = self.run_err("err_S_WRITEOUTSIDE", self.t0, {"n": 1})
         self.assertEqual(st, "SAFETY_STOP")
-        core.transition(self.conn, tid, "READY", actor="coordinator", now=self.t0, reason="CLEARED_BY_COORDINATOR")
+        core.transition(self.conn, tid, "CANCELLED", actor="coordinator", now=self.t0, reason="TEST_DONE")  # frees the host; no tie with the next task
         tid2, st2 = self.run_err("err_E_HOLDOUTINCOMPLETE", self.t0, {"n": 2})
         self.assertEqual((st2, self.row(tid2)["state_reason"]), ("WAITING_EXTERNAL", "HOLDOUT_INCOMPLETE"))
 
