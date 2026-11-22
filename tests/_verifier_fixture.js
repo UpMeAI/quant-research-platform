@@ -69,19 +69,13 @@ function build(o = {}) {
   const access = put('access.jsonl', accessBytes);
   const s4 = put('s4.json', JSON.stringify(o.s4 || { candidateId: 'cand-1', s4Evidence: { verdict: 'PASS', reasonCodes: [], sha256: 'e'.repeat(64) } }));
   const book = 'STOCK_BOOK';
-  // 统计量的出处（plan-coord 裁定 11-23 第 4 条）：试验台账记录号 + 计算它的那次运行的文件（sha256 复验，文件里写着同一个值）
-  const prov = {};
-  for (const [name, value] of [['dsr', 0.97], ['pbo', 0.2], ['bhy', 0.001]]) {
-    const trialRecordId = `TRL-${sha(`rec-${name}`).slice(0, 16)}`;
-    prov[name] = { trialRecordId, run: put(`run-${name}.json`, JSON.stringify({ trialRecordId, statistic: name, value })) };
-  }
   const bundle = {
     schema: 'INDEPENDENT_VERIFIER_INPUT_V1', candidateId: 'cand-1', candidateSha256, market: 'CN_A', familyId: 'CN_A_H5', asOf: o.asOf || '2026-12-01', reachedS3: o.reachedS3 !== false,
     mechanism: { id: 'SEL.MOMENTUM.SHORT', dedupeDecision: 'NO_CONFLICT' },
     v1: { entry: { id: 'W20-FIX', kind: 'RESULT', sealed_on: '2026-11-30', k2: { sha256: k2.sha256 }, k2_frozen_at: '2026-11-18T10:00:00+08:00', causality_evidence: { sha256: ev.sha256 } },
       files: { k2, causalityEvidence: ev, runLog } },
     v2: { accessLog: access, unseenClaim: null, segmentMarks: [] },
-    v3: { familyTrialCount: 12, overfit: { dsr: 0.97, n_trials: 12, pbo: 0.2, pbo_scope: miningGate.PBO_SCOPE, bhy: { pValues: [0.001, 0.2, 0.5], index: 0 } }, provenance: prov, priorHoldoutFailures: [] },
+    v3: { familyTrialCount: 12, overfit: { dsr: 0.97, n_trials: 12, pbo: 0.2, pbo_scope: miningGate.PBO_SCOPE, bhy: { pValues: [0.001, 0.2, 0.5], index: 0 } }, priorHoldoutFailures: [] },
     v4: { market: 'CN_A', runs: [{ cost_model_ref: OWN_MODEL, cost_book: book, cost_flags: {},
       cost_breakdown: { model: OWN_MODEL, commission_bps: costGate.FLOORS.CN_A.commission_bps_min + 1, slippage_bps: costGate.FLOORS.CN_A.slippage_bps_min + 1, items: chargedItems(book) } }],
       fills: [{ date: '2025-03-03', code: '600000.SH', st: false, side: 'BUY', open: 10.2, prevClose: 10, participation: 0.02 }, { date: '2025-03-04', code: '600000.SH', st: false, side: 'SELL', open: 10.1, prevClose: 10.2, participation: 0.02 }] },
@@ -89,6 +83,14 @@ function build(o = {}) {
     v6: { s4Contract: s4 },
   };
   for (const k of ['v1', 'v2', 'v3', 'v4', 'v5', 'v6']) if (o[k]) o[k](bundle[k], bundle);
+  // 统计量的出处（plan-coord 裁定 11-23 第 4 条）：试验台账记录号 + 计算它的那次运行的文件（sha256 复验，文件里写着同一个值）；按补丁之后的值生成
+  const t3 = bundle.v3; const prov = {};
+  const bhyP = t3.overfit && t3.overfit.bhy && Array.isArray(t3.overfit.bhy.pValues) ? t3.overfit.bhy.pValues[t3.overfit.bhy.index] : null;
+  for (const [name, value] of [['dsr', t3.overfit && t3.overfit.dsr], ['pbo', t3.overfit && t3.overfit.pbo], ['bhy', bhyP]]) {
+    const trialRecordId = `TRL-${sha(`rec-${name}`).slice(0, 16)}`;
+    prov[name] = { trialRecordId, run: put(`run-${name}.json`, JSON.stringify({ trialRecordId, statistic: name, value })) };
+  }
+  t3.provenance = prov;
   if (o.bundle) o.bundle(bundle);
   const ctx = { readBytes: (ref) => files.get(ref.path) || null, gateOptions: { causality: { effectiveFrom: '2026-11-16T00:00:00+08:00' }, parity: { registry: REG } } };
   return { bundle, ctx, files, put };

@@ -106,8 +106,27 @@ function nearDuplicates(bundle) {
   return (bundle.v3.priorHoldoutFailures || []).filter((p) => p.mechanismId === bundle.mechanism.id || (isNum(p.rho) && Math.abs(p.rho) > rhoMax));
 }
 
-function v3(bundle) {
+/**
+ * 统计量的出处（plan-coord 裁定 11-23 第 4 条）：DSR / PBO / BHY 的值来自上游，这里不重算，但每个值要带 { trialRecordId, run: {path, sha256} }：
+ * 记录号是试验台账的 TRL 号，运行文件按 sha256 复验，文件里写着同一个记录号、统计量名和值。缺、对不上 → UNSOURCED_STATISTIC。
+ */
+function sourced(bundle, ctx) {
+  const t = bundle.v3; const o = isObj(t.overfit) ? t.overfit : {}; const prov = isObj(t.provenance) ? t.provenance : {};
+  const b = isObj(o.bhy) && Array.isArray(o.bhy.pValues) ? o.bhy.pValues[o.bhy.index] : undefined;
+  for (const [name, value] of [['dsr', o.dsr], ['pbo', o.pbo], ['bhy', b]]) {
+    if (name === 'bhy' && value === undefined) continue; // 没给 BHY 输入：由 BHY_INPUT_MISSING 报
+    const p = prov[name];
+    if (!isObj(p) || !trials.TRIAL_ID.test(p.trialRecordId || '')) return false;
+    let doc;
+    try { doc = JSON.parse(bytesOf(ctx, p.run).toString('utf8')); } catch { return false; }
+    if (!isObj(doc) || doc.trialRecordId !== p.trialRecordId || doc.statistic !== name || doc.value !== value || !isNum(value)) return false;
+  }
+  return true;
+}
+
+function v3(bundle, ctx) {
   const t = bundle.v3; const codes = [];
+  if (!sourced(bundle, ctx)) return result(['UNSOURCED_STATISTIC']);
   const dup = nearDuplicates(bundle);
   if (dup.length) {
     if (!bundle.mechanism.dedupeDecision) codes.push('RESUBMISSION_NOT_DEDUPED');

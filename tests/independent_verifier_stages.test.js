@@ -127,11 +127,11 @@ test('阶段内部异常一律失败即关（V<n>_STAGE_ERROR），不当作通�
 
 test('V-3 统计量出处（plan-coord 11-23 第 4 条）：DSR / PBO / BHY 各带「试验台账记录号 + 运行文件 sha256」，文件里的值与输入一致；缺、不符、sha 对不上 → V3_UNSOURCED_STATISTIC', () => {
   assert.equal(run().internal.stages[2].status, 'PASS'); // 通过案例：三个都有出处
-  const only = (o) => { const { internal, generator } = run(o); assert.deepEqual(generator.reasonCodes, ['V3_UNSOURCED_STATISTIC']); assert.equal(internal.failedStage, 'V3'); };
-  only({ v3: (v3) => { delete v3.provenance; } });
-  only({ v3: (v3) => { delete v3.provenance.pbo; } });
-  only({ v3: (v3) => { v3.provenance.dsr.trialRecordId = 'not-a-trial-id'; } });
-  only({ v3: (v3) => { v3.provenance.dsr.run.sha256 = 'a'.repeat(64); } }); // sha 对不上（文件字节被换）
-  only({ v3: (v3) => { v3.overfit.dsr = 0.99; } }); // 值与运行文件里写的不一致
-  only({ v3: (v3) => { v3.provenance.bhy.trialRecordId = `TRL-${'0'.repeat(16)}`; } }); // 记录号与运行文件不一致
+  const only = (edit) => { const { bundle, ctx } = fx.build(); edit(bundle.v3); const { internal, generator } = verifier.verify(bundle, ctx); assert.deepEqual(generator.reasonCodes, ['V3_UNSOURCED_STATISTIC']); assert.equal(internal.failedStage, 'V3'); };
+  only((v3) => { delete v3.provenance; });
+  only((v3) => { delete v3.provenance.pbo; });
+  only((v3) => { v3.provenance.dsr.trialRecordId = 'not-a-trial-id'; });
+  only((v3) => { v3.provenance.dsr.run.sha256 = 'a'.repeat(64); }); // sha 对不上
+  only((v3) => { v3.overfit.dsr = 0.99; }); // 值与运行文件里写的不一致
+  only((v3) => { v3.provenance.bhy.trialRecordId = `TRL-${'0'.repeat(16)}`; }); // 记录号与运行文件不一致
 });
