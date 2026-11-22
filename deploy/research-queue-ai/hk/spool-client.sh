@@ -27,6 +27,8 @@ fi
 START=$(date +%s)
 while :; do
   if [ -f "$SPOOL/out/$ID/result.json" ]; then
+    # the agent's output is untrusted data: a link in it (to the queue database, say) is refused, never followed
+    if [ -n "$(find "$SPOOL/out/$ID" -type l 2>/dev/null | head -n 1)" ]; then fail D AGENT_OUTPUT_SYMLINK 70; fi
     mkdir -p "$ATT/out"
     cp -R "$SPOOL/out/$ID/." "$ATT/out/"
     cp "$SPOOL/out/$ID/result.json" "$ATT/result.json"

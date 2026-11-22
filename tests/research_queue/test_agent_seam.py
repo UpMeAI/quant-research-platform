@@ -216,6 +216,18 @@ class SpoolScripts(unittest.TestCase):
         self.assertEqual((err["class"], err["code"]), ("D", "AGENT_EXIT_4"))
         self.assertNotEqual(c.returncode, 0)
 
+    def test_a_symlink_in_the_agent_output_is_refused_not_followed(self):
+        secret = self.root / "queue.sqlite"
+        secret.write_text("QUEUE-DB")
+        out = self.spool / "out" / "RQT-HK-1-a1"
+        out.mkdir()
+        os.symlink(secret, out / "result.json")
+        c = self.client()
+        c.communicate(timeout=30)
+        err = json.loads((self.att / "error.json").read_text())
+        self.assertEqual((err["class"], err["code"]), ("D", "AGENT_OUTPUT_SYMLINK"))
+        self.assertFalse((self.att / "result.json").exists())
+
     def test_timeout_is_an_interruption_not_a_failure(self):
         c = self.client(RQ_SPOOL_TIMEOUT_S="1")
         c.communicate(timeout=30)
