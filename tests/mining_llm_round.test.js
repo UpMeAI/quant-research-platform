@@ -73,6 +73,7 @@ const openLlm = (o = {}) => {
   return r;
 };
 const gen = (out, roundId, o = {}) => runner.generate({ roundId, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: COV, llm: LLM_OPTS, ...o });
+const runGenerate = gen;
 
 test('B1 开轮：模型与上限从配置写进清单；调用方不能换模型；GP 轮清单不变；开轮后配置变了 → MINE_RUNNER_LLM_CONFIG_CHANGED', () => {
   freshData();
@@ -85,7 +86,8 @@ test('B1 开轮：模型与上限从配置写进清单；调用方不能换模�
     formulas_per_call: config.batch.formulas_per_call, max_tokens: config.request.max_tokens });
   assert.equal(r.cap, 200);
   assert.ok(r.holdout.from > g.model_knowledge_cutoff);
-  for (const m of [{ model: 'deepseek-flash', model_knowledge_cutoff: '2026-10-17' }, { model: 'deepseek-v4-pro', model_knowledge_cutoff: '2026-09-30' }]) {
+  for (const m of [{ model: 'deepseek-flash', model_knowledge_cutoff: '2026-10-17' }, { model: 'deepseek-v4-pro', model_knowledge_cutoff: '2026-09-30' },
+    { model: 'deepseek-flash' }, { model: 'deepseek-flash', model_knowledge_cutoff: '2026-08-13' }, { model: 'deepseek-v4-pro-1201', model_knowledge_cutoff: '2026-08-13' }]) {
     assert.throws(() => runner.requestRound({ generator: { mode: 'AI_MINED_LLM', ...m }, openedAt: '2026-12-02T02:00:00Z' }), code(/MINE_RUNNER_LLM_MODEL_NOT_PINNED/));
   }
   freshData();
@@ -360,4 +362,27 @@ test('B9 台账：MINING_LLM_CALL_V1 的 seq 必须是下一个、只能记在 L
   assert.throws(() => open({ ...llmBlockOk, tokens_per_round: 0 }), code(/MINE_ROUND_GENERATOR_INVALID/));
   assert.throws(() => open({ ...llmBlockOk, config_sha256: 'xyz' }), code(/MINE_ROUND_GENERATOR_INVALID/));
   assert.equal(open(llmBlockOk).generator.llm.config_sha256, llmBlockOk.config_sha256);
+});
+
+test('B10 网络那一步在调用途中崩了：不再发，记 WAITING_STEP_CRASHED_MID_CALL，这次调用可能已计费，按上界计量（宁多不少），本轮留在 OPEN', () => {
+  const out = freshData();
+  const r = openLlm({ cap: 10 });
+  const L = llm.loadConfig();
+  const register = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/research_mechanism_register.v1.json'), 'utf8'));
+  const generator = require('../services/mining-sandbox/generators').generatorFor(rounds.roundHead(r.round_id).generator,
+    { space: runner.loadFrozenSpace().dslSpace, holdingPeriod: 5, llm: { config: L.config, mechanisms: llm.mechanismsFor(register, L.config.prompt.mechanisms) } });
+  const prep = generator.prepare(rounds.generatorView(r.round_id), { n: 10 });
+  // 网络那一步留下的应答：调用途中崩了（.inflight 还在、没有答案）后再起来，答的就是这个
+  const key = `${r.round_id}:C001-${prep.request_sha256.slice(0, 8)}`;
+  const dir = llm.ensureExchangeDir(path.join(out, 'llm-exchange'));
+  fs.writeFileSync(path.join(dir, `${llm.exchangeName(key)}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key, kind: 'GENERATE', round_id: r.round_id,
+    request_sha256: prep.request_sha256, answered_at: '2026-12-01T10:00:00+08:00', outcome: 'WAITING_STEP_CRASHED_MID_CALL', sent: true, reason: 'INFLIGHT_MARKER_WITHOUT_RESPONSE',
+    http_status: null, content: null, model: null, finish_reason: null, system_fingerprint: null, usage: null, raw_error: null, response_sha256: null })}\n`);
+  const g = runGenerate(out, r.round_id);
+  assert.deepEqual([g.llm.state, g.llm.halted, g.total, g.status], ['WAITING_STEP_CRASHED_MID_CALL', true, 0, 'OPEN']);
+  const row = rounds.llmState(r.round_id);
+  assert.deepEqual([row.seq, row.final, row.sent, row.outcome, row.tokens_basis, row.tokens_metered], [1, true, true, 'WAITING_STEP_CRASHED_MID_CALL', 'UPPER_BOUND', prep.tokens_upper_bound]);
+  assert.ok(row.tokens_metered > 0);
+  assert.deepEqual(rounds.llmUsage(r.round_id), { calls: 1, tokens_metered: prep.tokens_upper_bound, last_outcome: 'WAITING_STEP_CRASHED_MID_CALL' });
+  assert.equal(rounds.familyN('CN_A', 5), 0);
 });

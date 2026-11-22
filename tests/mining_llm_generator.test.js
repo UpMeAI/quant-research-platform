@@ -245,6 +245,11 @@ test('A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITIN
     assert.equal(t.calls.length, 1, `${outcome}: sent once, no retry`);
     assert.equal(r.content, null);
   }
+  // 密钥原文打码，即使它不是 sk- 开头、也不在 Bearer 后面（上游回显的任何位置）
+  const PLAIN = 'research-key-9f3a-not-sk-prefixed-4411';
+  const echo = await step.callModel({ body, config, key: PLAIN, transport: mockTransport([{ status: 500, body: `upstream echo: key=${PLAIN}; again ${PLAIN}` }]) });
+  assert.match(echo.raw_error, /upstream echo/);
+  assert.ok(!echo.raw_error.includes(PLAIN), 'exact key value redacted wherever it appears');
   // 发出之前就拒：请求体多了键，transport 一次都不调
   const t = mockTransport([{ status: 200, json: okJson('rank(pb)') }]);
   const bad = await step.callModel({ body: { ...body, tools: [{ type: 'web_search' }] }, config, key: FAKE_KEY, transport: t });
@@ -269,13 +274,19 @@ test('A9 网络那一步只连 api.deepseek.com:443：别的主机（https / htt
     tryIt('tls_other', () => require('tls').connect({ host: 'example.com', port: 443 }).on('error', () => {}).destroy());
     tryIt('deepseek_other_port', () => require('https').request('https://api.deepseek.com:8443/').on('error', () => {}).destroy());
     tryIt('deepseek', () => require('https').request('https://api.deepseek.com/chat/completions', { method: 'POST' }).on('error', () => {}).destroy());
-    Promise.resolve(typeof fetch === 'function' ? fetch('https://example.com/').then(() => 'ALLOWED', (e) => e.code || (e.cause && e.cause.code) || e.message) : 'NO_FETCH')
-      .then((f) => { out.fetch_other = f; process.stdout.write(JSON.stringify(out)); process.exit(0); });
+    // a caller-supplied socket bypasses the net / tls wrappers: only the request-level guard sees the target
+    const { PassThrough } = require('stream');
+    tryIt('https_custom_socket', () => require('https').request({ hostname: 'example.com', port: 443, createConnection: () => new PassThrough() }).on('error', () => {}).destroy());
+    tryIt('http_custom_socket', () => require('http').request({ hostname: 'api.deepseek.com', port: 443, createConnection: () => new PassThrough() }).on('error', () => {}).destroy());
+    const viaFetch = (u) => (typeof fetch === 'function' ? fetch(u).then(() => 'ALLOWED', (e) => e.code || (e.cause && e.cause.code) || e.message) : 'NO_FETCH');
+    viaFetch('https://example.com/').then((f) => { out.fetch_other = f; return viaFetch('https://api.deepseek.com/'); })
+      .then((f) => { out.fetch_deepseek = f; process.stdout.write(JSON.stringify(out)); process.exit(0); });
   `;
   const r = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
-  for (const k of ['https_other', 'https_other_obj', 'http_any', 'net_ip', 'net_obj', 'tls_other', 'deepseek_other_port', 'fetch_other']) assert.equal(out[k], 'MINE_LLM_EGRESS_REFUSED', k);
+  for (const k of ['https_other', 'https_other_obj', 'http_any', 'net_ip', 'net_obj', 'tls_other', 'deepseek_other_port', 'https_custom_socket', 'http_custom_socket', 'fetch_other', 'fetch_deepseek']) assert.equal(out[k], 'MINE_LLM_EGRESS_REFUSED', k);
+  // fetch is off even for the allowed host: the only sanctioned path is the step's https transport
   assert.equal(out.deepseek, 'ALLOWED');
 });
 
