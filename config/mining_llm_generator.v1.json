@@ -39,7 +39,7 @@
   },
   "limits": {
     "tokens_per_round": 1000000,
-    "tokens_per_round_status": "PROPOSED 2026-11-22 by the LLM_GEN build, pending the plan coordinator's ruling (PR body: about 200k tokens and ¥1.5 expected per round; the cap is a runaway guard, worst case ¥13.5 per round off-peak)",
+    "tokens_per_round_status": "RULED 2026-11-22 plan-coord, queue RF1116 LLM_GEN REVIEW_ACCEPTED",
     "calls_per_round": 40,
     "empty_replies_stop": 3
   },
