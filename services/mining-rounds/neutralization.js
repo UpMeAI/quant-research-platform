@@ -11,21 +11,27 @@
 const LEGACY_LINEAR_RAW_V1_ROUNDS = Object.freeze(['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82']);
 const NEW_ROUND_NEUTRALIZATION = 'RANK_GAUSS_V2';
 
+/**
+ * 新开的轮只能是 RANK_GAUSS_V2；LINEAR_RAW_V1 只属于名单里的两轮。测试要造「旧版本的轮」来练门槛文件与记录的机制，只能经环境开关
+ * QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION=1（只有 tests/_mining_manifest.js 设；执行器容器与命令行不设，生产没有这个口子）。
+ */
+const legacyForTests = () => process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION === '1';
+
 class NeutralizationError extends Error {
   constructor(code, detail) { super(detail === undefined ? code : `${code}:${detail}`); this.code = code; this.detail = detail; }
 }
 const fail = (code, detail) => { throw new NeutralizationError(`MINE_RUNNER_${code}`, detail); };
 
 function neutralizationOf(head) {
-  const versions = require('../mining-sandbox/evaluator').NEUTRALIZATION_VERSIONS;
   if (!head || typeof head.round_id !== 'string') fail('NEUTRALIZATION_UNKNOWN', 'no round head');
   const written = head.scoring_neutralization;
   if (LEGACY_LINEAR_RAW_V1_ROUNDS.includes(head.round_id)) {
     if (written !== undefined && written !== null && written !== 'LINEAR_RAW_V1') fail('NEUTRALIZATION_LEGACY_CONFLICT', `${head.round_id}:${written}`);
     return 'LINEAR_RAW_V1';
   }
-  if (typeof written === 'string' && versions.includes(written)) return written;
+  if (written === NEW_ROUND_NEUTRALIZATION) return written;
+  if (written === 'LINEAR_RAW_V1' && legacyForTests()) return written; // 不在名单里的轮写 V1：只有测试的开关下认
   return fail('NEUTRALIZATION_UNKNOWN', `${head.round_id}:${written === undefined ? 'unset' : String(written)}`);
 }
 
-module.exports = { LEGACY_LINEAR_RAW_V1_ROUNDS, NEW_ROUND_NEUTRALIZATION, NeutralizationError, neutralizationOf };
+module.exports = { legacyForTests, LEGACY_LINEAR_RAW_V1_ROUNDS, NEW_ROUND_NEUTRALIZATION, NeutralizationError, neutralizationOf };

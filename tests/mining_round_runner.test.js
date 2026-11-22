@@ -568,6 +568,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   assert.equal(opens[0].seal_hash, seals[0].record_hash);
   const selection = JSON.parse(fs.readFileSync(path.join(runDirOf(a.out, id), 'selection.json'), 'utf8'));
   assert.deepEqual(opens[0].candidate_ids, selection.selected);
+  const scoreFile = JSON.parse(fs.readFileSync(path.join(runDirOf(a.out, id), 'score.json'), 'utf8'));
   const recs = gateRecords.recordsOf(id);
   assert.deepEqual(recs.map((x) => x.candidate_id), selection.selected);
   const headsById = new Map(rows.map((t) => [t.mining.candidate_id, t]));
@@ -580,6 +581,13 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
     assert.deepEqual([x.thresholds_file.path, x.thresholds_used.state, x.codes], ['config/mining_gate_thresholds.v2.json', 'PENDING_FREEZE', ['MINE_THRESHOLDS_UNFROZEN']]);
     assert.equal(x.family_trial_count, 24);
     assert.equal(x.excluded_factors.length, 3, 'R1.9 exclusions are named even without a factor series');
+    // 九项逐项的码：同一个结果在注入的 FROZEN v2 门槛块下判（门槛文件本身还没冻结，上面已核）
+    const judged = gate.evaluate(scoreFile.results.find((r) => r.candidate_id === x.candidate_id),
+      { thresholds: { state: 'FROZEN', ic_mean_min: 0.02, icir_min: 0.3, monotonicity_min: 0.9, decay_ratio_min: 0.5, marginal_ir_delta_min: 0, marginal_intercept_t_min: 2, size_exposure_abs_max: 0.1,
+        frozen_ref: { path: 'docs/freeze/SYNTHETIC.md', sha256: 'e'.repeat(64) } }, familyTrialCount: 24 });
+    for (const c of ['MINE_MARGINAL_INPUT', 'MINE_CORRELATION_UNKNOWN', 'MINE_MECHANISM_UNKNOWN']) assert.ok(judged.codes.includes(c), `${x.candidate_id}:${c}`);
+    for (const c of ['MINE_NOT_NEUTRALIZED', 'MINE_DSR_UNKNOWN', 'MINE_DSR_N_NOT_CUMULATIVE', 'MINE_PBO_SCOPE', 'MINE_NET_SCOPE', 'MINE_NET_COST_BELOW_FLOOR', 'MINE_ICIR_OVERLAPPING']) assert.ok(!judged.codes.includes(c), c);
+    assert.ok(judged.items.find((i) => i.item === 8).detail.size_exposure_check !== 'VERSION_UNKNOWN', 'the V2 stamp reaches the size check');
   }
   assert.deepEqual(round.gmine_basis.record_hashes, recs.map((x) => x.record_hash));
   assert.equal(round.gmine_basis.holdout_open_hash, opens[0].record_hash);

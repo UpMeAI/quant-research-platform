@@ -16,6 +16,7 @@ const R1_SELECTION_RULE = Object.freeze({
   ]),
   mean_ic_gt: 0, positive_folds_min: 4, mining_score_gt: 0,
 });
+process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION = '1'; // 只有测试加载这个文件：允许造 LINEAR_RAW_V1 的轮（生产的 openRound 只收 RANK_GAUSS_V2）
 // scoring_neutralization：这些测试练的是门槛文件与记录的机制（V1 门槛文件、FROZEN），按第 1、2 轮的版本开轮；V2 的路径由 mining_size_neutralization_v2.test.js 管
 const R1 = Object.freeze({ rulings: Object.freeze([R1_RULING]), selection_rule: R1_SELECTION_RULE, scoring_neutralization: 'LINEAR_RAW_V1' });
 

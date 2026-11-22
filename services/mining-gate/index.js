@@ -55,8 +55,6 @@ const THRESHOLDS_V2 = (() => {
     ic_mean_min: d.ic_mean_min, icir_min: d.icir_min, monotonicity_min: d.monotonicity_min, decay_ratio_min: d.decay_ratio_min,
     marginal_ir_delta_min: d.marginal_ir_delta_min, marginal_intercept_t_min: d.marginal_intercept_t_min, [SIZE_EXPOSURE_KEY]: d[SIZE_EXPOSURE_KEY] });
 })();
-/** 按中性化版本取门槛块（V2 的轮读 v2，其余读 v1）。 */
-const thresholdsFor = (version) => (version === 'RANK_GAUSS_V2' ? THRESHOLDS_V2 : THRESHOLDS);
 
 /** 第 6 项的口径（草稿 §4 第 6 项与附录 1 §2.4，不是 ★e 新数）。 */
 const NET_SPEC = Object.freeze({ top_fraction: 0.2, benchmark: 'EQUAL_WEIGHT_UNIVERSE', long_only_markets: Object.freeze(['CN_A']), stamp_duty_markets: Object.freeze(['CN_A']) });
@@ -339,7 +337,7 @@ function evaluate(candidate, ctx = {}) {
 function withFreezeRoot(root, cb) { const prior = FREEZE_ROOT; FREEZE_ROOT = root; try { return cb(); } finally { FREEZE_ROOT = prior; } }
 
 module.exports = {
-  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLDS_V2, THRESHOLDS_FILE_V2, SIZE_EXPOSURE_KEY, SIZE_EXPOSURE_STATISTIC, thresholdsFor, THRESHOLD_KEYS, FREEZE_DIR, verifyFreezeRef, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
+  DSR_MIN, PBO_MAX, PENDING_FREEZE, FROZEN, THRESHOLDS, THRESHOLDS_FILE, THRESHOLDS_V2, THRESHOLDS_FILE_V2, SIZE_EXPOSURE_KEY, SIZE_EXPOSURE_STATISTIC, THRESHOLD_KEYS, FREEZE_DIR, verifyFreezeRef, NET_SPEC, QUINTILES, PBO_SCOPE, ITEMS, NEUTRALIZED,
   thresholdState, bookFactorIds, evaluate,
   checkDsr, checkPbo, checkIcIcir, checkMonotonicity, checkDecay, checkNetOfCost, checkMarginal, checkCorrelation, checkMechanism,
   internals: { withFreezeRoot },

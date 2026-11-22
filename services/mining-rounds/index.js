@@ -22,7 +22,7 @@ const path = require('path');
 const { dataDir, now, append, read } = require('../../packages/ledger');
 const { validateRecord } = require('../../schemas');
 const trials = require('../trial-ledger');
-const { NEW_ROUND_NEUTRALIZATION } = require('./neutralization');
+const { NEW_ROUND_NEUTRALIZATION, legacyForTests } = require('./neutralization');
 
 const SCHEMA = 'MINING_ROUND_V1';
 const LEDGER = () => path.join(dataDir('research'), 'mining_rounds.jsonl');
@@ -122,8 +122,8 @@ function openRound(o = {}) {
   const cap = o.cap === undefined ? LIMITS.candidates_per_round : o.cap;
   need(Number.isInteger(cap) && cap >= 1 && cap <= LIMITS.candidates_per_round, 'MINE_ROUND_CAP_INVALID', cap);
   const rulings = checkRulings(o.rulings);
-  // 版本：不给 → RANK_GAUSS_V2；给了要是求值器认识的（执行器的 requestRound 不给；只有测试用来造第 1、2 轮那样的旧版本的轮）
-  need(o.scoring_neutralization === undefined || require('../mining-sandbox/evaluator').NEUTRALIZATION_VERSIONS.includes(o.scoring_neutralization), 'MINE_ROUND_NEUTRALIZATION_INVALID', String(o.scoring_neutralization));
+  // 版本：新开的轮只能是 RANK_GAUSS_V2（不给就是它）；LINEAR_RAW_V1 只在测试的环境开关下认（neutralization.js 的 legacyForTests），生产没有这个口子
+  need(o.scoring_neutralization === undefined || o.scoring_neutralization === NEW_ROUND_NEUTRALIZATION || (o.scoring_neutralization === 'LINEAR_RAW_V1' && legacyForTests()), 'MINE_ROUND_NEUTRALIZATION_INVALID', String(o.scoring_neutralization));
   const selectionRule = checkSelectionRule(o.selection_rule);
   const openedAt = o.openedAt || now();
   const prior = roundsOf(o.market);
