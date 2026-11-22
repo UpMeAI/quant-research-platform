@@ -42,7 +42,7 @@ function offlineRound(seed, attempts) {
     for (const text of batch) {
       const parsed = dsl.parse(text, DSL_SPACE);
       const dup = view.tried_formulas.includes(parsed.canonical);
-      const score = dup ? null : scoring.miningScore(parsed, MINING, { holding_period: 5 }).score;
+      const score = dup ? null : scoring.miningScore(parsed, MINING, { holding_period: 5, neutralization: 'LINEAR_RAW_V1' }).score;
       out.push(text);
       view.mining_scores.push({ candidate_id: `MR-OFFLINE:A${String(out.length).padStart(3, '0')}`, formula: parsed.canonical, mining_segment_score: score });
       if (!dup) view.tried_formulas = [...new Set([...view.tried_formulas, parsed.canonical])].sort();
@@ -80,10 +80,10 @@ test('GP 只产出合法的 DSL（§4 第 2 条）：过 dsl.parse、只用冻�
 
 test('适应度只用挖掘段（§4 第 2 条）：中性化后的 rank IC 均值减长度惩罚；验证折或留出段的面板一喂就抛错', () => {
   const parsed = dsl.parse('rank(-ret_1d)', DSL_SPACE);
-  const s = scoring.miningScore(parsed, MINING, { holding_period: 5 });
+  const s = scoring.miningScore(parsed, MINING, { holding_period: 5, neutralization: 'LINEAR_RAW_V1' });
   assert.equal(typeof s.score, 'number');
   assert.ok(s.ic_days > 500, `${s.ic_days}`);
-  assert.deepEqual(s.neutralization, { industry: 'APPLIED', size: 'APPLIED' });
+  assert.deepEqual(s.neutralization, { industry: 'APPLIED', size: 'APPLIED', version: 'LINEAR_RAW_V1', pre_transform: 'NONE', size_regressor: 'LOG_TOTAL_MV' });
   assert.ok(s.score > 0, `planted reversal shows up as positive IC (${s.score})`);
   const tokens = parsed.tokens;
   assert.equal(gp.fitnessOf({ mining_segment_score: s.score, tokens }), s.score - gp.GP_PARAMS.length_penalty_per_token * tokens);
@@ -91,16 +91,16 @@ test('适应度只用挖掘段（§4 第 2 条）：中性化后的 rank IC 均�
   assert.equal(gp.fitnessOf({ mining_segment_score: null, tokens: 4 }), null);
 
   const val = adapter.buildPanel({ sources: sources(), space: SPACE, segment: 'VALIDATION', from: '2023-10-02', to: '2024-03-29' });
-  assert.throws(() => scoring.miningScore(parsed, val, { holding_period: 5 }), code(/MINE_SCORE_NOT_MINING_SEGMENT/));
+  assert.throws(() => scoring.miningScore(parsed, val, { holding_period: 5, neutralization: 'LINEAR_RAW_V1' }), code(/MINE_SCORE_NOT_MINING_SEGMENT/));
   const lying = { ...val, segment: 'MINING' };
-  assert.throws(() => scoring.miningScore(parsed, lying, { holding_period: 5 }), code(/MINE_SCORE_NOT_MINING_SEGMENT/));
+  assert.throws(() => scoring.miningScore(parsed, lying, { holding_period: 5, neutralization: 'LINEAR_RAW_V1' }), code(/MINE_SCORE_NOT_MINING_SEGMENT/));
   const ho = { ...MINING, segment: 'HOLDOUT' };
-  assert.throws(() => scoring.miningScore(parsed, ho, { holding_period: 5 }), code(/MINE_SCORE_NOT_MINING_SEGMENT/));
-  assert.throws(() => scoring.miningScore(parsed, { ...MINING, industry: undefined }, { holding_period: 5 }), code(/MINE_EVAL_INDUSTRY_MISSING/));
-  const neu = scoring.neutralizedValues(parsed, MINING);
+  assert.throws(() => scoring.miningScore(parsed, ho, { holding_period: 5, neutralization: 'LINEAR_RAW_V1' }), code(/MINE_SCORE_NOT_MINING_SEGMENT/));
+  assert.throws(() => scoring.miningScore(parsed, { ...MINING, industry: undefined }, { holding_period: 5, neutralization: 'LINEAR_RAW_V1' }), code(/MINE_EVAL_INDUSTRY_MISSING/));
+  const neu = scoring.neutralizedValues(parsed, MINING, { neutralization: 'LINEAR_RAW_V1' });
   const n01 = MINING.codes.indexOf('N01.SZ'); const early = MINING.dates.indexOf(fx.calendar[fx.calendar.indexOf('2021-03-01') + 30]);
   assert.equal(MINING.universe[early][n01], false);
-  assert.ok(Number.isFinite(scoring.neutralizedValues(parsed, { ...MINING, universe: MINING.universe.map((r) => r.map(() => true)) }).values[early][n01]));
+  assert.ok(Number.isFinite(scoring.neutralizedValues(parsed, { ...MINING, universe: MINING.universe.map((r) => r.map(() => true)) }, { neutralization: 'LINEAR_RAW_V1' }).values[early][n01]));
   assert.ok(Number.isNaN(neu.values[early][n01]), 'names outside the universe are not neutralized or scored');
 });
 

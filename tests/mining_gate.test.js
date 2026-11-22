@@ -51,7 +51,7 @@ function candidate() {
     candidate_id: 'R001-C017', factor_id: 'CN_A.MINED.R001_C017', market: 'CN_A', layer: 'SELECTION_CROSS_SECTION', origin: 'AI_MINED_GP',
     round_id: 'R001', family_id: 'CN_A.SELECTION_CROSS_SECTION.H20', horizon_trading_days: 20, status: 'CANDIDATE',
     overfit: { dsr: 0.97, n_trials: N_FAMILY, pbo: 0.31, pbo_scope: 'ROUND_CANDIDATE_SET' },
-    holdout: { opened_at: '2026-12-01T01:30:00.000Z', scored_at: '2026-12-01T10:00:00+08:00', neutralization: { industry: 'APPLIED', size: 'APPLIED' }, ic_mean: 0.035, icir: 0.42, icir_non_overlapping: true, ic_double_horizon: 0.022,
+    holdout: { opened_at: '2026-12-01T01:30:00.000Z', scored_at: '2026-12-01T10:00:00+08:00', neutralization: { industry: 'APPLIED', size: 'APPLIED', version: 'LINEAR_RAW_V1' }, ic_mean: 0.035, icir: 0.42, icir_non_overlapping: true, ic_double_horizon: 0.022,
       quintile_mean_returns: [-0.01, -0.002, 0.003, 0.008, 0.015] },
     net_of_cost: { long_only: true, top_fraction: 0.2, cost: { commission_bps: 2.5, slippage_bps: 10, stamp_duty_on_sell: true },
       benchmark: 'EQUAL_WEIGHT_UNIVERSE', annualized_excess: 0.031 },

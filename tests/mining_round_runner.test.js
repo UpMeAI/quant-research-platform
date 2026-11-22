@@ -300,7 +300,7 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
   assert.throws(() => runner.internals.withGenerator(knownGen, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: COV })), code(/MINE_RUNNER_GENERATION_CLOSED/));
   assert.throws(() => runner.select({ roundId: r.round_id, sources: sources(), outDir: out }), code(/MINE_ROUND_SELECTION_EXISTS/));
   const mining = adapter.buildPanel({ sources: sources(), space: SPACE, segment: 'MINING', from: '2023-01-03', to: '2023-12-29' });
-  assert.throws(() => selector.validationStats(require('../services/mining-sandbox/dsl').parse('rank(pb)', require('../services/mining-sandbox/space').dslSpaceOf(SPACE)), mining, { holding_period: 5 }),
+  assert.throws(() => selector.validationStats(require('../services/mining-sandbox/dsl').parse('rank(pb)', require('../services/mining-sandbox/space').dslSpaceOf(SPACE)), mining, { holding_period: 5, neutralization: 'RANK_GAUSS_V2' }),
     code(/MINE_SELECT_NOT_VALIDATION_PANEL/));
 
   // 留出段：先核目录，核不过不开
@@ -337,6 +337,7 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
   const scoreFile = JSON.parse(fs.readFileSync(path.join(runDirOf(out, r.round_id), 'score.json'), 'utf8'));
   const trialFormula = new Map(roundTrials(r.round_id).map((t) => [t.mining.candidate_id, t.rule_config.formula]));
   assert.ok(scoreFile.results.every((x) => x.formula === trialFormula.get(x.candidate_id)), 'formulas come from the trial rows');
+  assert.ok(scoreFile.results.every((x) => x.holdout.neutralization.version === 'RANK_GAUSS_V2' && x.size_exposure.statistic === 'MEAN_DAILY_SPEARMAN_VS_LOG_TOTAL_MV' && x.size_exposure.neutralization_version === 'RANK_GAUSS_V2' && x.size_exposure.days > 0), 'N3: every result carries the size exposure of its own neutralized values');
   assert.equal(scoreFile.holdout_panel.to, '2026-12-31', 'the date-suffixed completion files were read');
   assert.deepEqual(scoreFile.holdout.field_states_per_day, hd.field_states_per_day);
   assert.deepEqual(scoreFile.holdout.field_floor, hd.field_floor);
@@ -346,7 +347,7 @@ test('验证折选择不回生成方（§1 第 5 步）；留出段只在开启�
   const hp = adapter.buildPanel({ sources: [...sources(), adapter.csvDirSource(hv.complete, { mode: 'LIVE', label: 'holdout', holdout: true })], space: SPACE, segment: 'HOLDOUT',
     from: '2020-06-01', to: '2026-12-31' });
   for (const res of scoreFile.results) {
-    const neu = scoring.neutralizedValues(require('../services/mining-sandbox/dsl').parse(res.formula, dslSpace), hp);
+    const neu = scoring.neutralizedValues(require('../services/mining-sandbox/dsl').parse(res.formula, dslSpace), hp, { neutralization: 'RANK_GAUSS_V2' });
     const ic = scoring.dailyRankIc(neu.values, scoring.forwardReturns(hp, 5), hp.universe);
     const days = hp.dates.map((d, t) => (d >= '2026-10-19' ? t : -1)).filter((t) => t >= 0);
     const xs = days.map((t) => ic[t]).filter(Number.isFinite);
@@ -384,7 +385,7 @@ test('唯一生产者（§4 第 6 条）：留出段结果只经执行器（hold
   assert.deepEqual(hits.open, ['services/mining-sandbox/round-runner/index.js']);
   const val = adapter.buildPanel({ sources: sources(), space: SPACE, segment: 'VALIDATION', from: '2026-01-05', to: '2026-10-16' });
   const parsed = require('../services/mining-sandbox/dsl').parse('rank(pb)', require('../services/mining-sandbox/space').dslSpaceOf(SPACE));
-  assert.throws(() => holdoutScoring.scoreCandidate(parsed, val, { holding_period: 5 }), code(/MINE_HOLDOUT_SCORE_NOT_HOLDOUT_PANEL/));
+  assert.throws(() => holdoutScoring.scoreCandidate(parsed, val, { holding_period: 5, neutralization: 'RANK_GAUSS_V2' }), code(/MINE_HOLDOUT_SCORE_NOT_HOLDOUT_PANEL/));
   const c = { market: 'CN_A', holdout: { ic_mean: 0.05, icir: 0.5, icir_non_overlapping: true, quintile_mean_returns: [0.01, 0.02, 0.03, 0.04, 0.05], ic_double_horizon: 0.04,
     neutralization: { industry: 'APPLIED', size: 'APPLIED' } } };
   const items = (x) => Object.fromEntries(gate.evaluate(x, { thresholds: gate.THRESHOLDS, familyTrialCount: 10 }).items.map((i) => [i.item, i.codes]));
@@ -477,7 +478,7 @@ test('留出段打分的口径（手算得出）：五分组、IC、只做多前
     universe: dates.map(() => codes.map(() => true)), board: codes.map(() => 'MAIN'), st: dates.map(() => codes.map(() => false)),
     labels: { exec_open: ex, open_raw: dates.map(() => codes.map(() => 10)), prev_close_raw: dates.map(() => codes.map(() => 10)) } };
   const parsed = require('../services/mining-sandbox/dsl').parse('pb', require('../services/mining-sandbox/space').dslSpaceOf(SPACE));
-  const H = 2; const s = holdoutScoring.scoreCandidate(parsed, panel, { holding_period: H });
+  const H = 2; const s = holdoutScoring.scoreCandidate(parsed, panel, { holding_period: H, neutralization: 'LINEAR_RAW_V1' });
   const fwd = (j) => grow(j) ** H - 1; const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
   // 期：t = 0, 2, 4, …（t + H < T）；t < 4 时前 20% 是 X9、X8，t ≥ 4 换成 X0、X1（买入 100%、卖出 100%）
   const periods = []; for (let t = 0; t + H < T; t += H) periods.push(t);
@@ -501,7 +502,7 @@ test('留出段打分的口径（手算得出）：五分组、IC、只做多前
   });
   assert.ok(Number.isFinite(s.holdout.ic_double_horizon));
   assert.equal(s.holdout.icir_non_overlapping, true);
-  assert.deepEqual(s.holdout.neutralization, { industry: 'APPLIED', size: 'APPLIED' });
+  assert.deepEqual(s.holdout.neutralization, { industry: 'APPLIED', size: 'APPLIED', version: 'LINEAR_RAW_V1', pre_transform: 'NONE', size_regressor: 'LOG_TOTAL_MV' });
 });
 
 test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从开轮到关轮；台账、留出段日志、G-MINE 记录前后一致；同种子再跑一次，尝试串逐字节相同', () => {
@@ -549,6 +550,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   const id = a.g.round_id;
   const round = rounds.roundHead(id);
   assert.deepEqual([round.status, round.candidates_scored, round.cap, round.generator.mode, round.generator.gp_seed], ['CLOSED', 24, 24, 'AI_MINED_GP', 7]);
+  assert.equal(round.scoring_neutralization, 'RANK_GAUSS_V2'); // 修订 SIZE_V2 N2：新开的轮写版本
   assert.equal(round.space.sha256, runner.FROZEN_INPUTS.space.sha256);
   assert.deepEqual(round.holdout, { from: '2026-10-19', to: '2026-12-31' });
   assert.deepEqual(round.data_checks, { coverage_floor: { min_names_per_day: 5, default: 2000, overridden: true } }, 'the generate-phase override is in the round row');
@@ -573,13 +575,11 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
     assert.equal(x.trial_record_hash, headsById.get(x.candidate_id).record_hash);
     assert.equal(x.holdout_open_hash, opens[0].record_hash);
     assert.equal(x.pass, false);
-    assert.equal(x.thresholds_used.state, 'FROZEN');
+    // 修订 SIZE_V2 N4：新开的轮（RANK_GAUSS_V2）读 v2 门槛文件，冻结页 FREEZE_2 之前是 PENDING_FREEZE → 门失败即关（只给 MINE_THRESHOLDS_UNFROZEN）；
+    // 九项逐项的码在 mining_gate.test.js 与 mining_size_neutralization_v2.test.js 里用注入的门槛块判
+    assert.deepEqual([x.thresholds_file.path, x.thresholds_used.state, x.codes], ['config/mining_gate_thresholds.v2.json', 'PENDING_FREEZE', ['MINE_THRESHOLDS_UNFROZEN']]);
     assert.equal(x.family_trial_count, 24);
-    // R1.3：DSR 在验证折上算得出（不再是 UNKNOWN）；R1.4：没给现有因子序列 → 第 7、8 项照实 UNKNOWN；R1.5：没登记机制 → 第 9 项不过
-    for (const c of ['MINE_MARGINAL_INPUT', 'MINE_CORRELATION_UNKNOWN', 'MINE_MECHANISM_UNKNOWN']) assert.ok(x.codes.includes(c), `${x.candidate_id}:${c}`);
     assert.equal(x.excluded_factors.length, 3, 'R1.9 exclusions are named even without a factor series');
-    assert.ok(!x.codes.includes('MINE_DSR_UNKNOWN'), `${x.candidate_id}: DSR on the validation folds`);
-    for (const c of ['MINE_NOT_NEUTRALIZED', 'MINE_DSR_N_NOT_CUMULATIVE', 'MINE_PBO_SCOPE', 'MINE_NET_SCOPE', 'MINE_NET_COST_BELOW_FLOOR', 'MINE_ICIR_OVERLAPPING']) assert.ok(!x.codes.includes(c), c);
   }
   assert.deepEqual(round.gmine_basis.record_hashes, recs.map((x) => x.record_hash));
   assert.equal(round.gmine_basis.holdout_open_hash, opens[0].record_hash);

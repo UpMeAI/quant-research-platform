@@ -364,7 +364,7 @@ const SCHEMAS = Object.freeze({
     _doc: '研究框架修订 2026-11-16 §3.3、§3.4（RF1116，签字 fd22876f / 39f8c17c）；协调会话裁定 R1（ce254328）：rulings 引裁定页、selection_rule 是冻结的验证折选择规则、holdout_opens 是留出段开启次数 —— 一轮挖掘的冻结清单（= 预登记）与状态：搜索空间 sha 与冻结页、持有期与族、生成方式（模型与知识截止日 / GP 种子）、上限 ≤ 200、留出段（第一轮冻结，以后不挪）；状态 OPEN → CAP_REACHED → SCORING（留出段已开）→ CLOSED（G-MINE 过了几个由逐候选记录数出来，gmine_basis 记依据，给暂停规则用）；或失败终态 FAILED_RESCORE（R1.8）/ FAILED_PARTIAL（R1.12，修订 4 705e2e6a）：0 个通过、已写记录标 VOID；台账 research/mining_rounds.jsonl（services/mining-rounds）',
     round_id: 's', market: 's', month: 's', space: 'o', holding_periods: 'a', family_ids: 'a', generator: 'o', holdout: 'o', cap: 'n', resumed_after_pause: 'a',
     status: 's', candidates_scored: 'n', gmine_passes: 'n?', gmine_basis: 'o?', opened_at: 's', closed_at: 's?', record_hash: 's', data_checks: 'o?',
-    rulings: 'a', selection_rule: 'o', holdout_opens: 'o?',
+    rulings: 'a', selection_rule: 'o', holdout_opens: 'o?', scoring_neutralization: 's?',
   },
   MINING_SELECTION_V1: {
     _doc: '验证折选择记录（RF1116 §3.4；P2 独立复审 2026-11-17）：一轮一行、只追加，写输出目录里 selection.json 的 sha256 与过了验证折的候选编号；写了之后本轮不再记候选；留出段只开这些候选，公式取试验台账行（services/mining-rounds recordSelection）',

@@ -40,7 +40,7 @@ const withIndustry = (keep) => ({ ...P, industry: P.industry.map((row, t) => row
 const withoutLabels = (share) => { const cut = Math.floor(share * P.dates.length); return { ...P, labels: { ...P.labels, exec_open: P.labels.exec_open.map((row, t) => (t < cut ? row.map(() => NaN) : row)) } }; };
 
 test('M-1 好面板：逐日中性化后的名字数够、份额够，IC 日 ≥ 0.95 × 打分日；记录里有 min_named / min_share 与门槛', () => {
-  const c = runner.checkCanary(P, COV);
+  const c = runner.checkCanary(P, COV, undefined, { neutralization: 'RANK_GAUSS_V2' });
   assert.equal(c.scored_days, SCORED_DAYS);
   assert.equal(c.min_ic_days, Math.ceil(0.95 * SCORED_DAYS));
   assert.deepEqual([c.min_names_per_day, c.min_coverage_share, c.min_day_share], [5, 0.9, 0.95]);
@@ -51,24 +51,24 @@ test('M-1 好面板：逐日中性化后的名字数够、份额够，IC 日 ≥
 
 test('M-1 行业只剩一部分名字：6 / 15（复审 P1）拒；少 2 个名字（13 / 15 < 0.9）也拒', () => {
   const codes = P.codes;
-  assert.throws(() => runner.checkCanary(withIndustry((t, j) => j < 6), COV), code(/^MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):\d{4}-\d{2}-\d{2}:neutralized=/));
+  assert.throws(() => runner.checkCanary(withIndustry((t, j) => j < 6), COV, undefined, { neutralization: 'RANK_GAUSS_V2' }), code(/^MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):\d{4}-\d{2}-\d{2}:neutralized=/));
   const drop = new Set(codes.slice(0, 2));
-  assert.throws(() => runner.checkCanary(withIndustry((t, j) => !drop.has(codes[j])), COV), code(/MINE_RUNNER_CANARY_UNSCORABLE:.*neutralized=/));
+  assert.throws(() => runner.checkCanary(withIndustry((t, j) => !drop.has(codes[j])), COV, undefined, { neutralization: 'RANK_GAUSS_V2' }), code(/MINE_RUNNER_CANARY_UNSCORABLE:.*neutralized=/));
 });
 
 test('M-1 行业只缺前一段日子（复审 P2，前 49%）拒：逐日核，不看总数', () => {
   const cut = Math.floor(0.49 * P.dates.length);
-  assert.throws(() => runner.checkCanary(withIndustry((t) => t >= cut), COV), code(/MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):2020-06-02:neutralized=0</));
+  assert.throws(() => runner.checkCanary(withIndustry((t) => t >= cut), COV, undefined, { neutralization: 'RANK_GAUSS_V2' }), code(/MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):2020-06-02:neutralized=0</));
 });
 
 test('M-2 份额 0.95 钉住：前 20% 的日子没有前推收益（IC 日约 80%）拒；前 2% 没有（约 98%）过', () => {
-  assert.throws(() => runner.checkCanary(withoutLabels(0.2), COV), code(/MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):ic_days=\d+</));
-  const ok = runner.checkCanary(withoutLabels(0.02), COV);
+  assert.throws(() => runner.checkCanary(withoutLabels(0.2), COV, undefined, { neutralization: 'RANK_GAUSS_V2' }), code(/MINE_RUNNER_CANARY_UNSCORABLE:\(-close_hfq\):ic_days=\d+</));
+  const ok = runner.checkCanary(withoutLabels(0.02), COV, undefined, { neutralization: 'RANK_GAUSS_V2' });
   assert.ok(ok.formulas[0].ic_days >= ok.min_ic_days && ok.formulas[0].ic_days < SCORED_DAYS);
 });
 
 test('M-2 名字数下限钉住：同一个好面板，下限 20 只（合成数据只有十几只）拒', () => {
-  assert.throws(() => runner.checkCanary(P, { min_names_per_day: 20 }), code(/MINE_RUNNER_CANARY_UNSCORABLE:.*neutralized=\d+<max\(20,/));
+  assert.throws(() => runner.checkCanary(P, { min_names_per_day: 20 }, undefined, { neutralization: 'RANK_GAUSS_V2' }), code(/MINE_RUNNER_CANARY_UNSCORABLE:.*neutralized=\d+<max\(20,/));
 });
 
 test('M-2 命令行 --resume 也先过金丝雀：坏数据上续跑退出 2，轮次的续跑记录不动', () => {
@@ -97,7 +97,7 @@ test('M-3 直接调 generate()：坏面板上自己跑金丝雀，拒，一个�
   assert.equal(rounds.familyN('CN_A', 5), 0, 'nothing entered N');
   const fake = { formulas: [{ formula: 'fake', score: 1, ic_days: 999 }] };
   const g = runner.internals.withGenerator(stub, () => runner.generate({ roundId: r.round_id, sources: sourcesOf(good), outDir: out, registeredBy: AUTH, coverageFloor: COV, canary: fake }));
-  assert.deepEqual(g.canary, runner.checkCanary(P, COV), 'its own canary, not the caller\'s');
+  assert.deepEqual(g.canary, runner.checkCanary(P, COV, undefined, { neutralization: 'RANK_GAUSS_V2' }), 'its own canary, not the caller\'s');
 });
 
 test('L-1 入口 recordCandidate：没有标记的 null 分数、带标记的有限分数、认不出的标记，一律拒', () => {

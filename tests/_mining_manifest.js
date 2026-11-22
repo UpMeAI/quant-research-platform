@@ -16,7 +16,8 @@ const R1_SELECTION_RULE = Object.freeze({
   ]),
   mean_ic_gt: 0, positive_folds_min: 4, mining_score_gt: 0,
 });
-const R1 = Object.freeze({ rulings: Object.freeze([R1_RULING]), selection_rule: R1_SELECTION_RULE });
+// scoring_neutralization：这些测试练的是门槛文件与记录的机制（V1 门槛文件、FROZEN），按第 1、2 轮的版本开轮；V2 的路径由 mining_size_neutralization_v2.test.js 管
+const R1 = Object.freeze({ rulings: Object.freeze([R1_RULING]), selection_rule: R1_SELECTION_RULE, scoring_neutralization: 'LINEAR_RAW_V1' });
 
 const addDays = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 864e5).toISOString().slice(0, 10);
 /**
