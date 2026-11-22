@@ -15,6 +15,8 @@ const replayOutput = require('./replay-output');
 const stats = require('./stats');
 const { isObj } = require('./common');
 
+const IDLE_BELOW = 0.2; // plan-coord 11-23: below 20% active days the S4 result carries limitation EXISTING_BOOK_MOSTLY_IDLE
+
 /** @returns {{body: object} | {refusal: string}} */
 function produce({ replay, terms, star }) {
   const layer = isObj(star) && isObj(star.by_layer) ? star.by_layer[terms.layer] : null;
@@ -30,7 +32,9 @@ function produce({ replay, terms, star }) {
   if (joint.length < 2) return { refusal: 'REPLAY_PORTFOLIO_NOT_ALIGNED' };
   const rho = Math.abs(stats.corr(joint.map((x) => candBy.get(x.date)), joint.map((x) => x.net))); // does the candidate just repeat the existing book?
   const book = pf.without.map((x) => x.net);
-  return { body: { n: diff.n, marginal_net_contribution: { estimate: diff.estimate, ci: diff.ci },
+  // the existing book may be idle most days (the stock book is idle on 80.7% of replay days): the low overlap against an idle book is real but must be visible. The decision stays on the marginal contribution.
+  const activeShare = pf.without.length ? pf.without.filter((x) => x.net !== 0).length / pf.without.length : 0;
+  return { body: { ...(activeShare < IDLE_BELOW ? { limitation: 'EXISTING_BOOK_MOSTLY_IDLE' } : {}), existing_book_active_share: activeShare, n: diff.n, marginal_net_contribution: { estimate: diff.estimate, ci: diff.ci },
     tail_ok: stats.cvar5(pf.with.map((x) => x.net)) >= stats.cvar5(book), stress_ok: pf.stress.every((s) => s.delta >= 0),
     overlap: { holdings: rho, risk: rho },
     race: { partition: terms.layer === 'RISK' ? 'RISK' : 'SELECTION_TIMING' } } };

@@ -150,7 +150,7 @@ function check({ out_dir: outDir, as_of: checkAsOf = null, services = {}, next_b
         const ph = inputs.post_holdout;
         const files = new Map(ph.files.map((f) => [f.path, readIfFile(abs(f.stored))]));
         const d = verdictMod.decide({ bundle: ph.bundle, verifierCtx: { readBytes: (ref) => files.get(ref.path) || null, gateOptions: services.verifierGateOptions || {}, authority: { ledgerFile: abs(`${lineageMod.dirOf(7)}/no_grants.jsonl`) }, promotionEngine: { s4: () => ph.s4 } },
-          request: ph.request, priorEngine: ph.prior_engine, engine, awaiting: ph.awaiting || null, skipVerifier: ph.skip_verifier === true });
+          request: ph.request, priorEngine: ph.prior_engine, engine, awaiting: ph.awaiting || null, skipVerifier: ph.skip_verifier === true, limits: ph.limits || [] });
         return d.status === 'DECIDED' ? d.verdict_text : `UNDECIDED:${d.reason_code}`;
       }
       const r = verdictMod.preHoldout(inputs, engine);

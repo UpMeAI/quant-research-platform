@@ -108,7 +108,7 @@ async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_
   const baseD = K.baseDraft();
   const draft = K.baseDraft({ section0: { ...baseD.section0, mechanism_ids: [MECH] }, arms: baseD.arms.map((a) => ({ ...a, stage: 'SIGNAL' })),
     causality: { functions: causalityEvidence.functionIdsOf(candidateFormulaCanonical(candidateFormula)), evidence_sha256: ce0.sha256 },
-    promotion_terms: { ...baseD.promotion_terms, layer: 'ALPHA', min_economic_value: STAR07.by_layer.ALPHA.min_economic_value, thresholds: STAR07.by_layer.ALPHA.thresholds } });
+    promotion_terms: { ...baseD.promotion_terms, next_review_endpoint: { kind: 'DATE', value: '2027-06-30' }, layer: 'ALPHA', min_economic_value: STAR07.by_layer.ALPHA.min_economic_value, thresholds: STAR07.by_layer.ALPHA.thresholds } });
   files.k2_draft = write('k2_draft.json', `${canonicalJson(draft)}\n`);
 
   const spies = { executed: 0, registered: 0 };
@@ -120,7 +120,7 @@ async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_
       register: (prepared) => { spies.registered += 1; return K.registerAt(prepared); },
     },
     // default: a well-behaved synthetic replay output (the 15-stock fixture's own economics cannot pass S3 after costs); realBacktest: true runs the QRP backtester on the fixture tables
-    backtest: { run: ({ formula, candidateId }) => { if (!realBacktest) { const rp = require('./_lab_replay_fixture').makeReplay({ days: 504 }); if (idleBook) { const keep = Math.round(rp.portfolio.without.length * (1 - idleBook)); rp.portfolio.without = rp.portfolio.without.map((x, i) => (i < keep ? x : { ...x, net: 0 })); } return { replay: rp }; } const fx = miningFixture();
+    backtest: { run: ({ formula, candidateId }) => { if (!realBacktest) { const rp = require('./_lab_replay_fixture').makeReplay({ days: 504 }); if (idleBook) { const keep = Math.round(rp.portfolio.without.length * (1 - idleBook)); const old = rp.portfolio.without; rp.portfolio.without = old.map((x, i) => (i < keep ? x : { ...x, net: 0 })); rp.portfolio.with = rp.portfolio.with.map((x, i) => ({ ...x, net: x.net - old[i].net + rp.portfolio.without[i].net })); /* the increment over the book is unchanged */ } return { replay: rp }; } const fx = miningFixture();
       const r = backtester.run({ formula, candidateId, sources: [adapter.csvDirSource(fx.dirs.lane, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(fx.dirs.tail, { mode: 'LIVE', label: 'tail' })], rules: backtestRules,
         existingBook: existingBook(), market: 'CN_A', costBook: 'STOCK_BOOK', costModelRef: 'W24_QRP_BACKTEST_COSTS_V1' }); if (r.refusal) return { refusal: r.refusal };
       // the fixture's synthetic codes (S01.SH) carry no board prefix: map them to real-format codes for V-4's board and price-limit functions

@@ -34,7 +34,7 @@ function assembleBundle({ chain, evidence, asOf }) {
   };
 }
 
-function decide({ bundle, verifierCtx, request, priorEngine = [], engine = engineDefault, awaiting = null, skipVerifier = false }) {
+function decide({ bundle, verifierCtx, request, priorEngine = [], engine = engineDefault, awaiting = null, skipVerifier = false, limits = [] }) {
   if (!isObj(bundle) || !isObj(request) || !isObj(request.terms)) return { status: 'REFUSED', reason_code: 'LAB_VERIFY_INPUT_INVALID' };
   const k2 = bundle.v1 && bundle.v1.files && bundle.v1.files.k2;
   if (!k2 || k2.sha256 !== request.terms.k2_sha256) return { status: 'REFUSED', reason_code: 'LAB_VERIFY_K2_BINDING' };
@@ -46,7 +46,7 @@ function decide({ bundle, verifierCtx, request, priorEngine = [], engine = engin
   if (!seal) return { status: 'REFUSED', reason_code: 'LAB_SEAL_ENGINE_FIX_INPUT', verifier, engine: res };
   const verdict = {
     schema: SCHEMA, candidate: { candidate_id: request.terms.candidate_id, k2_sha256: request.terms.k2_sha256 }, terminal_state: awaiting ? awaiting.state : TERMINAL_OF[seal.destination],
-    engine: [...priorEngine, summary(res)], verifier: verifier ? { generator: verifier.generator, report_sha256: sha256(verifierMod.serializeInternal(verifier.internal)) } : null, seal,
+    engine: [...priorEngine, summary(res)], limits: [...limits], verifier: verifier ? { generator: verifier.generator, report_sha256: sha256(verifierMod.serializeInternal(verifier.internal)) } : null, seal,
   };
   return { status: 'DECIDED', verifier, engine: res, seal, verdict, verdict_text: text(verdict) };
 }
@@ -91,7 +91,7 @@ function preHoldout(inputs, engine = engineDefault) {
       terminal = TERMINAL_OF[seal.destination]; engineVerdict = r2.verdict;
     }
   }
-  const verdict = { schema: SCHEMA, candidate: { candidate_id: inputs.terms.candidate_id, k2_sha256: inputs.terms.k2_sha256 }, terminal_state: terminal, engine: engineList, verifier: null, seal };
+  const verdict = { schema: SCHEMA, candidate: { candidate_id: inputs.terms.candidate_id, k2_sha256: inputs.terms.k2_sha256 }, terminal_state: terminal, engine: engineList, limits: [], verifier: null, seal };
   return { ok: true, verdict, verdict_text: text(verdict), results: out.results, terminal_state: terminal, seal, engineVerdict };
 }
 

@@ -187,7 +187,7 @@ function experiment(S) {
   const log = accessLog.verifyBytes(files['access_log.jsonl']);
   if (!log.ok) return { reason: `LAB_EXPERIMENT_ACCESS_LOG_${log.code}` };
   art = {
-    schema: 'LAB_EXPERIMENT_V1', inputs_sha256: inputsSha, round_id: ran.roundId, candidate: { id: cand.candidate_id, sha256: candSha, formula_sha256: dsl.candidate.formula_sha256, formula_canonical: dsl.candidate.formula_canonical },
+    schema: 'LAB_EXPERIMENT_V1', inputs_sha256: inputsSha, round_id: ran.roundId, run_dir: runDir, candidate: { id: cand.candidate_id, sha256: candSha, formula_sha256: dsl.candidate.formula_sha256, formula_canonical: dsl.candidate.formula_canonical },
     selected: selection.selected.includes(cand.candidate_id), selected_ids: [...selection.selected], attempts,
     files: Object.fromEntries(Object.entries(files).map(([n, b]) => [n, { sha256: sha256(b) }])), access_log_rows: log.rows.length,
   };

@@ -228,7 +228,7 @@ test('S4 existing_book_active_share: the share of days the existing book moved; 
   const active = s4.produce({ replay: R.makeReplay(), terms: t, star: STAR }).body;
   assert.equal(active.existing_book_active_share, 1);
   assert.equal('limitation' in active, false);
-  const idle = (share) => { const r = R.makeReplay(); const n = r.portfolio.without.length; const keep = Math.round(n * share); r.portfolio.without = r.portfolio.without.map((x, i) => (i < keep ? x : { ...x, net: 0 })); r.portfolio.with = r.portfolio.with.map((x, i) => (i < keep ? x : { ...x, net: x.net })); return r; };
+  const idle = (share) => { const r = R.makeReplay(); const n = r.portfolio.without.length; const keep = Math.round(n * share); const old = r.portfolio.without; r.portfolio.without = old.map((x, i) => (i < keep ? x : { ...x, net: 0 })); r.portfolio.with = r.portfolio.with.map((x, i) => ({ ...x, net: x.net - old[i].net + r.portfolio.without[i].net })); return r; };
   const low = s4.produce({ replay: idle(0.193), terms: t, star: STAR }).body;
   assert.ok(Math.abs(low.existing_book_active_share - 0.193) < 0.002, String(low.existing_book_active_share));
   assert.equal(low.limitation, 'EXISTING_BOOK_MOSTLY_IDLE');

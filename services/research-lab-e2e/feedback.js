@@ -12,10 +12,10 @@ const FEEDBACK_SCHEMA = 'LAB_FEEDBACK_V1';
 const FACTS_SCHEMA = 'LAB_FEEDBACK_FACTS_V1';
 
 /** @returns {{ok: true, feedback_text, facts_text, fact} | {ok: false, reason_code}} */
-function build({ cardId, market, asOf, labCandidateId, terminalState, verdict, reasonCodes, chainHeadSha256 }) {
-  const feedback = { schema: FEEDBACK_SCHEMA, card_id: cardId, lab_candidate_id: labCandidateId, terminal_state: terminalState, verdict, reason_codes: [...reasonCodes], chain_head_sha256: chainHeadSha256, as_of: asOf };
+function build({ cardId, market, asOf, labCandidateId, terminalState, verdict, reasonCodes, chainHeadSha256, limits = [] }) {
+  const feedback = { schema: FEEDBACK_SCHEMA, card_id: cardId, lab_candidate_id: labCandidateId, terminal_state: terminalState, verdict, reason_codes: [...reasonCodes], limits: [...limits], chain_head_sha256: chainHeadSha256, as_of: asOf };
   const feedbackText = text(feedback);
-  const fact = { source: { path: `lab/${cardId}/feedback.json`, sha256: sha256(feedbackText), pointer: '/' }, at: asOf, value: { candidate_id: labCandidateId, terminal_state: terminalState, verdict, reason_codes: [...reasonCodes] } };
+  const fact = { source: { path: `lab/${cardId}/feedback.json`, sha256: sha256(feedbackText), pointer: '/' }, at: asOf, value: { candidate_id: labCandidateId, terminal_state: terminalState, verdict, reason_codes: [...reasonCodes], limits: [...limits] } };
   const c = checkPack({ facts: [{ id: 'F-001', ...fact }] }, { purpose: 'CARD', maxTokens: Infinity });
   if (!c.ok) return { ok: false, reason_code: `LAB_FEEDBACK_FACT_INVALID_${c.errors[0].code}` };
   return { ok: true, feedback_text: feedbackText, facts_text: text({ schema: FACTS_SCHEMA, card_id: cardId, market, as_of: asOf, facts: [fact] }), fact };
