@@ -3,7 +3,7 @@
  * 无工具代理运行时（★RQ15 (a)，§5.2）。代码建包、调网关、验 JSON、只用验证器错误码重问；模型没有 shell、文件、网络或任何工具，它写的东西从不被执行。
  *
  * 流程（每个请求最多发一次，错误一律交回队列）：
- *   一次「尝试」= 首答 + 允许的 1 次修订（卡与核对各 1 次）；flash 在同一任务上两次独立尝试都被验证器拒 → 写质量闸记录 → 恰好一次 deepseek-v4-pro
+ *   一次「尝试」= 首答 + 允许的 1 次修订（卡与核对各 1 次）；flash 在同一任务上两次独立尝试都被验证器拒 → 写质量闸记录 → 恰好一次 pro 模型
  *   （RQ_AGENT_PRO_FALLBACK，不修订）；pro 也被拒 → BLOCKED_DETERMINISTIC + 补救。网关错误按类映射，不消耗尝试。
  * 模型：非思考模式，temperature 0，response_format json_object，max_tokens ≤ 4000。模型名、purpose、上限都读 config/rq_deepseek_gateway.v1.json。
  * 不读文件、不碰网络（只有 ./gateway-client.js 的 unix socket）；cli.js 才做文件读写。
