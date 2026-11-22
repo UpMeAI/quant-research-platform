@@ -1,0 +1,2319 @@
+{
+  "schemaVersion": "DATASET_REGISTRY_V1",
+  "version": "1.20.0",
+  "adopted": "Coordinator ruling 2026-10-20: AUDIT_DATA_FLOW_DUPLICATES_2026-10-20 §6 A1–A10 adopted as the data-flow acceptance; P0 = this registry, the G2 guard in Cycle Atlas, Ashare-V6 and smartflow, and a freeze on new non-owner collectors.",
+  "decisions": [
+    "IC-A3 (Owner 2026-10-18): official sources are collected once, by the Cycle Atlas data chains; raw data is stored once.",
+    "IC-A13 (Owner 2026-10-18): public facts live in Cycle Atlas; data flows only from the public side to the desk.",
+    "IC-A14 (Owner 2026-10-18): one dataset, the Cycle Atlas chain archive; V6 builds no collection of its own.",
+    "MPT M1 a (Owner 2026-10-18): market psychology goes into the Cycle Atlas archive; smartflow and V6 sentiment collection stays for reconciliation only.",
+    "FRED (Owner 2026-10-20 13:2x): two FRED keys (FRED_API_KEY, CYCLE_ATLAS_FRED_API_KEY) are acceptable; FRED is not counted as a duplicate.",
+    "DF-P4 CN-3 (coordinator 2026-10-20): Cycle Atlas collects CN-3 itself from the SSE and SZSE daily quotes; the one-off V6 cross-section import is removed (its archived R2 objects stay, as history in their own segments).",
+    "DF-A9 (Owner 2026-10-20T13:47:05+08:00): the industry cycle phase merges into E1; C05 reads E1 and derives no second phase.",
+    "SG-2 VIX ruling (coordinator 2026-10-20 (a)): the VIX level is a smartflow trading input (US_V5 regime, core rotation, carry risk, leveraged ETF gate read Yahoo ^VIX): a registered TRADING_PATH exception. smartflow's US SENTIMENT_CONTEXT put/call and VIX rows reconcile against E5 only (reconciliationOnly rows, US_SENTIMENT_E5_RECONCILIATION).",
+    "SG-2 V6 aggregates ruling (coordinator 2026-10-21, MP-8 / MP-9 / MP-10): Cycle Atlas may read V6's TRADING_PATH aggregates (one row per trading day, never a security-level row) through a read-only transaction; V6 stays the only collector of the Tushare all-A daily data. Registered as CONSUMER exceptions that cite a V6-owned dataset: ALL_A_CROSS_SECTION (no expiry) and V6_CSI300_INDEX_DAILY (INTERIM to 2026-12-31, until Cycle Atlas's own CSI 300 capture (DF-P1) reconciles to zero difference daily).",
+    "MPT benchmark audit fix (Owner 2026-10-21): E5 may read the V6 broad-index daily aggregates 000985.CSI and 000852.SH for the A-share comparison panel; V6 stays the only collector. Registered as a CONSUMER exception, interim to 2026-12-31 pending Cycle Atlas's own broad-index capture and zero-difference reconciliation.",
+    "Cycle official inputs V1 (2026-10-22): MACRO_CN_OFFICIAL adds NBS 41-division value-added YoY, NBS quarterly GDP structure and PBOC TSF structure; PBOC remains internal-only pending permission.",
+    "Macro stage multi-timeframe inputs (coordinator 2026-10-23, MACRO_STAGE_MT_V1 K1-K4): the NBS 41-division context with the national 工业 totals, the US industry operating projection with the AMTMVS / AMTMTI totals and the FRED point-in-time projection with GDPC1 / GDPPOT are collected and sealed by Cycle Atlas only; Ashare-V6 reads them as files that a KG script copies, byte for byte, into its artifacts/cycle-readings/ (INTERIM, the same pattern as the readings publisher). V6 collects nothing new (DRV-2) and the pin it holds is this file's sha256 (DRV-3).",
+    "L1_TOTAL_RISK_BUDGET_V1 (Owner 2026-10-27T12:38:03+08:00 「跨市场总风险预算 按推荐实施」, smartflow docs/LAYER1_TOTAL_RISK_BUDGET_RULE_DRAFT_V1.md sha256 5f7b1d41…) with coordinator note 1 (sha256 bcac3e7e…) and the Owner's 10-27 three-project division: the band reading (one-year-high drawdown, SMA200, band, k, linkage) is produced once, by Cycle Atlas, as L1_RISK_BUDGET_BANDS, from registered shared inputs only (no new collector); V6 and smartflow enforce L7 / L8 and the desk only displays. The BTCUSDT perpetual daily closes are smartflow's (SMARTFLOW_BTCUSDT_PERP_DAILY); Cycle Atlas collects none, and no consumer path to it is registered yet.",
+    "L1_RISK_BUDGET_BANDS to the smartflow host (coordinator ruling on smartflow#43, L1_TOTAL_RISK_BUDGET_V1 stage 2b X-1 (a), 2026-10-27): HK holds no R2 credential and a new one is the Owner's keys decision, so the Cycle Atlas Mac lane, after daily.sh publishes (and in its 22:30 --only-if-degraded rerun), copies the published pointer and reading byte for byte over the existing SSH alias into a mirror in the R2 key layout (worker-cf/scripts/l1-risk-budget/hk-mirror.sh). smartflow reads that mirror exactly as R2 (pointer, reading, sha256) and computes no band; the direction is Cycle Atlas to smartflow, nothing on the smartflow host is read.",
+    "C17_V2 execution-cost K2 (C17_V2_M2_Q2_EXECUTION_COST_V1, frozen text sha256 551cff82…; coordinator ruling CRYPTO_M2_R1_K2_FREEZE_1 Q2, 2026-10-27T16:45:06+08:00, supplementary ruling 1): the forward recorder's t0 order books and window aggTrades are smartflow TRADING_PATH execution observation, on the line of smartflow PR #41's 60-second observation, registered as smartflow-owned (SMARTFLOW_C17_EXECUTION_COST_RECORDS). It reads public Binance USDT-M data at each decision, places no order and writes no book row; Cycle Atlas collects none and no consumer path is registered.",
+    "L1 CRYPTO input (L1_TOTAL_RISK_BUDGET_V1 implementation acceptance ruling E-1 = B1(i); coordinator X-2 adopted 2026-10-27; smartflow#43 live on the smartflow host since 2026-10-28 06:03 CST under SMARTFLOW_BTC_PERP_DAILY_PERSIST=1): smartflow keeps the BTCUSDT perpetual closed-UTC-day closes it already reads as a daily file (SMARTFLOW_BTCUSDT_PERP_DAILY, a content-addressed series named by latest.json). The Cycle Atlas Mac lane reads that pointer and the series it names, read-only, over the existing SSH alias before each band build (worker-cf/scripts/l1-risk-budget/btc-pull.sh) and checks the sha256; it is the CRYPTO input of L1_RISK_BUDGET_BANDS. Registered as a CONSUMER of a smartflow TRADING_PATH dataset: smartflow stays the only collector, Cycle Atlas makes no Binance call and writes nothing on the host.",
+    "Total-account line (GLOBAL_RISK_PRIORITY_V1 §3, Owner signed 2026-11-01; implementation acceptance V1 adopted at smartflow deb3f6e0, G-1 / G-3 / G-11): L1_RISK_BUDGET_BANDS gains the optional totalAccount block (contract 1.2.0+, worker-cf/src/l1-risk-budget/total-account.ts), built only with L1_TOTAL_ACCOUNT=on. Its inputs are registered at switch-on: the five L1 paper books' POSITION_LEDGER_SNAPSHOT_V1 files as the producers deliver them to the desk (V6_PAPER_LEDGER_SNAPSHOT on the Mac desk inbox, SMARTFLOW_PAPER_LEDGER_SNAPSHOT on the desk inbox of the smartflow host, read read-only by worker-cf/scripts/l1-risk-budget/total-account-pull.sh, one cat per exact file over the existing SSH alias), and one fact of Cycle Atlas's own readings projection (MACRO_CYCLE_READINGS: USDCNH_FXCM:bid_close; the L1 static guard T-L10 carries the matching narrow exception, T-L10b). Cycle Atlas computes the combined NAV from the books' own equity; it collects nothing and writes nothing on either host.",
+    "U11 (B) single-stock underlying forward shadow (coordinator rulings 2026-11-14 S1 / R1 / G1 on the K2 draft US_ETF_VALUATION_GATE_B_SHADOW_K2_V1; SEC terms record US_ETF_VALUATION_GATE_SEC_TERMS_RECORD_V1, sha256 7f634c68…): SMARTFLOW_U11_UNDERLYING_FACTS is registered as smartflow's shadow-and-research input before T_start. Its signature is the record contracts, not an SEC host: sec.gov is also read by Cycle Atlas's FINMAP numeric pages and smartflow's pre-open facts, and who owns SEC as a source (IC-A3; the 10-27 draft's US_COMPANY_FACTS_SEC_XBRL) stays open.",
+    "US 1 minute stores (proposed by the AQuA session on 2026-11-16 under the Owner's 「Start the four」 (queue.log AQUA_FOUR STARTED 2026-11-16T12:51:27+08:00), adopted when the coordinator merges knowledge-graph #365): smartflow's two US 1 m stores are registered as smartflow-owned research inputs. SMARTFLOW_US_1M is the Yahoo forward archive of each completed regular session (smartflow #134, pm2 us-1m-archive on the smartflow host since 2026-11-10). ALPACA_1M_HISTORY is the Alpaca SIP 1Min history from 2016, in raw and all (smartflow #136; the store holds 2016-01 → 2026-11-09 on the smartflow host). Both are signed by their contract names, not by a host: query1.finance.yahoo.com and data.alpaca.markets are also read by smartflow's trading workers for other data, and a host signature would make every such read a finding. No other system collects or reads either store.",
+    "US point-in-time research data source (Owner APPROVAL_1 2026-11-17 00:13:36–00:14:20 CST 「研究判「做」；批美股数据源（默认）」 on artifacts/coordinator/US_PIT_RESEARCH_DATA_SOURCE_DECISION_20261117.approved.b6c50849.md, ★1–★5 all default): research and live read one dataset from one producer, the smartflow U11 (B) EDGAR collector extended (same SEC client, same acceptance-time known_at rule). US_EQUITY_PIT_FREE_V1 is registered as smartflow's TRADING_PATH dataset, with QRP added as a consumer-only system that reads sha256-verified copies on the Linux research lane. As for U11, it is signed by its contract names, not by the sec.gov or Alpaca hosts (approved §5.1 names those hosts as its sources; as scanner signatures they would flag Cycle Atlas's own FinMap SEC readers), and who owns SEC as a source under IC-A3 stays open. US mining stays OFF until V1–V5 pass the ★1 gate (unpriced weight ≤ 1% in every holdings filing and an annual tracking gap ≤ 50 bps), the research-framework revision P1 is merged and the thresholds are frozen.",
+    "Research-live parity (Owner SIGNATURE_1 2026-11-17 ~00:23 CST on RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md, EFFECTIVE_FROM 2026-11-17T00:24:00+08:00; ★2 (a) research follows live, ★5 (a) QRP pins this registry like V6 and smartflow): one dataset, one producer; research and live are both consumers; each entry states pitSemantics (the live value; research must declare the same in its K2 data row, which QRP's G-PARITY checks, QRP #99), vendor and, for prices, priceBasis; new PIT values enter the registry-level pitSemantics list first (QRP reads it as an array). 1.13.0 registers the datasets research already used but the registry did not list (§4 P-2, P-3, P-6, P-7 and the coordinator's list of 2026-11-17), each with its producer, its consumers (QRP added where research reads it), its PIT semantics with the open parity gap, and its signature. A gap is recorded, not closed: the fixes are separate changes (P-2 producer choice, P-6 research known-at, P-7 membership snapshots). V6_INTRADAY_BAR_ARCHIVE is registered with status PLANNED_INACTIVE (Ashare-V6 #116, switch off by default). QRP gets scan roots (adapters, apps, ops, packages, services, tools; its pinned copy under config/ is not scanned), so its DRQ-2 becomes a real scan; QRP origin/main 4ea2176 has no finding.",
+    "A-share stock inputs for the first AI-mining round (coordinator 2026-11-17, after RESEARCH_LIVE_PARITY_V1): V6_CN_STOCK_DAILY_BARS (Tushare daily + adj_factor) and V6_CN_STOCK_DAILY_BASIC (Tushare daily_basic) are registered as V6-owned TRADING_PATH datasets with QRP as consumer; V6 stays the only collector. Their live PIT is V6's first observation (OBSERVED_AT); the clock their history carries is stated in pitHistoricalClock (see the #369 review line below). Three PIT names enter the list (CBOE_NEXT_DAY_0030_ET, CBOE_SAME_DAY_2130_ET, END_OF_FOLLOWING_MONTH_CONSERVATIVE): US_VOLATILITY_INDEX takes one whole; US_MARKET_PSYCHOLOGY, MACRO_CN_OFFICIAL and CN_MARKET_PSYCHOLOGY get pitSemanticsBySeries and keep the dataset-level value absent because their series differ.",
+    "1.14.0 review (#369, coordinator 2026-11-17): pitHistoricalClock states the clock rows carry in history beside the live pitSemantics (rule, or bySeries, plus detail). V6 stock bars: prices_daily.known_at = trade-date 15:00 CST by trigger (migrations 186 / 187), V6's own historical-evaluation clock, so research and live history agree. daily_basic and adj_factor have no known_at column (migrations 031, 006): dated at the trade-date close, usable from the next open only, disclosed (CLOSE_DATED_NEXT_OPEN_USABLE). END_OF_FOLLOWING_MONTH_CONSERVATIVE and the Cycle Atlas T1 rule (NEXT_DAY_0000_CST) are defined as the code has them.",
+    "1.15.0 (coordinator 2026-11-17 11:1x, R-XM-1): the Owner signed R_XM_1_ASHARE_IDLE_CASH_K2_V1 ★1 (a) 「R-XM-1 补数（默认）」, a one-off Tushare pull and so an exception to the Owner's 2026-10-25 no-re-fetch rule. V6_CN_PARKING_ETF_HISTORY is registered as V6's dataset (vendor Tushare, QRP consumer by delivered file): 511880 and the ★3 (a) bond ETF, fund_daily with fund_adj beside it and fund_nav, 2020-05-01 → 2026-11-16, pulled once by V6's own TushareClient (V6 #124 adds fund_adj to its allowlist). V6_ETF_DAILY_BARS does not cover these codes: V6's ETF universe excludes BOND and MONEY_MARKET by name, so prices_daily never held them. Clocks follow 1.14.0: fund_daily is a close-dated bar (BAR_CLOSE, D 15:00 CST as V6's replay dates fund_daily); fund_adj has no stored known_at (CLOSE_DATED_NEXT_OPEN_USABLE, as adj_factor); fund_nav is known after its announcement (ANNOUNCEMENT_NEXT_OPEN). The dataset has no live rows, so its pitSemantics is the bar clock its decision-relevant series carries.",
+    "Pendulum-grid inputs (coordinator queue #104, 2026-11-17): registry 1.16.0 records G-1, G-2, G-3, G-5, G-7 and G-8 from R_IDX_V8_PENDULUM_CENSUS_20261117 §3.2. V6 remains the sole production producer; QRP consumes sha256-verified exports. Existing dataset keys and collector ownership do not change.",
+    "1.17.0 (coordinator 2026-11-17 14:1x CST; registered after 1.15.0 #371 and 1.16.0 #372, ruling RF1116_RULING_R1_20261117 rev 4, sha256 705e2e6a…, R1.4 / R1.9 / R1.11, unchanged since rev 3): V6_CN_LIVE_RULE_FACTOR_VALUES registers the 14 CN_A LIVE_IN_RULE factors of QRP's factor library as V6's dataset before any export (R1.4: one producer, research and live consistent). V6 is the only producer; QRP reads a sha256-verified FACTOR_SERIES_V1 export by delivered file and never recomputes the values from vendor data. The live clock is the stored row instant (OBSERVED_AT); a value of business date D is used from the next session's open only. The dataset is the live window only (R1.11): live rows start between 2026-08-26 and 2026-10-08 by table; 2020-06 → 2026-09-28 exists only in the Q0 replay, another producer, recorded as an open parity question, not covered here; analyst revision breadth exists nowhere before 2025-11. fieldsGrain states each factor's grain; G-MINE items 7-8 compare only the full stock cross-section (R1.9), so #2, #7 (top-ranked only) and #14 (ETF grain) are outside QRP's comparison set. The export SQL runs only after this entry merges (coordinator).",
+    "1.18.0 (coordinator 2026-11-17 15:4x CST, ★MPS_REGISTRY (a); queue #104, merges after knowledge-graph #373): CN_MARGIN_FINANCING_PURCHASE registers 融资买入额 (SSE rzmre + SZSE jrrzmr, 元 per trading day), the internal series CN.MARGIN_FINANCING_PURCHASE, as Cycle Atlas's dataset, read from the same exchange margin summaries as CN_MARGIN_BALANCES (no new collection). Its own key, so no existing key changes: under ruling ★MARGIN_PURCHASES_SERIES the live CN-2 series is never rebuilt and its rows are never rewritten, and CN_MARGIN_BALANCES and CN_MARKET_PSYCHOLOGY stay as they are. Clock NEXT_TRADING_DAY_0900_CST live, for research and in history, the live margin producer's T2 rule (common.ts:77–89; the brief's NEXT_DAY_0000_CST is the T1 rule of MP-8 / CN-3 / CN-5). QRP reads it by delivered file (the O-5 pendulum export). The exchange history from 2010-03-31 is a separate, later, additive backfill under the same rule.",
+    "1.19.0 (coordinator 2026-11-17 16:1x CST, R-XM-1 ruling R1 (b)): the Owner's 「R1 选 b」 makes the M arm (511880.SH) DO (supported) (ruling page R_XM_1_ASHARE_IDLE_CASH_K2_V1_RESULT_RULING_R1.md, sha256 28bf76ca…), the new decision V6_CN_PARKING_ETF_HISTORY's 1.15.0 note asked for before live use. V6 #126 (prerequisites R_XM_1_V6_PARKING_PREREQUISITES.md, sha256 272c8939…, item 2) admits 511880.SH by code for idle-cash parking only and collects its daily bars (fund_daily into prices_daily) and its fund_adj factor (into its own append-only table fund_adjustment_factor_observation, migration 345), only on sessions where V6_STOCK_IDLE_CASH_PARKING is in force (default off). Those paths join the dataset's producedBy. Clocks unchanged (fund_daily BAR_CLOSE, fund_adj CLOSE_DATED_NEXT_OPEN_USABLE), consumers and signatures unchanged; V6 is the owner, so its own reads are not a consumer row. 511010 (B arm, NOT DO by T0 gap) is not collected; no other key changes.",
+    "1.20.0 (coordinator 2026-11-18, R-US-ENTRY-TOUCH-1 run preconditions): R_US_ENTRY_TOUCH_1_K2_V1 FREEZE_1 (621ef4c2…) §10 makes the registration of the frozen §0 rows ③ and ④ a run precondition (NOTE_1 93b064b5…). Row ④, the FOMC calendar, is registered as SMARTFLOW_FOMC_CALENDAR: smartflow's TRADING_PATH dataset, the versioned repository file config/fomc_calendar_v1.json that AMENDMENT_6 A6.17 (Owner 2026-09-30 「切换到仓库里的 FOMC 日历」) made the one calendar, generated by scripts/build-fomc-calendar.js from saved federalreserve.gov pages (each by sha256) and read point in time by src/services/fed-event-calendar.js (fedPhase(now), calendarCovers(now); an unscheduled meeting counts from its announcedAt). QRP reads the file at a pinned smartflow commit. Signed by the contract name FOMC_CALENDAR_V1, not by the federalreserve.gov host, which Cycle Atlas reads for G.17 and H.10. Whether the Board's site becomes one owner's source under IC-A3 stays open, as for SEC under U11. Sources and terms are recorded (termsRecord, sha256 2c7ae542…). Row ③, the regime gate's Yahoo daily ^GSPC, ^VIX and ^TNX, is registered as SMARTFLOW_US_REGIME_INDICES_HISTORY: under ★RUT1_REGIME_DATA (a) (Owner 2026-11-18 15:1x 「标普 500 等三条指数数据要不要从 Yahoo 拉一次，按推荐选a」, an exception to the 2026-10-25 no-re-fetch rule for these three series only) smartflow's pull script (smartflow #180) made one request per series, the call us-market-regime.js fetchYahooDaily makes, and wrote one write-once research copy under its manifest RUT1_REGIME_INDICES_PULL_MANIFEST_V1 (sha256 ea08dae5…), which is its signature; the Yahoo host is not. Live reads the forming daily value inside a session (VISIBLE_PARTIAL_BAR); the copy holds closes (research BAR_CLOSE, GAP disclosed). Sources by sha256 and terms are recorded (termsRecord, sha256 8e3dc2da…). No existing key changes."
+  ],
+  "pitSemantics": [
+    "NEXT_TRADING_DAY_0900_CST",
+    "ANNOUNCEMENT_NEXT_DAY_0000",
+    "IN_DATE",
+    "VISIBLE_PARTIAL_BAR",
+    "UNKNOWN",
+    "CBOE_NEXT_DAY_0030_ET",
+    "CBOE_SAME_DAY_2130_ET",
+    "END_OF_FOLLOWING_MONTH_CONSERVATIVE",
+    "CLOSE_DATED_NEXT_OPEN_USABLE",
+    "NEXT_DAY_0000_CST",
+    "FX_NEW_YORK_CLOSE"
+  ],
+  "pitSemanticsDefinitions": {
+    "OBSERVED_AT": "The instant the producer first stored the row in production (its first_available_at / ingest time). A dataset's history may use another clock; it is stated in its pitHistoricalClock.",
+    "ANNOUNCEMENT_NEXT_OPEN": "The open of the first trading session after the announcement.",
+    "ACCEPTANCE_TIME": "SEC EDGAR acceptanceDateTime of the filing (UTC as stated). The fallback for a filing known only by its filing date differs by dataset and is stated in its pitParity (US_EQUITY_PIT_FREE_V1: the next NYSE trading day's 09:30 New York open; SMARTFLOW_U11_UNDERLYING_FACTS: none, known_at null).",
+    "BAR_CLOSE": "The bar's own close: a bar is visible only once its interval has ended.",
+    "NEXT_OPEN_SESSION_CLOSE": "The close (15:00 CST) of the next open session after the observation date.",
+    "NEXT_TRADING_DAY_0900_CST": "09:00 CST of the next trading day after the data date (Cycle Atlas T2 rule for exchange margin summaries).",
+    "ANNOUNCEMENT_NEXT_DAY_0000": "00:00 CST of the day after the announcement date (V6 research replay for statements; f_ann_date, else ann_date, else the statutory deadline).",
+    "IN_DATE": "00:00 CST of the membership's in_date (V6 research replay for SW2021 membership).",
+    "VISIBLE_PARTIAL_BAR": "The forming bar is visible before its interval ends (C17 live reads the last, unfinished kline).",
+    "UNKNOWN": "No availability instant can be stated; never treated as known (RESEARCH_LIVE_PARITY_V1 P-6).",
+    "CBOE_NEXT_DAY_0030_ET": "Day T is usable from T+1 00:30 New York; live, the file's Last-Modified raises the instant if later (Cycle Atlas NEXT_DAY_0030_ET: worker-cf/src/sources/mpt/us/cboe-put-call.ts:7–9, :16; the RSP/SPY breadth uses the same rule, breadth-series.ts:11, :20).",
+    "CBOE_SAME_DAY_2130_ET": "Day T is usable at T 21:30 New York once both Cboe VIX and VIX3M history files carry it; Last-Modified raises it if later (Cycle Atlas SAME_DAY_2130_ET: worker-cf/src/sources/mpt/us/cboe-vix.ts:4–5, :11).",
+    "END_OF_FOLLOWING_MONTH_CONSERVATIVE": "known_at = the earlier of the capture instant and 00:00 CST on the 1st of the month after next (the month after the data month ends); a value captured before that bound is known at its capture (basis OBSERVED_AT_INGESTION). KG worker-cf/scripts/cycle-readings/lib/macro-data/catalog.cjs:197–202; V6 src/macro-data/catalog.js:198–203.",
+    "CLOSE_DATED_NEXT_OPEN_USABLE": "History without a stored known_at: a row is dated at its trade-date close (15:00 CST) and usable from the next session's open only, disclosed (coordinator ruling 2026-11-17 on #369 for V6 daily_basic and adj_factor history; the same convention as the P-14 backfill ruling).",
+    "NEXT_DAY_0000_CST": "Cycle Atlas T1 for date-only official figures: a figure of day D captured at or after D+1 00:00 CST (a late run, a backfill, history) is stamped D+1 00:00 CST; a live capture before that, not before the same-day floor, is first public when first seen (OBSERVED_AT); a backfill captured earlier waits for a later capture. KG worker-cf/src/sources/mpt/cn/common.ts:105–115 (firstPublicT1).",
+    "FX_NEW_YORK_CLOSE": "known_at = 22:00:00Z on the labelled FX date (06:00 CST the next calendar day), all year round. FXCM's daily bar closes at 17:00 New York, 21:00Z in summer and 22:00Z in winter; the producer stamps 22:00:00Z in both, so in summer the stamp is one hour after the close. Ashare-V6 src/macro-data/catalog.js:190–194 (knownAtFor), bound to USDCNH.FXCM at catalog.js:86–91; public-clock.js:101 lists it as a definitional clock."
+  },
+  "priceBasisVocabulary": {
+    "format": "<PRICE|TOTAL_RETURN>/<RAW|SPLIT_ADJ|FULL_ADJ>; a dataset that keeps two series lists both",
+    "PRICE": "a traded or index price level",
+    "TOTAL_RETURN": "a series whose changes include distributions",
+    "RAW": "as traded, unadjusted",
+    "SPLIT_ADJ": "adjusted for splits only",
+    "FULL_ADJ": "adjusted for splits and distributions"
+  },
+  "exceptionClasses": {
+    "TRADING_PATH": "An input a trading or Paper book, its shadows or its research needs on the trading clock (same day, intraday), or the pre-open context those books show on the desk. Stays with the trading system.",
+    "RECONCILIATION_ONLY": "Read only to compare against the owner's copy; never displayed as a fact, never an input to a decision or a publication.",
+    "INTERIM": "A temporary second collector with a written expiresOn date; the guard fails after that date.",
+    "CONSUMER": "Cycle Atlas (the owner side) reads a private-side system's TRADING_PATH dataset as read-only aggregates; only in systems.<system>.forbiddenUpstream.exceptions. It cites a registered dataset owned by another system whose consumer entry for this system lists the paths and says READ_ONLY_AGGREGATES; the consumer entry may carry an expiresOn. The private side stays the only collector."
+  },
+  "migrationSteps": {
+    "P0": "Registry, G2 guards, freeze on new non-owner collectors (this version).",
+    "P1": "Cycle Atlas produces the macro readings itself (V6 readings line ported into KG); 10 trading days of parity against V6.",
+    "P2": "Desk reads cycle data from Cycle Atlas only (home ①②, /cycle/); --cycle-facts removed; labels from the producer field.",
+    "P3": "V6 macro collectors retired (scripts/capture-cycle-*, china-public-official, global-cycle-oecd, cn_* schedule, HK /etc/cron.d/ashare-v6-cycle-capture, CYCLE_US_CAPTURE_INGEST / CYCLE_READINGS_DELIVERY / CYCLE_FACTS_DELIVERY); KG stops reading V6.",
+    "P4": "E5 is the only source for overlapping market-psychology series; V6 and smartflow overlapping rows become RECONCILIATION_ONLY; Cycle Atlas collects CN-3 itself.",
+    "P5": "Valuation snapshots move into the Cycle Atlas archive; FinMap C05 per Owner ruling (A9); PBOC lane before V6's official-page capture retires."
+  },
+  "systems": {
+    "CYCLE_ATLAS": {
+      "repository": "wendy926/knowledge-graph",
+      "scanRoots": [
+        "worker-cf/src",
+        "worker-cf/scripts",
+        "scripts"
+      ],
+      "cronRoots": [],
+      "forbiddenUpstream": {
+        "rule": "IC-A13: Cycle Atlas must not read the private side (V6, smartflow) at runtime or as a build input.",
+        "tokens": [
+          "ashare-v6-scheduler",
+          "ashare_v6_restore",
+          "\"Ashare-V6\")",
+          "../Ashare-V6",
+          "smartflow-vps",
+          "trading-system-v2/",
+          "inbox/ASHARE_V6",
+          "Ashare-V6/artifacts"
+        ],
+        "exceptions": [
+          {
+            "class": "RECONCILIATION_ONLY",
+            "paths": [
+              "worker-cf/scripts/v6-sleeve-resolver-check.ts"
+            ],
+            "reason": "Read-only parity check that runs V6's own sleeve-clock resolver from a V6 checkout; its output is a check receipt, never a published input."
+          },
+          {
+            "class": "INTERIM",
+            "expiresOn": "2026-11-30",
+            "expiresWhen": "DF-P1 acceptance (KG-native readings and macro-stage producer, V6 reads Cycle Atlas directly), whichever comes first",
+            "paths": [
+              "worker-cf/scripts/cycle-readings/deliver-macro-stage-inputs.sh"
+            ],
+            "reason": "Delivery of K1-K3 for MACRO_STAGE_MT_V1: reads the sealed archives named by the R2 latest pointers of china-industry/nbs-industrial-context, cycle-atlas/us-industry-operating and fred/point-in-time (read only, nothing written to R2) and writes them, after sha256 and shape checks, atomically into Ashare-V6's artifacts/cycle-readings/ NBS_INDUSTRIAL_CONTEXT / US_INDUSTRY_OPERATING / FRED_POINT_IN_TIME *_PROJECTION_LATEST.json, which V6's export-cycle-readings-projection.js reads. The direction is Cycle Atlas to V6 (V6 stays a reader); the path token is the target directory. Coordinator 2026-10-23; the expiry date is a proposal the coordinator may move."
+          },
+          {
+            "class": "INTERIM",
+            "expiresOn": "2026-11-30",
+            "expiresWhen": "DF-P1 acceptance (KG-native readings producer + parity), whichever comes first",
+            "paths": [
+              "worker-cf/scripts/cycle-readings/publish.sh",
+              "worker-cf/scripts/cycle-readings/publish-plan.ts"
+            ],
+            "reason": "WP0 / CA-A1 INTERIM daily publisher (#247): copies V6's CYCLE_READINGS_PROJECTION_V1 from the desk inbox to R2 cycle-atlas/readings until Cycle Atlas produces the readings itself (DF-P1). Accepted by the coordinator 2026-10-20; the expiry date is a proposal the coordinator may move."
+          },
+          {
+            "class": "CONSUMER",
+            "dataset": "ALL_A_CROSS_SECTION",
+            "paths": [
+              "worker-cf/src/sources/mpt/cn/v6.ts",
+              "worker-cf/scripts/mpt/cn/v6-aggregates.ts"
+            ],
+            "reason": "SG-2 2026-10-21 (MP-8 / MP-10): the V6 all-A daily aggregates read through a read-only transaction (aggregate rows only, no expiry) for the CN-3 comparable series and CN.ADVANCE_SHARE_5D; V6 stays the only collector of the Tushare all-A data. The registered consumer entry of ALL_A_CROSS_SECTION carries the read arrangement."
+          },
+          {
+            "class": "CONSUMER",
+            "dataset": "V6_CSI300_INDEX_DAILY",
+            "paths": [
+              "worker-cf/src/sources/mpt/cn/v6-index.ts",
+              "worker-cf/scripts/mpt/cn/v6-aggregates.ts",
+              "worker-cf/scripts/mpt/cn/v6-publish.ts"
+            ],
+            "reason": "SG-2 2026-10-21 (MP-9): the 沪深 300 daily closes as V6 stores them, read-only, aggregates only, until 2026-12-31 or Cycle Atlas's own capture (DF-P1) reconciles to zero difference. The expiry sits on the consumer entry of V6_CSI300_INDEX_DAILY and the guard fails after it."
+          },
+          {
+            "class": "CONSUMER",
+            "dataset": "V6_CSI_BROAD_INDEX_DAILY",
+            "paths": [
+              "worker-cf/src/sources/mpt/cn/v6-index.ts",
+              "worker-cf/scripts/mpt/cn/v6-aggregates.ts",
+              "worker-cf/scripts/mpt/cn/v6-publish.ts"
+            ],
+            "reason": "MPT benchmark audit fix 2026-10-21: read-only aggregate closes for 中证全指 and 中证 1000 power E5's A-share comparison panel until 2026-12-31 or Cycle Atlas's own capture reconciles to zero difference."
+          },
+          {
+            "class": "INTERIM",
+            "expiresOn": "2027-04-30",
+            "expiresWhen": "a read path that needs no copy: an HTTP route for L1_RISK_BUDGET_BANDS (a contract minor, l1-risk-budget-bands-v1 §2) or a read-only R2 credential on the smartflow host (the Owner's keys decision), whichever comes first",
+            "paths": [
+              "worker-cf/scripts/l1-risk-budget/hk-mirror.sh"
+            ],
+            "reason": "Delivery of L1_RISK_BUDGET_BANDS to smartflow (coordinator ruling on smartflow#43, X-1 (a)): reads, through r2get, the published cycle-atlas/l1-risk-budget/bands/latest.json and the reading it names (read only, nothing written to R2), checks the reading's sha256 against the pointer, and writes both byte for byte over the SSH alias smartflow-vps into /home/admin/l1-risk-budget/bands-mirror/ in the R2 key layout, the reading first and then an atomic replace of latest.json; idempotent, bounded retry, a receipt per run. The direction is Cycle Atlas to smartflow (smartflow stays a reader); the host token is the target. The expiry date is a proposal the coordinator may move."
+          },
+          {
+            "class": "CONSUMER",
+            "dataset": "SMARTFLOW_BTCUSDT_PERP_DAILY",
+            "paths": [
+              "worker-cf/scripts/l1-risk-budget/btc-pull.sh"
+            ],
+            "reason": "L1_TOTAL_RISK_BUDGET_V1 ruling E-1 = B1(i): the CRYPTO input of L1_RISK_BUDGET_BANDS. Reads smartflow's SMARTFLOW_BTCUSDT_PERP_DAILY latest.json and the series it names over the SSH alias smartflow-vps (one cat per file, nothing written on the host), checks the sha256, bounded retry, a receipt per run. smartflow stays the only collector; the registered consumer entry of SMARTFLOW_BTCUSDT_PERP_DAILY carries the read arrangement; the path token is the source directory."
+          },
+          {
+            "class": "CONSUMER",
+            "dataset": "V6_PAPER_LEDGER_SNAPSHOT",
+            "paths": [
+              "worker-cf/scripts/l1-risk-budget/total-account-pull.sh"
+            ],
+            "reason": "GLOBAL_RISK_PRIORITY_V1 §3 implementation acceptance G-1 / G-11: a book NAV input of the totalAccount block of L1_RISK_BUDGET_BANDS (only with L1_TOTAL_ACCOUNT=on). Reads the producer's delivered POSITION_LEDGER_SNAPSHOT_V1 files, exact names, read-only, nothing written; the consumer entry of V6_PAPER_LEDGER_SNAPSHOT carries the read arrangement."
+          },
+          {
+            "class": "CONSUMER",
+            "dataset": "SMARTFLOW_PAPER_LEDGER_SNAPSHOT",
+            "paths": [
+              "worker-cf/scripts/l1-risk-budget/total-account-pull.sh"
+            ],
+            "reason": "GLOBAL_RISK_PRIORITY_V1 §3 implementation acceptance G-1 / G-11: a book NAV input of the totalAccount block of L1_RISK_BUDGET_BANDS (only with L1_TOTAL_ACCOUNT=on). Reads the producer's delivered POSITION_LEDGER_SNAPSHOT_V1 files, exact names, read-only, nothing written; the consumer entry of SMARTFLOW_PAPER_LEDGER_SNAPSHOT carries the read arrangement."
+          }
+        ],
+        "knownViolations": [
+          {
+            "paths": [
+              "scripts/refresh-cycle-release-audit.mjs"
+            ],
+            "auditRef": "D2",
+            "removedBy": "P3",
+            "note": "Runs V6 ingest/export inside the V6 scheduler container and writes data/public/cycle-readings-source.v1.json: the public macro readings are V6 output."
+          }
+        ]
+      }
+    },
+    "ASHARE_V6": {
+      "repository": "UpMeAI/Ashare-V6",
+      "scanRoots": [
+        "src",
+        "scripts",
+        "ops"
+      ],
+      "cronRoots": [
+        "docs",
+        "ops",
+        "scripts"
+      ],
+      "ignore": [
+        {
+          "path": "src/runtime/outbound-hosts.js",
+          "reason": "The outbound routing table: it names every host V6 may call (VIA_PROXY / DIRECT_REQUIRED) and collects nothing; the collectors themselves are scanned."
+        }
+      ]
+    },
+    "SMARTFLOW": {
+      "repository": "smartflow (trading-system-v2)",
+      "scanRoots": [
+        "trading-system-v2/src",
+        "trading-system-v2/scripts",
+        "trading-system-v2/ops"
+      ],
+      "cronRoots": [
+        "trading-system-v2/ops",
+        "trading-system-v2/deploy",
+        "trading-system-v2/docs"
+      ]
+    },
+    "DESK": {
+      "repository": "portfolio-desk",
+      "scanRoots": [],
+      "cronRoots": [],
+      "note": "Consumer only (scripts/boundary-check.js blocks outbound network). Its single-path rule (G4) arrives with P2."
+    },
+    "QRP": {
+      "repository": "UpMeAI/quant-research-platform",
+      "scanRoots": [
+        "adapters",
+        "apps",
+        "ops",
+        "packages",
+        "services",
+        "tools"
+      ],
+      "cronRoots": [
+        "ops"
+      ],
+      "note": "Research consumer. Reads byte-identical copies of registered datasets that the Linux research lane received and checked against the producer's sha256 manifest; it collects no registered dataset. Pins this registry in config/dataset-registry/ (QRP #99, RESEARCH_LIVE_PARITY_V1 ★5 (a)); config/ holds that pinned copy and is not scanned. Added in 1.12.0; scan roots since 1.13.0."
+    },
+    "FINMAP": {
+      "repository": "wendy926/knowledge-graph (web/, worker-cf numeric)",
+      "scanRoots": [],
+      "cronRoots": [],
+      "note": "C05/C06 industry-cycle logic vs E1 awaits the Owner's ruling (A9)."
+    }
+  },
+  "datasets": [
+    {
+      "id": "MACRO_CN_OFFICIAL",
+      "title": "China official macro releases (NBS PMI/CPI/PPI/GDP, PBOC money and credit) and their release pages",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D1, D9",
+      "signatures": {
+        "hosts": [
+          "stats.gov.cn",
+          "pbc.gov.cn"
+        ],
+        "apiNames": [
+          "cn_pmi",
+          "cn_cpi",
+          "cn_ppi",
+          "cn_gdp",
+          "cn_m",
+          "sf_month",
+          "NBS_VALUE_ADDED_YOY",
+          "NBS_GDP_QUARTERLY",
+          "PBOC_FINANCIAL_STATISTICS"
+        ]
+      },
+      "exceptions": [
+        {
+          "system": "ASHARE_V6",
+          "class": "TRADING_PATH",
+          "paths": [
+            "src/data-sources/tushare-client.js",
+            "src/macro-data/canonicalize.js",
+            "src/macro-data/catalog.js",
+            "src/macro-data/sync.js",
+            "src/research/history-replay/input-inventory.js"
+          ],
+          "reason": "Tushare sf_month (TSF) feeds MARKET_RISK_REGIME v5 through MARKET_PIVOT; the client, catalog, canonicaliser and replay inventory serve it. The cn_* readings entries in the same files leave with P3 (cycle-input-schedule.js below)."
+        },
+        {
+          "system": "ASHARE_V6",
+          "class": "TRADING_PATH",
+          "paths": [
+            "src/pre-open-facts/sources.js",
+            "src/primary-news/pboc.js",
+            "src/primary-news/stats-gov.js"
+          ],
+          "reason": "Pre-open facts and primary news for the CN desk brief (NBS release calendar, PBOC OMO notices): trading-day context, not the macro readings."
+        },
+        {
+          "system": "ASHARE_V6",
+          "class": "TRADING_PATH",
+          "paths": [
+            "src/official-reader/hosts.js"
+          ],
+          "reason": "Owner-invoked official URL reader (signed 2026-10-06): reads one page the Owner names; no scheduled collection."
+        }
+      ],
+      "knownViolations": [
+        {
+          "system": "ASHARE_V6",
+          "paths": [
+            "src/macro-data/china-public-official.js",
+            "src/macro-data/cycle-input-schedule.js",
+            "scripts/backfill-cn-cycle-monthly.js",
+            "scripts/capture-cycle-official-release-anchors.js",
+            "scripts/ingest-cn-cycle-capture.js",
+            "scripts/ingest-cycle-captures.js",
+            "scripts/probe-cn-cycle-sources.js"
+          ],
+          "auditRef": "D1, D9",
+          "removedBy": "P3",
+          "note": "V6 macro readings inputs: scheduled Tushare cn_* in MARKET_PIVOT, NBS/PBOC official pages, PMI release anchors, captures and their ingest."
+        }
+      ],
+      "vendor": "Tushare, NBS, PBOC",
+      "pitSemanticsBySeries": {
+        "cn_pmi": "OBSERVED_AT",
+        "cn_cpi": "OBSERVED_AT",
+        "cn_ppi": "OBSERVED_AT",
+        "cn_gdp": "OBSERVED_AT",
+        "cn_m": "OBSERVED_AT",
+        "sf_month": "END_OF_FOLLOWING_MONTH_CONSERVATIVE",
+        "nbs_pboc_official_snapshot": "OBSERVED_AT"
+      },
+      "parityFieldsEvidence": "KG worker-cf/scripts/cycle-readings/lib/macro-data/catalog.cjs:12–28, :79–80, :184, :197–202; worker-cf/src/cycle-atlas/readings-capture/lane.ts:17–18",
+      "pitSemanticsBySeriesNote": "nbs_pboc_official_snapshot is a descriptive label for the NBS / PBOC official-page snapshots (lane.ts:17–18), not a code id; the other keys are the catalog's Tushare dataset names."
+    },
+    {
+      "id": "MACRO_US_CYCLE",
+      "title": "US cycle inputs (FRED/ALFRED series and vintages, NBER dates, NY Fed term premium, Philadelphia Fed RTDSM)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D1",
+      "signatures": {
+        "hosts": [
+          "stlouisfed.org",
+          "nber.org",
+          "newyorkfed.org",
+          "philadelphiafed.org"
+        ]
+      },
+      "exceptions": [
+        {
+          "system": "SMARTFLOW",
+          "class": "TRADING_PATH",
+          "paths": [
+            "trading-system-v2/src/services/carry-v2-shadow/http-client.js",
+            "trading-system-v2/scripts/us-v5-time-stop-shadow-s.js",
+            "trading-system-v2/scripts/lib/pre-open-facts/market-context.js",
+            "trading-system-v2/scripts/research/backtest-us-v5-inverse-leg.js",
+            "trading-system-v2/scripts/research/funding-basis-carry-fetch.js",
+            "trading-system-v2/scripts/research/replay-us-v5-universe-comparison.js",
+            "trading-system-v2/scripts/research/us-a610-forward-extend.js"
+          ],
+          "reason": "Keyless FRED graph CSV reads for smartflow's own books: carry-v2 shadow (DTB3), US_V5 time-stop shadow and research (VIXCLS, DGS10), pre-open FX (DEXJPUS, DEXCHUS). Owner 2026-10-20: FRED collection in two places is acceptable. Not the macro-cycle readings."
+        },
+        {
+          "system": "SMARTFLOW",
+          "class": "INTERIM",
+          "expiresOn": "2026-12-31",
+          "paths": [
+            "trading-system-v2/src/services/macro-monitor/macro-economic-monitor.js"
+          ],
+          "reason": "Legacy main-app macro dashboard (FEDFUNDS, CPIAUCSL every 4 h, FRED_API_KEY); its table may already be dropped (database/cleanup-redundant-tables.sql:48). Retire it or read Cycle Atlas by the expiry (date proposed by the audit; the coordinator may move it)."
+        }
+      ],
+      "knownViolations": [
+        {
+          "system": "ASHARE_V6",
+          "paths": [
+            "scripts/capture-cycle-alfred.js",
+            "scripts/capture-cycle-public-sources.js",
+            "scripts/capture-cycle-rtdsm.js"
+          ],
+          "runtimes": [
+            "docs/contracts/drafts/ASHARE_V6_CYCLE_ATLAS_READINGS_AMENDMENT_5_IMPLEMENTATION_NOTES_V1.md"
+          ],
+          "auditRef": "D1",
+          "removedBy": "P3",
+          "note": "capture-cycle-public-sources.js runs on HK from /etc/cron.d/ashare-v6-cycle-capture (06:30 CST Tue–Sat, defined in the Amendment 5 notes) and is ingested by run-daily-desk-job (CYCLE_US_CAPTURE_INGEST)."
+        }
+      ],
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "Census M3 total manufacturing shipments / inventories (AMTMVS, AMTMTI; macroTotals of US_INDUSTRY_OPERATING_PROJECTION_V1) and FRED / ALFRED GDPC1 and GDPPOT with their first releases (FRED_POINT_IN_TIME_PROJECTION_V1), delivered as artifacts/cycle-readings/US_INDUSTRY_OPERATING_PROJECTION_LATEST.json and FRED_POINT_IN_TIME_PROJECTION_LATEST.json, for the US MID and LONG frames of MACRO_STAGE_MT_V1 (context only). V6 does not collect them."
+        }
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "FRED/ALFRED, Philadelphia Fed RTDSM, NBER",
+      "parityFieldsEvidence": "KG scripts/cycle-readings/lib/macro-data/catalog.cjs:29–40; worker-cf/src/cycle-atlas/readings-capture/parse.ts:23–25; public-clock.cjs:5–8 (first_available_at = capture instant)"
+    },
+    {
+      "id": "MACRO_GLOBAL_OECD",
+      "title": "Global cycle inputs from OECD SDMX (CLI, CPI, short rates)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D1",
+      "signatures": {
+        "hosts": [
+          "oecd.org"
+        ]
+      },
+      "exceptions": [],
+      "knownViolations": [
+        {
+          "system": "ASHARE_V6",
+          "paths": [
+            "src/macro-data/global-cycle-oecd.js"
+          ],
+          "auditRef": "D1",
+          "removedBy": "P3",
+          "note": "V6 global-cycle OECD readings (manual capture)."
+        }
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "OECD",
+      "parityFieldsEvidence": "KG worker-cf/scripts/cycle-readings/lib/macro-data/global-cycle-oecd.cjs:18–20; cycle-readings-projection.cjs:63"
+    },
+    {
+      "id": "CN_MARKET_PSYCHOLOGY",
+      "title": "A-share market psychology series (E5 CN-1..CN-5, MP-8 breadth, MP-9 realized volatility); the exchange margin and limit-up/limit-down names overlap V6's collectors",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D4",
+      "signatures": {
+        "tokens": [
+          "stock_margin_sse",
+          "stock_margin_szse",
+          "stock_margin_detail_sse",
+          "stock_margin_detail_szse",
+          "macro_china_market_margin_sh",
+          "macro_china_market_margin_sz",
+          "stock_zt_pool_em",
+          "stock_zt_pool_dtgc_em"
+        ]
+      },
+      "exceptions": [],
+      "knownViolations": [
+        {
+          "system": "ASHARE_V6",
+          "paths": [
+            "src/sentiment/collect-cn-free.js",
+            "src/sentiment/sources.js",
+            "scripts/py/akshare_positioning_dump.py"
+          ],
+          "auditRef": "D4",
+          "removedBy": "P4",
+          "note": "Only the overlapping series move (MPT M1 a: V6 keeps them for reconciliation only); dragon-tiger lists, lock-up queues and insider trades stay V6's and are not registered here."
+        }
+      ],
+      "review": {
+        "reviewedOn": "2026-10-21",
+        "owner": "CYCLE_ATLAS (E5 A-share collectors, worker-cf/src/sources/mpt/cn and worker-cf/scripts/mpt/cn)",
+        "frequency": "daily: the daily lane (CN-1, CN-2, CN-4, CN-5) at 21:45 CST via cst-gate; the exchange limit lane (reconciliation only) at 00:02 CST and the V6 lane (CN-3, MP-8, MP-9) at 00:05 CST, both via cst-gate; CN-2 margin follows the T2 point-in-time rule (public the next trading day 09:00 CST), the other items T1 (public the next day 00:00 CST)",
+        "cn3": "CN-3 CN.LIMIT_UP_MINUS_DOWN: the V6 comparable series is the only writer (MP-10 option C, coordinator 2026-10-21): V6's threshold count over all names, one continuous series from 2011-01-04, segmented only by the STAR and ChiNext band changes of 2020-08-24. The exchange job (daily.sh --lane limit) is reconciliation-only: no series row, its counts go into the run receipt next to V6's row for the same day.",
+        "writers": {
+          "CN-1": "scripts/mpt/cn/daily.sh (daily lane, 21:45 CST): CN.TURNOVER_PCT from the SSE daily overview and the SZSE market overview",
+          "CN-2": "scripts/mpt/cn/daily.sh (daily lane, 21:45 CST): CN.MARGIN_BALANCE_CHG_20D from the SSE and SZSE margin summaries (T2 rule)",
+          "CN-3": "scripts/mpt/cn/v6.sh: the V6 comparable series (sole writer); scripts/mpt/cn/daily.sh --lane limit only reconciles",
+          "CN-4": "scripts/mpt/cn/daily.sh (daily lane, 21:45 CST): CN.SW_L1_TURNOVER_HHI from the SW level-1 daily index publication",
+          "CN-5": "scripts/mpt/cn/daily.sh (daily lane, 21:45 CST): CN.SSE_BROAD_ETF_NET_CREATION_20D from the SSE ETF scale and ETF daily quotes",
+          "MP-8": "scripts/mpt/cn/v6.sh: CN.ADVANCE_SHARE_5D from the V6 all-A aggregates (ALL_A_CROSS_SECTION consumer entry)",
+          "MP-9": "scripts/mpt/cn/v6.sh: CN.CSI300_REALIZED_VOL_20D from V6's 沪深 300 closes (V6_CSI300_INDEX_DAILY consumer entry, interim to 2026-12-31)"
+        }
+      },
+      "vendor": "SSE, SZSE, SWS, V6 (Tushare)",
+      "pitSemanticsBySeries": {
+        "CN-1": "OBSERVED_AT",
+        "CN-2": "NEXT_TRADING_DAY_0900_CST",
+        "CN-3": "OBSERVED_AT",
+        "CN-4": "OBSERVED_AT",
+        "CN-5": "OBSERVED_AT",
+        "MP-8": "OBSERVED_AT",
+        "MP-9": "OBSERVED_AT"
+      },
+      "parityFieldsEvidence": "KG worker-cf/src/sources/mpt/cn/common.ts:83–89, :112–116; worker-cf/src/sources/mpt/cn/series.ts:152, :171",
+      "pitHistoricalClock": {
+        "bySeries": {
+          "CN-1": "NEXT_DAY_0000_CST",
+          "CN-2": "NEXT_TRADING_DAY_0900_CST",
+          "CN-3": "NEXT_DAY_0000_CST",
+          "CN-4": "NEXT_DAY_0000_CST",
+          "CN-5": "NEXT_DAY_0000_CST",
+          "MP-8": "NEXT_DAY_0000_CST",
+          "MP-9": "NEXT_DAY_0000_CST"
+        },
+        "detail": "Backfills and history use the T1 stamp (NEXT_DAY_0000_CST, common.ts:105–115); live captures before T1 are OBSERVED_AT (pitSemanticsBySeries). CN-2 margin uses T2 in both."
+      }
+    },
+    {
+      "id": "US_MARKET_PSYCHOLOGY",
+      "title": "US market psychology from Cboe (put/call ratios, VIX / VIX3M)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D5",
+      "signatures": {
+        "hosts": [
+          "cboe.com"
+        ]
+      },
+      "exceptions": [
+        {
+          "system": "SMARTFLOW",
+          "class": "RECONCILIATION_ONLY",
+          "paths": [
+            "trading-system-v2/scripts/export-us-sentiment-context.js",
+            "trading-system-v2/scripts/lib/us-sentiment-fetch.js"
+          ],
+          "reason": "smartflow's US SENTIMENT_CONTEXT rows for these series carry reconciliationOnly {owner: CYCLE_ATLAS_E5, componentId} and the desk shows E5 instead (desk A100; smartflow #27, US_SENTIMENT_E5_RECONCILIATION=1 set on HK by the coordinator together with this registry version). Kept to compare against E5, never displayed as a fact."
+        }
+      ],
+      "knownViolations": [],
+      "vendor": "Cboe",
+      "pitSemanticsBySeries": {
+        "US.EQUITY_PUT_CALL": "CBOE_NEXT_DAY_0030_ET",
+        "US.TOTAL_PUT_CALL": "CBOE_NEXT_DAY_0030_ET",
+        "US.RSP_SPY_63D": "CBOE_NEXT_DAY_0030_ET",
+        "US.VIX_VIX3M": "CBOE_SAME_DAY_2130_ET"
+      },
+      "parityFieldsEvidence": "KG worker-cf/src/sources/mpt/us/cboe-put-call.ts:7–9, :16; breadth-series.ts:11, :20; cboe-vix.ts:4–5, :11"
+    },
+    {
+      "id": "SW_L1_INDEX_CLOSES",
+      "title": "Shenwan industry index closes",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D6",
+      "signatures": {
+        "hosts": [
+          "swsresearch.com"
+        ],
+        "apiNames": [
+          "sw_daily"
+        ]
+      },
+      "exceptions": [
+        {
+          "system": "ASHARE_V6",
+          "class": "TRADING_PATH",
+          "paths": [
+            "src/data-runtime/canonicalize.js",
+            "src/data-runtime/current-research-evidence-sync.js",
+            "src/data-runtime/research-evidence-history-sync.js",
+            "src/data-runtime/sync-service.js",
+            "src/data-sources/tushare-client.js",
+            "src/research/history-replay/input-inventory.js",
+            "src/research/history-replay/m1-ingestion.js",
+            "src/research/industry-valuation/sw-valuation.js",
+            "scripts/backfill-sw-industry-history.js",
+            "scripts/diagnose-data-refresh.js",
+            "scripts/research/bollinger-volume-round2/extract.js",
+            "scripts/sync-tushare.js",
+            "scripts/verify-current-research-runtime.js"
+          ],
+          "reason": "V6's POST_CLOSE at 18:30 depends on Tushare sw_daily the same evening (market state reads UNKNOWN without it); the public price archive is T+1. Two registered collectors, reconciled daily (A6)."
+        }
+      ],
+      "knownViolations": [],
+      "vendor": "SWS",
+      "priceBasis": "PRICE/RAW"
+    },
+    {
+      "id": "VALUATION_SNAPSHOTS",
+      "title": "Industry valuation snapshots (Damodaran annual, JPX sector PER/PBR)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D7",
+      "signatures": {
+        "hosts": [
+          "stern.nyu.edu",
+          "jpx.co.jp"
+        ]
+      },
+      "exceptions": [
+        {
+          "system": "SMARTFLOW",
+          "class": "INTERIM",
+          "expiresOn": "2026-12-31",
+          "paths": [
+            "trading-system-v2/scripts/research/valuation-snapshots/**"
+          ],
+          "reason": "Interim collector (coordinator 2026-10-18, IC-A7/MPT), on branch research/valuation-snapshots-interim and HK cron, not on smartflow main; moves into the Cycle Atlas archive in P5. Expiry proposed by the audit."
+        }
+      ],
+      "knownViolations": []
+    },
+    {
+      "id": "NBS_INDUSTRY_DIVISION",
+      "title": "NBS by-division industrial operating data (T9)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D8",
+      "signatures": {
+        "tokens": [
+          "nbs_industry_division"
+        ]
+      },
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Fixed 2026-10-18 (IC-A5): V6 main has no T9 code and no migration 318; the history seed is in the chains R2 archive. This entry keeps the T9 branches from coming back.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "The national 工业 营业收入 / 产成品存货 同比 series of the 41-division context projection (nationalAggregate: REVENUE_YOY, INVENTORY_YOY_INVERTED, cells with firstPublicAt and firstAvailableAt), delivered as artifacts/cycle-readings/NBS_INDUSTRIAL_CONTEXT_PROJECTION_LATEST.json, for the MID frame of MACRO_STAGE_MT_V1 (macroStage is context only, never a trading input). V6 does not collect or recompute it."
+        }
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "NBS",
+      "parityFieldsEvidence": "KG worker-cf/src/sources/nbs-industrial-context.ts:166, :283 (firstAvailableAt = capture; firstPublicAt kept beside it)"
+    },
+    {
+      "id": "MACRO_CYCLE_READINGS",
+      "title": "Macro cycle readings and facts projections (CYCLE_READINGS_PROJECTION_V1, CYCLE_FACTS_PROJECTION_V2)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D2, D3",
+      "signatures": {
+        "tokens": [
+          "CYCLE_READINGS_PROJECTION_V1",
+          "CYCLE_FACTS_PROJECTION_V2"
+        ]
+      },
+      "exceptions": [],
+      "knownViolations": [
+        {
+          "system": "ASHARE_V6",
+          "paths": [
+            "src/macro-data/cycle-readings-projection.js",
+            "scripts/export-cycle-readings-projection.js",
+            "scripts/run-daily-desk-job.js"
+          ],
+          "auditRef": "D2, D3",
+          "removedBy": "P3",
+          "note": "V6 produces the readings and facts the desk shows on home ①② and /cycle/ (labelled Cycle Atlas); after P1 parity and the P2 desk switch, V6 stops producing them."
+        }
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "internal (Cycle Atlas derivation of registered inputs)",
+      "parityFieldsEvidence": "KG worker-cf/scripts/cycle-readings/lib/macro-data/cycle-readings-projection.cjs:59–64; public-clock.cjs:5"
+    },
+    {
+      "id": "INDUSTRY_CYCLE_PHASE",
+      "title": "Industry cycle phase and conclusion per industry unit (SW2021 L1/L2, NBS divisions; US and global units)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D10",
+      "decisionRef": "DF-A9 (Owner 2026-10-20T13:47:05+08:00 「同意相位并到 E1」, portfolio-desk bdef9eb); Codex brief CODEX_BRIEF_DF_A9_C05_TO_E1_2026-10-20 item 5",
+      "producedBy": {
+        "endpoints": [
+          "/api/cycle/v1/industry-cycle/facts",
+          "/internal/cycle/v1/industry-cycle/facts"
+        ],
+        "paths": [
+          "worker-cf/src/industry-cycle/state/rules.ts",
+          "worker-cf/src/industry-cycle/state/cn-units.ts",
+          "worker-cf/src/industry-cycle/phase3/units.ts",
+          "worker-cf/src/industry-cycle/api/conclusion.ts"
+        ],
+        "note": "Nightly Mac build (daily-snapshot.sh) writes the snapshot; the chains Worker derives conclusion, reliability and phaseUnknownReason at request time and writes nothing back."
+      },
+      "signatures": {},
+      "signaturesNote": "E1 is read, not collected: no host or API name identifies a second producer, and a token would flag the readers. A second phase derivation is guarded on the reader side (the E1 evidence tests in knowledge-graph; V6 weekly label), not by this scanner. Registry 1.6.1: FinMap C05's relay of the phase and its route /api/research/industry-cycle are retired (the route answers RETIRED); its warehouse-receipt and futures capture is INDUSTRY_CYCLE_EVIDENCE_INPUTS.",
+      "consumers": [
+        {
+          "system": "DESK",
+          "reads": "Home ④ reads E1 (desk window)."
+        },
+        {
+          "system": "ASHARE_V6",
+          "reads": "The weekly label cites E1 (V6 window)."
+        }
+      ]
+    },
+    {
+      "id": "INDUSTRY_CYCLE_EVIDENCE_INPUTS",
+      "title": "Exchange warehouse receipts and dominant-futures legs per CN industry unit, the non-voting evidence inputs of Cycle Atlas E1",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D10",
+      "decisionRef": "DF-A9 (Owner 2026-10-20T13:47:05+08:00 「同意相位并到 E1」): FinMap C05's evidence capture survives as an E1 evidence input; its phase relay and route are retired",
+      "producedBy": {
+        "paths": [
+          "worker-cf/src/cycle/e1-evidence-capture.ts",
+          "worker-cf/src/cycle/e1-evidence-step.ts",
+          "worker-cf/src/cycle/cycle-archive.ts"
+        ],
+        "note": "NumericWorkflow step capture-e1-evidence (the 05:00 Shanghai run, after the futures publication) appends evidence-only rows to the append-only D1 table cycle_c05_readings (name kept; the V1 and E1-V2 rows stay). No stage, no phase."
+      },
+      "signatures": {},
+      "signaturesNote": "Read from the numeric pack's exchange series and the futures layer this repository already collects; no new collector.",
+      "consumers": [
+        {
+          "system": "CYCLE_ATLAS",
+          "paths": [
+            "worker-cf/src/industry-cycle/api/evidence-inputs.ts",
+            "worker-cf/src/industry-cycle/api/facts-cache.ts"
+          ],
+          "reads": "E1 facts carry the legs as evidenceInputs (votes false, source FINMAP_C05_ARCHIVE); never a phase input."
+        }
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "SHFE, DCE, CZCE; Tushare (futures)",
+      "parityFieldsEvidence": "KG worker-cf/src/cycle/e1-evidence-capture.ts:90, :103–109"
+    },
+    {
+      "id": "US_VOLATILITY_INDEX",
+      "title": "Cboe VIX level and VIX3M term structure (daily closes)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "D5",
+      "decisionRef": "Coordinator SG-2 ruling 2026-10-20 (a)",
+      "signatures": {
+        "tokens": [
+          "^VIX"
+        ]
+      },
+      "signaturesNote": "Cycle Atlas collects the Cboe VIX and VIX3M history files for E5 US-3 (host cboe.com, US_MARKET_PSYCHOLOGY). ^VIX is the Yahoo symbol smartflow reads; it also matches ^VIX3M.",
+      "exceptions": [
+        {
+          "system": "SMARTFLOW",
+          "class": "TRADING_PATH",
+          "paths": [
+            "trading-system-v2/src/services/us-market-regime.js",
+            "trading-system-v2/src/workers/us-core-rotation-worker.js",
+            "trading-system-v2/src/services/us-core-rot-ledger.js",
+            "trading-system-v2/src/workers/carry-risk-monitor.js",
+            "trading-system-v2/src/services/leveraged-etf-evaluator.js",
+            "trading-system-v2/scripts/export-us-macro-states.js",
+            "trading-system-v2/scripts/export-us-bars.js",
+            "trading-system-v2/scripts/lib/us-core-parity.js",
+            "trading-system-v2/scripts/probe-us-core-rot-ledger.js",
+            "trading-system-v2/scripts/lib/pre-open-facts/market-context.js",
+            "trading-system-v2/scripts/us-sector-filter-shadow.js",
+            "trading-system-v2/scripts/backtest-pipeline-v2.js",
+            "trading-system-v2/scripts/backtest-us-position-manager.js",
+            "trading-system-v2/scripts/research/**"
+          ],
+          "reason": "SG-2 ruling 2026-10-20 (a): trading and risk decisions read the VIX level on the trading clock: US_V5 regime cautious at VIX > 25 (AMENDMENT_4 §A4.4), US core rotation crisis VIX > 30, carry risk monitor (VIX, VIX3M), leveraged ETF gate VIX < 22; with their exports, parity checks, the pre-open context, the sector-filter shadow, backtests and research of those books."
+        },
+        {
+          "system": "SMARTFLOW",
+          "class": "RECONCILIATION_ONLY",
+          "paths": [
+            "trading-system-v2/scripts/export-us-sentiment-context.js",
+            "trading-system-v2/scripts/lib/us-sentiment-context.js",
+            "trading-system-v2/scripts/lib/us-sentiment-fetch.js"
+          ],
+          "reason": "smartflow's US SENTIMENT_CONTEXT rows for these series carry reconciliationOnly {owner: CYCLE_ATLAS_E5, componentId} and the desk shows E5 instead (desk A100; smartflow #27, US_SENTIMENT_E5_RECONCILIATION=1 set on HK by the coordinator together with this registry version). Kept to compare against E5, never displayed as a fact."
+        }
+      ],
+      "knownViolations": [],
+      "vendor": "Cboe (Cycle Atlas), Yahoo (smartflow)",
+      "priceBasis": "PRICE/RAW",
+      "pitSemantics": "CBOE_SAME_DAY_2130_ET",
+      "parityFieldsEvidence": "KG worker-cf/src/sources/mpt/us/cboe-vix.ts:4–5, :11 (Cycle Atlas capture). smartflow's trading gates read their own Yahoo ^VIX intraday under the registered TRADING_PATH exception (src/services/us-market-regime.js:62, :102–104): not this dataset's PIT."
+    },
+    {
+      "id": "ALL_A_CROSS_SECTION",
+      "title": "V6 all-A daily cross-section aggregates (advance, decline, limit-up, limit-down, universe counts) and the main-board ST recount",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "D4",
+      "decisionRef": "Coordinator SG-2 ruling 2026-10-21 (MP-8 breadth, MP-10 comparable CN-3 series; owner decision 2026-10-20 CA_NODES_AND_PSYCHOLOGY_FIXES §四)",
+      "signatures": {},
+      "signaturesNote": "V6 collects the Tushare all-A daily data for its own trading path (macro_series_observation ALL_A_CROSS_SECTION, prices_daily); Cycle Atlas reads the daily aggregates and collects none of it, so no host or API name identifies a second collector.",
+      "consumers": [
+        {
+          "system": "CYCLE_ATLAS",
+          "access": "READ_ONLY_AGGREGATES",
+          "paths": [
+            "worker-cf/src/sources/mpt/cn/v6.ts",
+            "worker-cf/scripts/mpt/cn/v6-aggregates.ts",
+            "worker-cf/scripts/mpt/cn/v6-publish.ts",
+            "worker-cf/scripts/mpt/cn/v6.sh"
+          ],
+          "reads": "One row per trading day from 2011-01-04: advanceCount, declineCount, limitUpCount, limitDownCount, universeCount (macro_series_observation, ALL_A_CROSS_SECTION), and a per-day recount of the main-board ST limit-up and limit-down names (prices_daily joined to V6's ST identity events and daily stock_basic snapshots; V6's security_master is empty). Feeds CN-3 CN.LIMIT_UP_MINUS_DOWN (V6 comparable series, the only writer) and MP-8 CN.ADVANCE_SHARE_5D; the raw exports go to R2 create-only under market-psychology/raw/cn/v6-all-a-cross-section and v6-limit-ex-main-st. Read arrangement: docker exec into the V6 Postgres container, database ashare_v6_restore_20260901, SET default_transaction_read_only = on, statement_timeout 120 s, lock_timeout 5 s, one query at a time, aggregates only (one row per trading day); never the V6 API, never 127.0.0.1:7801, never a write. The daily wrapper (worker-cf/scripts/mpt/cn/v6.sh) runs through ~/bin/heavy-run --light and first checks pipeline_scheduler_claim (an open claim waits, 30 minutes, at most 3 times, then a DEGRADED receipt).",
+          "reason": "Cycle Atlas's own exchange job has no comparable limit-up and limit-down history (its count starts with its first run), the threshold count over all names needs the all-A daily bars V6 already collects, and collecting the Tushare all-A daily data a second time would duplicate V6's collector (IC-A3); the daily aggregate is the unit that crosses."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "Tushare",
+      "parityFieldsEvidence": "V6 src/macro-data/repository.js:73, :79; src/macro-data/all-a-cross-section.js:126–129"
+    },
+    {
+      "id": "V6_CSI300_INDEX_DAILY",
+      "title": "沪深 300 (000300.SH) daily closes as V6 stores them (market_index_daily_observation)",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "D4",
+      "decisionRef": "Coordinator SG-2 ruling 2026-10-21 (MP-9 realized volatility)",
+      "signatures": {},
+      "signaturesNote": "V6 stores the 沪深 300 daily closes for its own market-state work; Cycle Atlas reads the closes as an interim and collects none of them. An interim: it ends when Cycle Atlas captures the index itself (DF-P1).",
+      "consumers": [
+        {
+          "system": "CYCLE_ATLAS",
+          "access": "READ_ONLY_AGGREGATES",
+          "expiresOn": "2026-12-31",
+          "expiresWhen": "DF-P1: Cycle Atlas's own 沪深 300 capture exists and reconciles to V6's closes with zero difference daily, whichever comes first",
+          "paths": [
+            "worker-cf/src/sources/mpt/cn/v6-index.ts",
+            "worker-cf/scripts/mpt/cn/v6-aggregates.ts",
+            "worker-cf/scripts/mpt/cn/v6-publish.ts"
+          ],
+          "reads": "One row per trading day from 2005-01-04: the 000300.SH close (market_index_daily_observation). Feeds MP-9 CN.CSI300_REALIZED_VOL_20D (labelled 已实现波动率（非隐含）, never a fear index); the raw export goes to R2 create-only under market-psychology/raw/cn/v6-csi300-index-daily. Read arrangement: docker exec into the V6 Postgres container, database ashare_v6_restore_20260901, SET default_transaction_read_only = on, statement_timeout 120 s, lock_timeout 5 s, one query at a time, aggregates only (one row per trading day); never the V6 API, never 127.0.0.1:7801, never a write. The daily wrapper (worker-cf/scripts/mpt/cn/v6.sh) runs through ~/bin/heavy-run --light and first checks pipeline_scheduler_claim (an open claim waits, 30 minutes, at most 3 times, then a DEGRADED receipt). The same closes, through the CN benchmark-inputs projection that v6-publish.ts writes (market-psychology/benchmarks/cn, entry 000300.SH, POINT_IN_TIME_CLOSE), are the CN input of L1_RISK_BUDGET_BANDS (worker-cf/src/l1-risk-budget/, read from R2 only, never from V6); that input ends with this interim and moves to Cycle Atlas's own capture at DF-P1.",
+          "reason": "No verifiable implied-volatility source exists (iVIX suspended since 2018-02-23; QVIX has no named calculator and its terms are unverified), the SSE quote host would be a second collector of an index V6 already holds, and the daily close is the unit that crosses until DF-P1."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "Tushare",
+      "priceBasis": "PRICE/RAW",
+      "parityFieldsEvidence": "V6 src/data-runtime/canonicalize.js:302–328 (index_daily; first_available_at = capture)"
+    },
+    {
+      "id": "V6_CSI_BROAD_INDEX_DAILY",
+      "title": "中证全指 (000985.CSI) and 中证 1000 (000852.SH) daily closes as V6 stores them (market_index_daily_observation)",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "D4",
+      "decisionRef": "Owner psychology audit fix 2026-10-21 (E5 A-share benchmark comparison)",
+      "signatures": {},
+      "signaturesNote": "V6 stores these broad-index closes for its own trading path; Cycle Atlas reads daily aggregate closes as an interim and collects none of them.",
+      "consumers": [
+        {
+          "system": "CYCLE_ATLAS",
+          "access": "READ_ONLY_AGGREGATES",
+          "expiresOn": "2026-12-31",
+          "expiresWhen": "Cycle Atlas's own broad-index capture exists and reconciles to V6's closes with zero difference daily, whichever comes first",
+          "paths": [
+            "worker-cf/src/sources/mpt/cn/v6-index.ts",
+            "worker-cf/scripts/mpt/cn/v6-aggregates.ts",
+            "worker-cf/scripts/mpt/cn/v6-publish.ts"
+          ],
+          "reads": "One row per trading day for 000985.CSI and 000852.SH: date and close only. Feeds the E5 A-share comparison panel; the raw export goes to R2 create-only under market-psychology/raw/cn/v6-csi-broad-index-daily. The existing read-only V6 transaction, timeouts and aggregate-only boundary apply; never the V6 API and never a write.",
+          "reason": "The E5 A-share score covers the full A-share cross-section. 中证全指 is the closest public comparison; 沪深 300 and 中证 1000 are clearly labelled optional comparisons. Reusing V6's aggregate closes avoids a duplicate collector while the native capture is pending."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "Tushare",
+      "priceBasis": "PRICE/RAW",
+      "parityFieldsEvidence": "V6 src/data-runtime/canonicalize.js:307–328; KG worker-cf/scripts/mpt/cn/v6-publish.ts:217, :219"
+    },
+    {
+      "id": "US_RSP_SPY_DAILY_PRICES",
+      "title": "RSP and SPY daily prices (Tiingo EOD; raw captures with the unadjusted close and adjClose)",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "L1_TOTAL_RISK_BUDGET_V1 stage 1",
+      "decisionRef": "Owner chose Tiingo's free key for US.RSP_SPY_63D (market-psychology); coordinator note 1 to L1_TOTAL_RISK_BUDGET_V1 item 2 (the SPY daily rows Cycle Atlas already stores)",
+      "producedBy": {
+        "paths": [
+          "worker-cf/src/market-psychology/us-prices/plan.ts",
+          "worker-cf/src/market-psychology/us-prices/lane.ts"
+        ],
+        "note": "The chains lane step MPT_US_PRICES keeps the raw bytes create-only under market-psychology/raw/us/rsp-spy-prices/ with the index latest.json (backfill from 2003-01-01, live once per Shanghai day from 10:40)."
+      },
+      "signatures": {
+        "hosts": [
+          "tiingo.com"
+        ]
+      },
+      "signaturesNote": "Registered when L1_RISK_BUDGET_BANDS began reading the SPY captures (they had fed only US.RSP_SPY_63D). smartflow names Tiingo in comments only (price-fetcher.js); its SPY trading reads go to Yahoo and are not this dataset.",
+      "consumers": [
+        {
+          "system": "CYCLE_ATLAS",
+          "reads": "market-psychology US.RSP_SPY_63D (adjClose) and L1_RISK_BUDGET_BANDS US (the unadjusted close of every SPY capture the index lists; worker-cf/src/l1-risk-budget/inputs.ts)."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "Tiingo",
+      "priceBasis": [
+        "PRICE/RAW",
+        "TOTAL_RETURN/FULL_ADJ"
+      ],
+      "parityFieldsEvidence": "KG worker-cf/src/market-psychology/us-prices/lane.ts:20, :147; l1-risk-budget/inputs.ts:10–11 (close); sources/mpt/us/breadth-series.ts:11, :20 (adjClose)"
+    },
+    {
+      "id": "SMARTFLOW_BTCUSDT_PERP_DAILY",
+      "title": "BTCUSDT perpetual daily closes (Binance USDT-M daily klines), smartflow's crypto trading input",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "L1_TOTAL_RISK_BUDGET_V1 stage 1",
+      "decisionRef": "Coordinator note 1 to L1_TOTAL_RISK_BUDGET_V1 item 2: registered as a smartflow-owned dataset on the V6 precedent; Cycle Atlas collects none",
+      "signatures": {
+        "hosts": [
+          "fapi.binance.com"
+        ]
+      },
+      "signaturesNote": "smartflow reads Binance USDT-M klines on demand for its books and desk exports (export-crypto-desk.js fetchBtcCloses / fetchDailyCloses). Since smartflow#43 (2026-10-28, switch SMARTFLOW_BTC_PERP_DAILY_PERSIST=1) the same daily read, once per crypto-desk-exports run (00:20 UTC), is also kept as this dataset's file on its host (src/services/l1-btc-perp-daily.js): artifacts/market/SMARTFLOW_BTCUSDT_PERP_DAILY/latest.json (SMARTFLOW_BTCUSDT_PERP_DAILY_LATEST_V1) naming sha256/<sha256>.json (SMARTFLOW_BTCUSDT_PERP_DAILY_V1, closed UTC days, ascending). The host signature makes any Binance USDT-M collector outside smartflow (Cycle Atlas or V6) fail the guard.",
+      "consumers": [
+        {
+          "system": "CYCLE_ATLAS",
+          "access": "READ_ONLY_AGGREGATES",
+          "paths": [
+            "worker-cf/scripts/l1-risk-budget/btc-pull.sh"
+          ],
+          "reads": "One close per closed UTC day (the whole series, 421 rows on 2026-10-28 and one more each day): the CRYPTO input of L1_RISK_BUDGET_BANDS (BTCUSDT_PERP, 365-row high, SMA200). Read arrangement: before each band build (daily.sh, 20:30 CST, and the 22:30 --only-if-degraded rerun, dry runs included) the Mac lane reads latest.json and then only the file it names (sha256/<sha256>.json, the key checked against the pointer's sha256 first), each with one read-only cat over the existing SSH alias (BatchMode, ConnectTimeout 15 s), 3 attempts with 30 s then 90 s backoff, an absent file not retried; it checks the series' sha256 against the pointer, writes a receipt per run, and never writes, moves or deletes anything on the host. build.ts checks the bytes again; missing, refused, conflicting or stale input reads UNKNOWN with its cause (contract l1-risk-budget-bands-v1 §7), never a band. L1_BTC_PULL=off stops the read.",
+          "reason": "smartflow already reads these closes for its crypto books; a second collector in Cycle Atlas would duplicate the Binance USDT-M read (the host signature forbids it), and HK holds no R2 credential to publish them to R2 (the Owner's keys decision)."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "BAR_CLOSE",
+      "vendor": "Binance",
+      "priceBasis": "PRICE/RAW",
+      "parityFieldsEvidence": "smartflow src/services/l1-btc-perp-daily.js:47, :55, :70 (closed UTC days only)"
+    },
+    {
+      "id": "V6_PAPER_LEDGER_SNAPSHOT",
+      "title": "ASHARE_V6_PAPER daily position ledger snapshot (desk contract POSITION_LEDGER_SNAPSHOT_V1) as V6 delivers it to the desk",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "GLOBAL_RISK_PRIORITY_V1 §3 total-account line",
+      "decisionRef": "Implementation acceptance V1 G-1 / G-11 (adopted smartflow deb3f6e0): the A-share book NAV of the total-account line is V6's own snapshot; Cycle Atlas derives none",
+      "signatures": {},
+      "signaturesNote": "A delivered contract file, read not collected: a token would flag the desk and the reader. V6 writes it into the desk's Mac inbox (portfolio-desk/inbox/ASHARE_V6/ledger/ASHARE_V6_PAPER/POSITION_LEDGER_SNAPSHOT_<session>.json, about 08:50 CST the morning after the session); desk-vps-sync mirrors it to the desk on the smartflow host.",
+      "consumers": [
+        {
+          "system": "DESK",
+          "reads": "Display (holdings, curves, account) — the desk contract's own reader."
+        },
+        {
+          "system": "CYCLE_ATLAS",
+          "access": "READ_ONLY_AGGREGATES",
+          "paths": [
+            "worker-cf/scripts/l1-risk-budget/total-account-pull.sh"
+          ],
+          "reads": "account.equity, account.capitalBase, account.state and the CAPITAL_FLOW atoms of the newest snapshot on or before the as-of day (reading day − 1, within 10 days): the CN book of the totalAccount block of L1_RISK_BUDGET_BANDS, only with L1_TOTAL_ACCOUNT=on. Local file read on the Mac; read-only: the producer's own delivered file, byte for byte, sha256 recorded in the reading's books[].source; nothing written, moved or deleted.",
+          "reason": "V6 is the only producer of its book's NAV; the total-account line sums the books' own equities (G-1)."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "internal ledger (V6)",
+      "parityFieldsEvidence": "V6 src/index-book/exports.js:115–122 (generatedAt; refused before the 15:00 CST session close)"
+    },
+    {
+      "id": "SMARTFLOW_PAPER_LEDGER_SNAPSHOT",
+      "title": "smartflow US and crypto paper books' daily position ledger snapshots (desk contract POSITION_LEDGER_SNAPSHOT_V1: US_V5_ETF_3000USD, US_CORE_9000USD_3X_GATEOBS, C17_V2_4000USDT, QUICK_SHOT_V3_1000USDT) as smartflow delivers them to the desk",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "GLOBAL_RISK_PRIORITY_V1 §3 total-account line",
+      "decisionRef": "Implementation acceptance V1 G-1 / G-11 (adopted smartflow deb3f6e0): the overseas books' NAV of the total-account line is smartflow's own snapshot; Cycle Atlas derives none",
+      "signatures": {},
+      "signaturesNote": "A delivered contract file, read not collected. us-desk-exports (16:50 ET) and crypto-desk-exports (00:20 UTC) write them into the desk inbox on the smartflow host: /home/admin/deploy-contracts/portfolio-desk-694fa07/inbox/<SMARTFLOW_US|SMARTFLOW_CRYPTO>/ledger/<ledgerId>/POSITION_LEDGER_SNAPSHOT_<session>.json.",
+      "consumers": [
+        {
+          "system": "DESK",
+          "reads": "Display (holdings, curves, account) — the desk contract's own reader."
+        },
+        {
+          "system": "CYCLE_ATLAS",
+          "access": "READ_ONLY_AGGREGATES",
+          "paths": [
+            "worker-cf/scripts/l1-risk-budget/total-account-pull.sh"
+          ],
+          "reads": "account.equity, account.capitalBase, account.state, account.currency and the CAPITAL_FLOW atoms of the newest snapshot on or before the as-of day (US within 5 days, crypto within 2): the US and CRYPTO books of the totalAccount block of L1_RISK_BUDGET_BANDS, only with L1_TOTAL_ACCOUNT=on. Before each band build the Mac lane reads the exact file names (as-of day first, then one day earlier at a time, stopping at the first found or at a failed read), one cat each over the existing SSH alias, 3 attempts with 30 s then 90 s backoff, an absent file not retried, a receipt per run; read-only: the producer's own delivered file, byte for byte, sha256 recorded in the reading's books[].source; nothing written, moved or deleted.",
+          "reason": "smartflow is the only producer of its books' NAV; the total-account line sums the books' own equities (G-1). HK holds no R2 credential, so the file is read where it is delivered."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "internal ledger (smartflow)",
+      "parityFieldsEvidence": "smartflow scripts/export-us-ledger-snapshots.js:89, :95; scripts/lib/c17-ledger-snapshot.js:102"
+    },
+    {
+      "id": "L1_RISK_BUDGET_BANDS",
+      "title": "Layer-1 total risk budget band reading per market (one-year-high drawdown, SMA200, band, k, linkage) for L1_TOTAL_RISK_BUDGET_V1",
+      "owner": "CYCLE_ATLAS",
+      "auditRef": "L1_TOTAL_RISK_BUDGET_V1 stage 1",
+      "decisionRef": "Owner 2026-10-27T12:38:03+08:00 (signed text sha256 5f7b1d41…, §6 L2–L4, L9, L10); coordinator note 1 (sha256 bcac3e7e…) item 1; GLOBAL_RISK_PRIORITY_V1 §3 (Owner 2026-11-01T00:58:23+08:00, text sha256 44d70b33…): the optional totalAccount block, implementation acceptance V1 adopted at smartflow deb3f6e0",
+      "producedBy": {
+        "paths": [
+          "worker-cf/src/l1-risk-budget/bands.ts",
+          "worker-cf/src/l1-risk-budget/inputs.ts",
+          "worker-cf/src/l1-risk-budget/reading.ts",
+          "worker-cf/scripts/l1-risk-budget/build.ts",
+          "worker-cf/scripts/l1-risk-budget/daily.sh",
+          "worker-cf/scripts/l1-risk-budget/btc-pull.sh",
+          "worker-cf/src/l1-risk-budget/total-account.ts",
+          "worker-cf/scripts/l1-risk-budget/total-account-pull.sh"
+        ],
+        "objects": [
+          "cycle-atlas/l1-risk-budget/bands/sha256/<sha256>.json",
+          "cycle-atlas/l1-risk-budget/bands/latest.json"
+        ],
+        "contract": "docs/api/l1-risk-budget-bands-v1.md",
+        "note": "Daily Mac build (proposed 20:30 CST), dry run by default; the launchd job and the first upload are the coordinator's. The totalAccount block (contract 1.2.0+) only with L1_TOTAL_ACCOUNT=on; its last three inputs serve that block only."
+      },
+      "inputs": [
+        "V6_CSI300_INDEX_DAILY",
+        "US_RSP_SPY_DAILY_PRICES",
+        "SMARTFLOW_BTCUSDT_PERP_DAILY",
+        "V6_PAPER_LEDGER_SNAPSHOT",
+        "SMARTFLOW_PAPER_LEDGER_SNAPSHOT",
+        "MACRO_CYCLE_READINGS"
+      ],
+      "signatures": {},
+      "signaturesNote": "The reading is read, not collected: a token would flag the enforcing readers. A second band derivation (drawdown band or SMA200 confirmation computed in V6, smartflow or the desk) is guarded on the reader side by the stage-2 tests of LAYER1_TOTAL_RISK_BUDGET_IMPLEMENTATION_ACCEPTANCE_V1, not by this scanner.",
+      "consumers": [
+        {
+          "system": "SMARTFLOW",
+          "reads": "k and state per market (US, CRYPTO) for L7 / L8 on its US and crypto paper books, with the D9 (a) 10-session shadow (stage 2), from the byte-identical mirror the Cycle Atlas Mac lane writes on the smartflow host (worker-cf/scripts/l1-risk-budget/hk-mirror.sh; pointer, reading and sha256 checked as for R2). smartflow computes no band.",
+          "access": "READ_DELIVERED_FILE"
+        },
+        {
+          "system": "ASHARE_V6",
+          "reads": "k and state for CN for L7 / L8 on the A-share paper books; manual books get a desk 「需减至 X」 todo (stage 2)."
+        },
+        {
+          "system": "DESK",
+          "reads": "Display only: band, k, the book caps and reason codes (stage 2 admission first)."
+        }
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "internal (Cycle Atlas)",
+      "parityFieldsEvidence": "KG worker-cf/src/l1-risk-budget/reading.ts:134–139; inputs.ts:8–11"
+    },
+    {
+      "id": "SMARTFLOW_C17_EXECUTION_COST_RECORDS",
+      "title": "C17_V2 execution-cost forward records: the t0 order book (depth 20) and the window's aggTrades at each entry and non-protective exit decision of the C17_V2 paper book, the combined-candidate shadow ledger and Quick Shot V3 (report only)",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "C17_V2_M2_Q2_EXECUTION_COST_V1 §4.2 Phase F",
+      "decisionRef": "Coordinator ruling CRYPTO_M2_R1_K2_FREEZE_1 Q2 supplementary ruling 1 (2026-10-27): smartflow TRADING_PATH execution observation on the line of PR #41; public data only, no order, PR #38's books byte-identical",
+      "signatures": {
+        "tokens": [
+          "C17_V2_EXECUTION_COST_RECORD_V1"
+        ]
+      },
+      "signaturesNote": "smartflow's src/services/c17-v2-execution-cost-recorder.js writes the records (contract C17_V2_EXECUTION_COST_RECORD_V1) to trading-system-v2/reports/c17-v2-execution-cost/<process>.chain.jsonl on the trading host; the K2 look reads them there. The Binance USDT-M host is already SMARTFLOW_BTCUSDT_PERP_DAILY's signature, so any such collector outside smartflow fails the guard through that entry; the contract token marks a second writer of these records.",
+      "consumers": [],
+      "consumersNote": "No consumer path is registered: the records are read only by smartflow's look tool (scripts/c17-exec-cost-look.js) at the K2 look (2027-04-30 and 60 complete major entries, whichever is later).",
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "vendor": "Binance",
+      "parityFieldsEvidence": "smartflow src/services/c17-v2-execution-cost-recorder.js:11–13, :50"
+    },
+    {
+      "id": "SMARTFLOW_U11_UNDERLYING_FACTS",
+      "title": "U11 (B) single-stock underlyings of the US_V5 ETF pool (12 companies): the daily point-in-time SEC companyfacts and submissions extract with each fact's acceptance time and the last session's raw close (U11_UNDERLYING_PIT_V1), the one-off history capture (U11_VALUE_INPUT_CAPTURE_V1) and the bubble-side EV/Sales reference built from it (U11_BUBBLE_REFERENCE_V1); shadow and research only",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "U11 (B) forward shadow K2 draft V1 (artifacts/coordinator/US_ETF_VALUATION_GATE_B_SHADOW_K2_V1.draft.md) §3, §4.1",
+      "decisionRef": "Coordinator rulings 2026-11-14 on U11 (B): S1 (all 12 underlyings of ETF pool version 4), R1 (bubble-side reference from history; forward files not backfilled), G1 (register a shadow-only research dataset before T_start); the SEC terms record US_ETF_VALUATION_GATE_SEC_TERMS_RECORD_V1 (sha256 7f634c68…): declared User-Agent, at most 8 requests a second",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/us-value-selector/scripts/u11_underlying_pit.py",
+          "trading-system-v2/us-value-selector/scripts/u11_bubble_reference.py",
+          "trading-system-v2/scripts/research/u11-value-inputs.js"
+        ],
+        "note": "u11_underlying_pit.py runs once a NYSE day on the smartflow host (us-value-selector, Tue–Sat 07:20 CST) through us-value-selector's SEC client and Alpaca feed and writes data/u11-pit/u11-pit-<UTC day>.json, one file a day, never rewritten. u11-value-inputs.js (queue #62) made the one-off history capture /home/admin/research-data/u11-value-inputs/u11-20261112T124918Z (SEC companyfacts and Yahoo daily closes); u11_bubble_reference.py builds the immutable reference from its stored closes and a PIT file, fetching nothing."
+      },
+      "signatures": {
+        "tokens": [
+          "U11_UNDERLYING_PIT_V1",
+          "U11_VALUE_INPUT_CAPTURE_V1",
+          "U11_BUBBLE_REFERENCE_V1"
+        ]
+      },
+      "signaturesNote": "The contract names mark a second writer of these records. No SEC host is a signature: data.sec.gov / www.sec.gov are also read by Cycle Atlas (worker-cf/src/numeric/xbrl.ts, companyfacts CapEx) and by smartflow's pre-open facts and sentiment context (submissions, ticker map), which are different datasets; a host signature here would turn those into findings. Whether SEC becomes one owner's source under IC-A3 is a separate decision.",
+      "consumers": [],
+      "consumersNote": "No consumer path is registered: the files are read only by the U11 (B) look (research side, T_start + 12 months, or 30 closed would-have-blocked entries for the verdict) and by QRP when the comparison is imported. Nothing on a trading path reads them.",
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "ACCEPTANCE_TIME",
+      "pitParity": {
+        "research": "ACCEPTANCE_TIME",
+        "detail": "GAP P-4, and not the same fallback as US_EQUITY_PIT_FREE_V1. Facts are dated by acceptanceDateTime (u11_underlying_pit.py:78, :102–103, :116); a fact whose filing is outside the submissions recent window gets known_at null with basis FILED_DATE_ONLY and no fallback instant (u11_underlying_pit.py:5–17 docstring, pit_facts). The forward EOD close is Alpaca raw (:154, PRICE/RAW); the frozen bubble reference uses Yahoo chart closes split-adjusted to the capture day (u11_bubble_reference.py:11, :268, PRICE/SPLIT_ADJ) while live uses Alpaca: parity gap P-4 (FREEZE_1 runs as is; a new U11 version moves the reference to Alpaca)."
+      },
+      "vendor": "SEC EDGAR, Alpaca, Yahoo (bubble reference)",
+      "priceBasis": [
+        "PRICE/RAW",
+        "PRICE/SPLIT_ADJ"
+      ],
+      "parityFieldsEvidence": "smartflow us-value-selector/scripts/u11_underlying_pit.py:78, :102–103, :116 (known_at = acceptanceDateTime, FILED_DATE_ONLY with known_at null outside the window), :154 (EOD close adjustment raw); scripts/u11_bubble_reference.py:11, :268 (Yahoo closes split-adjusted to the capture day)"
+    },
+    {
+      "id": "ALPACA_1M_HISTORY",
+      "title": "US 1 minute history for research: Alpaca SIP 1Min bars from 2016-01 for the forward archive's 79 symbols, two copies (adjustment raw and all). Each symbol, copy and New York calendar month is one write-once file with its MANIFEST entry (ALPACA_1M_MONTH_ENTRY_V1), and each run leaves one receipt (ALPACA_1M_RUN_RECEIPT_V1). Research input only",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "smartflow #136: trading-system-v2/scripts/research/README.md \"ALPACA_1M_HISTORY\"; the contract is the header of scripts/research/lib/alpaca-1m-history.js",
+      "decisionRef": "Proposed by the AQuA session on 2026-11-16 under the Owner's 「Start the four」 (queue.log AQUA_FOUR STARTED 2026-11-16T12:51:27+08:00), adopted when the coordinator merges knowledge-graph #365: register the merged Alpaca 1 m history (#136) and the Yahoo forward archive (#134) as smartflow-owned research inputs. The store was verified complete on the smartflow host that day: 79 symbols, 10,349 symbol-months per copy, the last one 2026-11.through-09",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/scripts/research/fetch-alpaca-1m-history.js",
+          "trading-system-v2/scripts/research/lib/alpaca-1m-history.js"
+        ],
+        "note": "fetch-alpaca-1m-history.js runs on the smartflow host (HK) from a git archive of the code, with the key read from the us-v5-worker app's .env (only 'key present: yes/no' is printed). It sends GET data.alpaca.markets/v2/stocks/bars with timeframe=1Min, feed=sip, adjustment raw and then all, one symbol per request and one New York month per unit, at most 100 requests/min, and never Mon–Fri 09:00–16:30 New York. It writes /root/us-ssl-forward/research-data/alpaca-1m/<raw|all>/<SYMBOL>/<YYYY-MM>.jsonl.gz and <YYYY-MM>.MANIFEST.json beside it, plus runs/<runId>.json. Every file is staged, renamed in, 0444 and never overwritten. A month that holds a run's last date is written as <YYYY-MM>.through-<DD>, so the complete month can still be written once later. A monthly top-up of complete months, scripts/research/alpaca-1m-monthly-topup.js, is proposed in smartflow #159 (open), and the coordinator installs its cron."
+      },
+      "signatures": {
+        "tokens": [
+          "ALPACA_1M_MONTH_ENTRY_V1",
+          "ALPACA_1M_RUN_RECEIPT_V1"
+        ]
+      },
+      "signaturesNote": "The contract names mark a second writer of these records. data.alpaca.markets is not a signature: smartflow's US workers read it for their own bars and orders, which are different data, and a host signature would turn those into findings.",
+      "consumers": [],
+      "consumersNote": "No consumer path is registered. Inside smartflow, the store is read by the frozen Yahoo cross-check (scripts/research/check-alpaca-vs-yahoo-1m.js) and by research. No trading path reads it.",
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "BAR_CLOSE",
+      "vendor": "Alpaca",
+      "priceBasis": [
+        "PRICE/RAW",
+        "TOTAL_RETURN/FULL_ADJ"
+      ],
+      "parityFieldsEvidence": "smartflow scripts/research/lib/alpaca-1m-history.js:8–10, :17–19 (the all copy is adjusted as of each run's date)"
+    },
+    {
+      "id": "SMARTFLOW_US_1M",
+      "title": "US regular-session 1 minute forward archive: each completed session's Yahoo chart 1 m bars (the endpoint and headers US_CORE's fetchMinuteBars reads) for the US_CORE sleeves and every row of every committed config/us_etf_universe_v<n>.json (79 symbols). Each session is one write-once day directory with SMARTFLOW_US_1M_DAY_MANIFEST_V1 and SHA256SUMS, and each run leaves one receipt line (SMARTFLOW_US_1M_RECEIPT_V1)",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "smartflow #134: the contract is the header of trading-system-v2/src/services/us-1m-archive.js",
+      "decisionRef": "Owner-accepted minimum-impact fix for the missing US 1 m history (smartflow #134): from 2026-11-10, keep the 1 m bars production already reads. The pm2 app was started by the coordinator on 2026-11-10 21:4x CST (config/pm2/HK_RUNNING_MANIFEST.json). Registration proposed by the AQuA session on 2026-11-16 under the Owner's 「Start the four」 (queue.log AQUA_FOUR STARTED 2026-11-16T12:51:27+08:00), adopted when the coordinator merges knowledge-graph #365",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/src/services/us-1m-archive.js",
+          "trading-system-v2/scripts/run-us-1m-archive.js",
+          "trading-system-v2/config/pm2/us-1m-archive.config.js"
+        ],
+        "note": "pm2 app us-1m-archive on the smartflow host (HK): fork, autorestart false, cron_restart '40 5,7,12 * * *' CST. It reads query1.finance.yahoo.com/v8/finance/chart/<symbol>?interval=1m, regular hours, and looks back 10 days, because Yahoo keeps about 30. It writes <app>/artifacts/market/us-1m/<New York date>/<SYMBOL>.jsonl, MANIFEST.json and SHA256SUMS (the env US_1M_ARCHIVE_DIR overrides the directory), plus receipts/<UTC day>.jsonl. A day is staged, renamed in once and never touched again. Missing minutes are recorded as gaps, never filled."
+      },
+      "signatures": {
+        "tokens": [
+          "SMARTFLOW_US_1M_DAY_MANIFEST_V1",
+          "SMARTFLOW_US_1M_RECEIPT_V1"
+        ]
+      },
+      "signaturesNote": "The contract names mark a second writer of these records. The Yahoo chart host is not a signature: US_CORE's worker reads the same endpoint for its session minutes, and other systems may read Yahoo for other data.",
+      "consumers": [],
+      "consumersNote": "No consumer path is registered. Inside smartflow it has two readers. The Alpaca cross-check (scripts/research/check-alpaca-vs-yahoo-1m.js --forward-dir) reads it for research. The US_CORE review export's daily parity replay (scripts/lib/us-core-parity.js via scripts/export-us-strategy-reviews.js, CORE_REPLAY_V2, smartflow #155) reads it only when US_CORE_REPLAY_TOUCH=on, and reads a file only when its sha256 matches SHA256SUMS.",
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "BAR_CLOSE",
+      "vendor": "Yahoo",
+      "parityFieldsEvidence": "smartflow src/services/us-1m-archive.js:17, :25–26, :58"
+    },
+    {
+      "id": "US_EQUITY_PIT_FREE_V1",
+      "title": "US equity point-in-time research and live universe from free sources: the S&P 500 universe dated by the EDGAR acceptance time of IVV's N-PORT-P holdings filings from 2019 (SPY and VOO for reconciliation only; Russell 1000 / IWB later), the CUSIP / name → CIK → Alpaca symbol map, delisting dates from Form 25 / 25-NSE, 15-12B and 8-K, the Alpaca daily bars of the mapped symbols, each run's receipt with a sha256 manifest, and the V1–V5 validation with the ★1 gate. One producer for research and live",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "US_PIT_RESEARCH_DATA_SOURCE_DECISION_20261117.approved.b6c50849.md §2, §3, §5 (artifacts/coordinator/, sha256 b6c50849…); APPROVAL_1 (sha256 2c7c9e35…)",
+      "decisionRef": "Owner APPROVAL_1 2026-11-17 00:14 CST 「研究判「做」；批美股数据源（默认）」: ★1 (a) accept and quantify the residual survivorship bias of the free sources, with the hard gate unpriced holding weight > 1% or a reconstructed-pool annual tracking gap to the ETF > 50 bps keeps US mining off; ★2 (a) N-PORT structured filings from 2019; ★3 S&P 500 = IVV, SPY / VOO reconciliation only, Russell 1000 = IWB, round 1 S&P 500 only; ★4 delisting date from Form 25 / 8-K, price = Alpaca's last bar, a missing price is flagged DELISTING_PRICE_MISSING and never imputed; ★5 industry = SEC submissions SIC (current value, look-ahead disclosed). Owner rule 2026-11-17 ~00:00 CST: research and live data sources identical, so one producer. TRADING_PATH under IC-A3 on the U11 precedent (coordinator ruling: smartflow collects; sec.gov is an official source)",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/us-value-selector/scripts/us_pit_universe.py",
+          "trading-system-v2/us-value-selector/scripts/us_pit_validate.py",
+          "trading-system-v2/us-value-selector/config/us_pit_sources.json",
+          "trading-system-v2/us-value-selector/config/us_pit_security_overrides.csv",
+          "trading-system-v2/us-value-selector/scripts/u11_underlying_pit.py",
+          "trading-system-v2/us-value-selector/src/value_selector/providers/sec_edgar.py",
+          "trading-system-v2/us-value-selector/src/value_selector/providers/http_cache.py",
+          "trading-system-v2/us-value-selector/src/value_selector/providers/alpaca.py"
+        ],
+        "note": "us_pit_universe.py runs on the smartflow host (HK) in /opt/us-value-selector, with us-value-selector's SEC client (declared User-Agent from SEC_USER_AGENT only, never printed or written; at most 8 requests a second, conditional where cached) and its Alpaca feed. It imports U11's acceptance-time parser (acceptance_instant, filings_index), the User-Agent refusal and the response counter from u11_underlying_pit.py: known_at = the filing's acceptanceDateTime (UTC as stated; a zoneless value read as America/New_York), as in U11. The two differ for a filing found only by its filing date: this dataset uses 09:30 New York of the next NYSE trading day (XNYS calendar, approved §2.1), while U11 leaves known_at null (FILED_DATE_ONLY). Every run, refused or failed ones included, writes a receipt; the validator reads one complete run's receipt set; one lock is shared with the EDGAR sample; no stage runs 07:10–08:10 CST or in US market hours. Stages: holdings (the series' NPORT-P and NPORT-P/A filings found through company_tickers_mf.json and the series filing feed, raw primary_doc.xml kept gzip and 0444, parsed holdings US_PIT_ETF_HOLDINGS_V1), map (US_PIT_SECURITY_MAP_V1: committed overrides, the holding's own ticker, SEC fails-to-deliver CUSIP → symbol of the report period, CUSIP carry, unique normalised name; the method is kept per row), events (US_PIT_DELISTING_EVENTS_V1 and the current SIC from each mapped CIK's submissions), prices (US_PIT_DAILY_BARS_V1: Alpaca 1Day raw and all), and one receipt per run (US_PIT_RUN_RECEIPT_V1, the sha256 of every file written). Every file is staged, renamed in once, 0444 and never rewritten. Output under data/us-pit/; the run refuses when the disk has less free space than --min-free-gb (HK gets no disk expansion, Owner 2026-11-04). us_pit_validate.py reads only those files (V4 also re-reads at most 50 filings from EDGAR, hashing them without storing) and writes US_PIT_VALIDATION_V1 with V1–V5 and the ★1 gate."
+      },
+      "sourceHosts": [
+        "www.sec.gov",
+        "data.sec.gov",
+        "data.alpaca.markets"
+      ],
+      "signatures": {
+        "tokens": [
+          "US_PIT_ETF_HOLDINGS_V1",
+          "US_PIT_SECURITY_MAP_V1",
+          "US_PIT_DELISTING_EVENTS_V1",
+          "US_PIT_DAILY_BARS_V1",
+          "US_PIT_RUN_RECEIPT_V1",
+          "US_PIT_VALIDATION_V1"
+        ]
+      },
+      "signaturesNote": "The contract names mark a second writer of these records. sourceHosts records where the data comes from (approved §5.1); it is not a scanner field. As host signatures, sec.gov would make Cycle Atlas's worker-cf/src/numeric/xbrl.ts, disclosure.ts and public/boundary.ts findings of this entry (checked on knowledge-graph 518d178), and data.alpaca.markets is read by smartflow's trading workers for other data. Whether SEC becomes one owner's source under IC-A3 stays a separate decision, as for SMARTFLOW_U11_UNDERLYING_FACTS.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "Research-lane copies only: the run's files pushed from the smartflow host to the Linux research lane and checked byte for byte against the run receipt's sha256 manifest before any read. QRP writes no SEC or Alpaca parser of its own and recomputes no map, universe or gate; it reads the universe, the map, the delisting events, the daily bars and the validation report as produced. US mining reads nothing until US_PIT_VALIDATION_V1 shows the ★1 gate PASS (and the research-framework revision P1 is merged and the thresholds are frozen)."
+        }
+      ],
+      "consumersNote": "Inside smartflow the U11-class screening is the live reader; it switches only in a new U11 version after V1–V5 pass (U11 (B) FREEZE_1 keeps running unchanged on its own files). No other system reads the dataset.",
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "ACCEPTANCE_TIME",
+      "pitParity": {
+        "research": "ACCEPTANCE_TIME",
+        "detail": "SAME: one producer; universe_at() is the one membership rule (approved §2.2). Filing-date-only fallback: 09:30 New York of the next NYSE trading day (smartflow #163)."
+      },
+      "priceBasisNote": "Alpaca 1Day raw and all (split and dividend adjusted), both kept; the tracking gap uses all",
+      "vendor": "SEC EDGAR, Alpaca",
+      "priceBasis": [
+        "PRICE/RAW",
+        "TOTAL_RETURN/FULL_ADJ"
+      ],
+      "parityFieldsEvidence": "smartflow #163 us-value-selector/scripts/us_pit_universe.py known_at_for / universe_at; stage_prices (Alpaca 1Day raw and all)"
+    },
+    {
+      "id": "CN_MARGIN_BALANCES",
+      "title": "A-share exchange margin balances (融资融券余额): the SSE and SZSE daily margin summaries, balance level per exchange and day (the BSE summary is not collected yet)",
+      "owner": "CYCLE_ATLAS",
+      "basis": "TRADING_PATH",
+      "auditRef": "RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md §4 P-2",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 P-2 option (ii) as the coordinator's list of 2026-11-17 states it: Cycle Atlas's exchange read (worker-cf/src/sources/mpt/cn/margin.ts) is the one producer; V6 and QRP are consumers. No new collection is added.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "worker-cf/src/sources/mpt/cn/margin.ts",
+          "worker-cf/src/sources/mpt/cn/series.ts",
+          "worker-cf/src/market-psychology/series.ts",
+          "worker-cf/scripts/mpt/cn/daily.sh"
+        ],
+        "note": "margin.ts:4–7 reads query.sse.com.cn queryMargin.do (:21) and www.szse.cn ShowReport 1837_xxpl (:26); raw responses go to R2 create-only under market-psychology/raw/cn/{sse,szse}-margin/sha256/ (worker-cf/src/market-psychology/series.ts:78). The published series is CN.MARGIN_BALANCE_CHG_20D (worker-cf/src/sources/mpt/cn/series.ts:171, CN_MARKET_PSYCHOLOGY CN-2); the balance level is kept in each row's parts. Runs in the CN daily lane, 21:45 CST via cst-gate (worker-cf/scripts/mpt/cn/daily.sh:2). BSE: not read."
+      },
+      "signatures": {
+        "callNames": [
+          "getMarginHistory",
+          "getMarginSummary"
+        ]
+      },
+      "signaturesNote": "The two Tushare margin calls (coordinator, #368 review): V6's client defines them (src/data-sources/tushare-client.js:652 getMarginSummary, :831 getMarginHistory) and its macro sync calls one (src/macro-data/sync.js:160), the writer of MARGIN_SSE / MARGIN_SZSE through scripts/backfill-macro-series.js and the hourly MARKET_PIVOT job. That is the P-2 gap, listed as a known violation and removed by P-2 (ii) when V6 reads this dataset. A quoted name (src/sentiment/collect-cn.js:308, call('getMarginSummary', …), already CN_MARKET_PSYCHOLOGY's known violation) is not a call and is not flagged. CN_MARKET_PSYCHOLOGY's AkShare margin tokens are unchanged.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "Planned under P-2 (ii): src/market-pivot/inputs.js:234 and the research replay read this producer's balances instead of V6's own Tushare margin rows. Not wired yet."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "Research verdicts that use margin (R21 class) read sha256-verified copies of this producer's rows, with its PIT rule; none today (QRP records only the sealed R21-RP verdict, services/ashare-sealed-verdicts/index.js:153)."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [
+        {
+          "system": "ASHARE_V6",
+          "paths": [
+            "src/data-sources/tushare-client.js",
+            "src/macro-data/sync.js"
+          ],
+          "auditRef": "RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md §4 P-2; knowledge-graph #368 review (coordinator 2026-11-17)",
+          "removedBy": "RESEARCH_LIVE_PARITY_V1 P-2 (ii): V6 reads CN_MARGIN_BALANCES (src/market-pivot/inputs.js:234 and the research replay) and its Tushare margin calls and MARGIN_* writes are removed",
+          "note": "tushare-client.js:652 (getMarginSummary), :831 (getMarginHistory); macro-data/sync.js:160 (client.getMarginHistory)."
+        }
+      ],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "NEXT_TRADING_DAY_0900_CST",
+      "pitParity": {
+        "research": "NEXT_OPEN_SESSION_CLOSE",
+        "detail": "GAP P-2: R21 research read V6's backfilled MARGIN_SSE / MARGIN_SZSE (macro_series_observation; V6 catalog known_at = next open session close, src/macro-data/catalog.js:94–95, :210–216; replay first_available_at := knownAt, src/research/history-replay/r11-ingestion.js:37, :53–70). Under ★2 (a) research takes this producer's rule; a research verdict that uses margin waits for the producer (P-2)."
+      },
+      "vendor": "SSE, SZSE"
+    },
+    {
+      "id": "V6_CN_FINANCIAL_STATEMENTS",
+      "title": "A-share financial statements from Tushare income, balancesheet, cashflow (per stock or the _vip period endpoints) and fina_indicator_vip, stored point in time with the announcement dates and revisions",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md §4 P-6",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a): research follows live. V6 is the only collector (IC-A14).",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "src/data-runtime/sync-service.js",
+          "src/scheduler/financial-statement-sync-job.js",
+          "src/data-runtime/financial-statements.js",
+          "src/data-runtime/financial-statement-repository.js",
+          "src/data-runtime/canonicalize.js"
+        ],
+        "note": "Tushare income / balancesheet / cashflow (tushare-client.js:527–535; _vip by period :546–553) and fina_indicator_vip (:560–564); specs sync-service.js:25–35, :85–90; stored in raw_record and fundamentals_pit (db/migrations/001_phase1_foundation.sql:14, :100). The STATEMENT_SYNC scheduler job runs after DAILY (financial-statement-sync-job.js:3–16; scripts/start-scheduler.js:306, :327); fina_indicator_vip also daily in current-research-evidence-sync.js:36–38. A later re-fetch appends a revision (T01_FUNDAMENTAL_AVAILABILITY_REOBSERVATION_V1, sync-service.js:460–462)."
+      },
+      "signatures": {
+        "tokens": [
+          "FINANCIAL_STATEMENT_FACT_READ_V1",
+          "FUNDAMENTAL_PIT_V1"
+        ]
+      },
+      "signaturesNote": "Contract names of V6's statement read (financial-statement-repository.js:52) and PIT fundamentals adapter (src/kernel/adapters/phase1.js:107); they mark a second implementation outside V6. Tushare API names are not signatures (too generic to scan).",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Live: src/alpha/compounder/v3/financial-production.js:65, financial-supplement.js:62. Research replay: src/research/history-replay/statement-ingestion.js (P-6 gap)."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "None today. A QRP study that uses statements reads V6's rows with V6's live PIT rule, through a sha256-verified export; no second Tushare reader."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "ANNOUNCEMENT_NEXT_DAY_0000",
+        "detail": "GAP P-6: live first_available_at is V6's first observation (sync-service.js:444–449; repository filter financial-statement-repository.js:31), the announcement date is the later of ann_date and f_ann_date (financial-statements.js:41–44), and a row announced after it was seen is CONFLICT (financial-statements.js:66–67; canonicalize.js:102–106). Research replay uses 00:00 the day after f_ann_date, else ann_date, else the statutory deadline (src/research/history-replay/known-at.js:34, :66–74; statement-ingestion.js:122). Fix per P-6 (a): research = the production sync's next run after the later announcement date; the statutory-deadline fallback becomes UNKNOWN."
+      },
+      "vendor": "Tushare"
+    },
+    {
+      "id": "V6_SW2021_INDUSTRY_MEMBERSHIP",
+      "title": "Shenwan 2021 industry membership (Tushare index_member_all): the current members per L1 code, append-only with closing revisions on reclassification",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md §4 P-7",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a); P-7 recommendation (a daily production membership snapshot, no extra call) is a separate change.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-runtime/current-research-evidence-sync.js",
+          "src/data-runtime/industry-membership-versions.js",
+          "src/data-runtime/canonicalize.js"
+        ],
+        "note": "index_member_all with is_new 'Y' per L1 code (current-research-evidence-sync.js:52–58) into industry_membership (db/migrations/001_phase1_foundation.sql:119–135). Append-only: a reclassification appends a closing revision with effective_to (industry-membership-versions.js:1–16, :36–45, :100–125; postgres-repository.js:205–217, SW2021_MEMBERSHIP_RECLASSIFICATION_CLOSURE_V1). History exists only from the first sync, and an exit with no successor is never closed (is_new 'N' is not fetched)."
+      },
+      "signatures": {
+        "tokens": [
+          "INDUSTRY_MEMBERSHIP_OBSERVATION_V1"
+        ]
+      },
+      "signaturesNote": "V6's membership observation contract (canonicalize.js:417).",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Live: src/stock-book/five-stage/shadow-runtime.js, src/industry-cycle-trend/postgres-inputs.js; research readers through membershipVersionsCte (src/research/**)."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "None today (services/factor-library/legacy.js:62 is a factor description). A QRP study reads V6's rows with the live rule."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "IN_DATE",
+        "detail": "GAP P-7: research replay fetches is_new Y and N and dates rows at in_date 00:00 (r11-ingestion.js:101–105, :195–197; known-at.js:29); live dates rows at observation. On a decision day both see the same current members; history before the first sync cannot be checked against production. §4 P-7 says production keeps no history; it keeps observed-at history since its first sync (closures above)."
+      },
+      "vendor": "Tushare"
+    },
+    {
+      "id": "V6_CN_CORPORATE_ACTIONS",
+      "title": "A-share corporate actions (Tushare dividend: cash dividends, bonus and transfer shares) as observed by V6",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator list 2026-11-17 (RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a). V6 is the only collector.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "src/data-runtime/sync-service.js",
+          "src/positions/current-holdings-data.js",
+          "scripts/sync-tushare.js",
+          "src/data-runtime/canonicalize.js"
+        ],
+        "note": "getDividends (tushare-client.js:523–525; spec sync-service.js:79–84), per held stock in the daily holdings step (current-holdings-data.js:193–200) and from scripts/sync-tushare.js; table corporate_action_observation (db/migrations/006_data_runtime.sql:65–86; insert postgres-repository.js:321–323)."
+      },
+      "signatures": {
+        "tokens": [
+          "CORPORATE_ACTION_OBSERVATION_V1"
+        ]
+      },
+      "signaturesNote": "V6's corporate action observation contract (canonicalize.js:386).",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "None today; registered so that a QRP study reads V6's rows, not its own Tushare dividend pull."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "OBSERVED_AT",
+        "detail": "No research reader today (only scripts/verify-t01.js). announcement_date is ann_date, else imp_ann_date (canonicalize.js:386–401); a future research reader uses first_available_at, never the announcement date alone."
+      },
+      "vendor": "Tushare"
+    },
+    {
+      "id": "V6_ETF_DISTRIBUTIONS_FHSP",
+      "title": "Distributions and splits of the broad-index ETFs from Eastmoney fund F10 FHSP pages, as observed by V6 (five ETFs today)",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator list 2026-11-17 (RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a). V6 is the only collector.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/index-book/broad5-shadow/sources.js",
+          "src/scheduler/pipeline.js"
+        ],
+        "note": "fundf10.eastmoney.com/fhsp_<code>.html (sources.js:24–26, :94–104; insert :156) into etf_corporate_action_fhsp_observation (db/migrations/291_index_broad5_shadow.sql:47–66; the five ETFs at :49), in the INDEX_BROAD5_SHADOW step (current-producers.js:663, pipeline.js:53)."
+      },
+      "signatures": {
+        "tokens": [
+          "source:eastmoney-fhsp:fund_fhsp_distribution_split:v1"
+        ]
+      },
+      "signaturesNote": "V6's source id for these rows (291_index_broad5_shadow.sql:57). The Eastmoney host is not a signature: V6 and Cycle Atlas read other Eastmoney data.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "md / vg shadows build total-return ETF histories from it (src/index-book/shared/etf-history-source.js:69–72; md-shadow/sources.js:43)."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "None today; an ETF total-return study reads this table's rows."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "OBSERVED_AT",
+        "detail": "GAP: research/broad5-momentum/fetch-data.js:13, :46 fetched its own copy, not this table; later research reads the table."
+      },
+      "vendor": "Eastmoney"
+    },
+    {
+      "id": "V6_ETF_DAILY_BARS",
+      "title": "A-share ETF daily bars (Tushare fund_daily) in V6 prices_daily: raw, unadjusted; adjustment and distributions are separate",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator list 2026-11-17 (RESEARCH_LIVE_PARITY_V1 §1, §1.4)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a). ALL_A_CROSS_SECTION does not cover ETF bars (it is one aggregate row a day built from stock prices and daily_basic, src/macro-data/sync.js:219–233), so this is a separate entry.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "src/data-runtime/index-sleeve-input-sync.js",
+          "src/broad-etf-flow/sync.js"
+        ],
+        "note": "fund_daily (tushare-client.js:505–510) into prices_daily (db/migrations/001_phase1_foundation.sql:76–98; canonical kind PRICE, canonicalize.js:555), from the daily chain (index-sleeve-input-sync.js:173–180) and src/broad-etf-flow/sync.js:58."
+      },
+      "signatures": {},
+      "signaturesNote": "No signature: prices_daily also holds stock bars, and fund_daily is too generic a name to scan. V6 is the only collector.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Index sleeve and broad-ETF flow books; md / vg shadows."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "None today (services/factor-library/legacy.js:325–338 describes fund_daily momentum, adjustment unverified); a study reads these rows with the stated price type."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "Replay dates a bar at its session close 15:00 (known-at.js:14, :76, :84; m1-ingestion.js:924); live reads it after ingest, which is later. GAP: research/broad5-momentum/fetch-data.js:10–18, :45 used Tencent unadjusted bars, not fund_daily."
+      },
+      "vendor": "Tushare",
+      "priceBasis": "PRICE/RAW",
+      "priceBasisNote": "RAW_WITH_SEPARATE_ADJUSTMENT_FACTOR (sync-service.js:519; canonicalize.js:68); total return only where built from V6_ETF_DISTRIBUTIONS_FHSP (etf-history-source.js:38)"
+    },
+    {
+      "id": "V6_INTRADAY_BAR_ARCHIVE",
+      "title": "A-share 1 minute bar archive: append-only copies of the 1 minute bars the V6 touch step already fetches (Eastmoney trends2, Tencent fallback, Tushare stk_mins delayed), with a per-session sha256 manifest",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "ENGINE_MODELING_ACCEPTANCE_V1 ★6 (b) (artifacts/coordinator/ENGINE_MODELING_ACCEPTANCE_V1_SIGNATURE_1.md); Ashare-V6 #116",
+      "decisionRef": "Coordinator 2026-11-17: register as planned / inactive. Source PR Ashare-V6 #116, head af6f58e4, switch INTRADAY_BAR_ARCHIVE off by default.",
+      "status": "PLANNED_INACTIVE",
+      "statusNote": "Not on V6 main and the switch is off: nothing is written. It becomes ACTIVE by a registry change after #116 merges and the coordinator turns the switch on.",
+      "producedBy": {
+        "paths": [
+          "src/intraday/bar-archive.js",
+          "src/intraday/intraday-config.js"
+        ],
+        "note": "At af6f58e4: bar-archive.js writes INTRADAY_BAR_ARCHIVE_V1 bars and INTRADAY_BAR_ARCHIVE_MANIFEST_V1 per session (:27–28) under INTRADAY_BAR_ARCHIVE_ROOT (default artifacts/intraday-bar-archive/CN). It stores what the touch step fetches (src/intraday/eastmoney-minute-provider.js:40, :121; tencent-minute-provider.js:50; tushare-delayed-provider.js:3–19); no new request."
+      },
+      "signatures": {
+        "tokens": [
+          "INTRADAY_BAR_ARCHIVE_V1",
+          "INTRADAY_BAR_ARCHIVE_MANIFEST_V1"
+        ]
+      },
+      "signaturesNote": "Contract names of the archive records; they mark a second writer.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "Planned: the engine replay (ENGINE ★6) reads sha256-verified copies once the archive is ACTIVE."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "BAR_CLOSE",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "Live uses only bars closed at or before the cycle cutoff (src/touch-exit/fill.js:30–31); the archive keeps those bars, so replay reads what live saw."
+      },
+      "vendor": "Eastmoney, Tencent, Tushare",
+      "priceBasis": "PRICE/RAW",
+      "priceBasisNote": "RAW (unadjusted 1 minute bars as served)"
+    },
+    {
+      "id": "SMARTFLOW_US_YAHOO_BARS",
+      "title": "US daily and 1 hour bars from the Yahoo chart API: the live signal input of US_V5 (1 h, daily from completed regular sessions) and US_CORE (daily); read on demand, kept in the decision-input logs and the desk bars export",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "RESEARCH_LIVE_PARITY_V1.signed.ceb35505.md §4 P-3",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 P-3: research follows each book's live signal vendor (US_V5 and US_CORE use Yahoo); where Yahoo's history is too short, Alpaca with the disclosed difference. Moving live to Alpaca is a separate K2.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/src/workers/us-v5-strategy-worker.js",
+          "trading-system-v2/src/workers/us-core-rotation-worker.js",
+          "trading-system-v2/src/services/us-v5-rth-daily.js",
+          "trading-system-v2/scripts/lib/yahoo-daily.js",
+          "trading-system-v2/src/services/us-decision-input-log.js",
+          "trading-system-v2/scripts/export-us-bars.js"
+        ],
+        "note": "query1.finance.yahoo.com/v8/finance/chart. US_V5 1 h: us-v5-strategy-worker.js:390–406 (URL :393–394), quote :343; US_CORE daily: us-core-rotation-worker.js:248–251 (1 m at :258–259 is SMARTFLOW_US_1M's input). pm2 us-v5-worker and us-core (config/pm2/HK_RUNNING_MANIFEST.json). Persisted only as bar tails in the decision-input log (us-decision-input-log.js:1–24; written at us-v5-strategy-worker.js:1953, us-core-rotation-worker.js:1045) and the desk export (export-us-bars.js:5–25)."
+      },
+      "signatures": {},
+      "signaturesNote": "No signature: the Yahoo chart host is read by several smartflow paths and other systems for other data, and SMARTFLOW_US_1M already leaves it unsigned. BARS_MANIFEST_V1 is also V6's CN export contract, so it cannot mark this dataset.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "US_V5 decision-input records through the replay-core bridge (adapters/replay-core-bridge/cache_jobs.js:13–14, :37–40); research on these books uses this vendor and price type (P-3)."
+        }
+      ],
+      "consumersNote": "Inside smartflow: scripts/backtest-us-v5.js:142–143 (1 h), scripts/backtest-us-position-manager.js:37 (daily).",
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "BAR_CLOSE",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "US_V5 entries use completed hours (COMPLETED_1H, us-v5-strategy-worker.js:100, :746) and daily bars from completed regular sessions (us-v5-rth-daily.js:3–11); its score resample folds in the unfinished hour (ENGINE_MODELING_ACCEPTANCE_V1 amendment 2 §0.1). GAP P-3: research also used Alpaca (scripts/research/backtest-us-v5-inverse-leg.js:110; lib/alpaca-1m-history.js:8, :59) and adjusted Yahoo (research/us-core-bear-stress/data/manifest.json:9)."
+      },
+      "vendor": "Yahoo",
+      "priceBasis": "PRICE/RAW",
+      "priceBasisNote": "RAW (unadjusted quote OHLC, scripts/lib/yahoo-daily.js:17–20, SOURCE_ID yahoo-chart-v8:1d:unadjusted :32); only src/services/us-v5-mr-v1-data.js:14 reads adjclose (switch US_V5_SPMO_MR_V1)"
+    },
+    {
+      "id": "SMARTFLOW_BINANCE_KLINES_C17",
+      "title": "Binance USD-M futures klines 4 h / 1 h / 15 m as C17 reads them live (on demand, the forming bar visible) and its replay parity cache",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator list 2026-11-17 (RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a): replay reads the same vendor and interval as live, with the live bar-visibility rule.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/src/api/binance-api.js",
+          "trading-system-v2/src/strategies/agent-strategy.js",
+          "trading-system-v2/scripts/fetch-c17-futures-parity-cache.js"
+        ],
+        "note": "fapi.binance.com/fapi/v1/klines (binance-api.js:13, :110–126), in pm2 strategy-worker: C17 4 h / 1 h / 15 m (agent-strategy.js:245–247), Quick Shot 1 h scan (quick-shot-service.js:257–262) and 15 m / 1 m monitor (quick-shot-trade-monitor.js:160, :302, :435). No kline table: scan bars are kept in C17_V2_EXECUTION_OBSERVATION_V1 records (src/services/c17-v2-execution-observation.js:12–19, :35). Replay caches: C17 from data.binance.vision 1 m archives (fetch-c17-futures-parity-cache.js:27, :81, :555), QUICK_SHOT_PARITY_CACHE_V1 (fetch-quick-shot-parity-cache.js:27, :177)."
+      },
+      "signatures": {},
+      "signaturesNote": "No signature: fapi.binance.com is SMARTFLOW_BTCUSDT_PERP_DAILY's host signature (same owner) and the C17 parity cache has no contract name of its own.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "C17 replay through the replay-core bridge: adapters/replay-core-bridge/cache_jobs.js:9–13 (C17_CACHE, C17_AGENT_LIVE, C17_V2_LIVE), runner.js:24 (QRP_C17_DATASET_REF_V1), adapters/crypto-replay-core/index.js:1–12."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "VISIBLE_PARTIAL_BAR",
+      "pitParity": {
+        "research": "VISIBLE_PARTIAL_BAR",
+        "detail": "C17 live reads the forming kline (agent-strategy.js:250–251, :262–264; only the efficiency-paper arm keeps closed bars); replay-core models it (scripts/lib/replay-core-adapters/c17.js:100 VISIBLE_PARTIAL). A research K2 on C17 declares VISIBLE_PARTIAL_BAR. Split from one klines entry in this version because the two books read the same endpoint with different bar visibility."
+      },
+      "priceBasisNote": "RAW (exchange klines)",
+      "vendor": "Binance",
+      "priceBasis": "PRICE/RAW"
+    },
+    {
+      "id": "SMARTFLOW_BINANCE_KLINES_QUICK_SHOT",
+      "title": "Binance USD-M futures klines 1 h / 15 m / 1 m as Quick Shot reads them live (closed bars only) and its replay parity cache",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator list 2026-11-17 (RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a): replay reads the same vendor and interval as live, with the live bar-visibility rule.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/src/api/binance-api.js",
+          "trading-system-v2/src/services/quick-shot-service.js",
+          "trading-system-v2/src/services/quick-shot-trade-monitor.js",
+          "trading-system-v2/scripts/fetch-quick-shot-parity-cache.js"
+        ],
+        "note": "fapi.binance.com/fapi/v1/klines (binance-api.js:13, :110–126), in pm2 strategy-worker: the Quick Shot 1 h scan (quick-shot-service.js:257–262) and the 15 m / 1 m trade monitor (quick-shot-trade-monitor.js:160, :302, :435). No kline table. Replay cache: QUICK_SHOT_PARITY_CACHE_V1 (fetch-quick-shot-parity-cache.js:27, :177)."
+      },
+      "signatures": {
+        "tokens": [
+          "QUICK_SHOT_PARITY_CACHE_V1"
+        ]
+      },
+      "signaturesNote": "fapi.binance.com is SMARTFLOW_BTCUSDT_PERP_DAILY's host signature (same owner, so no conflict) and is not repeated here; the Quick Shot parity cache contract marks a second writer of the replay cache.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "Quick Shot replay caches (QUICK_SHOT_PARITY_CACHE_V1) through the replay-core bridge."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.13.0 (RESEARCH_LIVE_PARITY_V1 §1, coordinator list 2026-11-17).",
+      "pitSemantics": "BAR_CLOSE",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "Quick Shot uses closed 1 h bars only (quick-shot-rules.js:307–310); its replay-core adapter observes BAR_CLOSE (scripts/lib/replay-core-adapters/quick-shot.js:45, fillRule observe 'BAR_CLOSE'). Split from one klines entry in this version because C17 and Quick Shot read the same endpoint with different bar visibility."
+      },
+      "priceBasisNote": "RAW (exchange klines)",
+      "vendor": "Binance",
+      "priceBasis": "PRICE/RAW"
+    },
+    {
+      "id": "V6_CN_STOCK_DAILY_BARS",
+      "title": "A-share stock daily bars (Tushare daily: open, high, low, close, pre_close, volume, amount) as V6 stores them, raw, with the Tushare adj_factor series beside them; back-adjusted only at use",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator 2026-11-17 (first AI-mining round; RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a); V6 is the only collector of the Tushare all-A daily data (IC-A14, as ALL_A_CROSS_SECTION).",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "src/data-runtime/sync-service.js",
+          "src/data-runtime/canonicalize.js",
+          "src/data-runtime/current-data-preparation.js",
+          "src/data-runtime/full-market-day-sync.js",
+          "src/data-runtime/bulk-market-backfill-repository.js"
+        ],
+        "note": "Tushare daily (tushare-client.js:391, getDaily) and adj_factor (:515, getAdjustmentFactors); dataset specs sync-service.js:55–59 (daily) and :73–77 (adj_factor); every accepted row is stamped first_available_at = ingest instant (sync-service.js:444–450); the batch is RAW (:519). Bars go to prices_daily (db/migrations/001_phase1_foundation.sql:76–98; canonical adjustmentMode RAW_WITH_SEPARATE_ADJUSTMENT_FACTOR, canonicalize.js:68); factors to adjustment_factor_observation (ADJUSTMENT_FACTOR_OBSERVATION_V1, canonicalize.js:130–134). The DAILY chain writes all three: full-market-day-sync.js:358–361 → bulk-market-backfill-repository.js persistDay :278–338 (observedAt = the operational clock). Disclosure: scripts/backfill-convexity-corpus-outcomes.js:248–250, :571–577 calls persistDay with firstAvailableAtForRow = trade date 15:30 CST; if that script ever ran on production, first_available_at holds mixed semantics (ingest instants and 15:30 stamps)."
+      },
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "History: research and V6's historical evaluation both read prices_daily.known_at (D 15:00, migrations 186 / 187; known-at.js:14–16, :76, :84). Live rows are OBSERVED_AT (V6's first observation). adj_factor history follows CLOSE_DATED_NEXT_OPEN_USABLE; the replay's session-close dating of adj_factor (known-at.js:76) is later tightened to the next open per the ruling."
+      },
+      "vendor": "Tushare",
+      "priceBasis": "PRICE/RAW",
+      "adjustmentFactor": {
+        "series": "adj_factor",
+        "table": "adjustment_factor_observation",
+        "covers": "splits, bonus shares and cash dividends (Tushare adj_factor)",
+        "useAs": "back-adjusted at use with the latest adj_factor known at decision time: close × adj_factor(d) / adj_factor(latest known at the decision instant) gives TOTAL_RETURN/FULL_ADJ; the factor row has its own first_available_at (sync-service.js:200–212) and, in history, the CLOSE_DATED_NEXT_OPEN_USABLE clock"
+      },
+      "signatures": {
+        "tokens": [
+          "ADJUSTMENT_FACTOR_OBSERVATION_V1"
+        ]
+      },
+      "signaturesNote": "V6's adjustment factor observation contract (canonicalize.js:134) marks a second writer. prices_daily carries no contract name of its own and Tushare's daily is too generic a name to scan; V6 is the only collector.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Live books and the DAILY chain; the research replay (m1-ingestion.js bars)."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "The first AI-mining round reads V6's rows from a sha256-verified export: live rows by OBSERVED_AT; history by the historical clock above (pitHistoricalClock). No QRP Tushare reader."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.14.0 (coordinator 2026-11-17, first AI-mining round).",
+      "parityFieldsEvidence": "V6 src/data-runtime/sync-service.js:444–450 (first_available_at = ingest), :519 (RAW), :200–212 (adj_factor clock); canonicalize.js:68, :130–134; research known-at.js:14–16, :76, :84",
+      "pitHistoricalClock": {
+        "bySeries": {
+          "daily": "BAR_CLOSE",
+          "adj_factor": "CLOSE_DATED_NEXT_OPEN_USABLE"
+        },
+        "detail": "daily: prices_daily.known_at = trade date 15:00 Asia/Shanghai, set by trigger on insert (migration 186_known_at_daily_observation_clock.sql) and derived for existing rows (187_known_at_existing_row_derivation.sql); it is V6's own historical-evaluation clock (src/research/history-replay/known-at.js:14–16, :76, :84). adj_factor: adjustment_factor_observation has no known_at column (migration 006_data_runtime.sql), so history is dated at the trade-date close and usable from the next open only (coordinator ruling, disclosed)."
+      },
+      "units": {
+        "volume_shares": "lots (手, 100 shares) despite the column name (Tushare daily vol)",
+        "turnover_amount_cny": "CNY: Tushare amount (thousand CNY) × 1000",
+        "evidence": "bulk-market-backfill-repository.js:363–394 (columns written by persistDay); per the #369 review"
+      }
+    },
+    {
+      "id": "V6_CN_STOCK_DAILY_BASIC",
+      "title": "A-share stock daily basics (Tushare daily_basic: turnover_rate_f, total_mv, circ_mv, pe_ttm, pb, ps_ttm, dv_ttm and the rest of the row) as V6 stores them",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Coordinator 2026-11-17 (first AI-mining round; RESEARCH_LIVE_PARITY_V1 §1)",
+      "decisionRef": "RESEARCH_LIVE_PARITY_V1 ★2 (a); V6 is the only collector.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "src/data-runtime/sync-service.js",
+          "src/data-runtime/canonicalize.js",
+          "src/data-runtime/current-data-preparation.js",
+          "src/data-runtime/full-market-day-sync.js",
+          "src/data-runtime/bulk-market-backfill-repository.js"
+        ],
+        "note": "Tushare daily_basic (tushare-client.js:413, getDailyBasic); spec sync-service.js:61–65; first_available_at = ingest instant (sync-service.js:444–450). Rows go to market_daily_basic_observation (MARKET_DAILY_BASIC_OBSERVATION_V1, canonicalize.js:72–85, the field list at :72–75); The DAILY chain writes all three: full-market-day-sync.js:358–361 → bulk-market-backfill-repository.js persistDay :278–338 (observedAt = the operational clock). Disclosure: scripts/backfill-convexity-corpus-outcomes.js:248–250, :571–577 calls persistDay with firstAvailableAtForRow = trade date 15:30 CST; if that script ever ran on production, first_available_at holds mixed semantics (ingest instants and 15:30 stamps)."
+      },
+      "fields": [
+        "turnover_rate",
+        "turnover_rate_f",
+        "volume_ratio",
+        "pe",
+        "pe_ttm",
+        "pb",
+        "ps",
+        "ps_ttm",
+        "dv_ratio",
+        "dv_ttm",
+        "total_share",
+        "float_share",
+        "free_share",
+        "total_mv",
+        "circ_mv",
+        "close"
+      ],
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "GAP: the replay dates daily_basic at the session close D 15:00 (known-at.js:14–16, :76, :84); the ruling for its history is usable from the next open only (CLOSE_DATED_NEXT_OPEN_USABLE). Research follows the ruling (★2 (a)). Live rows are OBSERVED_AT."
+      },
+      "vendor": "Tushare",
+      "signatures": {
+        "tokens": [
+          "MARKET_DAILY_BASIC_OBSERVATION_V1"
+        ]
+      },
+      "signaturesNote": "V6's daily basic observation contract (canonicalize.js:85) marks a second writer.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Live books, ALL_A_CROSS_SECTION's aggregates and the research replay (m1-ingestion.js basic)."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "The first AI-mining round reads V6's rows from a sha256-verified export: live rows by OBSERVED_AT; history by the historical clock above (pitHistoricalClock). No QRP Tushare reader."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.14.0 (coordinator 2026-11-17, first AI-mining round).",
+      "parityFieldsEvidence": "V6 src/data-runtime/sync-service.js:61–65, :444–450 (first_available_at = ingest); canonicalize.js:72–85; research known-at.js:14–16, :76, :84",
+      "pitHistoricalClock": {
+        "rule": "CLOSE_DATED_NEXT_OPEN_USABLE",
+        "detail": "market_daily_basic_observation has no known_at column (migration 031_market_daily_basic_observation.sql): history is dated at the trade-date close and usable from the next open only (coordinator ruling 2026-11-17, disclosed)."
+      }
+    },
+    {
+      "id": "V6_CN_PARKING_ETF_HISTORY",
+      "title": "A-share money-market and short-bond ETF daily history for R-XM-1: Tushare fund_daily (raw bars) with the fund_adj factor beside them, and fund_nav, for 511880 and the ★3 (a) bond ETF, 2020-05-01 → 2026-11-16. One write-once pull by V6's Tushare client under one manifest (V6_CN_PARKING_ETF_PULL_MANIFEST_V1). Research input only",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "V6 #124: scripts/research/rxm1-parking-etf-pull.js (its header is the contract); pull spec artifacts/coordinator/R_XM_1_TUSHARE_PULL_SPEC_V1.md",
+      "decisionRef": "R_XM_1_ASHARE_IDLE_CASH_K2_V1 ★1 (a), Owner 2026-11-17 「R-XM-1 补数（默认）」 (an exception to the 2026-10-25 no-re-fetch rule); the coordinator asked for this entry on 2026-11-17 11:1x: producer V6, vendor Tushare. Not part of V6_ETF_DAILY_BARS: V6's ETF universe excludes BOND and MONEY_MARKET by name (src/data-runtime/etf-universe.js:55, :57), so these codes were never in prices_daily.",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "src/data-sources/tushare-client.js",
+          "scripts/research/rxm1-parking-etf-pull.js",
+          "src/stock-book/idle-cash-parking/inputs.js",
+          "src/data-runtime/sync-service.js",
+          "src/data-runtime/canonicalize.js",
+          "src/data-runtime/postgres-repository.js",
+          "db/migrations/345_fund_adjustment_factor_observation.sql"
+        ],
+        "note": "rxm1-parking-etf-pull.js calls V6's TushareClient only: fund_basic (market E, listed; the ★3 (a) pick from benchmark durations), trade_cal (SSE), fund_daily (getFundDaily, tushare-client.js:509) and fund_adj (getFundAdjustmentFactors, :527; allowlist :93) in calendar-year windows, and fund_nav (getFundNav) paged by code. The coordinator runs it once on the Mac with the token read as scripts/sync-tushare.js reads it (secretValue; only 'token present: yes/no' is printed). It writes one write-once directory (staged, then renamed): raw responses, fund_daily.csv, fund_adj.csv, fund_nav.csv, trade_cal_sse.csv, fund_basic.candidates.json, MANIFEST.json (V6_CN_PARKING_ETF_PULL_MANIFEST_V1, checks C1–C6) and SHA256SUMS, then a sha256-verified copy goes to the Linux research lane2 (/srv/research-lane2/overseas/rxm1/inputs, nvme1). No V6 table, job or deploy. 1.19.0, live (V6 #126, only while V6_STOCK_IDLE_CASH_PARKING is in force, config/v6/stock-book/idle_cash_parking_mode_v1.json, default off): the daily data preparation runs src/stock-book/idle-cash-parking/inputs.js through V6's DataSyncService for 511880.SH only (the one code etf-universe.js admits for parking): fund_basic first (its FUND identity, so the full-market gate never reads a parking bar as an unexpected stock), then fund_daily into prices_daily and fund_adj (DATASET_SPECS.fund_adj in sync-service.js, canonical FUND_ADJUSTMENT_FACTOR_OBSERVATION_V1 in canonicalize.js, written by postgres-repository.js) into fund_adjustment_factor_observation (migration 345), never the stock adjustment_factor_observation, over a trailing window of 10 sessions. The 1.15.0 pull directory is unchanged."
+      },
+      "signatures": {
+        "tokens": [
+          "V6_CN_PARKING_ETF_PULL_MANIFEST_V1"
+        ],
+        "apiNames": [
+          "fund_adj"
+        ]
+      },
+      "signaturesNote": "The manifest contract name marks a second writer of the pull. fund_adj is V6's alone (V6 is the Tushare collector, IC-A14); no other system calls it today. fund_daily and fund_nav are not signatures: V6 reads them for prices_daily and the ETF premium, which are other data, and fund_daily is too generic to scan.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "R-XM-1 (R_XM_1_ASHARE_IDLE_CASH_K2_V1) reads the pulled files on the Linux research lane2 after sha256sum -c SHA256SUMS, by the historical clock below: fund_daily open and close as fill and valuation prices only (no parking decision reads an ETF price, K2 §4.3), fund_adj only to book realized returns between fills (§4.5), fund_nav as a report-only check. Nothing else."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.15.0 (coordinator 2026-11-17, R-XM-1 ★1 (a)). One pull, no top-up: another pull, or live use, needs a new decision; live use also needs V6's ETF universe to admit these codes first (K2 rev 3 §2.4). 1.19.0: that decision is ruling R1 (28bf76ca…, M = 511880.SH DO (supported)); V6 #126 admits 511880.SH by code and collects it live behind V6_STOCK_IDLE_CASH_PARKING (see producedBy).",
+      "pitSemantics": "BAR_CLOSE",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "No live rows: the dataset is one history pull, so its value is the clock the decision-relevant series fund_daily carries, as for ALPACA_1M_HISTORY. If R-XM-1 is judged 做, live V6 would read these codes from prices_daily (V6_ETF_DAILY_BARS: OBSERVED_AT live, BAR_CLOSE in history, known-at.js:14) only after a production universe change; until then nothing live reads them."
+      },
+      "pitHistoricalClock": {
+        "bySeries": {
+          "fund_daily": "BAR_CLOSE",
+          "fund_adj": "CLOSE_DATED_NEXT_OPEN_USABLE",
+          "fund_nav": "ANNOUNCEMENT_NEXT_OPEN"
+        },
+        "detail": "fund_daily: a bar of trade date D is visible at D 15:00 CST, the clock V6's own replay gives fund_daily (src/research/history-replay/known-at.js:14, SESSION_CLOSE) and the 1.14.0 stock-bar rule. fund_adj: like adj_factor in 1.14.0 (#369), the pull stores no known_at, so a factor of D is dated at the D close and usable from the next open only, disclosed. fund_nav: a unit NAV of nav_date is usable from the open of the first session after its ann_date."
+      },
+      "vendor": "Tushare",
+      "priceBasis": "PRICE/RAW",
+      "adjustmentFactor": {
+        "series": "fund_adj",
+        "file": "fund_adj.csv",
+        "covers": "fund distributions (511880 pays a yearly cash dividend) and splits (Tushare fund_adj)",
+        "useAs": "price × fund_adj(d) / fund_adj(reference) gives TOTAL_RETURN/FULL_ADJ; R-XM-1 uses it only to book realized returns between its own fills, never as a decision input; in history the factor follows CLOSE_DATED_NEXT_OPEN_USABLE"
+      },
+      "units": {
+        "volume_lots": "lots (手, 100 units): Tushare fund_daily vol, not converted",
+        "amount_thousand_cny": "thousand CNY: Tushare fund_daily amount, not converted",
+        "evidence": "V6 #124 MANIFEST.units (rxm1-parking-etf-pull.js)"
+      },
+      "parityFieldsEvidence": "V6 #124 scripts/research/rxm1-parking-etf-pull.js:29 (SCHEMA), :33 (WINDOW), :123 (checks), :267 (secretValue); tushare-client.js:93 (fund_adj allowlist), :527 (getFundAdjustmentFactors); known-at.js:14 (fund_daily at D 15:00); etf-universe.js:55, :57 (BOND, MONEY_MARKET excluded)"
+    },
+    {
+      "id": "V6_CN_BROAD_ETF_TRACKING_INDEX_DAILY",
+      "title": "Daily raw index bars for the four broad-ETF tracking indices named by R_IDX_V8_PENDULUM_CENSUS_20261117 G-1: 000905.SH, 000688.SH, 000015.SH and 399296.SZ",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_IDX_V8_PENDULUM_CENSUS_20261117.md §3.2 G-1; coordinator queue #104",
+      "decisionRef": "THREE_LAYER_STRATEGY_FRAMEWORK_V1_AMENDMENT_3 §2–§3; RESEARCH_LIVE_PARITY_V1 ★2 (a)",
+      "status": "ACTIVE",
+      "series": ["000905.SH", "000688.SH", "000015.SH", "399296.SZ"],
+      "producedBy": {
+        "paths": ["src/data-runtime/index-sleeve-input-sync.js", "src/data-runtime/sync-service.js", "src/data-runtime/canonicalize.js", "src/data-runtime/postgres-repository.js"],
+        "note": "The index-sleeve sync plans and requests index_daily for the admitted tracking indices (index-sleeve-input-sync.js:174, :186–188); DataSyncService stamps first_available_at at ingest (sync-service.js:444–450); canonicalMarketIndexDaily writes MARKET_INDEX_DAILY_OBSERVATION_V1 with knownAt at the labelled session close (canonicalize.js:307–327); postgres-repository.js:451–464 inserts market_index_daily_observation."
+      },
+      "signatures": {},
+      "signaturesNote": "The table contract is shared with already registered 000300/000985/000852 datasets; the closed series list, not a second scanner token, distinguishes this dataset.",
+      "consumers": [
+        {"system": "ASHARE_V6", "reads": "Index-book live/shadow paths and the pendulum research export."},
+        {"system": "QRP", "access": "READ_DELIVERED_FILE", "reads": "Pendulum-grid research reads a sha256-verified V6 export with the clocks below; QRP makes no provider call."}
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {"research": "BAR_CLOSE", "detail": "Live keeps the producer's first observation; historical evaluation uses market_index_daily_observation.known_at, the labelled session close (canonicalize.js:302–327)."},
+      "pitHistoricalClock": {"rule": "BAR_CLOSE", "detail": "Each raw index bar carries known_at = trade-date 15:00 Asia/Shanghai (canonicalize.js:302–327), so a backfill cannot enter its own session."},
+      "vendor": "Tushare",
+      "priceBasis": "PRICE/RAW",
+      "parityFieldsEvidence": "V6 src/data-runtime/index-sleeve-input-sync.js:174, :186–188; sync-service.js:444–450; canonicalize.js:302–327; postgres-repository.js:451–464"
+    },
+    {
+      "id": "V6_CN_INDEX_VALUATION_DAILY",
+      "title": "Daily index PE_TTM and companion valuation fields for CSI 300, ChiNext and SSE Composite: CSI300_VALUATION, CHINEXT_VALUATION and SSE_COMPOSITE_VALUATION",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_IDX_V8_PENDULUM_CENSUS_20261117.md §3.2 G-2; coordinator queue #104",
+      "decisionRef": "THREE_LAYER_STRATEGY_FRAMEWORK_V1_AMENDMENT_3 §2.3; RESEARCH_LIVE_PARITY_V1 ★2 (a)",
+      "status": "ACTIVE",
+      "series": ["CSI300_VALUATION:000300.SH:pe_ttm", "CHINEXT_VALUATION:399006.SZ:pe_ttm", "SSE_COMPOSITE_VALUATION:000001.SH:pe_ttm"],
+      "fields": ["pe_ttm", "pe", "pb", "turnover_rate", "turnover_rate_f", "float_mv", "total_mv"],
+      "producedBy": {
+        "paths": ["src/macro-data/catalog.js", "src/macro-data/sync.js", "src/macro-data/canonicalize.js"],
+        "note": "catalog.js:49–67 defines the three index_dailybasic series with SESSION_CLOSE availability; sync.js:137–151 calls getIndexDailyBasic and writes MACRO_SERIES rows; canonicalize.js:18 identifies the three valuation series."
+      },
+      "signatures": {},
+      "signaturesNote": "The series ids are read names as well as producer names; an empty signature avoids misclassifying consumers as collectors.",
+      "consumers": [
+        {"system": "ASHARE_V6", "reads": "Market regime, market structure and pendulum inputs."},
+        {"system": "QRP", "access": "READ_DELIVERED_FILE", "reads": "Pendulum-grid research reads sha256-verified macro-series rows; no Tushare client in QRP."}
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {"research": "BAR_CLOSE", "detail": "Live rows retain first observation; the historical valuation fact is available at the session close declared by catalog.js:49–67."},
+      "pitHistoricalClock": {"rule": "BAR_CLOSE", "detail": "The catalog declares availabilityBasis SESSION_CLOSE for all three series (catalog.js:49–67); historical rows use that definitional close clock."},
+      "vendor": "Tushare",
+      "parityFieldsEvidence": "V6 src/macro-data/catalog.js:49–67; sync.js:137–151; canonicalize.js:18"
+    },
+    {
+      "id": "V6_CN_GOV_BOND_YIELD_10Y",
+      "title": "China Ministry of Finance 10-year government-bond yield curve point (CN_GOV_BOND_YIELD_10Y)",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_IDX_V8_PENDULUM_CENSUS_20261117.md §3.2 G-3; coordinator queue #104",
+      "decisionRef": "THREE_LAYER_STRATEGY_FRAMEWORK_V1_AMENDMENT_3 §2.3; RESEARCH_LIVE_PARITY_V1 ★2 (a)",
+      "status": "ACTIVE",
+      "series": ["CN_GOV_BOND_YIELD_10Y"],
+      "fields": ["yield"],
+      "producedBy": {
+        "paths": ["src/macro-data/catalog.js", "src/macro-data/sync.js", "src/macro-data/canonicalize.js"],
+        "note": "catalog.js:69–77 binds the MOF_TREASURY_YIELD_CURVE 10-year point to NEXT_OPEN_SESSION_CLOSE; sync.js:139–151 calls mofClient.getTenYear and writes MACRO_SERIES; canonicalize.js:70 creates CN_GOV_BOND_YIELD_10Y."
+      },
+      "signatures": {},
+      "signaturesNote": "The series id is also a consumer token, so ownership is documented without a scanner signature.",
+      "consumers": [
+        {"system": "ASHARE_V6", "reads": "Liquidity, market-regime ERP and pendulum inputs."},
+        {"system": "QRP", "access": "READ_DELIVERED_FILE", "reads": "Research reads the producer's delivered rows and NEXT_OPEN_SESSION_CLOSE clock."}
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "NEXT_OPEN_SESSION_CLOSE",
+      "pitParity": {"research": "NEXT_OPEN_SESSION_CLOSE", "detail": "The producer deliberately prevents same-session PE/yield pairing; catalog.js:69–77 is authoritative."},
+      "pitHistoricalClock": {"rule": "NEXT_OPEN_SESSION_CLOSE", "detail": "Both live and history use the close of the next A-share open session after the observation date."},
+      "vendor": "MOF Treasury Yield Curve",
+      "parityFieldsEvidence": "V6 src/macro-data/catalog.js:69–77; sync.js:139–151; canonicalize.js:70"
+    },
+    {
+      "id": "V6_SW_L1_INDEX_DAILY",
+      "title": "Shenwan 2021 level-1 industry daily raw bars and valuation fields as V6 stores industry_daily_observation from Tushare sw_daily",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_IDX_V8_PENDULUM_CENSUS_20261117.md §3.2 G-5; coordinator queue #104",
+      "decisionRef": "N6 production input; RESEARCH_LIVE_PARITY_V1 ★2 (a)",
+      "status": "ACTIVE",
+      "fields": ["open", "low", "high", "close", "change", "pct_change", "vol", "amount", "pe", "pb", "float_mv", "total_mv"],
+      "producedBy": {
+        "paths": ["src/data-runtime/current-research-evidence-sync.js", "src/data-runtime/sync-service.js", "src/data-runtime/canonicalize.js", "src/data-runtime/postgres-repository.js"],
+        "note": "current-research-evidence-sync.js:47 requests sw_daily; DataSyncService stamps first_available_at (sync-service.js:444–450); canonicalIndustryDaily maps the SW2021 fields into INDUSTRY_DAILY_OBSERVATION_V1 (canonicalize.js:284–287, :347–365); postgres-repository.js:404–420 inserts industry_daily_observation."
+      },
+      "signatures": {},
+      "signaturesNote": "SW_L1_INDEX_CLOSES is a distinct Cycle Atlas producer; this V6 entry is identified by its owner, table and producedBy paths without adding a shared sw_daily scanner token.",
+      "consumers": [
+        {"system": "ASHARE_V6", "reads": "N6 market structure, index book and industry valuation research."},
+        {"system": "QRP", "access": "READ_DELIVERED_FILE", "reads": "Research reads a sha256-verified V6 export, not Cycle Atlas SW_L1_INDEX_CLOSES."}
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {"research": "CLOSE_DATED_NEXT_OPEN_USABLE", "detail": "Live rows keep first_available_at; history has no separate known_at and is conservatively usable from the next open."},
+      "pitHistoricalClock": {"rule": "CLOSE_DATED_NEXT_OPEN_USABLE", "detail": "industry_daily_observation stores trade_date and first_available_at but no known_at (postgres-repository.js:404–420); close-dated history is usable from the next session open."},
+      "vendor": "Tushare (SWS sw_daily)",
+      "priceBasis": "PRICE/RAW",
+      "parityFieldsEvidence": "V6 src/data-runtime/current-research-evidence-sync.js:47; sync-service.js:444–450; canonicalize.js:284–287, :347–365; postgres-repository.js:404–420"
+    },
+    {
+      "id": "V6_A_SHARE_TRADING_CALENDAR",
+      "title": "A-share canonical trading calendar observations (open/closed session and previous open date) from Tushare trade_cal",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_IDX_V8_PENDULUM_CENSUS_20261117.md §3.2 G-7; coordinator queue #104",
+      "decisionRef": "Pendulum arms share one calendar; RESEARCH_LIVE_PARITY_V1 ★2 (a)",
+      "status": "ACTIVE",
+      "fields": ["calendar_date", "market", "exchange", "is_open", "previous_open_date"],
+      "producedBy": {
+        "paths": ["src/data-runtime/sync-service.js", "src/data-runtime/canonicalize.js", "src/data-runtime/postgres-repository.js"],
+        "note": "sync-service.js:49–53 defines trade_cal; canonicalCalendar creates CANONICAL_CALENDAR_OBSERVATION_V1 and preserves firstAvailableAt (canonicalize.js:45–62); postgres-repository.js:246–258 appends canonical_calendar_observation."
+      },
+      "signatures": {},
+      "signaturesNote": "Calendar contract names appear in consumers and test fixtures; an empty signature avoids classifying a reference-data reader as a collector.",
+      "consumers": [
+        {"system": "ASHARE_V6", "reads": "All session scheduling and PIT joins."},
+        {"system": "QRP", "access": "READ_DELIVERED_FILE", "reads": "Research reads the producer's delivered calendar with the stored observation time."}
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {"research": "OBSERVED_AT", "detail": "A historical exchange calendar can include future dates; no date-derived publication instant is invented. Research uses the producer's stored first_available_at."},
+      "pitHistoricalClock": {"rule": "OBSERVED_AT", "detail": "canonicalize.js:45–62 preserves the observed firstAvailableAt for each calendar revision; history must carry that time rather than calendar_date 00:00."},
+      "vendor": "Tushare",
+      "parityFieldsEvidence": "V6 src/data-runtime/sync-service.js:49–53, :444–450; canonicalize.js:45–62; postgres-repository.js:246–258"
+    },
+    {
+      "id": "V6_USDCNH_FX_DAILY",
+      "title": "US dollar / offshore renminbi FXCM daily bars (USDCNH_FXCM) as V6 stores macro_series_observation",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_IDX_V8_PENDULUM_CENSUS_20261117.md §3.2 G-8; coordinator queue #104",
+      "decisionRef": "Pendulum risk layer disclosure; RESEARCH_LIVE_PARITY_V1 ★2 (a)",
+      "status": "ACTIVE",
+      "series": ["USDCNH_FXCM"],
+      "fields": ["bid_close", "ask_close", "bid_open", "ask_open", "bid_high", "bid_low", "tick_qty"],
+      "producedBy": {
+        "paths": ["src/macro-data/catalog.js", "src/macro-data/sync.js", "src/macro-data/canonicalize.js"],
+        "note": "catalog.js:86–91 binds USDCNH.FXCM fx_daily to FX_NEW_YORK_CLOSE; sync.js:142–151 calls getFxDaily and writes MACRO_SERIES; canonicalize.js:76–79 creates USDCNH_FXCM."
+      },
+      "signatures": {},
+      "signaturesNote": "USDCNH_FXCM is also a reader-facing series id; omitting a token prevents consumers from being reported as collectors.",
+      "consumers": [
+        {"system": "ASHARE_V6", "reads": "Market-pivot, cycle projection and risk facts."},
+        {"system": "QRP", "access": "READ_DELIVERED_FILE", "reads": "Research reads sha256-verified rows using the producer's FX close clock."}
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "FX_NEW_YORK_CLOSE",
+      "pitParity": {"research": "FX_NEW_YORK_CLOSE", "detail": "Both paths use known_at = 22:00:00Z on the labelled FX date, all year round (catalog.js:190–194; bound at :86–91; public-clock.js:101)."},
+      "pitHistoricalClock": {"rule": "FX_NEW_YORK_CLOSE", "detail": "History uses the same definitional instant, 22:00:00Z on the labelled FX date; live retains the first observed row only after that instant."},
+      "vendor": "Tushare (FXCM)",
+      "priceBasis": "PRICE/RAW",
+      "parityFieldsEvidence": "V6 src/macro-data/catalog.js:86–91, :190–194; sync.js:142–151; canonicalize.js:76–79; public-clock.js:101"
+    },
+    {
+      "id": "V6_CN_LIVE_RULE_FACTOR_VALUES",
+      "title": "A-share live-rule factor values: the 14 CN_A LIVE_IN_RULE factors of QRP's factor library, as V6 stores them (or the stored inputs it ranks them from) per business date",
+      "owner": "ASHARE_V6",
+      "basis": "TRADING_PATH",
+      "auditRef": "Ruling RF1116_RULING_R1_20261117 rev 4 (sha256 705e2e6a…) R1.4, R1.9, R1.11; export spec RF1116_CN_A_LIVE_FACTOR_SERIES_EXPORT_V1 (sha256 16360992…)",
+      "decisionRef": "R1.4: register as a dataset first (one producer, research and live consistent), then export. V6 is the only producer; its first consumer outside V6 is QRP's G-MINE items 7-8.",
+      "status": "ACTIVE",
+      "statusNote": "V6 writes these tables live. The QRP export (FACTOR_SERIES_V1) has not run; the coordinator runs its read-only SQL only after this entry merges, and the export's own checks (spec §2.5) decide the coverage, not the expected dates here (R1.11).",
+      "producedBy": {
+        "paths": [
+          "src/data-runtime/feature-stock-type-repository.js",
+          "src/data-runtime/feature-stock-type.js",
+          "src/stock-book/five-stage/shadow-runtime.js",
+          "src/stock-book/five-stage/mainline-ranking.js",
+          "src/stock-book/five-stage/shortlist.js",
+          "src/core-pools/core-pool-repository.js",
+          "src/index-book/runtime.js",
+          "src/index-book/producer.js"
+        ],
+        "note": "Cited at V6 83ab3af1 (unchanged at origin/main 9014206d). feature_record (db/migrations/001_phase1_foundation.sql:137–154; run_id 030:10) and stock_type_score (030:32–57) are written per feature_generation_run (030:15–30) at feature-stock-type-repository.js:229, :282, :298; mainline_ranking_shadow and stock_book_shortlist_shadow (279:17–60) at shadow-runtime.js:384–403; valuation_gate_assessment (251:147–230) and valuation_gate_candidate_shadow (323:13–37) at core-pool-repository.js:889, :1011; index_sleeve_shadow_run (256:2–12) at index-book/runtime.js:332–338. All append-only. Factors 1 and 4 are percentiles V6 computes in memory from stored feature_record inputs (shortlist.js:274–275, :329, :332; mean-rank percentile mainline-ranking.js:47–60); the export applies the same formula to the same rows. Factors 2 and 7 are stored for the top-ranked names only (shortlist and ranked rejects). The stock-to-unit mapping behind factor 6 is not stored; the export rebuilds it from V6_SW2021_INDUSTRY_MEMBERSHIP (spec §2.4) without V6's candidate prefilter."
+      },
+      "fields": [
+        "CN_A.MOM.RS60_MARKET_PCT",
+        "CN_A.MOM.RS20_UNIT_PCT",
+        "CN_A.QUALITY.STRUCTURAL_SCORE",
+        "CN_A.GROWTH.NETPROFIT_YOY_PCT",
+        "CN_A.VALUE.VALUATION_GATE_INV",
+        "CN_A.MAINLINE.UNIT_SCORE",
+        "CN_A.COMPOSITE.STOCK_BOOK_V4",
+        "CN_A_IND.MOM.INDUSTRY_RS60_PCT",
+        "CN_A_IND.MOM.TREND_BREADTH",
+        "CN_A_IND.VP.VOLUME_EXPANSION_PCT",
+        "CN_A_IND.MOM.LEADER_RS20_Q90",
+        "CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7",
+        "CN_A.SENT.ANALYST_REVISION_BREADTH",
+        "CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20"
+      ],
+      "fieldsGrain": {
+        "CN_A.MOM.RS60_MARKET_PCT": "STOCK",
+        "CN_A.MOM.RS20_UNIT_PCT": "STOCK_TOP_RANKED_ONLY",
+        "CN_A.QUALITY.STRUCTURAL_SCORE": "STOCK",
+        "CN_A.GROWTH.NETPROFIT_YOY_PCT": "STOCK",
+        "CN_A.VALUE.VALUATION_GATE_INV": "STOCK_PARTIAL",
+        "CN_A.MAINLINE.UNIT_SCORE": "UNIT_MAPPED_TO_STOCK",
+        "CN_A.COMPOSITE.STOCK_BOOK_V4": "STOCK_TOP_RANKED_ONLY",
+        "CN_A_IND.MOM.INDUSTRY_RS60_PCT": "UNIT",
+        "CN_A_IND.MOM.TREND_BREADTH": "UNIT",
+        "CN_A_IND.VP.VOLUME_EXPANSION_PCT": "UNIT",
+        "CN_A_IND.MOM.LEADER_RS20_Q90": "UNIT",
+        "CN_A_IND.COMPOSITE.MAINLINE_SCORE_V7": "UNIT",
+        "CN_A.SENT.ANALYST_REVISION_BREADTH": "STOCK",
+        "CN_A_ETF.MOM.SECTOR_ETF_REALIZED_MOM20": "ETF"
+      },
+      "fieldsGrainNote": "STOCK: the full stock cross-section of the day's feature run (factor 13 only names with broker coverage). STOCK_PARTIAL: pool members and stage-③ candidates only. STOCK_TOP_RANKED_ONLY: the shortlist and ranked rejects only, not a cross-section. UNIT: a SW2021 mainline unit (L2 with at least 8 prefiltered members, else the L1 residual). UNIT_MAPPED_TO_STOCK: a unit score read per stock through the rebuilt mapping. ETF: sector ETFs, no mapping to stocks. Per R1.9, QRP's G-MINE items 7-8 compare a stock candidate only with the full-cross-section factors and exclude #2, #7 and #14, naming them in every MINING_GATE_RECORD_V1.",
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "OBSERVED_AT",
+        "detail": "SAME in the live window: a value of business date D is computed at V6's D decision cutoff and feeds only the next session's open; QRP reads each row's stored instant and uses the D value at the next session's open only if that instant is before 09:00 CST, with no carry-forward (FACTOR_SERIES_V1). GAP (R1.11, ★F2): the dataset is the live window only. Live rows start between 2026-08-26 and 2026-10-08 by table (feature runs about 2026-08-26, valuation gate 2026-09-10, index book 2026-09-25, mainline ranking and the five-stage book 2026-10-08; expected from code and docs, not queried). 2020-06 → 2026-09-28 exists only in the Q0 replay, another producer (KNOWN_NOW_RECONSTRUCTION clock, MAINLINE_RANKING v5-leader-led), not covered here; whether it may stand in is an open parity question. Analyst revision breadth (factor 13) exists nowhere before 2025-11 (report_rc backfill from 2025-11-01)."
+      },
+      "pitHistoricalClock": {
+        "rule": "OBSERVED_AT",
+        "detail": "History is the live rows (R1.11), and each keeps its stored instant: feature_record.first_available_at (factors 1, 3, 4, 13), valuation_gate_assessment.first_available_at and valuation_gate_candidate_shadow.recorded_at (factor 5), generated_at of mainline_ranking_shadow and stock_book_shortlist_shadow (factors 2, 6–12). index_sleeve_shadow_run stores no write instant, so factor 14 carries its decision_cutoff (disclosed). A D value is used from the next session's open only, as live."
+      },
+      "vendor": "V6 (derived from Tushare daily, daily_basic, fina_indicator_vip and report_rc, and SW2021 industry membership)",
+      "signatures": {
+        "tokens": [
+          "MAINLINE_RANKING_V1",
+          "STOCK_TYPE_SCORE_V1",
+          "INDEX_SLEEVE_SHADOW_RUN_V1"
+        ]
+      },
+      "signaturesNote": "Contract names of the stored values: mainline_ranking_shadow.payload schemaVersion MAINLINE_RANKING_V1 (migration 279:27 CHECK), STOCK_TYPE_SCORE_V1 (feature-stock-type.js:385), INDEX_SLEEVE_SHADOW_RUN_V1 (index-book/runtime.js:302); they mark a second writer outside V6. No hit in Cycle Atlas, QRP or smartflow scan roots at their origin/main. STOCK_BOOK_SHORTLIST_V1 is not a signature: the desk and V6 research read that delivered document. The desk also reads MAINLINE_RANKING_V1; DESK has no scan roots today, and a DESK consumer entry is needed here when it gets them.",
+      "consumers": [
+        {
+          "system": "ASHARE_V6",
+          "reads": "Live and paper books: the five-stage stock book reads the feature run, type scores and valuation gate at the decision cutoff (shadow-runtime.js:86–135); the index book reads MAINLINE_RANKING_V1 and its sleeve runs."
+        },
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "G-MINE items 7-8 for mined candidates read a sha256-verified FACTOR_SERIES_V1 export (services/mining-sandbox/factor-series): stock grain directly, unit grain through unit_membership.csv; only the R1.9 comparison set (full stock cross-section) enters items 7-8, #2, #7 and #14 are excluded and named in each gate record. Live rows by OBSERVED_AT, used from the next open. No QRP vendor reader and no QRP recomputation."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.17.0 (coordinator 2026-11-17, ruling R1 rev 4 R1.4). One producer: V6. The Q0 replay history (2020-06 → 2026-09-28) is not part of this entry; using it needs a ruling and its own entry with its parity gap (R1.11).",
+      "parityFieldsEvidence": "V6 83ab3af1: db/migrations/001_phase1_foundation.sql:137–154 (feature_record.first_available_at :148), 251_vg_m1_valuation_gate_canonical_objects.sql:147–230 (first_available_at :189), 323_valuation_gate_candidate_shadow.sql:13–37 (recorded_at :33), 279_stock_book_five_stage_shadow.sql:17–60 (generated_at :21, :41), 256_index_sleeve_shadow.sql:2–12 (decision_cutoff, no write instant); src/stock-book/five-stage/shadow-runtime.js:86–106 (latest run at or before the cutoff, READY or DEGRADED values only)"
+    },
+    {
+      "id": "CN_MARGIN_FINANCING_PURCHASE",
+      "title": "A-share exchange margin financing purchases (融资买入额): SSE + SZSE per trading day in 元, Cycle Atlas's internal series CN.MARGIN_FINANCING_PURCHASE, read from the same exchange margin summaries as CN_MARGIN_BALANCES",
+      "owner": "CYCLE_ATLAS",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_IDX_V8_PENDULUM_CENSUS_20261117.md §3.2 G-4; coordinator queue #104; knowledge-graph #373",
+      "decisionRef": "Coordinator ruling ★MARGIN_PURCHASES_SERIES (2026-11-17): 融资买入额 is published as its own series, additively; the live CN-2 series is never rebuilt and its rows are never rewritten; the 2010-03-31 history is a separate, later, additive backfill. ★MPS_REGISTRY (a): registered as its own key in 1.18.0.",
+      "status": "ACTIVE",
+      "statusNote": "Written by the CN daily lane from its first run after knowledge-graph #373 merges; rows start at that run's margin day until the backfill lands. Until the series exists, the O-5 export states it ABSENT.",
+      "series": [
+        "CN.MARGIN_FINANCING_PURCHASE"
+      ],
+      "units": {
+        "value": "元 (CNY): SSE rzmre (元) + SZSE jrrzmr (亿元 × 1e8, rounded to 元); null with reasons when either exchange or its figure is missing",
+        "evidence": "knowledge-graph #373 worker-cf/src/sources/mpt/cn/margin.ts:43–48, :108–121; series.ts:184–200 (unit CNY)"
+      },
+      "producedBy": {
+        "paths": [
+          "worker-cf/src/sources/mpt/cn/margin.ts",
+          "worker-cf/src/sources/mpt/cn/series.ts",
+          "worker-cf/src/sources/mpt/cn/index.ts",
+          "worker-cf/src/market-psychology/series.ts",
+          "worker-cf/scripts/mpt/cn/daily.sh"
+        ],
+        "note": "At knowledge-graph #373 (483facd5): margin.ts:43–48 purchaseOf (a missing or negative figure is null with SOURCE_FIELD_MISSING / SOURCE_FIELD_REFUSED, never a row refusal; the SSE page is every CN lane's calendar), :62 SSE rzmre, :78 SZSE jrrzmr, :108–121 marginPurchases (no window, no carry-forward); series.ts:175 MARGIN_PURCHASE_COMPONENT, :184–200 buildMarginPurchaseSeries (internalOnly, unit CNY), :55–57 the T2 stamp; index.ts:130 (a first run starts at CN-2's target days, no extra request), :182–186 (written beside CN-2; a failed build is noted and CN-2 is unaffected); common.ts:140 CN_COLLECTED; market-psychology/series.ts:35 INTERNAL_COMPONENT_IDS (build-snapshot.ts:213 refuses internal series, so it is never in the public snapshot). R2 create-only market-psychology/series/cn/CN.MARGIN_FINANCING_PURCHASE/<sha256>.json with latest.json (market-psychology/series.ts:81–82). CN daily lane, 21:45 CST via cst-gate (daily.sh:2)."
+      },
+      "signatures": {},
+      "signaturesNote": "Unsigned: CN.MARGIN_FINANCING_PURCHASE is the id its readers name (the O-5 export), so a token would report readers as collectors. The exchange reads are CN_MARGIN_BALANCES' (margin.ts) and are signed there and in CN_MARKET_PSYCHOLOGY; this key adds no host, call or collector.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "The O-5 pendulum export the coordinator runs (worker-cf/scripts/mpt/cn/export-pendulum-history.sh, read-only): sha256-verified rows with their firstPublicAt; pendulum-export-manifest.json states the series ABSENT until it is published (pendulum-export.ts:19, :60). For R_IDX_V8_PENDULUM_GRID_K2_V1 (★5)."
+        }
+      ],
+      "exceptions": [],
+      "knownViolations": [],
+      "note": "Registered in 1.18.0 (coordinator ★MPS_REGISTRY (a), 2026-11-17); merges after knowledge-graph #373, whose lines it cites.",
+      "pitSemantics": "NEXT_TRADING_DAY_0900_CST",
+      "pitParity": {
+        "research": "NEXT_TRADING_DAY_0900_CST",
+        "detail": "SAME: research reads this producer's rows with their stored firstPublicAt (RESEARCH_LIVE_PARITY_V1 ★2 (a), research follows live). The instant is CN-2's for the same day: the next trading day 09:00 CST (common.ts:77–89)."
+      },
+      "pitHistoricalClock": {
+        "rule": "NEXT_TRADING_DAY_0900_CST",
+        "detail": "Live and history alike: series.ts:55–57 stamps every margin row at the next trading day 09:00 CST and leaves out a capture made before it. Rows begin with the first live run after #373; the exchanges' history from 2010-03-31 (SSE rzmre, SZSE jrrzmr) comes by a separate, later, additive backfill under the same rule."
+      },
+      "vendor": "SSE, SZSE",
+      "parityFieldsEvidence": "knowledge-graph #373 483facd5: worker-cf/src/sources/mpt/cn/common.ts:77–89; series.ts:55–57, :184–200; margin.ts:43–48, :108–121"
+    },
+    {
+      "id": "SMARTFLOW_FOMC_CALENDAR",
+      "title": "FOMC meeting calendar as smartflow keeps it in the repository (config/fomc_calendar_v1.json, contract FOMC_CALENDAR_V1): scheduled and unscheduled meetings 2020-01 → 2027-12, notation votes and the blackout phases, built from dated federalreserve.gov page snapshots; the input of the US_V5 FED_PHASE gate and the leveraged-ETF evaluator",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_US_ENTRY_TOUCH_1_K2_V1 FREEZE_1 (621ef4c2…) §0 row ④ and §10 (run precondition); NOTE_1 (93b064b5…) row ④",
+      "decisionRef": "AMENDMENT_6 A6.17 (Owner 2026-09-30 「切换到仓库里的 FOMC 日历」): the one calendar is the versioned repository file; coordinator 2026-11-18 (R-US-ENTRY-TOUCH-1 run preconditions): register it with its sources and terms",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/scripts/build-fomc-calendar.js",
+          "trading-system-v2/config/fomc_calendar_v1.json",
+          "trading-system-v2/config/fomc_calendar_v1_inputs/2026-09-30/**"
+        ],
+        "note": "Generated once by scripts/build-fomc-calendar.js (smartflow 2751b231, asOf 2026-09-30) from the saved pages listed in the file's inputs (each with its sha256) and the retired host phases file (docs/evidence/HK_FED_EVENTS_JSON_20260930.json, phases only); never hand-edited. A new published year is a new build and a new commit; nothing collects it on a schedule."
+      },
+      "sources": [
+        {
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm",
+          "snapshot": "trading-system-v2/config/fomc_calendar_v1_inputs/2026-09-30/fomccalendars.htm",
+          "sha256": "733d85e7fd367756f29cc5566e6f80170794ebe4f2d7162ccb1abc39bf4c7a68"
+        },
+        {
+          "url": "https://www.federalreserve.gov/monetarypolicy/fomchistorical2020.htm",
+          "snapshot": "trading-system-v2/config/fomc_calendar_v1_inputs/2026-09-30/fomchistorical2020.htm",
+          "sha256": "7d5b60ec729ff3128a6f8fbb3cea21628fe2bbeff9c76c7cef00f2dee81cd2dc"
+        },
+        {
+          "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200303a.htm",
+          "snapshot": "trading-system-v2/config/fomc_calendar_v1_inputs/2026-09-30/monetary20200303a.htm",
+          "sha256": "404d16c437aa25228e32b131b1d610cadac99a46f22ab247716786384915ed41"
+        },
+        {
+          "url": "https://www.federalreserve.gov/newsevents/pressreleases/monetary20200315a.htm",
+          "snapshot": "trading-system-v2/config/fomc_calendar_v1_inputs/2026-09-30/monetary20200315a.htm",
+          "sha256": "44bd63940ea76b729994d006799f9a9828aeb43b3bf82a2786213473ca63db4a"
+        },
+        {
+          "url": "HK host config/fed_events.json (retired 2026-09-30; phases only)",
+          "snapshot": "trading-system-v2/docs/evidence/HK_FED_EVENTS_JSON_20260930.json",
+          "sha256": "53f581fe9c92ba70d1db901ce107d2ee00ecb3710e93f55485f4ad8847e9be9e"
+        }
+      ],
+      "sourcesNote": "Not scan fields. The pages are the Board's public calendars and press releases; the snapshots are the existing copies (saved 2026-09-30) and nothing is re-fetched for research.",
+      "termsRecord": {
+        "path": "artifacts/coordinator/R_US_ENTRY_TOUCH_1_FOMC_CALENDAR_SOURCES_TERMS_RECORD_V1.md",
+        "sha256": "2c7ae542f3b3d2b0862bc43947409e6b650c8dc881c94e14fcfd26409d556e90"
+      },
+      "signatures": {
+        "tokens": [
+          "FOMC_CALENDAR_V1"
+        ]
+      },
+      "signaturesNote": "The contract name marks a second writer of the calendar. The federalreserve.gov host is not a signature: Cycle Atlas reads the Board's site for G.17 (worker-cf/src/sources/fed-g17.ts) and H.10, which are other data, and a host signature would make those findings.",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "US_V5 research replays (R-US-ENTRY-TOUCH-1 first) read the file at a pinned smartflow commit, point in time through the same functions of the instant live calls."
+        }
+      ],
+      "consumersNote": "Inside smartflow: src/services/fed-event-calendar.js reads it for the US_V5 worker's FED_PHASE gate (src/workers/us-v5-strategy-worker.js openPosition) and src/services/leveraged-etf-evaluator.js; also the US dashboard route, the pre-open event calendar (scripts/lib/pre-open-facts/event-calendar.js) and the US_V5 research replays.",
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "OBSERVED_AT",
+      "pitParity": {
+        "research": "OBSERVED_AT",
+        "detail": "Live and research read the same file through the same pure functions with the instant as their argument (fed-event-calendar.js fedPhase(now), calendarCovers(now), knownMeetings: an unscheduled meeting counts only from its announcedAt). GAP, disclosed: a scheduled meeting carries no publication time in the file, so a replay treats every scheduled meeting as known from the start of the file (the Board publishes each year's schedule in advance)."
+      },
+      "vendor": "federalreserve.gov",
+      "parityFieldsEvidence": "smartflow src/services/fed-event-calendar.js:25, :65–70, :145, :190; config/fomc_calendar_v1.json generator and inputs"
+    },
+    {
+      "id": "SMARTFLOW_US_REGIME_INDICES_HISTORY",
+      "title": "US_V5 regime-gate daily indices from the Yahoo chart API: ^GSPC, ^VIX and ^TNX quote closes by New York session, 2016-11-17 → 2026-11-06, one write-once research copy pulled once on the Mac on 2026-11-18 by smartflow's rut1-regime-indices-pull.js under one manifest (RUT1_REGIME_INDICES_PULL_MANIFEST_V1); the replay input of the live regime gate (src/services/us-market-regime.js). Research input only",
+      "owner": "SMARTFLOW",
+      "basis": "TRADING_PATH",
+      "auditRef": "R_US_ENTRY_TOUCH_1_K2_V1 FREEZE_1 (621ef4c2…) §0 row ③ and §10 (run precondition); NOTE_1 (93b064b5…) row ③; smartflow #180 (the pull script, merged before this entry is used)",
+      "decisionRef": "★RUT1_REGIME_DATA (a), Owner 2026-11-18 15:1x 「标普 500 等三条指数数据要不要从 Yahoo 拉一次，按推荐选a」 (coordinator queue 2026-11-18T15:05:46+08:00): one pull, at most 3 requests, Mac only, an exception to the 2026-10-25 no-re-fetch rule for these three series only (^GSPC for 1993-01-28 → 2026-11-06 was in no copy); the coordinator asked for a smartflow-owned research copy, files 0444",
+      "status": "ACTIVE",
+      "producedBy": {
+        "paths": [
+          "trading-system-v2/scripts/research/rut1-regime-indices-pull.js"
+        ],
+        "note": "smartflow #180 (6a9cf943). One request per series, the call us-market-regime.js fetchYahooDaily makes (?range=10y&interval=1d with its two headers: a generic browser User-Agent and Accept), never retried; all three answered HTTP 200 on 2026-11-18 15:55:30–15:55:34 CST. It writes one write-once directory (staged, then renamed; files 0444, directories 0555): raw/<IDX>.chart.json (the answers as received), <IDX>.daily.json ([{date, close}]: the quote close, nulls dropped, New York session date, nothing after 2026-11-06), MANIFEST.json (RUT1_REGIME_INDICES_PULL_MANIFEST_V1, sha256 ea08dae551ffd0e74306564293b595275d843f876b40d69fb934a807a32770dc; url, UTC and CST time, status, sha256 per request and file, and the script's own sha256) and SHA256SUMS. The copy is research-data/rut1-regime-indices-20261118 on the Mac, with a sha256-verified working copy on Linux lane1 (/srv/research-lane/overseas) for the run. Daily files: ^GSPC b7d91588daef331766ad57440ca8c6b5cadd610e27208daf64a835e1e2f7f717 (2,505 rows), ^VIX 1818d01b9908446d69685e1cce77e5852c60637dede3f76f7b1948a7d644d362 (2,508), ^TNX bdbddfcadb8403c5f41815d99782d83ea3a82dc7070ec725edc99b24396d6151 (2,506). No smartflow job, table or deploy."
+      },
+      "sources": [
+        {
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?range=10y&interval=1d",
+          "snapshot": "research-data/rut1-regime-indices-20261118/raw/IDX_GSPC.chart.json",
+          "sha256": "2d38bf7b92bef6b6cb8aa3602d604f1bb5576831f22a5ccdc1a79e10f0969ac0",
+          "fetchedAtCst": "2026-11-18T15:55:30+08:00"
+        },
+        {
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?range=10y&interval=1d",
+          "snapshot": "research-data/rut1-regime-indices-20261118/raw/IDX_VIX.chart.json",
+          "sha256": "ebe3106afa899a2d4bb965b44d2edc6b829c62c1f6e9e5c8a13f948211409914",
+          "fetchedAtCst": "2026-11-18T15:55:33+08:00"
+        },
+        {
+          "url": "https://query1.finance.yahoo.com/v8/finance/chart/%5ETNX?range=10y&interval=1d",
+          "snapshot": "research-data/rut1-regime-indices-20261118/raw/IDX_TNX.chart.json",
+          "sha256": "dbf654d56c92126473bdcb973db051dfd693e93cd6035e1263ea8af88e31e4ac",
+          "fetchedAtCst": "2026-11-18T15:55:34+08:00"
+        }
+      ],
+      "sourcesNote": "Not scan fields. Checks after the pull: every NYSE session 2016-11-18 → 2026-11-06 is present in all three; ^VIX keeps two holiday rows (2026-05-25, 2026-09-07) as Yahoo serves them; against the existing 2026-10-05 copies (smartflow research/us-core-bear-stress/data IDX_VIX.json, IDX_TNX.json) ^VIX matches on all 2,481 shared days and ^TNX on all 2,479.",
+      "termsRecord": {
+        "path": "artifacts/coordinator/R_US_ENTRY_TOUCH_1_REGIME_INDICES_SOURCES_TERMS_RECORD_V1.md",
+        "sha256": "8e3dc2da2e24f197f251671c29b9c3d58d1615125d854f9e0c008ebc81e50cae"
+      },
+      "signatures": {
+        "tokens": [
+          "RUT1_REGIME_INDICES_PULL_MANIFEST_V1"
+        ]
+      },
+      "signaturesNote": "The manifest contract marks a second writer of this copy. The Yahoo chart host is not a signature: several smartflow paths read it for other data (SMARTFLOW_US_YAHOO_BARS, SMARTFLOW_US_1M leave it unsigned).",
+      "consumers": [
+        {
+          "system": "QRP",
+          "access": "READ_DELIVERED_FILE",
+          "reads": "R-US-ENTRY-TOUCH-1 (the first reader) reads the daily files by sha256 at the run's pins; the verdict import binds them."
+        }
+      ],
+      "consumersNote": "Inside smartflow: the R-US-ENTRY-TOUCH-1 run driver scripts/research/r-us-entry-touch-1-run.js (smartflow #179) reads the daily files through its DAILY_FILES adapter and serves them to the worker's own regime read (src/services/us-market-regime.js computeRegime: ^GSPC 4mo for EMA50, ^VIX 5d, ^TNX 2mo), pinning each by sha256 in the result.",
+      "exceptions": [],
+      "knownViolations": [],
+      "pitSemantics": "VISIBLE_PARTIAL_BAR",
+      "pitParity": {
+        "research": "BAR_CLOSE",
+        "detail": "Live asks Yahoo on demand, and inside a session the last value of a range read is today's forming daily value (us-market-regime.js fetchYahooDaily keeps every non-null close). GAP, disclosed: the research copy holds session closes only, so a replay sees a session's own close only once it has closed (r-us-entry-touch-1-run.js regimeFromDailyFiles) and its in-session reads end at the previous close; the same for every arm."
+      },
+      "vendor": "Yahoo",
+      "priceBasis": "PRICE/RAW",
+      "priceBasisNote": "RAW: Yahoo's unadjusted indicators.quote close (the field the live gate reads); index levels and yields carry no distributions.",
+      "parityFieldsEvidence": "smartflow src/services/us-market-regime.js:61–72 (fetchYahooDaily), :91, :102, :114 (the three ranges); scripts/research/rut1-regime-indices-pull.js (#180); scripts/research/r-us-entry-touch-1-run.js regimeFromDailyFiles (#179)"
+    }
+  ],
+  "parityFieldsPending": {
+    "MACRO_CN_OFFICIAL": "MIXED by series (pitSemanticsBySeries): sf_month END_OF_FOLLOWING_MONTH_CONSERVATIVE, the others OBSERVED_AT. vendor set; dataset-level value absent for the same reason.",
+    "CN_MARKET_PSYCHOLOGY": "MIXED by series (pitSemanticsBySeries): CN-2 margin NEXT_TRADING_DAY_0900_CST, the others OBSERVED_AT live and NEXT_DAY_0000_CST in history (pitHistoricalClock). vendor set; dataset-level value absent because QRP's gate keys off one value per dataset id.",
+    "US_MARKET_PSYCHOLOGY": "MIXED by series (pitSemanticsBySeries): put/call and the RSP/SPY breadth CBOE_NEXT_DAY_0030_ET, VIX/VIX3M CBOE_SAME_DAY_2130_ET. The dataset-level value stays absent because QRP's gate keys off one value per dataset id; a K2 row on one series needs a series-level key or a split entry (coordinator).",
+    "SW_L1_INDEX_CLOSES": "usableFrom is the later of next day 00:00 and the capture (KG industry-cycle/index-closes.ts:77–79): no single vocabulary value. vendor and priceBasis set; pitSemantics left absent.",
+    "VALUATION_SNAPSHOTS": "Producer code is on smartflow branch research/valuation-snapshots-interim only, not main; all three fields left absent.",
+    "INDUSTRY_CYCLE_PHASE": "Derived nightly snapshot; evidence low confidence (KG industry-cycle/phase3/units.ts:64, :253); all three fields left absent.",
+    "SMARTFLOW_US_1M": "pitSemantics BAR_CLOSE and vendor Yahoo set (src/services/us-1m-archive.js:17, :25–26, :58); priceBasis left absent: unadjusted is inferred, not stated, and Yahoo may split-adjust re-fetched bars."
+  }
+}
