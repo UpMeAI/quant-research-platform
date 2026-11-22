@@ -2,6 +2,8 @@
 
 Source: the signed RF1116 text (`fd22876f…`, signature page `39f8c17c…`), §2.4, §3.3, §3.4, §6 item 2, §8.1 row P1, §8.2, and §8.3 items 8–10. It also covers the coordinator's addition of 2026-11-17 (mined lineage needs the race route).
 
+Amendment 2026-11 (CN_A extra round, plan-coordinator): `RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND`, sha256 `571e145e21ab46854fbf5b8c94da3784a3045e98f9fcde32d0167364159b43aa` (a draft until the Owner confirms in the plan-coordinator session; the copy is `docs/evidence/rf1116-cna-extra-round-v1/`). It changes two counts only: CN_A in 2026-11 may open 3 rounds, and R1.6's per-segment count leaves out a `FAILED_EVALUATION` round with 0 selected and no holdout open.
+
 QRP side only. The sandbox process writes no ledger (see `MINING_SANDBOX_V1`). Round manifests, candidate trial rows and holdout custody all go through these services.
 
 ## Trial ledger: `MINED_CANDIDATE`
@@ -18,7 +20,7 @@ QRP side only. The sandbox process writes no ledger (see `MINING_SANDBOX_V1`). R
 | For LLM rounds, the holdout must start after the model's knowledge cutoff | `MINE_ROUND_HOLDOUT_BEFORE_CUTOFF` |
 | The holdout is frozen by the market's first round and never moves | `MINE_ROUND_HOLDOUT_MOVED` |
 | One open round per market | `MINE_ROUND_ALREADY_OPEN` |
-| At most 2 rounds per market per month (Beijing time) | `MINE_ROUND_MONTHLY_CAP` |
+| At most 2 rounds per market per month (Beijing time); the one exception is CN_A in 2026-11, which is 3 (amendment 2026-11, `MONTHLY_CAP_EXCEPTIONS`) | `MINE_ROUND_MONTHLY_CAP` |
 | Every scored candidate becomes one trial row. Candidate 201 is not scored and stops the round (`CAP_REACHED`), with no top-up | `MINE_ROUND_CAP_REACHED` |
 | 3 consecutive closed rounds without a G-MINE pass pause the market. It reopens only with a frozen space not used in those rounds; N keeps accumulating while paused | `MINE_MARKET_PAUSED` |
 
@@ -109,9 +111,10 @@ A byte copy of revision 5 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and 
   - The rule is part of the pre-registration (`manifestSha`). The runner reads it from the manifest. Changing it means a new round.
   - Round 1 freezes the R1.2 rule: 6 half-year folds; mean IC > 0; at least 4 positive folds; mining score > 0.
 - **R1.6 Concurrent rounds and holdout segments** (`LIMITS.open_rounds_per_market` = 2, `LIMITS.rounds_per_holdout` = 2).
-  - At most 2 unclosed rounds per market (`MINE_ROUND_ALREADY_OPEN`), still at most 2 opens per month. Each round opens the holdout once.
+  - At most 2 unclosed rounds per market (`MINE_ROUND_ALREADY_OPEN`), still at most 2 opens per month (3 for CN_A in 2026-11 only, see the amendment bullet below). Each round opens the holdout once.
   - A holdout segment serves at most 2 rounds (`MINE_ROUND_HOLDOUT_EXHAUSTED`). A round either reuses the latest segment, if it is not used up, or takes a new segment that starts after every earlier segment's end. Anything else gives `MINE_ROUND_HOLDOUT_MOVED`.
-  - From round 3, a segment after 2026-12-31 is therefore required.
+  - From round 3, a segment after 2026-12-31 is therefore required, except for rounds that do not count (next bullet).
+  - **Amendment 2026-11 §1.2 (what counts):** a round does not use one of the segment's 2 places (`openRound` leaves it out of the `MINE_ROUND_HOLDOUT_EXHAUSTED` count) when all four hold: its status is `FAILED_EVALUATION`; its round row has no `holdout_opens`; the vault has no open row for it; and its selection row exists and lists 0 candidates. A missing selection row is unknown, not 0, so such a round still counts. `CLOSED`, `FAILED_PARTIAL`, `FAILED_RESCORE`, open rounds and any round that selected a candidate or opened the holdout count as before. `MINE_ROUND_HOLDOUT_SEGMENT_OPENED` is unchanged and still looks at every round that shares the segment. Consequence: rounds 2 and 3 of 2026-11 fill the segment 2026-10-19..2026-12-31, so a December round on it is refused with `MINE_ROUND_HOLDOUT_EXHAUSTED` unless round 3 was never opened (or closed as `FAILED_EVALUATION` with 0 selected, which needs no finite mining score).
   - `holdout-vault.open` counts how many times this segment has been opened in the market, including this one. The count goes into the open row (`segment_open_index`) and into the round row (`holdout_opens`), which keeps it through close.
   - **Revision 4 (intent):** sharing a segment is allowed only before its first open. Once any round of the market has opened the segment (its round row has `holdout_opens`, or the vault has an open row), `openRound` refuses new rounds on it (`MINE_ROUND_HOLDOUT_SEGMENT_OPENED`). A round closed without opening the holdout does not count as an open. A round that already shares the segment still opens its own holdout once.
 - **R1.5 Mechanisms** (`services/mining-rounds/mechanisms.js`, `MINING_MECHANISM_V1`, `research/mining_mechanisms.jsonl`).
@@ -148,7 +151,7 @@ A byte copy of revision 5 is at `docs/freeze/RF1116_RULING_R1_20261117.md`, and 
     - The holdout use stays counted: the open row and `holdout_opens` are kept, and R1.6 refuses new rounds on that segment.
   - **Pause rule.** It counts `FAILED_PARTIAL` as a failed round with 0 passes; VOID records, passing or not, are never counted.
 - **R1.12a (revision 5).** A rescore that writes records and then crashes closes as `FAILED_RESCORE`, not `FAILED_PARTIAL`. Every record of a failed round, including those its rescore wrote, is marked VOID and counted nowhere. This is the behaviour since revision 4's implementation.
-- **FAILED_EVALUATION (coordinator ruling ★RF1116_ROUND1_STATE (a), 2026-11-18).** A round that was never evaluated closes as `FAILED_EVALUATION`. This is the case when every mining score is null, as in round 1 `MR-CN_A-2026-11-e1ab63a27b`. It is allowed only from `OPEN` or `CAP_REACHED` with the holdout never opened, and only when no attempt has a finite mining score. It needs a reason plus the defect report's sha256. It appends one row with 0 passes and frees the open-round slot. Its attempts stay in N (signed §3.3), it counts toward its month's 2 rounds, and the pause rule counts it as 0 passes. Removing it from N or from the monthly count would change the signed text and is not done.
+- **FAILED_EVALUATION (coordinator ruling ★RF1116_ROUND1_STATE (a), 2026-11-18).** A round that was never evaluated closes as `FAILED_EVALUATION`. This is the case when every mining score is null, as in round 1 `MR-CN_A-2026-11-e1ab63a27b`. It is allowed only from `OPEN` or `CAP_REACHED` with the holdout never opened, and only when no attempt has a finite mining score. It needs a reason plus the defect report's sha256. It appends one row with 0 passes and frees the open-round slot. Its attempts stay in N (signed §3.3), it counts toward its month's rounds (2, or 3 for CN_A in 2026-11), and the pause rule counts it as 0 passes. Removing it from N or from the monthly count would change the signed text and is not done. Amendment 2026-11 §1.2 changes one count only: such a round with 0 selected and no holdout open does not use one of its holdout segment's 2 places (R1.6).
 - **Resume record.** `recordResumeCheck` appends the floor used on a `--resume` run to the round row's `data_checks.resumes`.
 - **R1.9 The comparison set for G-MINE items 7–8.** Items 7–8 compare only against same-market `LIVE_IN_RULE` factors that cover the full stock cross-section.
   - **Single source:** `factor-library` `COMPARISON_EXCLUSIONS` / `comparisonFactorIds`.

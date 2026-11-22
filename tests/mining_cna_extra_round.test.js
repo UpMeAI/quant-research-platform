@@ -4,7 +4,7 @@
  *   1. 每月轮数上限：只有 (CN_A, 2026-11) 是 3；12 月起、别的市场仍是 2（LIMITS.rounds_per_month 不动）；
  *   2. R1.6「一段留出段最多 2 轮用」的计数：以 FAILED_EVALUATION 关闭、留出段从未开启、选择记录明确写了 0 个候选的轮不计；
  *      其余一律照旧计数（开启过留出段的、没有选择记录的、选出过候选的）；MINE_ROUND_HOLDOUT_SEGMENT_OPENED 一字不动。
- * 页的引用：常量里带页路径与 sha256，仓库 docs/freeze/ 有逐字节副本（同 R1.2 对 rulings 的做法）。
+ * 页的引用：常量里带页路径、sha256 与仓库里的逐字节副本（冻结前在 docs/evidence/，冻结后换成 docs/freeze/ 里的冻结页）。
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -45,7 +45,7 @@ function forceHead(roundId, patch) {
   ledger.append(rounds.LEDGER(), { ...rest, record_hash: trials.recordHash(rest) });
 }
 
-test('E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径与 sha256，仓库 docs/freeze/ 有逐字节副本；LIMITS 本身不动', () => {
+test('E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动', () => {
   assert.equal(rounds.LIMITS.rounds_per_month, 2);
   assert.equal(rounds.LIMITS.rounds_per_holdout, 2);
   assert.equal(rounds.LIMITS.open_rounds_per_market, 2);
@@ -54,8 +54,9 @@ test('E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修
   assert.deepEqual([x.market, x.month, x.rounds_per_month], ['CN_A', '2026-11', 3]);
   assert.match(x.amendment.path, /RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND/);
   assert.match(x.amendment.sha256, /^[0-9a-f]{64}$/);
-  const copy = fs.readFileSync(path.join(ROOT, 'docs/freeze', path.basename(x.amendment.path)));
-  assert.equal(sha(copy), x.amendment.sha256, 'docs/freeze copy is byte-identical to the cited page');
+  assert.equal(path.basename(x.amendment.repo_copy), path.basename(x.amendment.path));
+  const copy = fs.readFileSync(path.join(ROOT, x.amendment.repo_copy));
+  assert.equal(sha(copy), x.amendment.sha256, 'the repo copy is byte-identical to the cited page');
   assert.ok(Object.isFrozen(rounds.MONTHLY_CAP_EXCEPTIONS) && Object.isFrozen(x) && Object.isFrozen(x.amendment));
   assert.equal(rounds.monthlyCapOf('CN_A', '2026-11'), 3);
   for (const [m, mo] of [['CN_A', '2026-10'], ['CN_A', '2026-12'], ['CN_A', '2027-11'], ['US', '2026-11'], ['CRYPTO', '2026-11']]) assert.equal(rounds.monthlyCapOf(m, mo), 2, `${m} ${mo}`);
