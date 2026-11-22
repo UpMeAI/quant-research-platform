@@ -57,7 +57,8 @@ function validate(draft) {
       if ('quality_gate_record_id' in a) token(a.quality_gate_record_id, 'authored_by.quality_gate_record_id');
     } else {
       keysOf(a, ['kind', 'session_ref'], 'authored_by', codes);
-      token(a.session_ref, 'authored_by.session_ref');
+      // a human-authored claim needs an author identity (plan-coord ruling 11-22): a real session reference, not a placeholder
+      if (typeof a.session_ref !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{2,80}$/.test(a.session_ref) || /^(unknown|none|anonymous|n\/a|na|null)$/i.test(a.session_ref)) codes.push('PREREG_SCHEMA_AUTHOR_IDENTITY_MISSING');
     }
   }
 
@@ -192,4 +193,7 @@ function validate(draft) {
   return codes;
 }
 
-module.exports = { MARKETS, ROLES, HOSTS, AUTHOR_KINDS, DESK_ITEMS, TOP, validate };
+/** Pin of the K2_DRAFT_V1 structure the prompt admission names (V14): changes whenever a key list or enum above changes. */
+const SCHEMA_SHA256 = require('crypto').createHash('sha256').update(JSON.stringify({ TOP, DESK_ITEMS, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, LIVE_CLASSES })).digest('hex');
+
+module.exports = { SCHEMA_SHA256, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, DESK_ITEMS, TOP, validate };

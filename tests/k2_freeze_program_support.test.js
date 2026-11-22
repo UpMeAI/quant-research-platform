@@ -275,3 +275,25 @@ test('CLI exit codes: k2_freeze_program prepare: 0 waiting, 65 refused, 66 waiti
   const usage = spawnSync(process.execPath, [path.join(ROOT, 'apps/research-cli/k2_freeze_program.js'), 'prepare'], { encoding: 'utf8' });
   assert.equal(usage.status, 64);
 });
+
+test('clock preflight parses chronyc, timedatectl and sntp status; unparseable is an error, never zero offset', () => {
+  const cp = require('../services/k2-freeze-program/clock_preflight');
+  assert.deepEqual(cp.parseOffset('System time     : 0.000123456 seconds fast of NTP time\n'), { offset_ms: 0.123456, source: 'chronyc' });
+  assert.equal(cp.parseOffset('System time     : 0.5 seconds slow of NTP time').offset_ms, -500);
+  assert.deepEqual(cp.parseOffset('       Offset: -1.5ms\n'), { offset_ms: -1.5, source: 'timedatectl' });
+  assert.deepEqual(cp.parseOffset('+0.0123 +/- 0.0100 time.example 10.0.0.1'), { offset_ms: 12.3, source: 'sntp' });
+  assert.throws(() => cp.parseOffset('no ntp here'), /CLOCK_PREFLIGHT_UNPARSEABLE/);
+  const o = cp.clockOffsets({ registrarText: '+0.5 +/- 0.01 h', programText: 'System time : 0.2 seconds fast of NTP time', measuredAt: '2026-11-24T10:00:00+08:00' });
+  assert.deepEqual([o.registrar_offset_ms, o.program_offset_ms, o.tolerance_ms], [500, 200, 1000]);
+});
+
+test('AI_PREREG prompt: sha pinned, admission entry has the Q2 shape and is PROPOSED (not edited into the Q2 admissions file); the system text forbids prediction and formulas', () => {
+  const prompt = require('../services/k2-freeze-program/prompt');
+  assert.equal(prompt.SYSTEM_SHA256, sha(prompt.SYSTEM_TEXT));
+  const e = prompt.admissionEntry();
+  assert.deepEqual([e.kind, e.state, e.system_sha256], ['AI_PREREG', 'PROPOSED', prompt.SYSTEM_SHA256]);
+  const q2 = require('../config/research_queue_prompt_admissions.v1.json');
+  assert.ok(!q2.entries.some((x) => x.kind === 'AI_PREREG'));
+  assert.ok(!q2.entries.some((x) => x.system_sha256 === e.system_sha256));
+  for (const w of ['Do not predict', 'Do not write any formula', 'should be adopted or rejected']) assert.ok(prompt.SYSTEM_TEXT.includes(w), w);
+});

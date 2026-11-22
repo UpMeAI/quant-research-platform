@@ -20,6 +20,8 @@ const power = require('./power');
 const rf1118 = require('./rf1118');
 const bundleBuilder = require('./bundle');
 const queueLine = require('./queue_line');
+const schema = require('./schema');
+const FLASH_MODEL = 'deepseek-flash';
 
 const NAMES = Object.freeze({
   V1: 'schema and required sections', V2: 'decision table from frozen templates only', V3: 'power tool match', V4: 'G-MECH routing', V5: 'G-CAUSAL', V6: 'G-PARITY check()', V7: 'no new formula (RF1116)',
@@ -35,6 +37,20 @@ const countsInN = (arm) => trials.COUNTS_IN_N.has(arm.role);
 const prefixOf = (id) => String(id).split('.')[0];
 
 const ZERO = '0'.repeat(64);
+
+/**
+ * Reason for a TRL row that is not strictly before k2_frozen_at. Fail closed either way; the classification tells a clock-skew suspicion from a real ordering error:
+ * ctx.clockOffsets = { registrar_offset_ms, program_offset_ms } from the clock preflight (NTP status of both hosts); without it the answer is CLOCK_OFFSET_UNKNOWN.
+ */
+function skewCode(trialId, registeredAt, frozenAt, offsets) {
+  const diff = Date.parse(registeredAt) - Date.parse(frozenAt);
+  let kind = 'CLOCK_OFFSET_UNKNOWN';
+  if (isObj(offsets) && Number.isFinite(offsets.registrar_offset_ms) && Number.isFinite(offsets.program_offset_ms)) {
+    const tolerance = Number.isFinite(offsets.tolerance_ms) ? offsets.tolerance_ms : 1000;
+    kind = diff <= Math.abs(offsets.registrar_offset_ms) + Math.abs(offsets.program_offset_ms) + tolerance ? 'SKEW_POSSIBLE' : 'ORDERING_ERROR';
+  }
+  return `TRIAL_LEDGER_PRE_REGISTERED_AFTER_FREEZE:${trialId}:registered_at=${registeredAt}:k2_frozen_at=${frozenAt}:diff_ms=${diff}:${kind}`;
+}
 
 // ── shared pre-computations ────────────────────────────────────────────────────────────────────────────
 
@@ -202,13 +218,19 @@ V.V9 = ({ draft, ctx, text, k2Sha, receipts, prepared }) => {
   if (receipts.request_sha256 !== prepared.request_sha256) return ['TRIAL_LEDGER_RECEIPT_MISMATCH'];
   const rows = Array.isArray(ctx.ledgerRows) ? ctx.ledgerRows : [];
   const entry = { id: draft.draft_id, strategy_ref: draft.family_id, k2: { sha256: k2Sha }, k2_frozen_at: ctx.now };
-  try { trialGates.internals.checkPre(entry, Buffer.from(text), rows); } catch (e) { codes.push(codeOf(e)); return codes; }
   const frozen = Date.parse(ctx.now);
+  const late = [];
+  for (const arm of draft.arms) {
+    const rid = trials.trialIdOf({ family_id: draft.family_id, study_ref: draft.study_ref, config_label: arm.config_label });
+    const row = rows.find((r) => r.trial_id === rid && r.row_kind === 'REGISTRATION');
+    if (row && !(Date.parse(row.registered_at) < frozen)) late.push(skewCode(rid, row.registered_at, ctx.now, ctx.clockOffsets));
+  }
+  if (late.length) return late; // fail closed; the reason carries both timestamps, their difference and a skew classification
+  try { trialGates.internals.checkPre(entry, Buffer.from(text), rows); } catch (e) { codes.push(codeOf(e)); return codes; }
   for (const arm of draft.arms) {
     const id = trials.trialIdOf({ family_id: draft.family_id, study_ref: draft.study_ref, config_label: arm.config_label });
     const reg = rows.find((r) => r.trial_id === id && r.row_kind === 'REGISTRATION');
     if (!reg) { codes.push(`TRIAL_LEDGER_PRE_NOT_REGISTERED:${id}`); continue; }
-    if (!(Date.parse(reg.registered_at) < frozen)) codes.push(`TRIAL_LEDGER_PRE_REGISTERED_AFTER_FREEZE:${id}:NOT_BEFORE_FREEZE`);
     if (!receipts.rows.some((r) => r.trial_id === id && r.record_hash === reg.record_hash)) codes.push(`TRIAL_LEDGER_RECEIPT_MISMATCH:${id}`);
   }
   return codes;
@@ -220,23 +242,26 @@ V.V10 = ({ draft, ctx }) => {
   if (r === null || r === undefined) return ['PREREG_ISOLATION_RECEIPT_MISSING'];
   const codes = [];
   const unknown = (what) => codes.push(`PREREG_ISOLATION_UNKNOWN:${what}`);
-  if (!isObj(r) || r.schema !== 'RUN_RECEIPT_V1') return ['PREREG_ISOLATION_RECEIPT_INVALID'];
-  if (r.host !== draft.authored_by.host) codes.push('PREREG_ISOLATION_HOST');
+  // RUN_RECEIPT_V1 of the queue core (key `receipt`, top-level `mounts`) plus the `isolation` block the agent runtime adds (host, bundle, network, model calls, canary probes).
+  if (!isObj(r) || r.receipt !== 'RUN_RECEIPT_V1') return ['PREREG_ISOLATION_RECEIPT_INVALID'];
+  if (!isObj(r.isolation)) return ['PREREG_ISOLATION_UNKNOWN:isolation'];
+  const iso = r.isolation;
+  if (iso.host !== draft.authored_by.host) codes.push('PREREG_ISOLATION_HOST');
   if (!Array.isArray(r.mounts)) unknown('mounts');
   else {
     const bad = r.mounts.filter((m) => !(isObj(m) && ((m.kind === 'BUNDLE' && m.mode === 'ro') || (m.kind === 'OUTPUT' && m.mode === 'rw'))));
     if (bad.length || !r.mounts.some((m) => m.kind === 'BUNDLE')) codes.push('PREREG_ISOLATION_MOUNT');
   }
-  if (!isObj(r.network)) unknown('network');
-  else if (r.network.egress !== 'NONE') codes.push(r.network.egress === undefined || r.network.egress === null ? 'PREREG_ISOLATION_UNKNOWN:network.egress' : 'PREREG_ISOLATION_NETWORK');
-  if (!Array.isArray(r.model_calls)) unknown('model_calls');
-  else if (r.model_calls.some((c) => !(isObj(c) && c.via === 'GATEWAY_SOCKET'))) codes.push('PREREG_ISOLATION_MODEL_PATH');
-  const cn = r.canary;
+  if (!isObj(iso.network)) unknown('network');
+  else if (iso.network.egress !== 'NONE') codes.push(iso.network.egress === undefined || iso.network.egress === null ? 'PREREG_ISOLATION_UNKNOWN:network.egress' : 'PREREG_ISOLATION_NETWORK');
+  if (!Array.isArray(iso.model_calls)) unknown('model_calls');
+  else if (iso.model_calls.some((c) => !(isObj(c) && c.via === 'GATEWAY_SOCKET'))) codes.push('PREREG_ISOLATION_MODEL_PATH');
+  const cn = iso.canary;
   if (!isObj(cn) || !Array.isArray(cn.probes) || !cn.probes.length) unknown('canary');
   else if (cn.self_test !== 'PASS' || cn.probes.some((p) => p.readable === null || p.readable === undefined)) codes.push('PREREG_ISOLATION_CANARY_UNKNOWN');
   else if (cn.probes.some((p) => p.readable !== false)) codes.push('PREREG_ISOLATION_CANARY');
   const b = ctx.bundle;
-  if (!isObj(b) || b.builder !== bundleBuilder.BUILDER || !SHA64.test(b.sha256 || '') || r.bundle_sha256 !== b.sha256) codes.push('PREREG_ISOLATION_BUNDLE');
+  if (!isObj(b) || b.builder !== bundleBuilder.BUILDER || !SHA64.test(b.sha256 || '') || iso.bundle_sha256 !== b.sha256) codes.push('PREREG_ISOLATION_BUNDLE');
   return codes;
 };
 
@@ -274,8 +299,13 @@ V.V13 = ({ draft, ctx, k2Sha, phase, existing }) => {
 V.V14 = ({ draft, ctx }) => {
   if (!isAi(draft)) return { state: 'NOT_APPLICABLE', reason: 'HUMAN_AUTHORED' };
   const a = draft.authored_by;
-  const hit = (ctx.admissions || []).some((x) => x.mode === 'AI_PREREG' && x.prompt_sha256 === a.prompt_sha256 && x.schema_sha256 === a.schema_sha256 && x.model === a.model);
-  return hit ? [] : [`PREREG_PROMPT_NOT_ADMITTED:${a.model}`];
+  // admissions use the queue's RQ_PROMPT_ADMISSIONS_V1 entry shape: { kind: 'AI_PREREG', system_sha256, state: 'ADMITTED' }
+  const hit = (ctx.admissions || []).some((x) => x.kind === 'AI_PREREG' && x.state === 'ADMITTED' && x.system_sha256 === a.prompt_sha256);
+  if (!hit) return [`PREREG_PROMPT_NOT_ADMITTED:${String(a.prompt_sha256).slice(0, 12)}`];
+  if (a.schema_sha256 !== schema.SCHEMA_SHA256) return ['PREREG_PROMPT_NOT_ADMITTED:schema_sha256'];
+  // RF1118 C7: flash by default; any other model only with a quality-gate record id
+  if (a.model !== FLASH_MODEL && !a.quality_gate_record_id) return [`PREREG_MODEL_NOT_ADMITTED:${a.model}`];
+  return [];
 };
 
 /** Run one validator; a thrown error is a refusal with its code, never a pass. */

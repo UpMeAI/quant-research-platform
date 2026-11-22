@@ -19,7 +19,14 @@ const EFFECTIVE_FROM = '2026-11-18T15:48:18+08:00';
 /** Star P4 (a): per market, per CST week (Monday start) and per CST month; arms that count in N per freeze. */
 const CAPS = Object.freeze({ per_week: 2, per_month: 6, arms_per_freeze: 20 });
 
+/**
+ * The "class" a downgrade (RF1118 section 3) applies to. One named rule, used nowhere else: a later RF1118 note changes it here only.
+ * plan-coord ruling 11-22: <market>:<mechanism-layer-prefix>, e.g. CN_A:ACCT; '*' in ctx.downgradedClasses means every class.
+ */
+const DOWNGRADE_CLASS_RULE = '<market>:<mechanism-layer-prefix>';
+const classOf = (market, mechanismId) => `${market}:${String(mechanismId).split('.')[0]}`;
+
 const isBound = (freeze = FREEZE) => Boolean(freeze) && SHA64.test(freeze.sha256 || '') && freeze.state === 'FREEZE_1'
   && Array.isArray(freeze.texts) && freeze.texts.length > 0 && freeze.texts.every((t) => SHA64.test((t && t.sha256) || ''));
 
-module.exports = { FREEZE, EFFECTIVE_FROM, CAPS, isBound };
+module.exports = { FREEZE, EFFECTIVE_FROM, CAPS, DOWNGRADE_CLASS_RULE, classOf, isBound };

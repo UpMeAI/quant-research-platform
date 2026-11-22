@@ -24,7 +24,7 @@ const NOW_PREPARE = '2026-11-24T10:00:00+08:00';
 const NOW_FREEZE = '2026-11-24T10:05:00+08:00';
 const REGISTERED_AT = '2026-11-24T10:02:00+08:00';
 const PROMPT = 'a'.repeat(64);
-const SCHEMA = 'b'.repeat(64);
+const SCHEMA = require('../services/k2-freeze-program/schema').SCHEMA_SHA256;
 const MECH_OK = 'ACCT.CONCURRENCY.NON_MAJOR_CAP'; // CN_A: NORMAL_NO_PRIOR in the checked-in register
 const MECH_SHADOW = 'SEL.EXIT.NO_PROGRESS_EXIT'; // CN_A: ATTACH_TO_SHADOW
 const MECH_LIVE = 'ACCT.DERISK.DRAWDOWN_LOOKBACK'; // US_EQUITY: QUARTERLY_ABLATION
@@ -69,16 +69,18 @@ function merge(base, over) {
   return out;
 }
 
-const receipt = (bundleSha, over = {}) => ({ schema: 'RUN_RECEIPT_V1', role: 'prereg', host: 'LINUX', bundle_sha256: bundleSha,
-  mounts: [{ path: '/rq/in', mode: 'ro', kind: 'BUNDLE' }, { path: '/rq/out', mode: 'rw', kind: 'OUTPUT' }],
-  network: { egress: 'NONE', gateway_socket: true }, model_calls: [{ via: 'GATEWAY_SOCKET', purpose: 'RQ_AGENT' }],
-  canary: { self_test: 'PASS', probes: [{ label: 'sealed-like-1', readable: false }] }, ...over });
+const receipt = (bundleSha, over = {}) => {
+  const { host, network, model_calls: modelCalls, canary, ...top } = over;
+  return { receipt: 'RUN_RECEIPT_V1', task_id: 'T1', attempt_no: 1, mounts: [{ path: '/rq/in', mode: 'ro', kind: 'BUNDLE' }, { path: '/rq/out', mode: 'rw', kind: 'OUTPUT' }],
+    isolation: { host: host || 'LINUX', bundle_sha256: bundleSha, network: network || { egress: 'NONE', gateway_socket: true }, model_calls: modelCalls || [{ via: 'GATEWAY_SOCKET', purpose: 'RQ_AGENT' }],
+      canary: canary || { self_test: 'PASS', probes: [{ label: 'sealed-like-1', readable: false }] } }, ...top };
+};
 
 function baseCtx(over = {}) {
   const bundle = { sha256: 'c'.repeat(64), builder: 'K2_BUNDLE_BUILDER_V1' };
   return {
     now: NOW_PREPARE, host: 'LINUX', outDir: tmp(), bundle, receipt: receipt(bundle.sha256),
-    admissions: [{ prompt_sha256: PROMPT, schema_sha256: SCHEMA, model: 'deepseek-flash', mode: 'AI_PREREG' }],
+    admissions: [{ prompt_id: 'RQ_PROMPT_AI_PREREG_V1', kind: 'AI_PREREG', system_sha256: PROMPT, state: 'ADMITTED' }],
     registerBytes: REGISTER_BYTES, registerCommit: REGISTER_COMMIT, registerAt: (c) => (c === REGISTER_COMMIT ? REGISTER_BYTES : null),
     marks: [], inventory: new Set([DATASET]), evidenceBytes: () => null, pinnedCodeShas: {}, ledgerRows: [], priorFreezes: [], queueLogText: '', ...over,
   };

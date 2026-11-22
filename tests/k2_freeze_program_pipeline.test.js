@@ -187,6 +187,16 @@ test('AQ-42 program freeze only: before RF1118 FREEZE_1 is bound, in DRAFT_ONLY 
   assert.equal(ok.state, 'WAITING_EXTERNAL');
 });
 
+test('downgrade class is one named rule (plan-coord ruling 11-22) and the human-authored identity is recorded on the page', () => {
+  assert.equal(rf1118.DOWNGRADE_CLASS_RULE, '<market>:<mechanism-layer-prefix>');
+  assert.equal(rf1118.classOf('CN_A', 'ACCT.CONCURRENCY.NON_MAJOR_CAP'), 'CN_A:ACCT');
+  const d = baseDraft({ authored_by: { kind: 'HUMAN_SESSION', session_ref: 'research-session-1' } });
+  const { res, ctx } = freezeFlow(d, { receipt: null, admissions: [] });
+  assert.equal(res.state, 'FROZEN');
+  const page = fs.readFileSync(path.join(subdir(ctx, d.draft_id), `${d.draft_id}_K2_V1_FREEZE_PROGRAM_1.md`), 'utf8');
+  assert.ok(page.includes('"session_ref": "research-session-1"'));
+});
+
 test('AQ-42 no code path but the program writes a FREEZE_PROGRAM page: scan of services, apps and tools; no freeze writer is exported', () => {
   const holders = [];
   const walk = (dir) => {

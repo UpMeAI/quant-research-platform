@@ -37,6 +37,7 @@ function fromSpec(spec, { baseDir = '.' } = {}) {
     priorFreezes: spec.priorFreezes || loadPriorFreezes(abs(spec.priorFreezesDir || spec.outDir)),
     queueLogText: spec.queueLogText !== undefined ? spec.queueLogText : (spec.queueLogFile ? fs.readFileSync(abs(spec.queueLogFile), 'utf8') : ''),
     pinnedCodeShas: spec.pinnedCodeShas || {}, freezeMode: spec.freezeMode || 'PROGRAM', downgradedClasses: spec.downgradedClasses || [],
+    clockOffsets: spec.clockOffsets || null,
     registeredComponents: spec.registeredComponents || { readings: [], ruleParts: [] },
     evidenceBytes: spec.evidenceDir ? (sha) => { const f = path.join(abs(spec.evidenceDir), `${sha}.json`); return fs.existsSync(f) ? fs.readFileSync(f) : null; } : () => null,
   };

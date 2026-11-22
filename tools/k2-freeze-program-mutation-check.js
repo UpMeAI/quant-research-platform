@@ -44,7 +44,7 @@ const MUTANTS = [
   { id: 'M16', guard: 'V8: no first read of an UNSEEN segment (P3)', file: VAL, find: "if (labels.includes('UNSEEN')) codes.push(", replace: 'if (false) codes.push(', tests: [T1] },
   { id: 'M17', guard: 'V8: no new data fetch', file: VAL, find: "if (s.new_data_fetch) codes.push('PREREG_DATA_NEW_FETCH');", replace: '', tests: [T1] },
   { id: 'M18', guard: 'V8: data must be on this host', file: VAL, find: 'if (!inv.has(key)) codes.push(', replace: 'if (false) codes.push(', tests: [T1] },
-  { id: 'M19', guard: 'V9: TRL rows strictly before the freeze time (AQ-40)', file: VAL, find: 'if (!(Date.parse(reg.registered_at) < frozen)) codes.push(', replace: 'if (!(Date.parse(reg.registered_at) <= frozen)) codes.push(', tests: [T2] },
+  { id: 'M19', guard: 'V9: TRL rows strictly before the freeze time (AQ-40)', file: VAL, find: 'if (row && !(Date.parse(row.registered_at) < frozen)) late.push(', replace: 'if (row && !(Date.parse(row.registered_at) <= frozen)) late.push(', tests: [T2] },
   { id: 'M20', guard: 'V9: G-TRIAL-PRE check runs', file: VAL, find: 'try { trialGates.internals.checkPre(entry, Buffer.from(text), rows); }', replace: 'try { /* skipped */ }', tests: [T1] },
   { id: 'M21', guard: 'V10: no network for the agent', file: VAL, find: "else if (r.network.egress !== 'NONE') codes.push(", replace: 'else if (false) codes.push(', tests: [T1] },
   { id: 'M22', guard: 'V10: canaries must be unreadable', file: VAL, find: "else if (cn.probes.some((p) => p.readable !== false)) codes.push('PREREG_ISOLATION_CANARY');", replace: '', tests: [T1] },
@@ -55,7 +55,7 @@ const MUTANTS = [
   { id: 'M27', guard: 'V11: market and host agree', file: VAL, find: 'if (isAi(draft) && draft.authored_by.host !== MARKET_HOST[draft.market]) codes.push(', replace: 'if (false) codes.push(', tests: [T1] },
   { id: 'M28', guard: 'V12: an existing different freeze is never overwritten', file: VAL, find: 'if (existing && existing.k2_sha256 !== k2Sha) codes.push(', replace: 'if (false) codes.push(', tests: [T1] },
   { id: 'M29', guard: 'V13: one queue line per freeze', file: VAL, find: "if (queueLine.count(ctx.queueLogText || '', k2Sha) >= 1) return [", replace: 'if (false) return [', tests: [T1] },
-  { id: 'M30', guard: 'V14: prompt, schema and model must be admitted', file: VAL, find: 'return hit ? [] : [', replace: 'return true ? [] : [', tests: [T1] },
+  { id: 'M30', guard: 'V14: prompt, schema and model must be admitted', file: VAL, find: 'if (!hit) return [', replace: 'if (false) return [', tests: [T1] },
   { id: 'M31', guard: 'gate: RF1118 must be bound', file: IDX, find: "if (!rf1118.isBound(frozen)) return { code: 'PREREG_RF1118_NOT_FROZEN' };", replace: '', tests: [T2] },
   { id: 'M32', guard: 'gate: DRAFT_ONLY mode never freezes', file: IDX, find: "if ((ctx.freezeMode || 'PROGRAM') !== 'PROGRAM') return", replace: 'if (false) return', tests: [T2] },
   { id: 'M33', guard: 'gate: a downgraded class never freezes', file: IDX, find: "if (down.includes('*') || classes.some((c) => down.includes(c))) return", replace: 'if (false) return', tests: [T2] },
@@ -77,6 +77,9 @@ const MUTANTS = [
   { id: 'M49', guard: 'registrar: only research-arm roles', file: `${D}/registrar.js`, find: "need(ROLES.includes(spec.role), 'REGISTRAR_ROLE_NOT_ALLOWED', String(spec.role));", replace: '', tests: [T3] },
   { id: 'M50', guard: 'revocation never overwrites a revocation', file: `${D}/revocation.js`, find: "if (fs.existsSync(file)) fail('REVOCATION_EXISTS', draftId);", replace: '', tests: [T2] },
   { id: 'M51', guard: 'RF1118 weekly cap constant', file: `${D}/rf1118.js`, find: 'per_week: 2,', replace: 'per_week: 3,', tests: [T2] },
+  { id: 'M53', guard: 'V9: skew classification needs both offsets', file: VAL, find: "kind = diff <= Math.abs(offsets.registrar_offset_ms) + Math.abs(offsets.program_offset_ms) + tolerance ? 'SKEW_POSSIBLE' : 'ORDERING_ERROR';", replace: "kind = 'SKEW_POSSIBLE';", tests: [T1] },
+  { id: 'M54', guard: 'V14: flash by default, other models need a quality-gate record', file: VAL, find: 'if (a.model !== FLASH_MODEL && !a.quality_gate_record_id) return', replace: 'if (false) return', tests: [T1] },
+  { id: 'M55', guard: 'V1: a human-authored claim needs an identity', file: SCH, find: "codes.push('PREREG_SCHEMA_AUTHOR_IDENTITY_MISSING');", replace: '', tests: [T1] },
   { id: 'M52', guard: 'queue line: append is idempotent by k2 sha', file: `${D}/queue_line.js`, find: 'if (count(logText, m[2]) >= 1) return { text: logText, appended: false };', replace: '', tests: [T2] },
 ];
 

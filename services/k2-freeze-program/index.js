@@ -57,7 +57,7 @@ function gates(draft, ctx) {
   if ((ctx.freezeMode || 'PROGRAM') !== 'PROGRAM') return { code: 'PREREG_MODE_DRAFT_ONLY' };
   const down = ctx.downgradedClasses || [];
   if (down.length && isObj(draft) && isObj(draft.section0) && Array.isArray(draft.section0.mechanism_ids)) {
-    const classes = [...new Set(draft.section0.mechanism_ids.map((id) => `${draft.market}:${val.prefixOf(id)}`))];
+    const classes = [...new Set(draft.section0.mechanism_ids.map((id) => rf1118.classOf(draft.market, id)))];
     if (down.includes('*') || classes.some((c) => down.includes(c))) return { code: 'PREREG_CLASS_DOWNGRADED' };
   }
   return null;

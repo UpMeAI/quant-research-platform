@@ -39,6 +39,14 @@ Human-authored drafts: V10 and V14 are `NOT_APPLICABLE` with the frozen reason `
 
 A thrown error inside a validator is a refusal with its code, never a pass.
 
+Named constants a later RF1118 note may change in one place: `rf1118.CAPS` (stars P4), `rf1118.DOWNGRADE_CLASS_RULE` / `rf1118.classOf` (the downgrade "class" is `<market>:<mechanism-layer-prefix>`, plan-coord ruling 11-22; `*` in `ctx.downgradedClasses` means every class), `validators.REFUSED_ROUTES`.
+
+V9 clock rule (plan-coord ruling 11-22): fail closed. A TRL row not strictly before `k2_frozen_at` is refused with `TRIAL_LEDGER_PRE_REGISTERED_AFTER_FREEZE:<id>:registered_at=<t>:k2_frozen_at=<t>:diff_ms=<n>:<kind>`, `<kind>` = `SKEW_POSSIBLE` (difference within the two hosts' NTP offsets plus tolerance), `ORDERING_ERROR` (larger) or `CLOCK_OFFSET_UNKNOWN` (no preflight). The preflight (`k2_clock_preflight.js`, `clock_preflight.js`) parses saved NTP status text of both hosts (`chronyc tracking`, `timedatectl`, macOS `sntp`) into `ctx.clockOffsets`; unparseable status is an error, never zero.
+
+Authors: a human-authored draft must carry a real `session_ref` (not empty or a placeholder, `PREREG_SCHEMA_AUTHOR_IDENTITY_MISSING`); the author is recorded in the freeze page. V5 (plan-coord ruling 11-22): function-level evidence from a pre-freeze harness run at the pinned code sha is checked with the gate's own rules; the K2-bound re-run is still checked by the existing gate at seal import.
+
+Seams with the merged queue (#139, #140): `ctx.receipt` is the core `RUN_RECEIPT_V1` (key `receipt`, top-level `mounts`) plus an `isolation` block the agent runtime must add (host, bundle sha, network, model calls, canary probes); without it V10 refuses `PREREG_ISOLATION_UNKNOWN:isolation`. `ctx.admissions` uses the `RQ_PROMPT_ADMISSIONS_V1` entry shape; the AI_PREREG system text and its proposed entry are in `prompt.js` (the coordinator moves the entry into `config/research_queue_prompt_admissions.v1.json` as ADMITTED; that file is not edited here because the Q2 test counts its entries).
+
 ## 3. Revisions and the agent's view
 
 The agent gets reason codes only (`agent_view.codes`). Revisions 0-3 are allowed; a refusal at revision 3 gives `next = WAITING_EXTERNAL:PREREG_REFUSED`, otherwise `REVISE`. Refusal files: `<ID>_K2_V1_PREREG_REFUSAL_<attempt>.<draft sha8>.json`, canonical JSON, 0444, never rewritten.

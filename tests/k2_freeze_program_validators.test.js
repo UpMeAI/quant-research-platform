@@ -74,7 +74,10 @@ const PREPARE_CASES = [
   ['V12', 'draft id is not an artifact-safe id', (d) => { d.draft_id = 'bad id!'; }, null, 'PREREG_ARTIFACT_ID'],
   ['V12', 'clock without +08:00', () => {}, { now: '2026-11-24T02:00:00Z' }, 'PREREG_ARTIFACT_CLOCK'],
   ['V14', 'prompt/schema/model triple not admitted', () => {}, { admissions: [] }, 'PREREG_PROMPT_NOT_ADMITTED'],
-  ['V14', 'pro model without an admission', (d) => { d.authored_by.model = 'deepseek-v4-pro'; }, null, 'PREREG_PROMPT_NOT_ADMITTED'],
+  ['V14', 'pro model without a quality-gate record', (d) => { d.authored_by.model = 'deepseek-v4-pro'; }, null, 'PREREG_MODEL_NOT_ADMITTED'],
+  ['V14', 'schema sha is not the K2_DRAFT_V1 pin', (d) => { d.authored_by.schema_sha256 = '1'.repeat(64); }, null, 'PREREG_PROMPT_NOT_ADMITTED'],
+  ['V10', 'receipt has no isolation block (the core receipt alone is not an isolation proof)', () => {}, { receipt: { receipt: 'RUN_RECEIPT_V1', mounts: [] } }, 'PREREG_ISOLATION_UNKNOWN'],
+  ['V1', 'human-authored claim without an author identity', (d) => { d.authored_by = { kind: 'HUMAN_SESSION', session_ref: 'unknown' }; }, null, 'PREREG_SCHEMA_AUTHOR_IDENTITY_MISSING'],
 ];
 
 for (const [v, label, mutate, ctxOver, code] of PREPARE_CASES) {
@@ -155,6 +158,12 @@ test('AQ-37 V9 counter-examples: an arm without a PREREGISTERED row; a row regis
   const late = flow(baseDraft(), {}, { at: '2026-11-24T10:06:00+08:00' });
   assert.equal(late.res.state, 'REFUSED');
   assert.deepEqual(failing(late.res), ['V9']);
+  // plan-coord ruling 11-22: the reason carries both timestamps and their difference; without clock offsets the classification is CLOCK_OFFSET_UNKNOWN
+  assert.ok(codesOf(late.res, 'V9').some((c) => c.includes(`registered_at=2026-11-24T10:06:00+08:00:k2_frozen_at=${fx.NOW_FREEZE}:diff_ms=60000:CLOCK_OFFSET_UNKNOWN`)), codesOf(late.res, 'V9'));
+  const skew = flow(baseDraft(), { clockOffsets: { registrar_offset_ms: 45000, program_offset_ms: -20000, tolerance_ms: 1000 } }, { at: '2026-11-24T10:06:00+08:00', finalOver: { clockOffsets: { registrar_offset_ms: 45000, program_offset_ms: -20000, tolerance_ms: 1000 } } });
+  assert.ok(codesOf(skew.res, 'V9').some((c) => c.endsWith('diff_ms=60000:SKEW_POSSIBLE')), codesOf(skew.res, 'V9'));
+  const real = flow(baseDraft(), {}, { at: '2026-11-24T10:06:00+08:00', finalOver: { clockOffsets: { registrar_offset_ms: 5, program_offset_ms: 3, tolerance_ms: 1000 } } });
+  assert.ok(codesOf(real.res, 'V9').some((c) => c.endsWith('diff_ms=60000:ORDERING_ERROR')), codesOf(real.res, 'V9'));
   assert.ok(codesOf(late.res, 'V9').some((c) => c.startsWith('TRIAL_LEDGER_PRE_REGISTERED_AFTER_FREEZE')), codesOf(late.res, 'V9'));
   // mutant: V9 off -> frozen although registered late (pins that nothing else covers for V9)
   const lateOff = flow(baseDraft(), { testDisableValidators: ['V9'] }, { at: '2026-11-24T10:06:00+08:00', finalOver: { testDisableValidators: ['V9'] } });
