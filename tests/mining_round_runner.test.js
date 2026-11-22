@@ -547,7 +547,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   assert.equal(sha(texts(a)), sha(texts(b)), 'same seed, space and data: byte-identical formula list');
 
   // R1.5：mechanisms 列出机制集合的 sha → 协调会话写裁决文件 → review 一步写 MECHANISM_REVIEW_V1 → 才能 score
-  const noReview = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5'], a.env);
+  const noReview = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00'], a.env);
   assert.equal(noReview.status, 2); assert.equal(JSON.parse(noReview.stderr).error, 'MINE_RUNNER_MECHANISM_REVIEW_MISSING');
   const listed = JSON.parse(cli(['mechanisms', '--out', a.out, '--round', a.g.round_id], a.env).stdout);
   assert.match(listed.mechanism_set_sha256, /^[0-9a-f]{64}$/); assert.equal(listed.review, null);
@@ -560,11 +560,11 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   assert.deepEqual([JSON.parse(rv.stdout).command, JSON.parse(rv.stdout).verdicts], ['review', { APPROVED: 0, REJECTED: listed.survivors.length }]);
   // 复审 #127 P3-4：命令行 score 也在开启之前核字段（字段缺了的补导 → 退出码 2，不开）；排除文件的两个选项要一起给
   const gapDir = require('./_holdout_field_gap').holdoutWithFieldGap(fx.dirs.holdout, '2026-12-15');
-  const gap = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', gapDir, '--min-names-per-day', '5'], a.env);
+  const gap = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', gapDir, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00'], a.env);
   assert.equal(gap.status, 2); assert.equal(JSON.parse(gap.stderr).error, 'MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE'); assert.match(gap.stderr, /total_mv:2026-12-15:0/);
-  const half = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--field-exclusions', gapDir], a.env);
+  const half = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00', '--field-exclusions', gapDir], a.env);
   assert.equal(half.status, 2); assert.equal(JSON.parse(half.stderr).error, 'MINE_RUNNER_OPTION_REQUIRED'); assert.match(half.stderr, /--field-exclusions-sha256/);
-  const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5'], a.env);
+  const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00'], a.env);
   assert.equal(s.status, 0, s.stderr);
   const sOut = JSON.parse(s.stdout);
   assert.deepEqual([sOut.opened, sOut.records, sOut.passes, sOut.status], [true, a.g.selected, 0, 'CLOSED']);

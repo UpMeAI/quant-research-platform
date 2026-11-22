@@ -28,7 +28,7 @@ Every stage fails closed: an exception inside a stage is `V<n>_STAGE_ERROR`, nev
 `v4 {market, runs [{cost_model_ref, cost_book, cost_flags, cost_breakdown}], fills [{date, code, st, side, open, prevClose, participation}]}`,
 `v5 {declaration {tests [{id, kind, metric, op, threshold, multiplier?}]}, results [{id, value}]}`, `v6 {s4Contract}`.
 
-Access log: JSONL, one row per read `{seq, principal, op: READ|HOLDOUT_READ, dataset, from, to, candidateSha256?, prev, hash}`;
+Access log: JSONL, one row per read `{seq, principal, op: READ|HOLDOUT_READ|HOLDOUT_READ_REFUSED, dataset, from, to, candidateSha256?, prev, hash}`; `HOLDOUT_READ_REFUSED` (W24, plan-coord ruling 11-23) is an attempt the read lock refused: not a read, V-2 passes without a successful read, the W24 checker lists it as an incident;
 `hash = sha256(canonicalJson(row without hash))`, `prev` = previous `hash` (first row all zeros), `seq` from 1. A log belongs to one candidate lineage.
 
 V6 file contract (until W16 lands; same shape the engine will return): `{candidateId, s4Evidence: {verdict: PASS|FAIL|INSUFFICIENT|INVALID, reasonCodes, sha256}}`.

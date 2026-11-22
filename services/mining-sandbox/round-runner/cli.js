@@ -77,6 +77,9 @@ function main(argv) {
     if (isLlm && o.seed !== undefined) throw new runner.RunnerError('MINE_RUNNER_OPTION_NOT_FOR_LLM', '--seed');
     required(o, ['out', 'lane', 'tail', ...(o.resume ? [] : ['holdout-ref', 'holdout-sha256', ...(isLlm ? [] : ['seed'])])]);
     const { outDir } = runner.start({ outDir: o.out });
+    // W24：生成方进程的读锁（不许读留出段目录，QRP_HOLDOUT_DATA_DIRS）与访问记录。轮 id 在开轮之后才有：记录先缓冲，开轮（或续跑）后绑到本轮的文件；被拒的读也记
+    const accessLog = require('../../independent-verifier/access-log').deferred();
+    require('../../independent-verifier/launcher').lockGenerator({ principal: 'mining-generator', allowWriteRoot: outDir, log: accessLog });
     // 数据先核（复审第 4 条）：挖掘段面板建好、逐日覆盖过了下限，才开轮、封存、记尝试
     const sources = sourcesOf(o);
     const floor = o['min-names-per-day'] === undefined ? runner.COVERAGE_FLOOR : { min_names_per_day: Number(o['min-names-per-day']) };
@@ -94,26 +97,27 @@ function main(argv) {
       if (ping.outcome !== 'OK') return { command: 'generate', round_id: roundId || null, status: String(ping.outcome).startsWith('WAITING_') ? 'WAITING' : 'STOPPED', llm_state: ping.outcome, ping };
       llmOpts.ping = ping;
     }
-    if (roundId) runner.noteResume({ roundId, coverageFloor: floor }); // 续跑用的下限也写进台账
+    if (roundId) { accessLog.bind(runner.accessLogFile(outDir, roundId)); runner.noteResume({ roundId, coverageFloor: floor }); } // 续跑用的下限也写进台账
     if (!roundId) {
       const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null, coverageFloor: floor });
       roundId = r.round_id;
+      accessLog.bind(runner.accessLogFile(outDir, roundId));
       runner.sealHoldout({ roundId, dataRef: o['holdout-ref'], dataSha256: o['holdout-sha256'] });
     }
     const wait = isLlm ? { pollMs: llmOpts.pollMs, waitPolls: llmOpts.waitSeconds === null ? null : Math.ceil(llmOpts.waitSeconds * 1000 / (llmOpts.pollMs || require('../llm').loadConfig().config.exchange.poll_ms)) } : {};
-    const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel, llm: wait });
+    const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel, llm: wait, accessLog });
     if (g.llm && g.llm.halted) {
       const halted = { command: 'generate', round_id: roundId, status: String(g.llm.state).startsWith('WAITING_') ? 'WAITING' : 'STOPPED', round_status: g.status, llm_state: g.llm.state, total: g.total,
         attempts: g.attempts, llm: g.llm, ping: llmOpts.ping };
       // 预算 / 能力用尽（token 上限、调用次数上限、连续空应答）= 生成到此为止：有尝试就选择，让本轮能继续往下走（退出码仍是 3，让人看到它是被截断的）。
       // 没有一个尝试、请求体不合规、等待态：不选择，由协调会话看（fail-evaluation 或续跑）
       if (g.llm.generation_closed && g.total > 0) {
-        const s = runner.select({ roundId, sources, outDir });
+        const s = runner.select({ roundId, sources, outDir, accessLog });
         return { ...halted, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length };
       }
       return halted;
     }
-    const s = runner.select({ roundId, sources, outDir });
+    const s = runner.select({ roundId, sources, outDir, accessLog });
     return { command: 'generate', round_id: roundId, status: g.status, total: g.total, attempts: g.attempts, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length,
       ...(isLlm ? { llm: g.llm, ping: { outcome: llmOpts.ping.outcome, model_reported: llmOpts.ping.model_reported, served_version: llmOpts.ping.served_version } } : {}) };
   }
@@ -158,17 +162,19 @@ function main(argv) {
   const hasEx = o['field-exclusions'] !== undefined; const hasExSha = o['field-exclusions-sha256'] !== undefined;
   if (hasEx !== hasExSha) throw new runner.RunnerError('MINE_RUNNER_OPTION_REQUIRED', hasEx ? '--field-exclusions-sha256' : '--field-exclusions');
   const fieldExclusions = hasEx ? { file: o['field-exclusions'], sha256: o['field-exclusions-sha256'] } : null;
+  // W24：打分的执行器是受信的求值方，不受生成方的读锁约束，但每次留出段读取都领一次授权、写一行 HOLDOUT_READ（访问记录在本轮的运行目录里）
+  const accessLog = require('../../independent-verifier/access-log').writer(runner.accessLogFile(outDir, o.round));
   if (cmd === 'rescore') {
     // R1.8：开启之后崩溃，恰好一次同选集重打分（原因与崩溃日志写进留出段保管的第二个事件）
     required(o, ['reason', 'crash-log']);
     const log = require('fs').readFileSync(o['crash-log'], 'utf8');
     const rr = runner.rescore({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions });
+      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions, accessLog });
     const closedR = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
     return { command: 'rescore', round_id: o.round, rescored: rr.rescored, records: rr.records.length, passes: closedR.gmine_passes, status: closedR.status };
   }
   const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-    factorSeriesDir: o['factor-series'] || null, fieldExclusions });
+    factorSeriesDir: o['factor-series'] || null, fieldExclusions, accessLog });
   const closed = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };
 }

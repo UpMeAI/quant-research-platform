@@ -62,12 +62,12 @@ function v1(bundle, ctx) {
 
 // ── V-2 ──────────────────────────────────────────────────────────────────────
 
-/** 访问记录：逐行 JSON；hash = sha256(canonicalJson(行去掉 hash))，prev 接上一行的 hash，第一行 prev 全零，seq 从 1 连续。 */
+/** 访问记录（W24 裁定 11-23：HOLDOUT_READ_REFUSED 是被读锁拒绝的尝试，不是读；V-2 只数成功的读）：逐行 JSON；hash = sha256(canonicalJson(行去掉 hash))，prev 接上一行的 hash，第一行 prev 全零，seq 从 1 连续。 */
 function parseAccessLog(bytes) {
   const rows = bytes.toString('utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return stop('ACCESS_LOG_ROW_INVALID'); } });
   let prev = ZERO;
   rows.forEach((r, i) => {
-    if (!isObj(r) || !Number.isInteger(r.seq) || typeof r.principal !== 'string' || !['READ', 'HOLDOUT_READ'].includes(r.op) || !DATE.test(r.from || '') || !DATE.test(r.to || '') || r.from > r.to) stop('ACCESS_LOG_ROW_INVALID');
+    if (!isObj(r) || !Number.isInteger(r.seq) || typeof r.principal !== 'string' || !['READ', 'HOLDOUT_READ', 'HOLDOUT_READ_REFUSED'].includes(r.op) || !DATE.test(r.from || '') || !DATE.test(r.to || '') || r.from > r.to) stop('ACCESS_LOG_ROW_INVALID');
     const { hash, ...body } = r;
     if (r.seq !== i + 1 || r.prev !== prev || hash !== sha(canonicalJson(body))) stop('ACCESS_LOG_CHAIN_BROKEN');
     prev = hash;
@@ -81,7 +81,7 @@ function v2(bundle, ctx, cfg) {
   const codes = [];
   const generators = new Set(cfg.generatorPrincipals);
   for (const r of rows) {
-    if (!generators.has(r.principal)) continue;
+    if (!generators.has(r.principal) || r.op === 'HOLDOUT_READ_REFUSED') continue; // a refused attempt read nothing (W24 ruling 11-23): an incident for the checker, not a V-2 failure
     if (r.op === 'HOLDOUT_READ') codes.push('GENERATOR_HOLDOUT_READ');
     else if (r.to > SEGMENTS.VALIDATION.to) codes.push('GENERATOR_READ_BEYOND_VALIDATION');
   }
