@@ -12,6 +12,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const W = require('./_lab_fixture');
 const VF = require('./_verifier_fixture');
 const lab = require('../services/research-lab-e2e');
@@ -77,6 +78,9 @@ test('full chain on the fixture: card to feedback, terminal FROZEN_AWAITING_HOLD
   assert.equal(JSON.parse(lineage.verdict.text).terminal_state, 'FROZEN_AWAITING_HOLDOUT');
   assert.equal(lineage.terminal.state, 'FROZEN_AWAITING_HOLDOUT');
   assert.equal(lineage.terminal.earliest_holdout_read, '2027-01-01T00:00:00+08:00');
+  assert.deepEqual(lineage.seen_ranges, [{ from: W.HOLDOUT_PATH_DATE, to: W.HOLDOUT_PATH_DATE, source: 'REVIEW_CARD' }], 'the fact range the card read is SEEN for the candidate');
+  assert.equal(lineage.final_test.kind, 'HOLDOUT');
+  assert.deepEqual(lineage.incidents, []);
 
   const acc = lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services });
   assert.equal(acc.schema, 'LAB_ACCEPTANCE_V1');
@@ -174,17 +178,29 @@ test('legal waiting states are not refusals: the Mac registrar receipt is extern
 
 /* ----------------------------------------------------------------------- acceptance checker: the four refusal cases */
 
-test('refusal: a generator that reads the holdout is flagged (V-2 semantics), even when the read was refused; no other condition hides it', async () => {
-  const { w, res } = await complete();
-  const out = copyOut(w, 'out-gen-holdout');
-  const lin = json(path.join(out, 'lineage.json'));
-  accessLog.writer(path.join(out, lin.access_log.path)).record({ principal: 'mining-generator', op: 'HOLDOUT_READ', dataset: 'HOLDOUT_DATA_DIR', from: '2026-10-19', to: '2026-12-31', refused: true, code: 'VERIFIER_HOLDOUT_READ_REFUSED' });
+test('refusal: a generator that SUCCESSFULLY reads the holdout fails C3; a refused attempt is an incident (listed, not a read) and C3 still passes', async () => {
+  const { w } = await complete();
+  let out = copyOut(w, 'out-gen-holdout');
+  let lin = json(path.join(out, 'lineage.json'));
+  accessLog.writer(path.join(out, lin.access_log.path)).record({ principal: 'mining-generator', op: 'HOLDOUT_READ', dataset: 'HOLDOUT_DATA_DIR', from: '2026-10-19', to: '2026-12-31' });
+  const bad = verdictOf(lab.check({ out_dir: out, as_of: AS_OF, services: w.services }), 'C3_NO_GENERATOR_HOLDOUT_ACCESS');
+  assert.equal(bad.verdict, 'FAIL');
+  assert.ok(bad.codes.includes('V2_GENERATOR_HOLDOUT_READ'), JSON.stringify(bad.codes));
+  const w2 = await buildWorld({ incident: true });
+  const res2 = lab.run(w2.job, w2.services);
+  assert.equal(res2.status, 'COMPLETE');
+  const c3 = verdictOf(lab.check({ out_dir: w2.outDir, as_of: AS_OF, services: w2.services }), 'C3_NO_GENERATOR_HOLDOUT_ACCESS');
+  assert.equal(c3.verdict, 'PASS', JSON.stringify(c3));
+  assert.equal(c3.incidents.length, 1, 'every attempt is listed');
+  assert.deepEqual([c3.incidents[0].principal, c3.incidents[0].op, c3.incidents[0].code], ['mining-generator', 'HOLDOUT_READ_REFUSED', 'VERIFIER_HOLDOUT_READ_REFUSED']);
+  assert.equal(json(res2.lineage_path).incidents.length, 1, 'the lineage report has an incidents section');
+});
   const acc = lab.check({ out_dir: out, as_of: AS_OF, services: w.services });
   const c3 = verdictOf(acc, 'C3_NO_GENERATOR_HOLDOUT_ACCESS');
-  assert.equal(c3.verdict, 'FAIL');
-  assert.ok(c3.codes.includes('V2_GENERATOR_HOLDOUT_READ'), JSON.stringify(c3.codes));
-  assert.equal(acc.overall, 'FAIL');
-  assert.equal(res.status, 'COMPLETE');
+  assert.equal(c3.codes.filter((c) => c.startsWith('V2_')).length, 0, JSON.stringify(c3.codes));
+  assert.equal(c3.incidents.length, 1, 'every attempt is listed');
+  assert.deepEqual([c3.incidents[0].principal, c3.incidents[0].op, c3.incidents[0].code], ['mining-generator', 'HOLDOUT_READ_REFUSED', 'VERIFIER_HOLDOUT_READ_REFUSED']);
+  assert.equal(c3.codes.includes('ACCESS_LOG_SHA_MISMATCH'), true, 'the edited copy no longer matches the recorded sha (that, not the incident, is what fails here)');
 });
 
 test('refusal: a review-agent log that touches anything but the fact pack, or a holdout row, fails C3', async () => {
@@ -251,25 +267,44 @@ test('refusal: a non-deterministic verdict fails C4 (verdict bytes edited; an en
   assert.ok(c4.codes.includes('VERDICT_NOT_DETERMINISTIC'), JSON.stringify(c4.codes));
 });
 
-test('C5: feedback must be visible in the next fact pack; a producer pack without it fails, the producer pack that carries it passes', async () => {
+/** The Q1 producer (services/research-queue/rq/producer.py) merges the lab's facts file into the next card's bundle; the test calls the producer, not a copy of it. */
+function mergeViaProducer(bundle, feedbackFacts) {
+  const r = spawnSync('python3', ['-c', `import sys, json
+sys.path.insert(0, 'services/research-queue')
+from rq import producer
+d = json.load(sys.stdin)
+d['bundle']['pack'] = producer.merge_lab_feedback(d['bundle']['pack'], [d['facts']])
+print(json.dumps(d['bundle']))`], { cwd: path.join(__dirname, '..'), input: JSON.stringify({ bundle, facts: feedbackFacts }), encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  return JSON.parse(r.stdout);
+}
+
+test('C5: the lab writes LAB_FEEDBACK_FACTS_V1 for the queue intake; the Q1 producer merges it into the next card bundle with its own ids; C5 checks that bundle cites it', async () => {
   const { w } = await complete();
   const lin = json(path.join(w.outDir, 'lineage.json'));
-  const labPack = json(path.join(w.outDir, lin.chain[10].artifact_path.replace('feedback.json', 'next_fact_pack.json')));
-  const fact = labPack.facts[labPack.facts.length - 1];
-  assert.equal(fact.id, 'F-006');
-  assert.deepEqual(Object.keys(fact.value).sort(), ['candidate_id', 'reason_codes', 'terminal_state', 'verdict'], 'generator-facing: no metric of any kind');
-  assert.equal(fact.value.verdict, 'pending');
-  assert.equal(fact.value.terminal_state, 'FROZEN_AWAITING_HOLDOUT');
-  assert.equal(require('../services/research-queue-agent').checkPack(labPack, { purpose: 'CARD', maxTokens: Infinity }).ok, true);
-  const plain = verdictOf(lab.check({ out_dir: w.outDir, as_of: AS_OF, services: { ...w.services }, next_pack: F.makePack({ week_id: '2026-W48' }) }), 'C5_FEEDBACK_IN_NEXT_PACK');
+  const dir = path.dirname(lin.chain[10].artifact_path);
+  const facts = json(path.join(w.outDir, dir, 'feedback_facts.json'));
+  assert.equal(facts.schema, 'LAB_FEEDBACK_FACTS_V1');
+  assert.equal(facts.facts.length, 1);
+  assert.ok(!('id' in facts.facts[0]), 'ids belong to the producer');
+  assert.deepEqual(Object.keys(facts.facts[0].value).sort(), ['candidate_id', 'reason_codes', 'terminal_state', 'verdict'], 'generator-facing: no metric of any kind');
+  assert.equal(facts.facts[0].value.verdict, 'pending');
+  const base = w.services.bundle();
+  const merged = mergeViaProducer(base, facts);
+  assert.equal(merged.pack.facts.length, base.pack.facts.length + 1);
+  assert.equal(merged.pack.facts[merged.pack.facts.length - 1].id, 'F-006');
+  assert.equal(require('../services/research-queue-agent').checkPack(merged.pack, { purpose: 'CARD', maxTokens: Infinity }).ok, true);
+  const good = lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services, next_bundle: merged });
+  assert.equal(verdictOf(good, 'C5_FEEDBACK_IN_NEXT_PACK').verdict, 'PASS', JSON.stringify(verdictOf(good, 'C5_FEEDBACK_IN_NEXT_PACK')));
+  const plain = verdictOf(lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services, next_bundle: base }), 'C5_FEEDBACK_IN_NEXT_PACK');
   assert.equal(plain.verdict, 'FAIL');
-  assert.ok(plain.codes.includes('FEEDBACK_NOT_IN_NEXT_PACK'), JSON.stringify(plain.codes));
-  const real = lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services, next_pack: labPack });
-  assert.equal(verdictOf(real, 'C5_FEEDBACK_IN_NEXT_PACK').verdict, 'PASS');
-  assert.equal(real.next_pack_source, 'PRODUCER');
-  const none = verdictOf(lab.check({ out_dir: w.outDir, as_of: AS_OF, services: { ...w.services, nextPack: undefined } }), 'C5_FEEDBACK_IN_NEXT_PACK');
-  assert.equal(none.verdict, 'PASS', 'the lab-written next pack is used when no producer pack exists yet, and the result says so');
-  assert.equal(lab.check({ out_dir: w.outDir, as_of: AS_OF, services: { ...w.services, nextPack: undefined } }).next_pack_source, 'LAB_OUTPUT');
+  assert.ok(plain.codes.includes('FEEDBACK_NOT_IN_NEXT_BUNDLE'), JSON.stringify(plain.codes));
+  const none = verdictOf(lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services }), 'C5_FEEDBACK_IN_NEXT_PACK');
+  assert.equal(none.verdict, 'FAIL');
+  assert.ok(none.codes.includes('NEXT_BUNDLE_NOT_PROVIDED'));
+  const out = copyOut(w, 'out-bad-facts');
+  fs.writeFileSync(path.join(out, dir, 'feedback_facts.json'), '{}');
+  assert.ok(verdictOf(lab.check({ out_dir: out, as_of: AS_OF, services: w.services, next_bundle: merged }), 'C5_FEEDBACK_IN_NEXT_PACK').codes.includes('FEEDBACK_FACTS_INVALID'));
 });
 
 /* ----------------------------------------------------------------------- holdout timing (RF1116) */
@@ -350,4 +385,78 @@ test('verifier input that the lab assembles: candidate, K2 and access log come f
   assert.equal(bundle.v2.accessLog.sha256, 'e'.repeat(64));
   assert.equal(bundle.v1.files.k2.sha256, d.bundle.v1.files.k2.sha256);
   assert.equal(bundle.asOf, '2027-01-06');
+});
+
+/* ----------------------------------------------------------------------- plan-coord rulings 11-23: SEEN by review, forward path, NOT_SELECTED, feedback always */
+
+test('ruling 1: a candidate born from the W47 card (facts SEEN, overlapping the RF1116 holdout) cannot use that holdout: its terminal path is FORWARD, recorded in the lineage, and the checker expects it', async () => {
+  const w = await buildWorld({ factDate: W.W47_DATE });
+  const res = lab.run(w.job, w.services);
+  assert.equal(res.status, 'COMPLETE', JSON.stringify(res));
+  assert.equal(res.terminal_state, 'FROZEN_AWAITING_FORWARD');
+  const lin = json(res.lineage_path);
+  assert.deepEqual(lin.seen_ranges, [{ from: W.W47_DATE, to: W.W47_DATE, source: 'REVIEW_CARD' }]);
+  assert.deepEqual(lin.final_test, { kind: 'FORWARD', from: '2026-11-21', reason: 'SEEN_OVERLAPS_RF1116_HOLDOUT' });
+  assert.deepEqual(lin.chain.filter((l) => l.status === 'PENDING_FORWARD').map((l) => l.name), ['VERIFY', 'SEAL']);
+  assert.equal(JSON.parse(lin.verdict.text).seal.destination, 'AWAIT_FORWARD');
+  const bundle = w.services.bundle();
+  for (const at of [AS_OF, '2027-03-01T00:00:00+08:00']) {
+    const acc = lab.check({ out_dir: w.outDir, as_of: at, services: w.services, next_bundle: bundle });
+    assert.deepEqual(['C1_COMPLETE_LINEAGE', 'C2_ALL_ATTEMPTS_IN_LEDGER', 'C3_NO_GENERATOR_HOLDOUT_ACCESS', 'C4_DETERMINISTIC_VERDICT'].map((id) => verdictOf(acc, id).verdict), ['PASS', 'PASS', 'PASS', 'PASS'], `${at} ${JSON.stringify(acc.conditions)}`);
+  }
+  // the exempt scorer reading the RF1116 holdout for this candidate is a final test on SEEN data
+  const out = copyOut(w, 'out-seen-holdout');
+  accessLog.writer(path.join(out, lin.access_log.path)).record({ principal: 'holdout-scorer', op: 'HOLDOUT_READ', dataset: 'CN_A_HOLDOUT_R1', from: '2026-10-19', to: '2026-12-31', candidateSha256: lin.candidate.sha256 });
+  const c3 = verdictOf(lab.check({ out_dir: out, as_of: '2027-02-01T00:00:00+08:00', services: w.services }), 'C3_NO_GENERATOR_HOLDOUT_ACCESS');
+  assert.equal(c3.verdict, 'FAIL');
+  assert.ok(c3.codes.includes('FINAL_TEST_OVERLAPS_SEEN'), JSON.stringify(c3.codes));
+  // after 2027-01-01 the run does not wait for holdout scoring: the forward path has its own wait
+  const w2 = await buildWorld({ factDate: W.W47_DATE, asOf: '2027-01-06T10:00:00+08:00' });
+  assert.equal(lab.run(w2.job, w2.services).terminal_state, 'FROZEN_AWAITING_FORWARD');
+});
+
+test('ruling 1 (W05 semantics): the holdout-path claim goes through V-2 UNSEEN marks built from the lineage SEEN ranges', async () => {
+  const { w } = await complete();
+  const lin = json(path.join(w.outDir, 'lineage.json'));
+  const marks = lab.seen.marksFor({ familyId: 'X', seenRanges: [{ from: '2026-10-25', to: '2026-10-25', source: 'REVIEW_CARD' }] });
+  const trials = require('../services/trial-ledger');
+  const pieces = trials.segmentsFor('X', '2026-10-19', '2026-12-31', { marks }).pieces;
+  assert.ok(pieces.some((p) => p.label === 'SEEN' && p.from === '2026-10-25'), 'the seen day is SEEN inside the holdout');
+  assert.ok(pieces.some((p) => p.label === 'UNSEEN'), 'the rest of the holdout is UNSEEN');
+  assert.equal(lab.seen.finalTestOf([{ from: '2026-09-14', to: '2026-09-14' }]).kind, 'HOLDOUT');
+  assert.deepEqual(lab.seen.finalTestOf([{ from: '2026-12-31', to: '2026-12-31' }]), { kind: 'FORWARD', from: '2027-01-01', reason: 'SEEN_OVERLAPS_RF1116_HOLDOUT' });
+  assert.equal(lin.final_test.kind, 'HOLDOUT');
+});
+
+test('ruling 3: not selected by the validation rule is S2 FAIL (不做) with that reason code, sealed to the failure library, and feedback says fail', async () => {
+  const w = await buildWorld({ formulas: ['rank(ret_1d)', 'rank((-ret_1d))', 'zscore((-ret_1d))', 'rank(pb)', 'rank(amount)'], candidateFormula: 'rank(ret_1d)' });
+  const res = lab.run(w.job, w.services);
+  assert.equal(res.status, 'COMPLETE', JSON.stringify(res));
+  assert.equal(res.terminal_state, 'NOT_SELECTED_BY_VALIDATION');
+  const verdict = JSON.parse(json(res.lineage_path).verdict.text);
+  const s2 = verdict.engine.find((e) => e.stage === 'S2');
+  assert.deepEqual([s2.verdict, s2.nextAction, s2.reasonCodes], ['FAIL', 'SEAL_NOT_DO_TO_FAILURE_LIBRARY', ['S2_NOT_SELECTED_BY_VALIDATION']]);
+  assert.equal(verdict.seal.destination, 'FAILURE_LIBRARY');
+  const lin = json(res.lineage_path);
+  assert.equal(json(path.join(w.outDir, path.dirname(lin.chain[10].artifact_path), 'feedback_facts.json')).facts[0].value.verdict, 'fail');
+  const merged = mergeViaProducer(w.services.bundle(), json(path.join(w.outDir, path.dirname(lin.chain[10].artifact_path), 'feedback_facts.json')));
+  const acc = lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services, next_bundle: merged });
+  assert.equal(acc.overall, 'PASS', JSON.stringify(acc.conditions));
+});
+
+test('ruling 5: a verifier FAIL still writes feedback (last step); C5 checks it; the run is REFUSED with the verifier reason code', async () => {
+  const w = await buildWorld({ asOf: '2027-01-06T10:00:00+08:00' });
+  w.services.holdoutScored = () => true;
+  w.services.evidence = { verifier: () => { const v = VF.build(); return { bundle: v.bundle, ctx: v.ctx, s2: { body: P.BODY.S2.PASS } }; } };
+  const r = lab.run(w.job, w.services);
+  assert.deepEqual([r.status, r.stopped_at], ['REFUSED', 'VERIFY']);
+  assert.match(r.reason_code, /^LAB_VERIFY_V1_/);
+  assert.equal(r.links[r.links.length - 1].name, 'FEEDBACK', 'feedback is always the last step');
+  const dir = path.dirname(r.links[r.links.length - 1].artifact_path);
+  const facts = json(path.join(w.outDir, dir, 'feedback_facts.json'));
+  assert.equal(facts.facts[0].value.verdict, 'fail');
+  assert.equal(facts.facts[0].value.terminal_state, 'VERIFIER_FAIL');
+  assert.ok(facts.facts[0].value.reason_codes[0].startsWith('V1_'));
+  const merged = mergeViaProducer(w.services.bundle(), facts);
+  assert.equal(verdictOf(lab.check({ out_dir: w.outDir, as_of: '2027-01-06T10:00:00+08:00', services: w.services, next_bundle: merged }), 'C5_FEEDBACK_IN_NEXT_PACK').verdict, 'PASS');
 });

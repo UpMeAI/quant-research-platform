@@ -64,6 +64,7 @@ test('access-log writer: rows are {seq, principal, op, dataset, from, to, prev, 
   assert.equal(accessLog.verifyBytes(fs.readFileSync(file)).ok, true);
   const bad = fs.readFileSync(file, 'utf8').replace('2023-12-29', '2023-12-28');
   assert.equal(accessLog.verifyBytes(Buffer.from(bad)).ok, false, 'an edited row breaks the chain');
+  assert.ok(accessLog.OPS.includes('HOLDOUT_READ_REFUSED'));
   assert.throws(() => w.record({ principal: 'mining-generator', op: 'WRITE', dataset: 'x', from: '2020-06-01', to: '2020-06-02' }), code(/ACCESS_LOG_ROW_INVALID/));
   assert.throws(() => w.record({ principal: 'mining-generator', op: 'READ', dataset: 'x', from: '2020-06-03', to: '2020-06-02' }), code(/ACCESS_LOG_ROW_INVALID/));
 });
@@ -92,7 +93,7 @@ function child(script, env = {}) {
   return spawnSync(process.execPath, ['-e', script], { env: { ...cleanEnv(), ...env }, encoding: 'utf8', cwd: ROOT });
 }
 
-test('launcher: a generator process that reads the holdout dir is refused (VERIFIER_HOLDOUT_READ_REFUSED) and the refusal is logged as a generator HOLDOUT_READ that V-2 flags; writes outside the output dir stay refused', () => {
+test('launcher: a generator process that reads the holdout dir is refused (VERIFIER_HOLDOUT_READ_REFUSED) and the refusal is logged as HOLDOUT_READ_REFUSED (an incident, not a read); writes outside the output dir stay refused', () => {
   const work = tmp('w24-lock-'); const holdout = path.join(work, 'holdout'); const out = path.join(work, 'out');
   fs.mkdirSync(holdout); fs.mkdirSync(out); fs.writeFileSync(path.join(holdout, 'prices.csv'), 'x\n'); fs.writeFileSync(path.join(work, 'elsewhere.txt'), 'y\n');
   const logFile = path.join(out, 'access_log.jsonl');
@@ -111,11 +112,12 @@ test('launcher: a generator process that reads the holdout dir is refused (VERIF
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(JSON.parse(r.stdout), { read: 'VERIFIER_HOLDOUT_READ_REFUSED', readdir: 'VERIFIER_HOLDOUT_READ_REFUSED', write: 'MINE_SANDBOX_WRITE_REFUSED', other: 'y' });
   const rows = lines(logFile);
-  assert.deepEqual(rows.map((x) => [x.principal, x.op, Boolean(x.refused)]), [['mining-generator', 'HOLDOUT_READ', true], ['mining-generator', 'HOLDOUT_READ', true], ['mining-generator', 'READ', false]]);
+  assert.deepEqual(rows.map((x) => [x.principal, x.op]), [['mining-generator', 'HOLDOUT_READ_REFUSED'], ['mining-generator', 'HOLDOUT_READ_REFUSED'], ['mining-generator', 'READ']], 'plan-coord ruling 11-23 (2): refused is its own op, not a read');
   assert.equal(rows[0].code, 'VERIFIER_HOLDOUT_READ_REFUSED');
   assert.deepEqual([rows[0].from, rows[0].to], [SEGMENTS.HOLDOUT.from, SEGMENTS.HOLDOUT.to]);
   assert.equal(accessLog.verifyBytes(fs.readFileSync(logFile)).ok, true);
-  assert.ok(v2Codes(logFile).includes('V2_GENERATOR_HOLDOUT_READ') || v2Codes(logFile).includes('GENERATOR_HOLDOUT_READ'), 'V-2 flags a generator holdout read attempt');
+  assert.deepEqual(v2Codes(logFile), [], 'a refused attempt is not a read: V-2 passes when there was no successful read');
+  assert.ok(v2Codes(logFile, {}).length === 0);
 });
 
 test('launcher: only generator principals take the lock; the holdout scorer and unknown names are refused; the holdout dirs also come from QRP_HOLDOUT_DATA_DIRS', () => {
@@ -269,6 +271,6 @@ test('AQ agent CLI: takes the lock, logs its fact-pack read as review-agent next
     assert.match(refused.stderr, /VERIFIER_HOLDOUT_READ_REFUSED/);
     assert.deepEqual(fs.readdirSync(path.join(dir, 'out2')), ['access_log.jsonl']);
     const rr = lines(path.join(dir, 'out2', 'access_log.jsonl'));
-    assert.deepEqual([rr[0].principal, rr[0].op, rr[0].refused], ['review-agent', 'HOLDOUT_READ', true]);
+    assert.deepEqual([rr[0].principal, rr[0].op], ['review-agent', 'HOLDOUT_READ_REFUSED']);
   } finally { srv.close(); }
 });
