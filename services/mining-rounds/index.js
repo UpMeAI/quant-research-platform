@@ -39,13 +39,13 @@ const LIMITS = Object.freeze({ candidates_per_round: 200, rounds_per_month: 2, p
 /**
  * 每月上限的例外（RF1116 修订 2026-11「A 股加一轮 LLM 挖掘」§1.1，Owner 11-22「选b」）：只有 (CN_A, 2026-11)（北京时间）是 3 轮；12 月起、别的市场不变（LIMITS.rounds_per_month）。
  * 页引用：path 是协调目录里的页，sha256 是它的字节，repo_copy 是仓库里的逐字节副本（tests/mining_cna_extra_round.test.js 核副本与 sha 一致）。
- * 修订页冻结前引的是草稿（副本在 docs/evidence/，不进 docs/freeze/：那里只放冻结页，tests/mining_gate_freeze.test.js 守着）；
- * 冻结后在同一个提交里换成冻结页：副本进 docs/freeze/ 并加进那条守卫的名单，path / sha256 / repo_copy 一起改。
+ * 引的是冻结页 RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND_FREEZE_1（plan-coord，2026-11-22 17:16 CST，Owner 确认后冻结）；副本在 docs/freeze/，
+ * 并在 tests/mining_gate_freeze.test.js 的 FROZEN_COPIES 名单里（那里只放冻结页）。
  */
 const MONTHLY_CAP_EXCEPTIONS = Object.freeze([Object.freeze({
   market: 'CN_A', month: '2026-11', rounds_per_month: 3,
-  amendment: Object.freeze({ path: 'artifacts/coordinator/RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND.draft.md', sha256: '571e145e21ab46854fbf5b8c94da3784a3045e98f9fcde32d0167364159b43aa',
-    repo_copy: 'docs/evidence/rf1116-cna-extra-round-v1/RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND.draft.md' }),
+  amendment: Object.freeze({ path: 'artifacts/coordinator/RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND_FREEZE_1.md', sha256: '14c9ad6ddebdfc1ddabd893fb11b126c9b32eba1623d4e83160e0c3c54572fc1',
+    repo_copy: 'docs/freeze/RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND_FREEZE_1.md' }),
 })]);
 const monthlyCapOf = (market, month) => {
   const x = MONTHLY_CAP_EXCEPTIONS.find((e) => e.market === market && e.month === month);

@@ -2,7 +2,7 @@
 
 Source: the signed RF1116 text (`fd22876f…`, signature page `39f8c17c…`), §2.4, §3.3, §3.4, §6 item 2, §8.1 row P1, §8.2, and §8.3 items 8–10. It also covers the coordinator's addition of 2026-11-17 (mined lineage needs the race route).
 
-Amendment 2026-11 (CN_A extra round, plan-coordinator): `RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND`, sha256 `571e145e21ab46854fbf5b8c94da3784a3045e98f9fcde32d0167364159b43aa` (a draft until the Owner confirms in the plan-coordinator session; the copy is `docs/evidence/rf1116-cna-extra-round-v1/`). It changes two counts only: CN_A in 2026-11 may open 3 rounds, and R1.6's per-segment count leaves out a `FAILED_EVALUATION` round with 0 selected and no holdout open.
+Amendment 2026-11 (CN_A extra round, plan-coordinator): `RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND_FREEZE_1.md`, sha256 `14c9ad6ddebdfc1ddabd893fb11b126c9b32eba1623d4e83160e0c3c54572fc1` (frozen; the copy is `docs/freeze/RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND_FREEZE_1.md`). It changes two counts only: CN_A in 2026-11 may open 3 rounds, and R1.6's per-segment count leaves out a `FAILED_EVALUATION` round with 0 selected and no holdout open.
 
 QRP side only. The sandbox process writes no ledger (see `MINING_SANDBOX_V1`). Round manifests, candidate trial rows and holdout custody all go through these services.
 

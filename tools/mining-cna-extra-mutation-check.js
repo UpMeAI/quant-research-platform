@@ -32,7 +32,7 @@ const MUTANTS = [
   { id: 'N12', guard: 'FAILED_PARTIAL is not left out', file: RRC, find: "if (r.status !== 'FAILED_EVALUATION' || r.holdout_opens) return false;", replace: "if (!['FAILED_EVALUATION', 'FAILED_PARTIAL'].includes(r.status) || r.holdout_opens) return false;", tests: [NEW] },
   { id: 'N13', guard: 'the holdout count uses the exclusion', file: RRC, find: 'need(sharing.filter((r) => !excludedFromHoldoutCount(r)).length < LIMITS.rounds_per_holdout,', replace: 'need(sharing.length < LIMITS.rounds_per_holdout,', tests: [NEW] },
   { id: 'N14', guard: 'a segment still serves at most 2 counted rounds', file: RRC, find: 'need(sharing.filter((r) => !excludedFromHoldoutCount(r)).length < LIMITS.rounds_per_holdout,', replace: 'need(sharing.filter((r) => !excludedFromHoldoutCount(r)).length < LIMITS.rounds_per_holdout + 1,', tests: [NEW] },
-  { id: 'N15', guard: 'the cited page sha is checked against the repo copy', file: RRC, find: "sha256: '571e145e21ab46854fbf5b8c94da3784a3045e98f9fcde32d0167364159b43aa',", replace: "sha256: '571e145e21ab46854fbf5b8c94da3784a3045e98f9fcde32d0167364159b43ab',", tests: [NEW] },
+  { id: 'N15', guard: 'the cited page sha is checked against the repo copy', file: RRC, find: "sha256: '14c9ad6ddebdfc1ddabd893fb11b126c9b32eba1623d4e83160e0c3c54572fc1',", replace: "sha256: '14c9ad6ddebdfc1ddabd893fb11b126c9b32eba1623d4e83160e0c3c54572fc2',", tests: [NEW] },
   { id: 'N16', guard: 'an unopened-holdout rule still refuses a new round on an opened segment', file: RRC, find: "need(!sharing.some((r) => r.holdout_opens || vault.openLog(r.round_id).length), 'MINE_ROUND_HOLDOUT_SEGMENT_OPENED'", replace: "need(true, 'MINE_ROUND_HOLDOUT_SEGMENT_OPENED'", tests: [NEW] },
 ];
 

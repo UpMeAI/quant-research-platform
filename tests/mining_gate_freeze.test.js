@@ -89,6 +89,8 @@ const FROZEN_COPIES = Object.freeze({
   'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json': '0d3556fa97f17d3a67b350e7f74c12fb521ca1fb60c293121601f7eb95f96637',
   'docs/freeze/RF1116_HOLDOUT_CN_A_R1_FREEZE_1.md': '0fefcd244e85d68504fbb20b761043c1f001965f005c29106740250e2e24a14b',
   // 协调会话裁定 R1（2026-11-17）：P2 六条执行裁定；每份 MINING_ROUND_V1 清单的 rulings 引它，openRound 核这份副本
+  // RF1116 修订 2026-11（A 股加一轮，plan-coord，Owner 确认后冻结）：MONTHLY_CAP_EXCEPTIONS 引它
+  'docs/freeze/RF1116_AMENDMENT_2026_11_CN_A_EXTRA_ROUND_FREEZE_1.md': '14c9ad6ddebdfc1ddabd893fb11b126c9b32eba1623d4e83160e0c3c54572fc1',
   'docs/freeze/RF1116_RULING_R1_20261117.md': 'f904e0feb3dc8e96a6e5b80e0ecc790f3cdca309b47fb88972c803f50a689d44', // 修订 5（R1.12a）；修订 4 加了 R1.12
 });
 test('守卫：仓库里五份冻结页副本的 sha256 等于签发的（门槛页、空间冻结页、空间 JSON、留出段冻结页、裁定 R1）；docs/freeze/ 里没有别的文件', () => {
