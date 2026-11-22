@@ -87,6 +87,9 @@ test('A1 模型钉在配置里：deepseek-v4-pro / DeepSeek-V4-Pro-0813，发布
   assert.match(m.signed_ref, /fd22876f/); assert.match(m.signed_ref, /★M \(a\)/);
   assert.equal(config.endpoint.url, 'https://api.deepseek.com/chat/completions');
   assert.equal(config.key.variable, 'DEEPSEEK_RESEARCH_API_KEY');
+  assert.ok(Number.isInteger(config.limits.empty_replies_stop) && config.limits.empty_replies_stop >= 1, 'consecutive empty replies stop the round');
+  assert.equal(config.ping, undefined, 'the probe uses the production max_tokens (review 2026-11-22 #2)');
+  assert.ok(!config.prompt.mechanisms.ids.includes('SEL.VALUE.MARGIN_RANK'), 'needs mainline members and implied growth: not expressible with the 13 frozen readings');
   assert.equal(config.key.host_path, '/home/kayla/.config/qrp-research-key/deepseek-research.env');
   // 留出段冻结页写的就是这个版本
   const page = fs.readFileSync(path.join(ROOT, 'docs/freeze/RF1116_HOLDOUT_CN_A_R1_FREEZE_1.md'), 'utf8');
@@ -104,6 +107,8 @@ test('A1 模型钉在配置里：deepseek-v4-pro / DeepSeek-V4-Pro-0813，发布
   bad((c) => { c.endpoint.url = 'https://api.example.com/chat/completions'; }, /MINE_LLM_CONFIG_INVALID/);
   bad((c) => { delete c.model.api_model; }, /MINE_LLM_CONFIG_INVALID/);
   bad((c) => { c.limits.tokens_per_round = 0; }, /MINE_LLM_CONFIG_INVALID/);
+  bad((c) => { c.limits.empty_replies_stop = 0; }, /MINE_LLM_CONFIG_INVALID/);
+  bad((c) => { delete c.limits.empty_replies_stop; }, /MINE_LLM_CONFIG_INVALID/);
   bad((c) => { c.request.tools = []; }, /MINE_LLM_CONFIG_INVALID/);
 });
 
@@ -161,6 +166,8 @@ test('A4 / A6 提示词：只由生成方视图、读数元数据、算子与机
   }
   assert.match(text, /formula/i); assert.match(p.messages[0].content, /one formula per line/i);
   assert.equal(p.sha256, promptOf().sha256, 'pure: same inputs, same prompt');
+  const bytes = p.messages.reduce((a, m) => a + Buffer.byteLength(m.content, 'utf8'), 0);
+  assert.ok(llm.estimateTokens(p.messages) >= bytes, 'the token bound is at least one token per byte (digit-heavy lines tokenize near that)');
   // 登记表的 entries[]（带封存结论）不进提示词
   const sentinel = 'SENTINEL_ENTRY_CONCLUSION_7731';
   const reg = { ...REGISTER, entries: [{ ...REGISTER.entries[0], reason_zh: sentinel, conclusion: { verdict: sentinel } }] };
@@ -182,6 +189,8 @@ test('A5 应答解析：只取前 n 行、去掉空行与 ``` 围栏行，多给
   const r = llm.parseFormulas('```text\nrank(pb)\r\n\n  zscore(turnover_f)  \nHere are more:\nrank(dv_ttm)\n```\n', 3);
   assert.deepEqual(r.formulas, ['rank(pb)', 'zscore(turnover_f)', 'Here are more:']);
   assert.deepEqual([r.lines_dropped, r.lines_overflow], [2, 1]);
+  const one = llm.parseFormulas('```rank(pb)```\nrank(dv_ttm)\n```python\nzscore(pb)\n```', 5);
+  assert.deepEqual([one.formulas, one.lines_dropped], [['```rank(pb)```', 'rank(dv_ttm)', 'zscore(pb)'], 2], 'a fence marker on its own is dropped; a formula inside a one-line fence is kept as written and counted');
   assert.deepEqual(llm.parseFormulas('', 5), { formulas: [], lines_dropped: 0, lines_overflow: 0 });
   assert.deepEqual(llm.parseFormulas(null, 5), { formulas: [], lines_dropped: 0, lines_overflow: 0 });
   // 交出去的行，解析不过的就是 PARSE_REFUSED（执行器记一行、计入 N）
@@ -250,6 +259,11 @@ test('A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITIN
   const echo = await step.callModel({ body, config, key: PLAIN, transport: mockTransport([{ status: 500, body: `upstream echo: key=${PLAIN}; again ${PLAIN}` }]) });
   assert.match(echo.raw_error, /upstream echo/);
   assert.ok(!echo.raw_error.includes(PLAIN), 'exact key value redacted wherever it appears');
+  // 上游回显的是「掩码 + 末几位」：末位也不能留在原始错误里（进台账、交换文件）
+  const masked = await call({ status: 401, json: { error: { message: `Authentication Fails, Your api key: ****${FAKE_KEY.slice(-4)} is invalid; ref sk-ab****${FAKE_KEY.slice(-6)}; tail ${FAKE_KEY.slice(-8)}` } } });
+  assert.match(masked.r.raw_error, /Authentication Fails/);
+  for (const frag of [FAKE_KEY.slice(-4), FAKE_KEY.slice(-6), FAKE_KEY.slice(-8)]) assert.ok(!masked.r.raw_error.includes(frag), `key suffix ${frag.length} chars redacted`);
+  assert.ok(!masked.r.raw_error.includes('****'), 'masked-key echoes are removed');
   // 发出之前就拒：请求体多了键，transport 一次都不调
   const t = mockTransport([{ status: 200, json: okJson('rank(pb)') }]);
   const bad = await step.callModel({ body: { ...body, tools: [{ type: 'web_search' }] }, config, key: FAKE_KEY, transport: t });
@@ -275,6 +289,10 @@ test('A9 网络那一步只连 api.deepseek.com:443：别的主机（https / htt
     tryIt('deepseek_other_port', () => require('https').request('https://api.deepseek.com:8443/').on('error', () => {}).destroy());
     tryIt('deepseek', () => require('https').request('https://api.deepseek.com/chat/completions', { method: 'POST' }).on('error', () => {}).destroy());
     // a caller-supplied socket bypasses the net / tls wrappers: only the request-level guard sees the target
+    const dg = require('dgram');
+    tryIt('dgram_create', () => dg.createSocket('udp4'));
+    tryIt('dgram_socket_send', () => { const u = new dg.Socket('udp4'); try { u.send(Buffer.from('x'), 9, '127.0.0.1'); } finally { u.close(); } });
+    tryIt('dgram_socket_connect', () => { const u = new dg.Socket('udp4'); try { u.connect(9, '127.0.0.1'); } finally { u.close(); } });
     const { PassThrough } = require('stream');
     tryIt('https_custom_socket', () => require('https').request({ hostname: 'example.com', port: 443, createConnection: () => new PassThrough() }).on('error', () => {}).destroy());
     tryIt('http_custom_socket', () => require('http').request({ hostname: 'api.deepseek.com', port: 443, createConnection: () => new PassThrough() }).on('error', () => {}).destroy());
@@ -285,7 +303,7 @@ test('A9 网络那一步只连 api.deepseek.com:443：别的主机（https / htt
   const r = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 20000 });
   assert.equal(r.status, 0, r.stderr);
   const out = JSON.parse(r.stdout);
-  for (const k of ['https_other', 'https_other_obj', 'http_any', 'net_ip', 'net_obj', 'tls_other', 'deepseek_other_port', 'https_custom_socket', 'http_custom_socket', 'fetch_other', 'fetch_deepseek']) assert.equal(out[k], 'MINE_LLM_EGRESS_REFUSED', k);
+  for (const k of ['https_other', 'https_other_obj', 'http_any', 'net_ip', 'net_obj', 'tls_other', 'deepseek_other_port', 'https_custom_socket', 'http_custom_socket', 'dgram_create', 'dgram_socket_send', 'dgram_socket_connect', 'fetch_other', 'fetch_deepseek']) assert.equal(out[k], 'MINE_LLM_EGRESS_REFUSED', k);
   // fetch is off even for the allowed host: the only sanctioned path is the step's https transport
   assert.equal(out.deepseek, 'ALLOWED');
 });
@@ -338,7 +356,7 @@ test('A10 探活：一条不含公式的请求、结果写进交换目录；不�
   const { config } = llm.loadConfig();
   const ping = llm.pingRequest(config);
   assert.deepEqual(Object.keys(ping).sort(), ['max_tokens', 'messages', 'model', 'stream', 'temperature']);
-  assert.ok(ping.max_tokens <= 64);
+  assert.equal(ping.max_tokens, config.request.max_tokens, 'the probe sends the production max_tokens, so a value the API refuses shows before a round is opened');
   const pt = ping.messages.map((m) => m.content).join('\n');
   for (const w of ['formula', 'DSL', 'rank', 'factor', '因子', '公式', ...SPACE.readings.map((r) => r.name)]) assert.ok(!pt.includes(w), `ping carries «${w}»`);
   const dir = tmp('qrp-llm-ping-');

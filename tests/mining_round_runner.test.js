@@ -438,12 +438,17 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   assert.equal(stepRuns.length, 2, 'llm step: serve (detached) and ping');
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/mining_llm_generator.v1.json'), 'utf8'));
   assert.ok(new RegExp(`^KEY_FILE="?${cfg.key.host_path.replace(/[.]/g, '\\.')}"?$`, 'm').test(sh), 'KEY_FILE is the configured host path');
+  // Docker's -v creates a DIRECTORY for a missing host path: the key mount exists only when the key file does (review 2026-11-22 #3)
+  assert.match(sh, /^llm_key_mount\(\) \{ KEYM=\(\); if \[ -f "\$KEY_FILE" \]; then KEYM=\(-v "\$KEY_FILE:\/run\/secrets\/deepseek-research\.env:ro"\); fi; \}$/m);
+  assert.equal(sh.split(`$KEY_FILE:${cfg.key.container_path}:ro`).length - 1, 1, 'the key mount text appears once, inside the guarded assignment');
+  assert.match(sh, /trap 'docker stop rf1116-llm-step > \/dev\/null 2>&1 \|\| true' EXIT/);
   assert.match(sh, /^EXCHANGE="\$OUT\/llm-exchange"$/m);
   for (const l of stepRuns) {
     for (const flag of ['--network bridge', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '--entrypoint node']) assert.ok(l.includes(flag), `step: ${flag}`);
     assert.match(l, /--cpus \d+ /); assert.match(l, /--memory \d+g /); assert.match(l, /--memory-swap \d+g /); assert.match(l, /--pids-limit \d+ /);
     const mounts = [...l.matchAll(/-v "([^"]+)"/g)].map((m) => m[1]);
-    assert.deepEqual(mounts, [`$KEY_FILE:${cfg.key.container_path}:ro`, '$EXCHANGE:/exchange:rw'], 'step mounts only the key (ro) and the exchange directory');
+    assert.deepEqual(mounts, ['$EXCHANGE:/exchange:rw'], 'step mounts only the exchange directory by -v here; the key (ro) comes from the guarded KEYM array');
+    assert.ok(l.includes('${KEYM[@]+"${KEYM[@]}"}'), 'the key mount array is expanded on every step line');
     assert.ok(!/ -e |--env/.test(l), 'no environment passed to the step (the key is a read-only file)');
     for (const v of ['$OUT:', '$LANE_COPY', '$VAL_TAIL', '$HOLDOUT', '$FACTOR_SERIES', 'QRP_DATA_DIR']) assert.ok(!l.includes(v), `step must not see ${v}`);
     assert.ok(!/--privileged|--network host|--cap-add|docker\.sock:/.test(l));

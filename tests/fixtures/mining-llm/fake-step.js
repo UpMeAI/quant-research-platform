@@ -15,7 +15,7 @@ const expected = step.readKey({ file: keyFile, variable: 'DEEPSEEK_RESEARCH_API_
 let k = 0;
 const okJson = (r) => ({
   id: `fake-${k}`, object: 'chat.completion', created: 1, model: r.model || 'deepseek-v4-pro', system_fingerprint: 'fp_fake',
-  usage: r.usage || { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1200 },
+  ...(r.noUsage ? {} : { usage: r.usage || { prompt_tokens: 1200, completion_tokens: 300, total_tokens: 1500, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 1200 } }),
   choices: [{ index: 0, finish_reason: 'stop', message: { role: 'assistant', content: r.content.join('\n') } }],
 });
 async function transport(req) {
