@@ -1,0 +1,11 @@
+[Unit]
+Description=Research queue producer tick (admission, inbox intake, waiting re-evaluation, completion, status)
+[Service]
+Type=oneshot
+Slice=research.slice
+Environment=PYTHONPATH=/srv/research-lane/research-queue/code/current/services/research-queue
+Environment=RQ_CONFIG=%h/.config/research-queue/rq.json
+Nice=10
+NoNewPrivileges=yes
+ExecStart=/usr/bin/python3 -m rq producer-tick
+ExecStart=/usr/bin/python3 -m rq complete-tick

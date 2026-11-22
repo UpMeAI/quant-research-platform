@@ -109,10 +109,10 @@ class HKUnits(unittest.TestCase):
 
     def test_cap_proof_evaluator_hk(self):
         good = {"cpu_seconds": 120.0, "window_s": 120, "oom_kill": 1, "peak_bytes": 500 * 2**20, "pm2_restarts": 0, "new_error_lines": 0,
-                "load5": 1.2, "agent_tcp_connect": "EPERM", "mysql_from_rq": "UNREACHABLE"}
+                "load5": 1.2, "agent_tcp_connect": "EPERM", "db_from_rq": "UNREACHABLE"}
         self.assertEqual(capproof.evaluate("HK", good), [])
         for key, bad in (("cpu_seconds", 130.0), ("oom_kill", 0), ("peak_bytes", 600 * 2**20), ("pm2_restarts", 1), ("new_error_lines", 2),
-                         ("load5", 3.0), ("agent_tcp_connect", "OK"), ("mysql_from_rq", "REACHABLE")):
+                         ("load5", 3.0), ("agent_tcp_connect", "OK"), ("db_from_rq", "REACHABLE")):
             errs = capproof.evaluate("HK", dict(good, **{key: bad}))
             self.assertTrue(any(key in e for e in errs), key)
         self.assertTrue(capproof.evaluate("HK", {k: v for k, v in good.items() if k != "load5"}))  # missing evidence is a failure

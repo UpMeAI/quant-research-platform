@@ -58,7 +58,7 @@ class Lease(Base):
 
     def test_aq05_kill9_consumer_task_keeps_running_and_is_adopted(self):
         import config_helper
-        cfgfile = config_helper.write(self.cfg, self.root, lease_ttl_s=2, registry=self.reg, loop_interval_s=0.2)
+        cfgfile = config_helper.write(self.cfg, self.root, lease_ttl_s=2, registry=self.reg, loop_interval_s=0.2, heartbeat_s=1, apply_windows=False)
         r = self.admit(self.reg, req(self.t, params={"mode": "sleep"}), now=core.now_cst())
         env = dict(os.environ, PYTHONPATH=str(ROOT / "services" / "research-queue"))
         p = subprocess.Popen([PY, "-m", "rq", "--config", str(cfgfile), "consumer-run"], env=env,
@@ -119,7 +119,7 @@ class Crash(Base):
         self.assertEqual(drive(self, self.rt, self.t0, r.task_id), "READY")
         t1 = self.t0 + dt.timedelta(minutes=11)
         consumer.tick(self.conn, self.cfg, self.rt, t1)
-        wait_for(lambda: (self.cfg.runs_dir / r.task_id / "attempt-2" / "child.pid").exists())
+        wait_for(lambda: (self.cfg.runs_dir / r.task_id / "attempt-2" / "argv.txt").exists())
         self.assertEqual(self.argv(r.task_id, 2), ["rescore", "MR-1"])
         self.kill_child(r.task_id, 2)
         self.assertEqual(drive(self, self.rt, t1, r.task_id), "BLOCKED_DETERMINISTIC")
@@ -130,6 +130,7 @@ class Crash(Base):
         s = score_tpl()
         s["argv"] = [PY, STUB, "exit64"]
         s["params"] = {}
+        s["recovery_argv"] = [PY, STUB, "rescore"]
         r = self.admit(registry([s]), req(s, params={}))
         self.assertEqual(drive(self, self.rt, self.t0, r.task_id), "BLOCKED_DETERMINISTIC")
         self.assertEqual(self.row(r.task_id)["state_reason"], "MINE_MARKET_PAUSED")
@@ -141,13 +142,10 @@ class Crash(Base):
         self.assertEqual(drive(self, self.rt, self.t0, r.task_id), "BLOCKED_DETERMINISTIC")
         self.assertEqual(self.row(r.task_id)["attempt_no"], 1)
 
-    def test_non_idempotent_without_recovery_is_blocked_after_interruption(self):
+    def test_non_idempotent_template_without_recovery_is_refused_at_admission(self):
         t = tpl("T-STUB-W0-V1", idempotent=False)
         r = self.admit(registry([t]), req(t, params={"mode": "sleep"}))
-        consumer.tick(self.conn, self.cfg, self.rt, self.t0)
-        self.kill_child(r.task_id, 1)
-        self.assertEqual(drive(self, self.rt, self.t0, r.task_id), "BLOCKED_DETERMINISTIC")
-        self.assertEqual(self.row(r.task_id)["state_reason"], "NO_RECOVERY_PATH")
+        self.assertEqual((r.state, r.code), ("REFUSED_ADMISSION", "TEMPLATE_INVALID"))
 
     def test_t1_budget_exhausted_blocks(self):
         t = tpl("T-STUB-W0-V1", transient_budget=1)
@@ -175,12 +173,40 @@ class Receipts(Base):
                   "secrets_present", "mounts", "pauses", "exit", "cgroup_peak", "outputs_sha256", "commit"):
             self.assertIn(k, rc, k)
         self.assertEqual(rc["receipt"], "RUN_RECEIPT_V1")
-        self.assertEqual(rc["secrets_present"], {"DEEPSEEK_RESEARCH_API_KEY": False})  # the child never sees it
+        self.assertIs(rc["secrets_present"]["DEEPSEEK_RESEARCH_API_KEY"], False)  # the child never sees it
+        self.assertFalse(any(rc["secrets_present"].values()))
         a = self.conn.execute("select receipt_sha256, exit_code from attempt").fetchone()
         self.assertEqual(a[0], __import__("hashlib").sha256((d / "receipt.json").read_bytes()).hexdigest())
         self.assertEqual(a[1], 0)
         hits = guard.scan_secrets([self.root], secret_values=[os.environ["DEEPSEEK_RESEARCH_API_KEY"]])
         self.assertEqual(hits, [])
+
+
+class Systemd(Base):
+    def test_systemd_command_has_slice_caps_and_no_secrets(self):
+        os.environ["DEEPSEEK_RESEARCH_API_KEY"] = "sk-" + "a1B2c3D4" * 5
+        self.addCleanup(os.environ.pop, "DEEPSEEK_RESEARCH_API_KEY", None)
+        calls = []
+        rt = runtime.SystemdRuntime(run_cmd=lambda a: (calls.append(a), (0, ""))[1])
+        env = runtime.child_env(self.cfg, self.root, "T1", 1)
+        c = rt.command("rq-task-T1-a1", ["x"], env, "W2")
+        self.assertEqual(c[:2], ["systemd-run", "--user"])
+        self.assertIn("--slice=research.slice", c)
+        self.assertIn("CPUQuota=600%", c)
+        self.assertIn("MemoryMax=24G", c)
+        self.assertFalse([a for a in c if "DEEPSEEK" in a or "sk-a1B2" in a])
+
+
+class Cli(Base):
+    def test_cli_migrate_status_verify_chain(self):
+        import config_helper
+        t = tpl("T-STUB-W0-V1")
+        p = config_helper.write(self.cfg, self.root, registry=registry([t]), apply_windows=False)
+        env = dict(os.environ, PYTHONPATH=str(ROOT / "services" / "research-queue"))
+        for cmd in (["migrate"], ["producer-tick"], ["status"], ["verify-chain"]):
+            r = subprocess.run([PY, "-m", "rq", "--config", str(p)] + cmd, env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(json.loads((self.cfg.state_dir / "status.json").read_text())["schema"], "RQ_STATUS_V1")
 
 
 if __name__ == "__main__":

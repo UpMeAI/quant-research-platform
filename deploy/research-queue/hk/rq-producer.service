@@ -1,0 +1,20 @@
+[Unit]
+Description=Research queue producer tick (NET kinds only on HK)
+[Service]
+Type=oneshot
+User=research-queue
+Slice=research.slice
+Nice=19
+IOSchedulingClass=idle
+OOMScoreAdjust=1000
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/research-queue
+CapabilityBoundingSet=
+IPAddressDeny=any
+Environment=PYTHONPATH=/opt/research-queue/current/services/research-queue
+Environment=RQ_CONFIG=/etc/research-queue/rq.json
+ExecStart=/usr/bin/python3 -m rq producer-tick
+ExecStart=/usr/bin/python3 -m rq complete-tick

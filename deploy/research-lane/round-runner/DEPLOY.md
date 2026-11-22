@@ -321,3 +321,7 @@ run.sh resume-llm <round_id>         # probe, then continue the same round, then
 - **Run time:** a full round is roughly 200 mining evaluations plus one validation pass. That takes hours, not minutes.
 - **Monthly limit:** at most 2 rounds per market per month (Beijing time).
 - **Concurrent rounds (R1.6):** up to 2 generation-only rounds per market may be open at once and may share the holdout segment, but only before its first open. Still at most 2 rounds per market per month (`LIMITS.rounds_per_month`). Once any round has opened a segment, no new round can open on it (`MINE_ROUND_HOLDOUT_SEGMENT_OPENED`); the next round needs a new segment after 2026-12-31.
+
+## Pause authority moves to the research queue (★RQ8, AUTONOMOUS_RESEARCH_QUEUE_V1)
+
+When the research queue is installed (`deploy/research-queue/`), `rq-pause.timer` becomes the single pause authority on the lane and also pauses the four `rf1116-*` container names above, by the same windows (plus the queue's blackout calendar). At that install, disable the old timer: `systemctl --user disable --now rf1116-window-pause.timer`. Until then nothing here changes, and the sha table above stays valid for the files it lists.

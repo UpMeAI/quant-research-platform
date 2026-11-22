@@ -46,8 +46,9 @@ def score_tpl():
 
 
 def net_tpl(tid="T-STUB-NET-V1", **over):
-    return tpl(tid, kinds=["AI_REVIEW_CARD"], weight_class="NET", agent_host="BY_MARKET", run_host="BY_MARKET", markets=["CN_A", "US_EQUITY", "CRYPTO"],
-               producer_host="BY_MARKET", **over)
+    d = dict(kinds=["AI_REVIEW_CARD"], weight_class="NET", agent_host="BY_MARKET", run_host="BY_MARKET", markets=["CN_A", "US_EQUITY", "CRYPTO"], producer_host="BY_MARKET")
+    d.update(over)
+    return tpl(tid, **d)
 
 
 def registry(templates_list, pin=True):
@@ -58,7 +59,7 @@ def registry(templates_list, pin=True):
 def req(tid_or_tpl, subject=None, params=None, market="NONE", **over):
     t = tid_or_tpl if isinstance(tid_or_tpl, dict) else {"template_id": tid_or_tpl}
     r = {"template_id": t["template_id"], "template_sha256": templates.template_sha256(t) if "version" in t else "x",
-         "market": market, "subject": subject or {"n": 1}, "params": params or {"mode": "ok"}, "inputs": [], "depends_on": [],
+         "market": market, "subject": subject or {"n": 1}, "params": params if params is not None else {"mode": "ok"}, "inputs": [], "depends_on": [],
          "priority": 50}
     r.update(over)
     return r

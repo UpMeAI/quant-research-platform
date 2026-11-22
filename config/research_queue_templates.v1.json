@@ -1,0 +1,147 @@
+{
+ "schema": "RESEARCH_QUEUE_TEMPLATES_V1",
+ "note": "NET templates only. argv, evidence matrix ids/shas and prompt admissions are placeholders until Q2 (gateway + agent) and the coordinator's freeze page; no template is admissible until its sha is pinned in research_queue_template_pins.v1.json.",
+ "templates": [
+  {
+   "template_id": "T-AI-REVIEW-CARD-V1",
+   "version": 1,
+   "kinds": [
+    "AI_REVIEW_CARD"
+   ],
+   "producer_host": "BY_MARKET",
+   "run_host": "BY_MARKET",
+   "agent_host": "BY_MARKET",
+   "weight_class": "NET",
+   "io_class": "NONE",
+   "argv": [
+    "/opt/research-queue/agent/rq-agent",
+    "--role",
+    "card"
+   ],
+   "params": {},
+   "inputs": [
+    {
+     "prefix": "{inbox}/fact-packs"
+    }
+   ],
+   "outputs": [
+    "result.json"
+   ],
+   "expected_duration_s": 600,
+   "evidence_matrix": {
+    "id": "EM-PENDING-Q2-CARD",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "authority_shas": [],
+   "prompt_admission_sha256": null,
+   "idempotent": true,
+   "transient_budget": 2,
+   "completion": "SELF_VALIDATED",
+   "requires_trl": false,
+   "markets": [
+    "CN_A",
+    "US_EQUITY",
+    "CRYPTO"
+   ],
+   "subject_keys": [
+    "week",
+    "market"
+   ],
+   "status": "DRAFT_PENDING_Q2_AND_FREEZE"
+  },
+  {
+   "template_id": "T-AI-CHECK-V1",
+   "version": 1,
+   "kinds": [
+    "AI_CHECK"
+   ],
+   "producer_host": "BY_MARKET",
+   "run_host": "BY_MARKET",
+   "agent_host": "BY_MARKET",
+   "weight_class": "NET",
+   "io_class": "NONE",
+   "argv": [
+    "/opt/research-queue/agent/rq-agent",
+    "--role",
+    "check"
+   ],
+   "params": {},
+   "inputs": [
+    {
+     "prefix": "{inbox}/bundles"
+    }
+   ],
+   "outputs": [
+    "result.json"
+   ],
+   "expected_duration_s": 600,
+   "evidence_matrix": {
+    "id": "EM-PENDING-Q2-CHECK",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "authority_shas": [],
+   "prompt_admission_sha256": null,
+   "idempotent": true,
+   "transient_budget": 2,
+   "completion": "SELF_VALIDATED",
+   "requires_trl": false,
+   "markets": [
+    "CN_A",
+    "US_EQUITY",
+    "CRYPTO"
+   ],
+   "subject_keys": [
+    "week",
+    "market"
+   ],
+   "status": "DRAFT_PENDING_Q2_AND_FREEZE"
+  },
+  {
+   "template_id": "T-AI-PREREG-V1",
+   "version": 1,
+   "kinds": [
+    "AI_PREREG"
+   ],
+   "producer_host": "BY_MARKET",
+   "run_host": "BY_MARKET",
+   "agent_host": "BY_MARKET",
+   "weight_class": "NET",
+   "io_class": "NONE",
+   "argv": [
+    "/opt/research-queue/agent/rq-agent",
+    "--role",
+    "prereg"
+   ],
+   "params": {},
+   "inputs": [
+    {
+     "prefix": "{inbox}/prereg"
+    }
+   ],
+   "outputs": [
+    "result.json"
+   ],
+   "expected_duration_s": 600,
+   "evidence_matrix": {
+    "id": "EM-PENDING-Q2-PREREG",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+   },
+   "authority_shas": [],
+   "prompt_admission_sha256": null,
+   "idempotent": true,
+   "transient_budget": 2,
+   "completion": "SELF_VALIDATED",
+   "requires_trl": false,
+   "markets": [
+    "CN_A",
+    "US_EQUITY",
+    "CRYPTO"
+   ],
+   "subject_keys": [
+    "week",
+    "market"
+   ],
+   "status": "DRAFT_PENDING_Q2_AND_FREEZE"
+  }
+ ]
+}

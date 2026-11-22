@@ -1,0 +1,6 @@
+[Unit]
+Description=Research queue slice (AUTONOMOUS_RESEARCH_QUEUE_V1 section 3.6)
+[Slice]
+CPUQuota=1200%
+MemoryMax=40G
+IOWeight=50

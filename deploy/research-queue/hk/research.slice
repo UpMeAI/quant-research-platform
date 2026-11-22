@@ -1,0 +1,11 @@
+[Unit]
+Description=Research queue slice on HK (plan from ops-coord, confirmed at install)
+[Slice]
+CPUQuota=100%
+CPUWeight=10
+MemoryMax=512M
+MemorySwapMax=0
+IOWeight=10
+IOReadBandwidthMax=/dev/vda 20M
+IOWriteBandwidthMax=/dev/vda 10M
+TasksMax=64

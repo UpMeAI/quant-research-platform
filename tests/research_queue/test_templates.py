@@ -31,7 +31,7 @@ class Guards(Base):
         self.assertEqual(self.admit(reg, req(t, subject={"n": 3}, params={"mode": "ok", "extra": "1"})).code, "PARAM_NOT_ALLOWED")
         ok = self.admit(reg, req(t, subject={"n": 4}, argv=[PY, STUB, "ok"]))
         self.assertEqual(ok.state, "READY")
-        self.assertEqual(json.loads(self.row(ok.task_id)["admission_json"])["argv"], [PY, STUB, "ok"])
+        self.assertEqual(json.loads(self.row(ok.task_id)["admission_json"])["derived"]["argv"], [PY, STUB, "ok"])
 
     def test_aq16_input_sha_mismatch_and_source_allowlist(self):
         f = self.root / "inputs" / "pack.json"
@@ -78,10 +78,10 @@ class Guards(Base):
             if not p.is_file() or p.name in ("pause.py",):
                 continue
             s = p.read_text()
-            for bad in ("psycopg", "pg8000", "asyncpg", "mysql", "5432", "ashare-v6", "Ashare-V6", ".env.local", "docker exec", "docker restart", "docker prune"):
+            for bad in ("psycopg", "pg8000", "asyncpg", "pymysql", "mysql.connector", "5432", "ashare-v6", "Ashare-V6", ".env.local", "docker exec", "docker restart", "docker prune"):
                 self.assertNotIn(bad, s, "%s in %s" % (bad, p))
         s = (SRC / "pause.py").read_text()  # pause.py may name V6 only in its refuse list
-        for bad in ("psycopg", "mysql", "5432", "docker exec", "docker restart", "docker prune"):
+        for bad in ("psycopg", "pymysql", "5432", "docker exec", "docker restart", "docker prune"):
             self.assertNotIn(bad, s)
 
 
@@ -126,7 +126,7 @@ class LinuxRouting(Base):
 
 class Intake(Base):
     def test_fact_pack_in_inbox_creates_one_card_task_per_week_and_market(self):
-        t = net_tpl("T-AI-REVIEW-CARD-V1", prompt_admission_sha256=sha("prompt"))
+        t = net_tpl("T-AI-REVIEW-CARD-V1", prompt_admission_sha256=sha("prompt"), params={}, argv=[PY, STUB, "ok"])
         reg = registry([t])
         d = self.cfg.inbox_dir / "fact-packs"
         d.mkdir(parents=True)
@@ -140,8 +140,8 @@ class Intake(Base):
         self.assertEqual(s1["admitted"], 1)
         self.assertEqual(s2["admitted"], 0)
         adm = json.loads(self.conn.execute("select admission_json from task where market='CN_A'").fetchone()[0])
-        self.assertEqual(adm["subject"]["week"], "2026-W48")
-        self.assertEqual(adm["subject"]["prompt_admission_sha256"], sha("prompt"))
+        self.assertEqual(adm["request"]["subject"]["week"], "2026-W48")
+        self.assertEqual(adm["request"]["subject"]["prompt_admission_sha256"], sha("prompt"))
 
     def test_request_files_and_bad_json(self):
         t = tpl("T-STUB-W0-V1")

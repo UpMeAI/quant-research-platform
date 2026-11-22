@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.upmeai.research-queue-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>-m</string>
+    <string>rq.relay</string>
+    <string>--config</string>
+    <string>__HOME__/Library/Application Support/research-queue/relay.json</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PYTHONPATH</key><string>__QRP_CHECKOUT__/services/research-queue</string>
+  </dict>
+  <key>StartInterval</key><integer>900</integer>
+  <key>RunAtLoad</key><false/>
+  <key>StandardOutPath</key><string>__HOME__/Library/Logs/research-queue-relay.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/Library/Logs/research-queue-relay.log</string>
+</dict>
+</plist>

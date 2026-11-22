@@ -1,0 +1,10 @@
+[Unit]
+Description=Research queue pause authority (replaces rf1116-window-pause, RQ8)
+[Service]
+Type=oneshot
+Slice=research.slice
+Environment=PYTHONPATH=/srv/research-lane/research-queue/code/current/services/research-queue
+Environment=RQ_CONFIG=%h/.config/research-queue/rq.json
+Environment=DOCKER_HOST=unix:///run/user/1000/docker.sock
+NoNewPrivileges=yes
+ExecStart=/usr/bin/python3 -m rq pause-tick
