@@ -1,0 +1,43 @@
+# PROMOTION_ENGINE_V1: research evaluation and promotion engine (W16 extension)
+
+Authority: `PLAN_V1_1_AMENDMENT_1_AI_RESEARCH_LAB.md` (DECISION_ID PLAN-V1-20261123-01), section 1 (ladder, KPI 9) and section 4 (INSUFFICIENT). Parent: plan V1.1 sections 5.1 to 5.4.
+Code: `services/promotion-engine/`. Config: `config/promotion_engine_value.v1.json` (pinned in `value.js`). Tests: `tests/promotion_engine_*.test.js`.
+No clock, no network, no model call, no ledger write. Same input, same bytes. `production_effect` is always `NONE`.
+
+## Entry points (`require('services/promotion-engine')`)
+
+| Function | Purpose |
+|---|---|
+| `evaluate(req)` | one candidate, one requested stage (`S0`..`S6` or `TRADE_PLAN`) -> `PROMOTION_RESULT_V1` |
+| `evaluateFromFiles({termsPath, stage, historyPath, asOf, baseDir})` | same, reading the terms file and the evidence file the terms name (sha256 verified) |
+| `recheckPaused({paused, terms, observed, history, as_of})` | monthly recheck of a 暂停 result -> `PROMOTION_RECHECK_V1` |
+| `rankInformationValue(items, {market})` | frozen information-value order of 做 items in one market |
+| `kpi9({month_cst, s4_passes, costs, negatives})` | KPI 9 rows per market and layer |
+| `render(result)` / `outputSha256(body)` | byte form (sorted keys, one-space indent, trailing newline) and its sha256 |
+
+CLI: `node services/promotion-engine/cli.js evaluate|recheck ...` (exit 2 on INVALID_INPUT).
+
+## Files
+
+**PROMOTION_TERMS_V1** (what a K2 freezes for the engine; bound to the K2 by `k2_sha256`): `schema, candidate_id, market (CN_A|US_EQUITY|CRYPTO), layer (ALPHA|RISK|EXECUTION), k2_sha256, k2_frozen_at, mechanism_ids[], min_sample_n, min_economic_value {metric, value}` (`DELTA_G_PER_YEAR` for ALPHA/EXECUTION, `CVAR5_IMPROVEMENT` for RISK), `thresholds {s3: {cost_multiple, max_growth_sacrifice}, s4: {max_overlap}}`, `insufficient_policy {horizon_months, p_threshold, budget_share_max, resume_sample_fraction, max_failed_rechecks, next_review_endpoint?}`, `review_endpoint {kind: DATE|SAMPLE_N, value}`, `stage_evidence {S0..S6: {path, sha256}}`. Unknown keys are refused. The starred values are read only from here; the engine has no default.
+
+**PROMOTION_STAGE_EVIDENCE_V1**: `schema, candidate_id, stage, k2_sha256, prior_output_sha256 (output_sha256 of the previous stage's PASS; null at S0), validator {first_failed: null|"V-n"}, body {...per stage}, insufficient_inputs?`. A non-null `validator.first_failed` is INVALID_INPUT (the evidence is unusable, not negative). The evidence never states a verdict; the engine computes it.
+
+Bodies: S0 `{state: REGISTERED|PENDING|DUPLICATE|PREDICTION_CLAIM, fact_refs[], mechanism_ids[]}`; S1 `{validators: {V1..V14: PASS|FAIL|NOT_RUN}}`; S2 `{metric_kind, estimate, ci{lower,upper,level 0.95}, n, dsr|null, decay_ok}`; S3 `{n, delta_g{estimate,ci} | cvar5_improvement{estimate,ci}+growth_sacrifice{estimate,ci} (RISK), cost_x2{multiple, delta_g_ci_lower}, cost_model_ref, constraints_ok}` (cost model goes through the G-COST assessment); S4 `{n, marginal_net_contribution{estimate,ci}, tail_ok, stress_ok, overlap{holdings,risk}, race?{partition}}`; S5 `{paper_validation_state (PAPER_VALIDATION_V1 state), holdout{origin: HUMAN|MINED, read_count, read_at}}`; S6 `{auto_gates{cost,causality,overfit,...}, signature_class: NONE|NEEDS_SIGNATURE, signature_ref}`.
+
+`insufficient_inputs` (required whenever the stage is INSUFFICIENT, except S6 awaiting a signature): `{effect_ci{lower,upper}, observed_sample_n, events_per_month, cost_to_continue{model_cost_cny, core_hours}, market_monthly_budget{model_cost_cny, core_hours}, mechanism_prior_class}` (a route name of the mechanism register).
+
+**history** (kept by the caller): `[{stage, verdict, output_sha256}]` in order; the last entry per stage counts.
+
+**PROMOTION_RESULT_V1**: `{schema, candidate_id, stage, verdict: PASS|FAIL|INSUFFICIENT|INVALID_INPUT, reasonCodes[], nextAction, resolution|null, as_of, inputs{terms_sha256, evidence_sha256}, value_config_sha256, production_effect, output_sha256}`. `nextAction`: `PROCEED_TO_S<n>`, `ADOPT_NEW_D_VERSION`, `SEAL_NOT_DO_TO_FAILURE_LIBRARY` (FAIL only), `RUN_TO_REVIEW_ENDPOINT`, `PAUSE_UNTIL_RESUME_CONDITION`, `AWAIT_OWNER_SIGNATURE`, `ALLOW_TRADE_PLAN`, `FIX_INPUT`.
+
+## Rules
+
+* **No skipping.** Stage S_k needs a PASS for every earlier stage; otherwise `PROMOTION_STAGE_SKIP:<highest passed or NONE>-><requested>`. `TRADE_PLAN` needs S4 PASS (`TRADE_PLAN_MIN_STAGE`): S2 never feeds trade plans, S3 PASS is not S4. A FAIL anywhere seals the candidate (`PROMOTION_CANDIDATE_SEALED_NOT_DO:<stage>`).
+* **Verdicts.** PASS needs every condition. FAIL needs a sufficient sample (`n >= min_sample_n`) and negative evidence (CI upper below 0, or below the K2's minimum economic value at S3; S4 overlap above the K2's max is rejected whatever the sample). Everything else short of PASS is INSUFFICIENT. DSR below the existing gate (0.95) or unknown is INSUFFICIENT, as in the existing overfit downgrade.
+* **INSUFFICIENT (section 4.2)**, in order: (1) CI upper < minimum economic value: `PAUSE_LOW_VALUE`; (2) P(reach `min_sample_n` within `horizon_months`) < `p_threshold`, Poisson accrual at `events_per_month`: `PAUSE_LOW_POWER`, resume when the sample reaches `resume_sample_fraction` of `min_sample_n` or the rate recovers (the result states the target rate); (3) cost to continue > `budget_share_max` of the market monthly budget in either model cost or core-hours: `PAUSE_BUDGET`; (4) otherwise 做 (`CONTINUE_FORWARD_SHADOW_OR_SAMPLE`) with a review endpoint and the action `REJUDGE_UNDER_SECTION_4_2`. Comparisons are strict at the boundary. 暂停 is never 不做 and never the failure library.
+* **Transition.** `k2_frozen_at` before `2026-11-23T01:13:00+08:00` keeps its own text: INSUFFICIENT before its review endpoint is 做 (`LEGACY_K2_CONTINUE_TO_ENDPOINT`); once the endpoint is reached it is judged under section 4.2 with the `insufficient_policy` supplied for it (missing: `PROMOTION_POLICY_MISSING_AT_ENDPOINT`).
+* **Recheck.** Once per CST month. `RESUME` -> re-judge under 4.2. After `max_failed_rechecks` consecutive failures: `PAUSE_ESCALATE_TO_OWNER` (still 暂停; plan-coord puts the question to the Owner; never auto-converted).
+* **S5.** `read_count > 1` is INVALID; a MINED candidate's holdout read before `2027-01-01T00:00:00+08:00` is INVALID.
+* **Information value** (`config/promotion_engine_value.v1.json`): `score = prior^w * ci_crossing^w * p_reach^w`, `ci_crossing` = share of the 95% interval above the minimum economic value; one market per ranking; ties by candidate id.
+* **KPI 9**: S4-passing candidates deduplicated by mechanism set (within market and layer), per 10 000 CNY of model cost and per core-hour, per CST month; negatives in their own column; zero denominator is null with a reason.

@@ -15,7 +15,7 @@ function terms(over = {}) {
     schema: 'PROMOTION_TERMS_V1', candidate_id: 'CAND-W16-001', market: 'CN_A', layer: 'ALPHA', k2_sha256: K2_SHA, k2_frozen_at: NEW_K2_FROZEN_AT,
     mechanism_ids: ['ACCT.CONCURRENCY.NON_MAJOR_CAP'], min_sample_n: 200,
     min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.02 },
-    thresholds: { s3: { min_delta_g: 0.02, cost_multiple: 2, min_cvar_improvement: 0.1, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.6 } },
+    thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.6 } },
     insufficient_policy: { ...POLICY },
     review_endpoint: { kind: 'DATE', value: '2027-03-01' },
     stage_evidence: {},

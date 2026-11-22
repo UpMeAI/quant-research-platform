@@ -1,0 +1,25 @@
+{
+ "schema": "PROMOTION_INFORMATION_VALUE_CONFIG_V1",
+ "version": 1,
+ "_comment": "Information-value ordering for 做 items inside one market (PLAN_V1_1_AMENDMENT_1 section 4.2, last paragraph). score = prior^w_prior * ci_crossing^w_ci_crossing * p_reach^w_p_reach, each factor in [0,1], rounded to 6 decimals; ties by candidate_id ascending. PROPOSED weights for the coordinator to review at merge; the pin is in services/promotion-engine/value.js (editing means two places and a coordinator merge).",
+ "formula": "score = mechanism_prior^w_prior * ci_crossing^w_ci_crossing * p_reach^w_p_reach",
+ "weights": {
+  "prior": 1,
+  "ci_crossing": 1,
+  "p_reach": 1
+ },
+ "mechanism_prior_weight": {
+  "NORMAL_CITE_PRIOR": 1,
+  "NORMAL_STATE_DIFFERENCE": 0.9,
+  "ATTACH_TO_SHADOW": 0.8,
+  "NORMAL_OWNER_NAMED": 0.8,
+  "QUARTERLY_ABLATION": 0.7,
+  "NORMAL_MIXED": 0.6,
+  "NORMAL_NO_PRIOR": 0.5,
+  "NOT_DO_SETTLED": 0.1
+ },
+ "ci_crossing_definition": "0 if ci.upper <= threshold; 1 if ci.lower >= threshold; otherwise (ci.upper - threshold) / (ci.upper - ci.lower): the share of the 95% interval that lies above the minimum economic value",
+ "decimals": 6,
+ "tie_break": "candidate_id_ascending",
+ "config_sha256": "fc9f1259e9ee424315c8d7f0b7f844d6145bedbba092f51595d1c0827b483103"
+}

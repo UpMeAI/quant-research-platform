@@ -71,7 +71,7 @@ test('a validator stop in the evidence is INVALID_INPUT (unknown), not a negativ
 
 test('seeded counter-examples: one per rule', () => {
   const t = fx.terms();
-  const S3 = (mut) => { const r = fx.request('S3', 'PASS'); mut(r.evidence.body); return engine.evaluate(r); };
+  const S3 = (mut) => { const r = fx.request('S3', 'PASS'); r.evidence.insufficient_inputs = fx.insuff(); mut(r.evidence.body); return engine.evaluate(r); };
   assert.equal(S3((b) => { b.delta_g.estimate = 0.019; }).verdict, 'INSUFFICIENT'); // point estimate below the frozen 2 pp
   assert.equal(S3((b) => { b.cost_x2.delta_g_ci_lower = 0; }).verdict, 'INSUFFICIENT'); // cost x2 lower bound must be > 0
   assert.equal(S3((b) => { b.cost_x2.multiple = 1.5; }).verdict, 'INVALID_INPUT'); // not the frozen multiple
@@ -80,10 +80,18 @@ test('seeded counter-examples: one per rule', () => {
   assert.equal(S3((b) => { b.n = 199; }).verdict, 'INSUFFICIENT'); // below min_sample_n
   // adequately powered and the whole CI below the economic minimum: not a pause, the existing rule says 不做
   assert.equal(S3((b) => { b.delta_g = { estimate: 0.005, ci: fx.ci(0.001, 0.012) }; }).verdict, 'FAIL');
-  const S2 = (mut) => { const r = fx.request('S2', 'PASS'); mut(r.evidence.body); return engine.evaluate(r); };
+  const S2 = (mut) => { const r = fx.request('S2', 'PASS'); r.evidence.insufficient_inputs = fx.insuff(); mut(r.evidence.body); return engine.evaluate(r); };
   assert.equal(S2((b) => { b.dsr = 0.94; }).verdict, 'INSUFFICIENT'); // DSR below the existing 0.95 gate: downgrade, never PASS
   assert.equal(S2((b) => { b.dsr = null; }).verdict, 'INSUFFICIENT');
   assert.equal(S2((b) => { b.ci.upper = -0.001; b.ci.lower = -0.02; b.dsr = 0.99; }).verdict, 'FAIL');
+  assert.equal(S2((b) => { b.n = 199; b.ci = fx.ci(-0.04, -0.01); }).verdict, 'INSUFFICIENT'); // a negative interval on too small a sample is not a rejection
+  assert.equal(S3((b) => { b.n = 199; b.delta_g = { estimate: -0.01, ci: fx.ci(-0.03, -0.002) }; }).verdict, 'INSUFFICIENT');
+  const S4 = (mut) => { const r = fx.request('S4', 'PASS'); r.evidence.insufficient_inputs = fx.insuff(); mut(r.evidence.body); return engine.evaluate(r); };
+  assert.equal(S4((b) => { b.overlap.risk = 0.61; }).verdict, 'FAIL'); // above the K2's max_overlap 0.6 on either measure, whatever the sample
+  assert.equal(S4((b) => { b.overlap.risk = 0.6; }).verdict, 'PASS');
+  assert.equal(S4((b) => { b.tail_ok = false; }).verdict, 'FAIL');
+  assert.equal(S4((b) => { b.n = 199; b.tail_ok = false; }).verdict, 'INSUFFICIENT');
+  assert.equal(S4((b) => { b.stress_ok = false; }).verdict, 'INSUFFICIENT');
   const S5 = (mut) => { const r = fx.request('S5', 'PASS'); mut(r.evidence.body); return engine.evaluate(r); };
   assert.equal(S5((b) => { b.holdout = { origin: 'MINED', read_count: 1, read_at: '2026-12-30T23:59:59+08:00' }; }).verdict, 'INVALID_INPUT'); // mined holdout before 12-31
   assert.equal(S5((b) => { b.holdout = { origin: 'MINED', read_count: 1, read_at: '2027-01-01T00:00:00+08:00' }; }).verdict, 'PASS');
@@ -94,7 +102,7 @@ test('seeded counter-examples: one per rule', () => {
 test('RISK layer uses the 5.2 B terms (CVaR improvement, growth sacrifice)', () => {
   const t = fx.terms({ layer: 'RISK', min_economic_value: { metric: 'CVAR5_IMPROVEMENT', value: 0.1 } });
   const body = (o) => ({ n: 300, cvar5_improvement: { estimate: 0.12, ci: fx.ci(0.03, 0.2) }, growth_sacrifice: { estimate: 0.005, ci: fx.ci(0, 0.01) }, cost_x2: { multiple: 2, delta_g_ci_lower: 0.001 }, cost_model_ref: 'REPLAY_CORE_PROFILE_COSTS', constraints_ok: true, ...o });
-  const run = (o) => { const r = fx.request('S3', 'PASS', { terms: t }); r.evidence.body = body(o); return engine.evaluate(r); };
+  const run = (o) => { const r = fx.request('S3', 'PASS', { terms: t }); r.evidence.insufficient_inputs = fx.insuff(); r.evidence.body = body(o); return engine.evaluate(r); };
   assert.equal(run({}).verdict, 'PASS');
   assert.equal(run({ growth_sacrifice: { estimate: 0.011, ci: fx.ci(0.005, 0.02) } }).verdict, 'FAIL');
   assert.equal(run({ cvar5_improvement: { estimate: 0.09, ci: fx.ci(0.01, 0.2) } }).verdict, 'INSUFFICIENT');
@@ -104,7 +112,8 @@ test('same input gives byte-identical output, whatever the key order of the inpu
   const r = fx.request('S3', 'PASS');
   const a = engine.render(engine.evaluate(r));
   const b = engine.render(engine.evaluate(JSON.parse(JSON.stringify(r))));
-  const shuffled = JSON.parse(JSON.stringify(r, Object.keys(r).sort().reverse()));
+  const reverseKeys = (v) => (Array.isArray(v) ? v.map(reverseKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().reverse().map((k) => [k, reverseKeys(v[k])])) : v);
+  const shuffled = reverseKeys(r);
   const c = engine.render(engine.evaluate(shuffled));
   assert.ok(Buffer.isBuffer(a));
   assert.equal(a.compare(b), 0);

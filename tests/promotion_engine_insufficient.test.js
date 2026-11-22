@@ -55,10 +55,10 @@ test('step 2: P(reach min_sample_n in the K2 horizon) below the K2 threshold pau
 });
 
 test('step 2 boundary: threshold taken from the K2, strict less-than', () => {
-  const inputs = fx.insuff();
+  const inputs = fx.insuff({ events_per_month: 6 }); // needs 80 more, 72 expected in 12 months
   const p = insufficient.pReach({ observedN: inputs.observed_sample_n, minN: 200, ratePerMonth: inputs.events_per_month, horizonMonths: 12 });
   assert.ok(p > 0 && p < 1);
-  const at = (th) => run({}, { t: fx.terms({ insufficient_policy: { ...fx.POLICY, p_threshold: th } }) }).resolution.code;
+  const at = (th) => run({ events_per_month: 6 }, { t: fx.terms({ insufficient_policy: { ...fx.POLICY, p_threshold: th } }) }).resolution.code;
   assert.equal(at(p), 'CONTINUE_FORWARD_SHADOW_OR_SAMPLE');
   assert.equal(at(Math.min(1, p + 1e-6)), 'PAUSE_LOW_POWER');
 });
@@ -149,7 +149,8 @@ const paused = (code = 'PAUSE_LOW_POWER') => {
   assert.equal(out.resolution.code, code);
   return out;
 };
-const failedCheck = (n) => Array.from({ length: n }, (_, i) => ({ as_of: `2026-1${i + 2}-05T10:00:00+08:00`, state: 'STILL_PAUSED' }));
+const MONTHS = ['2026-12-05', '2027-01-05', '2027-02-05'];
+const failedCheck = (n) => MONTHS.slice(0, n).map((d) => ({ as_of: `${d}T10:00:00+08:00`, state: 'STILL_PAUSED' }));
 
 test('recheck: resume when 50% of the required sample is reached, or the rate recovers', () => {
   const p = paused();
@@ -237,7 +238,7 @@ test('information value: ties broken by candidate id; one market per ranking; on
   assert.throws(() => engine.rankInformationValue([item('A'), item('B', { market: 'CRYPTO' })], { market: 'CN_A' }), /PROMOTION_VALUE_CROSS_MARKET/);
   const paused1 = engine.rankInformationValue([item('A'), item('P', { conclusion: '暂停' })], { market: 'CN_A' });
   assert.deepEqual(paused1.ranked.map((r) => r.candidate_id), ['A']);
-  assert.deepEqual(paused1.excluded, [{ candidate_id: 'P', reason: 'NOT_DO_CONCLUSION' }]);
+  assert.deepEqual(paused1.excluded, [{ candidate_id: 'P', reason: 'NOT_A_DO_CONCLUSION' }]);
 });
 
 test('information value: an interval entirely below the threshold scores 0; unknown prior class is refused', () => {
