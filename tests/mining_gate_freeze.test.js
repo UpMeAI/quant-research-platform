@@ -163,3 +163,15 @@ test('冻结页不对 → MINE_THRESHOLDS_FREEZE_REF_INVALID：sha 不符、页�
   // 单元测试自带的 FROZEN 门槛块：不要求 checkFreeze 时不核页（逐候选记录总是核）
   assert.equal(gate.evaluate({}, { thresholds: { ...base, frozen_ref: { path: PAGE, sha256: 'f'.repeat(64) } } }).codes.includes('MINE_THRESHOLDS_FREEZE_REF_INVALID'), false);
 });
+
+/** G-MINE 门槛 v2 FROZEN（RF1116 修订 SIZE_V2 N4；协调会话冻结页 FREEZE_2，0594df55）。与 v1 同一做法：仓库里的字节一致副本 + frozen_ref。 */
+test('仓库里的 v2 门槛文件：FROZEN，frozen_ref 指向仓库里的 FREEZE_2 副本（0594df55），verifyFreezeRef(THRESHOLDS_V2) 在真实文件上返回 null', () => {
+  const V2_PAGE = 'docs/freeze/RF1116_GMINE_THRESHOLDS_FREEZE_2.md';
+  const V2_SHA = '0594df555b8746245796495a7737800b01939942ce22354a01edaa2a4fe3fd83';
+  const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'config', 'mining_gate_thresholds.v2.json'), 'utf8'));
+  assert.equal(doc.state, 'FROZEN');
+  assert.deepEqual([doc.frozen_ref.path, doc.frozen_ref.sha256, doc.frozen_ref.coordinator_path], [V2_PAGE, V2_SHA, 'artifacts/coordinator/RF1116_GMINE_THRESHOLDS_FREEZE_2.md']);
+  assert.equal(sha(fs.readFileSync(path.join(ROOT, V2_PAGE))), V2_SHA);
+  assert.equal(gate.THRESHOLDS_V2.state, 'FROZEN');
+  assert.equal(gate.verifyFreezeRef(gate.THRESHOLDS_V2), null);
+});
