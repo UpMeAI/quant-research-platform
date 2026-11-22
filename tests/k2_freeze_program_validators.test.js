@@ -146,6 +146,11 @@ test('AQ-37 V9 counter-examples: an arm without a PREREGISTERED row; a row regis
   assert.equal(res.state, 'REFUSED');
   assert.deepEqual(failing(res), ['V9']);
   assert.ok(codesOf(res, 'V9').some((c) => c.startsWith('TRIAL_LEDGER_PRE_NOT_REGISTERED')), codesOf(res, 'V9'));
+  // a ledger row whose k2_sha256 is not this K2's (registered against another text) is refused by the G-TRIAL-PRE check
+  const other = fx.ledgerRows().map((r) => (r.study_ref === d.study_ref ? { ...r, k2_sha256: 'f'.repeat(64) } : r));
+  const wrongSha = prog.finalize(d, receipts, { ...ctx, now: fx.NOW_FREEZE, ledgerRows: other }, p.prepared);
+  assert.deepEqual(failing(wrongSha), ['V9']);
+  assert.ok(codesOf(wrongSha, 'V9').some((c) => c.startsWith('TRIAL_LEDGER_PRE_K2_SHA256_MISMATCH')), codesOf(wrongSha, 'V9'));
   assert.equal(missing.res.state, 'FROZEN');
   const late = flow(baseDraft(), {}, { at: '2026-11-24T10:06:00+08:00' });
   assert.equal(late.res.state, 'REFUSED');
