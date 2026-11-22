@@ -46,7 +46,7 @@ function operatorEvidence(edit) {
   return { bytes, sha256: sha(bytes) };
 }
 const fn = (doc, op) => doc.functions.find((f) => f.function_id === `${OPS}${op}`);
-const refusal = (fnc, code) => assert.throws(fnc, (e) => { assert.ok(String(e.code || e.message).startsWith(code), `${e.code || e.message}`); return true; });
+const refusal = (fnc, code) => assert.throws(fnc, (e) => { assert.ok(String(e.message).startsWith(code), e.message); return true; });
 
 /** A verifier bundle whose V-1 runs on the composed evidence and a K2 that carries the matching CF lines and DATA token. */
 function v1Bundle(formula, { mutate = (c) => c } = {}) {
@@ -55,9 +55,10 @@ function v1Bundle(formula, { mutate = (c) => c } = {}) {
   const cf = lab.functionIdsOf(formula).map((id) => `- \`CF:${id}\``).join('\n');
   const text = old.replace(/- [^\n]*`CF:[^`]*`/, cf);
   const k2 = fx.put('k2.md', text);
-  const composed = mutate(lab.fromExpression({ formula, k2Sha256: k2.sha256, dataInputs: [TOKEN] }));
+  const honest = lab.fromExpression({ formula, k2Sha256: k2.sha256, dataInputs: [TOKEN] });
+  const composed = mutate(honest);
   const ev = fx.put('causality.json', composed.bytes);
-  const runLog = fx.put('runlog.json', JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2.sha256, runs: [], qrp_run_commit: composed.evidence.code_sha }));
+  const runLog = fx.put('runlog.json', JSON.stringify({ schema: 'RESEARCH_RUN_LOG_V1', k2_sha256: k2.sha256, runs: [], qrp_run_commit: honest.evidence.code_sha }));
   const v1 = fx.bundle.v1;
   v1.entry = { ...v1.entry, k2: { sha256: k2.sha256 }, causality_evidence: { sha256: ev.sha256 } };
   v1.files = { ...v1.files, k2, causalityEvidence: ev, runLog };
@@ -174,13 +175,13 @@ test('codeSha: the run commit may stand as code_sha only when git shows operator
 });
 
 test('a tampered composed evidence fails V-1: edited result, edited record without re-hash, another K2, a function swapped out', () => {
-  const rehash = (c, edit) => { const doc = JSON.parse(c.bytes.toString('utf8')); edit(doc); if (doc.record_hash !== 'KEEP') doc.record_hash = causality.recordHash(doc); const bytes = Buffer.from(JSON.stringify(doc)); return { ...c, bytes, evidence: doc, sha256: sha(bytes) }; };
+  const rehash = (c, edit, keepHash = false) => { const doc = JSON.parse(c.bytes.toString('utf8')); edit(doc); if (!keepHash) doc.record_hash = causality.recordHash(doc); const bytes = Buffer.from(JSON.stringify(doc)); return { ...c, bytes, evidence: doc, sha256: sha(bytes) }; };
   const formula = FORMULAS.CROSS_SECTION;
   const ok = v1Bundle(formula);
   assert.deepEqual(stages.runners.V1(ok.fx.bundle, ok.fx.ctx).codes, []);
   const run = (mutate) => { const { fx } = v1Bundle(formula, { mutate }); return () => stages.runners.V1(fx.bundle, fx.ctx); };
   refusal(run((c) => rehash(c, (d) => { d.functions[0].t_c2 = 'FAIL'; d.functions[0].fail_reasons = { t_c2: 'EDITED' }; })), 'CAUSALITY_FUNCTION_NOT_PASS');
-  refusal(run((c) => rehash(c, (d) => { d.functions[0].role = 'SIGNAL'; d.record_hash = 'KEEP'; })), 'CAUSALITY_EVIDENCE_RECORD_HASH_MISMATCH');
+  refusal(run((c) => rehash(c, (d) => { d.functions[0].role = 'SIGNAL'; }, true)), 'CAUSALITY_EVIDENCE_RECORD_HASH_MISMATCH');
   refusal(run((c) => rehash(c, (d) => { d.k2_sha256 = 'e'.repeat(64); })), 'CAUSALITY_EVIDENCE_K2_MISMATCH');
   refusal(run((c) => rehash(c, (d) => { d.functions = d.functions.slice(1); })), 'CAUSALITY_FUNCTION_NOT_IN_EVIDENCE');
   refusal(run((c) => rehash(c, (d) => { d.code_sha = 'a'.repeat(40); })), 'CAUSALITY_CODE_SHA_MISMATCH');
