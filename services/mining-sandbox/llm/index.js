@@ -274,12 +274,10 @@ function withdrawUnanswered(dir, { roundId = null, keepKey = null, now = () => n
   const withdrawn = [];
   for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.req.json')).sort()) {
     const base = name.slice(0, -'.req.json'.length); // = exchangeName(key): answered or in-flight requests are skipped without parsing them (the directory keeps every round's prompts)
-    if (fs.existsSync(path.join(dir, `${base}.res.json`)) || fs.existsSync(path.join(dir, `${base}.inflight`))) continue;
+    if (fs.existsSync(path.join(dir, `${base}.res.json`)) || fs.existsSync(path.join(dir, `${base}.inflight`))) continue; // 调用途中的不撤回：可能已经计费，由 findCrashed / generate 按上界记账
     const req = readJson(path.join(dir, name));
     if (!req || req.schema !== 'MINING_LLM_REQUEST_V1' || typeof req.key !== 'string') continue;
     if (roundId !== null && (req.kind !== 'GENERATE' || req.round_id !== roundId || req.key === keepKey)) continue;
-    if (readResponse(dir, req.key)) continue;
-    if (fs.existsSync(path.join(dir, `${exchangeName(req.key)}.inflight`))) continue; // 调用途中的不撤回：可能已经计费，由 findCrashed / generate 按上界记账
     writeAtomic(path.join(dir, `${exchangeName(req.key)}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: req.key, kind: req.kind, round_id: req.round_id,
       request_sha256: req.request_sha256, answered_at: now(), outcome: 'WITHDRAWN_BY_RUNNER', sent: false, reason: roundId === null ? 'WITHDRAWN_AT_INIT' : 'PROMPT_CHANGED_BEFORE_ANSWER' })}\n`);
     withdrawn.push(req.key);
