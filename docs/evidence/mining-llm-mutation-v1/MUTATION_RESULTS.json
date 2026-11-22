@@ -1,0 +1,997 @@
+{
+  "schema": "MINING_LLM_MUTATION_RESULTS_V1",
+  "baseline": "GREEN",
+  "mutants": 68,
+  "killed": 68,
+  "survived": [],
+  "bad": [],
+  "heads": [
+    "c156ee7",
+    "93d22df",
+    "17bf44a"
+  ],
+  "results": [
+    {
+      "id": "M01",
+      "guard": "request body: only the five plain-completion keys",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A2 只是普通对话补全：请求体恰好 model / messages / max_tokens / temperature / stream:false；tools、联网、文件、网址一律在发出之前拒",
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ A7 / A8 交换目录（网络那一步）：密钥不在 → WAITING_KEY_ABSENT、不连网；上次调用中途崩了 → 不再发、记 WAITING_STEP_CRASHED_MID_CALL；已答的不重答；请求体不对 → STOPPED_REQUEST_INVALID；密钥不落盘",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M02",
+      "guard": "request body: stream must be false",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A2 只是普通对话补全：请求体恰好 model / messages / max_tokens / temperature / stream:false；tools、联网、文件、网址一律在发出之前拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M03",
+      "guard": "request body: model must be the pinned one",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A2 只是普通对话补全：请求体恰好 model / messages / max_tokens / temperature / stream:false；tools、联网、文件、网址一律在发出之前拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M04",
+      "guard": "request body: messages are plain strings with system/user roles",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A2 只是普通对话补全：请求体恰好 model / messages / max_tokens / temperature / stream:false；tools、联网、文件、网址一律在发出之前拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M05",
+      "guard": "request body: max_tokens never above the configured value",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A2 只是普通对话补全：请求体恰好 model / messages / max_tokens / temperature / stream:false；tools、联网、文件、网址一律在发出之前拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M06",
+      "guard": "holdout blindness: generator view key whitelist",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A4 / A6 提示词：只由生成方视图、读数元数据、算子与机制的经济逻辑组成；不含验证折、留出段与结论；没有预测指令；视图多一个字段就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M07",
+      "guard": "holdout blindness: score entry key whitelist",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A4 / A6 提示词：只由生成方视图、读数元数据、算子与机制的经济逻辑组成；不含验证折、留出段与结论；没有预测指令；视图多一个字段就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M08",
+      "guard": "holdout blindness: the prompt carries no holdout date",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A4 / A6 提示词：只由生成方视图、读数元数据、算子与机制的经济逻辑组成；不含验证折、留出段与结论；没有预测指令；视图多一个字段就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M09",
+      "guard": "no predictive instruction in the prompt",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A4 / A6 提示词：只由生成方视图、读数元数据、算子与机制的经济逻辑组成；不含验证折、留出段与结论；没有预测指令；视图多一个字段就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M10",
+      "guard": "response model: a model that is not the pinned one is a mismatch",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js",
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A3 应答的模型名：等于 api_model 记 NOT_REPORTED；等于钉住的版本照记；别的一律 WAITING_MODEL_MISMATCH",
+        "✖ A10 探活：一条不含公式的请求、结果写进交换目录；不开轮、不写台账、不计 N；命令行没有密钥 → 退出码 75、一次网络都不连",
+        "✖ B5 等待态：密钥不在 → WAITING_KEY_ABSENT、一次网络都不连、N 不变；限流 429 → WAITING_RATE_LIMITED；模型名对不上 → WAITING_MODEL_MISMATCH、那批公式不用",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M11",
+      "guard": "only the first n lines are taken",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js",
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A5 应答解析：只取前 n 行、去掉空行与 ``` 围栏行，多给的只计数；行原样交出（DSL 解析由执行器做）",
+        "✖ B2 / B3 / B4 / B7 一轮（上限 24）：每行过 DSL；拒的、重的都计入 N；每次只要剩下的；反馈只有挖掘段分数；每次调用计量；密钥不落盘",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M12",
+      "guard": "config: release date not after the holdout start",
+      "file": "config/mining_llm_generator.v1.json",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A1 模型钉在配置里：deepseek-v4-pro / DeepSeek-V4-Pro-0813，发布日 2026-08-13 不晚于留出段起点 2026-10-19；代码里没有模型名；配置坏了就拒",
+        "✖ A2 只是普通对话补全：请求体恰好 model / messages / max_tokens / temperature / stream:false；tools、联网、文件、网址一律在发出之前拒",
+        "✖ A4 / A6 提示词：只由生成方视图、读数元数据、算子与机制的经济逻辑组成；不含验证折、留出段与结论；没有预测指令；视图多一个字段就拒",
+        "✖ A3 应答的模型名：等于 api_model 记 NOT_REPORTED；等于钉住的版本照记；别的一律 WAITING_MODEL_MISMATCH",
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M13",
+      "guard": "config pins deepseek-v4-pro (no silent switch)",
+      "file": "config/mining_llm_generator.v1.json",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A1 模型钉在配置里：deepseek-v4-pro / DeepSeek-V4-Pro-0813，发布日 2026-08-13 不晚于留出段起点 2026-10-19；代码里没有模型名；配置坏了就拒",
+        "✖ A2 只是普通对话补全：请求体恰好 model / messages / max_tokens / temperature / stream:false；tools、联网、文件、网址一律在发出之前拒",
+        "✖ A3 应答的模型名：等于 api_model 记 NOT_REPORTED；等于钉住的版本照记；别的一律 WAITING_MODEL_MISMATCH",
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ A10 探活：一条不含公式的请求、结果写进交换目录；不开轮、不写台账、不计 N；命令行没有密钥 → 退出码 75、一次网络都不连"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M14",
+      "guard": "config: holdout start is the frozen one",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A1 模型钉在配置里：deepseek-v4-pro / DeepSeek-V4-Pro-0813，发布日 2026-08-13 不晚于留出段起点 2026-10-19；代码里没有模型名；配置坏了就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M15",
+      "guard": "key: file mode must not be open to group or others",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A7 密钥：只读挂进来的 env 文件；不在 / 不是文件 / 权限太宽 / 没有变量 → WAITING_KEY_ABSENT，原因不带密钥；0600 与 0400 都可以",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M16",
+      "guard": "quota error is a quota wait",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M17",
+      "guard": "a rate limit is never read as a concurrency limit / stop",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M18",
+      "guard": "no blind retry after a failure",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js",
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B5 等待态：额度用完（402）→ WAITING_QUOTA，本轮留在 OPEN、只发一次、原始错误照留；续跑从第 11 个尝试接着来",
+        "✖ B5 等待态：密钥不在 → WAITING_KEY_ABSENT、一次网络都不连、N 不变；限流 429 → WAITING_RATE_LIMITED；模型名对不上 → WAITING_MODEL_MISMATCH、那批公式不用",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M19",
+      "guard": "request checked again before sending (step side)",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M20",
+      "guard": "egress lock: https to any other host is refused",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A9 网络那一步只连 api.deepseek.com:443：别的主机（https / http / net / tls / fetch）在进程里就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M21",
+      "guard": "egress lock: raw sockets to other hosts are refused",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A9 网络那一步只连 api.deepseek.com:443：别的主机（https / http / net / tls / fetch）在进程里就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M22",
+      "guard": "egress lock: fetch is disabled",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A9 网络那一步只连 api.deepseek.com:443：别的主机（https / http / net / tls / fetch）在进程里就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M23",
+      "guard": "raw errors redact the key",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M24",
+      "guard": "the ping record never carries the key",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A10 探活：一条不含公式的请求、结果写进交换目录；不开轮、不写台账、不计 N；命令行没有密钥 → 退出码 75、一次网络都不连",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M25",
+      "guard": "a crashed in-flight call is not sent again",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A7 / A8 交换目录（网络那一步）：密钥不在 → WAITING_KEY_ABSENT、不连网；上次调用中途崩了 → 不再发、记 WAITING_STEP_CRASHED_MID_CALL；已答的不重答；请求体不对 → STOPPED_REQUEST_INVALID；密钥不落盘",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M26",
+      "guard": "a tampered request file is refused",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A7 / A8 交换目录（网络那一步）：密钥不在 → WAITING_KEY_ABSENT、不连网；上次调用中途崩了 → 不再发、记 WAITING_STEP_CRASHED_MID_CALL；已答的不重答；请求体不对 → STOPPED_REQUEST_INVALID；密钥不落盘",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M27",
+      "guard": "per-round token cap is enforced before sending",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上限 → STOPPED_TOKEN_CAP、不发；调用次数到上限 → STOPPED_CALL_CAP",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M28",
+      "guard": "per-round call cap is enforced before sending",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上限 → STOPPED_TOKEN_CAP、不发；调用次数到上限 → STOPPED_CALL_CAP",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M29",
+      "guard": "a call asks only for the formulas still allowed under the 200 cap",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B2 / B3 / B4 / B7 一轮（上限 24）：每行过 DSL；拒的、重的都计入 N；每次只要剩下的；反馈只有挖掘段分数；每次调用计量；密钥不落盘",
+        "✖ B12 LLM 轮的留出段结果记 AI_MINED_LLM，不能写成 GP（复审 2026-11-22 #1）",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M30",
+      "guard": "waiting states are persisted as call rows",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B5 等待态：额度用完（402）→ WAITING_QUOTA，本轮留在 OPEN、只发一次、原始错误照留；续跑从第 11 个尝试接着来",
+        "✖ B5 等待态：密钥不在 → WAITING_KEY_ABSENT、一次网络都不连、N 不变；限流 429 → WAITING_RATE_LIMITED；模型名对不上 → WAITING_MODEL_MISMATCH、那批公式不用",
+        "✖ B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上限 → STOPPED_TOKEN_CAP、不发；调用次数到上限 → STOPPED_CALL_CAP",
+        "✖ B10 网络那一步在调用途中崩了：不再发，记 WAITING_STEP_CRASHED_MID_CALL，这次调用可能已计费，按上界计量（宁多不少），本轮留在 OPEN",
+        "✖ B11 计量不明（应答没有 usage）→ 失败即关：WAITING_METER_UNKNOWN，按上界计量，这批公式不用，本轮等待（plan-coord 2026-11-22）"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M31",
+      "guard": "a model mismatch stops generation and the batch is not used",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B5 等待态：密钥不在 → WAITING_KEY_ABSENT、一次网络都不连、N 不变；限流 429 → WAITING_RATE_LIMITED；模型名对不上 → WAITING_MODEL_MISMATCH、那批公式不用",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M32",
+      "guard": "a config changed after the round opened stops generation",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B1 开轮：模型与上限从配置写进清单；调用方不能换模型；GP 轮清单不变；开轮后配置变了 → MINE_RUNNER_LLM_CONFIG_CHANGED",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M33",
+      "guard": "the caller cannot choose another model",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B1 开轮：模型与上限从配置写进清单；调用方不能换模型；GP 轮清单不变；开轮后配置变了 → MINE_RUNNER_LLM_CONFIG_CHANGED",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M34",
+      "guard": "the generator sees the generator view only (a validation-selection field leaks into it)",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B2 / B3 / B4 / B7 一轮（上限 24）：每行过 DSL；拒的、重的都计入 N；每次只要剩下的；反馈只有挖掘段分数；每次调用计量；密钥不落盘",
+        "✖ B5 等待态：额度用完（402）→ WAITING_QUOTA，本轮留在 OPEN、只发一次、原始错误照留；续跑从第 11 个尝试接着来",
+        "✖ B5 等待态：密钥不在 → WAITING_KEY_ABSENT、一次网络都不连、N 不变；限流 429 → WAITING_RATE_LIMITED；模型名对不上 → WAITING_MODEL_MISMATCH、那批公式不用",
+        "✖ B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上限 → STOPPED_TOKEN_CAP、不发；调用次数到上限 → STOPPED_CALL_CAP",
+        "✖ B6 命令行：开新轮之前先探活；网络那一步不答或没有密钥 → 退出码 75、一轮都不开；探活过了才开轮、生成到上限、选择；续跑的生成方式要和轮次一致"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M35",
+      "guard": "a crashed step call is metered at the upper bound",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B10 网络那一步在调用途中崩了：不再发，记 WAITING_STEP_CRASHED_MID_CALL，这次调用可能已计费，按上界计量（宁多不少），本轮留在 OPEN",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M36",
+      "guard": "call rows are appended in sequence",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B9 台账：MINING_LLM_CALL_V1 的 seq 必须是下一个、只能记在 LLM 轮、记 token 必须是非负整数；LLM 轮清单的 llm 块缺键或带多余键被拒；累计用量按行算",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M37",
+      "guard": "call rows only on LLM rounds",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B9 台账：MINING_LLM_CALL_V1 的 seq 必须是下一个、只能记在 LLM 轮、记 token 必须是非负整数；LLM 轮清单的 llm 块缺键或带多余键被拒；累计用量按行算",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M38",
+      "guard": "the manifest llm block is validated",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B9 台账：MINING_LLM_CALL_V1 的 seq 必须是下一个、只能记在 LLM 轮、记 token 必须是非负整数；LLM 轮清单的 llm 块缺键或带多余键被拒；累计用量按行算",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M39",
+      "guard": "the generate container keeps --network none",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_llm_round.test.js",
+        "tests/mining_round_runner.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）",
+        "✖ 容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文件；两个阶段都 --network none、只读根、去掉全部能力、非 root、限 CPU/内存/进程；数据只读、唯一可写的是 /out；留出段只在 score 挂",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M40",
+      "guard": "the LLM step mounts only the key and the exchange directory",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_round_runner.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ 容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文件；两个阶段都 --network none、只读根、去掉全部能力、非 root、限 CPU/内存/进程；数据只读、唯一可写的是 /out；留出段只在 score 挂",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M42",
+      "guard": "generate-llm passes the exit code through (75 = waiting)",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M43",
+      "guard": "fail closed: a reply with no usage block makes the round wait and its formulas are not used",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B11 计量不明（应答没有 usage）→ 失败即关：WAITING_METER_UNKNOWN，按上界计量，这批公式不用，本轮等待（plan-coord 2026-11-22）",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M44",
+      "guard": "consecutive empty replies stop the round",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续选择（预算 / 能力用尽 = 生成结束），退出码 3；一个尝试都没有就不选择；请求体不合规是硬停",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M45",
+      "guard": "a timeout or reset after sending is metered at the upper bound",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B14 没人答的旧请求被撤回（llm-init 在网络那一步起来之前撤全部；generate 写新请求之前撤本轮的旧请求，别的轮不动）；超时 / 连接重置按上界计量",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M46",
+      "guard": "the key mount exists only when the key file does (Docker would create a directory)",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_llm_round.test.js",
+        "tests/mining_round_runner.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）",
+        "✖ 容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文件；两个阶段都 --network none、只读根、去掉全部能力、非 root、限 CPU/内存/进程；数据只读、唯一可写的是 /out；留出段只在 score 挂",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M47",
+      "guard": "the LLM step is stopped by an EXIT trap",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_llm_round.test.js",
+        "tests/mining_round_runner.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）",
+        "✖ B8b run.sh：run.sh 被杀（整个进程组）时，网络那一步容器照样被停掉（EXIT 陷阱）",
+        "✖ 容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文件；两个阶段都 --network none、只读根、去掉全部能力、非 root、限 CPU/内存/进程；数据只读、唯一可写的是 /out；留出段只在 score 挂",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M48",
+      "guard": "holdout results carry the round generator (scoring side)",
+      "file": "services/mining-sandbox/round-runner/holdout-scoring.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B12 LLM 轮的留出段结果记 AI_MINED_LLM，不能写成 GP（复审 2026-11-22 #1）",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M49",
+      "guard": "holdout results carry the round generator (runner side)",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B12 LLM 轮的留出段结果记 AI_MINED_LLM，不能写成 GP（复审 2026-11-22 #1）",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M50",
+      "guard": "a budget or ability stop selects on the attempts so far",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续选择（预算 / 能力用尽 = 生成结束），退出码 3；一个尝试都没有就不选择；请求体不合规是硬停",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M51",
+      "guard": "llm-init withdraws requests left by the previous run",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B15 CLI llm-init：建交换目录（粘滞位）并撤回上一次运行留下的、没人答的请求；已有应答的不动",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M52",
+      "guard": "generate withdraws this round's stale requests before writing a new one",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B14 没人答的旧请求被撤回（llm-init 在网络那一步起来之前撤全部；generate 写新请求之前撤本轮的旧请求，别的轮不动）；超时 / 连接重置按上界计量",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M53",
+      "guard": "a withdrawn key is never taken as an answer",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B14 没人答的旧请求被撤回（llm-init 在网络那一步起来之前撤全部；generate 写新请求之前撤本轮的旧请求，别的轮不动）；超时 / 连接重置按上界计量",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M54",
+      "guard": "egress lock: raw dgram sockets cannot send or connect",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A9 网络那一步只连 api.deepseek.com:443：别的主机（https / http / net / tls / fetch）在进程里就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M55",
+      "guard": "raw errors redact the key suffixes an upstream echoes",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M56",
+      "guard": "raw errors drop masked-key echoes",
+      "file": "services/mining-llm-step/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITING_RATE_LIMITED、401 → WAITING_KEY_REJECTED、5xx / 网络 → WAITING_PROVIDER_UNAVAILABLE、400 / 422 → STOPPED_REQUEST_INVALID；原始错误照留、打码；只发一次",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M57",
+      "guard": "only a bare fence marker line is dropped (a fenced formula still counts)",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A5 应答解析：只取前 n 行、去掉空行与 ``` 围栏行，多给的只计数；行原样交出（DSL 解析由执行器做）",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M58",
+      "guard": "the token bound is at least one token per byte",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A4 / A6 提示词：只由生成方视图、读数元数据、算子与机制的经济逻辑组成；不含验证折、留出段与结论；没有预测指令；视图多一个字段就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M59",
+      "guard": "the exchange directory has the sticky bit",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B6 命令行：开新轮之前先探活；网络那一步不答或没有密钥 → 退出码 75、一轮都不开；探活过了才开轮、生成到上限、选择；续跑的生成方式要和轮次一致",
+        "✖ B15 CLI llm-init：建交换目录（粘滞位）并撤回上一次运行留下的、没人答的请求；已有应答的不动",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M60",
+      "guard": "the probe sends the production max_tokens",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A10 探活：一条不含公式的请求、结果写进交换目录；不开轮、不写台账、不计 N；命令行没有密钥 → 退出码 75、一次网络都不连",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M61",
+      "guard": "config: the empty-reply stop must be a positive integer",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_generator.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ A1 模型钉在配置里：deepseek-v4-pro / DeepSeek-V4-Pro-0813，发布日 2026-08-13 不晚于留出段起点 2026-10-19；代码里没有模型名；配置坏了就拒",
+        "✖ failing tests:"
+      ],
+      "head": "c156ee7"
+    },
+    {
+      "id": "M62",
+      "guard": "in-flight requests are never withdrawn (they may have been billed)",
+      "file": "services/mining-sandbox/llm/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B16 调用途中崩了的请求（.inflight 在，或网络那一步答了 CRASHED）：不被撤回，generate 先按上界记一行再继续；之后的续跑照常",
+        "✖ failing tests:"
+      ],
+      "head": "17bf44a"
+    },
+    {
+      "id": "M63",
+      "guard": "a crashed in-flight request is recorded at the upper bound before anything new is sent",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B16 调用途中崩了的请求（.inflight 在，或网络那一步答了 CRASHED）：不被撤回，generate 先按上界记一行再继续；之后的续跑照常",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M64",
+      "guard": "a stopped (empty replies) round stays stopped on resume",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续选择（预算 / 能力用尽 = 生成结束），退出码 3；一个尝试都没有就不选择；请求体不合规是硬停",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M65",
+      "guard": "a selected round is refused on resume before any probe",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续选择（预算 / 能力用尽 = 生成结束），退出码 3；一个尝试都没有就不选择；请求体不合规是硬停",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M66",
+      "guard": "a holdout result is never silently labelled with a default generator",
+      "file": "services/mining-sandbox/round-runner/holdout-scoring.js",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B12 LLM 轮的留出段结果记 AI_MINED_LLM，不能写成 GP（复审 2026-11-22 #1）",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M67",
+      "guard": "LLM runs are mutually exclusive (busy check before llm-init)",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M68",
+      "guard": "the EXIT trap is set only after the step container started",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    },
+    {
+      "id": "M69",
+      "guard": "the busy check fails closed when docker ps itself fails",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_llm_round.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "✖ B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）",
+        "✖ failing tests:"
+      ],
+      "head": "93d22df"
+    }
+  ]
+}
