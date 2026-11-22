@@ -195,7 +195,7 @@ test('AQ-39 importer gate: a program-frozen K2 passes only with the page, the 14
   refused.results[2].state = 'REFUSED';
   refused.results[2].codes = ['PREREG_POWER_MISMATCH'];
   const refusedBytes = Buffer.from(JSON.stringify(refused, null, 1));
-  const pagePatched = Buffer.from(s.page.toString().replace(s.entry.freeze_program.report.sha256, sha(refusedBytes)));
+  const pagePatched = Buffer.from(s.page.toString().split(s.entry.freeze_program.report.sha256).join(sha(refusedBytes)));
   refuses(() => gateCheck(s, { report: refusedBytes, page: pagePatched, entry: { ...s.entry, freeze_program: { page: { sha256: sha(pagePatched) }, report: { sha256: sha(refusedBytes) } } } }), 'REPORT_NOT_ALL_PASS');
   // queue line: none / two / log unavailable (unknown is not missing)
   refuses(() => gateCheck(s, { log: '' }), 'QUEUE_LINE_MISSING');

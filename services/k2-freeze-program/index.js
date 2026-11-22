@@ -63,6 +63,7 @@ function gates(draft, ctx) {
   return null;
 }
 
+const mutantOf = (ctx, id) => process.env.QRP_TEST_K2_PROGRAM_MUTANT === '1' && Array.isArray(ctx.testDisableValidators) && ctx.testDisableValidators.includes(id);
 function skipped(id, reason) { return { v: id, name: val.NAMES[id], state: 'NOT_RUN', codes: [], reason }; }
 
 /** Runs every validator that can run in this phase. */
@@ -83,7 +84,7 @@ function evaluateAll(draft, ctx, { phase, prepared = null, receipts = null }, mu
   }
   const run1 = { v: 'V1', name: val.NAMES.V1, state: 'PASS', codes: [], ...(v1.length ? { reason: 'MUTANT_DISABLED' } : {}) };
   if (!isCstStamp(ctx.now)) {
-    out.results = val.ORDER.map((id) => (id === 'V1' ? run1 : id === 'V12' ? { v: 'V12', name: val.NAMES.V12, state: 'REFUSED', codes: ['PREREG_ARTIFACT_CLOCK'] } : skipped(id, 'CLOCK_INVALID')));
+    out.results = val.ORDER.map((id) => (id === 'V1' ? run1 : id === 'V12' ? (mutantOf(ctx, 'V12') ? { v: 'V12', name: val.NAMES.V12, state: 'PASS', codes: [], reason: 'MUTANT_DISABLED' } : { v: 'V12', name: val.NAMES.V12, state: 'REFUSED', codes: ['PREREG_ARTIFACT_CLOCK'] }) : skipped(id, 'CLOCK_INVALID')));
     return out;
   }
   const asOf = phase === 'FINALIZE' && prepared && isCstStamp(prepared.as_of) ? prepared.as_of : ctx.now;
