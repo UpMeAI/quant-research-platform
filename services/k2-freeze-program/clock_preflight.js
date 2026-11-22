@@ -8,14 +8,15 @@
  */
 const { fail } = require('./common');
 
+const r6 = (x) => Math.round(x * 1e6) / 1e6;
 function parseOffset(text) {
   const t = String(text || '');
   let m = /System time\s*:\s*([\d.]+) seconds (fast|slow) of NTP time/.exec(t);
-  if (m) return { offset_ms: (m[2] === 'fast' ? 1 : -1) * Number(m[1]) * 1000, source: 'chronyc' };
+  if (m) return { offset_ms: r6((m[2] === 'fast' ? 1 : -1) * Number(m[1]) * 1000), source: 'chronyc' };
   m = /Offset:\s*([+-]?[\d.]+)\s*(us|µs|ms|s)\b/.exec(t);
-  if (m) return { offset_ms: Number(m[1]) * ({ us: 0.001, 'µs': 0.001, ms: 1, s: 1000 })[m[2]], source: 'timedatectl' };
+  if (m) return { offset_ms: r6(Number(m[1]) * ({ us: 0.001, 'µs': 0.001, ms: 1, s: 1000 })[m[2]]), source: 'timedatectl' };
   m = /^\s*([+-][\d.]+)\s+\+\/-\s+[\d.]+\s+\S+/m.exec(t);
-  if (m) return { offset_ms: Number(m[1]) * 1000, source: 'sntp' };
+  if (m) return { offset_ms: r6(Number(m[1]) * 1000), source: 'sntp' };
   return fail('CLOCK_PREFLIGHT_UNPARSEABLE');
 }
 
