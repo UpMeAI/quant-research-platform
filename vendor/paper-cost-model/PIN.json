@@ -2,9 +2,9 @@
   "schema": "PAPER_COST_MODEL_VENDOR_PIN_V1",
   "contract": "PAPER_TRADING_COST_MODEL_V1",
   "contractSha256": "1be6e0807995a9501e8b3393427c6367af47cd333e5bf89a0a95c03cc21e76fb",
-  "registryRevision": 2,
-  "source": "PAPER_COST_MODEL_V1.r2.json (frozen by plan-coord; copied byte for byte, renamed)",
+  "registryRevision": 3,
+  "source": "PAPER_COST_MODEL_V1.r3.json (frozen by plan-coord; copied byte for byte, renamed)",
   "files": {
-    "PAPER_COST_MODEL_V1.json": "44cdebd53a28d25c195690696bf99050573ef7f647d81c7b65a464c4b4607776"
+    "PAPER_COST_MODEL_V1.json": "9e6672d2b80a0d09416206e61fee3c5691280aca1db011183cf5d26ddf3eb897"
   }
 }
