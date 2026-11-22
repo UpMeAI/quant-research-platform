@@ -40,7 +40,7 @@ class ShippedTemplates(unittest.TestCase):
             self.assertRegex(pins[tid]["template_sha256"], r"^[0-9a-f]{64}$")
             self.assertTrue(reg.is_frozen(t), tid)
             self.assertIn("frozen_page_sha256", pins[tid])
-            self.assertTrue(pins[tid]["frozen_page_sha256"] is None or len(pins[tid]["frozen_page_sha256"]) == 64, tid)
+            self.assertEqual(pins[tid]["frozen_page_sha256"], "c53171740c6d59be5ee4171f95b0b07dba71a69def14a430403f099aa8fe6a40", tid)  # RQ_TEMPLATES_V1_FREEZE_1
         self.assertEqual(len({p["template_sha256"] for p in reg.pins}), 2)
 
     def test_unpinned_template_is_refused(self):

@@ -1,16 +1,16 @@
 {
  "schema": "RESEARCH_QUEUE_TEMPLATE_PINS_V1",
- "note": "One {template_id, template_sha256, frozen_page_sha256} per frozen template. template_sha256 is rq.templates.template_sha256(template). frozen_page_sha256 is null until the coordinator's template freeze page exists; the queue checks template_id and template_sha256 only. Empty or unlisted = not admissible. The two HK templates are unpinned for now (plan-coord 11-23): their launch design is replaced in the follow-up PR and they are not admissible.",
+ "note": "One {template_id, template_sha256, frozen_page_sha256} per frozen template. template_sha256 is rq.templates.template_sha256(template). frozen_page_sha256 is the sha256 of the coordinator's RQ_TEMPLATES_V1_FREEZE_1 page for the Linux pins (the queue checks template_id and template_sha256 only); the HK pins get a FREEZE_2 page. Empty or unlisted = not admissible. The two HK templates are unpinned for now (plan-coord 11-23): their launch design is replaced in the follow-up PR and they are not admissible.",
  "pins": [
   {
    "template_id": "T-AI-REVIEW-CARD-V1-LINUX-CN_A",
    "template_sha256": "7849a35d674b5b9cae3e94e0424f3d4ee5871d402fd96e79d6ac7c7a03018d39",
-   "frozen_page_sha256": null
+   "frozen_page_sha256": "c53171740c6d59be5ee4171f95b0b07dba71a69def14a430403f099aa8fe6a40"
   },
   {
    "template_id": "T-AI-CHECK-V1-LINUX-CN_A",
    "template_sha256": "4de786fb2c9a65cffcf4d4aef34194c14fbcbd396fac0e17f2db5a1193033a1e",
-   "frozen_page_sha256": null
+   "frozen_page_sha256": "c53171740c6d59be5ee4171f95b0b07dba71a69def14a430403f099aa8fe6a40"
   }
  ]
 }
