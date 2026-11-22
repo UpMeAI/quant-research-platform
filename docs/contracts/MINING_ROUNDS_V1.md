@@ -75,7 +75,7 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
 
 - **Container.** The round runner runs only inside the research lane's rootless container, with read-only data mounts and network egress to the model API only.
 - **Only producer of holdout results.** The round runner is the only producer of holdout results, and it produces them through `neutralizeForScoring` (`services/mining-sandbox/evaluator`). Its per-candidate G-MINE results go through `recordGateResult`.
-- **Built (P2).** The runner is `services/mining-sandbox/round-runner` (see `MINING_SANDBOX_V1`, "Round runner"), and the container is `deploy/research-lane/round-runner/` (`DEPLOY.md`). GP rounds need no egress, so the container runs `--network none`.
+- **Built (P2).** The runner is `services/mining-sandbox/round-runner` (see `MINING_SANDBOX_V1`, "Round runner"), and the container is `deploy/research-lane/round-runner/` (`DEPLOY.md`). The generate container runs `--network none` for GP and LLM rounds alike; an LLM round reaches the model API only through the separate LLM step container (`MINING_SANDBOX_V1`, "LLM generator").
 - **Every attempt is a trial row (P2).** The runner writes parse-refused and deduplicated attempts through `recordCandidate` as well, with no score. Each carries `rule_config.attempt` and `attempt_id`, so it counts toward the round cap of 200 and toward N. `candidates_scored` therefore counts attempts.
 - **`holdout-vault.sealOf(round_id)`** returns the seal row (read-only). The runner checks the mounted holdout directory against it before `open`.
 - **Selection is a ledger row (P2 review, 2026-11-17).**
@@ -83,6 +83,15 @@ Statuses run `OPEN` → `CAP_REACHED` → `SCORING` (holdout opened; no more can
   - Selected ids must be scored attempts of the round (`MINE_ROUND_SELECTION_CANDIDATE_INVALID`). A second row gives `MINE_ROUND_SELECTION_EXISTS`.
   - After the row exists, `recordCandidate` refuses with `MINE_ROUND_GENERATION_CLOSED`.
   - The holdout opens exactly the ids in this row, and the runner takes each formula from its trial row, never from the output file.
+
+## LLM rounds (RF1116 LLM_GEN, 2026-11-18)
+
+- **Manifest.** For `AI_MINED_LLM` the generator block is `{ mode, model, model_knowledge_cutoff, gp_seed: null, llm }`. `model` and `model_knowledge_cutoff` (the pinned version's release date, because no cutoff is published) come from `config/mining_llm_generator.v1.json`. `llm` = `{ config_path, config_sha256, provider, served_version, release_date, tokens_per_round, calls_per_round, formulas_per_call, max_tokens }`. A GP manifest is unchanged: it has no `llm` key. `openRound` validates the block's keys and types; the holdout start must still be later than `model_knowledge_cutoff` (`MINE_ROUND_HOLDOUT_BEFORE_CUTOFF`).
+- **Meter.** `MINING_LLM_CALL_V1` rows (`research/mining_llm_calls.jsonl`, append-only, one per call, wait or stop). `recordLlmCall(roundId, row)` requires an LLM round in `OPEN` or `CAP_REACHED`, `seq` = rows so far + 1 (`MINE_ROUND_LLM_CALL_SEQ`), and a non-negative integer `tokens_metered` with basis `USAGE`, `UPPER_BOUND` or `NONE`. `llmUsage` gives `{ calls, tokens_metered, last_outcome }`; `calls` counts only rows whose request reached the provider.
+- **Waiting is not failure.** A waiting or stopped call leaves the round `OPEN`. It does not close the round, release a slot or count as a failed round for the pause rule. A budget or ability stop (`STOPPED_TOKEN_CAP`, `STOPPED_CALL_CAP`, `STOPPED_EMPTY_REPLIES`) is the end of generation: the runner selects on the attempts so far. A hard stop or a round with no attempt is closed by the coordinator with `fail-evaluation`.
+- **Holdout results** of an LLM round carry `generator: AI_MINED_LLM` (from the manifest), not GP. `roundResults` refuses a candidate with no generator (`MINE_HOLDOUT_SCORE_GENERATOR_MISSING`); there is no default.
+- **Resume** of a round whose validation-fold selection is recorded is refused before any probe (`MINE_RUNNER_GENERATION_CLOSED`).
+- **Generator view** is unchanged: the prompt is built from it and nothing else.
 
 ## Coordinator ruling R1 (2026-11-17)
 

@@ -1,0 +1,66 @@
+{
+  "schema": "MINING_LLM_GENERATOR_CONFIG_V1",
+  "_comment": "RF1116 AI_MINED_LLM generator, pinned model and limits (signed fd22876f §3.1/§3.3/§3.5; ★M (a) and ★K (b), Owner 2026-11-17 d4c05dd7; holdout freeze 0fefcd24 model rule; brief 93a93509 + addendum 2 5ab7b720). The model is this config value, not a code constant. A round's manifest records this file's sha256; changing the file after a round opens stops that round's generation (MINE_RUNNER_LLM_CONFIG_CHANGED). Changing the model to a version released after the holdout start needs a new holdout (new set of rounds), decided by the coordinator.",
+  "generator_mode": "AI_MINED_LLM",
+  "model": {
+    "provider": "DEEPSEEK",
+    "api_model": "deepseek-v4-pro",
+    "served_version": "DeepSeek-V4-Pro-0813",
+    "release_date": "2026-08-13",
+    "knowledge_cutoff": null,
+    "cutoff_used": "2026-08-13",
+    "cutoff_rule": "DeepSeek publishes no knowledge cutoff for this version; the release date stands in (★f decision page 00e8d026, model version item 2), which is only more conservative",
+    "holdout_start": "2026-10-19",
+    "sources": [
+      "https://api-docs.deepseek.com/quick_start/pricing",
+      "https://api-docs.deepseek.com/updates"
+    ],
+    "sources_checked": "2026-11-18 15:42 CST (brief addendum 2): pricing page lists deepseek-v4-pro -> DeepSeek-V4-Pro-0813; updates page 2026-08-13 entry: V4-Pro GA, model name unchanged",
+    "signed_ref": "RF1116 fd22876f ★M (a) deepseek-v4-pro (DeepSeek-V4-Pro-0813), Owner 2026-11-17 RF1116_MINING_OWNER_DECISION_20261117 d4c05dd7; holdout RF1116_HOLDOUT_CN_A_R1_FREEZE_1 0fefcd24"
+  },
+  "endpoint": {
+    "url": "https://api.deepseek.com/chat/completions",
+    "host": "api.deepseek.com",
+    "port": 443
+  },
+  "key": {
+    "variable": "DEEPSEEK_RESEARCH_API_KEY",
+    "host_path": "/home/kayla/.config/qrp-research-key/deepseek-research.env",
+    "container_path": "/run/secrets/deepseek-research.env",
+    "rule": "★K (b): research-only key, research lane only, mounted read-only into the LLM step container only; never logged, printed, written or committed"
+  },
+  "request": {
+    "temperature": 1,
+    "max_tokens": 16384,
+    "timeout_ms": 600000
+  },
+  "batch": {
+    "formulas_per_call": 10
+  },
+  "limits": {
+    "tokens_per_round": 1000000,
+    "tokens_per_round_status": "PROPOSED 2026-11-22 by the LLM_GEN build, pending the plan coordinator's ruling (PR body: about 200k tokens and ¥1.5 expected per round; the cap is a runaway guard, worst case ¥13.5 per round off-peak)",
+    "calls_per_round": 40,
+    "empty_replies_stop": 3
+  },
+  "exchange": {
+    "poll_ms": 1000,
+    "wait_polls": 1800
+  },
+  "prompt": {
+    "version": "AI_MINED_LLM_PROMPT_V1",
+    "mechanisms": {
+      "layer": "SELECTION_TIMING",
+      "decision_point": "SELECT",
+      "ids": [
+        "SEL.XSEC.VALUE_YIELD",
+        "SEL.XSEC.LOW_TURNOVER",
+        "SEL.XSEC.REVERSAL",
+        "SEL.XSEC.LOW_VOLATILITY",
+        "SEL.XSEC.PRICE_VOLUME_CORR"
+      ],
+      "why": "only the registered SELECT mechanisms the 13 frozen readings can express: per-stock price, turnover and valuation readings (SEL.XSEC.*). The mainline, sector-cycle, universe and portfolio mechanisms, and SEL.VALUE.MARGIN_RANK (mainline members, implied growth), need data the frozen space does not have"
+    },
+    "max_line_chars": 200
+  }
+}

@@ -5,7 +5,7 @@
  * 只在研究车道的 rootless 容器里跑（deploy/research-lane/round-runner/）：启动即 lockdown，只许写一个输出目录；台账（QRP_DATA_DIR）必须在输出目录里。
  * 九步都走 QRP 正门（services/mining-rounds、services/holdout-vault、services/mining-rounds/gate-records），执行器不直接写台账文件：
  *
- *   1 开轮      requestRound：冻结的空间（docs/freeze 的 JSON + 冻结页，sha 对上）、持有期、GP 种子、上限 ≤ 200、冻结的留出段起止；要大模型 → MINE_LLM_NOT_ENABLED（开轮之前就拒）
+ *   1 开轮      requestRound：冻结的空间（docs/freeze 的 JSON + 冻结页，sha 对上）、持有期、GP 种子（大模型：模型与上限取配置 config/mining_llm_generator.v1.json，sha 写进清单）、上限 ≤ 200、冻结的留出段起止
  *   2 封存      sealHoldout：留出段目录的引用与它 SHA256SUMS 的 sha256（协调会话在车道上算好交进来；生成阶段的容器不挂这个目录）
  *   3–4 生成    generate：每批只给生成方 generatorView；每个尝试都记一行试验台账（recordCandidate），到上限停、不补：
  *              解析不过的 → PARSE_REFUSED、规范写法已试过的 → DEDUPED（都没有分数，rule_config 里写尝试编号，所以各算一次 N），其余在挖掘段打分 → SCORED
@@ -27,6 +27,7 @@ const dsl = require('../dsl');
 const adapter = require('../data-adapter');
 const scoring = require('../scoring');
 const generators = require('../generators');
+const llmMod = require('../llm');
 const segs = require('../segments');
 const { lockdown } = require('../isolation');
 const selector = require('./selector');
@@ -116,20 +117,62 @@ function loadFrozenSpace() {
 const runDir = (outDir, roundId) => { const d = path.join(outDir, 'rounds', roundId.replace(/[^A-Za-z0-9_-]/g, '_')); fs.mkdirSync(d, { recursive: true }); return d; };
 const writeJson = (file, o) => fs.writeFileSync(file, `${JSON.stringify(o, null, 2)}\n`);
 
-/** 第 1 步：开轮。要大模型 → MINE_LLM_NOT_ENABLED，在 openRound 之前。 */
+/** 大模型配置（可被测试覆盖：开轮之后配置变了的反例）。 */
+let llmConfigBytes = null;
+const loadLlmConfig = () => llmMod.loadConfig(llmConfigBytes ? { bytes: llmConfigBytes } : {});
+const llmBlock = ({ config: c, sha256: h, path: p }) => ({ config_path: p, config_sha256: h, provider: c.model.provider, served_version: c.model.served_version, release_date: c.model.release_date,
+  tokens_per_round: c.limits.tokens_per_round, calls_per_round: c.limits.calls_per_round, formulas_per_call: c.batch.formulas_per_call, max_tokens: c.request.max_tokens });
+/** 登记表里配置点名的机制（只读 mechanisms[]，不读 entries[] 的封存结论）。 */
+const llmMechanisms = (config) => llmMod.mechanismsFor(JSON.parse(fs.readFileSync(path.join(REPO, 'config', 'research_mechanism_register.v1.json'), 'utf8')), config.prompt.mechanisms);
+
+/** 第 1 步：开轮。大模型轮的模型、知识截止日（= 发布日）和上限只来自配置；调用方给了别的 → MINE_RUNNER_LLM_MODEL_NOT_PINNED。 */
 function requestRound({ generator, cap = rounds.LIMITS.candidates_per_round, openedAt = null, coverageFloor = COVERAGE_FLOOR } = {}) {
   generators.assertGeneratorEnabled(generator);
-  need(Number.isInteger(generator.gp_seed), 'GP_SEED_REQUIRED');
+  const isLlm = generator.mode === 'AI_MINED_LLM';
+  let L = null;
+  if (isLlm) {
+    L = loadLlmConfig();
+    need(generator.model === undefined || generator.model === L.config.model.api_model, 'LLM_MODEL_NOT_PINNED', `model:${generator.model}`);
+    need(generator.model_knowledge_cutoff === undefined || generator.model_knowledge_cutoff === L.config.model.cutoff_used, 'LLM_MODEL_NOT_PINNED', `cutoff:${generator.model_knowledge_cutoff}`);
+  } else need(Number.isInteger(generator.gp_seed), 'GP_SEED_REQUIRED');
   const f = loadFrozenSpace();
   return rounds.openRound({
     market: MARKET, space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze }, holding_periods: [...f.space.holding_periods],
-    generator: { mode: 'AI_MINED_GP', gp_seed: generator.gp_seed }, holdout: { from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }, cap, openedAt: openedAt || undefined,
+    generator: isLlm ? { mode: 'AI_MINED_LLM', model: L.config.model.api_model, model_knowledge_cutoff: L.config.model.cutoff_used, llm: llmBlock(L) } : { mode: 'AI_MINED_GP', gp_seed: generator.gp_seed },
+    holdout: { from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }, cap, openedAt: openedAt || undefined,
     data_checks: { coverage_floor: { min_names_per_day: coverageFloor.min_names_per_day, default: COVERAGE_FLOOR.min_names_per_day,
       overridden: coverageFloor.min_names_per_day !== COVERAGE_FLOOR.min_names_per_day } },
     // R1.2：引裁定页；验证折选择规则作为数据冻结进清单（轮中不改）
     rulings: [{ path: frozenInputs.ruling_r1.coordinator_path, sha256: frozenInputs.ruling_r1.sha256 }],
     selection_rule: JSON.parse(JSON.stringify(selector.RULE)),
   });
+}
+
+/** 续跑的生成方式要和轮次清单一致（GP 轮不能用大模型续，反过来也一样）。 */
+function assertResumeGenerator({ roundId, mode }) {
+  const h = rounds.roundHead(roundId);
+  need(h, 'ROUND_NOT_FOUND', roundId);
+  need(h.generator.mode === mode, 'GENERATOR_MISMATCH', `${roundId}: round is ${h.generator.mode}, asked ${mode}`);
+  need(!rounds.selectionOf(roundId), 'GENERATION_CLOSED', `${roundId}: validation-fold selection recorded`); // 选择过的轮不能续跑：探活之前就拒，不花探活的钱
+  return h;
+}
+
+/**
+ * 大模型：开新轮（或续跑）之前先探活：一条不含公式的请求经交换目录交给网络那一步；不开轮、不写台账、不计 N。
+ * @returns {{outcome: string, ...}} OK，或 WAITING_*（网络那一步没答、密钥不在、额度 / 限流、版本对不上……）
+ */
+function probeLlm({ outDir, pollMs = null, waitSeconds = null } = {}) {
+  const { config } = loadLlmConfig();
+  const dir = llmMod.ensureExchangeDir(path.join(outDir, 'llm-exchange'));
+  const every = pollMs || config.exchange.poll_ms;
+  const key = `PING-${now().replace(/[^0-9A-Za-z]/g, '')}-${process.pid}`;
+  llmMod.writeRequest(dir, { kind: 'PING', key, round_id: null, body: llmMod.pingRequest(config) });
+  const res = llmMod.waitResponse(dir, key, { pollMs: every, waitPolls: Math.ceil((waitSeconds === null ? 120 : waitSeconds) * 1000 / every) });
+  if (!res) return { outcome: 'WAITING_STEP_NO_RESPONSE', key };
+  if (res.outcome !== 'OK') return { outcome: res.outcome, reason: res.reason || null, http_status: res.http_status === undefined ? null : res.http_status, raw_error: res.raw_error || null };
+  const m = llmMod.checkResponseModel(res.model, config);
+  if (!m.ok) return { outcome: m.outcome, model_reported: m.model_reported };
+  return { outcome: 'OK', model_reported: m.model_reported, served_version: m.served_version, usage: res.usage || null, key };
 }
 
 /** 第 2 步：封存留出段（只记引用与 SHA256SUMS 的 sha256；数据不进 QRP，生成阶段也不挂）。 */
@@ -205,18 +248,23 @@ function checkCanary(panel, floor = COVERAGE_FLOOR, canary = CANARY, { neutraliz
  * 分数不是有限数的尝试记 UNSCORABLE（计入 N，不进选择，GP 不当它有分），永远不记 SCORED（第 1 轮缺陷）。
  * @returns {{round_id, status, attempts: {scored, unscorable, parse_refused, deduped}, total, canary}}
  */
-function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null }) {
+function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null, llm: llmOpts = {} }) {
   need(Array.isArray(sources) && sources.length, 'SOURCES_MISSING');
   for (const s of sources) need(!s.holdout, 'HOLDOUT_IN_GENERATION', s.label);
   const dir = runDir(outDir, roundId);
   need(!rounds.selectionOf(roundId), 'GENERATION_CLOSED', `${roundId}: selection recorded`);
   let r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
-  need(r.generator.mode === 'AI_MINED_GP', 'GENERATOR_NOT_GP', r.generator.mode);
+  const isLlm = r.generator.mode === 'AI_MINED_LLM';
+  need(isLlm || r.generator.mode === 'AI_MINED_GP', 'GENERATOR_UNSUPPORTED', r.generator.mode);
+  // 大模型轮：配置在开轮之后变了（换了版本、改了上限）→ 失败即关，不是等待
+  const L = isLlm ? loadLlmConfig() : null;
+  if (isLlm) need(r.generator.llm && r.generator.llm.config_sha256 === L.sha256, 'LLM_CONFIG_CHANGED', `${roundId}: manifest ${r.generator.llm && r.generator.llm.config_sha256} vs ${L.sha256}`);
   const f = loadFrozenSpace();
   need(r.space.sha256 === f.space.sha256, 'ROUND_SPACE_MISMATCH', r.space.sha256);
   const H = f.holdingPeriod;
-  const gen = generatorOverride || generators.generatorFor(r.generator, { space: f.dslSpace, holdingPeriod: H });
+  const gen = isLlm ? generators.generatorFor(r.generator, { space: f.dslSpace, holdingPeriod: H, llm: { config: L.config, mechanisms: llmMechanisms(L.config) } })
+    : (generatorOverride || generators.generatorFor(r.generator, { space: f.dslSpace, holdingPeriod: H }));
   const m = segs.SEGMENTS.MINING;
   const panel = prebuilt || adapter.buildPanel({ sources, space: f.space, segment: 'MINING', from: m.from, to: m.to });
   const coverage = checkCoverage(panel, coverageFloor); // 一个尝试都没记之前
@@ -225,11 +273,20 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
   const counts = { scored: 0, unscorable: 0, parse_refused: 0, deduped: 0 };
   const startedAt = now();
   const log = path.join(dir, 'attempts.jsonl');
+  let halt = null;
   while (r.status === 'OPEN' && r.candidates_scored < r.cap) {
     const view = rounds.generatorView(roundId);
     const tried = new Set(view.tried_formulas);
-    const batch = gen.nextBatch(view, { n: Math.min(gen.params ? gen.params.batch_size : 40, r.cap - r.candidates_scored) });
-    need(Array.isArray(batch) && batch.length, 'GENERATOR_EMPTY_BATCH');
+    let batch;
+    if (isLlm) {
+      // 一次调用：写请求 → 等网络那一步答 → 计量；等待 / 停止态在这里停下（本轮留在 OPEN，续跑从下一个尝试接着来）
+      const call = llmCall({ roundId, view, want: Math.min(L.config.batch.formulas_per_call, r.cap - r.candidates_scored), cfg: L, gen, outDir, opts: llmOpts });
+      if (call.halt) { halt = call; break; }
+      batch = call.formulas; // 可以是空的：下一圈再调，调用次数上限与 token 上限保证会停
+    } else {
+      batch = gen.nextBatch(view, { n: Math.min(gen.params ? gen.params.batch_size : 40, r.cap - r.candidates_scored) });
+      need(Array.isArray(batch) && batch.length, 'GENERATOR_EMPTY_BATCH');
+    }
     for (const text of batch) {
       r = rounds.roundHead(roundId);
       if (r.status !== 'OPEN' || r.candidates_scored >= r.cap) break;
@@ -266,10 +323,106 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
     r = rounds.roundHead(roundId);
   }
   const out = { schema: 'MINING_RUNNER_GENERATE_V1', round_id: roundId, status: r.status, cap: r.cap, total: r.candidates_scored, attempts: counts, holding_period: H,
-    generator: { mode: gen.mode, seed: gen.seed, params: gen.params || null }, space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze },
+    generator: isLlm ? { mode: gen.mode, model: L.config.model.api_model, config_sha256: L.sha256, params: gen.params } : { mode: gen.mode, seed: gen.seed, params: gen.params || null },
+    space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze },
     mining_panel: panel.manifest, coverage, canary, started_at: startedAt, finished_at: now() };
+  if (isLlm) {
+    const u = rounds.llmUsage(roundId);
+    out.llm = { state: halt ? halt.state : null, halted: Boolean(halt), calls: u.calls, tokens_metered: u.tokens_metered, tokens_per_round: L.config.limits.tokens_per_round, calls_per_round: L.config.limits.calls_per_round,
+      last_outcome: u.last_outcome, config_sha256: L.sha256, pending_key: halt && halt.key ? halt.key : null,
+      // 预算 / 能力用尽（token 上限、调用次数上限、连续空应答）= 本轮生成到此为止，带着已有的尝试往下走；别的停与等待要有人看
+      generation_closed: Boolean(halt && halt.closed) };
+  }
   writeJson(path.join(dir, 'generate.json'), out);
   return out;
+}
+
+/** token 数：接口报的 total_tokens，没有就 prompt + completion；都没有 → null。 */
+const usageTokens = (u) => (u && Number.isFinite(u.total_tokens) ? u.total_tokens : (u && Number.isFinite(u.prompt_tokens) && Number.isFinite(u.completion_tokens) ? u.prompt_tokens + u.completion_tokens : null));
+
+/**
+ * 大模型的一次调用（第 3 步里生成一批）。上限在代码里强制（不信模型）：调用次数、发之前「已用 + 这次的上界」不得超过本轮 token 上限。
+ * 每次调用（含等待、停止）写一行 MINING_LLM_CALL_V1；网络那一步没答 → 不写行，请求留在交换目录，续跑会再等同一个请求（键里带请求的 sha）。
+ * @returns {{halt: false, formulas: string[]} | {halt: true, state: string, key?: string}}
+ */
+function llmCall({ roundId, view, want, cfg, gen, outDir, opts }) {
+  const { config } = cfg;
+  const dir = llmMod.ensureExchangeDir(path.join(outDir, 'llm-exchange'));
+  const prior = rounds.llmCalls(roundId);
+  const seq = prior.length + 1;
+  const used = rounds.llmUsage(roundId);
+  const plain = `${roundId}:C${String(seq).padStart(3, '0')}`;
+  const blank = { seq, key: plain, final: false, sent: false, http_status: null, n_requested: want, formulas_returned: 0, lines_dropped: 0, lines_overflow: 0, usage: null, tokens_metered: 0, tokens_basis: 'NONE',
+    model_requested: config.model.api_model, model_reported: null, served_version: null, finish_reason: null, system_fingerprint: null, request_sha256: null, response_sha256: null, prompt_sha256: null,
+    config_sha256: cfg.sha256, raw_error: null, reason: null };
+  const record = (row) => rounds.recordLlmCall(roundId, { ...blank, ...row }, { recordedAt: now() });
+  // 上一次运行在调用途中崩了（步骤容器被停、被杀）而还没记账的请求：可能已经计费，按上界各记一行，写应答把它关上（之后的步骤不会再答），本轮等待
+  const crashed = llmMod.findCrashed(dir, roundId, prior.map((c) => c.key));
+  if (crashed.length) {
+    crashed.forEach((c, i) => {
+      const bound = llmMod.estimateTokens(c.body.messages) + c.body.max_tokens;
+      record({ seq: seq + i, key: c.key, outcome: 'WAITING_STEP_CRASHED_MID_CALL', final: true, sent: true, request_sha256: c.request_sha256, tokens_metered: bound, tokens_basis: 'UPPER_BOUND',
+        reason: 'the step stopped during this call: it may have been billed, metered at the upper bound' });
+      if (!c.answered) llmMod.writeAtomic(path.join(dir, `${llmMod.exchangeName(c.key)}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: c.key, kind: 'GENERATE', round_id: roundId,
+        request_sha256: c.request_sha256, answered_at: now(), outcome: 'WAITING_STEP_CRASHED_MID_CALL', sent: true, reason: 'SETTLED_BY_RUNNER' })}\n`);
+    });
+    return { halt: true, state: 'WAITING_STEP_CRASHED_MID_CALL' };
+  }
+  if (used.calls >= config.limits.calls_per_round) {
+    record({ outcome: 'STOPPED_CALL_CAP', reason: `calls ${used.calls} >= ${config.limits.calls_per_round}` });
+    return { halt: true, state: 'STOPPED_CALL_CAP', closed: true };
+  }
+  // 连续空应答（常见于 finish_reason: length）不写尝试，会白花到调用次数上限：到数就停
+  let trailing = 0;
+  for (let i = prior.length - 1; i >= 0; i -= 1) { // 停下来的轮续跑还是停：STOPPED_EMPTY_REPLIES 的行不打断计数
+    if (prior[i].outcome === 'STOPPED_EMPTY_REPLIES') continue;
+    if (prior[i].outcome === 'OK' && prior[i].formulas_returned === 0) trailing += 1; else break;
+  }
+  if (trailing >= config.limits.empty_replies_stop) {
+    record({ outcome: 'STOPPED_EMPTY_REPLIES', reason: `${trailing} consecutive replies without a formula` });
+    return { halt: true, state: 'STOPPED_EMPTY_REPLIES', closed: true };
+  }
+  const prep = gen.prepare(view, { n: want });
+  const key = `${plain}-${prep.request_sha256.slice(0, 8)}`;
+  if (used.tokens_metered + prep.tokens_upper_bound > config.limits.tokens_per_round) {
+    record({ key, outcome: 'STOPPED_TOKEN_CAP', request_sha256: prep.request_sha256, prompt_sha256: prep.prompt_sha256, reason: `used ${used.tokens_metered} + bound ${prep.tokens_upper_bound} > ${config.limits.tokens_per_round}` });
+    return { halt: true, state: 'STOPPED_TOKEN_CAP', closed: true };
+  }
+  // 提示词变了（别的轮加了已试公式）之后，本轮没人答的旧请求要撤回，免得后起的网络那一步悄悄答掉：花了钱没有记账
+  // 同一个请求（同序号、同提示词）在 llm-init 里被撤回过：换一个键重新发，不拿「已撤回」当答案
+  let useKey = key;
+  for (let n = 1; ; n += 1) {
+    const prev = llmMod.readResponse(dir, useKey);
+    if (prev && prev.outcome === 'WITHDRAWN_BY_RUNNER') useKey = `${key}-w${n}`; else break;
+  }
+  llmMod.withdrawUnanswered(dir, { roundId, keepKey: useKey, now });
+  llmMod.writeRequest(dir, { kind: 'GENERATE', key: useKey, round_id: roundId, body: prep.body });
+  const every = opts.pollMs || config.exchange.poll_ms;
+  const res = llmMod.waitResponse(dir, useKey, { pollMs: every, waitPolls: opts.waitPolls || config.exchange.wait_polls });
+  if (!res) return { halt: true, state: 'WAITING_STEP_NO_RESPONSE', key: useKey };
+  const base = { key: useKey, final: true, sent: Boolean(res.sent), http_status: res.http_status === undefined ? null : res.http_status, request_sha256: res.request_sha256 || prep.request_sha256,
+    response_sha256: res.response_sha256 || null, prompt_sha256: prep.prompt_sha256, raw_error: res.raw_error || null, reason: res.reason || null, model_reported: res.model || null,
+    finish_reason: res.finish_reason || null, system_fingerprint: res.system_fingerprint || null, usage: res.usage || null };
+  if (res.outcome === 'OK') {
+    const reported = usageTokens(res.usage);
+    const meter = { tokens_metered: reported === null ? prep.tokens_upper_bound : reported, tokens_basis: reported === null ? 'UPPER_BOUND' : 'USAGE' };
+    const it = gen.interpret(res, want);
+    if (!it.ok) { // 模型名对不上：这批公式不用，等待
+      record({ ...base, ...meter, outcome: it.outcome, model_reported: it.model_reported, reason: `served model ${it.model_reported} is not the pinned ${config.model.served_version}` });
+      return { halt: true, state: it.outcome };
+    }
+    if (reported === null) { // 计量不明就失败即关：按上界计量，这批公式不用，本轮等待（plan-coord 2026-11-22）
+      record({ ...base, ...meter, outcome: 'WAITING_METER_UNKNOWN', reason: 'the reply carries no usage block: the cost cannot be metered, so the round waits and its formulas are not used' });
+      return { halt: true, state: 'WAITING_METER_UNKNOWN' };
+    }
+    record({ ...base, ...meter, outcome: 'OK', model_reported: it.model_reported, served_version: it.served_version, formulas_returned: it.formulas.length, lines_dropped: it.lines_dropped, lines_overflow: it.lines_overflow });
+    return { halt: false, formulas: it.formulas };
+  }
+  // 等待 / 停止：原始错误照留
+  // 超时、连接重置、读不懂的 200：请求已经发出，是否计费不知道，同样按上界计量。402 / 429 / 401 / 400 是接口明确拒绝，不计
+  const unknownCost = res.sent && (res.outcome === 'WAITING_STEP_CRASHED_MID_CALL' || res.outcome === 'WAITING_PROVIDER_UNAVAILABLE');
+  record({ ...base, outcome: res.outcome, tokens_metered: unknownCost ? prep.tokens_upper_bound : 0, tokens_basis: unknownCost ? 'UPPER_BOUND' : 'NONE' });
+  return { halt: true, state: res.outcome };
 }
 
 /** 本轮算过分（SCORED）的尝试：从试验台账里读（续跑也一样）。 */
@@ -585,7 +738,8 @@ function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenI
   const f = loadFrozenSpace();
   const panel = adapter.buildPanel({ sources: [...sources, p.checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
   const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
-  const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace) })),
+  const generatorMode = rounds.roundHead(roundId).generator.mode; // 结果记的生成方式来自轮次清单（LLM 轮不能记成 GP）
+  const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace), generator: generatorMode })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation: p.validation,
       familySharpes: p.familySharpes, neutralization: neutralizationOf(rounds.roundHead(roundId)), mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt,
       review: p.reviewed ? { verdicts: p.reviewed.verdicts, review_hash: p.reviewed.review.record_hash, reviewed_at: p.reviewed.review.reviewed_at } : null });
@@ -686,10 +840,18 @@ const close = ({ roundId, closedAt = null }) => rounds.closeRound(roundId, { clo
 function withFrozenInputs(patch, cb) { const prior = frozenInputs; frozenInputs = { ...frozenInputs, ...patch }; try { return cb(); } finally { frozenInputs = prior; } }
 
 /** 只给测试用：临时换生成方（合成的尝试序列），回调结束还原。 */
+function withLlmConfig(bytes, cb) {
+  const prior = llmConfigBytes; llmConfigBytes = bytes;
+  let out;
+  try { out = cb(); } catch (e) { llmConfigBytes = prior; throw e; }
+  if (out && typeof out.then === 'function') return out.finally(() => { llmConfigBytes = prior; });
+  llmConfigBytes = prior;
+  return out;
+}
 function withGenerator(gen, cb) { const prior = generatorOverride; generatorOverride = gen; try { return cb(); } finally { generatorOverride = prior; } }
 
 module.exports = {
   MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, HOLDOUT_FIELD_FLOOR, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
   holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha, LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf,
-  internals: { withGenerator, withFrozenInputs, withFault, attemptId },
+  probeLlm, assertResumeGenerator, internals: { withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
 };

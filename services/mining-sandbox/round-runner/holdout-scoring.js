@@ -265,6 +265,7 @@ function scoreCandidate(parsed, panel, { holding_period: H, neutralization }) {
  */
 function roundResults(candidates, panel, { holding_period: H, market, familyTrialCount, scoredAt, neutralization, validation = new Map(), familySharpes = [], mechanisms = new Map(),
   factorSeries = null, segmentOpenIndex = null, openedAt = null, review = null }) {
+  for (const c of candidates) if (c.generator !== 'AI_MINED_GP' && c.generator !== 'AI_MINED_LLM') fail('GENERATOR_MISSING', c.candidate_id); // 结果记的生成方式来自轮次清单，不默认
   if (!Number.isInteger(familyTrialCount) || familyTrialCount < 1) fail('FAMILY_N_UNKNOWN', familyTrialCount);
   const scored = candidates.map((c) => ({ c, s: scoreCandidate(c.parsed, panel, { holding_period: H, neutralization }) }));
   const dayKeys = scored.map(({ s }) => new Map(s.series.daily_excess.map((x) => [x.t, x.excess])));
@@ -278,7 +279,7 @@ function roundResults(candidates, panel, { holding_period: H, market, familyTria
     const cmp = libraryComparison(s.comparison.values, panel, s.comparison.days, { market, factorSeries });
     const m = mechanisms.get(c.candidate_id) || null;
     return {
-      schema: 'MINED_CANDIDATE_RESULT_V1', candidate_id: c.candidate_id, factor_id: c.candidate_id, market, formula: c.formula, generator: 'AI_MINED_GP',
+      schema: 'MINED_CANDIDATE_RESULT_V1', candidate_id: c.candidate_id, factor_id: c.candidate_id, market, formula: c.formula, generator: c.generator,
       holdout: { ...s.holdout, opened_at: openedAt, scored_at: scoredAt, segment_open_index: segmentOpenIndex },
       net_of_cost: s.net_of_cost,
       size_exposure: s.size_exposure,
