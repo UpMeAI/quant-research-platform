@@ -259,6 +259,7 @@ test('A8 失败态（假的 DeepSeek）：402 → WAITING_QUOTA、429 → WAITIN
   const echo = await step.callModel({ body, config, key: PLAIN, transport: mockTransport([{ status: 500, body: `upstream echo: key=${PLAIN}; again ${PLAIN}` }]) });
   assert.match(echo.raw_error, /upstream echo/);
   assert.ok(!echo.raw_error.includes(PLAIN), 'exact key value redacted wherever it appears');
+  assert.ok(!echo.raw_error.includes(PLAIN.slice(0, 10)) && !echo.raw_error.includes(PLAIN.slice(0, 20)), 'no key prefix is left behind either (suffix redaction alone leaves one)');
   // 上游回显的是「掩码 + 末几位」：末位也不能留在原始错误里（进台账、交换文件）
   const masked = await call({ status: 401, json: { error: { message: `Authentication Fails, Your api key: ****${FAKE_KEY.slice(-4)} is invalid; ref sk-ab****${FAKE_KEY.slice(-6)}; tail ${FAKE_KEY.slice(-8)}` } } });
   assert.match(masked.r.raw_error, /Authentication Fails/);

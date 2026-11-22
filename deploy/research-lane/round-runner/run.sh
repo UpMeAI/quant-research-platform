@@ -56,8 +56,11 @@ llm_init() {
 # So the key mount exists only when the key file does; without it the step reports FILE_ABSENT and the run waits (exit 75).
 llm_key_mount() { KEYM=(); if [ -f "$KEY_FILE" ]; then KEYM=(-v "$KEY_FILE:/run/secrets/deepseek-research.env:ro"); fi; }
 # One LLM run at a time. A second run would withdraw the live run's unanswered request (llm-init), or stop its step container (the EXIT trap).
+# It fails closed: if docker ps itself fails the container list is unknown, which is not the same as "none running" (exit 74).
 llm_busy_check() {
-  if [ -n "$(docker ps -q --filter name=rf1116-llm-step --filter name=rf1116-generate-llm)" ]; then
+  local busy
+  busy="$(docker ps -q --filter name=rf1116-llm-step --filter name=rf1116-generate-llm)" || { echo "run.sh: cannot list containers (docker ps failed); not starting an LLM run" >&2; exit 74; }
+  if [ -n "$busy" ]; then
     echo "run.sh: another LLM run is active (rf1116-llm-step or rf1116-generate-llm is running); wait for it or stop it first" >&2
     exit 73
   fi

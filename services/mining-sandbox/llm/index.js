@@ -273,6 +273,8 @@ function writeRequest(dir, { kind, key, round_id: roundId, body }, { writtenAt =
 function withdrawUnanswered(dir, { roundId = null, keepKey = null, now = () => new Date().toISOString() } = {}) {
   const withdrawn = [];
   for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.req.json')).sort()) {
+    const base = name.slice(0, -'.req.json'.length); // = exchangeName(key): answered or in-flight requests are skipped without parsing them (the directory keeps every round's prompts)
+    if (fs.existsSync(path.join(dir, `${base}.res.json`)) || fs.existsSync(path.join(dir, `${base}.inflight`))) continue;
     const req = readJson(path.join(dir, name));
     if (!req || req.schema !== 'MINING_LLM_REQUEST_V1' || typeof req.key !== 'string') continue;
     if (roundId !== null && (req.kind !== 'GENERATE' || req.round_id !== roundId || req.key === keepKey)) continue;

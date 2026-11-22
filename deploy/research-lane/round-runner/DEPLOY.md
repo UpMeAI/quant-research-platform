@@ -282,7 +282,7 @@ Brief 93a93509 + addendum 2 5ab7b720. The first real LLM round is 2026-12-01 (No
 
 **The key (★K (b)).** Host file `/home/kayla/.config/qrp-research-key/deepseek-research.env`, variable `DEEPSEEK_RESEARCH_API_KEY`, mode 0600 (0400 also works), owner kayla. The Owner places it with `~/ops/linux-deepseek-research-key/install-deepseek-research-key.sh`. It is mounted read-only into the step container at `/run/secrets/deepseek-research.env`, and nowhere else, **only if the file exists**: Docker's `-v` creates a directory for a missing host path, which would turn the key path into a directory and break the installer. Without the file the step reports `FILE_ABSENT` and the run waits (exit 75). It is never printed, logged, written to a file or committed. A group- or other-readable file counts as absent.
 
-**One LLM run at a time.** `llm-ping`, `generate-llm` and `resume-llm` refuse to start (exit 73, no container command) while `rf1116-llm-step` or `rf1116-generate-llm*` is running: a second run would withdraw the live run's request or stop its step container. The step container's EXIT trap is set only after it started, so a failed start never stops another run's container.
+**One LLM run at a time.** `llm-ping`, `generate-llm` and `resume-llm` refuse to start (exit 73, no container command) while `rf1116-llm-step` or `rf1116-generate-llm*` is running, and exit 74 when `docker ps` itself fails (an unreadable container list is not "none running"): a second run would withdraw the live run's request or stop its step container. The step container's EXIT trap is set only after it started, so a failed start never stops another run's container.
 
 **Commands** (from the code directory, with `RF1116_RUNNER_IMAGE` set as for the other commands; build the image from the merge commit):
 
@@ -301,6 +301,8 @@ run.sh resume-llm <round_id>         # probe, then continue the same round, then
 **Window pause.** The generate containers are paused like the GP ones (name match). The step container is idle while generate is paused and is not paused. Run only outside the V6 windows.
 
 **Per-round cost** (arithmetic in the PR body; token numbers are estimates until round 1's metered usage replaces them): about 20 calls of 10 formulas, about 130k input and 70k output tokens, about ¥1.5 off-peak; the hard cap is `limits.tokens_per_round` in the config.
+
+**Late paid answer (known gap, very unlikely).** If a step container answered a request after the runner had given up on it (`WAITING_STEP_NO_RESPONSE`) and the prompt then changed, that answer is paid but never recorded and its formulas are lost. `llm-init` withdraws leftover requests before the next step container starts and the busy check keeps two runs apart, so this needs a step container that outlives its run. If it is ever suspected, compare the provider's billed tokens with `llmUsage` for the round.
 
 **Exchange directory risk.** Mode 1777 lets any local user who can reach `$OUT` plant a request (which would spend money) or a forged reply. The lane host is single-user (kayla) plus root; keep it that way. The sticky bit also means kayla cannot delete files the runner container created in it; clean up with a container (`docker run --rm -v "$OUT:/out" --entrypoint sh "$RF1116_RUNNER_IMAGE" -c 'rm -f /out/llm-exchange/*'`) only when no LLM run is active.
 

@@ -306,7 +306,7 @@ test('B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；gene
   const RUN_SH = path.join(ROOT, 'deploy/research-lane/round-runner/run.sh');
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fake-docker-llm-'));
   // `ps` (the busy check) is answered from FAKE_PS_OUT and logged to a different file, so the call sequence below stays the container commands only; `run -d` can be made to fail with FAKE_UP_EXIT
-  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\ncase "$1" in ps) echo "$*" >> "$DOCKER_LOG.ps"; printf "%s" "${FAKE_PS_OUT:-}"; exit 0 ;; esac\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in "run -d"*) exit "${FAKE_UP_EXIT:-0}" ;; *rf1116-generate-llm*) exit "${FAKE_GEN_EXIT:-0}" ;; esac\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\ncase "$1" in ps) echo "$*" >> "$DOCKER_LOG.ps"; printf "%s" "${FAKE_PS_OUT:-}"; exit "${FAKE_PS_EXIT:-0}" ;; esac\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in "run -d"*) exit "${FAKE_UP_EXIT:-0}" ;; *rf1116-generate-llm*) exit "${FAKE_GEN_EXIT:-0}" ;; esac\nexit 0\n', { mode: 0o755 });
   const run = (args, genExit = 0, extra = {}) => {
     const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-docker-log-')), 'log');
     const r = spawnSync('bash', [RUN_SH, ...args], { encoding: 'utf8', env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log, FAKE_GEN_EXIT: String(genExit), ...extra } });
@@ -340,6 +340,13 @@ test('B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；gene
     assert.match(busy.stderr, /another LLM run is active/);
     assert.deepEqual(busy.calls, [], `${args[0]}: no container command, so no withdrawal and no stop of the live run`);
     assert.ok(busy.ps.some((l) => l.includes('rf1116-llm-step') && l.includes('rf1116-generate-llm')), 'the busy check looks at the step and the generate containers');
+  }
+  // docker ps 自己失败：不知道有没有别的运行在，宁可不启动（不能把「读不到」当成「没有」）
+  for (const args of [['llm-ping'], ['generate-llm', 'a'.repeat(64)], ['resume-llm', 'MR-CN_A-2026-12-x']]) {
+    const unreadable = run(args, 0, { FAKE_PS_EXIT: '1' });
+    assert.equal(unreadable.status, 74, `${args[0]}: ${unreadable.stderr}`);
+    assert.match(unreadable.stderr, /cannot list containers/);
+    assert.deepEqual(unreadable.calls, [], `${args[0]}: nothing started when the busy check cannot read the container list`);
   }
   // 起步骤容器失败（比如名字被占用）：EXIT 陷阱还没装，不会去停别人的容器
   const failedUp = run(['generate-llm', 'a'.repeat(64)], 0, { FAKE_UP_EXIT: '125' });

@@ -3,7 +3,7 @@
 
 /**
  * RF1116 LLM_GEN 的变异检查：对生成方的每一道护栏各做一个小改动（让它失效），核对测试一定变红。变红 = 杀死；仍然全绿 = 幸存（护栏没人测，要补测试）。
- *   node tools/mining-llm-mutation-check.js [--only M07,M12] [--write docs/evidence/mining-llm-mutation-v1/MUTATION_RESULTS.json]
+ *   node tools/mining-llm-mutation-check.js [--only M07,M12] [--write docs/evidence/mining-llm-mutation-v1/MUTATION_RESULTS.json [--merge]]
  * 先跑一遍没改动的基线（必须全绿），再逐个变异：改文件 → 跑对应的测试文件（node --test）→ 无论如何都还原文件。
  * 在 Mac 上用 ~/bin/heavy-run --light --label <who/what> -- node tools/mining-llm-mutation-check.js 跑（一个任务串行跑完所有变异）。
  * 只改仓库里的源文件与配置，不连网络、不读密钥；工作区里这些文件有未提交的改动时拒绝跑（还原用的是内存里的原文，不是 git）。
@@ -92,6 +92,7 @@ const MUTANTS = [
   { id: 'M66', guard: 'a holdout result is never silently labelled with a default generator', file: 'services/mining-sandbox/round-runner/holdout-scoring.js', find: "for (const c of candidates) if (c.generator !== 'AI_MINED_GP' && c.generator !== 'AI_MINED_LLM') fail('GENERATOR_MISSING', c.candidate_id);", replace: '', tests: [ROUND] },
   { id: 'M67', guard: 'LLM runs are mutually exclusive (busy check before llm-init)', file: RUNSH, find: '    echo "run.sh: another LLM run is active', replace: '    true "run.sh: another LLM run is active', tests: [ROUND] },
   { id: 'M68', guard: 'the EXIT trap is set only after the step container started', file: RUNSH, find: '--entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange\n  trap \'docker stop', replace: '--entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange || true\n  trap \'docker stop', tests: [ROUND] },
+  { id: 'M69', guard: 'the busy check fails closed when docker ps itself fails', file: RUNSH, find: '|| { echo "run.sh: cannot list containers (docker ps failed); not starting an LLM run" >&2; exit 74; }', replace: '|| true', tests: [ROUND] },
 ];
 
 function listFailures(out) {
@@ -105,6 +106,8 @@ function runTests(files) {
 function main(argv) {
   const only = argv.includes('--only') ? new Set(argv[argv.indexOf('--only') + 1].split(',')) : null;
   const outFile = argv.includes('--write') ? argv[argv.indexOf('--write') + 1] : null;
+  const merge = argv.includes('--merge'); // keep the other entries of the existing results file, replace the ones re-run (a targeted re-run after a test fix)
+  const head = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
   const dirty = execFileSync('git', ['status', '--porcelain', '--', ...new Set(MUTANTS.map((m) => m.file))], { cwd: ROOT, encoding: 'utf8' }).trim();
   if (dirty) { process.stderr.write(`refusing to run: uncommitted changes in mutated files:\n${dirty}\n`); return 2; }
   const files = [...new Set(MUTANTS.flatMap((m) => m.tests))];
@@ -119,13 +122,18 @@ function main(argv) {
     let r;
     try { fs.writeFileSync(abs, original.replace(m.find, () => m.replace)); r = runTests(m.tests); } finally { fs.writeFileSync(abs, original); }
     const killed = r.status !== 0;
-    results.push({ id: m.id, guard: m.guard, file: m.file, tests: m.tests, result: killed ? 'KILLED' : 'SURVIVED', failing: r.failing.slice(0, 5), ...(m.expect ? { note: m.expect } : {}) });
+    results.push({ id: m.id, guard: m.guard, file: m.file, tests: m.tests, result: killed ? 'KILLED' : 'SURVIVED', failing: r.failing.slice(0, 5), head, ...(m.expect ? { note: m.expect } : {}) });
     process.stdout.write(`${m.id} ${killed ? 'KILLED  ' : 'SURVIVED'} ${m.guard}${killed ? `  <- ${r.failing[0] || `exit ${r.status}`}` : ''}\n`);
   }
-  const summary = { schema: 'MINING_LLM_MUTATION_RESULTS_V1', baseline: 'GREEN', mutants: results.length, killed: results.filter((x) => x.result === 'KILLED').length,
-    survived: results.filter((x) => x.result === 'SURVIVED').map((x) => x.id), bad: results.filter((x) => x.result === 'BAD_MUTANT').map((x) => x.id), results };
+  let all = results;
+  if (merge && outFile && fs.existsSync(path.join(ROOT, outFile))) {
+    const prior = JSON.parse(fs.readFileSync(path.join(ROOT, outFile), 'utf8')).results.filter((x) => !results.some((y) => y.id === x.id));
+    all = [...prior, ...results].sort((a, b) => (a.id < b.id ? -1 : 1));
+  }
+  const summary = { schema: 'MINING_LLM_MUTATION_RESULTS_V1', baseline: 'GREEN', mutants: all.length, killed: all.filter((x) => x.result === 'KILLED').length,
+    survived: all.filter((x) => x.result === 'SURVIVED').map((x) => x.id), bad: all.filter((x) => x.result === 'BAD_MUTANT').map((x) => x.id), heads: [...new Set(all.map((x) => x.head).filter(Boolean))], results: all };
   if (outFile) { fs.mkdirSync(path.dirname(path.join(ROOT, outFile)), { recursive: true }); fs.writeFileSync(path.join(ROOT, outFile), `${JSON.stringify(summary, null, 2)}\n`); }
-  process.stdout.write(`${JSON.stringify({ mutants: summary.mutants, killed: summary.killed, survived: summary.survived, bad: summary.bad })}\n`);
+  process.stdout.write(`${JSON.stringify({ mutants: summary.mutants, killed: summary.killed, survived: summary.survived, bad: summary.bad, heads: summary.heads })}\n`);
   return summary.survived.length || summary.bad.length ? 1 : 0;
 }
 
