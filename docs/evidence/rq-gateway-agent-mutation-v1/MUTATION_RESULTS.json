@@ -1,0 +1,2424 @@
+{
+  "schema": "RQ_GATEWAY_AGENT_MUTATION_RESULTS_V1",
+  "baseline": "GREEN",
+  "mutants": 218,
+  "killed": 218,
+  "survived": [],
+  "bad": [],
+  "heads": [
+    "fbe0723"
+  ],
+  "results": [
+    {
+      "id": "G01",
+      "guard": "only the two paths are served",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_only_two_paths_and_methods (__main__.TestAllowlist.test_only_two_paths_and_methods)",
+        "FAIL: test_roundtrip_over_unix_socket (__main__.TestSocketServer.test_roundtrip_over_unix_socket)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G02",
+      "guard": "method must match the path",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_only_two_paths_and_methods (__main__.TestAllowlist.test_only_two_paths_and_methods)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G03",
+      "guard": "a keyless gateway answers RQ_CREDENTIAL_ABSENT",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_file_provider_missing_then_restored_resumes_without_restart (__main__.TestKeyHandling.test_file_provider_missing_then_restored_resumes_without_restart)",
+        "ERROR: test_keyless_gateway_answers_credential_absent_without_forwarding (__main__.TestKeyHandling.test_keyless_gateway_answers_credential_absent_without_forwarding)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G04",
+      "guard": "purpose must be in the key scope",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_purpose_not_in_key_scope (__main__.TestAllowlist.test_purpose_not_in_key_scope)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G05",
+      "guard": "request body keys are whitelisted",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_body_keys_are_plain_completion_only (__main__.TestRequestShape.test_body_keys_are_plain_completion_only)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G06",
+      "guard": "stream must be false",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_body_keys_are_plain_completion_only (__main__.TestRequestShape.test_body_keys_are_plain_completion_only)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G07",
+      "guard": "response_format only json_object",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_response_format_only_json_object (__main__.TestRequestShape.test_response_format_only_json_object)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G08",
+      "guard": "messages are plain role/content strings",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_messages_plain_strings_only (__main__.TestRequestShape.test_messages_plain_strings_only)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G09",
+      "guard": "model allowlist per purpose",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_model_outside_purpose_allowlist_refused (__main__.TestAllowlist.test_model_outside_purpose_allowlist_refused)",
+        "ERROR: test_every_gateway_refusal_is_a_deterministic_class (__main__.TestErrorClasses.test_every_gateway_refusal_is_a_deterministic_class)",
+        "ERROR: test_mining_llm_carries_pro_only (__main__.TestQualityGateGateway.test_mining_llm_carries_pro_only)",
+        "ERROR: test_pro_for_rq_agent_purpose_refused (__main__.TestQualityGateGateway.test_pro_for_rq_agent_purpose_refused)",
+        "FAIL: test_refused_requests_write_no_row (__main__.TestLedger.test_refused_requests_write_no_row)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G10",
+      "guard": "max_tokens ceiling per purpose",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_max_tokens_above_ceiling_refused (__main__.TestRunawayGuardNoCostCap.test_max_tokens_above_ceiling_refused)",
+        "FAIL: test_refused_requests_write_no_row (__main__.TestLedger.test_refused_requests_write_no_row)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G11",
+      "guard": "admission: header equals the system message sha",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_admitted_header_with_a_different_system_text_is_refused (__main__.TestPromptAdmission.test_admitted_header_with_a_different_system_text_is_refused)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G12",
+      "guard": "admission: the entry covers the purpose",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_admission_must_cover_the_purpose_and_be_admitted (__main__.TestPromptAdmission.test_admission_must_cover_the_purpose_and_be_admitted)",
+        "ERROR: test_changed_system_text_not_admitted (__main__.TestPromptAdmission.test_changed_system_text_not_admitted)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G13",
+      "guard": "admission: only ADMITTED entries count",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_admission_must_cover_the_purpose_and_be_admitted (__main__.TestPromptAdmission.test_admission_must_cover_the_purpose_and_be_admitted)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G14",
+      "guard": "admission: first message is the system message",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_admitted_text_in_a_user_message_is_not_a_system_prompt (__main__.TestPromptAdmission.test_admitted_text_in_a_user_message_is_not_a_system_prompt)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G15",
+      "guard": "the pro purpose needs a quality-gate record",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_invalid_records_refused (__main__.TestQualityGateGateway.test_invalid_records_refused)",
+        "ERROR: test_pro_with_valid_record_forwarded_exactly_once (__main__.TestQualityGateGateway.test_pro_with_valid_record_forwarded_exactly_once)",
+        "ERROR: test_pro_without_record_refused (__main__.TestQualityGateGateway.test_pro_without_record_refused)",
+        "FAIL: test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not (__main__.TestQualityGateGateway.test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G16",
+      "guard": "quality gate: record id is the hash of the record",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_invalid_records_refused (__main__.TestQualityGateGateway.test_invalid_records_refused)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G17",
+      "guard": "quality gate: record belongs to this task",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_invalid_records_refused (__main__.TestQualityGateGateway.test_invalid_records_refused)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G19",
+      "guard": "quality gate: two failures on two distinct attempts",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_invalid_records_refused (__main__.TestQualityGateGateway.test_invalid_records_refused)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G20",
+      "guard": "quality gate: each failure carries validator codes",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_invalid_records_refused (__main__.TestQualityGateGateway.test_invalid_records_refused)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G21",
+      "guard": "quality gate: the failed model is flash",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_invalid_records_refused (__main__.TestQualityGateGateway.test_invalid_records_refused)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G22",
+      "guard": "quality gate: used at most once per task",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_pro_with_valid_record_forwarded_exactly_once (__main__.TestQualityGateGateway.test_pro_with_valid_record_forwarded_exactly_once)",
+        "FAIL: test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not (__main__.TestQualityGateGateway.test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G23",
+      "guard": "quality gate: only an answered pro call counts as used",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not (__main__.TestQualityGateGateway.test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G24",
+      "guard": "peak refusal for agent purposes",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_peak_refused_for_agent_but_not_a_cap (__main__.TestAllowlist.test_peak_refused_for_agent_but_not_a_cap)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G25",
+      "guard": "weekends are off-peak",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_forwards_only_to_api_deepseek_com_443 (__main__.TestAllowlist.test_forwards_only_to_api_deepseek_com_443)",
+        "ERROR: test_error_responses_write_a_row_with_status_and_null_usage (__main__.TestErrorClasses.test_error_responses_write_a_row_with_status_and_null_usage)",
+        "ERROR: test_hit_tokens_priced_as_miss_only_when_hit_price_is_null (__main__.TestLedger.test_hit_tokens_priced_as_miss_only_when_hit_price_is_null)",
+        "ERROR: test_client_authorization_header_never_forwarded (__main__.TestRequestShape.test_client_authorization_header_never_forwarded)",
+        "FAIL: test_400_422_deterministic (__main__.TestErrorClasses.test_400_422_deterministic)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G26",
+      "guard": "config: upstream must be api.deepseek.com:443",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_upstream_host_in_config_must_be_deepseek (__main__.TestAllowlist.test_upstream_host_in_config_must_be_deepseek)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G27",
+      "guard": "production transport refuses other hosts and paths",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_production_transport_refuses_any_other_host_or_path_before_connecting (__main__.TestKeyHandling.test_production_transport_refuses_any_other_host_or_path_before_connecting)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G28",
+      "guard": "key file must not be open to group or others",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_file_provider_refuses_open_modes_and_wrong_var_and_directories (__main__.TestKeyHandling.test_file_provider_refuses_open_modes_and_wrong_var_and_directories)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G29",
+      "guard": "a key must look like a key (sk-, length, no whitespace)",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_env_provider (__main__.TestKeyHandling.test_env_provider)",
+        "FAIL: test_file_provider_refuses_open_modes_and_wrong_var_and_directories (__main__.TestKeyHandling.test_file_provider_refuses_open_modes_and_wrong_var_and_directories)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G30",
+      "guard": "redaction: masked sk- echoes",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_key_never_in_log_response_or_ledger_even_when_upstream_echoes_it (__main__.TestKeyHandling.test_key_never_in_log_response_or_ledger_even_when_upstream_echoes_it)",
+        "FAIL: test_other_bearer_tokens_in_an_echo_are_redacted_too (__main__.TestKeyHandling.test_other_bearer_tokens_in_an_echo_are_redacted_too)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G31",
+      "guard": "redaction: key suffix echoes",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G32",
+      "guard": "redaction: other bearer tokens",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_other_bearer_tokens_in_an_echo_are_redacted_too (__main__.TestKeyHandling.test_other_bearer_tokens_in_an_echo_are_redacted_too)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G33",
+      "guard": "upstream error messages are redacted",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_key_never_in_log_response_or_ledger_even_when_upstream_echoes_it (__main__.TestKeyHandling.test_key_never_in_log_response_or_ledger_even_when_upstream_echoes_it)",
+        "FAIL: test_other_bearer_tokens_in_an_echo_are_redacted_too (__main__.TestKeyHandling.test_other_bearer_tokens_in_an_echo_are_redacted_too)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G34",
+      "guard": "success bodies are scrubbed of the exact key",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_success_body_never_carries_the_key_even_if_upstream_echoes_it (__main__.TestKeyHandling.test_success_body_never_carries_the_key_even_if_upstream_echoes_it)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G35",
+      "guard": "the start-up log never carries the key",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_startup_log_names_the_fingerprint_only (__main__.TestKeyHandling.test_startup_log_names_the_fingerprint_only)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G36",
+      "guard": "call log lines never carry the key",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_key_never_in_log_response_or_ledger_even_when_upstream_echoes_it (__main__.TestKeyHandling.test_key_never_in_log_response_or_ledger_even_when_upstream_echoes_it)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G37",
+      "guard": "the ledger records key_fp12",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_one_row_per_forwarded_call_with_all_fields (__main__.TestLedger.test_one_row_per_forwarded_call_with_all_fields)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G38",
+      "guard": "one row per provider response, errors included",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_error_responses_write_a_row_with_status_and_null_usage (__main__.TestErrorClasses.test_error_responses_write_a_row_with_status_and_null_usage)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G39",
+      "guard": "usage must be complete or the call is unmetered",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_partial_usage_is_unmetered_not_crashed (__main__.TestLedger.test_partial_usage_is_unmetered_not_crashed)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G40",
+      "guard": "a null cache-hit price is priced as a miss (upper bound)",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_hit_tokens_priced_as_miss_only_when_hit_price_is_null (__main__.TestLedger.test_hit_tokens_priced_as_miss_only_when_hit_price_is_null)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G41",
+      "guard": "an unknown price row gives a null cost, never zero",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_mining_is_not_peak_refused_and_records_peak_flag (__main__.TestAllowlist.test_mining_is_not_peak_refused_and_records_peak_flag)",
+        "ERROR: test_hit_tokens_priced_as_miss_only_when_hit_price_is_null (__main__.TestLedger.test_hit_tokens_priced_as_miss_only_when_hit_price_is_null)",
+        "ERROR: test_spend_by_purpose_includes_pro_fallback_and_mining (__main__.TestLedger.test_spend_by_purpose_includes_pro_fallback_and_mining)",
+        "ERROR: test_unknown_price_row_gives_null_cost_and_is_counted (__main__.TestLedger.test_unknown_price_row_gives_null_cost_and_is_counted)",
+        "ERROR: test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not (__main__.TestQualityGateGateway.test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G42",
+      "guard": "month view: CST month filter",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_month_boundary_is_cst (__main__.TestLedger.test_month_boundary_is_cst)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G43",
+      "guard": "month view: per key",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_sums_and_month_view_match_the_stub_responses (__main__.TestLedger.test_sums_and_month_view_match_the_stub_responses)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G44",
+      "guard": "month view: unmetered calls are counted",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_missing_usage_is_unmetered_not_zero (__main__.TestLedger.test_missing_usage_is_unmetered_not_zero)",
+        "FAIL: test_partial_usage_is_unmetered_not_crashed (__main__.TestLedger.test_partial_usage_is_unmetered_not_crashed)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G45",
+      "guard": "transport failures map to the provider class",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_timeout_and_network_error_are_provider (__main__.TestErrorClasses.test_timeout_and_network_error_are_provider)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G46",
+      "guard": "402 is a quota wait",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_402_quota (__main__.TestErrorClasses.test_402_quota)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G47",
+      "guard": "401/403 are credential",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_401_credential (__main__.TestErrorClasses.test_401_credential)",
+        "FAIL: test_403_credential (__main__.TestErrorClasses.test_403_credential)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G48",
+      "guard": "429 is a provider rate limit, not a block",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_429_provider_with_retry_after (__main__.TestErrorClasses.test_429_provider_with_retry_after)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G49",
+      "guard": "5xx is provider",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_5xx_provider (__main__.TestErrorClasses.test_5xx_provider)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G50",
+      "guard": "400/422 are deterministic",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_400_422_deterministic (__main__.TestErrorClasses.test_400_422_deterministic)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G51",
+      "guard": "Retry-After is passed on",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_429_provider_with_retry_after (__main__.TestErrorClasses.test_429_provider_with_retry_after)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G52",
+      "guard": "no blind retry of a failed call",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_5xx_provider (__main__.TestErrorClasses.test_5xx_provider)",
+        "FAIL: test_no_blind_retry (__main__.TestErrorClasses.test_no_blind_retry)",
+        "FAIL: test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not (__main__.TestQualityGateGateway.test_failed_pro_call_without_answer_may_be_retried_but_answered_one_may_not)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G53",
+      "guard": "the ledger table is the frozen DDL",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "ERROR: test_forwards_only_to_api_deepseek_com_443 (__main__.TestAllowlist.test_forwards_only_to_api_deepseek_com_443)",
+        "ERROR: test_mining_is_not_peak_refused_and_records_peak_flag (__main__.TestAllowlist.test_mining_is_not_peak_refused_and_records_peak_flag)",
+        "ERROR: test_peak_refused_for_agent_but_not_a_cap (__main__.TestAllowlist.test_peak_refused_for_agent_but_not_a_cap)",
+        "ERROR: test_400_422_deterministic (__main__.TestErrorClasses.test_400_422_deterministic)",
+        "ERROR: test_401_credential (__main__.TestErrorClasses.test_401_credential)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G54",
+      "guard": "the ledger is WAL",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_ledger_connections_use_full_sync_and_wal (__main__.TestKeyHandling.test_ledger_connections_use_full_sync_and_wal)",
+        "FAIL: test_ddl_matches_frozen_call_table (__main__.TestLedger.test_ddl_matches_frozen_call_table)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G55",
+      "guard": "the ledger is synchronous FULL",
+      "file": "services/rq-deepseek-gateway/rq_gateway.py",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_ledger_connections_use_full_sync_and_wal (__main__.TestKeyHandling.test_ledger_connections_use_full_sync_and_wal)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G56",
+      "guard": "shipped config: the agent purpose is flash only",
+      "file": "config/rq_deepseek_gateway.v1.json",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_shipped_config_loads_and_matches_spec (__main__.TestShippedConfig.test_shipped_config_loads_and_matches_spec)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G57",
+      "guard": "shipped config: the HK key has no mining scope",
+      "file": "config/rq_deepseek_gateway.v1.json",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_shipped_config_loads_and_matches_spec (__main__.TestShippedConfig.test_shipped_config_loads_and_matches_spec)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "G58",
+      "guard": "shipped config: agent max_tokens ceiling 4000",
+      "file": "config/rq_deepseek_gateway.v1.json",
+      "result": "KILLED",
+      "failing": [
+        "FAIL: test_shipped_config_loads_and_matches_spec (__main__.TestShippedConfig.test_shipped_config_loads_and_matches_spec)"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F01",
+      "guard": "check report: JSON object required",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_NOT_JSON (() => '{not json')",
+        "✖ AQ-12 check report rejects: CHECK_NOT_JSON (() => '[1]')",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F02",
+      "guard": "check report: exact keys",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_KEYS ((r) => ({ ...r, extra: 1 }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F03",
+      "guard": "check report: verdict enum",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_VERDICT_INVALID ((r) => ({ ...r, verdict: 'PASS' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F04",
+      "guard": "check report: item keys",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_ITEM_KEYS ((r) => { const x = clone(r); x.items[0].extra = 1; return x;)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F05",
+      "guard": "check report: status enum",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_ITEM_STATUS_INVALID ((r) => { const x = clone(r); x.items[0].status = 'OK'; retur)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F06",
+      "guard": "check report: unknown req_id",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_REQ_UNKNOWN ((r) => { const x = clone(r); x.items[1].req_id = 'R9'; retur)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F07",
+      "guard": "check report: duplicate req_id",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_REQ_DUPLICATE ((r) => { const x = clone(r); x.items[1].req_id = 'R1'; retur)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F08",
+      "guard": "check report: every matrix row appears",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_REQ_MISSING ((r) => { const x = clone(r); x.items.pop(); return x; })",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F09",
+      "guard": "check report: unknown fact id",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_FACT_UNKNOWN ((r) => { const x = clone(r); x.items[0].fact_ids = ['F-999'])",
+        "✖ AQ-12 check report rejects: CHECK_FACT_UNKNOWN ((r) => ({ ...r, verdict: 'HOLD', hold_reasons: [{ code: 'HOL)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F10",
+      "guard": "check report: uncited item",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_ITEM_UNCITED ((r) => { const x = clone(r); x.items[0].fact_ids = []; retur)",
+        "✖ AQ-12 check report rejects: CHECK_HOLD_REASON_UNCITED ((r) => ({ ...r, verdict: 'HOLD', hold_reasons: [{ code: 'HOL)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F11",
+      "guard": "check report: only a GAP may be uncited",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report: a HOLD with a cited reason is valid; GAP may be uncited; a numeric token that sits in a cited fact is fine",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F12",
+      "guard": "check report: CONSISTENT with a GAP or CONTRADICTION",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_CONSISTENT_WITH_GAP ((r) => { const x = clone(r); x.items[0].status = 'GAP'; x.it)",
+        "✖ AQ-12 check report rejects: CHECK_CONSISTENT_WITH_GAP ((r) => { const x = clone(r); x.items[0].status = 'CONTRADICT)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F13",
+      "guard": "check report: CONSISTENT with a CONTRADICTION",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_CONSISTENT_WITH_GAP ((r) => { const x = clone(r); x.items[0].status = 'CONTRADICT)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F14",
+      "guard": "check report: CONSISTENT with hold reasons",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_CONSISTENT_WITH_HOLD_REASONS ((r) => ({ ...r, hold_reasons: [{ code: 'HOLD_MISSING_EVIDENC)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F15",
+      "guard": "check report: HOLD needs reasons",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_HOLD_WITHOUT_REASONS ((r) => ({ ...r, verdict: 'HOLD' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F16",
+      "guard": "check report: hold code enum",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_HOLD_REASON_INVALID ((r) => ({ ...r, verdict: 'HOLD', hold_reasons: [{ code: 'HOL)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F17",
+      "guard": "check report: hold req_id must be in the matrix",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_HOLD_REASON_INVALID ((r) => ({ ...r, verdict: 'HOLD', hold_reasons: [{ code: 'HOL)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F18",
+      "guard": "check report: a hold reason is cited unless it is missing evidence",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_HOLD_REASON_UNCITED ((r) => ({ ...r, verdict: 'HOLD', hold_reasons: [{ code: 'HOL)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F19",
+      "guard": "check report: free text goes through the text rules",
+      "file": "services/research-queue-agent/check-report.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_NUMBER_NOT_IN_FACT ((r) => { const x = clone(r); x.items[0].note_zh = '窗口 61 日';)",
+        "✖ AQ-12 check report rejects: CHECK_NUMBER_NOT_IN_FACT ((r) => ({ ...r, unknowns: ['缺 7 项'] }))",
+        "✖ AQ-12 check report rejects: CHECK_PREDICTION_WORDING ((r) => { const x = clone(r); x.items[0].note_zh = '下周会涨'; re)",
+        "✖ AQ-12 check report rejects: CHECK_VERDICT_WORDING ((r) => { const x = clone(r); x.items[0].note_zh = '建议上线'; re)",
+        "✖ numbers: an uncited free string (unknowns) may use a number that sits in any fact of the pack; a pack with a key-shaped string is refused"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F20",
+      "guard": "text rules: numbers must be in a cited fact",
+      "file": "services/research-queue-agent/text-rules.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 check report rejects: CHECK_NUMBER_NOT_IN_FACT ((r) => { const x = clone(r); x.items[0].note_zh = '窗口 61 日';)",
+        "✖ AQ-12 check report rejects: CHECK_NUMBER_NOT_IN_FACT ((r) => ({ ...r, unknowns: ['缺 7 项'] }))",
+        "✖ AQ-12 card rejects: CARD_NUMBER_NOT_IN_FACT ((c) => { const x = clone(c); x.supporting[0].text_zh = '本周共 13 次信号'; r)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F21",
+      "guard": "text rules: key-shaped strings",
+      "file": "services/research-queue-agent/text-rules.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ numbers: an uncited free string (unknowns) may use a number that sits in any fact of the pack; a pack with a key-shaped string is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F22",
+      "guard": "numbers: an uncited string is checked against the whole pack",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ numbers: an uncited free string (unknowns) may use a number that sits in any fact of the pack; a pack with a key-shaped string is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F24",
+      "guard": "numbers: fact ids in the text are not numbers",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 numbers: fact ids and req ids in the text are not numeric claims; numerically equal forms match",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F25",
+      "guard": "firewall: mining out/",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea: a cited fact from behind the provenance firewall is refused",
+        "✖ AQ-23 provenance firewall: forbidden sources and record types are refused in fact packs, cards, proposals and bundles",
+        "✖ AQ-46 ideas whose pack cites forbidden sources never reach the generator view; closed, prereg and crypto-held ideas are not in view",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F26",
+      "guard": "firewall: MINING_SELECTION / MINING_GATE_RECORD files",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-23 provenance firewall: forbidden sources and record types are refused in fact packs, cards, proposals and bundles",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F27",
+      "guard": "firewall: vault paths",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-23 provenance firewall: forbidden sources and record types are refused in fact packs, cards, proposals and bundles",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F28",
+      "guard": "firewall: race and paper results",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-23 provenance firewall: forbidden sources and record types are refused in fact packs, cards, proposals and bundles",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F29",
+      "guard": "firewall: forbidden record types",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea: a cited fact from behind the provenance firewall is refused",
+        "✖ AQ-23 provenance firewall: forbidden sources and record types are refused in fact packs, cards, proposals and bundles",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F30",
+      "guard": "a check report is never an input (cards, proposals, bundles)",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-23 a check report is never an input to cards, proposals, prereg bundles or the generator view",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F31",
+      "guard": "pack: duplicate fact ids",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ pack shape: facts need id/source/at/value, ids unique, no desk ids or Owner text keys, size bounded and splittable by matrix row",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F32",
+      "guard": "pack: no Owner or desk keys",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ pack shape: facts need id/source/at/value, ids unique, no desk ids or Owner text keys, size bounded and splittable by matrix row",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F33",
+      "guard": "pack: no key-shaped strings",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ numbers: an uncited free string (unknowns) may use a number that sits in any fact of the pack; a pack with a key-shaped string is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F34",
+      "guard": "pack: matrix rows cite known facts",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ pack shape: facts need id/source/at/value, ids unique, no desk ids or Owner text keys, size bounded and splittable by matrix row",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F35",
+      "guard": "pack: token budget per call",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ pack shape: facts need id/source/at/value, ids unique, no desk ids or Owner text keys, size bounded and splittable by matrix row",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F36",
+      "guard": "pack: author = checker is refused",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-44 author != checker: admissions differ, the check pack carries the author row, equal admission is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "F37",
+      "guard": "pack: author row required when asked",
+      "file": "services/research-queue-agent/facts.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-44 author != checker: admissions differ, the check pack carries the author row, equal admission is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K01",
+      "guard": "card: market must match",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_MARKET_MISMATCH ((c) => ({ ...c, market: 'US_EQUITY' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K02",
+      "guard": "card: week must match",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_WEEK_MISMATCH ((c) => ({ ...c, week_id: '2026-W46' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K03",
+      "guard": "card: items are cited",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_ITEM_UNCITED ((c) => { const x = clone(c); x.supporting[0].fact_ids = []; return x; )",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K04",
+      "guard": "card: cited ids exist",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_FACT_UNKNOWN ((c) => { const x = clone(c); x.opposing[0].fact_ids = ['F-777']; retur)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K05",
+      "guard": "card: pattern keys come from the code counts",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_PATTERN_UNKNOWN ((c) => { const x = clone(c); x.repeated_patterns[0].pattern_key = 'NOP)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K06",
+      "guard": "card: pattern counts are the code counts",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_PATTERN_COUNT_MISMATCH ((c) => { const x = clone(c); x.repeated_patterns[0].count = 4; return )",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K07",
+      "guard": "card: zero ideas need a reason",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_ZERO_IDEAS_NO_REASON ((c) => ({ ...c, factor_ideas: [] }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K08",
+      "guard": "card: no reason alongside ideas",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_REASON_WITH_IDEAS ((c) => ({ ...c, no_idea_reason: { text_zh: '无', fact_ids: ['F-001'] } )",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K09",
+      "guard": "card: the no-idea reason is cited",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_NO_IDEA_REASON_UNCITED ((c) => ({ ...c, factor_ideas: [], no_idea_reason: { text_zh: '本周没有触及选股)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K10",
+      "guard": "card: at most 2 question proposals (check)",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_QUESTIONS_TOO_MANY ((c) => ({ ...c, question_proposals: [0, 1, 2].map(() => ({ mechanism_i)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K11",
+      "guard": "card: at most 2 question proposals (constant)",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_QUESTIONS_TOO_MANY ((c) => ({ ...c, question_proposals: [0, 1, 2].map(() => ({ mechanism_i)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K12",
+      "guard": "card: a question is in the card market",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_QUESTION_INVALID ((c) => ({ ...c, question_proposals: [{ mechanism_id: 'NEW', layer: 'RI)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K13",
+      "guard": "card: a question is a question",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_QUESTION_INVALID ((c) => ({ ...c, question_proposals: [{ mechanism_id: 'NEW', layer: 'RI)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K14",
+      "guard": "card: a question names a registered mechanism or NEW",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-12 card rejects: CARD_QUESTION_INVALID ((c) => ({ ...c, question_proposals: [{ mechanism_id: 'SEL.NOPE.X', lay)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K15",
+      "guard": "card: no direction in a question",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ card: a question proposal with direction wording is refused (ideas and questions carry no direction)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K16",
+      "guard": "card: ideas per week counts the ones already recorded",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea: more than 5 per market per week is refused (card level and with ideas already recorded)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "K17",
+      "guard": "card: every idea goes through the idea validator",
+      "file": "services/research-queue-agent/card.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ card: an invalid idea inside a card makes the card invalid (the card runs the idea validator)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I01",
+      "guard": "idea: exact keys",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_KEYS ((i) => ({ ...i, formula: 'x' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I02",
+      "guard": "idea: cited facts exist",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FACT_UNKNOWN ((i) => ({ ...i, fact_ids: ['F-002', 'F-909'] }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I03",
+      "guard": "idea: at least two distinct valid facts",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FACTS_MIN ((i) => ({ ...i, fact_ids: ['F-002'] }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FACTS_MIN ((i) => ({ ...i, fact_ids: ['F-002', 'F-002'] }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I04",
+      "guard": "idea: firewall sources",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea: a cited fact from behind the provenance firewall is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I05",
+      "guard": "idea: a mechanism must be a registered SELECTION_TIMING one",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_MECHANISM_UNREGISTERED ((i) => ({ ...i, mechanism: 'RISK.TOTAL.BUDGET' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I06",
+      "guard": "idea: NEW has exactly the five keys",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_MECHANISM_NEW_INVALID ((i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', d)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I07",
+      "guard": "idea: NEW id is SEL.*",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_MECHANISM_NEW_INVALID ((i) => ({ ...i, mechanism: { NEW: { proposed_id: 'RISK.NEW.X', title_zh: '新机制', )",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I08",
+      "guard": "idea: NEW id is not already registered",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_MECHANISM_NEW_INVALID ((i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.XSEC.REVERSAL', title_zh: )",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I09",
+      "guard": "idea: NEW layer is SELECTION_TIMING",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_MECHANISM_NEW_INVALID ((i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', d)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I10",
+      "guard": "idea: NEW decision point is SELECT/DIRECTION/ENTRY",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_MECHANISM_NEW_INVALID ((i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', d)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I11",
+      "guard": "idea: readings are registered",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_READING_UNREGISTERED ((i) => ({ ...i, readings: ['RS60', 'NOT_A_READING'] }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_READING_UNREGISTERED ((i) => ({ ...i, readings: ['RS60 + VOL20'] }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I12",
+      "guard": "idea: holding periods come from the registered list",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_HOLDING_PERIOD_UNREGISTERED ((i) => ({ ...i, holding_periods: [7] }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I13",
+      "guard": "idea: the question is interrogative",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_QUESTION_NOT_INTERROGATIVE ((i) => ({ ...i, question_zh: '弱势后的反弹在放量日之后更常见' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I14",
+      "guard": "idea: formula check",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'rank(RS60) 靠前的是否更好？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'ts_mean 之后的 RS60 是否更稳？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'zscore 处理后是否更好？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'sma(RS60) 之后是否更稳？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, expected_failure_zh: 'neutralize_industry 之后失效' }))"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I15",
+      "guard": "idea: function-call tokens",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'sma(RS60) 之后是否更稳？' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I16",
+      "guard": "idea: operator names",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'ts_mean 之后的 RS60 是否更稳？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'zscore 处理后是否更好？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, expected_failure_zh: 'neutralize_industry 之后失效' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I17",
+      "guard": "idea: arithmetic between readings",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'RS60 + VOL20 是否优于单独读数？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'RS60 / VOL20 是否更稳？' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I18",
+      "guard": "idea: comparison signs",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_FORMULA_TOKEN ((i) => ({ ...i, question_zh: 'RS60 > VOL20 时是否更好？' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I19",
+      "guard": "idea: no numbers (weights, thresholds, windows)",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_NUMERIC_PARAM ((i) => ({ ...i, question_zh: '权重 0.5 的组合是否更稳？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_NUMERIC_PARAM ((i) => ({ ...i, expected_failure_zh: '阈值取 20 日以上时失效' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_NUMERIC_PARAM ((i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', d)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I20",
+      "guard": "idea: direction words",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_DIRECTION_WORDING ((i) => ({ ...i, question_zh: '弱势后是否应当做多？' }))",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_DIRECTION_WORDING ((i) => ({ ...i, question_zh: 'is the bullish case stronger?' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I21",
+      "guard": "idea: prediction words",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_PREDICTION_WORDING ((i) => ({ ...i, question_zh: '放量后是否会涨？下周预计上行' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I22",
+      "guard": "idea: verdict words",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_VERDICT_WORDING ((i) => ({ ...i, expected_failure_zh: '建议上线，不做的情形除外' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I23",
+      "guard": "idea: at most 5 per week (constant)",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea: more than 5 per market per week is refused (card level and with ideas already recorded)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I24",
+      "guard": "record: PIT copied from the registry by code",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea records: code fills ids, hashes, PIT copied from the registry; a record whose PIT text was edited is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I25",
+      "guard": "record: PIT text must equal the registry",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea records: code fills ids, hashes, PIT copied from the registry; a record whose PIT text was edited is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I26",
+      "guard": "record: id matches market and week",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-45 factor idea records: code fills ids, hashes, PIT copied from the registry; a record whose PIT text was edited is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I27",
+      "guard": "record: fact pack sha matches",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ record: a changed fact pack sha, or an extra key, is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "I28",
+      "guard": "record: exact keys",
+      "file": "services/research-queue-agent/factor-idea.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ record: a changed fact pack sha, or an extra key, is refused",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R01",
+      "guard": "market -> agent host",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-36 market -> agent host: CN_A on Linux only; US_EQUITY and CRYPTO on HK only, including tasks run on Linux",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R02",
+      "guard": "agent host: the task row must agree",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-36 market -> agent host: CN_A on Linux only; US_EQUITY and CRYPTO on HK only, including tasks run on Linux",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R03",
+      "guard": "agent host: the running host must agree",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-36 market -> agent host: CN_A on Linux only; US_EQUITY and CRYPTO on HK only, including tasks run on Linux",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R04",
+      "guard": "routing: no triage reading is TRIAGE_PENDING",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ routing: an existing-mechanism idea with no TRIAGE_QUERY reading is TRIAGE_PENDING (unknown is not \"no prior\"), never silently routed",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R05",
+      "guard": "routing: not-do-settled closes the idea",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ routing: an idea judged 不做（已判） by TRIAGE_QUERY is closed with the sealed sha, before anything else",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R06",
+      "guard": "routing: only registered factors -> AI_PREREG",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ routing: NEW mechanism -> admission program queue (WAITING_EXTERNAL:MECHANISM_ADMISSION); existing mechanism with space readings -> generator path; only registered factors -> AI_PREREG",
+        "✖ routing: crypto holds the generator path (RF1116) but not the prereg path",
+        "✖ AQ-46 ideas -> generator view: a merged admission makes the mechanism id visible in ideas_in_view[] with provenance shas",
+        "✖ AQ-46 ideas whose pack cites forbidden sources never reach the generator view; closed, prereg and crypto-held ideas are not in view",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R07",
+      "guard": "routing: crypto generator path held (existing mechanism)",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ routing: crypto holds the generator path (RF1116) but not the prereg path",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R08",
+      "guard": "routing: crypto generator path held (NEW mechanism)",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ routing: crypto holds the generator path (RF1116) but not the prereg path",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R09",
+      "guard": "view: only generator-path ideas",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-46 ideas whose pack cites forbidden sources never reach the generator view; closed, prereg and crypto-held ideas are not in view",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R10",
+      "guard": "view: the mechanism must be in the (merged) register",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-46 ideas -> generator view: a merged admission makes the mechanism id visible in ideas_in_view[] with provenance shas",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R11",
+      "guard": "view: unknown provenance is refused",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-46 ideas whose pack cites forbidden sources never reach the generator view; closed, prereg and crypto-held ideas are not in view",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R12",
+      "guard": "view: a pack behind the firewall never reaches the generator",
+      "file": "services/research-queue-agent/routing.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-46 ideas whose pack cites forbidden sources never reach the generator view; closed, prereg and crypto-held ideas are not in view",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R13",
+      "guard": "admission stub only takes NEW mechanisms",
+      "file": "services/research-queue-agent/mechanism-admission-stub.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ mechanism admission stub: a NEW idea is queued as WAITING, never admitted or written to the register here",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "R14",
+      "guard": "admission stub only queues WAITING",
+      "file": "services/research-queue-agent/mechanism-admission-stub.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ mechanism admission stub: a NEW idea is queued as WAITING, never admitted or written to the register here",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T01",
+      "guard": "request: max_tokens ceiling comes from the config",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ tool-less: the request body keys are exactly the six plain-completion keys, max_tokens <= 4000, temperature 0, JSON mode, no tools of any kind",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T02",
+      "guard": "request: temperature 0",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ tool-less: the request body keys are exactly the six plain-completion keys, max_tokens <= 4000, temperature 0, JSON mode, no tools of any kind",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T03",
+      "guard": "request: JSON mode",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ tool-less: the request body keys are exactly the six plain-completion keys, max_tokens <= 4000, temperature 0, JSON mode, no tools of any kind",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T04",
+      "guard": "request: no streaming",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ tool-less: the request body keys are exactly the six plain-completion keys, max_tokens <= 4000, temperature 0, JSON mode, no tools of any kind",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T05",
+      "guard": "request: no tools of any kind (a tools key is added)",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ tool-less: the request body keys are exactly the six plain-completion keys, max_tokens <= 4000, temperature 0, JSON mode, no tools of any kind",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T06",
+      "guard": "keyless: a key-named variable refuses start",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-34 agents keyless: a DEEPSEEK* variable, an API-key name, or a key-shaped value in the environment refuses to start (before any call)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T07",
+      "guard": "keyless: a key-shaped value refuses start",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-34 agents keyless: a DEEPSEEK* variable, an API-key name, or a key-shaped value in the environment refuses to start (before any call)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T08",
+      "guard": "quality gate: two attempts",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-48 two failed flash attempts (first answer + 1 revision each) -> exactly one pro call with the quality-gate record; a valid pro answer completes",
+        "✖ AQ-48 pro failing too -> BLOCKED_DETERMINISTIC with a remediation (prompt/template/validator), no second pro call; a check also reports CHECKER_DEFECT",
+        "✖ AQ-48 only one pro call per task even when a split check has two failing parts: the second part is blocked, never given a second pro",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T09",
+      "guard": "quality gate: one revision per attempt",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-48 two failed flash attempts (first answer + 1 revision each) -> exactly one pro call with the quality-gate record; a valid pro answer completes",
+        "✖ AQ-48 pro failing too -> BLOCKED_DETERMINISTIC with a remediation (prompt/template/validator), no second pro call; a check also reports CHECKER_DEFECT",
+        "✖ AQ-48 a flash pass on the second attempt never calls pro; the kind never switches to pro by default",
+        "✖ AQ-48 only one pro call per task even when a split check has two failing parts: the second part is blocked, never given a second pro",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T10",
+      "guard": "quality gate: pro at most once per task",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-48 only one pro call per task even when a split check has two failing parts: the second part is blocked, never given a second pro",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T11",
+      "guard": "quality gate: the pro call carries the record",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-48 two failed flash attempts (first answer + 1 revision each) -> exactly one pro call with the quality-gate record; a valid pro answer completes",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T12",
+      "guard": "revision re-asks with codes only",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ revision: an invalid first answer is re-asked once with the validator error codes only; the revision passes",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T13",
+      "guard": "gateway class: peak is a defer",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-10 gateway classes: 402 -> WAITING_QUOTA, 401 -> WAITING_CREDENTIAL with one alert, 5xx/429 -> RETRY with Retry-After, 400 -> BLOCKED_DETERMINISTIC, peak -> DEFER; none consume a quality attempt",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T14",
+      "guard": "gateway class: quota waits",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-10 gateway classes: 402 -> WAITING_QUOTA, 401 -> WAITING_CREDENTIAL with one alert, 5xx/429 -> RETRY with Retry-After, 400 -> BLOCKED_DETERMINISTIC, peak -> DEFER; none consume a quality attempt",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T15",
+      "guard": "gateway class: credential waits and alerts once",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-10 gateway classes: 402 -> WAITING_QUOTA, 401 -> WAITING_CREDENTIAL with one alert, 5xx/429 -> RETRY with Retry-After, 400 -> BLOCKED_DETERMINISTIC, peak -> DEFER; none consume a quality attempt",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T16",
+      "guard": "gateway class: provider errors retry with Retry-After",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-10 gateway classes: 402 -> WAITING_QUOTA, 401 -> WAITING_CREDENTIAL with one alert, 5xx/429 -> RETRY with Retry-After, 400 -> BLOCKED_DETERMINISTIC, peak -> DEFER; none consume a quality attempt",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T17",
+      "guard": "a failed check reports CHECKER_DEFECT",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-48 pro failing too -> BLOCKED_DETERMINISTIC with a remediation (prompt/template/validator), no second pro call; a check also reports CHECKER_DEFECT",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T18",
+      "guard": "the agent refuses the wrong host",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-36 the agent refuses to run on the wrong host: CN_A on HK, US_EQUITY on Linux",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T19",
+      "guard": "a dirty pack is blocked before any call",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-23 a pack behind the provenance firewall is refused before any call",
+        "✖ check task: a pack with an author row equal to the checker admission is refused before any call (AQ-44)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T20",
+      "guard": "a split check merges to HOLD if any part holds",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ check task: a pack over the per-call token budget is split by matrix row, one call per part, and merged (HOLD if any part holds)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T21",
+      "guard": "the P0 metric records a cited no-idea reason",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ card task: zero ideas with a cited reason is recorded in the metric",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T22",
+      "guard": "NEW mechanisms are queued as admission proposals",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ tests/research_queue_agent.test.js",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "T23",
+      "guard": "the card prompt is the admitted one",
+      "file": "services/research-queue-agent/agent.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ tool-less: the request body keys are exactly the six plain-completion keys, max_tokens <= 4000, temperature 0, JSON mode, no tools of any kind",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "S01",
+      "guard": "seam: six provider tries",
+      "file": "services/research-queue-agent/queue-seam.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-10 queue seam: 6 provider tries then WAITING_PROVIDER, one credential alert, quota waits; never FAILED",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "S02",
+      "guard": "seam: Retry-After wins over the backoff",
+      "file": "services/research-queue-agent/queue-seam.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-10 queue seam: 6 provider tries then WAITING_PROVIDER, one credential alert, quota waits; never FAILED",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "S03",
+      "guard": "seam: the credential alert is passed on",
+      "file": "services/research-queue-agent/queue-seam.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-10 queue seam: 6 provider tries then WAITING_PROVIDER, one credential alert, quota waits; never FAILED",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "S04",
+      "guard": "seam: kinds outside Q2 are refused",
+      "file": "services/research-queue-agent/queue-seam.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ queue seam: the task row is the section 3.2 subset; market and agent_host must agree (AQ-36); only AI_REVIEW_CARD and AI_CHECK run here; AI_PREREG is Q3",
+        "✖ kinds outside Q2 are blocked, not attempted",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "S05",
+      "guard": "seam: the task agent_host must match the market",
+      "file": "services/research-queue-agent/queue-seam.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ queue seam: the task row is the section 3.2 subset; market and agent_host must agree (AQ-36); only AI_REVIEW_CARD and AI_CHECK run here; AI_PREREG is Q3",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "S06",
+      "guard": "seam: task id shape",
+      "file": "services/research-queue-agent/queue-seam.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ queue seam: the task row is the section 3.2 subset; market and agent_host must agree (AQ-36); only AI_REVIEW_CARD and AI_CHECK run here; AI_PREREG is Q3",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "C01",
+      "guard": "client: only a unix socket path",
+      "file": "services/research-queue-agent/gateway-client.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ gateway client: posts to /chat/completions over the unix socket with the X-RQ headers, maps upstream errors to classes, never retries",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "C02",
+      "guard": "client: no automatic retry (a retry loop is added)",
+      "file": "services/research-queue-agent/gateway-client.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ gateway client: posts to /chat/completions over the unix socket with the X-RQ headers, maps upstream errors to classes, never retries",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "C03",
+      "guard": "cli: refuses to start with a key in the environment",
+      "file": "services/research-queue-agent/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ CLI end to end: reads the task and bundle files, talks to a stub gateway on a unix socket, writes result/card/ideas/routes/proposals; no key-shaped string anywhere (AQ-21)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "D01",
+      "guard": "deploy: HK agent has no IP",
+      "file": "deploy/research-queue-ai/hk/rq-agent.service",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-33/34 static: only the gateway units carry an EnvironmentFile; agent units and the agent launcher have none, no DEEPSEEK*, and no network",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "D02",
+      "guard": "deploy: HK agent only AF_UNIX",
+      "file": "deploy/research-queue-ai/hk/rq-agent.service",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-33/34 static: only the gateway units carry an EnvironmentFile; agent units and the agent launcher have none, no DEEPSEEK*, and no network",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "D03",
+      "guard": "deploy: HK agent has no environment file",
+      "file": "deploy/research-queue-ai/hk/rq-agent.service",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-33/34 static: only the gateway units carry an EnvironmentFile; agent units and the agent launcher have none, no DEEPSEEK*, and no network",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "D04",
+      "guard": "deploy: Linux agent container has no network",
+      "file": "deploy/research-queue-ai/linux/run-agent.sh",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-33/34 static: only the gateway units carry an EnvironmentFile; agent units and the agent launcher have none, no DEEPSEEK*, and no network",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "D05",
+      "guard": "deploy: Linux agent container is read-only",
+      "file": "deploy/research-queue-ai/linux/run-agent.sh",
+      "result": "KILLED",
+      "failing": [
+        "✖ AQ-33/34 static: only the gateway units carry an EnvironmentFile; agent units and the agent launcher have none, no DEEPSEEK*, and no network",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L01",
+      "guard": "lexicon term: 会涨",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ AQ-12 check report rejects: CHECK_PREDICTION_WORDING ((r) => { const x = clone(r); x.items[0].note_zh = '下周会涨'; re)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L02",
+      "guard": "lexicon term: 会跌",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L03",
+      "guard": "lexicon term: 上涨概率",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L04",
+      "guard": "lexicon term: 目标价",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L05",
+      "guard": "lexicon term: 预计",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L06",
+      "guard": "lexicon term: 看多",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ AQ-12 card rejects: CARD_PREDICTION_WORDING ((c) => { const x = clone(c); x.supporting[0].text_zh = '后市看多'; return )",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L07",
+      "guard": "lexicon term: 看空",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L08",
+      "guard": "lexicon term: will rise",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L09",
+      "guard": "lexicon term: expect",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L10",
+      "guard": "lexicon term: probability",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L11",
+      "guard": "lexicon term: target",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L12",
+      "guard": "lexicon term: forecast",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L13",
+      "guard": "lexicon term: outperform",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L14",
+      "guard": "lexicon term: 不做",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L15",
+      "guard": "lexicon term: 结论做",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L16",
+      "guard": "lexicon term: 建议上线",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ AQ-12 check report rejects: CHECK_VERDICT_WORDING ((r) => { const x = clone(r); x.items[0].note_zh = '建议上线'; re)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L17",
+      "guard": "lexicon term: 应当采用",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ AQ-12 card rejects: CARD_VERDICT_WORDING ((c) => { const x = clone(c); x.opposing[0].text_zh = '应当采用'; return x;)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L18",
+      "guard": "lexicon term: 买入",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L19",
+      "guard": "lexicon term: 卖出",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L20",
+      "guard": "lexicon term: 加仓",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L21",
+      "guard": "lexicon term: 减仓",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L22",
+      "guard": "lexicon term: adopt",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L23",
+      "guard": "lexicon term: 做多",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_DIRECTION_WORDING ((i) => ({ ...i, question_zh: '弱势后是否应当做多？' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L24",
+      "guard": "lexicon term: 做空",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ card: a question proposal with direction wording is refused (ideas and questions carry no direction)",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L25",
+      "guard": "lexicon term: 看涨",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L26",
+      "guard": "lexicon term: 看跌",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L27",
+      "guard": "lexicon term: bullish",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ AQ-45 factor idea rejects: FACTOR_IDEA_DIRECTION_WORDING ((i) => ({ ...i, question_zh: 'is the bullish case stronger?' }))",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L28",
+      "guard": "lexicon term: bearish",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    },
+    {
+      "id": "L29",
+      "guard": "lexicon term: go long",
+      "file": "services/research-queue-agent/lexicon.js",
+      "result": "KILLED",
+      "failing": [
+        "✖ lexicon: every prediction term and every verdict term is found, ordinary wording is not",
+        "✖ failing tests:"
+      ],
+      "head": "fbe0723"
+    }
+  ]
+}
