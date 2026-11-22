@@ -1,0 +1,24 @@
+{
+  "contract": "INDEPENDENT_VERIFIER_V1",
+  "authority": "PLAN_V1_1_AMENDMENT_1_AI_RESEARCH_LAB.md section 2 (sha256 0e2f3181d98902f28b67c53ffd068a32e35e96bb75c1b32b62eb3ab9f45bde43)",
+  "stageOrder": ["V1", "V2", "V3", "V4", "V5", "V6"],
+  "generatorPrincipals": ["mining-generator", "review-agent"],
+  "trustedPrincipals": ["verifier", "holdout-scorer"],
+  "holdoutScorerPrincipal": "holdout-scorer",
+  "generatorMetricSegments": ["MINING", "VALIDATION"],
+  "protected": {
+    "verifier": ["services/independent-verifier", "config/independent_verifier.v1.json", "tools/independent-verifier-host-evidence.js"],
+    "decisionTables": ["config/independent_verifier.v1.json", "config/mining_gate_thresholds.v1.json", "docs/freeze"]
+  },
+  "pboScope": "ROUND_CANDIDATE_SET",
+  "pboScopeSource": "G-MINE PBO_SCOPE (RF1116 section 3.6 item 2): PBO is computed on the round candidate set",
+  "bhyAlpha": 0.05,
+  "bhyAlphaSource": "docs/contracts/RACE_V2.md guardrails (bhy_alpha 0.05, risk layer); star default, freeze before first formal use",
+  "participationCap": 0.1,
+  "participationCapSource": "docs/contracts/RACE_V2.md guardrails (participation_cap 0.10); star default, freeze before first formal use",
+  "robustness": {
+    "minCostMultiplier": 2,
+    "requiredKinds": ["COST_MULTIPLIER", "PARAM_PERTURBATION", "SUB_PERIOD"],
+    "declarationLine": "ROBUSTNESS_DECLARATION_SHA256"
+  }
+}
