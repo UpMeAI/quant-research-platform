@@ -121,7 +121,7 @@ test('Q3b refusal: a draft without robustness_declaration is refused PREREG_ROBU
 
 test('Q3b refusal: terms are checked with the engine own validator (V2); min_sample_n and stage_evidence are never drafted', () => {
   const bad = (mut) => { const d = baseDraft(); mut(d.promotion_terms); return flow(d).res; };
-  let res = bad((t) => { t.min_economic_value = { metric: 'DELTA_G_PER_YEAR', value: 0.01 }; }); // RISK layer needs CVAR5_IMPROVEMENT
+  let res = bad((t) => { t.layer = 'RISK'; }); // RISK layer needs CVAR5_IMPROVEMENT (and, until CVaR5 is defined, the non-inferiority table)
   assert.deepEqual(failing(res), ['V2']);
   assert.ok(codesOf(res, 'V2').includes('PROMOTION_TERMS_ENUM:min_economic_value.metric'), JSON.stringify(codesOf(res, 'V2')));
   res = bad((t) => { t.thresholds = { s3: { cost_multiple: -1 } }; });
@@ -141,14 +141,14 @@ test('Q3b refusal: terms are checked with the engine own validator (V2); min_sam
 
 test('Q3b refusal: an AI-authored draft may not choose the numbers; they must equal the registered values in ctx (a human draft may)', () => {
   const d = baseDraft();
-  d.promotion_terms.min_economic_value = { metric: 'CVAR5_IMPROVEMENT', value: 0.5 };
+  d.promotion_terms.min_economic_value = { metric: 'DELTA_G_PER_YEAR', value: 0.5 };
   let res = flow(d).res;
   assert.deepEqual(failing(res), ['V2']);
   assert.ok(codesOf(res, 'V2').includes('PREREG_TERMS_VALUES_NOT_REGISTERED:min_economic_value'), JSON.stringify(codesOf(res, 'V2')));
   res = flow(baseDraft(), { promotionTermsStar: null }).res;
   assert.ok(codesOf(res, 'V2').includes('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing'), JSON.stringify(codesOf(res, 'V2')));
   const h = baseDraft({ authored_by: { kind: 'HUMAN_SESSION', session_ref: 'coordinator-session-1' } });
-  h.promotion_terms.min_economic_value = { metric: 'CVAR5_IMPROVEMENT', value: 0.5 };
+  h.promotion_terms.min_economic_value = { metric: 'DELTA_G_PER_YEAR', value: 0.5 };
   res = flow(h, { admissions: [], receipt: null }).res;
   assert.equal(res.state, 'FROZEN', JSON.stringify(res.codes));
 });

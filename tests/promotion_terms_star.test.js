@@ -37,13 +37,17 @@ test('terms star values are exactly the frozen texts: alpha delta-g 2 pp per yea
   assert.deepEqual(s.insufficient_policy, { horizon_months: 12, p_threshold: 0.5, budget_share_max: 0.2, resume_sample_fraction: 0.5, max_failed_rechecks: 3 });
   const d = insufficient.AMENDMENT_1_DEFAULT_POLICY;
   for (const k of Object.keys(s.insufficient_policy)) assert.equal(s.insufficient_policy[k], d[k], `engine default ${k}`);
-  assert.equal(s.by_layer.RISK, undefined, 'CVaR5 has no frozen definition yet (V1.1 5.2 B): not usable');
-  assert.equal(s.by_layer.EXECUTION, undefined, 'V1.1 5.2 C names no economic-value number');
+  assert.equal(s.by_layer.RISK.gate, 'NON_INFERIORITY_FALLBACK', 'V1.1 5.2 B fallback until CVaR5 is defined (plan-coord 11-23)');
+  assert.deepEqual(s.by_layer.RISK.min_economic_value, { metric: 'CVAR5_IMPROVEMENT', value: 0 });
+  assert.deepEqual(s.by_layer.RISK.thresholds, { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 } });
+  assert.equal(s.by_layer.EXECUTION, undefined, 'V1.1 5.2 C names no economic-value number: stays refused');
   assert.equal('s4' in s.by_layer.ALPHA.thresholds, false);
   const f = raw();
-  assert.equal(f.layers.RISK.usable, false);
-  assert.equal(f.layers.RISK.recorded.min_economic_value.value, 0.1, 'the 10% value is recorded for when CVaR is defined');
-  assert.equal(f.layers.RISK.recorded.thresholds.s3.max_growth_sacrifice, 0.01);
+  assert.equal(f.layers.RISK.usable, true);
+  assert.equal(f.layers.RISK.fallback_quote, '在此之前，风险题沿用现行的门：不劣于对照（D8，d38f87a9）或触线概率差（X06）');
+  assert.equal(f.layers.RISK.cvar5.defined, false);
+  assert.equal(f.layers.RISK.cvar5.recorded.min_economic_value.value, 0.1, 'the 10% value is recorded for when CVaR5 is defined');
+  assert.equal(f.layers.EXECUTION.usable, false);
 });
 
 test('terms star loader refuses a file with an unsourced value or a changed source document sha', () => {
@@ -56,7 +60,7 @@ test('terms star loader refuses a file with an unsourced value or a changed sour
   assert.throws(() => star.parse(bad3), /TERMS_STAR_VALUE_NOT_VERBATIM/);
 });
 
-test('the bundle context supplies promotionTermsStar from the file; an AI draft in the ALPHA layer freezes with the star values, in the RISK layer it is refused (star_missing)', () => {
+test('the bundle context supplies promotionTermsStar from the file; an AI draft in the ALPHA layer freezes with the star values, in RISK uses the V1.1 5.2 B non-inferiority fallback, the CVaR5 path and EXECUTION stay star_missing', () => {
   const ctx = fromSpec({ now: fx.NOW_PREPARE, host: 'LINUX', outDir: fx.tmp(), registerCommit: null });
   assert.deepEqual(ctx.promotionTermsStar, star.load());
   const s = star.load();
@@ -64,11 +68,24 @@ test('the bundle context supplies promotionTermsStar from the file; an AI draft 
   const base = (d) => prog.prepare(d, fx.baseCtx({ promotionTermsStar: s }));
   const ok = base(alpha(fx.baseDraft()));
   assert.equal(ok.state, 'WAITING_EXTERNAL', JSON.stringify(ok.codes));
-  const risk = fx.baseDraft();
-  risk.promotion_terms = { layer: 'RISK', min_economic_value: { metric: 'CVAR5_IMPROVEMENT', value: 0.1 }, thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 } }, insufficient_policy: s.insufficient_policy, review_endpoint: { kind: 'DATE', value: '2026-12-31' } };
-  const r = base(risk);
+  const cvar = fx.baseDraft();
+  cvar.promotion_terms = { layer: 'RISK', min_economic_value: { metric: 'CVAR5_IMPROVEMENT', value: 0.1 }, thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 } }, insufficient_policy: s.insufficient_policy, review_endpoint: { kind: 'DATE', value: '2026-12-31' } };
+  Object.assign(cvar.decision_table, { template_id: 'DT-NON-INFERIORITY-V1', params: { ...cvar.decision_table.params, margin_sd: 0.2 } });
+  cvar.desk_items.rule_ref = 'CN_A.RULE.CONCURRENCY';
+  const r = base(cvar);
   assert.equal(r.state, 'REFUSED');
-  assert.ok(r.codes.includes('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing'), JSON.stringify(r.codes));
+  assert.ok(r.codes.includes('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing'), 'the CVaR5 path stays star_missing: ' + JSON.stringify(r.codes));
+  const ni = fx.baseDraft();
+  ni.promotion_terms = { layer: 'RISK', min_economic_value: s.by_layer.RISK.min_economic_value, thresholds: s.by_layer.RISK.thresholds, insufficient_policy: s.insufficient_policy, review_endpoint: { kind: 'DATE', value: '2026-12-31' } };
+  Object.assign(ni.decision_table, { template_id: 'DT-NON-INFERIORITY-V1', params: { ...ni.decision_table.params, margin_sd: 0.2 } });
+  ni.desk_items.rule_ref = 'CN_A.RULE.CONCURRENCY';
+  assert.equal(base(ni).state, 'WAITING_EXTERNAL', JSON.stringify(base(ni).codes));
+  const wrongTable = fx.baseDraft();
+  wrongTable.promotion_terms = ni.promotion_terms;
+  assert.ok(base(wrongTable).codes.includes('PREREG_TERMS_RISK_NEEDS_NON_INFERIORITY'), 'a RISK draft keeps the non-inferiority table');
+  const exec = fx.baseDraft();
+  exec.promotion_terms = { layer: 'EXECUTION', min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.02 }, thresholds: { s3: { cost_multiple: 2 } }, insufficient_policy: s.insufficient_policy, review_endpoint: { kind: 'DATE', value: '2026-12-31' } };
+  assert.ok(base(exec).codes.includes('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing'), 'EXECUTION stays refused');
   const tuned = alpha(fx.baseDraft()); tuned.promotion_terms.min_economic_value = { metric: 'DELTA_G_PER_YEAR', value: 0.01 };
   assert.ok(base(tuned).codes.includes('PREREG_TERMS_VALUES_NOT_REGISTERED:min_economic_value'));
 });
