@@ -48,10 +48,11 @@ test('N2 openRound：不给版本 → RANK_GAUSS_V2 写进清单；不认识的�
     holdout: { from: '2026-07-01', to: '2026-10-31' }, openedAt: '2027-02-03T02:00:00Z', ...R1, scoring_neutralization: 'RANK_V9' }), /MINE_ROUND_NEUTRALIZATION_INVALID/);
 });
 
-test('N4 逐候选记录按轮的版本读门槛文件：V2 的轮读 v2（冻结页之前 PENDING_FREEZE → 只给 MINE_THRESHOLDS_UNFROZEN），V1 的轮读 v1；结果的戳与轮不符 → 拒', () => {
+test('N4 逐候选记录按轮的版本读门槛文件：V2 的轮读 v2（FREEZE_2 之后 FROZEN，冻结页核对通过，九项都跑），V1 的轮读 v1；结果的戳与轮不符 → 拒', () => {
   const v2 = openedRound('CN_A', '2027-03-02T02:00:00Z', { scoring_neutralization: undefined });
   const a = records.recordGateResult({ round_id: v2.r.round_id, candidate_id: v2.id, candidate: { holdout: { neutralization: { version: 'RANK_GAUSS_V2' } } } });
-  assert.deepEqual([a.thresholds_file.path, a.thresholds_used.state, a.thresholds_used.size_exposure_abs_max, a.codes], ['config/mining_gate_thresholds.v2.json', 'PENDING_FREEZE', 0.1, ['MINE_THRESHOLDS_UNFROZEN']]);
+  assert.deepEqual([a.thresholds_file.path, a.thresholds_used.state, a.thresholds_used.size_exposure_abs_max], ['config/mining_gate_thresholds.v2.json', 'FROZEN', 0.1]);
+  assert.ok(!a.codes.some((c) => c.startsWith('MINE_THRESHOLDS_')) && a.codes.includes('MINE_DSR_UNKNOWN'), 'frozen page check passes; the items run and fail closed on the empty result');
   rounds.closeRound(v2.r.round_id);
   const v1 = openedRound('US', '2027-03-03T02:00:00Z', { scoring_neutralization: 'LINEAR_RAW_V1' });
   const b = records.recordGateResult({ round_id: v1.r.round_id, candidate_id: v1.id, candidate: { holdout: { neutralization: { version: 'LINEAR_RAW_V1' } } } });
