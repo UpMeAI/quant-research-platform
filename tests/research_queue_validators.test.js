@@ -24,6 +24,9 @@ test('lexicon: every prediction term and every verdict term is found, ordinary w
   for (const t of pred) assert.ok(V.lexicon.findWording(`本周 ${t} 一些`).some((w) => w.list === 'PREDICTION'), t);
   const verdict = ['不做', '结论：做', '建议上线', '应当采用', '买入', '卖出', '加仓', '减仓', 'we adopt this', 'should adopt'];
   for (const t of verdict) assert.ok(V.lexicon.findWording(`说明 ${t} 一些`).some((w) => w.list === 'VERDICT'), t);
+  const direction = ['做多', '做空', '看涨', '看跌', 'bullish', 'bearish', 'go long', 'going short'];
+  for (const t of direction) assert.ok(V.lexicon.findWording(`说明 ${t} 一些`, ['DIRECTION']).some((w) => w.list === 'DIRECTION'), t);
+  assert.deepEqual(V.lexicon.findWording('做多', ['PREDICTION', 'VERDICT']), [], 'direction words are a separate list, applied to ideas and questions only');
   for (const ok of ['本周有 3 次入场偏晚', '做过这次核对', '样本不足', 'the adopted template id is listed', '命中率为 41.5']) {
     assert.deepEqual(V.lexicon.findWording(ok), [], ok);
   }
@@ -145,6 +148,7 @@ const IDEA_FIXTURES = [
   ['FACTOR_IDEA_FORMULA_TOKEN', (i) => ({ ...i, question_zh: 'rank(RS60) 靠前的是否更好？' })],
   ['FACTOR_IDEA_FORMULA_TOKEN', (i) => ({ ...i, question_zh: 'ts_mean 之后的 RS60 是否更稳？' })],
   ['FACTOR_IDEA_FORMULA_TOKEN', (i) => ({ ...i, question_zh: 'zscore 处理后是否更好？' })],
+  ['FACTOR_IDEA_FORMULA_TOKEN', (i) => ({ ...i, question_zh: 'sma(RS60) 之后是否更稳？' })],
   ['FACTOR_IDEA_FORMULA_TOKEN', (i) => ({ ...i, expected_failure_zh: 'neutralize_industry 之后失效' })],
   ['FACTOR_IDEA_FORMULA_TOKEN', (i) => ({ ...i, question_zh: 'RS60 + VOL20 是否优于单独读数？' })],
   ['FACTOR_IDEA_FORMULA_TOKEN', (i) => ({ ...i, question_zh: 'RS60 / VOL20 是否更稳？' })],
@@ -162,6 +166,7 @@ const IDEA_FIXTURES = [
   ['FACTOR_IDEA_MECHANISM_NEW_INVALID', (i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', description_zh: '一句泛化描述', layer: 'SELECTION_TIMING', decision_point: 'SIZING' } } })],
   ['FACTOR_IDEA_MECHANISM_NEW_INVALID', (i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.XSEC.REVERSAL', title_zh: '新机制', description_zh: '一句泛化描述', layer: 'SELECTION_TIMING', decision_point: 'SELECT' } } })],
   ['FACTOR_IDEA_MECHANISM_NEW_INVALID', (i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', layer: 'SELECTION_TIMING', decision_point: 'SELECT' } } })],
+  ['FACTOR_IDEA_MECHANISM_NEW_INVALID', (i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', description_zh: '一句泛化描述', layer: 'SELECTION_TIMING', decision_point: 'SELECT', formula: 'x' } } })],
   ['FACTOR_IDEA_NUMERIC_PARAM', (i) => ({ ...i, mechanism: { NEW: { proposed_id: 'SEL.NEW.X', title_zh: '新机制', description_zh: '阈值取 20 日', layer: 'SELECTION_TIMING', decision_point: 'SELECT' } } })],
   ['FACTOR_IDEA_HOLDING_PERIOD_UNREGISTERED', (i) => ({ ...i, holding_periods: [7] })],
   ['FACTOR_IDEA_HOLDING_PERIOD_UNREGISTERED', (i) => ({ ...i, holding_periods: [] })],
@@ -234,6 +239,17 @@ test('AQ-45 factor idea records: code fills ids, hashes, PIT copied from the reg
   assert.ok(codes(V.validateIdeaRecord(bad3, F.ctx())).includes('FACTOR_IDEA_KEYS'));
 });
 
+test('record: a changed fact pack sha, or an extra key, is refused', () => {
+  const rec = V.buildIdeaRecords(F.makeCard(), F.ctx(), { card_sha256: F.sha('c'), prompt_admission_sha256: F.sha('a'), model: 'deepseek-flash' })[0];
+  assert.ok(codes(V.validateIdeaRecord({ ...rec, fact_pack_sha256: F.sha('other') }, F.ctx())).includes('FACTOR_IDEA_PACK_SHA_MISMATCH'));
+  assert.deepEqual(codes(V.validateIdeaRecord({ ...rec, formula: 'rank(x)' }, F.ctx())), ['FACTOR_IDEA_KEYS']);
+});
+
+test('card: an invalid idea inside a card makes the card invalid (the card runs the idea validator)', () => {
+  const c = F.makeCard({ factor_ideas: [F.goodIdea({ question_zh: 'rank(RS60) 靠前的是否更好？' })] });
+  assert.ok(codes(V.validateCard(JSON.stringify(c), F.ctx())).includes('FACTOR_IDEA_FORMULA_TOKEN'));
+});
+
 test('AQ-45 idea carries no formula, direction, or numbers: the record has no free numeric or operator field', () => {
   const rec = V.buildIdeaRecords(F.makeCard(), F.ctx(), { card_sha256: F.sha('c'), prompt_admission_sha256: F.sha('a'), model: 'deepseek-flash' })[0];
   assert.deepEqual(Object.keys(rec).sort(), ['card_sha256', 'expected_failure_zh', 'fact_ids', 'fact_pack_sha256', 'holding_periods', 'idea_id', 'market',
@@ -303,6 +319,7 @@ test('AQ-36 market -> agent host: CN_A on Linux only; US_EQUITY and CRYPTO on HK
   assert.throws(() => V.assertAgentHost({ market: 'US_EQUITY', host: 'LINUX', agent_host: 'HK', kind: 'AI_CHECK' }, 'LINUX'), /RQ_AGENT_HOST_MISMATCH/);
   assert.throws(() => V.assertAgentHost({ market: 'CN_A', host: 'LINUX', agent_host: 'LINUX', kind: 'AI_CHECK' }, 'HK'), /RQ_AGENT_HOST_MISMATCH/);
   assert.throws(() => V.assertAgentHost({ market: 'CN_A', host: 'LINUX', agent_host: 'HK', kind: 'AI_CHECK' }, 'HK'), /RQ_AGENT_HOST_MISMATCH/);
+  assert.throws(() => V.assertAgentHost({ market: 'CN_A', host: 'LINUX', agent_host: 'HK', kind: 'AI_CHECK' }, 'LINUX'), /RQ_AGENT_HOST_MISMATCH/, 'the task row alone can be wrong');
 });
 
 /* ---------------------------------------------------------------- AQ-44 */

@@ -32,8 +32,7 @@ function numericTokens(text) {
   if (typeof text !== 'string') return [];
   const out = [];
   for (const m of text.replace(FACT_ID_G, ' ').matchAll(/[A-Za-z_]*\d+(?:[.,]\d+)*/g)) {
-    if (/^[A-Za-z_]/.test(m[0])) continue;
-    const n = Number(m[0].replace(/,/g, ''));
+    const n = Number(m[0].replace(/,/g, ''));   // identifiers with digits (RS60, W47, R1) are NaN here and skipped
     if (Number.isFinite(n)) out.push(n);
   }
   return out;

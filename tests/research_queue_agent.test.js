@@ -406,7 +406,7 @@ test('CLI end to end: reads the task and bundle files, talks to a stub gateway o
     const env = { PATH: process.env.PATH, HOME: dir };
     const run = (extra = [], e = env) => runNode([cli, '--task', path.join(inDir, 'task.json'), '--bundle', path.join(inDir, 'bundle.json'), '--out', out, '--socket', sock, '--host', 'LINUX', ...extra], e);
     const keyed = await run([], { ...env, DEEPSEEK_RESEARCH_API_KEY: fakeKey });
-    assert.notEqual(keyed.status, 0);
+    assert.equal(keyed.status, 3, 'refused at start, before any file is read');
     assert.match(keyed.stderr, /RQ_AGENT_ENV_HAS_KEY/);
     assert.equal(keyed.stderr.includes(fakeKey), false);
     assert.equal(fs.existsSync(out), false, 'a refused start writes nothing');

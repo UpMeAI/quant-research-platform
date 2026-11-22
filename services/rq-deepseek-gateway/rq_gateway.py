@@ -486,7 +486,7 @@ class Gateway:
                 and rec.get('record_id') == gid and quality_gate_record_id(rec) == gid):
             raise invalid
         fails = rec.get('failures')
-        if not (isinstance(fails, list) and len(fails) >= 2):
+        if not isinstance(fails, list):
             raise invalid
         seen = set()
         for f in fails:
@@ -496,7 +496,7 @@ class Gateway:
             if not ok:
                 raise invalid
             seen.add(f['attempt_no'])
-        if len(seen) < 2:
+        if len(seen) < 2:   # two failures on two distinct attempts
             raise invalid
         with self._conn() as c:
             used = c.execute('SELECT COUNT(*) FROM call WHERE purpose=? AND task_id=? AND http_status=200', (purpose, task_id)).fetchone()[0]

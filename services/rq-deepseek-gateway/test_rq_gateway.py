@@ -290,6 +290,18 @@ class TestPromptAdmission(Base):
         g = self.make(config=make_config(admissions=adm))
         self.assertEqual(json.loads(self.post(g)[2])['error']['rq_code'], 'RQ_PROMPT_NOT_ADMITTED')
 
+    def test_admitted_header_with_a_different_system_text_is_refused(self):
+        g = self.make()
+        b = body_of()
+        b['messages'][0]['content'] = SYSTEM + ' (edited)'
+        self.assertEqual(json.loads(self.post(g, b, hdrs(sha=SYSTEM_SHA))[2])['error']['rq_code'], 'RQ_PROMPT_NOT_ADMITTED')
+
+    def test_admitted_text_in_a_user_message_is_not_a_system_prompt(self):
+        g = self.make()
+        b = body_of()
+        b['messages'] = [{'role': 'user', 'content': SYSTEM}, {'role': 'user', 'content': '{}'}]
+        self.assertEqual(json.loads(self.post(g, b)[2])['error']['rq_code'], 'RQ_PROMPT_NOT_ADMITTED')
+
     def test_first_message_must_be_system(self):
         g = self.make()
         b = body_of()
@@ -443,6 +455,17 @@ class TestLedger(Base):  # AQ-31
             self.assertIsNone(r[k], k)
         v = gw.monthly_spend(self.db, 'LINUX_RESEARCH', '2026-11')
         self.assertEqual((v['total']['calls'], v['total']['unmetered_calls']), (1, 1))
+
+    def test_partial_usage_is_unmetered_not_crashed(self):
+        r = ok_response()
+        d = json.loads(r[2])
+        d['usage'] = {'completion_tokens': 5}
+        g = self.make(Stub((200, {}, json.dumps(d).encode())))
+        self.assertEqual(self.post(g)[0], 200)
+        row = self.rows()[0]
+        self.assertIsNone(row['completion_tokens'])
+        self.assertIsNone(row['cny'])
+        self.assertEqual(gw.monthly_spend(self.db, 'LINUX_RESEARCH', '2026-11')['total']['unmetered_calls'], 1)
 
     def test_unknown_price_row_gives_null_cost_and_is_counted(self):
         g = self.make(Stub(ok_response(model='deepseek-v4-pro')))
