@@ -32,7 +32,7 @@ test('S2 adapter: selection.json -> a valid S2 body (RANK_IC_INCREMENT, 95% inte
   assert.equal(typeof a.body.decay_ok, 'boolean');
   assert.ok(a.body.n > 200);
   const terms = P.terms({ candidate_id: 'CAND-AD-1', min_sample_n: 200 });
-  const ev = s2.evidence(terms, a.body, sha('prev-S1'));
+  const ev = { ...s2.evidence(terms, a.body, sha('prev-S1')), insufficient_inputs: P.insuff() };
   const res = engine.evaluate({ candidate_id: terms.candidate_id, requested_stage: 'S2', terms, evidence: ev, history: [...P.historyBefore('S2')], as_of: P.AS_OF });
   assert.notEqual(res.verdict, 'INVALID_INPUT', JSON.stringify(res.reasonCodes));
   assert.ok(res.reasonCodes.includes('S2_DSR_UNKNOWN') || res.verdict === 'INSUFFICIENT', JSON.stringify(res));
@@ -54,8 +54,8 @@ test('S2 adapter: not selected is FAIL when folds and samples are sufficient, IN
 test('V-3 adapter: trial-ledger DSR / PBO / BHY with the trial record id and a hashed run file for each (the #146 provenance format); V-3 finds no UNSOURCED_STATISTIC', () => {
   const r = scored();
   const id = r.selected[0];
-  const out = v3.fromRound({ roundId: r.roundId, candidateId: id });
-  assert.equal(out.v3.familyTrialCount, W.FORMULAS.length);
+  const out = v3.fromRound({ roundId: r.roundId, candidateId: id, outDir: r.outDir });
+  assert.equal(out.v3.familyTrialCount, W.SCORED_FORMULAS.length);
   assert.equal(out.v3.overfit.n_trials, out.v3.familyTrialCount);
   assert.equal(out.v3.overfit.pbo_scope, 'ROUND_CANDIDATE_SET');
   for (const k of ['dsr', 'pbo', 'bhy']) {
@@ -66,7 +66,7 @@ test('V-3 adapter: trial-ledger DSR / PBO / BHY with the trial record id and a h
     assert.equal(JSON.parse(f.bytes.toString('utf8')).statistic, k);
   }
   const files = new Map(out.files.map((f) => [f.path, f.bytes]));
-  const bundle = { candidateId: id, mechanism: { id: 'X', dedupeDecision: 'NORMAL_NO_PRIOR' }, v3: out.v3 };
+  const bundle = { cfg: authority.loadConfig(), candidateId: id, mechanism: { id: 'X', dedupeDecision: 'NORMAL_NO_PRIOR' }, v3: out.v3 };
   const res = runners.V3(bundle, { readBytes: (ref) => files.get(ref.path) || null }, authority.loadConfig());
   assert.equal(res.codes.includes('UNSOURCED_STATISTIC'), false, JSON.stringify(res.codes));
   const tampered = new Map(files); const p0 = out.v3.provenance.dsr.run.path; tampered.set(p0, Buffer.from(tampered.get(p0).toString('utf8').replace(/"value":[^,}]+/, '"value":0.123')));
@@ -75,5 +75,5 @@ test('V-3 adapter: trial-ledger DSR / PBO / BHY with the trial record id and a h
 
 test('V-3 adapter refuses a candidate that has no gate record (holdout not scored)', () => {
   const r = scored();
-  assert.throws(() => v3.fromRound({ roundId: r.roundId, candidateId: `${r.roundId}:A999` }), /V3_ADAPTER_NO_GATE_RECORD/);
+  assert.throws(() => v3.fromRound({ roundId: r.roundId, candidateId: `${r.roundId}:A999`, outDir: r.outDir }), /V3_ADAPTER_NO_GATE_RECORD/);
 });

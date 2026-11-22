@@ -4,7 +4,7 @@
  * Access-log writer (W24, PLAN_V1_1_AMENDMENT_1 section 3; contract docs/contracts/INDEPENDENT_VERIFIER_V1.md "Access log").
  * JSONL, one row per read: { seq, principal, op: READ|HOLDOUT_READ, dataset, from, to, candidateSha256?, prev, hash }, hash = sha256(canonicalJson(row without hash)),
  * prev = the previous row's hash (first row all zeros), seq from 1. The verifier's V-2 parses it (stages.js parseAccessLog); verifyBytes reuses that parser.
- * Extra keys (`refused`, `code`) mark a refused attempt; they are inside the hash. No clock: a row says what was read, not when.
+ * The extra key `code` of a HOLDOUT_READ_REFUSED row is inside the hash. No clock: a row says what was read, not when.
  */
 const crypto = require('crypto');
 const fs = require('fs');
@@ -12,7 +12,8 @@ const path = require('path');
 const { canonicalJson } = require('../trial-ledger');
 
 const ZERO = '0'.repeat(64);
-const OPS = Object.freeze(['READ', 'HOLDOUT_READ']);
+/** HOLDOUT_READ_REFUSED (plan-coord ruling 11-23): a read the lock refused. Unknown, refused and read stay distinct; a refused attempt is an incident, not a read. */
+const OPS = Object.freeze(['READ', 'HOLDOUT_READ', 'HOLDOUT_READ_REFUSED']);
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const SHA64 = /^[0-9a-f]{64}$/;
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');

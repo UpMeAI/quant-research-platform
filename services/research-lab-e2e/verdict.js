@@ -10,7 +10,7 @@
  */
 const engineDefault = require('../promotion-engine');
 const verifierMod = require('../independent-verifier');
-const { sha256, text, HOLDOUT_NOT_BEFORE, isObj } = require('./common');
+const { sha256, text, HOLDOUT_NOT_BEFORE, isObj, canonicalJson } = require('./common');
 
 const SCHEMA = 'LAB_VERDICT_V1';
 const TERMINAL_OF = Object.freeze({ FORWARD_SHADOW: 'SEALED_FORWARD_SHADOW', FAILURE_LIBRARY: 'SEALED_FAILURE_LIBRARY', PAUSE: 'PAUSED' });
@@ -30,7 +30,7 @@ function assembleBundle({ chain, evidence, asOf }) {
   return {
     ...e, schema: 'INDEPENDENT_VERIFIER_INPUT_V1', candidateId: chain.candidateId, candidateSha256: chain.candidateSha256, market: chain.market, familyId: chain.familyId, asOf,
     mechanism: { id: chain.mechanismId, dedupeDecision: chain.dedupeDecision }, v1: { ...v1, files: { ...(isObj(v1.files) ? v1.files : {}), k2: chain.k2 } },
-    v2: { accessLog: chain.accessLog, unseenClaim: null, segmentMarks: [] },
+    v2: { accessLog: chain.accessLog, unseenClaim: chain.unseenClaim || null, segmentMarks: chain.segmentMarks || [] },
   };
 }
 
@@ -64,16 +64,38 @@ function engineS0S1({ terms, s0_body: s0, s1_body: s1, as_of: asOf }, engine = e
   return { ok: true, results: [r0, r1] };
 }
 
-/** The verdict before the holdout is read: S0 and S1 results, the terminal state, no verifier yet. @returns {{ok: boolean, reason_code?: string, verdict_text?: string}} */
+/**
+ * The verdict before the final test is read: S0 and S1 results and the terminal state, no verifier yet.
+ *   inputs.s2 (a candidate the validation rule rejected, from the S2 adapter): classification FAIL is S2 FAIL (不做, reason S2_NOT_SELECTED_BY_VALIDATION, failure library);
+ *   INSUFFICIENT (too few folds or samples) goes to the engine and amendment section 4.2 (做 or 暂停), never to the failure library.
+ * @returns {{ok: boolean, reason_code?: string, verdict_text?: string, terminal_state?: string, seal?: object, engineVerdict?: string|null}}
+ */
 function preHoldout(inputs, engine = engineDefault) {
   const out = engineS0S1(inputs, engine);
   if (!out.ok) return out;
-  const verdict = { schema: SCHEMA, candidate: { candidate_id: inputs.terms.candidate_id, k2_sha256: inputs.terms.k2_sha256 }, terminal_state: inputs.terminal_state,
-    engine: out.results.map(summary), verifier: null, seal: inputs.seal };
-  return { ok: true, verdict, verdict_text: text(verdict), results: out.results };
+  const engineList = out.results.map(summary);
+  let terminal = inputs.terminal_state; let seal = inputs.seal; let engineVerdict = null;
+  if (inputs.s2) {
+    const cls = inputs.s2.classification;
+    if (cls === 'FAIL') {
+      engineList.push({ stage: 'S2', verdict: 'FAIL', nextAction: 'SEAL_NOT_DO_TO_FAILURE_LIBRARY', reasonCodes: ['S2_NOT_SELECTED_BY_VALIDATION'], output_sha256: sha256(canonicalJson({ classification: cls, body: inputs.s2.body })), source: 'LAB_SELECTION_RULE' });
+      seal = notSelectedSeal(); terminal = 'NOT_SELECTED_BY_VALIDATION'; engineVerdict = 'FAIL';
+    } else {
+      const terms = inputs.terms;
+      const r2 = engine.evaluate({ candidate_id: terms.candidate_id, requested_stage: 'S2', terms, as_of: inputs.as_of, history: [{ stage: 'S0', verdict: 'PASS', output_sha256: out.results[0].output_sha256 }, { stage: 'S1', verdict: 'PASS', output_sha256: out.results[1].output_sha256 }],
+        evidence: { schema: 'PROMOTION_STAGE_EVIDENCE_V1', candidate_id: terms.candidate_id, stage: 'S2', k2_sha256: terms.k2_sha256, prior_output_sha256: out.results[1].output_sha256, validator: { first_failed: null }, body: inputs.s2.body,
+          insufficient_inputs: inputs.s2.insufficient_inputs } });
+      if (r2.verdict === 'INVALID_INPUT') return { ok: false, reason_code: `LAB_VERDICT_S2_${r2.reasonCodes[0]}` };
+      engineList.push(summary(r2));
+      seal = sealOf(r2); if (!seal) return { ok: false, reason_code: 'LAB_SEAL_ENGINE_FIX_INPUT' };
+      terminal = TERMINAL_OF[seal.destination]; engineVerdict = r2.verdict;
+    }
+  }
+  const verdict = { schema: SCHEMA, candidate: { candidate_id: inputs.terms.candidate_id, k2_sha256: inputs.terms.k2_sha256 }, terminal_state: terminal, engine: engineList, verifier: null, seal };
+  return { ok: true, verdict, verdict_text: text(verdict), results: out.results, terminal_state: terminal, seal, engineVerdict };
 }
 
-const awaitingSeal = () => ({ destination: 'AWAIT_HOLDOUT', earliest_holdout_read: HOLDOUT_NOT_BEFORE });
+const awaitingSeal = (finalTest) => (finalTest && finalTest.kind === 'FORWARD' ? { destination: 'AWAIT_FORWARD', forward_from: finalTest.from } : { destination: 'AWAIT_HOLDOUT', earliest_holdout_read: HOLDOUT_NOT_BEFORE });
 const notSelectedSeal = () => ({ destination: 'FAILURE_LIBRARY', basis: { rule: 'RF1116_VALIDATION_SELECTION_RULE', engine_verdict: null } });
 
 module.exports = { SCHEMA, TERMINAL_OF, summary, sealOf, assembleBundle, decide, engineS0S1, preHoldout, awaitingSeal, notSelectedSeal };

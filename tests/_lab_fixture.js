@@ -32,6 +32,7 @@ const HOLDOUT_PATH_DATE = '2026-09-14';
 const MECH = K.MECH_OK; // CN_A, NORMAL_NO_PRIOR in the checked-in register
 const FORMULAS = ['rank((-ret_1d))', 'nope(close_hfq)', 'rank( (-ret_1d) )', 'zscore((-ret_1d))', 'rank(pb)']; // scored, parse-refused, deduped, scored, scored
 const CANDIDATE_FORMULA = FORMULAS[0];
+const SCORED_FORMULAS = ['rank((-ret_1d))', 'zscore((-ret_1d))', 'rank((-ts_mean(ret_1d,5)))', 'rank(pb)', 'rank(ts_delta(close_hfq,1))', 'zscore(turnover_f)', 'rank((-ts_mean(ret_1d,3)))', 'rank((-ts_mean(ret_1d,10)))', 'rank(ret_1d)', 'zscore(ret_1d)']; // the scored round also has losers (the validation rule rejects them)
 
 let FX = null;
 function miningFixture() { if (!FX) FX = makeMiningDataFixture(tmp('qrp-w24-e2e-fx-')); return FX; }
@@ -120,10 +121,10 @@ function scoredRound() {
   const sums = (dir) => { const files = fs.readdirSync(dir).filter((n) => n.endsWith('.csv')).sort(); fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${files.map((n) => `${sha(fs.readFileSync(path.join(dir, n)))}  ${n}`).join('\n')}\n`); };
   sums(v.partial); fs.copyFileSync(path.join(v.partial, 'SHA256SUMS'), path.join(v.complete, 'SHA256SUMS.sealed')); sums(v.complete);
   const out = process.env.QRP_DATA_DIR; const sources = () => [adapter.csvDirSource(fx.dirs.lane, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(fx.dirs.tail, { mode: 'LIVE', label: 'tail' })];
-  const r = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 5 }, cap: FORMULAS.length, openedAt: '2026-11-21T02:00:00Z' });
+  const r = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 5 }, cap: SCORED_FORMULAS.length, openedAt: '2026-11-21T02:00:00Z' });
   runner.sealHoldout({ roundId: r.round_id, dataRef: 'synthetic:holdout', dataSha256: sha(fs.readFileSync(path.join(v.partial, 'SHA256SUMS'))) });
   const log = accessLog.writer(runner.accessLogFile(out, r.round_id));
-  const gen = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => FORMULAS.slice(view.mining_scores.length, view.mining_scores.length + n) };
+  const gen = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => SCORED_FORMULAS.slice(view.mining_scores.length, view.mining_scores.length + n) };
   runner.internals.withGenerator(gen, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: { min_names_per_day: 5 }, accessLog: log }));
   const sel = runner.select({ roundId: r.round_id, sources: sources(), outDir: out, accessLog: log });
   require('./_mining_manifest').reviewAll(r.round_id);
@@ -131,4 +132,4 @@ function scoredRound() {
   return { roundId: r.round_id, selected: sel.selected, selection: sel, outDir: out };
 }
 
-module.exports = { scoredRound, W47_DATE, HOLDOUT_PATH_DATE, buildWorld, inProcessExecutor, miningFixture, AS_OF, MECH, FORMULAS, CANDIDATE_FORMULA, sha, canonicalJson, F, K, P, AUTH };
+module.exports = { SCORED_FORMULAS, scoredRound, W47_DATE, HOLDOUT_PATH_DATE, buildWorld, inProcessExecutor, miningFixture, AS_OF, MECH, FORMULAS, CANDIDATE_FORMULA, sha, canonicalJson, F, K, P, AUTH };

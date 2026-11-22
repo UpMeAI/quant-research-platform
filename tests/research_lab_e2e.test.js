@@ -82,7 +82,8 @@ test('full chain on the fixture: card to feedback, terminal FROZEN_AWAITING_HOLD
   assert.equal(lineage.final_test.kind, 'HOLDOUT');
   assert.deepEqual(lineage.incidents, []);
 
-  const acc = lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services });
+  const nextBundle = mergeViaProducer(w.services.bundle(), json(path.join(w.outDir, path.dirname(lineage.chain[10].artifact_path), 'feedback_facts.json')));
+  const acc = lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services, next_bundle: nextBundle });
   assert.equal(acc.schema, 'LAB_ACCEPTANCE_V1');
   assert.deepEqual(acc.conditions.map((c) => c.id), PASS5);
   assert.deepEqual(acc.conditions.map((c) => c.verdict), ['PASS', 'PASS', 'PASS', 'PASS', 'PASS'], JSON.stringify(acc.conditions));
@@ -194,13 +195,6 @@ test('refusal: a generator that SUCCESSFULLY reads the holdout fails C3; a refus
   assert.equal(c3.incidents.length, 1, 'every attempt is listed');
   assert.deepEqual([c3.incidents[0].principal, c3.incidents[0].op, c3.incidents[0].code], ['mining-generator', 'HOLDOUT_READ_REFUSED', 'VERIFIER_HOLDOUT_READ_REFUSED']);
   assert.equal(json(res2.lineage_path).incidents.length, 1, 'the lineage report has an incidents section');
-});
-  const acc = lab.check({ out_dir: out, as_of: AS_OF, services: w.services });
-  const c3 = verdictOf(acc, 'C3_NO_GENERATOR_HOLDOUT_ACCESS');
-  assert.equal(c3.codes.filter((c) => c.startsWith('V2_')).length, 0, JSON.stringify(c3.codes));
-  assert.equal(c3.incidents.length, 1, 'every attempt is listed');
-  assert.deepEqual([c3.incidents[0].principal, c3.incidents[0].op, c3.incidents[0].code], ['mining-generator', 'HOLDOUT_READ_REFUSED', 'VERIFIER_HOLDOUT_READ_REFUSED']);
-  assert.equal(c3.codes.includes('ACCESS_LOG_SHA_MISMATCH'), true, 'the edited copy no longer matches the recorded sha (that, not the incident, is what fails here)');
 });
 
 test('refusal: a review-agent log that touches anything but the fact pack, or a holdout row, fails C3', async () => {

@@ -14,6 +14,7 @@ EXTERNAL_CODES = ("MECHANISM_REVIEW", "HOLDOUT_INCOMPLETE", "DATA_DATE", "SERIES
 MARKET_AGENT_HOST = {"CN_A": "LINUX", "US_EQUITY": "HK", "CRYPTO": "HK"}
 CARD_KIND = "AI_REVIEW_CARD"
 FACT_PACK_SCHEMA = "REVIEW_AI_FACT_PACK_V1"
+LAB_FEEDBACK_SCHEMA = "LAB_FEEDBACK_FACTS_V1"
 HK_FORBIDDEN_ARGV = ("export-crypto-desk.js", "smartflow", "127.0.0.1:3306", "localhost:3306", "mysql")
 QUOTA_PROBE_S = 6 * 3600
 PROVIDER_PROBE_S = 3600
@@ -155,6 +156,28 @@ def card_template(registry, cfg, market):
     return found[0] if found else None
 
 
+def merge_lab_feedback(pack, feedbacks):
+    """W24 (plan-coord ruling 11-23 (6)): add the AI Quant Research Lab's feedback facts (LAB_FEEDBACK_FACTS_V1) to a REVIEW_AI_FACT_PACK_V1, with ids of their own
+    after the pack's. Only files of the pack's market; a fact already cited (same source sha256) is not added twice; deterministic order; the input is not modified."""
+    out = json.loads(json.dumps(pack))
+    facts = out.setdefault("facts", [])
+    known = {(f.get("source") or {}).get("sha256") for f in facts if isinstance(f, dict)}
+    top = 0
+    for f in facts:
+        m = re.fullmatch(r"F-(\d+)", str(f.get("id", ""))) if isinstance(f, dict) else None
+        top = max(top, int(m.group(1)) if m else 0)
+    docs = [d for d in feedbacks if isinstance(d, dict) and d.get("schema") == LAB_FEEDBACK_SCHEMA and d.get("market") == out.get("market") and isinstance(d.get("facts"), list)]
+    for d in sorted(docs, key=lambda x: json.dumps(x, sort_keys=True)):
+        for f in d["facts"]:
+            sha_ = (f.get("source") or {}).get("sha256") if isinstance(f, dict) else None
+            if not sha_ or sha_ in known:
+                continue
+            top += 1
+            facts.append(dict({"id": "F-%03d" % top}, **f))
+            known.add(sha_)
+    return out
+
+
 def _fact_pack_request(registry, cfg, path, pack):
     t = card_template(registry, cfg, pack["market"])
     if not t:
@@ -184,15 +207,24 @@ def tick(conn, cfg, registry, now, probes=None):
             continue
         count(admit(conn, cfg, registry, req, now))
     d = cfg.inbox_dir / "fact-packs"
+    lab = [x for x in (_load_json(p) for p in sorted((cfg.inbox_dir / "lab-feedback").glob("*.json"))) if x] if (cfg.inbox_dir / "lab-feedback").is_dir() else []
+    merged_dir = cfg.inbox_dir / "fact-packs-merged"
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
         pack = _load_json(f)
         if not (isinstance(pack, dict) and pack.get("schema") == FACT_PACK_SCHEMA and pack.get("week") and pack.get("market")):
             out["unreadable"] += 1
             continue
-        req = _fact_pack_request(registry, cfg, f, pack)
+        use = f
+        merged = merge_lab_feedback(pack, lab) if lab else pack
+        if merged != pack:  # the lab's feedback facts join the card's input; the pack the producer was given stays untouched
+            merged_dir.mkdir(parents=True, exist_ok=True)
+            use = merged_dir / f.name
+            use.write_text(json.dumps(merged, sort_keys=True, separators=(",", ":")))
+            pack = merged
+        req = _fact_pack_request(registry, cfg, use, pack)
         if req is None:
             continue
-        count(admit(conn, cfg, registry, req, now, extra_input_prefixes=[d]))
+        count(admit(conn, cfg, registry, req, now, extra_input_prefixes=[d, merged_dir]))
     out["resumed"] = reevaluate_waiting(conn, cfg, now, probes)
     return out
 

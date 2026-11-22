@@ -37,7 +37,13 @@ function card(S) {
   if (o.card_sha256 !== sha256(agentCanon.canonicalJson(o.card))) return { reason: 'LAB_CARD_SHA_MISMATCH' };
   const log = readIfFile(job.files.review_agent_access_log || '');
   if (!log) return { reason: 'LAB_CARD_ACCESS_LOG_MISSING' };
-  if (!accessLog.verifyBytes(log).ok) return { reason: 'LAB_CARD_ACCESS_LOG_INVALID' };
+  const logCheck = accessLog.verifyBytes(log);
+  if (!logCheck.ok) return { reason: 'LAB_CARD_ACCESS_LOG_INVALID' };
+  // what the review agent read is development information (W05 semantics): the log must name the span of the facts the card was built from
+  const days = bundle.pack.facts.map((f) => String(f.at).slice(0, 10)).sort();
+  const read = logCheck.rows.filter((r) => r.op === 'READ');
+  if (!read.length || read.some((r) => r.from > days[0] || r.to < days[days.length - 1])) return { reason: 'LAB_CARD_ACCESS_LOG_RANGE_MISMATCH' };
+  S.data.reviewRows = logCheck.rows;
   S.data.card = { result, vctx }; S.data.reviewLogSha = sha256(log);
   return { files: { 'card_result.json': bytes, 'review_agent_access_log.jsonl': log }, primary: 'card_result.json' };
 }
