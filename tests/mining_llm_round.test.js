@@ -221,11 +221,11 @@ test('B5 等待态：密钥不在 → WAITING_KEY_ABSENT、一次网络都不连
 test('B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上限 → STOPPED_TOKEN_CAP、不发；调用次数到上限 → STOPPED_CALL_CAP', async () => {
   const raw = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/mining_llm_generator.v1.json'), 'utf8'));
   const big = { prompt_tokens: 30000, completion_tokens: 10000, total_tokens: 40000, prompt_cache_hit_tokens: 0, prompt_cache_miss_tokens: 30000 };
-  const capped = JSON.parse(JSON.stringify(raw)); capped.limits.tokens_per_round = 60000;
+  const capped = JSON.parse(JSON.stringify(raw)); capped.limits.tokens_per_round = 45000; // one call's upper bound ≈ prompt estimate + max_tokens (≈ 19.5k): 40000 used + 19.5k > 45000
   const out = freshData();
   await runner.internals.withLlmConfig(Buffer.from(JSON.stringify(capped)), async () => {
     const r = openLlm({ cap: 40 });
-    assert.equal(r.generator.llm.tokens_per_round, 60000);
+    assert.equal(r.generator.llm.tokens_per_round, 45000);
     const s = startStep(out, [{ content: C2, usage: big }]);
     let g;
     try { g = gen(out, r.round_id); } finally { await s.stop(); }
@@ -234,7 +234,9 @@ test('B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上�
     assert.equal(fs.readdirSync(path.join(out, 'llm-exchange')).filter((n) => n.endsWith('.req.json')).length, 1, 'no request written for it');
     const st = rounds.llmState(r.round_id);
     assert.deepEqual([st.outcome, st.final, st.tokens_metered], ['STOPPED_TOKEN_CAP', false, 0]);
-    assert.ok(rounds.llmUsage(r.round_id).tokens_metered <= 60000);
+    assert.ok(rounds.llmUsage(r.round_id).tokens_metered <= 45000);
+    // a provider that reports more than one call can consume is not trusted blindly either: the next pre-check starts from the real used count
+    assert.equal(rounds.llmUsage(r.round_id).tokens_metered, 40000);
   });
   const calls1 = JSON.parse(JSON.stringify(raw)); calls1.limits.calls_per_round = 1;
   const out2 = freshData();

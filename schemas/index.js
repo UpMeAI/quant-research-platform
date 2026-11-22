@@ -366,6 +366,12 @@ const SCHEMAS = Object.freeze({
     status: 's', candidates_scored: 'n', gmine_passes: 'n?', gmine_basis: 'o?', opened_at: 's', closed_at: 's?', record_hash: 's', data_checks: 'o?',
     rulings: 'a', selection_rule: 'o', holdout_opens: 'o?',
   },
+  MINING_LLM_CALL_V1: {
+    _doc: '大模型生成方每一次调用（或调用前被上限拦下 / 等待）的计量行（RF1116 LLM_GEN，2026-11-18；任务书 93a93509 + 补充 2）：只追加，每轮每个 seq 一行；记接口报的用量、计入本轮上限的 token（tokens_metered，basis USAGE / UPPER_BOUND / NONE）、模型名与版本、请求与应答的 sha256、原始错误（打码截断）；outcome 为 OK、WAITING_*（密钥不在、额度、限流、密钥被拒、接口不可用、版本对不上、网络那一步崩了或没答）或 STOPPED_*（token 上限、调用次数上限、请求体不合规）；final = 网络那一步答过；sent = 请求真的发到了接口（services/mining-rounds recordLlmCall）',
+    round_id: 's', seq: 'n', key: 's', outcome: 's', final: 'b', sent: 'b', http_status: 'n?', n_requested: 'n', formulas_returned: 'n', lines_dropped: 'n', lines_overflow: 'n',
+    usage: 'o?', tokens_metered: 'n', tokens_basis: 's', model_requested: 's', model_reported: 's?', served_version: 's?', finish_reason: 's?', system_fingerprint: 's?',
+    request_sha256: 's?', response_sha256: 's?', prompt_sha256: 's?', config_sha256: 's', raw_error: 's?', reason: 's?', recorded_at: 's', record_hash: 's',
+  },
   MINING_SELECTION_V1: {
     _doc: '验证折选择记录（RF1116 §3.4；P2 独立复审 2026-11-17）：一轮一行、只追加，写输出目录里 selection.json 的 sha256 与过了验证折的候选编号；写了之后本轮不再记候选；留出段只开这些候选，公式取试验台账行（services/mining-rounds recordSelection）',
     round_id: 's', market: 's', manifest_sha256: 's', selection_sha256: 's', selected: 'a', evaluated: 'n', rule: 'o?', recorded_at: 's', record_hash: 's',

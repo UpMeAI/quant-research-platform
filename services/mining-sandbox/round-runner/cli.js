@@ -21,14 +21,21 @@
  *   fail-evaluation --out DIR --round ROUND_ID --reason TEXT --evidence-sha256 SHA：★RF1116_ROUND1_STATE (a)，留出段从未开启、本轮没被评估 → FAILED_EVALUATION（只追加）。
  *
  * 启动即 lockdown（只许写 --out）；QRP_DATA_DIR 必须在 --out 里。登记人取 QRP_PRODUCT_MILESTONE_AUTHORITY。
- * 只有 GP：--generator 给别的（比如 AI_MINED_LLM）→ MINE_LLM_NOT_ENABLED / MINE_GENERATOR_UNKNOWN。认不出的选项一律拒绝（generate 没有 --holdout）。
- * 成功：stdout 一行 JSON，退出码 0；失败：stderr 一行 JSON { error }，退出码 2。
+ * 生成方式：--generator AI_MINED_GP（默认，要 --seed）或 AI_MINED_LLM（RF1116 LLM_GEN：模型与上限取配置 config/mining_llm_generator.v1.json，不给 --seed；
+ *   开新轮或续跑之前先探活：一条不含公式的请求经 <out>/llm-exchange 交给网络那一步（services/mining-llm-step，唯一连网的容器）；探活不过 → 不开轮、退出码 75）。
+ *   别的 → MINE_GENERATOR_UNKNOWN。认不出的选项一律拒绝（generate 没有 --holdout）。
+ *   --llm-poll-ms N、--llm-wait-seconds N：等交换目录里应答的间隔与最长时间（探活与每次调用；默认取配置）。
+ *   llm-init --out DIR：建交换目录（模式 0777，因为执行器容器与网络那一步容器在宿主机上是不同的 uid）；run.sh 在起网络那一步之前先跑它。
+ * 成功：stdout 一行 JSON，退出码 0；失败：stderr 一行 JSON { error }，退出码 2；
+ *   等待：stdout 一行 JSON（status WAITING，llm_state 写原因），退出码 75（密钥不在、额度 / 限流、版本对不上、网络那一步没答；本轮留在 OPEN，续跑接着来）；
+ *   停止：stdout 一行 JSON（status STOPPED），退出码 3（token 上限、调用次数上限、请求体不合规）。
  */
 const runner = require('./index');
 const adapter = require('../data-adapter');
 
 const OPTIONS = Object.freeze({
-  generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day'],
+  generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day', 'llm-poll-ms', 'llm-wait-seconds'],
+  'llm-init': ['out'],
   score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256'],
   mechanisms: ['out', 'round', 'register'],
   review: ['out', 'round', 'file'],
@@ -55,10 +62,17 @@ const required = (o, keys) => { for (const k of keys) if (!o[k]) throw new runne
 function main(argv) {
   const { cmd, o } = parseArgs(argv);
   const registeredBy = process.env.QRP_PRODUCT_MILESTONE_AUTHORITY;
+  if (cmd === 'llm-init') {
+    required(o, ['out']);
+    const { outDir } = runner.start({ outDir: o.out });
+    return { command: 'llm-init', exchange: require('../llm').ensureExchangeDir(require('path').join(outDir, 'llm-exchange')) };
+  }
   if (cmd === 'generate') {
     const generator = { mode: o.generator || 'AI_MINED_GP', gp_seed: o.seed === undefined ? undefined : Number(o.seed) };
-    require('../generators').assertGeneratorEnabled(generator); // 大模型：在开轮、读数据、锁目录之前就拒
-    required(o, ['out', 'lane', 'tail', ...(o.resume ? [] : ['seed', 'holdout-ref', 'holdout-sha256'])]);
+    require('../generators').assertGeneratorEnabled(generator); // 不认识的生成方式：在开轮、读数据、锁目录之前就拒
+    const isLlm = generator.mode === 'AI_MINED_LLM';
+    if (isLlm && o.seed !== undefined) throw new runner.RunnerError('MINE_RUNNER_OPTION_NOT_FOR_LLM', '--seed');
+    required(o, ['out', 'lane', 'tail', ...(o.resume ? [] : ['holdout-ref', 'holdout-sha256', ...(isLlm ? [] : ['seed'])])]);
     const { outDir } = runner.start({ outDir: o.out });
     // 数据先核（复审第 4 条）：挖掘段面板建好、逐日覆盖过了下限，才开轮、封存、记尝试
     const sources = sourcesOf(o);
@@ -68,15 +82,29 @@ function main(argv) {
     runner.checkCoverage(panel, floor);
     runner.checkCanary(panel, floor); // 第 1 轮缺陷之后：固定公式算不出分就不开轮、不记续跑（generate() 里再核一次并写进 generate.json）
     let roundId = o.resume;
+    if (roundId) runner.assertResumeGenerator({ roundId, mode: generator.mode }); // 续跑的生成方式要和轮次一致
+    const llmOpts = isLlm ? { pollMs: o['llm-poll-ms'] === undefined ? null : Number(o['llm-poll-ms']), waitSeconds: o['llm-wait-seconds'] === undefined ? null : Number(o['llm-wait-seconds']) } : null;
+    if (isLlm) {
+      // 探活：网络那一步在、密钥在、模型对得上，才开轮或续跑；不过就什么都不写
+      const ping = runner.probeLlm({ outDir, ...llmOpts });
+      if (ping.outcome !== 'OK') return { command: 'generate', round_id: roundId || null, status: String(ping.outcome).startsWith('WAITING_') ? 'WAITING' : 'STOPPED', llm_state: ping.outcome, ping };
+      llmOpts.ping = ping;
+    }
     if (roundId) runner.noteResume({ roundId, coverageFloor: floor }); // 续跑用的下限也写进台账
     if (!roundId) {
       const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null, coverageFloor: floor });
       roundId = r.round_id;
       runner.sealHoldout({ roundId, dataRef: o['holdout-ref'], dataSha256: o['holdout-sha256'] });
     }
-    const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel });
+    const wait = isLlm ? { pollMs: llmOpts.pollMs, waitPolls: llmOpts.waitSeconds === null ? null : Math.ceil(llmOpts.waitSeconds * 1000 / (llmOpts.pollMs || require('../llm').loadConfig().config.exchange.poll_ms)) } : {};
+    const g = runner.generate({ roundId, sources, outDir, registeredBy, coverageFloor: floor, panel, llm: wait });
+    if (g.llm && g.llm.halted) {
+      return { command: 'generate', round_id: roundId, status: String(g.llm.state).startsWith('WAITING_') ? 'WAITING' : 'STOPPED', round_status: g.status, llm_state: g.llm.state, total: g.total, attempts: g.attempts,
+        llm: g.llm, ping: llmOpts.ping };
+    }
     const s = runner.select({ roundId, sources, outDir });
-    return { command: 'generate', round_id: roundId, status: g.status, total: g.total, attempts: g.attempts, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length };
+    return { command: 'generate', round_id: roundId, status: g.status, total: g.total, attempts: g.attempts, selected: s.selected.length, candidates_scored_for_selection: s.candidates.length,
+      ...(isLlm ? { llm: g.llm, ping: { outcome: llmOpts.ping.outcome, model_reported: llmOpts.ping.model_reported, served_version: llmOpts.ping.served_version } } : {}) };
   }
   if (cmd === 'mechanisms') {
     // R1.5：列出幸存者与机制登记状态；给了 --register（JSONL：candidate_id, mechanism_id, economic_logic_zh, failure_mode_zh, written_at）就逐条登记（开启之前）
@@ -135,7 +163,11 @@ function main(argv) {
 }
 
 if (require.main === module) {
-  try { process.stdout.write(`${JSON.stringify(main(process.argv.slice(2)))}\n`); } catch (e) {
+  try {
+    const out = main(process.argv.slice(2));
+    process.stdout.write(`${JSON.stringify(out)}\n`);
+    if (out.status === 'WAITING') process.exitCode = 75; else if (out.status === 'STOPPED') process.exitCode = 3;
+  } catch (e) {
     process.stderr.write(`${JSON.stringify({ error: e.code || 'MINE_RUNNER_FAILED', message: e.message })}\n`);
     process.exitCode = 2;
   }

@@ -138,10 +138,14 @@ test('A4 / A6 提示词：只由生成方视图、读数元数据、算子与机
   for (const o of SPACE.operators) assert.ok(text.includes(`${o}(`), o);
   for (const c of SPACE.constants) assert.ok(text.includes(String(c)));
   assert.ok(text.includes(SPACE.lookbacks.join(', ')));
-  const mech = REGISTER.mechanisms.filter((m) => m.layer === config.prompt.mechanisms.layer && m.decision_point === config.prompt.mechanisms.decision_point);
+  const sel = config.prompt.mechanisms;
+  const mech = REGISTER.mechanisms.filter((m) => m.layer === sel.layer && m.decision_point === sel.decision_point && sel.ids.includes(m.mechanism_id));
+  assert.equal(mech.length, sel.ids.length, 'every configured id is a registered SELECT mechanism');
   assert.ok(mech.length >= 5);
+  assert.throws(() => llm.mechanismsFor(REGISTER, { ...sel, ids: [...sel.ids, 'SEL.NOT.REGISTERED'] }), code(/MINE_LLM_CONFIG_INVALID/));
+  assert.throws(() => llm.mechanismsFor(REGISTER, { ...sel, ids: ['ACCT.KELLY.CAP_M'] }), code(/MINE_LLM_CONFIG_INVALID/), 'not a SELECT mechanism');
   for (const m of mech) { assert.ok(text.includes(m.mechanism_id), m.mechanism_id); assert.ok(text.includes(m.description_zh)); }
-  for (const m of REGISTER.mechanisms.filter((x) => !mech.includes(x))) assert.ok(!text.includes(m.mechanism_id), `${m.mechanism_id} is not a SELECT mechanism`);
+  for (const m of REGISTER.mechanisms.filter((x) => !mech.includes(x))) assert.ok(!text.includes(m.mechanism_id), `${m.mechanism_id} is not a configured mechanism`);
   for (const s of VIEW.mining_scores) assert.ok(text.includes(s.formula));
   assert.ok(text.includes('0.0123'));
   for (const f of VIEW.tried_formulas) assert.ok(text.includes(f));
@@ -170,7 +174,7 @@ test('A4 / A6 提示词：只由生成方视图、读数元数据、算子与机
   // 模块只引这些（不引台账、数据、打分、留出段、门、网络）
   const src = fs.readFileSync(path.join(ROOT, 'services/mining-sandbox/llm/index.js'), 'utf8');
   const requires = [...src.matchAll(/require\(\s*['"]([^'"]+)['"]\s*\)/g)].map((x) => x[1]).sort();
-  assert.deepEqual(requires, ['../dsl', 'crypto', 'fs', 'path']);
+  assert.deepEqual(requires, ['../dsl', '../segments', 'crypto', 'fs', 'path'], 'segments: the frozen dates only, to check the config against the holdout start');
   assert.ok(!/\bfetch\s*\(/.test(src));
 });
 

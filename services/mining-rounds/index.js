@@ -14,6 +14,7 @@
  *   关轮：G-MINE 过了几个由逐候选的 G-MINE 记录数出来（./gate-records.js；不收调用方报的数），只给暂停规则用。
  *   失败终态（裁定 R1.8、R1.12）：FAILED_RESCORE、FAILED_PARTIAL，都按 0 个通过、记录标 VOID、尝试留在 N、释放名额、留出段开启照旧计数。
  *   FAILED_EVALUATION（★RF1116_ROUND1_STATE (a)，2026-11-18）：留出段从未开启、本轮根本没算出分（第 1 轮缺陷）→ 0 个通过、尝试留在 N、释放名额、计入当月轮数。
+ *   大模型生成方的计量（RF1116 LLM_GEN）：每次调用写一行 MINING_LLM_CALL_V1（用量、计入本轮 token 上限的数、模型名与版本、等待 / 停止的原因），清单的 generator.llm 冻结本轮的 token 与调用次数上限和配置 sha。
  *   生成方能看到的（generatorView）：搜索空间、挖掘段分数、已试过的公式；看不到验证折、留出段、赛马、模拟盘的结果，也看不到 G-MINE 过没过。
  * 错误码 MINE_ROUND_* / MINE_MARKET_*；台账 research/mining_rounds.jsonl 与试验台账（只追加）。
  */
@@ -102,6 +103,15 @@ function pauseState(market) {
   return { paused, failed_rounds: paused ? tail.map((r) => r.round_id) : [], spaces_used: paused ? [...new Set(tail.map((r) => r.space.sha256))] : [] };
 }
 
+/** 清单里的 generator.llm（LLM 轮）：配置文件的 sha 与本轮冻结的上限，都是数据；没带就不查（直接调 openRound 的合成轮）。 */
+const LLM_BLOCK_KEYS = Object.freeze(['config_path', 'config_sha256', 'provider', 'served_version', 'release_date', 'tokens_per_round', 'calls_per_round', 'formulas_per_call', 'max_tokens']);
+function checkLlmBlock(b) {
+  if (b === undefined) return;
+  need(isObj(b) && LLM_BLOCK_KEYS.every((k) => Object.prototype.hasOwnProperty.call(b, k)) && Object.keys(b).length === LLM_BLOCK_KEYS.length, 'MINE_ROUND_GENERATOR_INVALID', 'llm block keys');
+  need(isText(b.config_path) && SHA64.test(b.config_sha256 || '') && isText(b.provider) && isText(b.served_version) && DATE.test(b.release_date || ''), 'MINE_ROUND_GENERATOR_INVALID', 'llm block');
+  for (const k of ['tokens_per_round', 'calls_per_round', 'formulas_per_call', 'max_tokens']) need(Number.isInteger(b[k]) && b[k] >= 1, 'MINE_ROUND_GENERATOR_INVALID', `llm.${k}`);
+}
+
 /**
  * 开一轮（冻结的轮次清单）。
  * @param {object} o { market, space: { space_ref, sha256, freeze: { path, sha256 } }, holding_periods: [交易日…], generator: { mode, model?, model_knowledge_cutoff?, gp_seed? },
@@ -114,8 +124,10 @@ function openRound(o = {}) {
   need(Array.isArray(o.holding_periods) && o.holding_periods.length && o.holding_periods.every((h) => Number.isInteger(h) && h >= 1), 'MINE_ROUND_HOLDING_PERIODS_INVALID');
   const g = o.generator;
   need(isObj(g) && GENERATORS.includes(g.mode), 'MINE_ROUND_GENERATOR_INVALID');
-  if (g.mode === 'AI_MINED_LLM') need(isText(g.model) && DATE.test(g.model_knowledge_cutoff || ''), 'MINE_ROUND_GENERATOR_INVALID', 'LLM needs model and model_knowledge_cutoff');
-  else need(Number.isInteger(g.gp_seed), 'MINE_ROUND_GENERATOR_INVALID', 'GP needs gp_seed');
+  if (g.mode === 'AI_MINED_LLM') {
+    need(isText(g.model) && DATE.test(g.model_knowledge_cutoff || ''), 'MINE_ROUND_GENERATOR_INVALID', 'LLM needs model and model_knowledge_cutoff');
+    checkLlmBlock(g.llm); // 执行器开 LLM 轮要带 llm 块（配置 sha 与本轮上限）；别处直接开的合成轮（测试）可以不带
+  } else need(Number.isInteger(g.gp_seed), 'MINE_ROUND_GENERATOR_INVALID', 'GP needs gp_seed');
   need(isObj(o.holdout) && DATE.test(o.holdout.from || '') && DATE.test(o.holdout.to || '') && o.holdout.from <= o.holdout.to, 'MINE_ROUND_HOLDOUT_INVALID');
   if (g.mode === 'AI_MINED_LLM') need(o.holdout.from > g.model_knowledge_cutoff, 'MINE_ROUND_HOLDOUT_BEFORE_CUTOFF', `${o.holdout.from}<=${g.model_knowledge_cutoff}`);
   const cap = o.cap === undefined ? LIMITS.candidates_per_round : o.cap;
@@ -149,7 +161,8 @@ function openRound(o = {}) {
     schema: SCHEMA, round_id: `MR-${o.market}-${month}-${sha256(`${o.market}|${openedAt}|${o.space.sha256}`).slice(0, 10)}`, market: o.market, month,
     space: { space_ref: o.space.space_ref, sha256: o.space.sha256, freeze: { path: o.space.freeze.path, sha256: o.space.freeze.sha256 } },
     holding_periods: [...o.holding_periods], family_ids: o.holding_periods.map((h) => `MINE:${o.market}:H${h}`),
-    generator: { mode: g.mode, model: g.model || null, model_knowledge_cutoff: g.model_knowledge_cutoff || null, gp_seed: g.mode === 'AI_MINED_GP' ? g.gp_seed : null },
+    generator: { mode: g.mode, model: g.model || null, model_knowledge_cutoff: g.model_knowledge_cutoff || null, gp_seed: g.mode === 'AI_MINED_GP' ? g.gp_seed : null,
+      ...(g.mode === 'AI_MINED_LLM' && g.llm !== undefined ? { llm: JSON.parse(JSON.stringify(g.llm)) } : {}) },
     holdout: { from: o.holdout.from, to: o.holdout.to }, cap, resumed_after_pause: pause.paused ? pause.failed_rounds : [], rulings, selection_rule: selectionRule, holdout_opens: null,
     status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, opened_at: openedAt, closed_at: null,
     data_checks: isObj(o.data_checks) ? JSON.parse(JSON.stringify(o.data_checks)) : null, // 执行器开轮前做过的数据核对（覆盖下限，压低了也照实写）
@@ -342,6 +355,35 @@ function recordResumeCheck(roundId, check) {
   return write({ ...r, data_checks: { ...dc, resumes: [...(Array.isArray(dc.resumes) ? dc.resumes : []), JSON.parse(JSON.stringify(check))] } });
 }
 
+/**
+ * 大模型调用计量（MINING_LLM_CALL_V1，只追加）。row 里 round_id / seq / key / outcome / final / sent / n_requested / config_sha256 等见 schemas；record_hash 由这里算。
+ * seq 必须是本轮已有行数 + 1（不跳、不重）；轮次要在、状态是 OPEN 或 CAP_REACHED 以前的（SCORING 之后不再调用）。
+ */
+const LLM_CALLS = () => path.join(dataDir('research'), 'mining_llm_calls.jsonl');
+const llmCalls = (roundId) => read(LLM_CALLS()).filter((x) => x.schema === 'MINING_LLM_CALL_V1' && x.round_id === roundId).sort((a, b) => a.seq - b.seq);
+function recordLlmCall(roundId, row = {}, { recordedAt = null } = {}) {
+  const r = roundHead(roundId);
+  need(r, 'MINE_ROUND_NOT_FOUND', roundId);
+  need(r.generator.mode === 'AI_MINED_LLM', 'MINE_ROUND_LLM_CALL_NOT_LLM_ROUND', roundId);
+  need(r.status === 'OPEN' || r.status === 'CAP_REACHED', 'MINE_ROUND_NOT_OPEN', `${roundId}:${r.status}`);
+  const prior = llmCalls(roundId);
+  need(row.seq === prior.length + 1, 'MINE_ROUND_LLM_CALL_SEQ', `${roundId}:${row.seq}≠${prior.length + 1}`);
+  const body = { schema: 'MINING_LLM_CALL_V1', round_id: roundId, ...row, recorded_at: recordedAt || now() };
+  delete body.record_hash;
+  const rec = { ...body, record_hash: trials.recordHash(body) };
+  const v = validateRecord(rec, 'MINING_LLM_CALL_V1');
+  need(v.ok, 'MINE_ROUND_SCHEMA_INVALID', v.problems.join(','));
+  need(Number.isInteger(rec.tokens_metered) && rec.tokens_metered >= 0 && ['USAGE', 'UPPER_BOUND', 'NONE'].includes(rec.tokens_basis), 'MINE_ROUND_LLM_CALL_INVALID', `${roundId}:${row.seq}`);
+  return append(LLM_CALLS(), rec);
+}
+/** 本轮最新一行（没有调用过 → null）。 */
+const llmState = (roundId) => { const c = llmCalls(roundId); return c.length ? c[c.length - 1] : null; };
+/** 本轮已用：发到接口的调用数（sent）、计入上限的 token、最新一次的 outcome。 */
+function llmUsage(roundId) {
+  const c = llmCalls(roundId);
+  return { calls: c.filter((x) => x.sent).length, tokens_metered: c.reduce((a, x) => a + x.tokens_metered, 0), last_outcome: c.length ? c[c.length - 1].outcome : null };
+}
+
 /** 本族累计 N（所有轮次，从不清零；口径同试验台账 count）。 */
 const familyN = (market, holdingPeriod, opts = {}) => trials.count(`MINE:${market}:H${holdingPeriod}`, opts).n_raw;
 
@@ -363,4 +405,4 @@ function generatorView(roundId) {
 
 module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, TERMINAL, FAILED_TERMINAL, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf,
   beginScoring, closeRound, failRescore, failPartial, failEvaluation, recordResumeCheck,
-  roundHead, roundsOf, pauseState, familyN, generatorView, manifestSha };
+  roundHead, roundsOf, pauseState, familyN, generatorView, manifestSha, LLM_CALLS, llmCalls, recordLlmCall, llmState, llmUsage };

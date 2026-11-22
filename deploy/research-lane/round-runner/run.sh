@@ -7,8 +7,14 @@
 #   run.sh score    <round_id>                    steps 6-9 (check holdout dir, open vault once, score, G-MINE records, close)
 #   run.sh rescore  <round_id> <reason> <crash.log>  R1.8: exactly one same-selection rescore after a crash past the open
 #   run.sh fail-evaluation <round_id> <reason> <evidence_sha256>  ★RF1116_ROUND1_STATE (a): close a round that was never evaluated (holdout never opened)
-# Both phases: --network none, read-only root fs, all capabilities dropped, no new privileges, uid 1000, CPU/memory/pid limits,
+#   run.sh llm-ping                               RF1116 LLM_GEN: one non-formula request to the model endpoint through the LLM step container (opens no round, writes no formula, counts nothing in N)
+#   run.sh generate-llm <holdout_sha256>          RF1116 LLM_GEN: steps 1-5 with AI_MINED_LLM (probe, open, seal, generate through the LLM step, validation selection); exit 75 = waiting (key absent, quota, ...), 3 = stopped (caps)
+#   run.sh resume-llm   <round_id>                RF1116 LLM_GEN: continue an open LLM round after a waiting state, then select
+# Every phase except the LLM step: --network none, read-only root fs, all capabilities dropped, no new privileges, uid 1000, CPU/memory/pid limits,
 # data mounts read-only, exactly one writable mount (/out). The holdout directory is mounted only by "score".
+# The LLM step (services/mining-llm-step) is the only container with a network (bridge; the process locks egress to the model host, port 443). It mounts exactly two things:
+# the research-only key file (read-only) and the exchange directory $OUT/llm-exchange. It never sees data, the ledger, the holdout or any environment variable.
+# The generate container for an LLM round stays --network none and talks to the step only through the exchange directory.
 set -euo pipefail
 
 LANE=/srv/research-lane/rf1116-mining
@@ -18,6 +24,8 @@ LANE_COPY="$LANE/data/rf1116-cn-a-lane-copy-20200601-20260928"
 VAL_TAIL="$LANE/data/rf1116-cn-a-daily-20260929-20261016"
 HOLDOUT="$LANE/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"
 OUT="$LANE/out"
+KEY_FILE="/home/kayla/.config/qrp-research-key/deepseek-research.env"
+EXCHANGE="$OUT/llm-exchange"
 FACTOR_SERIES="$LANE/data/rf1116-cn-a-live-factor-series"
 HOLDOUT_REF="lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"
 AUTHORITY=RF1116_MINING_RUNNER
@@ -40,7 +48,16 @@ field_exclusions() {
 }
 
 
-cmd="${1:?generate|resume|mechanisms|review|score|rescore|fail-evaluation}"
+# RF1116 LLM_GEN. The exchange directory is created by the runner image (mode 0777: the generate container and the step container are different host uids).
+llm_init() {
+  docker run --rm --name "rf1116-llm-init" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" "$IMAGE" llm-init --out /out
+}
+# The step runs as container root (rootless Docker: host uid 1000 = the key file's owner), so it can read the 0600 key file without any capability.
+llm_step_up() {
+  docker run -d --rm --name "rf1116-llm-step" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 -v "$KEY_FILE:/run/secrets/deepseek-research.env:ro" -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange
+}
+
+cmd="${1:?generate|resume|mechanisms|review|score|rescore|fail-evaluation|llm-ping|generate-llm|resume-llm}"
 case "$cmd" in
   generate)
     seed="${2:?gp_seed}"; sums="${3:?sha256 of the holdout SHA256SUMS at seal time}"
@@ -70,5 +87,31 @@ case "$cmd" in
     round="${2:?round_id}"; field_exclusions "${3:-}" "${4:-}"
     docker run --rm --name "rf1116-score" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" ${EXM[@]+"${EXM[@]}"} -v "$OUT:/out:rw" "$IMAGE" score --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series ${EXO[@]+"${EXO[@]}"}
     ;;
-  *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | resume <round_id> | mechanisms <round_id> [file] | review <round_id> <verdicts.json> | score <round_id> [field-exclusions.json <sha256>] | rescore <round_id> <reason> <crash.log> [field-exclusions.json <sha256>] | fail-evaluation <round_id> <reason> <evidence_sha256>" >&2; exit 64 ;;
+  llm-ping)
+    llm_init
+    docker run --rm --name "rf1116-llm-ping" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 -v "$KEY_FILE:/run/secrets/deepseek-research.env:ro" -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js ping --exchange /exchange
+    ;;
+  generate-llm)
+    sums="${2:?sha256 of the holdout SHA256SUMS at seal time}"
+    llm_init
+    llm_step_up
+    set +e
+    docker run --rm --name "rf1116-generate-llm" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$OUT:/out:rw" "$IMAGE" generate --generator AI_MINED_LLM --out /out --lane /data/lane --tail /data/tail --holdout-ref "$HOLDOUT_REF" --holdout-sha256 "$sums"
+    rc=$?
+    set -e
+    docker stop rf1116-llm-step > /dev/null || true
+    exit "$rc"
+    ;;
+  resume-llm)
+    round="${2:?round_id}"
+    llm_init
+    llm_step_up
+    set +e
+    docker run --rm --name "rf1116-generate-llm-resume" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$OUT:/out:rw" "$IMAGE" generate --generator AI_MINED_LLM --out /out --lane /data/lane --tail /data/tail --resume "$round"
+    rc=$?
+    set -e
+    docker stop rf1116-llm-step > /dev/null || true
+    exit "$rc"
+    ;;
+  *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | llm-ping | generate-llm <holdout_sha256> | resume-llm <round_id> | resume <round_id> | mechanisms <round_id> [file] | review <round_id> <verdicts.json> | score <round_id> [field-exclusions.json <sha256>] | rescore <round_id> <reason> <crash.log> [field-exclusions.json <sha256>] | fail-evaluation <round_id> <reason> <evidence_sha256>" >&2; exit 64 ;;
 esac

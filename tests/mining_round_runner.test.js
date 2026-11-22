@@ -407,7 +407,7 @@ test('隔离（§4 第 7 条）：执行器启动即 lockdown，写输出目录�
   assert.deepEqual(fs.readdirSync(outside), []);
   const src = fs.readFileSync(CLI, 'utf8');
   const main = src.slice(src.indexOf('function main'));
-  assert.equal(main.split('runner.start(').length - 1, 5, 'generate, mechanisms, review (R1.5), fail-evaluation (★RF1116_ROUND1_STATE) and score all lock down first');
+  assert.equal(main.split('runner.start(').length - 1, 6, 'llm-init (RF1116 LLM_GEN), generate, mechanisms, review (R1.5), fail-evaluation (★RF1116_ROUND1_STATE) and score all lock down first');
   assert.ok(main.indexOf('runner.start(') < main.indexOf('runner.generate(') && main.lastIndexOf('runner.start(') < main.indexOf('runner.scoreHoldout('));
   assert.ok(main.lastIndexOf('runner.start(') > main.indexOf('runner.select('), 'the score branch has its own start');
 });
