@@ -91,10 +91,10 @@
             "state": "NOT_APPLICABLE"
           },
           "TRANSFER_FEE": {
-            "ownerStar": "C5",
-            "reasonCode": "SOURCE_UNSETTLED",
-            "source": "SOURCES.md row R7 (chinaclear.cn notices not retrievable by automated fetch; ETF 过户费 not settled by a captured official source)",
-            "state": "UNKNOWN"
+            "ownerChoice": "a",
+            "reasonCode": "NOT_IN_CSDC_TRADING_TRANSFER_FEE_SCHEDULE",
+            "source": "w22-sources/csdc/SOURCES_CSDC.md 12c4f9db (CSDC SH 84a99e56 / SZ dff4a06c, 2026-01-01 edition) row C3",
+            "state": "NOT_APPLICABLE"
           }
         }
       },
@@ -196,8 +196,9 @@
           "TRANSFER_FEE": {
             "bps": 0.1,
             "side": "BOTH",
-            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json (A12: Shanghai/Shenzhen current standard)",
-            "state": "CHARGED"
+            "source": "w22-sources/csdc/SOURCES_CSDC.md 12c4f9db (CSDC SH 84a99e56 / SZ dff4a06c, 2026-01-01 edition) rows C1 (SH) / C2 (SZ): 0.01 permille both sides",
+            "state": "CHARGED",
+            "verified": "CSDC 2026-01-01"
           }
         }
       }
@@ -398,6 +399,6 @@
       }
     }
   },
-  "note": "r2 FROZEN by plan-coord (PAPER_TRADING_COST_MODEL_V1_FREEZE_1_NOTE_1): only r1's SOURCE_PENDING items replaced from official SSE/SZSE/CSRC pages (w22-sources/SOURCES.md 9e99374e). INDEX_SLEEVE_ETF TRANSFER_FEE stays UNKNOWN (SOURCE_UNSETTLED) until the CSDC official fee schedules are captured (r3). Bps of notional per side.",
-  "registryRevision": 2
+  "note": "r3 FROZEN by plan-coord (PAPER_TRADING_COST_MODEL_V1_FREEZE_1_NOTE_5): from r2 only CN_A INDEX_SLEEVE_ETF TRANSFER_FEE UNKNOWN -> NOT_APPLICABLE (CSDC official fee schedules 2026-01-01 list no trading transfer fee for fund/ETF secondary trading) and STOCK_BOOK TRANSFER_FEE 0.1 bp re-verified against the same schedules. Bps of notional per side.",
+  "registryRevision": 3
 }

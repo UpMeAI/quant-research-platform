@@ -5,7 +5,7 @@
  * 缺一项、UNKNOWN、金额读不到，整行 NET_PARTIAL，不算净值行（门 COST_MODEL_NET_PARTIAL 拒绝导入，失败即关）。
  * 佣金与滑点的下限不在这里（services/cost-gate 的 FLOORS，附录 1 a3329481，不变）。
  *
- * 唯一来源：vendor/paper-cost-model/PAPER_COST_MODEL_V1.json（登记 r2），PIN.json 钉合同与登记文件的 sha256；
+ * 唯一来源：vendor/paper-cost-model/PAPER_COST_MODEL_V1.json（登记 r3），PIN.json 钉合同与登记文件的 sha256；
  * 本文件不写任何费率，也不列成本项——哪些项要收、哪些不适用，只读登记文件。
  * 生效：K2 在 COVERAGE_EFFECTIVE_FROM（合同冻结时刻）及以后冻结；更早的 K2 保留各自写明的成本，门不读本检查（见 ../cost-gate 的 check）。
  */

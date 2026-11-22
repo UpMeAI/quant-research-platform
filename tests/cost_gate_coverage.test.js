@@ -11,7 +11,7 @@ const gate = require('../services/cost-gate');
 const trials = require('../services/trial-ledger');
 
 /**
- * G-COST 覆盖面检查（PAPER_TRADING_COST_MODEL_V1 ★C4，合同 sha256 1be6e080…，登记文件 r2 sha256 44cdebd5…）。先红后绿。
+ * G-COST 覆盖面检查（PAPER_TRADING_COST_MODEL_V1 ★C4，合同 sha256 1be6e080…，登记文件 r3 sha256 9e6672d2…）。先红后绿。
  * 研究净值行必须收齐登记文件里该市场标为 CHARGED 的每一项，缺一项或 UNKNOWN 即 NET_PARTIAL，不算净值行（门拒绝导入）。
  * 佣金与滑点的下限照 a3329481 不变；只对合同冻结（2026-11-22T17:35:16+08:00）之后才冻结的 K2 生效，更早的 K2 逐字节不变。
  * 只用合成 K2、合成运行日志；登记文件读 vendor/paper-cost-model/（PIN.json 钉 sha256）。
@@ -36,7 +36,7 @@ const arm = (l) => ARMS.find((a) => a.config_label === l);
 const K2_SHA = sha('# R99 覆盖面 K2（合成）\n');
 const idOf = (l) => trials.trialIdOf({ family_id: FAMILY, study_ref: STUDY, config_label: l });
 
-/** 登记文件 r2 里各市场 CHARGED 项（手写一份，独立于被测代码）。 */
+/** 登记文件 r3 里各市场 CHARGED 项（手写一份，独立于被测代码）。 */
 const REQUIRED = {
   CN_STOCK: ['COMMISSION', 'MIN_COMMISSION_TOPUP', 'SLIPPAGE', 'STAMP_DUTY', 'TRANSFER_FEE', 'EXCHANGE_FEE'],
   CN_ETF: ['COMMISSION', 'MIN_COMMISSION_TOPUP', 'SLIPPAGE', 'EXCHANGE_FEE'],
@@ -73,7 +73,7 @@ test.beforeEach(() => {
   trials.register(ARMS.map((a) => ({ family_id: FAMILY, study_ref: STUDY, k2_sha256: K2_SHA, ...a })), { registeredBy: AUTH, registeredAt: '2026-11-08T09:00:00+08:00' });
 });
 
-test('常量与登记文件：生效时刻 = 合同冻结时刻；vendor/paper-cost-model/PIN.json 钉合同 1be6e080… 与登记 r2 44cdebd5…，文件字节与钉值一致；加载器改一个字节即失败即关', () => {
+test('常量与登记文件：生效时刻 = 合同冻结时刻；vendor/paper-cost-model/PIN.json 钉合同 1be6e080… 与登记 r3 9e6672d2…，文件字节与钉值一致；加载器改一个字节即失败即关', () => {
   const cov = require('../services/cost-gate/coverage');
   assert.equal(cov.COVERAGE_EFFECTIVE_FROM, CUTOFF);
   assert.equal(cov.CONTRACT_SHA256, '1be6e0807995a9501e8b3393427c6367af47cd333e5bf89a0a95c03cc21e76fb');
@@ -81,11 +81,11 @@ test('常量与登记文件：生效时刻 = 合同冻结时刻；vendor/paper-c
   const pin = JSON.parse(fs.readFileSync(path.join(dir, 'PIN.json'), 'utf8'));
   assert.equal(pin.contract, 'PAPER_TRADING_COST_MODEL_V1');
   assert.equal(pin.contractSha256, cov.CONTRACT_SHA256);
-  assert.equal(pin.registryRevision, 2);
-  assert.equal(pin.files['PAPER_COST_MODEL_V1.json'], '44cdebd53a28d25c195690696bf99050573ef7f647d81c7b65a464c4b4607776');
+  assert.equal(pin.registryRevision, 3);
+  assert.equal(pin.files['PAPER_COST_MODEL_V1.json'], '9e6672d2b80a0d09416206e61fee3c5691280aca1db011183cf5d26ddf3eb897');
   assert.equal(sha(fs.readFileSync(path.join(dir, 'PAPER_COST_MODEL_V1.json'))), pin.files['PAPER_COST_MODEL_V1.json']);
   const reg = cov.loadRegistry();
-  assert.equal(reg.registryRevision, 2);
+  assert.equal(reg.registryRevision, 3);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-pcm-'));
   fs.copyFileSync(path.join(dir, 'PIN.json'), path.join(tmp, 'PIN.json'));
   fs.writeFileSync(path.join(tmp, 'PAPER_COST_MODEL_V1.json'), `${fs.readFileSync(path.join(dir, 'PAPER_COST_MODEL_V1.json'), 'utf8')} `);
@@ -105,11 +105,19 @@ test('反例：A 股个股簿净值行缺印花税 → NET_PARTIAL（门拒绝�
   assert.equal(direct(row('CN_STOCK', charged(REQUIRED.CN_STOCK))).state, 'PASS');
 });
 
-test('反例：A 股 ETF 簿——印花税是 NOT_APPLICABLE 不要求；经手费缺 → NET_PARTIAL；登记里 TRANSFER_FEE 仍是 UNKNOWN，不要求但在结果里列为 registry_unknown_items（不当 0）', () => {
+test('反例：A 股 ETF 簿——印花税、过户费都是 NOT_APPLICABLE（r3）不要求，也不在 registry_unknown_items 里；经手费缺 → NET_PARTIAL', () => {
   const ok = direct(row('CN_ETF', charged(REQUIRED.CN_ETF)));
   assert.equal(ok.state, 'PASS');
-  assert.deepEqual(ok.cost_coverage.registry_unknown_items, ['TRANSFER_FEE']);
+  assert.deepEqual(ok.cost_coverage.registry_unknown_items, []);
   refuses(() => direct(row('CN_ETF', without(REQUIRED.CN_ETF, 'EXCHANGE_FEE'))), 'NET_PARTIAL', 'EXCHANGE_FEE');
+});
+
+test('r3：A 股 ETF 净值行没有 TRANSFER_FEE 项即完整（COMPLETE → 过门），TRANSFER_FEE 不被要求、不被列为登记未知项；个股簿仍要求 TRANSFER_FEE', () => {
+  assert.ok(!REQUIRED.CN_ETF.includes('TRANSFER_FEE'));
+  const r = direct(row('CN_ETF', charged(REQUIRED.CN_ETF)));
+  assert.equal(r.state, 'PASS');
+  assert.ok(!r.cost_coverage.registry_unknown_items.includes('TRANSFER_FEE'));
+  refuses(() => direct(row('CN_STOCK', without(REQUIRED.CN_STOCK, 'TRANSFER_FEE'))), 'NET_PARTIAL', 'TRANSFER_FEE');
 });
 
 test('反例：美股净值行缺 SEC 费 → NET_PARTIAL；TAF、CAT 同理；完整则过', () => {
@@ -148,7 +156,7 @@ test('条件项：个股簿红利税在 E1 关时不要求；行声明 cost_flag
 test('完整的行：照旧过门，结果多一块 cost_coverage（登记 sha256、合同 sha256、生效时刻、检查行数）；佣金与滑点下限照旧（低于下限仍是 BELOW_FLOOR，先于覆盖面）', () => {
   const r = direct(row('PERP', charged(REQUIRED.PERP)));
   assert.equal(r.state, 'PASS');
-  assert.deepEqual(r.cost_coverage, { registry_sha256: '44cdebd53a28d25c195690696bf99050573ef7f647d81c7b65a464c4b4607776', registry_revision: 2,
+  assert.deepEqual(r.cost_coverage, { registry_sha256: '9e6672d2b80a0d09416206e61fee3c5691280aca1db011183cf5d26ddf3eb897', registry_revision: 3,
     contract_sha256: '1be6e0807995a9501e8b3393427c6367af47cd333e5bf89a0a95c03cc21e76fb', effective_from: CUTOFF, checked_runs: 1, registry_unknown_items: [] });
   const low = { ...row('PERP', charged(REQUIRED.PERP)), cost_breakdown: { model: OWN, commission_bps: 1, slippage_bps: 2, items: charged(REQUIRED.PERP) } };
   refuses(() => direct(low), 'BELOW_FLOOR');
