@@ -1,0 +1,178 @@
+{
+ "schema": "RF1116_CNA_EXTRA_ROUND_LEDGER_CHECK_V1",
+ "what": "openRound for CN_A against a COPY of the lane round ledger (read-only copy via lx cat, 2026-11-22 16:40 CST; the files had not changed since 2026-11-18 15:50 CST). Script: ledger_check.js in this folder.",
+ "source": "lane1 /srv/research-lane/rf1116-mining/out/qrp-data/research/",
+ "ledger_copy_files": {
+  "holdout_vault.jsonl": {
+   "sha256": "58491620fbd850b7c691d6fbee9e4f13672d922f4bced272bbe7b05aad81895c",
+   "lines": 2
+  },
+  "mining_mechanism_reviews.jsonl": {
+   "sha256": "863ed31f4166ffcca9544112438047d815a908e51ee6ec732c33af797daea02c",
+   "lines": 1
+  },
+  "mining_mechanisms.jsonl": {
+   "sha256": "76470cc3c9eef9e027f6b34b07b42c48a87ab26dac1dbedcc6a61c75d2ecdda4",
+   "lines": 23
+  },
+  "mining_rounds.jsonl": {
+   "sha256": "4072fd7c03ae6e6327b639b007e026a69dd411b6b275b552743f053d107d3a6b",
+   "lines": 403
+  },
+  "mining_selections.jsonl": {
+   "sha256": "aeb926d5ccf3d66393993b101f31317da110cc2ac158f111f4be71f62cef47f5",
+   "lines": 2
+  },
+  "trials.jsonl": {
+   "sha256": "b04da80bf7958454636e38db860ca01002b29f43ccbd14a5984358c541a25ea3",
+   "lines": 400
+  }
+ },
+ "rounds_in_ledger": [
+  {
+   "round_id": "MR-CN_A-2026-11-e1ab63a27b",
+   "status": "FAILED_EVALUATION",
+   "generator": "AI_MINED_GP",
+   "holdout": "2026-10-19..2026-12-31",
+   "holdout_opens": null,
+   "vault_rows": "HOLDOUT_SEAL_V1 only",
+   "selected": 0
+  },
+  {
+   "round_id": "MR-CN_A-2026-11-2a1d2c9c82",
+   "status": "CAP_REACHED",
+   "generator": "AI_MINED_GP",
+   "holdout": "2026-10-19..2026-12-31",
+   "holdout_opens": null,
+   "vault_rows": "HOLDOUT_SEAL_V1 only",
+   "selected": ">0 (selection row lists candidates)"
+  }
+ ],
+ "base_6eae5e7": {
+  "steps": [
+   {
+    "step": "1 CN_A, holdout 2026-10-19..12-31, opened Mon 2026-11-23 08:30 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_HOLDOUT_EXHAUSTED",
+    "detail": "2026-10-19..2026-12-31"
+   },
+   {
+    "step": "2 a further round, same holdout, 2026-11-23 17:00 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_HOLDOUT_EXHAUSTED",
+    "detail": "2026-10-19..2026-12-31"
+   },
+   {
+    "step": "3 a further round, new holdout after 12-31 (skips the holdout checks), 2026-11-23 17:00 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_MONTHLY_CAP",
+    "detail": "CN_A:2026-11"
+   },
+   {
+    "step": "4 CN_A December round, same holdout, 2026-12-01 09:00 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_HOLDOUT_EXHAUSTED",
+    "detail": "2026-10-19..2026-12-31"
+   },
+   {
+    "step": "5 CN_A December round, new holdout, 2026-12-01 09:00 CST",
+    "result": "OPENED",
+    "round_id": "MR-CN_A-2026-12-4a31c783a9",
+    "month": "2026-12"
+   }
+  ],
+  "rounds_after": [
+   {
+    "round_id": "MR-CN_A-2026-11-e1ab63a27b",
+    "status": "FAILED_EVALUATION",
+    "month": "2026-11",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   },
+   {
+    "round_id": "MR-CN_A-2026-11-2a1d2c9c82",
+    "status": "CAP_REACHED",
+    "month": "2026-11",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   },
+   {
+    "round_id": "MR-CN_A-2026-12-4a31c783a9",
+    "status": "OPEN",
+    "month": "2026-12",
+    "holdout": {
+     "from": "2027-01-04",
+     "to": "2027-03-31"
+    }
+   }
+  ]
+ },
+ "head_c0ca769": {
+  "steps": [
+   {
+    "step": "1 CN_A, holdout 2026-10-19..12-31, opened Mon 2026-11-23 08:30 CST",
+    "result": "OPENED",
+    "round_id": "MR-CN_A-2026-11-47c8cc329c",
+    "month": "2026-11"
+   },
+   {
+    "step": "2 a further round, same holdout, 2026-11-23 17:00 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_HOLDOUT_EXHAUSTED",
+    "detail": "2026-10-19..2026-12-31"
+   },
+   {
+    "step": "3 a further round, new holdout after 12-31 (skips the holdout checks), 2026-11-23 17:00 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_ALREADY_OPEN",
+    "detail": "CN_A:2"
+   },
+   {
+    "step": "4 CN_A December round, same holdout, 2026-12-01 09:00 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_HOLDOUT_EXHAUSTED",
+    "detail": "2026-10-19..2026-12-31"
+   },
+   {
+    "step": "5 CN_A December round, new holdout, 2026-12-01 09:00 CST",
+    "result": "REFUSED",
+    "code": "MINE_ROUND_ALREADY_OPEN",
+    "detail": "CN_A:2"
+   }
+  ],
+  "rounds_after": [
+   {
+    "round_id": "MR-CN_A-2026-11-e1ab63a27b",
+    "status": "FAILED_EVALUATION",
+    "month": "2026-11",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   },
+   {
+    "round_id": "MR-CN_A-2026-11-2a1d2c9c82",
+    "status": "CAP_REACHED",
+    "month": "2026-11",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   },
+   {
+    "round_id": "MR-CN_A-2026-11-47c8cc329c",
+    "status": "OPEN",
+    "month": "2026-11",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   }
+  ]
+ },
+ "reading": "Base: a third CN_A round is refused today. With the same holdout the first code is MINE_ROUND_HOLDOUT_EXHAUSTED (rounds 1 and 2 share 10-19..12-31); with a new holdout it is MINE_ROUND_MONTHLY_CAP (two November rounds), which also shows MINE_ROUND_ALREADY_OPEN passes (only round 2 is open). openRound throws the first failing check, in the order holdout, ALREADY_OPEN, MONTHLY_CAP. Head: round 3 opens on the same segment; a fourth is refused; a December round on this segment is refused HOLDOUT_EXHAUSTED once round 3 exists (rounds 2 and 3 fill the segment)."
+}

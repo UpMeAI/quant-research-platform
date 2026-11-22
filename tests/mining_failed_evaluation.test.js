@@ -91,21 +91,25 @@ test('FAILED_EVALUATION 的前提：留出段开过（SCORING）不行；没有�
   assert.equal(rounds.failEvaluation(b.round_id, { reason: REASON, evidenceSha256: EVIDENCE }).status, 'FAILED_EVALUATION', 'from OPEN too');
 });
 
-test('名额与上限：FAILED_EVALUATION 释放开轮名额；仍计入当月 2 轮；暂停规则按 0 个通过算', () => {
+test('名额与上限：FAILED_EVALUATION 释放开轮名额；仍计入当月轮数（2026-11 的 CN_A 是 3 轮，修订 2026-11 §1.1）；暂停规则按 0 个通过算', () => {
   freshData();
+  const H3 = { from: '2027-04-01', to: '2027-06-30' };
   const base = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, openedAt: '2026-11-18T05:49:16+08:00' }); // 11 月第 1 轮
   const second = openLike(base, '2026-11-20T10:00:00+08:00', { from: '2027-01-04', to: '2027-03-31' }); // 11 月第 2 轮，两个名额都占了
-  assert.throws(() => openLike(base, '2026-12-01T10:00:00+08:00', { from: '2027-04-01', to: '2027-06-30' }), code(/MINE_ROUND_ALREADY_OPEN/));
+  assert.throws(() => openLike(base, '2026-12-01T10:00:00+08:00', H3), code(/MINE_ROUND_ALREADY_OPEN/));
   rounds.failEvaluation(base.round_id, { reason: REASON, evidenceSha256: EVIDENCE });
-  assert.throws(() => openLike(base, '2026-11-25T10:00:00+08:00', { from: '2027-04-01', to: '2027-06-30' }), code(/MINE_ROUND_MONTHLY_CAP/), 'it still counts in November');
-  const dec = openLike(base, '2026-12-01T10:00:00+08:00', { from: '2027-04-01', to: '2027-06-30' }); // 名额放出来了
+  const third = openLike(base, '2026-11-25T10:00:00+08:00', H3); // 名额放出来了；11 月只有 CN_A 开得了第 3 轮
+  assert.equal(third.status, 'OPEN');
+  rounds.failEvaluation(third.round_id, { reason: REASON, evidenceSha256: EVIDENCE }); // 名额再放出来，只剩当月上限
+  assert.throws(() => openLike(base, '2026-11-26T10:00:00+08:00', H3), code(/MINE_ROUND_MONTHLY_CAP:CN_A:2026-11/), 'the failed rounds still count in November: three, then no fourth');
+  const dec = openLike(base, '2026-12-01T10:00:00+08:00', H3); // 12 月是新的一个月
   assert.equal(dec.status, 'OPEN');
   assert.equal(rounds.pauseState('CN_A').paused, false);
   rounds.failEvaluation(second.round_id, { reason: REASON, evidenceSha256: EVIDENCE });
   rounds.failEvaluation(dec.round_id, { reason: REASON, evidenceSha256: EVIDENCE });
   const p = rounds.pauseState('CN_A');
   assert.equal(p.paused, true, 'three FAILED_EVALUATION rounds in a row count as three rounds without a G-MINE pass');
-  assert.deepEqual(p.failed_rounds, [base.round_id, second.round_id, dec.round_id]);
+  assert.deepEqual(p.failed_rounds, [second.round_id, third.round_id, dec.round_id], 'the last three closed rounds');
 });
 
 test('命令行 fail-evaluation 与 run.sh：只挂 out/，同一套容器限制；输出一行 JSON', () => {
