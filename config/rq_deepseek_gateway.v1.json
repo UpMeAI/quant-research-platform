@@ -1,47 +1,155 @@
 {
   "schema": "RQ_DEEPSEEK_GATEWAY_CONFIG_V1",
-  "_comment": "AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 (sha 52418471, draft) §5.2-§5.4. 唯一的单一事实来源：模型、purpose、max_tokens 上限、价格表、非高峰时段；网关（services/rq-deepseek-gateway）与代理（services/research-queue-agent）都读它。没有花费或 token 总量上限（Owner 11-22 「不设置每月费用上限」）；max_tokens 只是单次响应的失控保护。价格与时段是 PROVISIONAL：首次实调之前必须按官网价目页重读（§5.4），见 price_table.status。",
-  "upstream": { "host": "api.deepseek.com", "port": 443 },
+  "_comment": "AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 (sha 52418471; FROZEN by FREEZE_1 3681e292) §5.2-§5.4. 唯一的单一事实来源：模型、purpose、max_tokens 上限、价格表、非高峰时段；网关（services/rq-deepseek-gateway）与代理（services/research-queue-agent）都读它。没有花费或 token 总量上限（Owner 11-22 「不设置每月费用上限」）；max_tokens 只是单次响应的失控保护。价格与时段 VERIFIED：2026-11-22 读官网价目页（见 price_table.source），价目页改动时必须重读。",
+  "upstream": {
+    "host": "api.deepseek.com",
+    "port": 443
+  },
   "timeout_s": 180,
   "purposes": {
-    "RQ_AGENT": { "models": ["deepseek-flash"], "max_tokens": 4000, "admission": true, "peak_refused": true, "requires_quality_gate": false },
-    "RQ_AGENT_PRO_FALLBACK": { "models": ["deepseek-v4-pro"], "max_tokens": 4000, "admission": true, "peak_refused": true, "requires_quality_gate": true },
-    "MINING_LLM": { "models": ["deepseek-v4-pro"], "max_tokens": 16384, "admission": false, "peak_refused": false, "requires_quality_gate": false }
+    "RQ_AGENT": {
+      "models": [
+        "deepseek-flash"
+      ],
+      "max_tokens": 4000,
+      "admission": true,
+      "peak_refused": true,
+      "requires_quality_gate": false
+    },
+    "RQ_AGENT_PRO_FALLBACK": {
+      "models": [
+        "deepseek-v4-pro"
+      ],
+      "max_tokens": 4000,
+      "admission": true,
+      "peak_refused": true,
+      "requires_quality_gate": true
+    },
+    "MINING_LLM": {
+      "models": [
+        "deepseek-v4-pro"
+      ],
+      "max_tokens": 16384,
+      "admission": false,
+      "peak_refused": false,
+      "requires_quality_gate": false
+    }
   },
   "keys": {
     "LINUX_RESEARCH": {
-      "purposes": ["RQ_AGENT", "RQ_AGENT_PRO_FALLBACK", "MINING_LLM"],
+      "purposes": [
+        "RQ_AGENT",
+        "RQ_AGENT_PRO_FALLBACK",
+        "MINING_LLM"
+      ],
       "source": "FILE",
       "path": "~/.config/qrp-research-key/deepseek-research.env",
       "env_var": "DEEPSEEK_RESEARCH_API_KEY"
     },
     "HK_REVIEW": {
-      "purposes": ["RQ_AGENT", "RQ_AGENT_PRO_FALLBACK"],
+      "purposes": [
+        "RQ_AGENT",
+        "RQ_AGENT_PRO_FALLBACK"
+      ],
       "source": "ENV",
       "env_var": "DEEPSEEK_REVIEW_API_KEY"
     }
   },
   "peak": {
-    "status": "DERIVED_FROM_DESIGN_3.5_NOT_VERIFIED_AGAINST_THE_PRICING_PAGE",
-    "weekday_off_peak_cst": [["12:00", "14:00"], ["18:00", "24:00"]],
+    "status": "VERIFIED",
+    "verified_at": "2026-11-22T17:51:05+08:00",
+    "source": "https://api-docs.deepseek.com/quick_start/pricing note (2); same at https://api-docs.deepseek.com/zh-cn/quick_start/pricing.md note (2)",
+    "note": "Peak = Mon-Fri 01:00-04:00 and 06:00-10:00 UTC (CST 09:00-12:00, 14:00-18:00), excluding Chinese public holidays; everything else, weekends and public holidays included, is off-peak. The holiday calendar is not known here, so a public-holiday weekday is treated as peak (conservative: an agent call is deferred, never mispriced).",
+    "weekday_off_peak_cst": [
+      [
+        "00:00",
+        "09:00"
+      ],
+      [
+        "12:00",
+        "14:00"
+      ],
+      [
+        "18:00",
+        "24:00"
+      ]
+    ],
     "weekend_all_off_peak": true
   },
   "price_table": {
     "id": "DEEPSEEK_PRICE_TABLE_V1",
-    "status": "PROVISIONAL_RE_READ_BEFORE_FIRST_LIVE_CALL",
-    "hit_priced_as_miss_when_null": true,
-    "sources": {
-      "deepseek-flash": "AUTONOMOUS_RESEARCH_QUEUE_V1 §5.4 estimate row: off-peak cache-miss CNY 1 in / 4 out per 1M",
-      "deepseek-v4-pro": "QRP PR #136 body: pro off-peak list prices CNY 4.5 in / 13.5 out per 1M, all cache misses"
+    "status": "VERIFIED",
+    "verified_at": "2026-11-22T17:51:05+08:00",
+    "hit_priced_as_miss_when_null": false,
+    "source": {
+      "usd": {
+        "url": "https://api-docs.deepseek.com/quick_start/pricing",
+        "fetched_at": "2026-11-22T17:50:35+08:00",
+        "page_sha256": "b61db7d97374d37819b4dcdd41e86aa2d6bfa4d50bf059e700327727a4462e02"
+      },
+      "cny": {
+        "url": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing.md",
+        "fetched_at": "2026-11-22T17:51:05+08:00",
+        "page_sha256": "d7106f8b76dc7369aa5230c753277961ffb64f5bf99bf0e44d43c11fdf654a36"
+      },
+      "model_versions": {
+        "deepseek-flash": "DeepSeek-V4.1-Flash-1017",
+        "deepseek-v4-pro": "DeepSeek-V4-Pro-0813"
+      },
+      "unit": "per 1M tokens"
     },
     "models": {
       "deepseek-flash": {
-        "cny_per_m": { "off_peak": { "hit": null, "miss": 1.0, "out": 4.0 }, "peak": { "hit": null, "miss": null, "out": null } },
-        "usd_per_m": { "off_peak": { "hit": null, "miss": null, "out": null }, "peak": { "hit": null, "miss": null, "out": null } }
+        "cny_per_m": {
+          "off_peak": {
+            "hit": 0.02,
+            "miss": 1.0,
+            "out": 4.0
+          },
+          "peak": {
+            "hit": 0.04,
+            "miss": 2.0,
+            "out": 8.0
+          }
+        },
+        "usd_per_m": {
+          "off_peak": {
+            "hit": 0.003,
+            "miss": 0.15,
+            "out": 0.6
+          },
+          "peak": {
+            "hit": 0.006,
+            "miss": 0.3,
+            "out": 1.2
+          }
+        }
       },
       "deepseek-v4-pro": {
-        "cny_per_m": { "off_peak": { "hit": null, "miss": 4.5, "out": 13.5 }, "peak": { "hit": null, "miss": null, "out": null } },
-        "usd_per_m": { "off_peak": { "hit": null, "miss": null, "out": null }, "peak": { "hit": null, "miss": null, "out": null } }
+        "cny_per_m": {
+          "off_peak": {
+            "hit": 0.15,
+            "miss": 4.5,
+            "out": 13.5
+          },
+          "peak": {
+            "hit": 0.3,
+            "miss": 9.0,
+            "out": 27.0
+          }
+        },
+        "usd_per_m": {
+          "off_peak": {
+            "hit": 0.022,
+            "miss": 0.66,
+            "out": 1.98
+          },
+          "peak": {
+            "hit": 0.044,
+            "miss": 1.32,
+            "out": 3.96
+          }
+        }
       }
     }
   },
