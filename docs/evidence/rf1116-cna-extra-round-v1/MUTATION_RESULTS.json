@@ -6,7 +6,8 @@
   "survived": [],
   "bad": [],
   "heads": [
-    "c0ca769"
+    "c0ca769",
+    "ab0b9f0"
   ],
   "results": [
     {
@@ -235,7 +236,7 @@
         "✖ E0 常量：每月上限的例外只有一条 (CN_A, 2026-11) = 3，带修订页路径、sha256 与仓库里的逐字节副本；LIMITS 本身不动",
         "✖ failing tests:"
       ],
-      "head": "c0ca769"
+      "head": "ab0b9f0"
     },
     {
       "id": "N16",
