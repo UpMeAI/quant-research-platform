@@ -577,12 +577,14 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
     assert.equal(x.trial_record_hash, headsById.get(x.candidate_id).record_hash);
     assert.equal(x.holdout_open_hash, opens[0].record_hash);
     assert.equal(x.pass, false);
-    // 修订 SIZE_V2 N4：新开的轮（RANK_GAUSS_V2）读 v2 门槛文件，冻结页 FREEZE_2 之前是 PENDING_FREEZE → 门失败即关（只给 MINE_THRESHOLDS_UNFROZEN）；
+    // 修订 SIZE_V2 N4：新开的轮（RANK_GAUSS_V2）读 v2 门槛文件；FREEZE_2 绑定后它是 FROZEN，冻结页核对通过（没有 MINE_THRESHOLDS_* 码），九项都跑、记录仍不过；
     // 九项逐项的码在 mining_gate.test.js 与 mining_size_neutralization_v2.test.js 里用注入的门槛块判
-    assert.deepEqual([x.thresholds_file.path, x.thresholds_used.state, x.codes], ['config/mining_gate_thresholds.v2.json', 'PENDING_FREEZE', ['MINE_THRESHOLDS_UNFROZEN']]);
+    assert.deepEqual([x.thresholds_file.path, x.thresholds_used.state], ['config/mining_gate_thresholds.v2.json', 'FROZEN']);
+    assert.ok(!x.codes.some((c) => c.startsWith('MINE_THRESHOLDS_')), `${x.candidate_id}: ${x.codes}`);
+    assert.ok(x.codes.length > 0 && x.codes.includes('MINE_MARGINAL_INPUT'), 'the nine items run and fail closed on the missing inputs');
     assert.equal(x.family_trial_count, 24);
     assert.equal(x.excluded_factors.length, 3, 'R1.9 exclusions are named even without a factor series');
-    // 九项逐项的码：同一个结果在注入的 FROZEN v2 门槛块下判（门槛文件本身还没冻结，上面已核）
+    // 九项逐项的码：同一个结果在注入的 FROZEN v2 门槛块下判（与上面真实文件的记录同口径，逐项的码单独看）
     const judged = gate.evaluate(scoreFile.results.find((r) => r.candidate_id === x.candidate_id),
       { thresholds: { state: 'FROZEN', ic_mean_min: 0.02, icir_min: 0.3, monotonicity_min: 0.9, decay_ratio_min: 0.5, marginal_ir_delta_min: 0, marginal_intercept_t_min: 2, size_exposure_abs_max: 0.1,
         frozen_ref: { path: 'docs/freeze/SYNTHETIC.md', sha256: 'e'.repeat(64) } }, familyTrialCount: 24 });
