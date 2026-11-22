@@ -18,10 +18,10 @@ test('生成方输出的键集合固定：candidateId / verdict / reasonCodes，
   }
 });
 
-test('生成方输出里没有任何指标：失败案例里的 DSR / PBO 数值、p 值、成本数都不出现在序列化文本里', () => {
+test('生成方输出里没有任何指标：失败案例里的 DSR / PBO 数值、p 值都不出现在序列化文本里（原因码里的字母不算数值）', () => {
   const { bundle, ctx } = failing();
   const text = verifier.serializeGenerator(verifier.verify(bundle, ctx).generator);
-  for (const secret of ['0.123456', '0.4321', '0.97', '0.001', 'dsr', 'pbo', 'sharpe', 'ic_mean']) assert.ok(!text.toLowerCase().includes(secret), secret);
+  for (const secret of ['0.123456', '0.4321', '0.97', '0.001', 'sharpe', 'ic_mean']) assert.ok(!text.toLowerCase().includes(secret), secret);
   assert.deepEqual(JSON.parse(text), { candidateId: 'cand-1', reasonCodes: ['V3_MINE_DSR_BELOW_MIN'], verdict: 'fail' });
 });
 

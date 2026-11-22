@@ -58,7 +58,7 @@ function build(o = {}) {
     { id: 'SUB_PERIOD_HALVES', kind: 'SUB_PERIOD', metric: 'WORST_HALF_NET_EXCESS_ANNUAL', op: '>', threshold: 0 },
   ] };
   const robustnessSha = sha(canonicalJson(robustness));
-  const data = `\`DATA:V6_CSI300_INDEX_DAILY@${REG.registry_version}#${REG.registry_sha256}|PIT=BAR_CLOSE|VENDOR=Tushare\``;
+  const data = `\`DATA:${o.dataset || 'V6_CSI300_INDEX_DAILY'}@${REG.registry_version}#${REG.registry_sha256}|PIT=BAR_CLOSE|VENDOR=Tushare\``;
   const k2Text = `# W20 fixture K2\n\n## 0\n- 新增函数：\`CF:${FN}\`\n**数据输入**：${data}\nROBUSTNESS_DECLARATION_SHA256: ${robustnessSha}\n`;
   const k2 = put('k2.md', k2Text);
   const ev = put('causality.json', JSON.stringify(o.evidence || evidenceOf(k2.sha256)));

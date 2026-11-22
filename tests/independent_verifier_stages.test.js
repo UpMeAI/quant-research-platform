@@ -34,12 +34,10 @@ test('V-1 时间因果：通过 = G-CAUSAL 与研究实盘一致口令门都过�
 });
 
 test('V-1 失败案例：K2 的 DATA 记号写了没登记的数据集 → 停在 V-1（G-PARITY），不进 V-2', () => {
-  const { bundle, ctx, files } = fx.build();
-  const k2 = files.get('k2.md').toString().replace('V6_CSI300_INDEX_DAILY', 'NOT_A_REGISTERED_DATASET');
-  files.set('k2.md', Buffer.from(k2));
-  bundle.v1.files.k2.sha256 = fx.sha(Buffer.from(k2));
+  const { bundle, ctx } = fx.build({ dataset: 'NOT_A_REGISTERED_DATASET' });
   const out = verifier.verify(bundle, ctx);
   assert.equal(out.internal.failedStage, 'V1');
+  assert.ok(out.generator.reasonCodes[0].startsWith('V1_PARITY_'), out.generator.reasonCodes.join(','));
   assert.deepEqual(out.internal.stagesRun, ['V1']);
 });
 

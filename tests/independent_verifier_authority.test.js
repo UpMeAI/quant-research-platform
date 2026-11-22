@@ -115,7 +115,7 @@ test('留出段被否掉后再提交的近似候选：同机制或相关性超�
   // 同机制、同族、N 已累计（13 > 12）、去重有结论 → 过 V-3
   const ok = resub({ familyTrialCount: 13 }); ok.bundle.v3.overfit.n_trials = 13;
   assert.equal(go(ok).internal.stages[2].status, 'PASS');
-  assert.deepEqual(go(ok).internal.stages[2].resubmissionOf, ['old']);
+  assert.deepEqual(go(ok).internal.stages[2].detail.resubmissionOf, ['old']);
   // 换个族名想躲 N → 拒绝
   const split = resub({ familyTrialCount: 13 }); split.bundle.v3.overfit.n_trials = 13; split.bundle.familyId = 'CN_A_H5_V2';
   assert.deepEqual(go(split).generator.reasonCodes, ['V3_RESUBMISSION_FAMILY_SPLIT']);
@@ -126,7 +126,7 @@ test('留出段被否掉后再提交的近似候选：同机制或相关性超�
   assert.deepEqual(go(nodedupe).generator.reasonCodes, ['V3_RESUBMISSION_NOT_DEDUPED']);
   // 换机制名、但因子序列与失败的那个相关性 > 因子库去重线 → 照样当近似候选
   const rho = resub({ familyTrialCount: 13 }); rho.bundle.v3.overfit.n_trials = 13; rho.bundle.mechanism.id = 'SEL.OTHER.NAME'; rho.bundle.v3.priorHoldoutFailures[0] = { ...prior, rho: 0.85 };
-  assert.equal(go(rho).internal.stages[2].resubmissionOf[0], 'old');
+  assert.equal(go(rho).internal.stages[2].detail.resubmissionOf[0], 'old');
 });
 
 test('未知主体与缺字段：失败即关', () => {
