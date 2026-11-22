@@ -232,7 +232,7 @@ test('B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上�
     const s = startStep(out, [{ content: C2, usage: big }]);
     let g;
     try { g = gen(out, r.round_id); } finally { await s.stop(); }
-    assert.deepEqual([g.llm.state, g.llm.halted, g.total, g.status], ['STOPPED_TOKEN_CAP', true, 10, 'OPEN']);
+    assert.deepEqual([g.llm.state, g.llm.halted, g.total, g.status, g.llm.generation_closed], ['STOPPED_TOKEN_CAP', true, 10, 'OPEN', true]);
     assert.equal(s.calls().length, 1, 'the second call is not sent');
     assert.equal(fs.readdirSync(path.join(out, 'llm-exchange')).filter((n) => n.endsWith('.req.json')).length, 1, 'no request written for it');
     const st = rounds.llmState(r.round_id);
@@ -248,7 +248,7 @@ test('B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上�
     const s = startStep(out2, [{ content: C2 }]);
     let g;
     try { g = gen(out2, r.round_id); } finally { await s.stop(); }
-    assert.deepEqual([g.llm.state, g.total, s.calls().length], ['STOPPED_CALL_CAP', 10, 1]);
+    assert.deepEqual([g.llm.state, g.total, s.calls().length, g.llm.generation_closed], ['STOPPED_CALL_CAP', 10, 1, true]);
   });
 });
 
@@ -305,11 +305,12 @@ test('B6 命令行：开新轮之前先探活；网络那一步不答或没有�
 test('B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；generate-llm 依次建目录 → 起网络那一步（-d）→ 生成（--network none）→ 无论成败都停掉网络那一步；退出码照传（75 = 等待）', () => {
   const RUN_SH = path.join(ROOT, 'deploy/research-lane/round-runner/run.sh');
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fake-docker-llm-'));
-  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in *rf1116-generate-llm*) exit "${FAKE_GEN_EXIT:-0}" ;; esac\nexit 0\n', { mode: 0o755 });
-  const run = (args, genExit = 0) => {
+  // `ps` (the busy check) is answered from FAKE_PS_OUT and logged to a different file, so the call sequence below stays the container commands only; `run -d` can be made to fail with FAKE_UP_EXIT
+  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\ncase "$1" in ps) echo "$*" >> "$DOCKER_LOG.ps"; printf "%s" "${FAKE_PS_OUT:-}"; exit 0 ;; esac\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in "run -d"*) exit "${FAKE_UP_EXIT:-0}" ;; *rf1116-generate-llm*) exit "${FAKE_GEN_EXIT:-0}" ;; esac\nexit 0\n', { mode: 0o755 });
+  const run = (args, genExit = 0, extra = {}) => {
     const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-docker-log-')), 'log');
-    const r = spawnSync('bash', [RUN_SH, ...args], { encoding: 'utf8', env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log, FAKE_GEN_EXIT: String(genExit) } });
-    return { ...r, calls: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [] };
+    const r = spawnSync('bash', [RUN_SH, ...args], { encoding: 'utf8', env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log, FAKE_GEN_EXIT: String(genExit), ...extra } });
+    return { ...r, calls: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [], ps: fs.existsSync(`${log}.ps`) ? fs.readFileSync(`${log}.ps`, 'utf8').split('\n').filter(Boolean) : [] };
   };
   const p = run(['llm-ping']);
   assert.equal(p.status, 0, p.stderr);
@@ -332,6 +333,18 @@ test('B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；gene
     }
   }
   assert.notEqual(run(['generate-llm']).status, 0, 'holdout sha required');
+  // 互斥：另一次 LLM 运行（网络那一步或 generate 容器）还在 → 一个 docker 命令都不跑，更不能撤回它的请求、停它的容器（复审 2026-11-22 新 #2）
+  for (const args of [['llm-ping'], ['generate-llm', 'a'.repeat(64)], ['resume-llm', 'MR-CN_A-2026-12-x']]) {
+    const busy = run(args, 0, { FAKE_PS_OUT: 'abc123def456\n' });
+    assert.equal(busy.status, 73, `${args[0]}: ${busy.stderr}`);
+    assert.match(busy.stderr, /another LLM run is active/);
+    assert.deepEqual(busy.calls, [], `${args[0]}: no container command, so no withdrawal and no stop of the live run`);
+    assert.ok(busy.ps.some((l) => l.includes('rf1116-llm-step') && l.includes('rf1116-generate-llm')), 'the busy check looks at the step and the generate containers');
+  }
+  // 起步骤容器失败（比如名字被占用）：EXIT 陷阱还没装，不会去停别人的容器
+  const failedUp = run(['generate-llm', 'a'.repeat(64)], 0, { FAKE_UP_EXIT: '125' });
+  assert.equal(failedUp.status, 125);
+  assert.deepEqual(failedUp.calls.map((c) => c.split(' ')[0]), ['run', 'run'], 'llm-init, then the failed step start; no generate, no stop');
 });
 
 test('B9 台账：MINING_LLM_CALL_V1 的 seq 必须是下一个、只能记在 LLM 轮、记 token 必须是非负整数；LLM 轮清单的 llm 块缺键或带多余键被拒；累计用量按行算', () => {
@@ -458,7 +471,8 @@ test('B12 LLM 轮的留出段结果记 AI_MINED_LLM，不能写成 GP（复审 2
   const score = JSON.parse(fs.readFileSync(path.join(runDirOf(out, r.round_id), 'score.json'), 'utf8'));
   assert.ok(score.results.length >= 1 && score.results.every((x) => x.generator === 'AI_MINED_LLM'), JSON.stringify(score.results.map((x) => x.generator)));
   const hr = require('../services/mining-sandbox/round-runner/holdout-scoring');
-  assert.equal(typeof hr.roundResults, 'function');
+  assert.throws(() => hr.roundResults([{ candidate_id: 'x', formula: 'rank(pb)', parsed: {} }], null, { holding_period: 5, market: 'CN_A', familyTrialCount: 1, scoredAt: '2027-01-06T10:00:00+08:00' }),
+    code(/MINE_HOLDOUT_SCORE_GENERATOR_MISSING/), 'a result is never silently labelled GP');
 });
 
 test('B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续选择（预算 / 能力用尽 = 生成结束），退出码 3；一个尝试都没有就不选择；请求体不合规是硬停', async () => {
@@ -505,6 +519,20 @@ test('B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续�
   const d = await cliAsync(base(o4), env(o4)); await s4.stop();
   const dO = JSON.parse(d.stdout);
   assert.deepEqual([d.status, dO.status, dO.llm_state, dO.total, dO.selected], [75, 'WAITING', 'WAITING_QUOTA', 10, undefined]);
+  // 已经选择过的轮：续跑在探活之前就拒（不花探活的钱，也不写续跑记录）
+  const exBefore = fs.readdirSync(path.join(o1, 'llm-exchange')).length;
+  const resumeSelected = await cliAsync(['generate', '--generator', 'AI_MINED_LLM', '--out', o1, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--min-names-per-day', '5', '--resume', ao.round_id,
+    '--llm-poll-ms', '10', '--llm-wait-seconds', '5'], env(o1));
+  assert.equal(resumeSelected.status, 2, resumeSelected.stdout);
+  assert.equal(JSON.parse(resumeSelected.stderr).error, 'MINE_RUNNER_GENERATION_CLOSED');
+  assert.equal(fs.readdirSync(path.join(o1, 'llm-exchange')).length, exBefore, 'no probe request was written');
+  // 连续空应答停下的轮，续跑还是停（不再多给 3 次空应答）；探活照做一次
+  const s5 = startStep(o2, [{ content: ['OK'] }, { content: C2 }]);
+  const again = await cliAsync(['generate', '--generator', 'AI_MINED_LLM', '--out', o2, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--min-names-per-day', '5', '--resume', bo.round_id,
+    '--llm-poll-ms', '10', '--llm-wait-seconds', '30'], env(o2)); await s5.stop();
+  const againO = JSON.parse(again.stdout);
+  assert.deepEqual([again.status, againO.status, againO.llm_state, againO.total], [3, 'STOPPED', 'STOPPED_EMPTY_REPLIES', 0], again.stderr);
+  assert.equal(s5.calls().length, 1, 'only the probe reached the provider: the stopped round sends no further generation request');
   noKeyIn([o1, o2, o3, o4], [a.stdout, b.stdout, c.stdout, d.stdout]);
 });
 
@@ -580,4 +608,43 @@ test('B15 CLI llm-init：建交换目录（粘滞位）并撤回上一次运行�
   assert.equal(llm.readResponse(ex, 'MR-X:C001-aaaa0000').outcome, 'WITHDRAWN_BY_RUNNER');
   assert.equal(llm.readResponse(ex, 'MR-X:C002-bbbb0000').outcome, 'OK', 'an answered request is left alone');
   assert.ok(fs.statSync(ex).mode & 0o1000, 'sticky');
+});
+
+test('B16 调用途中崩了的请求（.inflight 在，或网络那一步答了 CRASHED）：不被撤回，generate 先按上界记一行再继续；之后的续跑照常', () => {
+  const out = freshData();
+  const r = openLlm({ cap: 20 });
+  const dir = llm.ensureExchangeDir(path.join(out, 'llm-exchange'));
+  const L = llm.loadConfig();
+  const register = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/research_mechanism_register.v1.json'), 'utf8'));
+  const generator = require('../services/mining-sandbox/generators').generatorFor(rounds.roundHead(r.round_id).generator,
+    { space: runner.loadFrozenSpace().dslSpace, holdingPeriod: 5, llm: { config: L.config, mechanisms: llm.mechanismsFor(register, L.config.prompt.mechanisms) } });
+  const prep = generator.prepare(rounds.generatorView(r.round_id), { n: 10 });
+  const k1 = `${r.round_id}:C001-${prep.request_sha256.slice(0, 8)}`;
+  llm.writeRequest(dir, { kind: 'GENERATE', key: k1, round_id: r.round_id, body: prep.body });
+  fs.writeFileSync(path.join(dir, `${llm.exchangeName(k1)}.inflight`), '{}\n'); // 步骤容器被停时正在调用
+  // llm-init 撤回没人答的请求，但不动调用途中的
+  assert.deepEqual(llm.withdrawUnanswered(dir), [], 'an in-flight request is not withdrawn: the call may have been billed');
+  assert.equal(llm.readResponse(dir, k1), null);
+  // generate：先把它记成一行（按上界），本轮等待；不发新请求
+  const g = gen(out, r.round_id);
+  assert.deepEqual([g.llm.state, g.llm.halted, g.total], ['WAITING_STEP_CRASHED_MID_CALL', true, 0]);
+  const rows = rounds.llmCalls(r.round_id);
+  assert.deepEqual(rows.map((c) => [c.seq, c.key, c.outcome, c.sent, c.final, c.tokens_basis, c.tokens_metered]), [[1, k1, 'WAITING_STEP_CRASHED_MID_CALL', true, true, 'UPPER_BOUND', prep.tokens_upper_bound]]);
+  assert.equal(llm.readResponse(dir, k1).outcome, 'WAITING_STEP_CRASHED_MID_CALL', 'closed, so a step that starts later does not answer it again');
+  assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.req.json')).length, 1, 'no new request was written while the round waits');
+  // 同一个请求被网络那一步答成 CRASHED（它先起来、见到 .inflight）：generate 也要记（它没人等）
+  const out2 = freshData();
+  const r2 = openLlm({ cap: 20 });
+  const dir2 = llm.ensureExchangeDir(path.join(out2, 'llm-exchange'));
+  const k2 = `${r2.round_id}:C001-${prep.request_sha256.slice(0, 8)}x`;
+  llm.writeRequest(dir2, { kind: 'GENERATE', key: k2, round_id: r2.round_id, body: prep.body });
+  fs.writeFileSync(path.join(dir2, `${llm.exchangeName(k2)}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: k2, kind: 'GENERATE', round_id: r2.round_id, request_sha256: llm.readJson(path.join(dir2, `${llm.exchangeName(k2)}.req.json`)).request_sha256,
+    outcome: 'WAITING_STEP_CRASHED_MID_CALL', sent: true, reason: 'INFLIGHT_MARKER_WITHOUT_RESPONSE' })}\n`);
+  const g2 = gen(out2, r2.round_id);
+  assert.deepEqual([g2.llm.state, rounds.llmCalls(r2.round_id).map((c) => [c.key, c.outcome, c.tokens_basis])], ['WAITING_STEP_CRASHED_MID_CALL', [[k2, 'WAITING_STEP_CRASHED_MID_CALL', 'UPPER_BOUND']]]);
+  // 记过之后的续跑：正常发新请求，seq 接在后面
+  prewrite(out2, r2.round_id, 10, { content: C2.join('\n') });
+  const g3 = gen(out2, r2.round_id);
+  assert.deepEqual([g3.llm.state, g3.total], [null, 10]);
+  assert.deepEqual(rounds.llmCalls(r2.round_id).map((c) => [c.seq, c.outcome]), [[1, 'WAITING_STEP_CRASHED_MID_CALL'], [2, 'OK']]);
 });
