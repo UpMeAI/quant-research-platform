@@ -24,6 +24,7 @@ const { makeMiningDataFixture, internals: fxi } = require('./_mining_data_fixtur
 const { R1, R1_RULING, R1_SELECTION_RULE, reviewAll } = require('./_mining_manifest');
 const adapter = require('../services/mining-sandbox/data-adapter');
 const runner = require('../services/mining-sandbox/round-runner');
+require('./_frozen_v2_thresholds').installOn(runner); // V2 的轮的门槛文件冻结前是 PENDING：在合成的 FROZEN v2 下逐项看码
 const selector = require('../services/mining-sandbox/round-runner/selector');
 const holdoutScoring = require('../services/mining-sandbox/round-runner/holdout-scoring');
 const limits = require('../services/mining-sandbox/price-limits');
@@ -174,7 +175,7 @@ test('R1.7：涨跌停按 V6 实盘的板块规则（price_limit_history_v1：�
     size: dates.map(() => codes.map(() => 1e9)), universe: dates.map(() => codes.map(() => true)), board: codes.map(() => 'MAIN'), st: dates.map(() => codes.map(() => false)),
     labels: { exec_open: ex, open_raw: openRaw, prev_close_raw: dates.map(() => codes.map(() => 10)) } };
   const parsed = require('../services/mining-sandbox/dsl').parse('pb', require('../services/mining-sandbox/space').dslSpaceOf(JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json'), 'utf8'))));
-  const H = 2; const s = holdoutScoring.scoreCandidate(parsed, panel, { holding_period: H });
+  const H = 2; const s = holdoutScoring.scoreCandidate(parsed, panel, { holding_period: H, neutralization: 'LINEAR_RAW_V1' });
   const fwd = (j) => grow(j) ** H - 1; const mean = (xs) => xs.reduce((x, y) => x + y, 0) / xs.length;
   const c = holdoutScoring.NET.cost; const one = (c.commission_bps + c.slippage_bps) / 1e4; const sell = one + c.stamp_duty_bps / 1e4;
   const net = [mean([fwd(8)]) - one, mean([fwd(8), fwd(9)]) - 0.5 * one, mean([fwd(8), fwd(0), fwd(1)]) - (2 / 3) * one - 0.5 * sell, mean([fwd(0), fwd(1)]) - (1 / 3) * sell,
@@ -187,7 +188,7 @@ test('R1.7：涨跌停按 V6 实盘的板块规则（price_limit_history_v1：�
   assert.deepEqual(s.net_of_cost.limit_events, { entry_blocked_limit_up: 1, exit_carried_limit_down: 1, entry_blocked_no_open: 0, exit_carried_no_open: 0 });
   assert.equal(s.net_of_cost.limit_moves, 'MODELLED_V6_BOARD_BANDS');
   const { open_raw: _o, ...noLimits } = panel.labels;
-  assert.throws(() => holdoutScoring.scoreCandidate(parsed, { ...panel, labels: noLimits }, { holding_period: H }), code(/MINE_HOLDOUT_SCORE_LIMIT_INPUT_MISSING/));
+  assert.throws(() => holdoutScoring.scoreCandidate(parsed, { ...panel, labels: noLimits }, { holding_period: H, neutralization: 'LINEAR_RAW_V1' }), code(/MINE_HOLDOUT_SCORE_LIMIT_INPUT_MISSING/));
   // 适配器给出的面板带这几项
   const hp = adapter.buildPanel({ sources: [...sources(), adapter.csvDirSource(fx.dirs.holdout, { mode: 'LIVE', label: 'holdout', holdout: true })], space: JSON.parse(fs.readFileSync(path.join(ROOT,
     'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json'), 'utf8')), segment: 'HOLDOUT', from: '2026-09-01', to: '2026-12-31' });

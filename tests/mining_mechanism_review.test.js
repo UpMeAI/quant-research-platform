@@ -22,6 +22,7 @@ const { makeMiningDataFixture } = require('./_mining_data_fixture');
 const { reviewAll } = require('./_mining_manifest');
 const adapter = require('../services/mining-sandbox/data-adapter');
 const runner = require('../services/mining-sandbox/round-runner');
+require('./_frozen_v2_thresholds').installOn(runner); // V2 的轮的门槛文件冻结前是 PENDING：在合成的 FROZEN v2 下逐项看码
 const rounds = require('../services/mining-rounds');
 const mechanisms = require('../services/mining-rounds/mechanisms');
 const vault = require('../services/holdout-vault');
