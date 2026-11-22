@@ -20,7 +20,9 @@ function terms(over = {}) {
     review_endpoint: { kind: 'DATE', value: '2027-03-01' },
     stage_evidence: {},
   };
-  return { ...base, ...over };
+  const merged = { ...base, ...over };
+  if (!('terms_frozen_at' in over)) merged.terms_frozen_at = merged.k2_frozen_at; // frozen in the same event as the K2 (ruling 11-23 (1))
+  return merged;
 }
 
 const ci = (lower, upper) => ({ lower, upper, level: 0.95 });

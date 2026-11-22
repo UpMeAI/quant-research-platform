@@ -28,9 +28,11 @@ const { sha256, prettyJson, isObj, isCstStamp, SHA64, clone } = common;
 const SCHEMA = 'PROMOTION_RESULT_V1';
 const STAGES = Object.freeze(['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6']);
 const VERDICTS = Object.freeze(['PASS', 'FAIL', 'INSUFFICIENT', 'INVALID_INPUT']);
-/** Lowest stage whose PASS may feed trade plans: S2 never, S3 PASS is not S4 (AMENDMENT_1 section 1.1). */
-const TRADE_PLAN_MIN_STAGE = 'S4';
+/** plan-coord ruling 11-23 (3): production trade plans need S6 (adopted); an S5 forward candidate may only produce labelled SHADOW plans. */
+const TRADE_PLAN_MIN_STAGE = 'S6';
+const SHADOW_PLAN_MIN_STAGE = 'S5';
 const TRADE_PLAN = 'TRADE_PLAN';
+const SHADOW_PLAN = 'SHADOW_PLAN';
 
 const outputSha256 = (body) => sha256(prettyJson(body));
 const render = (result) => { const { output_sha256: _o, ...body } = result; return prettyJson({ ...body, output_sha256: outputSha256(body) }); };
@@ -78,17 +80,19 @@ function evaluate(req) {
     if (tc.length) return invalidResult(ctx, tc);
     const t = r.terms;
     if (r.candidate_id !== t.candidate_id) return invalidResult(ctx, ['PROMOTION_CANDIDATE_MISMATCH']);
-    if (!STAGES.includes(stage) && stage !== TRADE_PLAN) return invalidResult(ctx, ['PROMOTION_STAGE_UNKNOWN']);
+    if (!STAGES.includes(stage) && stage !== TRADE_PLAN && stage !== SHADOW_PLAN) return invalidResult(ctx, ['PROMOTION_STAGE_UNKNOWN']);
 
     const hist = readHistory(r.history);
     if (hist.codes.length) return invalidResult(ctx, hist.codes);
     for (const s of STAGES) if (hist.last.has(s) && hist.last.get(s).verdict === 'FAIL') return invalidResult(ctx, [`PROMOTION_CANDIDATE_SEALED_NOT_DO:${s}`]);
 
     // no skipping: every earlier stage must have its own PASS
-    const wanted = stage === TRADE_PLAN ? STAGES.indexOf(TRADE_PLAN_MIN_STAGE) : STAGES.indexOf(stage);
-    const needed = stage === TRADE_PLAN ? wanted : wanted - 1; // highest stage that must already have passed
+    const use = stage === TRADE_PLAN || stage === SHADOW_PLAN;
+    // TRADE_PLAN: S6 PASS. SHADOW_PLAN: the candidate has reached S5, i.e. S4 PASS.
+    const needed = stage === TRADE_PLAN ? STAGES.indexOf(TRADE_PLAN_MIN_STAGE) : stage === SHADOW_PLAN ? STAGES.indexOf(SHADOW_PLAN_MIN_STAGE) - 1 : STAGES.indexOf(stage) - 1;
     if (hist.passedThrough < needed) return invalidResult(ctx, [`PROMOTION_STAGE_SKIP:${hist.passedThrough < 0 ? 'NONE' : STAGES[hist.passedThrough]}->${stage}`]);
-    if (stage === TRADE_PLAN) return finish({ ...ctx, verdict: 'PASS', reasonCodes: [`PROMOTION_TRADE_PLAN_ALLOWED_AFTER_${TRADE_PLAN_MIN_STAGE}`], nextAction: 'ALLOW_TRADE_PLAN' });
+    if (stage === TRADE_PLAN) return finish({ ...ctx, verdict: 'PASS', reasonCodes: [`PROMOTION_TRADE_PLAN_ALLOWED_AFTER_${TRADE_PLAN_MIN_STAGE}`], nextAction: 'ALLOW_TRADE_PLAN', resolution: { plan_class: 'PRODUCTION' } });
+    if (use) return finish({ ...ctx, verdict: 'PASS', reasonCodes: [`PROMOTION_SHADOW_PLAN_ONLY_AT_${SHADOW_PLAN_MIN_STAGE}`], nextAction: 'ALLOW_SHADOW_PLAN_ONLY', resolution: { plan_class: 'SHADOW', label: 'SHADOW', executable: false } });
 
     const ev = r.evidence;
     if (!isObj(ev) || ev.schema !== 'PROMOTION_STAGE_EVIDENCE_V1') return invalidResult(ctx, ['PROMOTION_EVIDENCE_INVALID']);
@@ -136,7 +140,7 @@ function evaluateFromFiles({ termsPath, stage, historyPath = null, asOf, baseDir
   let history = [];
   if (historyPath) { try { history = readJson(historyPath); } catch { return invalidResult(ctx, ['PROMOTION_HISTORY_UNREADABLE']); } }
   let evidence; let evidenceSha;
-  if (stage !== TRADE_PLAN) {
+  if (stage !== TRADE_PLAN && stage !== SHADOW_PLAN) {
     const ref = isObj(terms) && isObj(terms.stage_evidence) ? terms.stage_evidence[stage] : null;
     if (!ref) return invalidResult(ctx, [`PROMOTION_EVIDENCE_NOT_NAMED:${stage}`]);
     const rel = path.normalize(String(ref.path));
@@ -175,7 +179,7 @@ function recheckPaused({ paused, terms, observed, history, as_of: asOf } = {}) {
 }
 
 module.exports = {
-  SCHEMA, STAGES, VERDICTS, TRADE_PLAN, TRADE_PLAN_MIN_STAGE, CUTOFF: insufficient.CUTOFF, MINED_HOLDOUT_NOT_BEFORE: stages.MINED_HOLDOUT_NOT_BEFORE,
+  SCHEMA, STAGES, VERDICTS, TRADE_PLAN, SHADOW_PLAN, TRADE_PLAN_MIN_STAGE, SHADOW_PLAN_MIN_STAGE, CUTOFF: insufficient.CUTOFF, MINED_HOLDOUT_NOT_BEFORE: stages.MINED_HOLDOUT_NOT_BEFORE,
   evaluate, evaluateFromFiles, recheckPaused, render, outputSha256,
   rankInformationValue: value.rankInformationValue, kpi9: value.kpi9, valueConfig: value.valueConfig, VALUE_CONFIG_SHA256: value.VALUE_CONFIG_SHA256,
   validateTerms: termsMod.validate, clone,

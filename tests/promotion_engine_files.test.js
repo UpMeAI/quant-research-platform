@@ -86,3 +86,18 @@ test('the engine reads no clock and no network: source has no Date.now / new Dat
     assert.ok(!/Date\.now\(|new Date\(\)|require\('(https?|net|child_process)'\)/.test(src), f);
   }
 });
+
+test('terms must be bound to their K2 and frozen with it: PROMOTION_TERMS_NOT_BOUND (ruling 11-23 (1))', () => {
+  const run = (t) => engine.evaluate(fx.request('S2', 'PASS', { terms: t }));
+  assert.equal(run(fx.terms()).verdict, 'PASS'); // same instant as the K2: bound
+  assert.equal(run(fx.terms({ terms_frozen_at: '2026-11-24T09:59:59+08:00' })).verdict, 'PASS'); // before the K2
+  const after = run(fx.terms({ terms_frozen_at: '2026-11-24T10:00:01+08:00' })); // one second after the K2
+  assert.equal(after.verdict, 'INVALID_INPUT');
+  assert.deepEqual(after.reasonCodes, ['PROMOTION_TERMS_NOT_BOUND']);
+  const noSha = fx.terms(); delete noSha.k2_sha256;
+  assert.ok(run(noSha).reasonCodes.includes('PROMOTION_TERMS_NOT_BOUND'));
+  const noStamp = fx.terms(); delete noStamp.terms_frozen_at;
+  assert.ok(run(noStamp).reasonCodes.includes('PROMOTION_TERMS_NOT_BOUND'));
+  assert.ok(run(fx.terms({ k2_sha256: 'xyz' })).reasonCodes.includes('PROMOTION_TERMS_NOT_BOUND'));
+});
+

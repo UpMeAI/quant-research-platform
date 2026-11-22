@@ -11,6 +11,23 @@ const { isObj, num, round6, isInt, isDate } = require('./common');
 const CUTOFF = '2026-11-23T01:13:00+08:00';
 const isLegacyK2 = (frozenAt) => Date.parse(frozenAt) < Date.parse(CUTOFF);
 
+/**
+ * Pre-cutoff K2s at their review endpoint (plan-coord ruling 11-23 (2)): the AMENDMENT_1 section 4.2 starred defaults verbatim, frozen 11-23 for all of them
+ * at once. No per-item tuning: a legacy K2's terms may not carry a different policy.
+ */
+const AMENDMENT_1_DEFAULT_POLICY = Object.freeze({
+  source: 'PLAN_V1_1_AMENDMENT_1_AI_RESEARCH_LAB', amendment_sha256_prefix: '0e2f3181', decision_id: 'PLAN-V1-20261123-01',
+  horizon_months: 12, p_threshold: 0.5, budget_share_max: 0.2, resume_sample_fraction: 0.5, max_failed_rechecks: 3,
+});
+const POLICY_VALUE_KEYS = Object.freeze(['horizon_months', 'p_threshold', 'budget_share_max', 'resume_sample_fraction', 'max_failed_rechecks']);
+/** @returns {{policy: object|null, source: string, invalid?: string}} the policy that judges this K2. */
+function effectivePolicy(terms) {
+  if (!isLegacyK2(terms.k2_frozen_at)) return terms.insufficient_policy ? { policy: terms.insufficient_policy, source: 'K2_FROZEN_POLICY' } : { policy: null, source: 'K2_FROZEN_POLICY' };
+  const own = terms.insufficient_policy;
+  if (own && POLICY_VALUE_KEYS.some((k) => own[k] !== AMENDMENT_1_DEFAULT_POLICY[k])) return { policy: null, source: 'AMENDMENT_1_DEFAULT_POLICY', invalid: 'PROMOTION_LEGACY_POLICY_TUNING_NOT_ALLOWED' };
+  return { policy: { ...AMENDMENT_1_DEFAULT_POLICY, next_review_endpoint: terms.next_review_endpoint || (own && own.next_review_endpoint) || undefined }, source: 'AMENDMENT_1_DEFAULT_POLICY' };
+}
+
 const POLICY_KEYS = Object.freeze(['horizon_months', 'p_threshold', 'budget_share_max', 'resume_sample_fraction', 'max_failed_rechecks', 'next_review_endpoint']);
 
 /** @returns {string[]} PROMOTION_POLICY_INVALID codes */
@@ -107,7 +124,8 @@ function resolve({ terms, inputs, asOf }) {
   const bad = validateInputs(inputs);
   if (bad.length) return { invalid: bad };
   const legacy = isLegacyK2(terms.k2_frozen_at);
-  const policy = terms.insufficient_policy;
+  const eff = effectivePolicy(terms);
+  const policy = eff.policy;
   const ep = terms.review_endpoint;
   const reached = endpointReached(ep, { asOf, observedN: inputs.observed_sample_n });
   const infoItem = (p) => ({ market: terms.market, mechanism_prior_class: inputs.mechanism_prior_class, effect_ci: inputs.effect_ci, min_economic_value: terms.min_economic_value.value, p_reach: p });
@@ -119,11 +137,12 @@ function resolve({ terms, inputs, asOf }) {
       resolution: { conclusion: '做', code: 'LEGACY_K2_CONTINUE_TO_ENDPOINT', review_endpoint: ep, action_at_endpoint: 'REJUDGE_UNDER_SECTION_4_2', rule: 'K2_OWN_TEXT_UNTIL_ENDPOINT' },
     };
   }
-  if (!policy) return { invalid: [legacy ? 'PROMOTION_POLICY_MISSING_AT_ENDPOINT' : 'PROMOTION_POLICY_MISSING'] };
+  if (eff.invalid) return { invalid: [eff.invalid] };
+  if (!policy) return { invalid: ['PROMOTION_POLICY_MISSING'] };
 
   const minN = terms.min_sample_n;
   const p = pReach({ observedN: inputs.observed_sample_n, minN, ratePerMonth: inputs.events_per_month, horizonMonths: policy.horizon_months });
-  const base = { rule: 'SECTION_4_2', legacy_judged_at_endpoint: legacy, p_reach: p, min_sample_n: minN, observed_sample_n: inputs.observed_sample_n };
+  const base = { rule: 'SECTION_4_2', policy_source: eff.source, legacy_judged_at_endpoint: legacy, p_reach: p, min_sample_n: minN, observed_sample_n: inputs.observed_sample_n };
   const pause = (code, resume, extra = {}) => ({
     verdictCodes: [code], nextAction: 'PAUSE_UNTIL_RESUME_CONDITION',
     resolution: { ...base, conclusion: '暂停', code, resume_condition: resume, recheck: { cadence: 'MONTHLY', max_failed_rechecks: policy.max_failed_rechecks, on_exhaustion: 'PAUSE_ESCALATE_TO_OWNER' }, ...extra },
@@ -146,7 +165,7 @@ function resolve({ terms, inputs, asOf }) {
     return pause('PAUSE_BUDGET', { kind: 'NEXT_MONTHLY_BUDGET_QUEUE_BY_INFORMATION_VALUE', budget_share_max: policy.budget_share_max }, { budget_share: share });
   }
   // 4. continue: 做, with a review endpoint
-  const next = reached ? policy.next_review_endpoint : ep;
+  const next = reached ? (policy.next_review_endpoint || terms.next_review_endpoint) : ep;
   if (!next) return { invalid: ['PROMOTION_REVIEW_ENDPOINT_MISSING'] };
   return {
     verdictCodes: ['CONTINUE_FORWARD_SHADOW_OR_SAMPLE'], nextAction: 'RUN_TO_REVIEW_ENDPOINT',
@@ -162,7 +181,9 @@ function recheck({ paused, terms, observed, history, asOf }) {
   const res = isObj(paused) && isObj(paused.resolution) ? paused.resolution : null;
   const out = (state, extra) => ({ state, ...extra });
   if (!res || res.conclusion !== '暂停' || !String(res.code).startsWith('PAUSE_')) return out('INVALID_INPUT', { reasonCodes: ['PROMOTION_RECHECK_NOT_PAUSED'] });
-  const policy = terms.insufficient_policy;
+  const eff = effectivePolicy(terms);
+  if (eff.invalid) return out('INVALID_INPUT', { reasonCodes: [eff.invalid] });
+  const policy = eff.policy;
   if (!policy) return out('INVALID_INPUT', { reasonCodes: ['PROMOTION_POLICY_MISSING'] });
   if (!Array.isArray(history) || history.some((h) => !isObj(h) || typeof h.as_of !== 'string' || !['STILL_PAUSED', 'PAUSE_ESCALATE_TO_OWNER', 'RESUME'].includes(h.state))) return out('INVALID_INPUT', { reasonCodes: ['PROMOTION_RECHECK_HISTORY_INVALID'] });
   const last = history.length ? history[history.length - 1] : null;
@@ -197,4 +218,4 @@ function recheck({ paused, terms, observed, history, asOf }) {
   return out('STILL_PAUSED', { conclusion: '暂停', failed_rechecks: failed, escalate: false, nextAction: 'RECHECK_NEXT_MONTH', reasonCodes: why });
 }
 
-module.exports = { CUTOFF, isLegacyK2, validatePolicy, validateEndpoint, endpointReached, pReach, poissonUpperTail, rateTarget, costShare, validateInputs, resolve, recheck };
+module.exports = { AMENDMENT_1_DEFAULT_POLICY, effectivePolicy, CUTOFF, isLegacyK2, validatePolicy, validateEndpoint, endpointReached, pReach, poissonUpperTail, rateTarget, costShare, validateInputs, resolve, recheck };

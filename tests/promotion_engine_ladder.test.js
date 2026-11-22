@@ -41,11 +41,29 @@ test('skip: S2 can never feed trade plans, S3 PASS is not S4', () => {
   assert.deepEqual(engine.evaluate(fx.request('S2', 'PASS', { history: [] })).reasonCodes, ['PROMOTION_STAGE_SKIP:NONE->S2']);
 });
 
-test('a PASS at S4 or later may feed trade plans; a FAIL anywhere seals the candidate', () => {
-  const s4 = [...fx.historyBefore('S5')]; // S0..S4 PASS
-  const ok = engine.evaluate({ ...fx.request('S5', 'PASS', { history: s4 }), requested_stage: 'TRADE_PLAN' });
+test('production trade plans need S6; an S5 candidate gets labelled SHADOW plans only (ruling 11-23 (3))', () => {
+  assert.equal(engine.TRADE_PLAN_MIN_STAGE, 'S6');
+  assert.equal(engine.SHADOW_PLAN_MIN_STAGE, 'S5');
+  const s5 = [...fx.historyBefore('S6')]; // S0..S5 PASS: the candidate is in forward
+  const refused = engine.evaluate({ ...fx.request('S5', 'PASS', { history: s5 }), requested_stage: 'TRADE_PLAN' });
+  assert.equal(refused.verdict, 'INVALID_INPUT');
+  assert.deepEqual(refused.reasonCodes, ['PROMOTION_STAGE_SKIP:S5->TRADE_PLAN']);
+  const shadow = engine.evaluate({ ...fx.request('S5', 'PASS', { history: s5 }), requested_stage: 'SHADOW_PLAN' });
+  assert.equal(shadow.verdict, 'PASS');
+  assert.equal(shadow.nextAction, 'ALLOW_SHADOW_PLAN_ONLY');
+  assert.deepEqual(shadow.resolution, { plan_class: 'SHADOW', label: 'SHADOW', executable: false });
+  const s4 = engine.evaluate({ ...fx.request('S5', 'PASS', { history: fx.historyBefore('S5') }), requested_stage: 'SHADOW_PLAN' }); // S0..S4 PASS: just entering S5
+  assert.equal(s4.verdict, 'PASS');
+  const early = engine.evaluate({ ...fx.request('S4', 'PASS', { history: fx.historyBefore('S4') }), requested_stage: 'SHADOW_PLAN' }); // S0..S3 only
+  assert.deepEqual(early.reasonCodes, ['PROMOTION_STAGE_SKIP:S3->SHADOW_PLAN']);
+  const s6 = [...s5, { stage: 'S6', verdict: 'PASS', output_sha256: fx.sha('prev-S6') }];
+  const ok = engine.evaluate({ ...fx.request('S5', 'PASS', { history: s6 }), requested_stage: 'TRADE_PLAN' });
   assert.equal(ok.verdict, 'PASS');
   assert.equal(ok.nextAction, 'ALLOW_TRADE_PLAN');
+  assert.equal(ok.resolution.plan_class, 'PRODUCTION');
+});
+
+test('a FAIL anywhere seals the candidate', () => {
   const sealed = engine.evaluate(fx.request('S3', 'PASS', { history: [...fx.historyBefore('S3').slice(0, 2), { stage: 'S2', verdict: 'FAIL', output_sha256: fx.sha('prev-S2') }] }));
   assert.equal(sealed.verdict, 'INVALID_INPUT');
   assert.ok(sealed.reasonCodes.includes('PROMOTION_CANDIDATE_SEALED_NOT_DO:S2'));

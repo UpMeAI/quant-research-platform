@@ -121,14 +121,36 @@ test('pre-cutoff K2 keeps its own text until its endpoint: INSUFFICIENT is 做 (
   assert.equal(out.nextAction, 'RUN_TO_REVIEW_ENDPOINT');
 });
 
-test('pre-cutoff K2 at its endpoint is judged once under 4.2, with the policy supplied for it', () => {
-  const t = fx.terms({ k2_frozen_at: fx.LEGACY_K2_FROZEN_AT, review_endpoint: { kind: 'DATE', value: '2026-11-30' } });
-  const out = run({ effect_ci: fx.ci(-0.02, 0.001) }, { t });
+test('pre-cutoff K2 at its endpoint is judged once under 4.2 with the built-in AMENDMENT_1_DEFAULT_POLICY (ruling 11-23 (2))', () => {
+  assert.deepEqual({ ...insufficient.AMENDMENT_1_DEFAULT_POLICY }, { source: 'PLAN_V1_1_AMENDMENT_1_AI_RESEARCH_LAB', amendment_sha256_prefix: '0e2f3181', decision_id: 'PLAN-V1-20261123-01', horizon_months: 12, p_threshold: 0.5, budget_share_max: 0.2, resume_sample_fraction: 0.5, max_failed_rechecks: 3 });
+  const noPolicy = () => { const t = fx.terms({ k2_frozen_at: fx.LEGACY_K2_FROZEN_AT, review_endpoint: { kind: 'DATE', value: '2026-11-30' }, next_review_endpoint: { kind: 'DATE', value: '2027-06-01' } }); delete t.insufficient_policy; return t; };
+  const out = run({ effect_ci: fx.ci(-0.02, 0.001) }, { t: noPolicy() });
   assert.equal(out.resolution.code, 'PAUSE_LOW_VALUE');
-  const noPolicy = fx.terms({ k2_frozen_at: fx.LEGACY_K2_FROZEN_AT, review_endpoint: { kind: 'DATE', value: '2026-11-30' } }); delete noPolicy.insufficient_policy;
-  const bad = run({}, { t: noPolicy });
+  assert.equal(out.resolution.policy_source, 'AMENDMENT_1_DEFAULT_POLICY');
+  assert.ok(!out.reasonCodes.includes('PROMOTION_POLICY_MISSING_AT_ENDPOINT'));
+  // the defaults decide: 12 months, 0.5, 20%, 3 re-checks
+  assert.equal(run({ events_per_month: 2, observed_sample_n: 100 }, { t: noPolicy() }).resolution.code, 'PAUSE_LOW_POWER');
+  assert.equal(run({ cost_to_continue: { model_cost_cny: 201, core_hours: 1 } }, { t: noPolicy() }).resolution.code, 'PAUSE_BUDGET');
+  const cont = run({}, { t: noPolicy() });
+  assert.equal(cont.resolution.code, 'CONTINUE_FORWARD_SHADOW_OR_SAMPLE');
+  assert.deepEqual(cont.resolution.review_endpoint, { kind: 'DATE', value: '2027-06-01' });
+  // no per-item tuning: a different policy on a legacy K2 is refused, an identical one is accepted
+  const tuned = fx.terms({ k2_frozen_at: fx.LEGACY_K2_FROZEN_AT, review_endpoint: { kind: 'DATE', value: '2026-11-30' }, insufficient_policy: { ...fx.POLICY, horizon_months: 3 } });
+  const bad = run({}, { t: tuned });
   assert.equal(bad.verdict, 'INVALID_INPUT');
-  assert.ok(bad.reasonCodes.includes('PROMOTION_POLICY_MISSING_AT_ENDPOINT'));
+  assert.ok(bad.reasonCodes.includes('PROMOTION_LEGACY_POLICY_TUNING_NOT_ALLOWED'));
+  assert.equal(run({}, { t: fx.terms({ k2_frozen_at: fx.LEGACY_K2_FROZEN_AT, review_endpoint: { kind: 'DATE', value: '2026-11-30' }, next_review_endpoint: { kind: 'DATE', value: '2027-06-01' } }) }).verdict, 'INSUFFICIENT');
+  // a new K2 never falls back to the defaults
+  const t = fx.terms(); delete t.insufficient_policy;
+  assert.ok(run({}, { t }).reasonCodes.includes('PROMOTION_POLICY_MISSING'));
+});
+
+test('recheck of a legacy K2 uses the built-in defaults too (3 failed rechecks)', () => {
+  const t = fx.terms({ k2_frozen_at: fx.LEGACY_K2_FROZEN_AT, review_endpoint: { kind: 'DATE', value: '2026-11-30' } }); delete t.insufficient_policy;
+  const p = run({ events_per_month: 2, observed_sample_n: 100 }, { t });
+  assert.equal(p.resolution.code, 'PAUSE_LOW_POWER');
+  const r = engine.recheckPaused({ paused: p, terms: t, observed: { observed_sample_n: 10, events_per_month: 1 }, history: failedCheck(2), as_of: '2027-03-05T10:00:00+08:00' });
+  assert.equal(r.state, 'PAUSE_ESCALATE_TO_OWNER');
 });
 
 test('sample-count endpoint: reached when the observed sample reaches the endpoint value', () => {
