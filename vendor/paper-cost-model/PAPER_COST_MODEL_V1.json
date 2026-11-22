@@ -1,0 +1,403 @@
+{
+  "contract": "PAPER_TRADING_COST_MODEL_V1",
+  "frozenBy": "plan-coord",
+  "markets": {
+    "CN_A": {
+      "INDEX_SLEEVE_ETF": {
+        "effectiveFrom": "T_start",
+        "items": {
+          "BORROW": {
+            "reasonCode": "NO_MARGIN",
+            "state": "NOT_APPLICABLE"
+          },
+          "CAT_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "COMMISSION": {
+            "bps": 2.5,
+            "side": "BOTH",
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "CHARGED"
+          },
+          "DIVIDEND_TAX": {
+            "reasonCode": "ETF",
+            "state": "NOT_APPLICABLE"
+          },
+          "EXCHANGE_FEE": {
+            "components": [
+              {
+                "bps": 0.4,
+                "name": "JINGSHOU",
+                "source": "SOURCES.md row R2",
+                "venue": "SH"
+              },
+              {
+                "bps": 0,
+                "name": "ZHENGGUAN",
+                "source": "SOURCES.md row R6",
+                "venue": "SH"
+              },
+              {
+                "bps": 0.4,
+                "name": "JINGSHOU",
+                "source": "SOURCES.md row R4",
+                "venue": "SZ"
+              },
+              {
+                "bps": 0,
+                "name": "ZHENGGUAN",
+                "source": "SOURCES.md row R6",
+                "venue": "SZ"
+              }
+            ],
+            "exemptFundKinds": [
+              "MONEY_MARKET_ETF",
+              "BOND_ETF"
+            ],
+            "ownerChoice": "a",
+            "ownerStar": "C5",
+            "side": "BOTH",
+            "source": "SOURCES.md rows R2, R4, R6 (基金/ETF 经手费 0.004% both sides; 证管费 exempt for funds)",
+            "state": "CHARGED"
+          },
+          "FINRA_TAF": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "FUNDING": {
+            "reasonCode": "SPOT",
+            "state": "NOT_APPLICABLE"
+          },
+          "MIN_COMMISSION_TOPUP": {
+            "minPerFillCny": 5,
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "CHARGED"
+          },
+          "SEC_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "SLIPPAGE": {
+            "bps": 10,
+            "mode": "PRICE_ADJUST",
+            "side": "BOTH",
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "CHARGED"
+          },
+          "STAMP_DUTY": {
+            "reasonCode": "ETF_EXEMPT",
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "NOT_APPLICABLE"
+          },
+          "TRANSFER_FEE": {
+            "ownerStar": "C5",
+            "reasonCode": "SOURCE_UNSETTLED",
+            "source": "SOURCES.md row R7 (chinaclear.cn notices not retrievable by automated fetch; ETF 过户费 not settled by a captured official source)",
+            "state": "UNKNOWN"
+          }
+        }
+      },
+      "STOCK_BOOK": {
+        "effectiveFrom": "T_start",
+        "items": {
+          "BORROW": {
+            "reasonCode": "NO_MARGIN",
+            "state": "NOT_APPLICABLE"
+          },
+          "CAT_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "COMMISSION": {
+            "bps": 2.5,
+            "side": "BOTH",
+            "signedTotalWithTransferBps": 2.6,
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "CHARGED"
+          },
+          "DIVIDEND_TAX": {
+            "state": "CONDITIONAL",
+            "whenOffReasonCode": "E1_OFF",
+            "whenOn": "E1"
+          },
+          "EXCHANGE_FEE": {
+            "components": [
+              {
+                "bps": 0.341,
+                "name": "JINGSHOU",
+                "source": "SOURCES.md row R1",
+                "venue": "SH"
+              },
+              {
+                "bps": 0.2,
+                "name": "ZHENGGUAN",
+                "source": "SOURCES.md row R5",
+                "venue": "SH"
+              },
+              {
+                "bps": 0.341,
+                "name": "JINGSHOU",
+                "source": "SOURCES.md row R3",
+                "venue": "SZ"
+              },
+              {
+                "bps": 0.2,
+                "name": "ZHENGGUAN",
+                "source": "SOURCES.md row R5",
+                "venue": "SZ"
+              }
+            ],
+            "ownerChoice": "a",
+            "ownerStar": "C5",
+            "side": "BOTH",
+            "source": "SOURCES.md rows R1, R3, R5 (经手费 0.00341% both sides, 证管费 0.002% both sides)",
+            "state": "CHARGED"
+          },
+          "FINRA_TAF": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "FUNDING": {
+            "reasonCode": "SPOT",
+            "state": "NOT_APPLICABLE"
+          },
+          "MIN_COMMISSION_TOPUP": {
+            "minPerFillCny": 5,
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "CHARGED"
+          },
+          "SEC_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "SLIPPAGE": {
+            "bps": 10,
+            "mode": "PRICE_ADJUST",
+            "side": "BOTH",
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "CHARGED"
+          },
+          "STAMP_DUTY": {
+            "schedule": [
+              {
+                "bps": 10,
+                "from": "2008-09-19"
+              },
+              {
+                "bps": 5,
+                "from": "2023-08-28"
+              }
+            ],
+            "side": "SELL",
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json",
+            "state": "CHARGED"
+          },
+          "TRANSFER_FEE": {
+            "bps": 0.1,
+            "side": "BOTH",
+            "source": "Ashare-V6@52bac4c8 config/v6/research/index_sleeve_v5_etf_limit_band_all_funds.json; docs/contracts/ASHARE_V6_FOUR_BOOK_ACCEPTANCE_V1_AMENDMENT_10.md; AMENDMENT_12.md; config/v6/research/stock_book_paper_v4.json (A12: Shanghai/Shenzhen current standard)",
+            "state": "CHARGED"
+          }
+        }
+      }
+    },
+    "CRYPTO": {
+      "_BINANCE_SPOT": {
+        "books": [
+          "CRYPTO_FUNDING_BASIS_CARRY_V2 (spot leg)"
+        ],
+        "effectiveFrom": "T_start",
+        "items": {
+          "BORROW": {
+            "reasonCode": "FULLY_FUNDED_SPOT",
+            "state": "NOT_APPLICABLE"
+          },
+          "CAT_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "COMMISSION": {
+            "makerBps": 10,
+            "source": "Binance support FAQ 360033544231 (regular user maker 0.02%, taker 0.05%); smartflow@9b78c60f docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md:187-188 (VIP0 taker, no BNB discount; spot 0.10%)",
+            "state": "CHARGED",
+            "takerBps": 10,
+            "tier": "VIP0_NO_BNB_DISCOUNT"
+          },
+          "DIVIDEND_TAX": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "EXCHANGE_FEE": {
+            "reasonCode": "IN_COMMISSION",
+            "state": "NOT_APPLICABLE"
+          },
+          "FINRA_TAF": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "FUNDING": {
+            "reasonCode": "SPOT",
+            "state": "NOT_APPLICABLE"
+          },
+          "MIN_COMMISSION_TOPUP": {
+            "reasonCode": "VENUE",
+            "state": "NOT_APPLICABLE"
+          },
+          "SEC_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "SLIPPAGE": {
+            "rule": "carry book VWAP",
+            "state": "CHARGED"
+          },
+          "STAMP_DUTY": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "TRANSFER_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          }
+        }
+      },
+      "_BINANCE_USDT_PERP": {
+        "books": [
+          "C17_V2_4000USDT",
+          "QUICK_SHOT_V3_1000USDT",
+          "CRYPTO_FUNDING_BASIS_CARRY_V2 (perp leg)"
+        ],
+        "effectiveFrom": "T_start",
+        "items": {
+          "BORROW": {
+            "reasonCode": "PERP_NO_BORROW",
+            "state": "NOT_APPLICABLE"
+          },
+          "CAT_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "COMMISSION": {
+            "makerBps": 2,
+            "measuredWins": "BINANCE_USER_TRADES when present and higher",
+            "source": "Binance support FAQ 360033544231 (regular user maker 0.02%, taker 0.05%); smartflow@9b78c60f docs/CRYPTO_FUNDING_BASIS_CARRY_RESEARCH_ACCEPTANCE_V1.md:187-188 (VIP0 taker, no BNB discount; spot 0.10%)",
+            "state": "CHARGED",
+            "takerBps": 5,
+            "tier": "VIP0_NO_BNB_DISCOUNT"
+          },
+          "DIVIDEND_TAX": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "EXCHANGE_FEE": {
+            "reasonCode": "IN_COMMISSION",
+            "state": "NOT_APPLICABLE"
+          },
+          "FINRA_TAF": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "FUNDING": {
+            "rule": "venue settlement events in (entry, exit]; carry per settlement row; unreadable = UNKNOWN, never 0",
+            "state": "CHARGED"
+          },
+          "MIN_COMMISSION_TOPUP": {
+            "reasonCode": "VENUE",
+            "state": "NOT_APPLICABLE"
+          },
+          "SEC_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "SLIPPAGE": {
+            "rule": "per book frozen model: C17 5 bp/side max(model, depth measured); QS 24h-turnover tiers 2/4/6 bp; carry book VWAP",
+            "state": "CHARGED"
+          },
+          "STAMP_DUTY": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "TRANSFER_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          }
+        }
+      }
+    },
+    "US": {
+      "_ALL_US_ETF_BOOKS": {
+        "books": [
+          "US_V5_ETF_3000USD",
+          "US_CORE"
+        ],
+        "effectiveFrom": "T_start",
+        "items": {
+          "BORROW": {
+            "guard": "register before merge if any short or margin path exists",
+            "reasonCode": "LONG_ONLY_CASH",
+            "state": "NOT_APPLICABLE"
+          },
+          "CAT_FEE": {
+            "side": "BOTH",
+            "source": "smartflow@9b78c60f trading-system-v2/docs/US_REGULATORY_FEE_SOURCE_RESULT_V2.md + reports/us_regulatory_fee_source_v2/registry.json (Alpaca BrokFeeSched rev 2026-09-01; FINRA 2026 TAF)",
+            "state": "CHARGED",
+            "usdPerShare": 3e-06
+          },
+          "COMMISSION": {
+            "reasonCode": "ALPACA_ZERO_COMMISSION",
+            "source": "smartflow@9b78c60f trading-system-v2/docs/US_REGULATORY_FEE_SOURCE_RESULT_V2.md + reports/us_regulatory_fee_source_v2/registry.json (Alpaca BrokFeeSched rev 2026-09-01; FINRA 2026 TAF)",
+            "state": "CHARGED",
+            "usd": 0
+          },
+          "DIVIDEND_TAX": {
+            "reasonCode": "APPENDIX_PENDING",
+            "state": "NOT_APPLICABLE"
+          },
+          "EXCHANGE_FEE": {
+            "reasonCode": "IN_REGULATORY_ITEMS",
+            "state": "NOT_APPLICABLE"
+          },
+          "FINRA_TAF": {
+            "capPerTradeUsd": 9.79,
+            "effectiveFrom": "2026-01-01",
+            "side": "SELL",
+            "source": "smartflow@9b78c60f trading-system-v2/docs/US_REGULATORY_FEE_SOURCE_RESULT_V2.md + reports/us_regulatory_fee_source_v2/registry.json (Alpaca BrokFeeSched rev 2026-09-01; FINRA 2026 TAF)",
+            "state": "CHARGED",
+            "usdPerShare": 0.000195
+          },
+          "FUNDING": {
+            "reasonCode": "SPOT",
+            "state": "NOT_APPLICABLE"
+          },
+          "MIN_COMMISSION_TOPUP": {
+            "reasonCode": "ZERO_COMMISSION",
+            "state": "NOT_APPLICABLE"
+          },
+          "SEC_FEE": {
+            "rateOnNotional": 2.06e-05,
+            "side": "SELL",
+            "source": "smartflow@9b78c60f trading-system-v2/docs/US_REGULATORY_FEE_SOURCE_RESULT_V2.md + reports/us_regulatory_fee_source_v2/registry.json (Alpaca BrokFeeSched rev 2026-09-01; FINRA 2026 TAF)",
+            "state": "CHARGED"
+          },
+          "SLIPPAGE": {
+            "modelBps": 5,
+            "rule": "max(model, measured fill vs decision mid); cash debits only the excess over measured",
+            "side": "BOTH",
+            "state": "CHARGED"
+          },
+          "STAMP_DUTY": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          },
+          "TRANSFER_FEE": {
+            "reasonCode": "MARKET",
+            "state": "NOT_APPLICABLE"
+          }
+        }
+      }
+    }
+  },
+  "note": "r2 FROZEN by plan-coord (PAPER_TRADING_COST_MODEL_V1_FREEZE_1_NOTE_1): only r1's SOURCE_PENDING items replaced from official SSE/SZSE/CSRC pages (w22-sources/SOURCES.md 9e99374e). INDEX_SLEEVE_ETF TRANSFER_FEE stays UNKNOWN (SOURCE_UNSETTLED) until the CSDC official fee schedules are captured (r3). Bps of notional per side.",
+  "registryRevision": 2
+}

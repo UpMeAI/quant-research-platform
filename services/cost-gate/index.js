@@ -23,6 +23,7 @@
  */
 const ledger = require('../trial-ledger');
 const addendum = require('../research-framework-amendment-20261112-addendum-1');
+const coverage = require('./coverage');
 
 const { FREEZE, EFFECTIVE_FROM } = addendum;
 const RUN_LOG_SCHEMA = 'RESEARCH_RUN_LOG_V1';
@@ -121,7 +122,10 @@ function buildCatalogue() {
 const CATALOGUE = buildCatalogue();
 
 /** 门的默认读法（导入器只有一处调用、不带选项）；只在测试里经 internals.setDefaults 临时替换。 */
-let DEFAULTS = Object.freeze({ effectiveFrom: EFFECTIVE_FROM, freeze: FREEZE });
+let DEFAULTS = Object.freeze({ effectiveFrom: EFFECTIVE_FROM, freeze: FREEZE, coverageFrom: coverage.COVERAGE_EFFECTIVE_FROM });
+
+/** ★C4 覆盖面检查是否适用：K2 冻结在 coverageFrom（合同冻结时刻）及以后；更早的 K2 保留各自写明的成本，不读本检查。 */
+const coverageApplies = (entry, coverageFrom = DEFAULTS.coverageFrom) => typeof entry.k2_frozen_at === 'string' && Date.parse(entry.k2_frozen_at) >= Date.parse(coverageFrom);
 
 /** 这一题是否过门（只看题本身，不看冻结页是否已绑定）。 */
 function applies(entry, effectiveFrom = DEFAULTS.effectiveFrom) {
@@ -185,7 +189,7 @@ const familyRuns = (entry, doc) => doc.runs.filter((r) => r.family_id === entry.
 const atOf = (entry, run, i) => `${entry.id}:runs[${run.config_label || i}]`;
 
 /** 一行运行：角色与阶段取台账登记行，按门内 / 只看信号 / 其余判读数种类与成本。 */
-function checkRun(entry, run, i, regs) {
+function checkRun(entry, run, i, regs, coverageOn = false) {
   const at = atOf(entry, run, i);
   const reg = registrationOf(at, run, regs);
   const kind = run.verdict_metric_kind;
@@ -200,7 +204,13 @@ function checkRun(entry, run, i, regs) {
   need(RETURN_KINDS.includes(kind), 'METRIC_KIND_MISMATCH', `${at}:${reg.role}/${reg.stage}:${kind}`);
   if (scope !== 'COST_GATED') return row;
   need(isText(run.cost_model_ref), 'REF_MISSING', `${at}:${run.trial_id}`);
-  return { ...row, model: assessCostModel(run, reg.market, { at, label: reg.role }) };
+  const out = { ...row, model: assessCostModel(run, reg.market, { at, label: reg.role }) };
+  if (!coverageOn) return out;
+  // ★C4：佣金与滑点下限照旧（上一行）；其余成本项按登记文件收齐，缺一项即 NET_PARTIAL
+  const market = floorMarketOf(reg.market);
+  need(market, 'COVERAGE_NO_MARKET', `${at}:market=${reg.market}`);
+  const own = isObj(run.cost_breakdown) ? run.cost_breakdown : {};
+  return { ...out, coverage: coverage.requireComplete({ items: own.items, books: run.cost_book, flags: run.cost_flags }, market, at) };
 }
 
 /**
@@ -227,7 +237,7 @@ function assessCostModel(source, market, { at = 'cost_model', label = null } = {
  * @param {{runLogBytes: () => Buffer|null}} files 按 sha256 复验后的运行日志字节（只在过门时才读）
  * @param {{effectiveFrom?: string, freeze?: object}} [opts] 只给测试用；导入器不传，取附录 1 冻结页的常量
  */
-function check(entry, { runLogBytes = () => null } = {}, { effectiveFrom = DEFAULTS.effectiveFrom, freeze = DEFAULTS.freeze } = {}) {
+function check(entry, { runLogBytes = () => null } = {}, { effectiveFrom = DEFAULTS.effectiveFrom, freeze = DEFAULTS.freeze, coverageFrom = DEFAULTS.coverageFrom } = {}) {
   const scope = applies(entry, effectiveFrom);
   if (!scope.applies) return { applies: false, reason: scope.reason };
   need(addendum.isBound(freeze), 'FREEZE_UNBOUND', `${entry.id}:${freeze && freeze.path}:${freeze && freeze.state}`);
@@ -235,7 +245,8 @@ function check(entry, { runLogBytes = () => null } = {}, { effectiveFrom = DEFAU
   const regs = registrations(entry);
   const family = familyRuns(entry, doc);
   need(family.length, 'NO_RUNS', `${entry.id}:${entry.strategy_ref}`);
-  const rows = family.map((r, i) => checkRun(entry, r, i, regs));
+  const coverageOn = coverageApplies(entry, coverageFrom);
+  const rows = family.map((r, i) => checkRun(entry, r, i, regs, coverageOn));
   const gated = rows.filter((r) => r.scope === 'COST_GATED');
   const signal = rows.filter((r) => r.scope === 'SIGNAL_ONLY');
   if (!gated.length) need(signal.length === rows.length, 'NO_VERDICT_RUN', `${entry.id}:${entry.strategy_ref}`);
@@ -243,7 +254,17 @@ function check(entry, { runLogBytes = () => null } = {}, { effectiveFrom = DEFAU
   for (const r of gated) if (!models.has(r.model.model_id)) models.set(r.model.model_id, r.model);
   return { applies: true, state: gated.length ? 'PASS' : 'SIGNAL_ONLY', effective_from: effectiveFrom, k2_frozen_at: entry.k2_frozen_at,
     freeze: { path: freeze.path, sha256: freeze.sha256, state: freeze.state },
-    cost_gated_runs: gated.length, signal_only_runs: signal.length, other_runs: rows.length - gated.length - signal.length, cost_models: [...models.values()] };
+    cost_gated_runs: gated.length, signal_only_runs: signal.length, other_runs: rows.length - gated.length - signal.length, cost_models: [...models.values()],
+    ...(coverageOn ? { cost_coverage: coverageBlock(gated, coverageFrom) } : {}) };
+}
+
+/** 覆盖面检查的锁块：钉住登记文件与合同的 sha256（过门的行都已 COMPLETE，否则上面已拒绝）。只在 K2 冻结于生效时刻之后才有。 */
+function coverageBlock(gated, coverageFrom) {
+  const registry = coverage.loadRegistry();
+  const unknown = new Set();
+  for (const r of gated) for (const k of (r.coverage ? r.coverage.registry_unknown_items : [])) unknown.add(k);
+  return { registry_sha256: registry.sha256, registry_revision: registry.registryRevision, contract_sha256: coverage.CONTRACT_SHA256, effective_from: coverageFrom,
+    checked_runs: gated.length, registry_unknown_items: [...unknown].sort() };
 }
 
 /**
@@ -272,7 +293,7 @@ function withDefaults(patch, fn) {
 }
 
 module.exports = {
-  FREEZE, EFFECTIVE_FROM, RUN_LOG_SCHEMA, IN_SCOPE_ROLES, IN_SCOPE_STAGES, SIGNAL_ROLE, SIGNAL_STAGE, RETURN_KINDS, SIGNAL_KINDS, ALWAYS_GROSS, CATALOGUE, FLOORS,
+  FREEZE, EFFECTIVE_FROM, COVERAGE_EFFECTIVE_FROM: coverage.COVERAGE_EFFECTIVE_FROM, coverage, RUN_LOG_SCHEMA, IN_SCOPE_ROLES, IN_SCOPE_STAGES, SIGNAL_ROLE, SIGNAL_STAGE, RETURN_KINDS, SIGNAL_KINDS, ALWAYS_GROSS, CATALOGUE, FLOORS,
   CostGateError, modelIdOf, classify, floorMarketOf, applies, check, costGatedScope, assessCostModel,
   internals: { parseRunLog, checkRun, scopeOf, buildCatalogue, setDefaults, withDefaults },
 };
