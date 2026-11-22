@@ -46,7 +46,7 @@ const MUTANTS = [
   { id: 'M18', guard: 'V8: data must be on this host', file: VAL, find: 'if (!inv.has(key)) codes.push(', replace: 'if (false) codes.push(', tests: [T1] },
   { id: 'M19', guard: 'V9: TRL rows strictly before the freeze time (AQ-40)', file: VAL, find: 'if (row && !(Date.parse(row.registered_at) < frozen)) late.push(', replace: 'if (row && !(Date.parse(row.registered_at) <= frozen)) late.push(', tests: [T2] },
   { id: 'M20', guard: 'V9: G-TRIAL-PRE check runs', file: VAL, find: 'try { trialGates.internals.checkPre(entry, Buffer.from(text), rows); }', replace: 'try { /* skipped */ }', tests: [T1] },
-  { id: 'M21', guard: 'V10: no network for the agent', file: VAL, find: "else if (r.network.egress !== 'NONE') codes.push(", replace: 'else if (false) codes.push(', tests: [T1] },
+  { id: 'M21', guard: 'V10: no network for the agent', file: VAL, find: "else if (iso.network.egress !== 'NONE') codes.push(", replace: 'else if (false) codes.push(', tests: [T1] },
   { id: 'M22', guard: 'V10: canaries must be unreadable', file: VAL, find: "else if (cn.probes.some((p) => p.readable !== false)) codes.push('PREREG_ISOLATION_CANARY');", replace: '', tests: [T1] },
   { id: 'M23', guard: 'V10: bundle from the deterministic builder', file: VAL, find: 'b.builder !== bundleBuilder.BUILDER ||', replace: 'false ||', tests: [T1] },
   { id: 'M24', guard: 'V11: weekly cap', file: VAL, find: '>= rf1118.CAPS.per_week) codes.push', replace: '>= rf1118.CAPS.per_week + 1) codes.push', tests: [T2] },
