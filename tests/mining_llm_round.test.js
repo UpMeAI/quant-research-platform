@@ -409,7 +409,7 @@ test('B8b run.sh：run.sh 被杀（整个进程组）时，网络那一步容器
   const RUN_SH = path.join(ROOT, 'deploy/research-lane/round-runner/run.sh');
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fake-docker-kill-'));
   const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-docker-log-')), 'log');
-  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in *rf1116-generate-llm*) sleep 20 ;; esac\nexit 0\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\ncase "$1" in ps) exit 0 ;; esac\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in *rf1116-generate-llm*) sleep 20 ;; esac\nexit 0\n', { mode: 0o755 });
   const child = spawn('bash', [RUN_SH, 'generate-llm', 'a'.repeat(64)], { detached: true, stdio: 'ignore', env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log } });
   const exited = new Promise((res) => child.on('exit', (code, sig) => res({ code, sig })));
   for (let i = 0; i < 200 && !(fs.existsSync(log) && fs.readFileSync(log, 'utf8').includes('rf1116-generate-llm')); i += 1) await new Promise((r) => setTimeout(r, 25));
@@ -634,7 +634,7 @@ test('B16 调用途中崩了的请求（.inflight 在，或网络那一步答了
   assert.equal(fs.readdirSync(dir).filter((n) => n.endsWith('.req.json')).length, 1, 'no new request was written while the round waits');
   // 同一个请求被网络那一步答成 CRASHED（它先起来、见到 .inflight）：generate 也要记（它没人等）
   const out2 = freshData();
-  const r2 = openLlm({ cap: 20 });
+  const r2 = openLlm({ cap: 10 });
   const dir2 = llm.ensureExchangeDir(path.join(out2, 'llm-exchange'));
   const k2 = `${r2.round_id}:C001-${prep.request_sha256.slice(0, 8)}x`;
   llm.writeRequest(dir2, { kind: 'GENERATE', key: k2, round_id: r2.round_id, body: prep.body });

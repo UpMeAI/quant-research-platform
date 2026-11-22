@@ -71,7 +71,7 @@ const MUTANTS = [
   { id: 'M45', guard: 'a timeout or reset after sending is metered at the upper bound', file: RRI, find: "const unknownCost = res.sent && (res.outcome === 'WAITING_STEP_CRASHED_MID_CALL' || res.outcome === 'WAITING_PROVIDER_UNAVAILABLE');", replace: "const unknownCost = res.sent && res.outcome === 'WAITING_STEP_CRASHED_MID_CALL';", tests: [ROUND] },
   { id: 'M46', guard: 'the key mount exists only when the key file does (Docker would create a directory)', file: RUNSH, find: 'if [ -f "$KEY_FILE" ]; then KEYM=', replace: 'if true; then KEYM=', tests: [ROUND, RUNNER] },
   { id: 'M47', guard: 'the LLM step is stopped by an EXIT trap', file: RUNSH, find: "  trap 'docker stop rf1116-llm-step > /dev/null 2>&1 || true' EXIT\n", replace: '', tests: [ROUND, RUNNER] },
-  { id: 'M48', guard: 'holdout results carry the round generator (scoring side)', file: 'services/mining-sandbox/round-runner/holdout-scoring.js', find: "generator: c.generator || 'AI_MINED_GP',", replace: "generator: 'AI_MINED_GP',", tests: [ROUND] },
+  { id: 'M48', guard: 'holdout results carry the round generator (scoring side)', file: 'services/mining-sandbox/round-runner/holdout-scoring.js', find: "formula: c.formula, generator: c.generator,", replace: "formula: c.formula, generator: 'AI_MINED_GP',", tests: [ROUND] },
   { id: 'M49', guard: 'holdout results carry the round generator (runner side)', file: RRI, find: "parsed: dsl.parse(p.formulas.get(id), f.dslSpace), generator: generatorMode })),", replace: "parsed: dsl.parse(p.formulas.get(id), f.dslSpace) })),", tests: [ROUND] },
   { id: 'M50', guard: 'a budget or ability stop selects on the attempts so far', file: 'services/mining-sandbox/round-runner/cli.js', find: 'if (g.llm.generation_closed && g.total > 0) {', replace: 'if (false) {', tests: [ROUND] },
   { id: 'M51', guard: 'llm-init withdraws requests left by the previous run', file: 'services/mining-sandbox/round-runner/cli.js', find: 'withdrawn: llmMod.withdrawUnanswered(exchange)', replace: 'withdrawn: []', tests: [ROUND] },
@@ -85,6 +85,13 @@ const MUTANTS = [
   { id: 'M59', guard: 'the exchange directory has the sticky bit', file: LLM, find: 'const EXCHANGE_MODE = 0o1777;', replace: 'const EXCHANGE_MODE = 0o777;', tests: [ROUND] },
   { id: 'M60', guard: 'the probe sends the production max_tokens', file: LLM, find: "content: 'Reply with the single word OK.' }], config });", replace: "content: 'Reply with the single word OK.' }], config, maxTokens: 64 });", tests: [UNIT] },
   { id: 'M61', guard: 'config: the empty-reply stop must be a positive integer', file: LLM, find: ' && isPosInt(c.limits.empty_replies_stop), ', replace: ', ', tests: [UNIT] },
+  { id: 'M62', guard: 'in-flight requests are never withdrawn (they may have been billed)', file: LLM, find: "    if (fs.existsSync(path.join(dir, `${exchangeName(req.key)}.inflight`))) continue; // 调用途中的不撤回：可能已经计费，由 findCrashed / generate 按上界记账\n", replace: '', tests: [ROUND] },
+  { id: 'M63', guard: 'a crashed in-flight request is recorded at the upper bound before anything new is sent', file: RRI, find: 'if (crashed.length) {', replace: 'if (false) {', tests: [ROUND] },
+  { id: 'M64', guard: 'a stopped (empty replies) round stays stopped on resume', file: RRI, find: "    if (prior[i].outcome === 'STOPPED_EMPTY_REPLIES') continue;\n", replace: '', tests: [ROUND] },
+  { id: 'M65', guard: 'a selected round is refused on resume before any probe', file: RRI, find: "  need(!rounds.selectionOf(roundId), 'GENERATION_CLOSED', `${roundId}: validation-fold selection recorded`);", replace: '', tests: [ROUND] },
+  { id: 'M66', guard: 'a holdout result is never silently labelled with a default generator', file: 'services/mining-sandbox/round-runner/holdout-scoring.js', find: "for (const c of candidates) if (c.generator !== 'AI_MINED_GP' && c.generator !== 'AI_MINED_LLM') fail('GENERATOR_MISSING', c.candidate_id);", replace: '', tests: [ROUND] },
+  { id: 'M67', guard: 'LLM runs are mutually exclusive (busy check before llm-init)', file: RUNSH, find: '    echo "run.sh: another LLM run is active', replace: '    true "run.sh: another LLM run is active', tests: [ROUND] },
+  { id: 'M68', guard: 'the EXIT trap is set only after the step container started', file: RUNSH, find: '--entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange\n  trap \'docker stop', replace: '--entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange || true\n  trap \'docker stop', tests: [ROUND] },
 ];
 
 function listFailures(out) {

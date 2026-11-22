@@ -270,7 +270,7 @@ The evidence sha256 is that of `artifacts/coordinator/evidence/rf1116-round1-def
 
 Brief 93a93509 + addendum 2 5ab7b720. The first real LLM round is 2026-12-01 (November's two rounds are used); nothing here opens one earlier.
 
-**Containers.** `generate-llm` and `resume-llm` start `rf1116-llm-step` detached, run the generate container (`--network none`, name `rf1116-generate-llm` or `rf1116-generate-llm-resume`, so the window pause matches `rf1116-generate-*`), and stop the step container whatever the exit code. `llm-ping` runs the ping container. The exchange directory `$OUT/llm-exchange` is created by `llm-init` (the runner image, mode 1777), which also withdraws every unanswered request left by the previous run, before the step container exists. The step container is stopped by an EXIT trap (also on SIGTERM, SIGHUP, SIGINT), so it does not outlive `run.sh`; only SIGKILL skips it.
+**Containers.** `generate-llm` and `resume-llm` start `rf1116-llm-step` detached, run the generate container (`--network none`, name `rf1116-generate-llm` or `rf1116-generate-llm-resume`, so the window pause matches `rf1116-generate-*`), and stop the step container whatever the exit code. `llm-ping` runs the ping container. The exchange directory `$OUT/llm-exchange` is created by `llm-init` (the runner image, mode 1777), which also withdraws every unanswered request left by the previous run (except one that was in flight: `generate` records that one at the upper bound), before the step container exists. The step container is stopped by an EXIT trap (also on SIGTERM, SIGHUP, SIGINT), so it does not outlive `run.sh`; only SIGKILL skips it.
 
 | | `rf1116-llm-step` / `rf1116-llm-ping` | generate containers |
 |---|---|---|
@@ -281,6 +281,8 @@ Brief 93a93509 + addendum 2 5ab7b720. The first real LLM round is 2026-12-01 (No
 | limits | 1 CPU, 1g, 64 pids, read-only root, 16m tmpfs | as for GP |
 
 **The key (★K (b)).** Host file `/home/kayla/.config/qrp-research-key/deepseek-research.env`, variable `DEEPSEEK_RESEARCH_API_KEY`, mode 0600 (0400 also works), owner kayla. The Owner places it with `~/ops/linux-deepseek-research-key/install-deepseek-research-key.sh`. It is mounted read-only into the step container at `/run/secrets/deepseek-research.env`, and nowhere else, **only if the file exists**: Docker's `-v` creates a directory for a missing host path, which would turn the key path into a directory and break the installer. Without the file the step reports `FILE_ABSENT` and the run waits (exit 75). It is never printed, logged, written to a file or committed. A group- or other-readable file counts as absent.
+
+**One LLM run at a time.** `llm-ping`, `generate-llm` and `resume-llm` refuse to start (exit 73, no container command) while `rf1116-llm-step` or `rf1116-generate-llm*` is running: a second run would withdraw the live run's request or stop its step container. The step container's EXIT trap is set only after it started, so a failed start never stops another run's container.
 
 **Commands** (from the code directory, with `RF1116_RUNNER_IMAGE` set as for the other commands; build the image from the merge commit):
 
@@ -300,7 +302,7 @@ run.sh resume-llm <round_id>         # probe, then continue the same round, then
 
 **Per-round cost** (arithmetic in the PR body; token numbers are estimates until round 1's metered usage replaces them): about 20 calls of 10 formulas, about 130k input and 70k output tokens, about ¥1.5 off-peak; the hard cap is `limits.tokens_per_round` in the config.
 
-**Exchange directory risk.** Mode 1777 lets any local user who can reach `$OUT` plant a request (which would spend money) or a forged reply. The lane host is single-user (kayla) plus root; keep it that way.
+**Exchange directory risk.** Mode 1777 lets any local user who can reach `$OUT` plant a request (which would spend money) or a forged reply. The lane host is single-user (kayla) plus root; keep it that way. The sticky bit also means kayla cannot delete files the runner container created in it; clean up with a container (`docker run --rm -v "$OUT:/out" --entrypoint sh "$RF1116_RUNNER_IMAGE" -c 'rm -f /out/llm-exchange/*'`) only when no LLM run is active.
 
 ## Limits and timing
 

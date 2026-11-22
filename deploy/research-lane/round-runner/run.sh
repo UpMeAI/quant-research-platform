@@ -55,13 +55,22 @@ llm_init() {
 # Docker's -v CREATES A DIRECTORY for a missing host path, which would turn the key path into a directory (and break the Owner's installer).
 # So the key mount exists only when the key file does; without it the step reports FILE_ABSENT and the run waits (exit 75).
 llm_key_mount() { KEYM=(); if [ -f "$KEY_FILE" ]; then KEYM=(-v "$KEY_FILE:/run/secrets/deepseek-research.env:ro"); fi; }
+# One LLM run at a time. A second run would withdraw the live run's unanswered request (llm-init), or stop its step container (the EXIT trap).
+llm_busy_check() {
+  if [ -n "$(docker ps -q --filter name=rf1116-llm-step --filter name=rf1116-generate-llm)" ]; then
+    echo "run.sh: another LLM run is active (rf1116-llm-step or rf1116-generate-llm is running); wait for it or stop it first" >&2
+    exit 73
+  fi
+}
 # The step runs as container root (rootless Docker: host uid 1000 = the key file's owner), so it can read the 0600 key file without any capability.
-# It is stopped by an EXIT trap, so it does not outlive run.sh however run.sh ends (exit, SIGTERM, SIGHUP, SIGINT); only SIGKILL skips it.
+# Once it is up, an EXIT trap stops it: when run.sh exits, and after SIGTERM, SIGHUP or SIGINT as soon as the foreground docker run returns
+# (bash defers a trap until the foreground command ends). SIGKILL skips it. The trap is set only after "docker run -d" succeeded, so a failed start
+# (for example a name already in use) never stops somebody else's container.
 llm_step_up() {
   llm_key_mount
+  docker run -d --rm --name "rf1116-llm-step" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 ${KEYM[@]+"${KEYM[@]}"} -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange
   trap 'docker stop rf1116-llm-step > /dev/null 2>&1 || true' EXIT
   trap 'exit 143' TERM HUP INT
-  docker run -d --rm --name "rf1116-llm-step" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 ${KEYM[@]+"${KEYM[@]}"} -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js serve --exchange /exchange
 }
 
 cmd="${1:?generate|resume|mechanisms|review|score|rescore|fail-evaluation|llm-ping|generate-llm|resume-llm}"
@@ -95,12 +104,14 @@ case "$cmd" in
     docker run --rm --name "rf1116-score" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" ${EXM[@]+"${EXM[@]}"} -v "$OUT:/out:rw" "$IMAGE" score --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series ${EXO[@]+"${EXO[@]}"}
     ;;
   llm-ping)
+    llm_busy_check
     llm_init
     llm_key_mount
     docker run --rm --name "rf1116-llm-ping" --network bridge --read-only --tmpfs /tmp:rw,noexec,nosuid,size=16m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 ${KEYM[@]+"${KEYM[@]}"} -v "$EXCHANGE:/exchange:rw" --entrypoint node "$IMAGE" services/mining-llm-step/cli.js ping --exchange /exchange
     ;;
   generate-llm)
     sums="${2:?sha256 of the holdout SHA256SUMS at seal time}"
+    llm_busy_check
     llm_init
     llm_step_up
     set +e
@@ -111,6 +122,7 @@ case "$cmd" in
     ;;
   resume-llm)
     round="${2:?round_id}"
+    llm_busy_check
     llm_init
     llm_step_up
     set +e

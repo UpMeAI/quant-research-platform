@@ -153,6 +153,7 @@ function assertResumeGenerator({ roundId, mode }) {
   const h = rounds.roundHead(roundId);
   need(h, 'ROUND_NOT_FOUND', roundId);
   need(h.generator.mode === mode, 'GENERATOR_MISMATCH', `${roundId}: round is ${h.generator.mode}, asked ${mode}`);
+  need(!rounds.selectionOf(roundId), 'GENERATION_CLOSED', `${roundId}: validation-fold selection recorded`); // 选择过的轮不能续跑：探活之前就拒，不花探活的钱
   return h;
 }
 
@@ -355,13 +356,28 @@ function llmCall({ roundId, view, want, cfg, gen, outDir, opts }) {
     model_requested: config.model.api_model, model_reported: null, served_version: null, finish_reason: null, system_fingerprint: null, request_sha256: null, response_sha256: null, prompt_sha256: null,
     config_sha256: cfg.sha256, raw_error: null, reason: null };
   const record = (row) => rounds.recordLlmCall(roundId, { ...blank, ...row }, { recordedAt: now() });
+  // 上一次运行在调用途中崩了（步骤容器被停、被杀）而还没记账的请求：可能已经计费，按上界各记一行，写应答把它关上（之后的步骤不会再答），本轮等待
+  const crashed = llmMod.findCrashed(dir, roundId, prior.map((c) => c.key));
+  if (crashed.length) {
+    crashed.forEach((c, i) => {
+      const bound = llmMod.estimateTokens(c.body.messages) + c.body.max_tokens;
+      record({ seq: seq + i, key: c.key, outcome: 'WAITING_STEP_CRASHED_MID_CALL', final: true, sent: true, request_sha256: c.request_sha256, tokens_metered: bound, tokens_basis: 'UPPER_BOUND',
+        reason: 'the step stopped during this call: it may have been billed, metered at the upper bound' });
+      if (!c.answered) llmMod.writeAtomic(path.join(dir, `${llmMod.exchangeName(c.key)}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: c.key, kind: 'GENERATE', round_id: roundId,
+        request_sha256: c.request_sha256, answered_at: now(), outcome: 'WAITING_STEP_CRASHED_MID_CALL', sent: true, reason: 'SETTLED_BY_RUNNER' })}\n`);
+    });
+    return { halt: true, state: 'WAITING_STEP_CRASHED_MID_CALL' };
+  }
   if (used.calls >= config.limits.calls_per_round) {
     record({ outcome: 'STOPPED_CALL_CAP', reason: `calls ${used.calls} >= ${config.limits.calls_per_round}` });
     return { halt: true, state: 'STOPPED_CALL_CAP', closed: true };
   }
   // 连续空应答（常见于 finish_reason: length）不写尝试，会白花到调用次数上限：到数就停
   let trailing = 0;
-  for (let i = prior.length - 1; i >= 0 && prior[i].outcome === 'OK' && prior[i].formulas_returned === 0; i -= 1) trailing += 1;
+  for (let i = prior.length - 1; i >= 0; i -= 1) { // 停下来的轮续跑还是停：STOPPED_EMPTY_REPLIES 的行不打断计数
+    if (prior[i].outcome === 'STOPPED_EMPTY_REPLIES') continue;
+    if (prior[i].outcome === 'OK' && prior[i].formulas_returned === 0) trailing += 1; else break;
+  }
   if (trailing >= config.limits.empty_replies_stop) {
     record({ outcome: 'STOPPED_EMPTY_REPLIES', reason: `${trailing} consecutive replies without a formula` });
     return { halt: true, state: 'STOPPED_EMPTY_REPLIES', closed: true };

@@ -277,11 +277,29 @@ function withdrawUnanswered(dir, { roundId = null, keepKey = null, now = () => n
     if (!req || req.schema !== 'MINING_LLM_REQUEST_V1' || typeof req.key !== 'string') continue;
     if (roundId !== null && (req.kind !== 'GENERATE' || req.round_id !== roundId || req.key === keepKey)) continue;
     if (readResponse(dir, req.key)) continue;
+    if (fs.existsSync(path.join(dir, `${exchangeName(req.key)}.inflight`))) continue; // 调用途中的不撤回：可能已经计费，由 findCrashed / generate 按上界记账
     writeAtomic(path.join(dir, `${exchangeName(req.key)}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: req.key, kind: req.kind, round_id: req.round_id,
       request_sha256: req.request_sha256, answered_at: now(), outcome: 'WITHDRAWN_BY_RUNNER', sent: false, reason: roundId === null ? 'WITHDRAWN_AT_INIT' : 'PROMPT_CHANGED_BEFORE_ANSWER' })}\n`);
     withdrawn.push(req.key);
   }
   return withdrawn;
+}
+/**
+ * 本轮调用途中崩了、还没记账的请求：没有应答而 .inflight 在，或者网络那一步答了 WAITING_STEP_CRASHED_MID_CALL；键不在 recordedKeys 里。
+ * （步骤容器在调用途中被停、被杀，请求可能已经计费。）
+ * @returns {{key: string, request_sha256: string, body: object, answered: boolean}[]}
+ */
+function findCrashed(dir, roundId, recordedKeys) {
+  const recorded = new Set(recordedKeys);
+  const out = [];
+  for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.req.json')).sort()) {
+    const req = readJson(path.join(dir, name));
+    if (!req || req.schema !== 'MINING_LLM_REQUEST_V1' || req.kind !== 'GENERATE' || req.round_id !== roundId || recorded.has(req.key)) continue;
+    const res = readResponse(dir, req.key);
+    const inflight = fs.existsSync(path.join(dir, `${exchangeName(req.key)}.inflight`));
+    if ((!res && inflight) || (res && res.outcome === 'WAITING_STEP_CRASHED_MID_CALL')) out.push({ key: req.key, request_sha256: req.request_sha256, body: req.body, answered: Boolean(res) });
+  }
+  return out;
 }
 /** 读应答（没有 → null）。 */
 function readResponse(dir, key) { return readJson(path.join(dir, `${exchangeName(key)}.res.json`)); }
@@ -301,5 +319,5 @@ function waitResponse(dir, key, { pollMs, waitPolls }) {
 module.exports = {
   CONFIG_PATH, VIEW_KEYS, SCORE_KEYS, REQUEST_KEYS, NOT_REPORTED, LlmError,
   loadConfig, mechanismsFor, createGenerator, formatScore, buildPrompt, estimateTokens, buildRequest, pingRequest, checkRequestBody, checkResponseModel, parseFormulas,
-  exchangeName, ensureExchangeDir, writeAtomic, readJson, writeRequest, withdrawUnanswered, readResponse, waitResponse, sleepMs,
+  exchangeName, ensureExchangeDir, writeAtomic, readJson, writeRequest, withdrawUnanswered, findCrashed, readResponse, waitResponse, sleepMs,
 };
