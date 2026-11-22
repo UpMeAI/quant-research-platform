@@ -7,7 +7,7 @@
  */
 const STAGE_ORDER = ['S2', 'S3', 'S4'];
 
-function run({ engine, terms, asOf, prior, stages }) {
+function run({ engine, terms, asOf, prior, stages, insufficientInputs = null }) {
   const history = [...prior];
   let prev = prior[prior.length - 1].output_sha256;
   const results = []; let lastRequest = null; let waiting = null; let invalid = null;
@@ -18,7 +18,14 @@ function run({ engine, terms, asOf, prior, stages }) {
     const request = { candidate_id: terms.candidate_id, requested_stage: stage, terms, as_of: asOf, history: [...history],
       evidence: { schema: 'PROMOTION_STAGE_EVIDENCE_V1', candidate_id: terms.candidate_id, stage, k2_sha256: terms.k2_sha256, prior_output_sha256: prev, validator: { first_failed: null }, body: st.body,
         ...(st.insufficient_inputs ? { insufficient_inputs: st.insufficient_inputs } : {}) } };
-    const r = engine.evaluate(request);
+    let r = engine.evaluate(request);
+    if (r.verdict === 'INVALID_INPUT' && r.reasonCodes[0] === 'PROMOTION_INSUFFICIENT_INPUTS_MISSING' && !st.insufficient_inputs) {
+      // section 4.2 needs the cost, budget and event-rate inputs for an INSUFFICIENT stage; they come from the host, never from here
+      const extra = typeof insufficientInputs === 'function' ? insufficientInputs({ stage, candidate_id: terms.candidate_id }) : null;
+      if (!extra) { waiting = 'INSUFFICIENT_INPUTS'; break; }
+      request.evidence.insufficient_inputs = extra;
+      r = engine.evaluate(request);
+    }
     results.push(r); lastRequest = request;
     if (r.verdict === 'INVALID_INPUT') { invalid = r.reasonCodes[0]; break; }
     history.push({ stage, verdict: r.verdict, output_sha256: r.output_sha256 });

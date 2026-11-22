@@ -289,4 +289,16 @@ function run({ formula, sources, rules, existingBook, candidateId, market = 'CN_
   }
 }
 
-module.exports = { PORTFOLIO_WEIGHT, DEFAULT_INITIAL_NAV, DEFAULT_QUANTILE, COST_RESERVE, ARM_KEYS, run, readExistingBook, validateBook, internals: { simulateArm, isRebalanceDay, weekKey } };
+/**
+ * The DIAG-XM-1 replay series of the stock book are equity curves (arms.D.equity.dates / .values), not returns: daily net = values[i] / values[i-1] - 1, dated by the later day.
+ * @returns {{book: {date, net}[]} | {refusal: string}}
+ */
+function netFromEquity({ dates, values }) {
+  if (!Array.isArray(dates) || !Array.isArray(values) || dates.length !== values.length || dates.length < 2) return { refusal: 'BACKTEST_BOOK_EQUITY_INVALID' };
+  if (values.some((v) => !(typeof v === 'number' && Number.isFinite(v) && v > 0))) return { refusal: 'BACKTEST_BOOK_EQUITY_INVALID' };
+  const book = dates.slice(1).map((date, i) => ({ date, net: values[i + 1] / values[i] - 1 }));
+  const bad = validateBook(book);
+  return bad ? { refusal: bad } : { book };
+}
+
+module.exports = { netFromEquity, PORTFOLIO_WEIGHT, DEFAULT_INITIAL_NAV, DEFAULT_QUANTILE, COST_RESERVE, ARM_KEYS, run, readExistingBook, validateBook, internals: { simulateArm, isRebalanceDay, weekKey } };

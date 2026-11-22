@@ -17,6 +17,9 @@ const K = require('./_k2_freeze_fixture');
 const P = require('./_promotion_fixture');
 const { makeMiningDataFixture } = require('./_mining_data_fixture');
 const V = require('../services/research-queue-agent');
+const causalityEvidence = require('../services/research-lab-e2e/causality-evidence');
+const backtester = require('../services/research-lab-e2e/backtester');
+const datasetRegistry = require('../services/dataset-registry');
 const { canonicalJson } = require('../services/research-queue-agent/canon');
 const adapter = require('../services/mining-sandbox/data-adapter');
 const runner = require('../services/mining-sandbox/round-runner');
@@ -37,6 +40,20 @@ const SCORED_FORMULAS = ['rank((-ret_1d))', 'zscore((-ret_1d))', 'rank((-ts_mean
 let FX = null;
 function miningFixture() { if (!FX) FX = makeMiningDataFixture(tmp('qrp-w24-e2e-fx-')); return FX; }
 
+const candidateFormulaCanonical = (text) => { const f = runner.loadFrozenSpace(); return require('../services/mining-sandbox/dsl').parse(text, f.dslSpace).canonical; };
+/** A daily net return series of the existing CN_A book (read-only export), independent of the candidate. */
+function existingBook() {
+  const R = require('./_lab_replay_fixture');
+  const rnd = R.mulberry32(99);
+  return R.weekdays('2020-06-01', 1700).map((date) => ({ date, net: 0.0002 + (rnd() - 0.5) * 0.008 }));
+}
+/** The 5-attempt fixture round has too few scored candidates for a real DSR/PBO (the trial-ledger functions answer UNKNOWN): the e2e worlds inject V-3 statistics in the #146 provenance format. The real adapter is tested on the 10-candidate scored round. */
+function syntheticV3({ dsr = 0.97 } = {}) {
+  const files = []; const provenance = {};
+  const record = (name, value) => { const trialRecordId = `TRL-${sha(`rec-${name}`).slice(0, 16)}`; const body = Buffer.from(`${canonicalJson({ trialRecordId, statistic: name, value })}\n`); const rel = `v3/${name}.json`; files.push({ path: rel, bytes: body }); provenance[name] = { trialRecordId, run: { path: rel, sha256: sha(body) } }; };
+  record('dsr', dsr); record('pbo', 0.2); record('bhy', 0.001);
+  return { v3: { familyTrialCount: 12, overfit: { dsr, n_trials: 12, pbo: 0.2, pbo_scope: 'ROUND_CANDIDATE_SET', bhy: { pValues: [0.001, 0.2, 0.5], index: 0 } }, provenance, priorHoldoutFailures: [] }, files };
+}
 const mockClient = (script) => ({ calls: [], async chat(req) { this.calls.push(req); const r = script.shift(); if (r === undefined) throw new Error('mock client: no more scripted responses'); return r; } });
 const okResp = (obj) => ({ ok: true, status: 200, data: { model: 'deepseek-flash', choices: [{ message: { role: 'assistant', content: JSON.stringify(obj) } }], usage: {} } });
 const cardTask = () => ({ task_id: 'RQT-LINUX-20261124-aaaa1111', host: 'LINUX', agent_host: 'LINUX', kind: 'AI_REVIEW_CARD', market: 'CN_A', template_id: 'AI_REVIEW_CARD_V1', template_sha256: sha('tpl'), attempt_no: 1 });
@@ -69,7 +86,7 @@ function inProcessExecutor({ outDir, asOf, incident = false }) {
  * @param {{asOf?: string, patch?: (parts: object) => void}} [o]
  * @returns {Promise<{job: object, services: object, work: string, outDir: string, spies: object, draft: object, card: object}>}
  */
-async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_DATE, formulas = FORMULAS, candidateFormula = CANDIDATE_FORMULA, incident = false } = {}) {
+async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_DATE, formulas = FORMULAS, candidateFormula = CANDIDATE_FORMULA, incident = false, backtestRules = { rebalance: 'WEEKLY', quantile: 0.2 }, realBacktest = false } = {}) {
   const work = tmp('qrp-w24-world-');
   process.env.QRP_DATA_DIR = path.join(work, 'data'); fs.mkdirSync(process.env.QRP_DATA_DIR);
   const outDir = path.join(work, 'out'); fs.mkdirSync(outDir);
@@ -84,17 +101,33 @@ async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_
   files.review_agent_access_log = reviewLog;
   const ideaId = result.outputs.factor_ideas[0].idea_id;
   files.dsl = write('dsl.json', `${canonicalJson({ schema: 'LAB_DSL_BATCH_V1', idea_id: ideaId, formulas, candidate_formula: candidateFormula, authored_by: { kind: 'AI_MINED_LLM', model: 'deepseek-pro' } })}\n`);
-  const draft = K.baseDraft({ section0: { ...K.baseDraft().section0, mechanism_ids: [MECH] } });
+  // the registered star values with the NOTE_1 overlap default (0.7); AI-authored terms must equal them (Q3b)
+  const STAR07 = JSON.parse(JSON.stringify(K.TERMS_STAR)); for (const L of Object.values(STAR07.by_layer)) L.thresholds.s4.max_overlap = 0.7;
+  const dataToken = `DATA:${K.DATASET}@${K.pinned.registry_version}#${K.pinned.registry_sha256}|PIT=OBSERVED_AT|VENDOR=Tushare`;
+  const ce0 = causalityEvidence.fromExpression({ formula: candidateFormulaCanonical(candidateFormula), dataInputs: [dataToken] });
+  const baseD = K.baseDraft();
+  const draft = K.baseDraft({ section0: { ...baseD.section0, mechanism_ids: [MECH] }, arms: baseD.arms.map((a) => ({ ...a, stage: 'SIGNAL' })),
+    causality: { functions: causalityEvidence.functionIdsOf(candidateFormulaCanonical(candidateFormula)), evidence_sha256: ce0.sha256 },
+    promotion_terms: { ...baseD.promotion_terms, layer: 'ALPHA', min_economic_value: STAR07.by_layer.ALPHA.min_economic_value, thresholds: STAR07.by_layer.ALPHA.thresholds } });
   files.k2_draft = write('k2_draft.json', `${canonicalJson(draft)}\n`);
 
   const spies = { executed: 0, registered: 0 };
-  const k2Ctx = K.baseCtx();
+  const k2Ctx = K.baseCtx({ promotionTermsStar: STAR07, evidenceBytes: (h) => (h === ce0.sha256 ? ce0.bytes : null), pinnedCodeShas: ce0.pinnedCodeShas });
   const services = {
     bundle: () => bundleOf(factDate),
     k2: {
       ctx: (phase) => (phase === 'PREPARE' ? k2Ctx : { ...k2Ctx, now: K.NOW_FREEZE, ledgerRows: K.ledgerRows() }),
       register: (prepared) => { spies.registered += 1; return K.registerAt(prepared); },
     },
+    // default: a well-behaved synthetic replay output (the 15-stock fixture's own economics cannot pass S3 after costs); realBacktest: true runs the QRP backtester on the fixture tables
+    backtest: { run: ({ formula, candidateId }) => { if (!realBacktest) return { replay: require('./_lab_replay_fixture').makeReplay({ days: 504 }) }; const fx = miningFixture();
+      const r = backtester.run({ formula, candidateId, sources: [adapter.csvDirSource(fx.dirs.lane, { mode: 'HISTORY', label: 'lane' }), adapter.csvDirSource(fx.dirs.tail, { mode: 'LIVE', label: 'tail' })], rules: backtestRules,
+        existingBook: existingBook(), market: 'CN_A', costBook: 'STOCK_BOOK', costModelRef: 'W24_QRP_BACKTEST_COSTS_V1' }); if (r.refusal) return { refusal: r.refusal };
+      // the fixture's synthetic codes (S01.SH) carry no board prefix: map them to real-format codes for V-4's board and price-limit functions
+      const seenCodes = new Map(); const real = (c) => { if (/^\d{6}\.(SH|SZ)$/.test(c)) return c; if (!seenCodes.has(c)) seenCodes.set(c, `${/SH$/.test(c) ? '60' : '00'}${String(seenCodes.size + 1).padStart(4, '0')}.${c.slice(-2)}`); return seenCodes.get(c); };
+      return { replay: { ...r.replay, trades: r.replay.trades.map((t) => ({ ...t, code: real(t.code) })) } }; } },
+    devEvidence: { v3: syntheticV3() },
+    verifierGateOptions: { causality: { effectiveFrom: '2026-11-16T00:00:00+08:00' }, parity: { registry: [...datasetRegistry.history().values()].find((h) => h.registry_version === K.pinned.registry_version) || K.pinned } },
     experiment: (() => { const e = inProcessExecutor({ outDir: path.join(work, 'lane-out'), asOf, incident }); fs.mkdirSync(path.join(work, 'lane-out')); return { execute: (a) => { spies.executed += 1; return e.execute(a); } }; })(),
   };
   const job = { schema: 'LAB_E2E_JOB_V1', card_id: result.task_id, market: 'CN_A', as_of: asOf, out_dir: outDir, idea_id: ideaId,
@@ -132,4 +165,4 @@ function scoredRound() {
   return { roundId: r.round_id, selected: sel.selected, selection: sel, outDir: out };
 }
 
-module.exports = { SCORED_FORMULAS, scoredRound, W47_DATE, HOLDOUT_PATH_DATE, buildWorld, inProcessExecutor, miningFixture, AS_OF, MECH, FORMULAS, CANDIDATE_FORMULA, sha, canonicalJson, F, K, P, AUTH };
+module.exports = { syntheticV3, SCORED_FORMULAS, scoredRound, W47_DATE, HOLDOUT_PATH_DATE, buildWorld, inProcessExecutor, miningFixture, AS_OF, MECH, FORMULAS, CANDIDATE_FORMULA, sha, canonicalJson, F, K, P, AUTH };

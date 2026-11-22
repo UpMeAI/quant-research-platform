@@ -71,9 +71,9 @@ function check({ out_dir: outDir, as_of: checkAsOf = null, services = {}, next_b
     const prev = linkOf(s.n - 1);
     if (s.n === 1 ? l.prior_sha256 !== null : (prev && l.prior_sha256 !== prev.sha256)) c1.push(`LINEAGE_PRIOR_MISMATCH:${s.n}`);
     if (l.status !== 'DONE') {
-      const okPending = (terminal.state === 'FROZEN_AWAITING_HOLDOUT' && l.status === 'PENDING_HOLDOUT' && [8, 10].includes(s.n))
-        || (terminal.state === 'FROZEN_AWAITING_FORWARD' && l.status === 'PENDING_FORWARD' && [8, 10].includes(s.n))
-        || (terminal.state === 'NOT_SELECTED_BY_VALIDATION' && l.status === 'NOT_APPLICABLE' && s.n === 8);
+      const okPending = (terminal.state === 'FROZEN_AWAITING_HOLDOUT' && l.status === 'PENDING_HOLDOUT' && s.n === 10)
+        || (terminal.state === 'FROZEN_AWAITING_FORWARD' && l.status === 'PENDING_FORWARD' && s.n === 10)
+        || (l.status === 'NOT_APPLICABLE' && s.n === 8);
       if (!okPending) c1.push(`LINEAGE_PENDING_NOT_ALLOWED:${s.n}`);
     }
   }
@@ -150,7 +150,7 @@ function check({ out_dir: outDir, as_of: checkAsOf = null, services = {}, next_b
         const ph = inputs.post_holdout;
         const files = new Map(ph.files.map((f) => [f.path, readIfFile(abs(f.stored))]));
         const d = verdictMod.decide({ bundle: ph.bundle, verifierCtx: { readBytes: (ref) => files.get(ref.path) || null, gateOptions: services.verifierGateOptions || {}, authority: { ledgerFile: abs(`${lineageMod.dirOf(7)}/no_grants.jsonl`) }, promotionEngine: { s4: () => ph.s4 } },
-          request: ph.request, priorEngine: ph.prior_engine, engine });
+          request: ph.request, priorEngine: ph.prior_engine, engine, awaiting: ph.awaiting || null, skipVerifier: ph.skip_verifier === true });
         return d.status === 'DECIDED' ? d.verdict_text : `UNDECIDED:${d.reason_code}`;
       }
       const r = verdictMod.preHoldout(inputs, engine);

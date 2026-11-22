@@ -25,7 +25,7 @@ const provider = require('../services/research-lab-e2e/evidence-provider');
 const lab = require('../services/research-lab-e2e');
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
-const STAR = { by_layer: { ALPHA: { thresholds: { s4: { max_overlap: 0.6 } } } } };
+const STAR = { by_layer: { ALPHA: { thresholds: { s4: { max_overlap: 0.7 } } } } }; // NOTE_1 6b3be10d: 0.7, |rho| of daily net returns, strictly greater refuses
 const terms = (over = {}) => P.terms({ candidate_id: 'AIP-CNA-001', ...over });
 const evalStage = (stage, body, t, over = {}) => engine.evaluate({ candidate_id: t.candidate_id, requested_stage: stage, terms: t, as_of: P.AS_OF,
   history: P.historyBefore(stage), evidence: { schema: 'PROMOTION_STAGE_EVIDENCE_V1', candidate_id: t.candidate_id, stage, k2_sha256: t.k2_sha256, prior_output_sha256: sha(`prev-${P.STAGES[P.STAGES.indexOf(stage) - 1]}`),
@@ -78,7 +78,7 @@ test('S3 producer refuses a malformed replay output with a code, never a guess',
 /* ---------------------------------------------------------------- S4 */
 
 test('S4 producer: marginal net contribution, tail, stress and overlap from the portfolio with and without; refuses star_missing for the overlap threshold until the star file sets it', () => {
-  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.6 } } });
+  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.7 } } });
   assert.equal(s4.produce({ replay: R.makeReplay(), terms: t, star: null }).refusal, 'S4_STAR_MISSING:max_overlap');
   assert.equal(s4.produce({ replay: R.makeReplay(), terms: t, star: { by_layer: { ALPHA: {} } } }).refusal, 'S4_STAR_MISSING:max_overlap');
   const out = s4.produce({ replay: R.makeReplay(), terms: t, star: STAR });
@@ -152,7 +152,7 @@ test('robustness results: exactly the declared tests (cost multiple from the dec
 /* ---------------------------------------------------------------- ladder, provider, integration */
 
 test('ladder: S2..S4 in order, stops at the first non-PASS, each evidence chained by the previous output sha; reachedS3 and the S4 result for V-6', () => {
-  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.6 } } });
+  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.7 } } });
   const replay = R.makeReplay();
   const s2body = P.BODY.S2.PASS;
   const stages = { S2: { body: s2body }, S3: { body: s3.produce({ replay, terms: t }).body }, S4: { body: s4.produce({ replay, terms: t, star: STAR }).body } };
@@ -171,7 +171,7 @@ test('ladder: S2..S4 in order, stops at the first non-PASS, each evidence chaine
 });
 
 test('integration: replay output -> provider -> verifier V-1..V-6 and engine S2..S4 on the fixtures, verdict FORWARD_SHADOW; same inputs, same bytes; a failing robustness result stops at V-5', () => {
-  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.6 } } });
+  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.7 } } });
   const replay = R.makeReplay();
   const build = (decl, replayIn) => {
     const prod = provider.fromReplay({ replay: replayIn, terms: t, star: STAR, declaration: decl, k2Text: k2With(decl), s2Body: P.BODY.S2.PASS });
@@ -212,4 +212,13 @@ test('provider refuses with a code when a producer refuses, and reports what it 
   assert.equal(need.arm_runs.length, 6);
   assert.deepEqual(need.derived_without_rerun, ['COST_X2', 'SUB_PERIOD_HALVES']);
   assert.equal(provider.fromReplay({ replay: { schema: 'X' }, terms: t, star: STAR, declaration: DECL, k2Text: k2With(DECL), s2Body: P.BODY.S2.PASS }).refusal, 'REPLAY_OUTPUT_INVALID');
+});
+
+test('S4 overlap threshold 0.7 (NOTE_1): exactly 0.7 passes, strictly greater refuses', () => {
+  const t = terms({ thresholds: { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.7 } } });
+  const body = (o) => ({ n: 504, marginal_net_contribution: { estimate: 0.02, ci: { lower: 0.003, upper: 0.037, level: 0.95 } }, tail_ok: true, stress_ok: true, overlap: { holdings: o, risk: o }, race: { partition: 'SELECTION_TIMING' } });
+  assert.equal(evalStage('S4', body(0.7), t).verdict, 'PASS');
+  const over = evalStage('S4', body(0.7001), t);
+  assert.equal(over.verdict, 'FAIL');
+  assert.ok(over.reasonCodes.includes('S4_OVERLAP_ABOVE_MAX'));
 });

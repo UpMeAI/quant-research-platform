@@ -222,3 +222,13 @@ test('readExistingBook: CSV and JSON read back the same rows; validation refuses
   assert.equal(bt.readExistingBook({ file: path.join(os.tmpdir(), 'qrp-bt-nope.csv') }).refusal, 'BACKTEST_BOOK_UNREADABLE');
   assert.equal(bt.readExistingBook({}).refusal, 'BACKTEST_BOOK_UNREADABLE');
 });
+
+test('netFromEquity turns the DIAG-XM-1 equity curve into daily net returns dated by the later day, and refuses a broken curve', () => {
+  const bt = require('../services/research-lab-e2e/backtester');
+  const r = bt.netFromEquity({ dates: ['2026-01-02', '2026-01-05', '2026-01-06'], values: [1, 1.01, 0.9999] });
+  assert.equal(r.refusal, undefined);
+  assert.deepEqual(r.book.map((x) => x.date), ['2026-01-05', '2026-01-06']);
+  assert.ok(Math.abs(r.book[0].net - 0.01) < 1e-12 && Math.abs(r.book[1].net - (0.9999 / 1.01 - 1)) < 1e-12);
+  assert.equal(bt.netFromEquity({ dates: ['2026-01-02'], values: [1] }).refusal, 'BACKTEST_BOOK_EQUITY_INVALID');
+  assert.equal(bt.netFromEquity({ dates: ['a', 'b'], values: [1, 0] }).refusal, 'BACKTEST_BOOK_EQUITY_INVALID');
+});

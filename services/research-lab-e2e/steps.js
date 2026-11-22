@@ -104,6 +104,9 @@ function k2Draft(S) {
   try { bytes = fs.readFileSync(S.job.files.k2_draft); draft = JSON.parse(bytes.toString('utf8')); } catch { return { reason: 'LAB_K2_DRAFT_UNREADABLE' }; }
   if (!isObj(draft) || draft.schema !== 'K2_DRAFT_V1' || !isObj(draft.section0) || !Array.isArray(draft.section0.mechanism_ids)) return { reason: 'LAB_K2_DRAFT_INVALID' };
   if (!draft.section0.mechanism_ids.includes(S.data.mechanism.id)) return { reason: 'LAB_K2_DRAFT_MECHANISM_MISMATCH' };
+  const want = require('./causality-evidence').functionIdsOf(S.data.dsl.candidate.formula_canonical);
+  if (!draft.causality || !Array.isArray(draft.causality.functions)) return { reason: 'LAB_K2_DRAFT_CAUSALITY_FUNCTIONS_MISSING' };
+  if (JSON.stringify([...draft.causality.functions].sort()) !== JSON.stringify(want)) return { reason: 'LAB_K2_DRAFT_CAUSALITY_FUNCTIONS_MISMATCH' };
   if (draft.market !== S.job.market) return { reason: 'LAB_K2_DRAFT_MARKET_MISMATCH' };
   S.data.draft = draft;
   return { files: { 'k2_draft.json': bytes }, primary: 'k2_draft.json' };
@@ -174,6 +177,12 @@ function experiment(S) {
   const cand = attempts.find((a) => a.status === 'SCORED' && a.formula_sha256 === dsl.candidate.formula_sha256);
   if (!cand) return { reason: 'LAB_EXPERIMENT_CANDIDATE_NOT_SCORED' };
   const selection = JSON.parse(files['selection.json'].toString('utf8'));
+  const selectedNow = selection.selected.includes(cand.candidate_id);
+  if (selectedNow && services.backtest) {
+    const bt = services.backtest.run({ formula: dsl.candidate.formula_canonical, candidateId: cand.candidate_id });
+    if (bt.refusal) return { reason: `LAB_BACKTEST_${bt.refusal}` };
+    files['replay_output.json'] = text(bt.replay); // the S3/S4 input, written inside QRP from the same tables the round read (no external replay core)
+  }
   const candSha = accessLog.candidateSha256Of({ roundId: ran.roundId, candidateId: cand.candidate_id, formula: dsl.candidate.formula_canonical });
   const log = accessLog.verifyBytes(files['access_log.jsonl']);
   if (!log.ok) return { reason: `LAB_EXPERIMENT_ACCESS_LOG_${log.code}` };
