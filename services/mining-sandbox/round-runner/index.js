@@ -89,6 +89,7 @@ let frozenInputs = FROZEN_INPUTS;
 
 /** 启动：输出目录要在、台账目录要在输出目录里；然后 lockdown（之后本进程只能写输出目录）。 */
 function start({ outDir } = {}) {
+  need(process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION === undefined, 'TEST_SEAM_SET', 'QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION must not be set when the runner starts'); // 测试的口子（旧版本的轮）不许带进执行器
   need(outDir && fs.existsSync(outDir) && fs.statSync(outDir).isDirectory(), 'OUT_DIR_INVALID', outDir);
   const real = fs.realpathSync(outDir);
   const data = process.env.QRP_DATA_DIR ? path.resolve(process.env.QRP_DATA_DIR) : null; // 台账目录（packages/ledger 的 dataDir 取同一个变量）

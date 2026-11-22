@@ -18,6 +18,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync, spawnSync } = require('child_process');
+const cleanEnv = require('./_clean_env');
 
 const AUTH = 'TEST_ROUND_RUNNER_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
@@ -51,7 +52,7 @@ const KNOWN = ['rank((-ret_1d))', 'zscore((-ret_1d))', 'rank((-ts_mean(ret_1d,5)
 const knownGen = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => KNOWN.slice(view.mining_scores.length, view.mining_scores.length + n) };
 /** 合成数据只有十几只股票：进程内的 generate 用低的覆盖下限（生产默认见 runner.COVERAGE_FLOOR）。 */
 const COV = Object.freeze({ min_names_per_day: 5 });
-const cli = (args, env) => spawnSync(process.execPath, [CLI, ...args], { env: { ...process.env, ...env }, encoding: 'utf8' });
+const cli = (args, env) => spawnSync(process.execPath, [CLI, ...args], { env: { ...cleanEnv(), ...env }, encoding: 'utf8' });
 
 test('run.sh：文件参数先用 realpath -e 解析成绝对路径再挂（裸文件名不会被 Docker 当成卷名）；文件不存在就停，不调 docker', (t) => {
   if (spawnSync('realpath', ['-e', '/']).status !== 0) { t.skip('no GNU realpath -e on this host (run.sh runs on the Linux lane)'); return; }
@@ -62,7 +63,7 @@ test('run.sh：文件参数先用 realpath -e 解析成绝对路径再挂（裸�
   for (const n of ['verdicts.json', 'mech.jsonl', 'crash.log']) fs.writeFileSync(path.join(cwd, n), 'x\n');
   const run = (args) => {
     const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-docker-args-')), 'args');
-    const r = spawnSync('bash', [RUN_SH, ...args], { cwd, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_ARGS_OUT: out } });
+    const r = spawnSync('bash', [RUN_SH, ...args], { cwd, encoding: 'utf8', env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_ARGS_OUT: out } });
     return { ...r, args: fs.existsSync(out) ? fs.readFileSync(out, 'utf8').split('\n').filter(Boolean) : null };
   };
   for (const [args, mount] of [[['review', 'MR-X', 'verdicts.json'], `${cwd}/verdicts.json:/data/verdicts.json:ro`],
@@ -405,7 +406,7 @@ test('隔离（§4 第 7 条）：执行器启动即 lockdown，写输出目录�
     tryIt('outside', () => fs.writeFileSync(${JSON.stringify(path.join(outside, 'no.txt'))}, 'x'));
     tryIt('ledger_outside', () => require(${JSON.stringify(path.join(ROOT, 'packages/ledger'))}).append(${JSON.stringify(path.join(outside, 'x.jsonl'))}, { a: 1 }));
     process.stdout.write(JSON.stringify(res));`;
-  const run = (dataDir) => JSON.parse(execFileSync(process.execPath, ['-e', script], { env: { ...process.env, QRP_DATA_DIR: dataDir } }).toString());
+  const run = (dataDir) => JSON.parse(execFileSync(process.execPath, ['-e', script], { env: { ...cleanEnv(), QRP_DATA_DIR: dataDir } }).toString());
   assert.deepEqual(run(path.join(outDir, 'qrp-data')), { start: 'OK', inside: 'OK', outside: 'MINE_SANDBOX_WRITE_REFUSED', ledger_outside: 'MINE_SANDBOX_WRITE_REFUSED' });
   assert.equal(run(path.join(outside, 'qrp-data')).start, 'MINE_RUNNER_DATA_DIR_OUTSIDE_OUTPUT');
   assert.deepEqual(fs.readdirSync(outside), []);

@@ -17,6 +17,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
+const cleanEnv = require('./_clean_env');
 
 const AUTH = 'TEST_R1_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
@@ -52,7 +53,7 @@ const GP = Object.freeze({ mode: 'AI_MINED_GP', gp_seed: 1 });
 const H1 = Object.freeze({ from: '2026-10-19', to: '2026-12-31' });
 const runDirOf = (out, id) => path.join(out, 'rounds', id.replace(/[^A-Za-z0-9_-]/g, '_'));
 const roundTrials = (roundId) => [...trials.heads().values()].filter((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId);
-const cli = (args, env) => spawnSync(process.execPath, [CLI, ...args], { env: { ...process.env, ...env }, encoding: 'utf8' });
+const cli = (args, env) => spawnSync(process.execPath, [CLI, ...args], { env: { ...cleanEnv(), ...env }, encoding: 'utf8' });
 /** 开到选择为止（GP 换成已知的六个公式，跑得快、结果可控）。 */
 function toSelection(out, { openedAt = '2026-11-21T02:00:00Z', manifest = null } = {}) {
   const r = manifest ? rounds.openRound(manifest) : runner.requestRound({ generator: GP, cap: KNOWN.length, openedAt });

@@ -133,3 +133,10 @@ test('冻结页核对覆盖 size_exposure_abs_max：页里少了这一行 → PA
   const r = gate.evaluate(goodResult('X', 0.03), { thresholds: noKey, familyTrialCount: 1 });
   assert.deepEqual(r.items.find((i) => i.item === 8).codes.filter((c) => /^MINE_SIZE_EXPOSURE_/.test(c)), ['MINE_SIZE_EXPOSURE_UNKNOWN']);
 });
+
+test('执行器启动拒绝带着测试口子 QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION（生产没有这个口子）', () => {
+  const runner = require('../services/mining-sandbox/round-runner');
+  const flag = process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION;
+  process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION = '1';
+  try { assert.throws(() => runner.start({ outDir: os.tmpdir() }), /MINE_RUNNER_TEST_SEAM_SET/); } finally { if (flag === undefined) delete process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION; else process.env.QRP_TEST_ALLOW_LEGACY_NEUTRALIZATION = flag; }
+});

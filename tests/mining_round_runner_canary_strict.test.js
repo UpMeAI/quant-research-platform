@@ -14,6 +14,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
+const cleanEnv = require('./_clean_env');
 
 const AUTH = 'TEST_ROUND_RUNNER_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
@@ -74,7 +75,7 @@ test('M-2 名字数下限钉住：同一个好面板，下限 20 只（合成数
 test('M-2 命令行 --resume 也先过金丝雀：坏数据上续跑退出 2，轮次的续跑记录不动', () => {
   const out = freshData();
   const sums = crypto.createHash('sha256').update(fs.readFileSync(path.join(good.dirs.holdout, 'SHA256SUMS'))).digest('hex');
-  const env = { ...process.env, QRP_DATA_DIR: out };
+  const env = { ...cleanEnv(), QRP_DATA_DIR: out };
   const first = spawnSync(process.execPath, [CLI, 'generate', '--out', out, '--lane', good.dirs.lane, '--tail', good.dirs.tail, '--seed', '3', '--cap', '2',
     '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', sums, '--min-names-per-day', '5'], { env, encoding: 'utf8' });
   assert.equal(first.status, 0, first.stderr);

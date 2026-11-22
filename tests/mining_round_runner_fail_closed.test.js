@@ -12,6 +12,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawnSync } = require('child_process');
+const cleanEnv = require('./_clean_env');
 
 const AUTH = 'TEST_ROUND_RUNNER_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
@@ -46,7 +47,7 @@ test('金丝雀在开轮之前：命令行 generate 在坏数据上退出 2，�
   const out = freshData();
   const sums = crypto.createHash('sha256').update(fs.readFileSync(path.join(broken.dirs.holdout, 'SHA256SUMS'))).digest('hex');
   const r = spawnSync(process.execPath, [CLI, 'generate', '--out', out, '--lane', broken.dirs.lane, '--tail', broken.dirs.tail, '--seed', '1',
-    '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', sums, '--min-names-per-day', '5'], { env: { ...process.env, QRP_DATA_DIR: out }, encoding: 'utf8' });
+    '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', sums, '--min-names-per-day', '5'], { env: { ...cleanEnv(), QRP_DATA_DIR: out }, encoding: 'utf8' });
   assert.equal(r.status, 2, r.stdout + r.stderr);
   assert.equal(JSON.parse(r.stderr).error, 'MINE_RUNNER_CANARY_UNSCORABLE');
   assert.ok(!fs.existsSync(path.join(out, 'research', 'mining_rounds.jsonl')), 'no round opened');
