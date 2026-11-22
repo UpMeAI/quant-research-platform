@@ -219,8 +219,8 @@ test('static: the round-runner CLI takes the generator lock after start() and be
   assert.match(gen, /principal: 'mining-generator'/);
   assert.match(gen, /accessLog/);
   const tail = cli.slice(cli.indexOf("required(o, ['out', 'round', 'lane', 'tail', 'holdout'])"));
-  assert.match(tail, /accessLog\.writer\(runner\.accessLogFile\(/);
-  assert.equal((tail.match(/accessLog: /g) || []).length >= 2, true, 'scoreHoldout and rescore both get it');
+  assert.match(tail, /\.writer\(runner\.accessLogFile\(/);
+  assert.equal((tail.match(/accessLog \}\)/g) || []).length >= 2, true, 'scoreHoldout and rescore both get it');
   assert.equal(/lockGenerator\(/.test(tail), false, 'the scorer is exempt from the lock');
 });
 

@@ -31,14 +31,16 @@ const within = (target, root) => { const rel = path.relative(root, target); retu
 
 let LOCKED = false;
 /**
- * @param {{allowWriteRoot: string, denyReadRoots?: string[]}} o
+ * @param {{allowWriteRoot: string, denyReadRoots?: string[], onRefuse?: (refusedPath: string) => void}} o
+ *   onRefuse (W24, additive): called with the resolved path just before a read is refused, so the launcher can log the attempt; an error inside it never lets the read through.
+ *   Like the lock itself it is installed by the first call only.
  */
-function lockProcess({ allowWriteRoot, denyReadRoots = [] } = {}) {
+function lockProcess({ allowWriteRoot, denyReadRoots = [], onRefuse = null } = {}) {
   isolation.lockdown({ allowRoot: allowWriteRoot });
   if (LOCKED) return { allowWriteRoot, denyReadRoots };
   LOCKED = true;
   const deny = [...new Set(denyReadRoots.flatMap((r) => [path.resolve(r), real(r)]))];
-  const guard = (target) => { if (typeof target === 'number' || target === undefined || target === null) return; const t = real(target); if (deny.some((r) => within(t, r))) throw new ReadRefused(t); };
+  const guard = (target) => { if (typeof target === 'number' || target === undefined || target === null) return; const t = real(target); if (deny.some((r) => within(t, r))) { if (typeof onRefuse === 'function') { try { onRefuse(t); } catch { /* the refusal stands whatever the logger does */ } } throw new ReadRefused(t); } };
   const wrap = (obj, name, nPaths = 1) => {
     const orig = obj[name];
     if (typeof orig !== 'function') return;

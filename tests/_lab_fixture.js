@@ -11,9 +11,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const AUTH = 'TEST_W24_E2E_AUTHORITY';
-process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
-process.env.QRP_TEST_K2_PROGRAM_MUTANT = '1';
 
 const F = require('./_rq_agent_fixture');
 const K = require('./_k2_freeze_fixture');
@@ -25,6 +22,8 @@ const adapter = require('../services/mining-sandbox/data-adapter');
 const runner = require('../services/mining-sandbox/round-runner');
 const accessLog = require('../services/independent-verifier/access-log');
 
+const AUTH = K.AUTH; // the K2 fixture sets QRP_PRODUCT_MILESTONE_AUTHORITY; the round runner and the registrar share it
+process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const AS_OF = '2026-11-24T18:00:00+08:00';

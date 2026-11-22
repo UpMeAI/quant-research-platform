@@ -413,7 +413,7 @@ test('CLI end to end: reads the task and bundle files, talks to a stub gateway o
     const r = await run();
     assert.equal(r.status, 0, r.stderr);
     const names = fs.readdirSync(out).sort();
-    assert.deepEqual(names, ['card.json', 'factor_ideas.jsonl', 'idea_routes.jsonl', 'proposals.jsonl', 'result.json']);
+    assert.deepEqual(names, ['access_log.jsonl', 'card.json', 'factor_ideas.jsonl', 'idea_routes.jsonl', 'proposals.jsonl', 'result.json']); // W24: the generator launcher's access log sits next to the result
     const result = JSON.parse(fs.readFileSync(path.join(out, 'result.json'), 'utf8'));
     assert.equal(result.schema, 'RQ_AGENT_RESULT_V1');
     assert.equal(result.status, 'DONE');

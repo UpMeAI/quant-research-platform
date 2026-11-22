@@ -221,6 +221,7 @@ test('refusal: a missing lineage link fails C1 (link removed, artifact deleted, 
 
 test('refusal: a discarded candidate missing from the trial ledger fails C2 (and a ledger that has them passes)', async () => {
   const { w } = await complete();
+  process.env.QRP_DATA_DIR = path.join(w.work, 'data'); // the ledger of this world (other tests built other worlds since)
   const real = lab.defaultLedger();
   const without = (status) => ({ attemptsOfRound: (id) => real.attemptsOfRound(id).filter((a) => a.status !== status) });
   for (const status of ['PARSE_REFUSED', 'DEDUPED']) {

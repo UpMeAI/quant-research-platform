@@ -248,7 +248,7 @@ function checkCanary(panel, floor = COVERAGE_FLOOR, canary = CANARY, { neutraliz
  * 分数不是有限数的尝试记 UNSCORABLE（计入 N，不进选择，GP 不当它有分），永远不记 SCORED（第 1 轮缺陷）。
  * @returns {{round_id, status, attempts: {scored, unscorable, parse_refused, deduped}, total, canary}}
  */
-function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null, llm: llmOpts = {} }) {
+function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVERAGE_FLOOR, panel: prebuilt = null, llm: llmOpts = {}, accessLog = null }) {
   need(Array.isArray(sources) && sources.length, 'SOURCES_MISSING');
   for (const s of sources) need(!s.holdout, 'HOLDOUT_IN_GENERATION', s.label);
   const dir = runDir(outDir, roundId);
@@ -267,6 +267,7 @@ function generate({ roundId, sources, outDir, registeredBy, coverageFloor = COVE
     : (generatorOverride || generators.generatorFor(r.generator, { space: f.dslSpace, holdingPeriod: H }));
   const m = segs.SEGMENTS.MINING;
   const panel = prebuilt || adapter.buildPanel({ sources, space: f.space, segment: 'MINING', from: m.from, to: m.to });
+  logPanelRead(accessLog, panel); // W24：生成方读了哪一段，写访问记录（读到的真实日期范围，不是请求的）
   const coverage = checkCoverage(panel, coverageFloor); // 一个尝试都没记之前
   const neutralization = neutralizationOf(r); // 版本跟着轮走（修订 SIZE_V2 N2），不设默认
   const canary = checkCanary(panel, coverageFloor, CANARY, { neutralization }); // 复审 M-3：自己跑，不信调用方给的
@@ -436,7 +437,7 @@ function scoredAttempts(roundId) {
 /**
  * 第 5 步：前推验证折上的选择。只写 <out>/rounds/<id>/selection.json（不进台账、不进 generatorView）；写了之后本轮不能再生成。
  */
-function select({ roundId, sources, outDir }) {
+function select({ roundId, sources, outDir, accessLog = null }) {
   for (const s of sources) need(!s.holdout, 'HOLDOUT_IN_SELECTION', s.label);
   const r = rounds.roundHead(roundId);
   need(r && ['OPEN', 'CAP_REACHED'].includes(r.status), 'ROUND_NOT_SELECTABLE', `${roundId}:${r && r.status}`);
@@ -449,6 +450,7 @@ function select({ roundId, sources, outDir }) {
   const neutralization = neutralizationOf(r); // 修订 SIZE_V2 N2
   need(rule && rule.schema === 'VALIDATION_SELECTION_V1', 'SELECTION_RULE_MISSING', roundId);
   const panel = adapter.buildPanel({ sources, space: f.space, segment: 'VALIDATION', from: segs.SEGMENTS.MINING.from, to: v.to });
+  logPanelRead(accessLog, panel);
   const valDays = panel.dates.map((d, t) => (d >= v.from ? t : -1)).filter((t) => t >= 0);
   const candidates = scoredAttempts(roundId).map((c) => {
     const { values, ...st } = selector.validationStats(dsl.parse(c.formula, f.dslSpace), panel, { holding_period: f.holdingPeriod, rule, neutralization });
@@ -733,11 +735,37 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
   return { dir, selRow, formulas, validation, familySharpes, factorSeries, checked, mechs, reviewed, inputs, inputs_sha256: sha256(JSON.stringify(inputs)) };
 }
 
+/** W24 访问记录（services/independent-verifier/access-log）：运行目录里每轮一份。 */
+const accessLogFile = (outDir, roundId) => path.join(runDir(outDir, roundId), 'access_log.jsonl');
+const holdoutScorerPrincipal = () => require('../../independent-verifier/authority').loadConfig().holdoutScorerPrincipal;
+/** 面板读到的真实日期范围（不是请求的范围）。 */
+function logPanelRead(accessLog, panel) {
+  if (!accessLog) return;
+  accessLog.record({ principal: 'mining-generator', op: 'READ', dataset: 'CN_A_MINING_SPACE_PANEL', from: panel.dates[0], to: panel.dates[panel.dates.length - 1] });
+}
+const scoredStamp = (scoredAt) => scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
+function assertHoldoutDate(scoredAt) {
+  const notBefore = require('../../promotion-engine/stages').MINED_HOLDOUT_NOT_BEFORE;
+  const stamp = scoredStamp(scoredAt);
+  need(Date.parse(stamp) >= Date.parse(notBefore), 'HOLDOUT_BEFORE_SEAL_END', `${stamp} < ${notBefore}`);
+}
+/** 留出段读取：先全部核（每个候选只许一次），再逐个领授权并记一行 HOLDOUT_READ（执行器是受信的求值方，不受读锁约束，但每次读都记）。 */
+function takeHoldoutReads({ roundId, selected, formulas, accessLog, grantCtx }) {
+  const authority = require('../../independent-verifier/authority');
+  const principal = holdoutScorerPrincipal();
+  const rows = selected.map((id) => ({ candidateId: id, candidateSha256: require('../../independent-verifier/access-log').candidateSha256Of({ roundId, candidateId: id, formula: formulas.get(id) }) }));
+  for (const r of rows) authority.authorize({ principal, action: 'HOLDOUT_READ', candidateSha256: r.candidateSha256, candidateId: r.candidateId }, grantCtx);
+  for (const r of rows) {
+    authority.grantHoldoutRead({ principal, candidateSha256: r.candidateSha256, candidateId: r.candidateId }, grantCtx);
+    accessLog.record({ principal, op: 'HOLDOUT_READ', dataset: 'CN_A_HOLDOUT_R1', from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to, candidateSha256: r.candidateSha256 });
+  }
+}
+
 /** 开启之后：建留出段面板、只经 holdout-scoring 打分、逐候选记录 G-MINE（第一次与重打分一样）。 */
 function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenIndex, openedAt, rescored = false }) {
   const f = loadFrozenSpace();
   const panel = adapter.buildPanel({ sources: [...sources, p.checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
-  const stamp = scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
+  const stamp = scoredStamp(scoredAt);
   const generatorMode = rounds.roundHead(roundId).generator.mode; // 结果记的生成方式来自轮次清单（LLM 轮不能记成 GP）
   const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace), generator: generatorMode })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation: p.validation,
@@ -759,15 +787,17 @@ function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenI
  * 第 6–8 步：核留出段目录 → holdout-vault.open（每轮一次，记下选择记录的 hash 与 inputs_sha256）→ 只经 holdout-scoring 打分 → 每个候选 recordGateResult。
  * 没有候选过验证折：不开留出段，返回 { opened: false }（关轮记 0）。holdoutFloor 默认 HOLDOUT_FLOOR（每天 4,000 只；测试可以压低，压低的数写进开启记录）。
  */
-function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null }) {
+function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null, grantCtx = {} }) {
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
   need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
   need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
+  if (accessLog) assertHoldoutDate(scoredAt); // W24：挖掘候选的留出段 2027-01-01T00:00+08:00 之前不读（RF1116）
   const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, fieldExclusions });
   if (!p.selRow.selected.length) { writeJson(path.join(p.dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
   const c = p.checked;
+  if (accessLog) takeHoldoutReads({ roundId, selected: p.selRow.selected, formulas: p.formulas, accessLog, grantCtx }); // 核对都过了、开启之前：每个候选一次授权 + 一行记录
   const opened = vault.open({ round_id: roundId, candidate_ids: [...p.selRow.selected], openedBy: RUNNER_ID, selection_record_hash: p.selRow.record_hash, inputs_sha256: p.inputs_sha256,
     checks: { ...floorRecord(holdoutFloor, HOLDOUT_FLOOR), holdout_dir: holdoutDirRecord(c) } });
   faultAt('AFTER_OPEN');
@@ -785,7 +815,7 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
  *     释放名额，留出段开启照旧计数），拒绝（MINE_RUNNER_RESCORE_RECORDS_EXIST）；
  *   之后任何打分或重打分 → MINE_RUNNER_ROUND_FAILED_RESCORE / MINE_RUNNER_ROUND_FAILED_PARTIAL。
  */
-function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null }) {
+function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null }) {
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
@@ -805,6 +835,7 @@ function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', score
     fail('RESCORE_RECORDS_EXIST', `${roundId}: ${written} G-MINE record(s) written before the crash, closed as FAILED_PARTIAL (R1.12)`);
   }
   const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore: open.opened_at, fieldExclusions }); // 复审要早于那一次开启
+  if (accessLog) accessLog.record({ principal: holdoutScorerPrincipal(), op: 'READ', dataset: 'HOLDOUT_RESCORE_SAME_OPEN', from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }); // R1.8：同一次开启的重打分，不再领授权
   vault.recordRescore({ round_id: roundId, reason, log, inputs_sha256: p.inputs_sha256, rescoredBy: RUNNER_ID });
   faultAt('AFTER_RESCORE_EVENT');
   const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: open.candidate_ids, segmentOpenIndex: open.segment_open_index, openedAt: open.opened_at, rescored: true });
@@ -853,5 +884,5 @@ function withGenerator(gen, cb) { const prior = generatorOverride; generatorOver
 module.exports = {
   MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, HOLDOUT_FIELD_FLOOR, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
   holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha, LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf,
-  probeLlm, assertResumeGenerator, internals: { withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
+  probeLlm, assertResumeGenerator, accessLogFile, internals: { withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
 };
