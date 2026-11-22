@@ -682,6 +682,25 @@ class TestShippedConfig(Base):
         self.assertEqual(cfg['price_table']['id'], 'DEEPSEEK_PRICE_TABLE_V1')
 
 
+class TestVerifiedSchedule(Base):
+    def test_shipped_peak_table_and_prices_are_the_verified_ones(self):
+        cfg = gw.load_config(os.path.join(HERE, '..', '..', 'config', 'rq_deepseek_gateway.v1.json'))
+        self.assertEqual((cfg['peak']['status'], cfg['price_table']['status']), ('VERIFIED', 'VERIFIED'))
+        for u in ('usd', 'cny'):
+            self.assertRegex(cfg['price_table']['source'][u]['page_sha256'], r'^[0-9a-f]{64}$')
+        t = lambda d, h, m=0: gw.is_off_peak(datetime(2026, 11, d, h, m, tzinfo=CST), cfg['peak'])
+        # Mon 23: off-peak 00:00-09:00, peak 09:00-12:00, off 12:00-14:00, peak 14:00-18:00, off 18:00-24:00
+        self.assertEqual([t(23, 0), t(23, 8, 59), t(23, 9), t(23, 11, 59), t(23, 12), t(23, 13, 59), t(23, 14), t(23, 17, 59), t(23, 18), t(23, 23, 59)],
+                         [True, True, False, False, True, True, False, False, True, True])
+        self.assertTrue(t(21, 10) and t(22, 15))   # Sat, Sun
+        m = cfg['price_table']['models']
+        self.assertEqual(m['deepseek-flash']['cny_per_m']['peak'], {'hit': 0.04, 'miss': 2.0, 'out': 8.0})
+        self.assertEqual(m['deepseek-v4-pro']['usd_per_m']['off_peak'], {'hit': 0.022, 'miss': 0.66, 'out': 1.98})
+        c, u = gw.price_cost(cfg['price_table'], 'deepseek-v4-pro', True, 1_000_000, 1_000_000, 1_000_000)
+        self.assertAlmostEqual(c, 0.30 + 9.0 + 27.0)
+        self.assertAlmostEqual(u, 0.044 + 1.32 + 3.96)
+
+
 class TestSocketServer(Base):
     def test_roundtrip_over_unix_socket(self):
         g = self.make(Stub(ok_response()))
