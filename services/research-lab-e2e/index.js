@@ -18,6 +18,7 @@ const verdict = require('./verdict');
 const feedback = require('./feedback');
 const seen = require('./seen');
 const s2Evidence = require('./s2-evidence');
+const ladder = require('./ladder');
 const lineage = require('./lineage');
 const checker = require('./checker');
 
@@ -92,15 +93,17 @@ function tail(S) {
   const selection = JSON.parse(fs.readFileSync(path.join(chain.outDir, 'steps/07_EXPERIMENT/selection.json'), 'utf8'));
   const adapted = s2Evidence.fromSelection({ selection, candidateId: exp.candidate.id, minSampleN: terms.min_sample_n }).body;
   const dsr = ev.bundle && ev.bundle.v3 && ev.bundle.v3.overfit ? ev.bundle.v3.overfit.dsr : null;
-  const s2 = ev.s2 || { body: { ...adapted, dsr: typeof dsr === 'number' ? dsr : null } };
-  const request = { candidate_id: terms.candidate_id, requested_stage: 'S2', terms, as_of: S.asOf,
-    evidence: { schema: 'PROMOTION_STAGE_EVIDENCE_V1', candidate_id: terms.candidate_id, stage: 'S2', k2_sha256: terms.k2_sha256, prior_output_sha256: r1.output_sha256, validator: { first_failed: null }, body: s2.body,
-      ...(s2.insufficient_inputs ? { insufficient_inputs: s2.insufficient_inputs } : {}) },
-    history: [{ stage: 'S0', verdict: 'PASS', output_sha256: r0.output_sha256 }, { stage: 'S1', verdict: 'PASS', output_sha256: r1.output_sha256 }] };
+  const stages = { ...(ev.stages || {}) };
+  if (!stages.S2) stages.S2 = ev.s2 || { body: { ...adapted, dsr: typeof dsr === 'number' ? dsr : null } };
+  const lad = ladder.run({ engine, terms, asOf: S.asOf, prior: [r0, r1].map((r) => ({ stage: r.stage, verdict: r.verdict, output_sha256: r.output_sha256 })), stages });
+  if (lad.waiting) return { wait: lad.waiting, step: byName('VERDICT') };
+  if (lad.invalid) return refuse(S, byName('VERDICT'), `LAB_VERDICT_${lad.invalid}`, { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [lad.invalid] });
+  bundle.reachedS3 = lad.reachedS3; // V-6 runs only when S3 passed (amendment 2.1)
+  const request = lad.lastRequest;
   const fromOut = (rel) => fs.readFileSync(path.join(chain.outDir, rel));
-  const verifierCtx = { ...(ev.ctx || {}), readBytes: (ref) => (ref.path === k2Ref.path || ref.path === logRef.path ? fromOut(ref.path) : ev.ctx.readBytes(ref)),
+  const verifierCtx = { ...(ev.ctx || {}), promotionEngine: { s4: () => lad.s4 }, readBytes: (ref) => (ref.path === k2Ref.path || ref.path === logRef.path ? fromOut(ref.path) : ev.ctx.readBytes(ref)),
     authority: { ledgerFile: path.join(chain.outDir, 'steps/07_EXPERIMENT/holdout_grants.jsonl') } };
-  const priorEngine = [r0, r1].map(verdict.summary);
+  const priorEngine = [r0, r1, ...lad.results.slice(0, -1)].map(verdict.summary);
   const d = verdict.decide({ bundle, verifierCtx, request, priorEngine, engine });
   const files = new Map(); // every file the verifier read, stored so the checker can re-run the verdict
   const stash = (b) => { for (const v of Object.values(b || {})) { if (Array.isArray(v)) v.forEach((x) => stash({ x })); else if (v && typeof v === 'object') { if (typeof v.path === 'string' && /^[0-9a-f]{64}$/.test(v.sha256 || '')) files.set(v.path, v); stash(v); } } };
@@ -122,7 +125,7 @@ function tail(S) {
     return refuse(S, verifierFail ? byName('VERIFY') : byName('VERDICT'), d.reason_code,
       verifierFail ? { terminalState: 'VERIFIER_FAIL', reasonCodes: d.verifier.generator.reasonCodes } : { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [d.reason_code] });
   }
-  const inputs = { schema: 'LAB_ENGINE_INPUTS_V1', ...common, terminal_state: d.verdict.terminal_state, seal: d.seal, post_holdout: { bundle, request, prior_engine: priorEngine, files: S.data.storedFiles } };
+  const inputs = { schema: 'LAB_ENGINE_INPUTS_V1', ...common, terminal_state: d.verdict.terminal_state, seal: d.seal, post_holdout: { bundle, request, prior_engine: priorEngine, s4: lad.s4, files: S.data.storedFiles } };
   chain.add(9, { 'verdict.json': d.verdict_text, 'engine_inputs.json': text(inputs) }, 'verdict.json');
   chain.add(10, { 'seal.json': text({ schema: 'LAB_SEAL_V1', seal: d.seal, verdict_sha256: sha256(d.verdict_text) }) }, 'seal.json');
   return writeFeedback(S, { terminalState: d.verdict.terminal_state, engineVerdict: d.engine.verdict, reasonCodes: d.engine.reasonCodes });

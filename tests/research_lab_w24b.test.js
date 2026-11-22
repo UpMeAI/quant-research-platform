@@ -52,7 +52,7 @@ test('S3 producer (ALPHA): paired Δg per year with a month-block 95% interval, 
 test('S3 producer: a negative edge is a FAIL by the engine, a short sample is INSUFFICIENT, a limit-price fill makes constraints_ok false', () => {
   const t = terms();
   assert.equal(evalStage('S3', s3.produce({ replay: R.makeReplay({ edge: -0.0008 }), terms: t }).body, t).verdict, 'FAIL');
-  const short = evalStage('S3', s3.produce({ replay: R.makeReplay({ days: 120 }), terms: t }).body, t, {});
+  const short = evalStage('S3', s3.produce({ replay: R.makeReplay({ days: 120 }), terms: t }).body, t, { insufficient_inputs: P.insuff() });
   assert.equal(short.verdict, 'INSUFFICIENT');
   assert.ok(short.reasonCodes.includes('S3_SAMPLE_BELOW_MIN'));
   const bad = R.makeReplay(); bad.trades[0] = { ...bad.trades[0], code: '600000.SH', open: 11.1, prev_close: 10 };
@@ -86,7 +86,7 @@ test('S4 producer: marginal net contribution, tail, stress and overlap from the 
   assert.ok(b.marginal_net_contribution.ci.lower > 0 && b.n >= 200);
   assert.equal(b.tail_ok, true); assert.equal(b.stress_ok, true);
   assert.deepEqual(b.race, { partition: 'SELECTION_TIMING' });
-  assert.ok(b.overlap.holdings === 0.2 && b.overlap.risk >= 0 && b.overlap.risk <= 1);
+  assert.ok(Math.abs(b.overlap.holdings - 0.2) < 1e-9 && b.overlap.risk >= 0 && b.overlap.risk <= 1);
   assert.equal(evalStage('S4', b, t).verdict, 'PASS');
   const hot = R.makeReplay(); hot.portfolio.holdings_overlap = hot.portfolio.holdings_overlap.map((x) => ({ ...x, jaccard: 0.9 }));
   assert.equal(evalStage('S4', s4.produce({ replay: hot, terms: t, star: STAR }).body, t).verdict, 'FAIL');
@@ -211,5 +211,5 @@ test('provider refuses with a code when a producer refuses, and reports what it 
   assert.deepEqual(need.arm_runs.map((a) => a.id).sort(), ['baseline', 'candidate', 'PARAM_MINUS_20', 'PARAM_PLUS_20', 'portfolio_with', 'portfolio_without'].sort());
   assert.equal(need.arm_runs.length, 6);
   assert.deepEqual(need.derived_without_rerun, ['COST_X2', 'SUB_PERIOD_HALVES']);
-  assert.equal(provider.refuseUnknown({ replay: { schema: 'X' }, terms: t, star: STAR, declaration: DECL, k2Text: k2With(DECL), s2Body: P.BODY.S2.PASS }).refusal, 'REPLAY_OUTPUT_INVALID');
+  assert.equal(provider.fromReplay({ replay: { schema: 'X' }, terms: t, star: STAR, declaration: DECL, k2Text: k2With(DECL), s2Body: P.BODY.S2.PASS }).refusal, 'REPLAY_OUTPUT_INVALID');
 });
