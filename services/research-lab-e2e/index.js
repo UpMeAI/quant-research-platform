@@ -18,6 +18,9 @@ const verdict = require('./verdict');
 const feedback = require('./feedback');
 const seen = require('./seen');
 const s2Evidence = require('./s2-evidence');
+const ladder = require('./ladder');
+const devValidation = require('./dev-validation');
+const holdoutOutcome = require('./holdout-outcome');
 const lineage = require('./lineage');
 const checker = require('./checker');
 
@@ -32,10 +35,10 @@ function bodies(S) {
 }
 
 /** Step 11, always last: every terminal state (also a refusal after the candidate is frozen) writes its feedback facts for the queue intake. */
-function writeFeedback(S, { terminalState, engineVerdict, reasonCodes }) {
+function writeFeedback(S, { terminalState, engineVerdict, reasonCodes, limits = [] }) {
   const { chain } = S;
   const fb = feedback.build({ cardId: S.job.card_id, market: S.job.market, asOf: S.asOf, labCandidateId: S.data.freeze.terms.candidate_id, terminalState,
-    verdict: feedback.verdictClass({ terminalState, engineVerdict }), reasonCodes, chainHeadSha256: chain.links[chain.links.length - 1].sha256 });
+    verdict: feedback.verdictClass({ terminalState, engineVerdict }), reasonCodes, limits, chainHeadSha256: chain.links[chain.links.length - 1].sha256 });
   if (!fb.ok) return { reason: fb.reason_code, step: byName('FEEDBACK') };
   chain.add(11, { 'feedback.json': fb.feedback_text, 'feedback_facts.json': fb.facts_text }, 'feedback.json');
   return { terminal: { state: terminalState } };
@@ -72,60 +75,84 @@ function tail(S) {
     }
     return pre('NOT_SELECTED_BY_VALIDATION', 'NOT_APPLICABLE', 'NOT_SELECTED_BY_VALIDATION', s2);
   }
-  if (data.finalTest.kind === 'FORWARD') return pre('FROZEN_AWAITING_FORWARD', 'PENDING_FORWARD', 'AWAITING_FORWARD');
-  if (beforeHoldout(S.asOf)) return pre('FROZEN_AWAITING_HOLDOUT', 'PENDING_HOLDOUT', 'AWAITING_HOLDOUT');
-  // after 2027-01-01 and a HOLDOUT final test: the exempt scorer must have scored it, and the evidence providers must have the rest
-  if (!(services.holdoutScored || holdoutScoredDefault)(exp.round_id)) return { wait: 'HOLDOUT_SCORING', step: byName('VERIFY') };
-  const view = { chain_candidate: exp.candidate, round_id: exp.round_id, k2_sha256: data.freeze.binding.k2_sha256, out_dir: chain.outDir };
-  const ev = services.evidence && typeof services.evidence.verifier === 'function' ? services.evidence.verifier(view) : null;
-  if (!ev) return { wait: 'VERIFIER_EVIDENCE', step: byName('VERIFY') };
+  // selected: S2 -> S3 -> S4 and the verifier on dev + validation (NOTE_1: the holdout only tests a candidate that already passed S3 and S4); S5 is the holdout or the forward test
+  const replayBytes = chain.existing(7, 'replay_output.json');
+  if (!replayBytes) return { wait: 'BACKTEST', step: byName('VERDICT') };
   const k2Link = chain.links.find((l) => l.step === 6);
   const k2Ref = { path: `${path.dirname(k2Link.artifact_path)}/k2.frozen.md`, sha256: data.freeze.binding.k2_sha256 };
   const logRef = { path: 'steps/07_EXPERIMENT/access_log.jsonl', sha256: exp.files['access_log.jsonl'].sha256 };
   const familyId = data.freeze.binding.family_id;
-  const bundle = verdict.assembleBundle({ chain: { candidateId: exp.candidate.id, candidateSha256: exp.candidate.sha256, market: S.job.market, familyId,
-    mechanismId: data.mechanism.id, dedupeDecision: data.mechanism.route, accessLog: logRef, k2: k2Ref, unseenClaim: { from: data.finalTest.from, to: data.finalTest.to },
-    segmentMarks: seen.marksFor({ familyId, seenRanges: data.seenRanges }) }, evidence: ev.bundle, asOf: S.asOf.slice(0, 10) });
+  const selection = JSON.parse(fs.readFileSync(path.join(chain.outDir, 'steps/07_EXPERIMENT/selection.json'), 'utf8'));
+  const star = typeof services.k2.ctx === 'function' ? services.k2.ctx('FINALIZE').promotionTermsStar || null : null;
+  const dv = devValidation.build({ replay: JSON.parse(replayBytes.toString('utf8')), terms, star, draft: data.draft, k2Text: data.freeze.k2Bytes.toString('utf8'), k2Sha256: data.freeze.binding.k2_sha256,
+    k2FrozenAt: data.freeze.binding.k2_frozen_at, formula: exp.candidate.formula_canonical, selection, candidateId: exp.candidate.id, trialId: exp.attempts.find((a) => a.candidate_id === exp.candidate.id).trial_id,
+    familyTrialCount: exp.attempts.length, asOf: S.asOf, gateOptions: services.verifierGateOptions || {}, override: services.devEvidence || {} });
+  if (dv.refusal) return refuse(S, byName('VERDICT'), `LAB_EVIDENCE_${dv.refusal}`, { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [dv.refusal] });
+  const bundle = verdict.assembleBundle({ chain: { candidateId: exp.candidate.id, candidateSha256: exp.candidate.sha256, market: S.job.market, familyId, mechanismId: data.mechanism.id, dedupeDecision: data.mechanism.route,
+    accessLog: logRef, k2: k2Ref, unseenClaim: data.finalTest.kind === 'HOLDOUT' ? { from: data.finalTest.from, to: data.finalTest.to } : null, segmentMarks: seen.marksFor({ familyId, seenRanges: data.seenRanges }) },
+    evidence: dv.bundle, asOf: S.asOf.slice(0, 10) });
   const base = verdict.engineS0S1(common, engine);
   if (!base.ok) return refuse(S, byName('VERDICT'), base.reason_code, { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [base.reason_code] });
   const [r0, r1] = base.results;
-  const selection = JSON.parse(fs.readFileSync(path.join(chain.outDir, 'steps/07_EXPERIMENT/selection.json'), 'utf8'));
-  const adapted = s2Evidence.fromSelection({ selection, candidateId: exp.candidate.id, minSampleN: terms.min_sample_n }).body;
-  const dsr = ev.bundle && ev.bundle.v3 && ev.bundle.v3.overfit ? ev.bundle.v3.overfit.dsr : null;
-  const s2 = ev.s2 || { body: { ...adapted, dsr: typeof dsr === 'number' ? dsr : null } };
-  const request = { candidate_id: terms.candidate_id, requested_stage: 'S2', terms, as_of: S.asOf,
-    evidence: { schema: 'PROMOTION_STAGE_EVIDENCE_V1', candidate_id: terms.candidate_id, stage: 'S2', k2_sha256: terms.k2_sha256, prior_output_sha256: r1.output_sha256, validator: { first_failed: null }, body: s2.body,
-      ...(s2.insufficient_inputs ? { insufficient_inputs: s2.insufficient_inputs } : {}) },
-    history: [{ stage: 'S0', verdict: 'PASS', output_sha256: r0.output_sha256 }, { stage: 'S1', verdict: 'PASS', output_sha256: r1.output_sha256 }] };
+  const lad = ladder.run({ engine, terms, asOf: S.asOf, prior: [r0, r1].map((r) => ({ stage: r.stage, verdict: r.verdict, output_sha256: r.output_sha256 })), stages: dv.stages, insufficientInputs: services.insufficientInputs });
+  if (lad.waiting) return { wait: lad.waiting, step: byName('VERDICT') };
+  if (lad.invalid) return refuse(S, byName('VERDICT'), `LAB_VERDICT_${lad.invalid}`, { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [lad.invalid] });
+  bundle.reachedS3 = lad.reachedS3; // V-6 runs only when S3 passed (amendment 2.1)
   const fromOut = (rel) => fs.readFileSync(path.join(chain.outDir, rel));
-  const verifierCtx = { ...(ev.ctx || {}), readBytes: (ref) => (ref.path === k2Ref.path || ref.path === logRef.path ? fromOut(ref.path) : ev.ctx.readBytes(ref)),
-    authority: { ledgerFile: path.join(chain.outDir, 'steps/07_EXPERIMENT/holdout_grants.jsonl') } };
-  const priorEngine = [r0, r1].map(verdict.summary);
-  const d = verdict.decide({ bundle, verifierCtx, request, priorEngine, engine });
-  const files = new Map(); // every file the verifier read, stored so the checker can re-run the verdict
-  const stash = (b) => { for (const v of Object.values(b || {})) { if (Array.isArray(v)) v.forEach((x) => stash({ x })); else if (v && typeof v === 'object') { if (typeof v.path === 'string' && /^[0-9a-f]{64}$/.test(v.sha256 || '')) files.set(v.path, v); stash(v); } } };
-  stash(bundle);
+  const verifierCtx = { gateOptions: dv.gateOptions, promotionEngine: { s4: () => lad.s4 }, authority: { ledgerFile: path.join(chain.outDir, 'steps/07_EXPERIMENT/holdout_grants.jsonl') },
+    readBytes: (ref) => (ref.path === k2Ref.path || ref.path === logRef.path ? fromOut(ref.path) : dv.readBytes(ref)) };
+  let request = lad.lastRequest; let priorEngine = [r0, r1, ...lad.results.slice(0, -1)].map(verdict.summary); let awaiting = null;
+  const allPass = lad.results.length === 3 && lad.results[2].verdict === 'PASS';
+  if (allPass) {
+    if (data.finalTest.kind === 'FORWARD') awaiting = { state: 'FROZEN_AWAITING_FORWARD', seal: verdict.awaitingSeal(data.finalTest) };
+    else if (beforeHoldout(S.asOf)) awaiting = { state: 'FROZEN_AWAITING_HOLDOUT', seal: verdict.awaitingSeal(data.finalTest) };
+    else {
+      // S5 on the holdout: only for a candidate that passed S3 and S4; the exempt scorer must have read it
+      if (!(services.holdoutScored || holdoutScoredDefault)(exp.round_id)) return { wait: 'HOLDOUT_SCORING', step: byName('VERIFY') };
+      const outcome = (services.holdoutOutcome || ((a) => holdoutOutcome.readDefault({ roundId: a.round_id, candidateId: a.candidate_id, runDir: exp.run_dir, minSampleN: terms.min_sample_n })))({ round_id: exp.round_id, candidate_id: exp.candidate.id, min_sample_n: terms.min_sample_n });
+      const s5State = holdoutOutcome.stateOf(outcome);
+      const s5Extra = s5State === holdoutOutcome.STATE.INSUFFICIENT ? (typeof services.insufficientInputs === 'function' ? services.insufficientInputs({ stage: 'S5', candidate_id: terms.candidate_id }) : null) : undefined;
+      if (s5Extra === null) return { wait: 'INSUFFICIENT_INPUTS', step: byName('VERDICT') };
+      const s4r = lad.results[2];
+      priorEngine = [r0, r1, ...lad.results].map(verdict.summary);
+      request = { candidate_id: terms.candidate_id, requested_stage: 'S5', terms, as_of: S.asOf,
+        history: [...lad.lastRequest.history, { stage: 'S4', verdict: 'PASS', output_sha256: s4r.output_sha256 }],
+        evidence: { schema: 'PROMOTION_STAGE_EVIDENCE_V1', candidate_id: terms.candidate_id, stage: 'S5', k2_sha256: terms.k2_sha256, prior_output_sha256: s4r.output_sha256, validator: { first_failed: null },
+          body: { paper_validation_state: s5State, holdout: { origin: 'MINED', read_count: 1, read_at: S.asOf } }, ...(s5Extra ? { insufficient_inputs: s5Extra } : {}) } };
+    }
+  }
+  const limits = dv.stages.S4 && dv.stages.S4.body && dv.stages.S4.body.limitation && lad.results.some((r) => r.stage === 'S4') ? [dv.stages.S4.body.limitation] : [];
+  const d = verdict.decide({ bundle, verifierCtx, request, priorEngine, engine, awaiting, skipVerifier: !allPass, limits });
+  const stored = [];
+  if (!allPass) chain.add(8, { 'verifier_not_run.json': text({ schema: 'LAB_VERIFIER_NOT_RUN_V1', reason: 'LADDER_STOPPED_BEFORE_S5' }), 'ladder.json': text({ schema: 'LAB_LADDER_V1', stages: lad.results.map(verdict.summary) }) }, 'verifier_not_run.json', 'NOT_APPLICABLE');
   if (d.verifier) {
-    const stored = [];
-    for (const ref of files.values()) {
+    for (const ref of collectRefs(bundle)) {
       const bytes = verifierCtx.readBytes(ref);
       if (!bytes) continue;
       const rel = `steps/08_VERIFY/files/${sha256(ref.path).slice(0, 16)}`;
       fs.mkdirSync(path.join(chain.outDir, 'steps/08_VERIFY/files'), { recursive: true }); fs.writeFileSync(path.join(chain.outDir, rel), bytes);
       stored.push({ path: ref.path, sha256: ref.sha256, stored: rel });
     }
-    S.data.storedFiles = stored;
-    chain.add(8, { 'verifier_report.json': text(d.verifier.internal) }, 'verifier_report.json');
+    chain.add(8, { 'verifier_report.json': text(d.verifier.internal), 'ladder.json': text({ schema: 'LAB_LADDER_V1', stages: lad.results.map(verdict.summary) }) }, 'verifier_report.json');
   }
   if (d.status !== 'DECIDED') {
     const verifierFail = d.reason_code.startsWith('LAB_VERIFY_') && d.verifier;
     return refuse(S, verifierFail ? byName('VERIFY') : byName('VERDICT'), d.reason_code,
       verifierFail ? { terminalState: 'VERIFIER_FAIL', reasonCodes: d.verifier.generator.reasonCodes } : { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [d.reason_code] });
   }
-  const inputs = { schema: 'LAB_ENGINE_INPUTS_V1', ...common, terminal_state: d.verdict.terminal_state, seal: d.seal, post_holdout: { bundle, request, prior_engine: priorEngine, files: S.data.storedFiles } };
+  const inputs = { schema: 'LAB_ENGINE_INPUTS_V1', ...common, terminal_state: d.verdict.terminal_state, seal: d.seal, post_holdout: { bundle, request, prior_engine: priorEngine, s4: lad.s4, awaiting, skip_verifier: !allPass, limits, files: stored } };
   chain.add(9, { 'verdict.json': d.verdict_text, 'engine_inputs.json': text(inputs) }, 'verdict.json');
-  chain.add(10, { 'seal.json': text({ schema: 'LAB_SEAL_V1', seal: d.seal, verdict_sha256: sha256(d.verdict_text) }) }, 'seal.json');
-  return writeFeedback(S, { terminalState: d.verdict.terminal_state, engineVerdict: d.engine.verdict, reasonCodes: d.engine.reasonCodes });
+  chain.add(10, { 'seal.json': text({ schema: 'LAB_SEAL_V1', seal: d.seal, verdict_sha256: sha256(d.verdict_text) }) }, 'seal.json', awaiting ? (data.finalTest.kind === 'FORWARD' ? 'PENDING_FORWARD' : 'PENDING_HOLDOUT') : 'DONE');
+  return writeFeedback(S, { terminalState: d.verdict.terminal_state, engineVerdict: d.engine.verdict, reasonCodes: d.engine.reasonCodes, limits });
+}
+
+/** Every {path, sha256} reference in the verifier bundle (the files the verifier read; stored so the checker can re-run the verdict). */
+function collectRefs(b, out = new Map()) {
+  for (const v of Object.values(b || {})) {
+    if (Array.isArray(v)) v.forEach((x) => collectRefs({ x }, out));
+    else if (v && typeof v === 'object') { if (typeof v.path === 'string' && /^[0-9a-f]{64}$/.test(v.sha256 || '')) out.set(v.path, v); collectRefs(v, out); }
+  }
+  return [...out.values()];
 }
 
 function run(job, services = {}) {
@@ -160,4 +187,4 @@ function run(job, services = {}) {
   return finish('COMPLETE', null, { terminal: t.terminal });
 }
 
-module.exports = { STEPS, HOLDOUT_NOT_BEFORE, run, check: checker.check, verdict, seen, defaultLedger };
+module.exports = { STEPS, HOLDOUT_NOT_BEFORE, run, check: checker.check, verdict, seen, holdoutOutcome, defaultLedger };

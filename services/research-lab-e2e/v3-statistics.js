@@ -52,4 +52,41 @@ function fromRound({ roundId, candidateId, outDir, scoreFile = null, priorHoldou
   return { v3, files };
 }
 
-module.exports = { fromRound, pValue };
+const holdoutScoring = () => require('../mining-sandbox/round-runner/holdout-scoring');
+
+/**
+ * Pre-holdout form (the ladder runs S2..S4 and the verifier on dev + validation before S5): the same statistics from the validation folds only, nothing from the holdout.
+ *   DSR  holdout-scoring.dsrFromValidation on the candidate's validation monthly paired differences (N = the family's trial count, family Sharpes from the round)
+ *   PBO  overfit.pbo (CSCV) on the round candidates' validation monthly matrix; NOT_APPLICABLE or unknown stays unknown (no provenance, V-3 answers UNSOURCED_STATISTIC)
+ *   BHY  one-sided normal tail of the validation IC t-statistic over the folds, one raw p per round candidate
+ * Provenance: the candidate's trial-ledger registration id (TRL-...) and a hashed run file { trialRecordId, statistic, value }.
+ */
+function fromSelection({ selection, candidateId, trialId, familyTrialCount, priorHoldoutFailures = [] }) {
+  const cands = selection.candidates;
+  const mine = cands.find((c) => c.candidate_id === candidateId);
+  if (!mine || !mine.validation_book) throw err('V3_ADAPTER_CANDIDATE_UNKNOWN', candidateId);
+  const sharpes = cands.map((c) => (c.validation_book ? c.validation_book.sr : null)).filter(isNum);
+  const d = holdoutScoring().dsrFromValidation({ monthly_d: mine.validation_book.monthly_d, N: familyTrialCount, familySharpes: sharpes });
+  const len = Math.min(...cands.filter((c) => c.validation_book).map((c) => c.validation_book.monthly_d.length));
+  const R = Array.from({ length: len }, (_, t) => cands.filter((c) => c.validation_book).map((c) => c.validation_book.monthly_d[t]));
+  let pbo; try { pbo = R.length ? overfit.pbo(R) : { value: 'NOT_APPLICABLE' }; } catch { pbo = { value: 'UNKNOWN' }; }
+  const pOf = (c) => {
+    const f = c.fold_ic.filter((x) => isNum(x.ic_mean) && x.ic_days > 0); const k = f.length;
+    if (k < 2) return 1;
+    const m = f.reduce((a, x) => a + x.ic_mean, 0) / k; const sd = Math.sqrt(f.reduce((a, x) => a + (x.ic_mean - m) ** 2, 0) / (k - 1));
+    return sd > 0 ? 1 - overfit.normCdf(m / (sd / Math.sqrt(k))) : (m > 0 ? 0 : 1);
+  };
+  const pValues = cands.map(pOf); const index = cands.findIndex((c) => c.candidate_id === candidateId);
+  const dsr = isNum(d.dsr) ? d.dsr : null; const pboV = isNum(pbo.value) ? pbo.value : null;
+  const files = []; const provenance = {};
+  const record = (name, value) => {
+    if (!isNum(value)) return;
+    const body = Buffer.from(`${trials.canonicalJson({ trialRecordId: trialId, statistic: name, value })}\n`);
+    const rel = `v3/${name}-${sha(`${candidateId}:${name}`).slice(0, 12)}.json`;
+    files.push({ path: rel, bytes: body }); provenance[name] = { trialRecordId: trialId, run: { path: rel, sha256: sha(body) } };
+  };
+  record('dsr', dsr); record('pbo', pboV); record('bhy', pValues[index]);
+  return { v3: { familyTrialCount, overfit: { dsr, n_trials: familyTrialCount, pbo: pboV, pbo_scope: 'ROUND_CANDIDATE_SET', bhy: { pValues, index } }, provenance, priorHoldoutFailures }, files };
+}
+
+module.exports = { fromRound, fromSelection, pValue };

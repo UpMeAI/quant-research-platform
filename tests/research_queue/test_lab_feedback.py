@@ -66,5 +66,60 @@ class IntakeMerge(Base):
         self.assertEqual(inputs[0]["path"], str(d / "2026-W48-CN_A.json"))
 
 
+class LateFeedback(Base):
+    """plan-coord 11-23 (5): feedback that arrives after a week's card was admitted goes into the following week's pack; it never creates a second card task for an admitted week."""
+
+    def _put(self, week, n=5):
+        d = self.cfg.inbox_dir / "fact-packs"; d.mkdir(parents=True, exist_ok=True)
+        p = pack(n); p["week"] = week
+        (d / ("%s-CN_A.json" % week)).write_text(json.dumps(p))
+        return d / ("%s-CN_A.json" % week)
+
+    def _feedback(self, name, sha_):
+        lf = self.cfg.inbox_dir / "lab-feedback"; lf.mkdir(parents=True, exist_ok=True)
+        (lf / name).write_text(json.dumps(feedback(sha_=sha_)))
+
+    def _tasks(self):
+        return self.conn.execute("select count(*) from task").fetchone()[0]
+
+    def _inputs(self):
+        return [json.loads(r[0])["request"]["inputs"][0]["path"] for r in self.conn.execute("select admission_json from task where state='READY' order by task_id")]
+
+    def test_late_feedback_never_creates_a_second_task_and_joins_the_next_week(self):
+        w48 = self._put("2026-W48")
+        producer.tick(self.conn, self.cfg, shipped(), at(10, 0, day=28))
+        self.assertEqual(self._tasks(), 1)
+        self._feedback("a.json", "a" * 64)  # arrives after W48's card was admitted
+        producer.tick(self.conn, self.cfg, shipped(), at(10, 30, day=28))
+        producer.tick(self.conn, self.cfg, shipped(), at(11, 0, day=28))
+        self.assertEqual(self._tasks(), 1, "no second card task for an admitted week")
+        self.assertEqual(self._inputs(), [str(w48)], "W48's input is untouched")
+        w49 = self._put("2026-W49")
+        producer.tick(self.conn, self.cfg, shipped(), at(12, 0, day=28))
+        self.assertEqual(self._tasks(), 2)
+        merged = [json.loads(pathlib.Path(p).read_text()) for p in self._inputs() if "fact-packs-merged" in p]
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]["week"], "2026-W49")
+        self.assertEqual(merged[0]["facts"][-1]["source"]["sha256"], "a" * 64)
+
+    def test_a_feedback_fact_is_delivered_once(self):
+        self._put("2026-W48"); self._feedback("a.json", "a" * 64)
+        producer.tick(self.conn, self.cfg, shipped(), at(10, 0, day=28))
+        self._put("2026-W49")
+        producer.tick(self.conn, self.cfg, shipped(), at(11, 0, day=28))
+        paths = self._inputs()
+        w49 = [json.loads(pathlib.Path(p).read_text()) for p in paths if "W49" in p or "2026-W49" in p]
+        self.assertEqual(len(w49), 1)
+        self.assertFalse(any((f.get("source") or {}).get("sha256") == "a" * 64 for f in w49[0]["facts"]), "already delivered with W48")
+
+    def test_repeated_ticks_with_the_same_state_are_stable(self):
+        self._put("2026-W48"); self._feedback("a.json", "a" * 64)
+        producer.tick(self.conn, self.cfg, shipped(), at(10, 0, day=28))
+        first = self._inputs()
+        producer.tick(self.conn, self.cfg, shipped(), at(10, 30, day=28))
+        self.assertEqual(self._tasks(), 1)
+        self.assertEqual(self._inputs(), first)
+
+
 if __name__ == "__main__":
     unittest.main()

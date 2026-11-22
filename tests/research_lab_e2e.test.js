@@ -61,7 +61,7 @@ test('full chain on the fixture: card to feedback, terminal FROZEN_AWAITING_HOLD
     assert.equal(sha(fs.readFileSync(path.join(w.outDir, l.artifact_path))), l.sha256, `link ${l.step} sha is the file's`);
     assert.ok(!path.isAbsolute(l.artifact_path) && !l.artifact_path.includes('..'));
   });
-  assert.deepEqual(lineage.chain.filter((l) => l.status === 'PENDING_HOLDOUT').map((l) => l.name), ['VERIFY', 'SEAL'], 'only the steps that need the holdout are pending');
+  assert.deepEqual(lineage.chain.filter((l) => l.status === 'PENDING_HOLDOUT').map((l) => l.name), ['SEAL'], 'S2 to S4 and the verifier ran on dev + validation; only S5 (the holdout) is pending');
   // every attempt, discarded ones included, from the trial ledger
   assert.deepEqual(lineage.attempts.map((a) => a.status), ['SCORED', 'PARSE_REFUSED', 'DEDUPED', 'SCORED', 'SCORED']);
   assert.equal(lineage.attempts.length, W.FORMULAS.length);
@@ -103,9 +103,11 @@ test('the K2 binding and promotion terms are real: the frozen K2 sha is in the l
   assert.ok(k2.validators.every((v) => v.state === 'PASS'));
   assert.equal(k2.dsl_formula_sha256, json(path.join(w.outDir, lineage.chain[3].artifact_path)).candidate.formula_sha256);
   const verdict = JSON.parse(lineage.verdict.text);
-  assert.deepEqual(verdict.engine.map((e) => [e.stage, e.verdict]), [['S0', 'PASS'], ['S1', 'PASS']]);
+  assert.deepEqual(verdict.engine.map((e) => [e.stage, e.verdict]), [['S0', 'PASS'], ['S1', 'PASS'], ['S2', 'PASS'], ['S3', 'PASS'], ['S4', 'PASS']], 'NOTE_1: S2 -> S3 -> S4 on dev + validation before S5');
   assert.ok(verdict.engine.every((e) => /^[0-9a-f]{64}$/.test(e.output_sha256)));
-  assert.equal(verdict.verifier, null, 'the verifier runs once the holdout has been read');
+  assert.equal(verdict.verifier.generator.verdict, 'pass', 'V-1..V-6 ran before S5');
+  assert.deepEqual(Object.keys(verdict.verifier.generator).sort(), ['candidateId', 'reasonCodes', 'verdict']);
+  assert.equal(verdict.seal.destination, 'AWAIT_HOLDOUT');
 });
 
 test('re-running the same inputs: nothing re-executes (the round is not opened twice) and the chain and verdict bytes are identical', async () => {
@@ -123,8 +125,10 @@ test('the orchestrator is deterministic: no clock read (source scan) and as_of i
   const dir = path.join(__dirname, '..', 'services', 'research-lab-e2e');
   for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.js'))) {
     const t = read(path.join(dir, f));
-    assert.equal(/Date\.now\(|new Date\(\)|performance\.now|process\.hrtime/.test(t), false, `${f} reads the clock`);
-    assert.equal(/Math\.random|child_process|require\('(net|http|https|dns)'\)/.test(t), false, `${f}`);
+    // backtester.js measures wall time with hrtime for the compute estimate; the measurement is returned outside `replay` and never feeds a verdict
+    if (f !== 'backtester.js') assert.equal(/Date\.now\(|new Date\(\)|performance\.now|process\.hrtime/.test(t), false, `${f} reads the clock`);
+    // causality-evidence.js asks git (a pinned commit, read-only) whether operators.js is unchanged since the operator evidence; the answer is deterministic
+    assert.equal(/Math\.random|require\('(net|http|https|dns)'\)/.test(t) || (f !== 'causality-evidence.js' && /child_process/.test(t)), false, `${f}`);
   }
 });
 
@@ -281,7 +285,7 @@ test('C5: the lab writes LAB_FEEDBACK_FACTS_V1 for the queue intake; the Q1 prod
   assert.equal(facts.schema, 'LAB_FEEDBACK_FACTS_V1');
   assert.equal(facts.facts.length, 1);
   assert.ok(!('id' in facts.facts[0]), 'ids belong to the producer');
-  assert.deepEqual(Object.keys(facts.facts[0].value).sort(), ['candidate_id', 'reason_codes', 'terminal_state', 'verdict'], 'generator-facing: no metric of any kind');
+  assert.deepEqual(Object.keys(facts.facts[0].value).sort(), ['candidate_id', 'limits', 'reason_codes', 'terminal_state', 'verdict'], 'generator-facing: no metric of any kind (limits are labels)');
   assert.equal(facts.facts[0].value.verdict, 'pending');
   const base = w.services.bundle();
   const merged = mergeViaProducer(base, facts);
@@ -391,7 +395,7 @@ test('ruling 1: a candidate born from the W47 card (facts SEEN, overlapping the 
   const lin = json(res.lineage_path);
   assert.deepEqual(lin.seen_ranges, [{ from: W.W47_DATE, to: W.W47_DATE, source: 'REVIEW_CARD' }]);
   assert.deepEqual(lin.final_test, { kind: 'FORWARD', from: '2026-11-21', reason: 'SEEN_OVERLAPS_RF1116_HOLDOUT' });
-  assert.deepEqual(lin.chain.filter((l) => l.status === 'PENDING_FORWARD').map((l) => l.name), ['VERIFY', 'SEAL']);
+  assert.deepEqual(lin.chain.filter((l) => l.status === 'PENDING_FORWARD').map((l) => l.name), ['SEAL']);
   assert.equal(JSON.parse(lin.verdict.text).seal.destination, 'AWAIT_FORWARD');
   const bundle = w.services.bundle();
   for (const at of [AS_OF, '2027-03-01T00:00:00+08:00']) {
@@ -439,18 +443,90 @@ test('ruling 3: not selected by the validation rule is S2 FAIL (不做) with tha
 });
 
 test('ruling 5: a verifier FAIL still writes feedback (last step); C5 checks it; the run is REFUSED with the verifier reason code', async () => {
-  const w = await buildWorld({ asOf: '2027-01-06T10:00:00+08:00' });
-  w.services.holdoutScored = () => true;
-  w.services.evidence = { verifier: () => { const v = VF.build(); return { bundle: v.bundle, ctx: v.ctx, s2: { body: P.BODY.S2.PASS } }; } };
+  const w = await buildWorld();
+  w.services.devEvidence = { v3: W.syntheticV3({ dsr: 0.5 }), stages: { S2: { body: P.BODY.S2.PASS } } }; // the S2 stage forced to PASS so that the verifier is what stops the chain
   const r = lab.run(w.job, w.services);
-  assert.deepEqual([r.status, r.stopped_at], ['REFUSED', 'VERIFY']);
-  assert.match(r.reason_code, /^LAB_VERIFY_V1_/);
+  assert.deepEqual([r.status, r.stopped_at, r.reason_code], ['REFUSED', 'VERIFY', 'LAB_VERIFY_V3_MINE_DSR_BELOW_MIN']);
   assert.equal(r.links[r.links.length - 1].name, 'FEEDBACK', 'feedback is always the last step');
   const dir = path.dirname(r.links[r.links.length - 1].artifact_path);
   const facts = json(path.join(w.outDir, dir, 'feedback_facts.json'));
   assert.equal(facts.facts[0].value.verdict, 'fail');
   assert.equal(facts.facts[0].value.terminal_state, 'VERIFIER_FAIL');
-  assert.ok(facts.facts[0].value.reason_codes[0].startsWith('V1_'));
+  assert.ok(facts.facts[0].value.reason_codes[0].startsWith('V3_'));
   const merged = mergeViaProducer(w.services.bundle(), facts);
-  assert.equal(verdictOf(lab.check({ out_dir: w.outDir, as_of: '2027-01-06T10:00:00+08:00', services: w.services, next_bundle: merged }), 'C5_FEEDBACK_IN_NEXT_PACK').verdict, 'PASS');
+  assert.equal(verdictOf(lab.check({ out_dir: w.outDir, as_of: AS_OF, services: w.services, next_bundle: merged }), 'C5_FEEDBACK_IN_NEXT_PACK').verdict, 'PASS');
+});
+
+test('NOTE_1: S3 fails on the fixture tables with the real QRP backtester: the candidate is sealed to the failure library before any holdout, with S2 PASS and S3 FAIL in the verdict; feedback says fail', async () => {
+  const w = await buildWorld({ realBacktest: true });
+  const r = lab.run(w.job, w.services);
+  assert.equal(r.status, 'COMPLETE', JSON.stringify(r));
+  assert.equal(r.terminal_state, 'SEALED_FAILURE_LIBRARY');
+  const verdict = JSON.parse(json(r.lineage_path).verdict.text);
+  const stages = verdict.engine.map((e) => [e.stage, e.verdict]);
+  assert.deepEqual(stages, [['S0', 'PASS'], ['S1', 'PASS'], ['S2', 'PASS'], ['S3', 'FAIL']]);
+  assert.equal(verdict.verifier, null, 'the verifier gates the move to S5; a candidate that failed S3 gets the engine verdict');
+  assert.equal(verdict.seal.destination, 'FAILURE_LIBRARY');
+  assert.equal(json(r.lineage_path).chain[7].status, 'NOT_APPLICABLE');
+  assert.ok(fs.existsSync(path.join(w.outDir, 'steps/07_EXPERIMENT/replay_output.json')), 'the replay output was written inside QRP from the round tables');
+});
+
+/* ----------------------------------------------------------------------- NOTE_1 follow-up: S5 holdout is 3-way, idle existing book is visible */
+
+async function s5World(outcome, { insufficient = true } = {}) {
+  const w = await buildWorld({ asOf: '2027-01-06T10:00:00+08:00' });
+  w.services.holdoutScored = () => true;
+  w.services.holdoutOutcome = () => outcome;
+  if (insufficient) w.services.insufficientInputs = () => P.insuff();
+  return { w, r: lab.run(w.job, w.services) };
+}
+const verdictText = (w, r) => JSON.parse(json(r.lineage_path).verdict.text);
+
+test('S5 holdout, 3-way (Owner: insufficient is never a rejection): G-MINE PASS is S5 PASS; FAIL with the required sample is S5 FAIL (不做); short of sample or power is S5 INSUFFICIENT resolved by section 4.2', async () => {
+  const pass = await s5World({ pass: true, sufficient: true });
+  assert.equal(pass.r.status, 'COMPLETE', JSON.stringify(pass.r));
+  let v = verdictText(pass.w, pass.r);
+  assert.deepEqual(v.engine.filter((e) => e.stage === 'S5').map((e) => e.verdict), ['PASS']);
+  assert.equal(pass.r.terminal_state, 'SEALED_FORWARD_SHADOW');
+
+  const fail = await s5World({ pass: false, sufficient: true });
+  v = verdictText(fail.w, fail.r);
+  assert.deepEqual(v.engine.filter((e) => e.stage === 'S5').map((e) => [e.verdict, e.nextAction]), [['FAIL', 'SEAL_NOT_DO_TO_FAILURE_LIBRARY']]);
+  assert.equal(fail.r.terminal_state, 'SEALED_FAILURE_LIBRARY');
+
+  const short = await s5World({ pass: false, sufficient: false });
+  v = verdictText(short.w, short.r);
+  const s5 = v.engine.find((e) => e.stage === 'S5');
+  assert.equal(s5.verdict, 'INSUFFICIENT', 'short of sample or power is never a rejection');
+  assert.notEqual(v.seal.destination, 'FAILURE_LIBRARY');
+  assert.ok(['FORWARD_SHADOW', 'PAUSE'].includes(v.seal.destination), v.seal.destination);
+  assert.equal(short.r.terminal_state === 'SEALED_FAILURE_LIBRARY', false);
+  const factsDir = path.dirname(short.r.links[short.r.links.length - 1].artifact_path);
+  assert.equal(json(path.join(short.w.outDir, factsDir, 'feedback_facts.json')).facts[0].value.verdict, 'pending');
+});
+
+test('S5 INSUFFICIENT needs the section 4.2 inputs from the host: without them the run waits (INSUFFICIENT_INPUTS), it does not guess and does not reject', async () => {
+  const { r } = await s5World({ pass: false, sufficient: false }, { insufficient: false });
+  assert.deepEqual([r.status, r.waiting], ['WAITING_EXTERNAL', 'INSUFFICIENT_INPUTS']);
+});
+
+test('default holdout outcome: sufficient only when the holdout IC days reach the K2 min_sample_n; G-MINE pass from the record (unit)', () => {
+  const o = lab.holdoutOutcome.fromScore({ record: { pass: true }, result: { holdout: { ic_days: 50 } }, minSampleN: 32 });
+  assert.deepEqual(o, { pass: true, sufficient: true });
+  assert.deepEqual(lab.holdoutOutcome.fromScore({ record: { pass: false }, result: { holdout: { ic_days: 20 } }, minSampleN: 32 }), { pass: false, sufficient: false });
+  assert.deepEqual(lab.holdoutOutcome.fromScore({ record: { pass: false }, result: { holdout: { ic_days: 60 } }, minSampleN: 32 }), { pass: false, sufficient: true });
+  assert.deepEqual(lab.holdoutOutcome.fromScore({ record: { pass: false }, result: { holdout: { ic_days: null } }, minSampleN: 32 }), { pass: false, sufficient: false }, 'unknown is not enough');
+});
+
+test('idle existing book: S4 carries existing_book_active_share and, below 20%, limitation EXISTING_BOOK_MOSTLY_IDLE; it reaches the verdict limits and the feedback fact; the decision still rests on the marginal contribution', async () => {
+  const w = await buildWorld({ idleBook: 0.807 });
+  const r = lab.run(w.job, w.services);
+  assert.equal(r.status, 'COMPLETE', JSON.stringify(r));
+  const v = verdictText(w, r);
+  assert.deepEqual(v.limits, ['EXISTING_BOOK_MOSTLY_IDLE']);
+  assert.equal(v.engine.find((e) => e.stage === 'S4').verdict, 'PASS', 'the S4 decision is the marginal net contribution');
+  const dir = path.dirname(r.links[r.links.length - 1].artifact_path);
+  assert.deepEqual(json(path.join(w.outDir, dir, 'feedback_facts.json')).facts[0].value.limits, ['EXISTING_BOOK_MOSTLY_IDLE']);
+  const clean = await complete();
+  assert.deepEqual(JSON.parse(json(clean.res.lineage_path).verdict.text).limits, []);
 });

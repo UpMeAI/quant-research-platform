@@ -207,15 +207,29 @@ def tick(conn, cfg, registry, now, probes=None):
             continue
         count(admit(conn, cfg, registry, req, now))
     d = cfg.inbox_dir / "fact-packs"
-    lab = [x for x in (_load_json(p) for p in sorted((cfg.inbox_dir / "lab-feedback").glob("*.json"))) if x] if (cfg.inbox_dir / "lab-feedback").is_dir() else []
+    lab_dir = cfg.inbox_dir / "lab-feedback"
+    lab = [x for x in (_load_json(p) for p in sorted(lab_dir.glob("*.json"))) if x] if lab_dir.is_dir() else []
     merged_dir = cfg.inbox_dir / "fact-packs-merged"
+    state_file = cfg.inbox_dir / "lab-feedback-state.json"
+    state = _load_json(state_file) or {}
+    state.setdefault("packs", {})
+    state_dirty = False
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
         pack = _load_json(f)
         if not (isinstance(pack, dict) and pack.get("schema") == FACT_PACK_SCHEMA and pack.get("week") and pack.get("market")):
             out["unreadable"] += 1
             continue
+        # W24 (plan-coord 11-23 (5)): a pack takes the lab feedback that exists the first time the producer sees it and keeps exactly that set. Feedback arriving later is never added to a
+        # pack already seen (no second card task for an admitted week); it joins the next pack that has not been seen yet. A fact is delivered once.
+        if f.name not in state["packs"]:
+            taken = {s_ for v in state["packs"].values() for s_ in v}
+            state["packs"][f.name] = sorted({(x.get("source") or {}).get("sha256") for doc in lab if doc.get("market") == pack["market"] for x in doc.get("facts", []) if isinstance(x, dict)
+                                              and (x.get("source") or {}).get("sha256") and (x.get("source") or {}).get("sha256") not in taken})
+            state_dirty = True
+        mine = set(state["packs"][f.name])
+        docs = [dict(doc, facts=[x for x in doc.get("facts", []) if isinstance(x, dict) and (x.get("source") or {}).get("sha256") in mine]) for doc in lab]
         use = f
-        merged = merge_lab_feedback(pack, lab) if lab else pack
+        merged = merge_lab_feedback(pack, [x for x in docs if x["facts"]]) if mine else pack
         if merged != pack:  # the lab's feedback facts join the card's input; the pack the producer was given stays untouched
             merged_dir.mkdir(parents=True, exist_ok=True)
             use = merged_dir / f.name
@@ -225,6 +239,9 @@ def tick(conn, cfg, registry, now, probes=None):
         if req is None:
             continue
         count(admit(conn, cfg, registry, req, now, extra_input_prefixes=[d, merged_dir]))
+    if state_dirty:
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        state_file.write_text(json.dumps(state, sort_keys=True))
     out["resumed"] = reevaluate_waiting(conn, cfg, now, probes)
     return out
 
