@@ -1,4 +1,4 @@
-# RF1116 P2 round runner (GP only). Build on the research lane from a QRP checkout at the reviewed merge commit:
+# RF1116 P2 round runner (GP and, since LLM_GEN, the LLM generator; the same image runs the networked LLM step with --entrypoint node). Build on the research lane from a QRP checkout at the reviewed merge commit:
 #   docker build -f deploy/research-lane/round-runner/Dockerfile -t qrp-round-runner:<commit12> .
 # The base image is pinned by digest: Node 22.23.3, the lane's local node:22-bookworm-slim (Docker Hub is blocked from the lane, so
 # build with --pull=false; DEPLOY.md checks the digest first). Dependencies come only from package-lock.json (npm ci). The image holds

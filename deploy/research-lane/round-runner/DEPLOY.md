@@ -3,7 +3,7 @@
 The coordinator deploys this. Nothing here is run from the Mac. The runner covers MINING_ROUNDS_V1 "P2 requirements" and P2 spec §1:
 - it runs in a rootless container;
 - data mounts are read-only;
-- the container has no network (GP needs none);
+- the container has no network (GP needs none; an LLM round uses the separate LLM step container, see "LLM generator");
 - there is one writable output directory;
 - the holdout directory is mounted only in the scoring phase.
 
@@ -266,6 +266,38 @@ RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12> /srv/research-lane/rf1116-mining
 
 The evidence sha256 is that of `artifacts/coordinator/evidence/rf1116-round1-defect-aqua-20261118/ROUND1_DEFECT_REPORT.md` (read-only). It prints one JSON line: `status: FAILED_EVALUATION`, `gmine_passes: 0` and the row's `record_hash`. Round 2 is then November's last round. It may share the 2026-10-19 → 12-31 holdout, because round 1 never opened it.
 
+## LLM generator (RF1116 LLM_GEN): the LLM step, the key, the commands
+
+Brief 93a93509 + addendum 2 5ab7b720. The first real LLM round is 2026-12-01 (November's two rounds are used); nothing here opens one earlier.
+
+**Containers.** `generate-llm` and `resume-llm` start `rf1116-llm-step` detached, run the generate container (`--network none`, name `rf1116-generate-llm` or `rf1116-generate-llm-resume`, so the window pause matches `rf1116-generate-*`), and stop the step container whatever the exit code. `llm-ping` runs the ping container. The exchange directory `$OUT/llm-exchange` is created by `llm-init` (the runner image, mode 0777).
+
+| | `rf1116-llm-step` / `rf1116-llm-ping` | generate containers |
+|---|---|---|
+| network | `--network bridge`; the process locks egress to the configured host on 443 | `--network none` |
+| user | `--user 0:0` (rootless Docker: host uid 1000, the key file's owner; all capabilities dropped) | `1000:1000` |
+| mounts | exactly two: the key file (ro) and `$OUT/llm-exchange` (rw) | data (ro) and `$OUT` (rw) |
+| environment | none (the key is a file, not a variable) | `QRP_DATA_DIR`, `QRP_PRODUCT_MILESTONE_AUTHORITY` |
+| limits | 1 CPU, 1g, 64 pids, read-only root, 16m tmpfs | as for GP |
+
+**The key (★K (b)).** Host file `/home/kayla/.config/qrp-research-key/deepseek-research.env`, variable `DEEPSEEK_RESEARCH_API_KEY`, mode 0600 (0400 also works), owner kayla. The Owner places it with `~/ops/linux-deepseek-research-key/install-deepseek-research-key.sh`. It is mounted read-only into the step container at `/run/secrets/deepseek-research.env`, and nowhere else. It is never printed, logged, written to a file or committed. A group- or other-readable file counts as absent.
+
+**Commands** (from the code directory, with `RF1116_RUNNER_IMAGE` set as for the other commands; build the image from the merge commit):
+
+```
+run.sh llm-ping                      # one non-formula request; opens no round, writes no formula, counts nothing in N. Exit 0 = OK, 75 = waiting (key absent, quota, ...)
+run.sh generate-llm <holdout_sha256> # probe, open, seal, generate, select. Exit 0 done, 75 waiting, 3 stopped
+run.sh resume-llm <round_id>         # probe, then continue the same round, then select
+```
+
+**Waiting (exit 75).** The round stays `OPEN`. Read the last row of `out/qrp-data/research/mining_llm_calls.jsonl` (or `generate.json` → `llm.state`) for the state and the raw provider error. Key absent: place the key. Quota (402): top up the account. Rate limit (429): wait. Model mismatch: the coordinator re-checks the changelog and decides; no formula from that reply is used. Then `resume-llm <round_id>`. Nothing is retried automatically.
+
+**Stopped (exit 3).** `STOPPED_TOKEN_CAP` or `STOPPED_CALL_CAP`: the config's per-round limit is reached. Raising it is a config change, which changes the config sha and so stops every open round that froze the old one (`MINE_RUNNER_LLM_CONFIG_CHANGED`); the coordinator rules on it. `STOPPED_REQUEST_INVALID`: read the raw error (for example `max_tokens` above what the API allows for the model).
+
+**Window pause.** The generate containers are paused like the GP ones (name match). The step container is idle while generate is paused and is not paused. Run only outside the V6 windows.
+
+**Per-round cost** (arithmetic in the PR body; token numbers are estimates until round 1's metered usage replaces them): about 20 calls of 10 formulas, about 125k input and 60k output tokens, about ¥1.4 off-peak; the hard cap is `limits.tokens_per_round` in the config.
+
 ## Limits and timing
 
 | item | value |
@@ -275,7 +307,7 @@ The evidence sha256 is that of `artifacts/coordinator/evidence/rf1116-round1-def
 | `--pids-limit` | 256 |
 | Node heap | 20 GiB (`--max-old-space-size=20480`) |
 | root fs | read-only; `/tmp` is a 256 MiB tmpfs |
-| network | `--network none` (GP). The LLM step is not built: `MINE_LLM_NOT_ENABLED` |
+| network | `--network none` for every container except the LLM step (`--network bridge`, below) |
 
 - **Shared host:** this host also carries V6 production. Run outside the V6 windows: 09:15–15:30 CST, the post-close chain, and the 06:30 PREMARKET.
 - **Run time:** a full round is roughly 200 mining evaluations plus one validation pass. That takes hours, not minutes.
