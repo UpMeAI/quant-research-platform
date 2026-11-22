@@ -101,3 +101,41 @@ test('terms must be bound to their K2 and frozen with it: PROMOTION_TERMS_NOT_BO
   assert.ok(run(fx.terms({ k2_sha256: 'xyz' })).reasonCodes.includes('PROMOTION_TERMS_NOT_BOUND'));
 });
 
+test('legacy K2 exception: terms frozen later by plan-coord, sourced from the K2 (plan-coord 11-23)', () => {
+  const sec = (k) => ({ k2_sha256: fx.K2_SHA, section: `section ${k}` });
+  const legacy = (over = {}) => {
+    const t = fx.terms({ k2_frozen_at: fx.LEGACY_K2_FROZEN_AT, terms_frozen_at: '2026-11-23T03:00:00+08:00', legacy: true, frozen_by: 'plan-coord',
+      source_k2_refs: { min_economic_value: sec(4), min_sample_n: sec(5), review_endpoint: sec(6) }, ...over });
+    delete t.insufficient_policy; return t;
+  };
+  const run = (t, stage = 'S2', verdict = 'PASS') => engine.evaluate(fx.request(stage, verdict, { terms: t }));
+  assert.equal(run(legacy()).verdict, 'PASS');
+  // the same terms without the flag keep the strict rule
+  const strict = legacy({ legacy: false });
+  assert.deepEqual(run(strict).reasonCodes, ['PROMOTION_TERMS_NOT_BOUND']);
+  // refusals
+  for (const k of ['min_economic_value', 'min_sample_n', 'review_endpoint']) {
+    const refs = { min_economic_value: sec(4), min_sample_n: sec(5), review_endpoint: sec(6) }; delete refs[k];
+    assert.ok(run(legacy({ source_k2_refs: refs })).reasonCodes.includes(`PROMOTION_LEGACY_TERMS_UNSOURCED:${k}`), k);
+  }
+  assert.ok(run(legacy({ source_k2_refs: { min_economic_value: { k2_sha256: 'b'.repeat(64), section: 's' }, min_sample_n: sec(5), review_endpoint: sec(6) } })).reasonCodes.includes('PROMOTION_LEGACY_TERMS_UNSOURCED:min_economic_value'));
+  assert.ok(run(legacy({ source_k2_refs: { min_economic_value: sec(4), min_sample_n: { k2_sha256: fx.K2_SHA }, review_endpoint: sec(6) } })).reasonCodes.includes('PROMOTION_LEGACY_TERMS_UNSOURCED:min_sample_n'));
+  assert.ok(run(legacy({ frozen_by: 'someone' })).reasonCodes.includes('PROMOTION_LEGACY_TERMS_FROZEN_BY'));
+  assert.ok(run(legacy({ frozen_by: undefined })).reasonCodes.includes('PROMOTION_LEGACY_TERMS_FROZEN_BY'));
+  assert.ok(run(legacy({ terms_frozen_at: '2026-12-01T10:00:01+08:00' })).reasonCodes.includes('PROMOTION_LEGACY_TERMS_AFTER_AS_OF')); // as_of is 12-01T10:00:00
+  assert.equal(run(legacy({ terms_frozen_at: '2026-12-01T10:00:00+08:00' })).verdict, 'PASS'); // equal to as_of is allowed
+  // a non-legacy K2 cannot use the exception, and still needs terms frozen at or before its freeze
+  const late = fx.terms({ legacy: true, frozen_by: 'plan-coord', terms_frozen_at: '2026-11-24T10:00:01+08:00', source_k2_refs: { min_economic_value: sec(4), min_sample_n: sec(5), review_endpoint: sec(6) } });
+  assert.deepEqual(run(late).reasonCodes, ['PROMOTION_TERMS_LEGACY_NOT_ELIGIBLE']);
+  assert.deepEqual(run(fx.terms({ terms_frozen_at: '2026-11-24T10:00:01+08:00' })).reasonCodes, ['PROMOTION_TERMS_NOT_BOUND']);
+  // the cut-off itself is not legacy
+  assert.deepEqual(run(legacy({ k2_frozen_at: '2026-11-23T01:13:00+08:00' })).reasonCodes, ['PROMOTION_TERMS_LEGACY_NOT_ELIGIBLE']);
+  // (b) the policy stays the built-in default: a tuned policy is refused when it matters
+  const tuned = legacy({ review_endpoint: { kind: 'DATE', value: '2026-11-30' } }); tuned.insufficient_policy = { ...fx.POLICY, horizon_months: 3 };
+  assert.ok(run(tuned, 'S3', 'INSUFFICIENT').reasonCodes.includes('PROMOTION_LEGACY_POLICY_TUNING_NOT_ALLOWED'));
+  // and at its endpoint it is judged with the defaults
+  const ep = legacy({ review_endpoint: { kind: 'DATE', value: '2026-11-30' } });
+  const out = engine.evaluate(fx.request('S3', 'INSUFFICIENT', { terms: ep, insufficient: fx.insuff({ effect_ci: fx.ci(-0.02, 0.001) }) }));
+  assert.equal(out.resolution.code, 'PAUSE_LOW_VALUE');
+  assert.equal(out.resolution.policy_source, 'AMENDMENT_1_DEFAULT_POLICY');
+});

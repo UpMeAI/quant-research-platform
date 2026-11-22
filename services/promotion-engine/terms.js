@@ -2,24 +2,45 @@
 
 /** PROMOTION_TERMS_V1: what a K2 freezes for the promotion engine (market, layer, minimum economic value, sample size, thresholds, the section 4.2 policy, the review endpoint, the stage evidence files). */
 const { isObj, isText, SHA64, isCstStamp, num, isInt } = require('./common');
-const { validatePolicy, validateEndpoint } = require('./insufficient');
+const { validatePolicy, validateEndpoint, isLegacyK2 } = require('./insufficient');
 
 const MARKETS = Object.freeze(['CN_A', 'US_EQUITY', 'CRYPTO']);
 const LAYERS = Object.freeze(['ALPHA', 'RISK', 'EXECUTION']);
 const METRIC_OF = Object.freeze({ ALPHA: 'DELTA_G_PER_YEAR', EXECUTION: 'DELTA_G_PER_YEAR', RISK: 'CVAR5_IMPROVEMENT' });
-const KEYS = Object.freeze(['schema', 'candidate_id', 'market', 'layer', 'k2_sha256', 'k2_frozen_at', 'terms_frozen_at', 'next_review_endpoint', 'mechanism_ids', 'min_sample_n', 'min_economic_value', 'thresholds', 'insufficient_policy', 'review_endpoint', 'stage_evidence']);
+const KEYS = Object.freeze(['schema', 'candidate_id', 'market', 'layer', 'k2_sha256', 'k2_frozen_at', 'terms_frozen_at', 'next_review_endpoint', 'legacy', 'frozen_by', 'source_k2_refs', 'mechanism_ids', 'min_sample_n', 'min_economic_value', 'thresholds', 'insufficient_policy', 'review_endpoint', 'stage_evidence']);
 const REQUIRED = Object.freeze(['schema', 'candidate_id', 'market', 'layer', 'k2_frozen_at', 'mechanism_ids', 'min_sample_n', 'min_economic_value', 'thresholds']);
 const S3_KEYS = Object.freeze(['cost_multiple', 'max_growth_sacrifice']);
 
 /** @returns {string[]} reason codes (empty = valid) */
-function validate(t) {
+const REF_FIELDS = Object.freeze(['min_economic_value', 'min_sample_n', 'review_endpoint']);
+
+/**
+ * @param {object} t
+ * @param {{asOf?: string}} [opts] asOf: the evaluation time, for the legacy rule (a)
+ */
+function validate(t, { asOf = null } = {}) {
   if (!isObj(t)) return ['PROMOTION_TERMS_TYPE:terms'];
   const c = [];
   for (const k of Object.keys(t)) if (!KEYS.includes(k)) c.push(`PROMOTION_TERMS_EXTRA_KEY:${k}`);
   for (const k of REQUIRED) if (!(k in t)) c.push(`PROMOTION_TERMS_MISSING:${k}`);
   // plan-coord ruling 11-23 (1): the terms are frozen in the same event as their K2, bound by sha; never frozen after it
-  const bound = typeof t.k2_sha256 === 'string' && SHA64.test(t.k2_sha256) && isCstStamp(t.terms_frozen_at) && isCstStamp(t.k2_frozen_at) && Date.parse(t.terms_frozen_at) <= Date.parse(t.k2_frozen_at);
-  if (!bound) c.push('PROMOTION_TERMS_NOT_BOUND');
+  const shaOk = typeof t.k2_sha256 === 'string' && SHA64.test(t.k2_sha256) && isCstStamp(t.terms_frozen_at) && isCstStamp(t.k2_frozen_at);
+  if (t.legacy === true) {
+    // plan-coord exception 11-23: a legacy K2 (frozen before the cut-off) may have terms frozen later, by plan-coord, copied verbatim from the K2 with a source ref each
+    if (!shaOk) c.push('PROMOTION_TERMS_NOT_BOUND');
+    else if (!isLegacyK2(t.k2_frozen_at)) c.push('PROMOTION_TERMS_LEGACY_NOT_ELIGIBLE');
+    else {
+      if (t.frozen_by !== 'plan-coord') c.push('PROMOTION_LEGACY_TERMS_FROZEN_BY');
+      if (isCstStamp(asOf) && Date.parse(t.terms_frozen_at) > Date.parse(asOf)) c.push('PROMOTION_LEGACY_TERMS_AFTER_AS_OF');
+      const refs = isObj(t.source_k2_refs) ? t.source_k2_refs : {};
+      for (const k of REF_FIELDS) {
+        const r = refs[k];
+        if (!isObj(r) || r.k2_sha256 !== t.k2_sha256 || !isText(r.section)) c.push(`PROMOTION_LEGACY_TERMS_UNSOURCED:${k}`);
+      }
+      if (!('review_endpoint' in t)) c.push('PROMOTION_LEGACY_TERMS_UNSOURCED:review_endpoint');
+    }
+  } else if (!shaOk || Date.parse(t.terms_frozen_at) > Date.parse(t.k2_frozen_at)) c.push('PROMOTION_TERMS_NOT_BOUND');
+  if ('legacy' in t && typeof t.legacy !== 'boolean') c.push('PROMOTION_TERMS_TYPE:legacy');
   if ('schema' in t && t.schema !== 'PROMOTION_TERMS_V1') c.push('PROMOTION_TERMS_ENUM:schema');
   if ('candidate_id' in t && !isText(t.candidate_id)) c.push('PROMOTION_TERMS_TYPE:candidate_id');
   if ('market' in t && !MARKETS.includes(t.market)) c.push('PROMOTION_TERMS_ENUM:market');

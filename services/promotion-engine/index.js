@@ -76,7 +76,7 @@ function evaluate(req) {
     const evSha = typeof r.evidence_sha256 === 'string' ? r.evidence_sha256 : (isObj(r.evidence) ? sha256(prettyJson(r.evidence)) : null);
     ctx.inputs = { terms_sha256: termsSha, evidence_sha256: evSha };
     if (!isCstStamp(r.as_of)) return invalidResult(ctx, ['PROMOTION_AS_OF_INVALID']);
-    const tc = termsMod.validate(r.terms);
+    const tc = termsMod.validate(r.terms, { asOf: r.as_of });
     if (tc.length) return invalidResult(ctx, tc);
     const t = r.terms;
     if (r.candidate_id !== t.candidate_id) return invalidResult(ctx, ['PROMOTION_CANDIDATE_MISMATCH']);
@@ -163,7 +163,7 @@ function evaluateFromFiles({ termsPath, stage, historyPath = null, asOf, baseDir
 function recheckPaused({ paused, terms, observed, history, as_of: asOf } = {}) {
   let core;
   try {
-    const tc = termsMod.validate(terms);
+    const tc = termsMod.validate(terms, { asOf });
     if (!isCstStamp(asOf)) core = { state: 'INVALID_INPUT', reasonCodes: ['PROMOTION_AS_OF_INVALID'] };
     else if (tc.length) core = { state: 'INVALID_INPUT', reasonCodes: tc };
     else core = insufficient.recheck({ paused, terms, observed, history: history || [], asOf });
