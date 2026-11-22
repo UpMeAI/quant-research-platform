@@ -188,7 +188,7 @@ const MUTANTS = [
   m('R13', 'admission stub only takes NEW mechanisms', STUB, "if (!isNew(idea)) throw err('MECHANISM_PROPOSAL_NOT_NEW', idea.idea_id);", '', [VAL]),
   m('R14', 'admission stub only queues WAITING', STUB, "state: 'WAITING_EXTERNAL:MECHANISM_ADMISSION'", "state: 'ADMITTED'", [VAL]),
   // ---- agent
-  m('T01', 'request: max_tokens ceiling comes from the config', AG, 'return { model, messages, max_tokens: MAX_TOKENS, temperature: 0, response_format: { type: \'json_object\' }, stream: false };', 'return { model, messages, max_tokens: 100000, temperature: 0, response_format: { type: \'json_object\' }, stream: false };', [AGT]),
+  m('T01', 'request: max_tokens ceiling comes from the config', AG, 'max_tokens: MAX_TOKENS, temperature: 0, response_format', 'max_tokens: 100000, temperature: 0, response_format', [AGT]),
   m('T02', 'request: temperature 0', AG, 'max_tokens: MAX_TOKENS, temperature: 0,', 'max_tokens: MAX_TOKENS, temperature: 1,', [AGT]),
   m('T03', 'request: JSON mode', AG, "temperature: 0, response_format: { type: 'json_object' }, stream: false }", 'temperature: 0, stream: false }', [AGT]),
   m('T04', 'request: no streaming', AG, "response_format: { type: 'json_object' }, stream: false }", "response_format: { type: 'json_object' }, stream: true }", [AGT]),
