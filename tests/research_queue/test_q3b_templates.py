@@ -102,7 +102,7 @@ class HkLaunch(unittest.TestCase):
         self.assertTrue(sh.exists())
         self.assertTrue(os.access(sh, os.X_OK))
         self.assertEqual(subprocess.run(["sh", "-n", str(sh)]).returncode, 0)
-        s = sh.read_text()
+        s = "\n".join(l for l in sh.read_text().splitlines() if not l.lstrip().startswith("#"))  # code, not comments
         for bad in ("DEEPSEEK", "sudo", "systemctl", "systemd-run", "polkit", "curl", "wget", "--host LINUX"):
             self.assertNotIn(bad, s, bad)
         for need in ("RQ_ATTEMPT_DIR", "--host HK", "/run/rq-gw/rq-gw.sock", "exit 66"):

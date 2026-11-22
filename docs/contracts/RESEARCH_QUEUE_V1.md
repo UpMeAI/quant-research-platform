@@ -7,7 +7,7 @@ Implements the queue core of `AUTONOMOUS_RESEARCH_QUEUE_V1` (design rev 4, froze
 | Artifact | Pin |
 |---|---|
 | Queue DDL | schema.sql sha256: c7b6376e8d1d31a7a5b692902bb32fdbc1c19ca6f4e06ddadce31b3962a7cfff |
-| Template registry | `config/research_queue_templates.v1.json` (NET templates, placeholders) + pins `config/research_queue_template_pins.v1.json` (empty until the coordinator's freeze page) |
+| Template registry | `config/research_queue_templates.v1.json` (Q3b: four pinned NET templates `T-AI-REVIEW-CARD-V1-LINUX-CN_A`, `T-AI-CHECK-V1-LINUX-CN_A`, `T-AI-REVIEW-CARD-V1-HK-US-CRYPTO`, `T-AI-CHECK-V1-HK-US-CRYPTO`; `T-AI-PREREG-V1` is an unpinned placeholder) + pins `config/research_queue_template_pins.v1.json` (`template_sha256` = `rq.templates.template_sha256`, the sha256 of the canonical template with no sha field inside; `frozen_page_sha256` is null until the coordinator's freeze page exists) |
 | Blackout calendar | `config/rq-blackouts.v1.json` (placeholders; ops-coord fills exact times) |
 
 `migrate` creates the schema in an empty database and refuses any database whose schema differs from `schema.sql`.
@@ -47,3 +47,9 @@ Task protocol: exit 0 plus `result.json`; failures write `error.json` `{class, c
 ## Acceptance covered by Q1
 
 AQ-01 to 09, 10, 11 (core), 13 (authority and self-validated path), 14, 16, 17H/17L (static plus evaluator; the real proofs run at install with `cap-proof.sh`), 18, 19 (as written; `research_ro` is not built), 20 to 22, 24 to 28, 36 (routing). Not covered: AQ-12, 15, 23, 29 to 35, 37 onward (Q2/Q3, or pending real observation).
+
+## Q3b: templates, launch, card routing
+
+- The producer picks the fact-pack card template by market and host (`producer.card_template`: kind `AI_REVIEW_CARD`, the pack's market, preferring a template that runs on this host); admission still refuses a wrong-host route.
+- Agent launch: the template argv is one fixed launcher with no per-task path (`deploy/research-queue-ai/{linux,hk}/run-agent.sh`); it reads `RQ_ATTEMPT_DIR` (set by `child_env`), expects `in/task.json` and `in/bundle.json` there, and publishes `result.json` to the attempt directory. HK: the launcher runs as a child of `rq-consumer.service` (User=research-queue, no capabilities, `IPAddressDeny=any`, `RestrictAddressFamilies=AF_UNIX`, `research.slice`); no `systemctl`, no polkit rule. The HK gateway socket belongs to group `rq` (research-queue and rq-agent). `hk/rq-agent.service` is kept as the reference sandbox but is not started by any template.
+- Not implemented here (later PR): staging `in/task.json` and `in/bundle.json` from the admitted task, and mapping the agent's `result.json` status (`DONE|WAITING|RETRY|DEFER|BLOCKED_DETERMINISTIC`, `queue-seam.js transitionFor`) and its `validator` block onto the consumer's `error.json` classes and `complete_self_validated`. Until then the launcher refuses with exit 66 (`RQ_AGENT_INPUT_NOT_STAGED`) and the task is BLOCKED_DETERMINISTIC `EXIT_66`: fail closed.

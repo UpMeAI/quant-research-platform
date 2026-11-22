@@ -281,7 +281,7 @@ test('CLI exit codes: k2_freeze_program prepare: 0 waiting, 65 refused, 66 waiti
     const c = baseCtx();
     const f = path.join(dir, `ctx-${Math.random().toString(16).slice(2)}.json`);
     fs.writeFileSync(f, JSON.stringify({ now: c.now, host: 'LINUX', outDir: path.join(dir, 'out'), bundle: c.bundle, receipt: c.receipt, admissions: c.admissions, registerCommit: fx.REGISTER_COMMIT,
-      registerFile: require('../services/research-mechanism-register').FILE, inventory: [fx.DATASET], powerOutputs: c.powerOutputs, riskRules: c.riskRules, marks: [], ledgerRows: [], priorFreezes: [], queueLogText: '', ...over }));
+      registerFile: require('../services/research-mechanism-register').FILE, inventory: [fx.DATASET], powerOutputs: c.powerOutputs, riskRules: c.riskRules, promotionTermsStar: c.promotionTermsStar, marks: [], ledgerRows: [], priorFreezes: [], queueLogText: '', ...over }));
     return f;
   };
   const run = (draft, ctx, cmd = 'prepare') => {

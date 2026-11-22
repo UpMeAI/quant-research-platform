@@ -5,7 +5,7 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 ## Linux (user units, kayla, linger)
 
 1. Code: `git archive <sha> services/research-queue config docs/contracts/RESEARCH_QUEUE_V1.md | tar -x -C /srv/research-lane/research-queue/code/<sha>/` and `ln -sfn <sha> /srv/research-lane/research-queue/code/current`.
-2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
+2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
 3. `install -m 0644 linux/* ~/.config/systemd/user/`, `systemctl --user daemon-reload`.
 4. Pause authority (RQ8): `systemctl --user disable --now rf1116-window-pause.timer`, then `systemctl --user enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
 5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
@@ -15,7 +15,8 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 1. `install -m 0644 hk/rq.sysusers.conf /etc/sysusers.d/rq.conf; systemd-sysusers; install -m 0644 hk/rq.tmpfiles.conf /etc/tmpfiles.d/rq.conf; systemd-tmpfiles --create`.
 2. Code in `/opt/research-queue/<sha>/` with `current` symlink; config `/etc/research-queue/rq.json` (host `HK`, `root` `/var/lib/research-queue`, `process_pause_unit` `rq-consumer.service`); manifest as above.
 3. `install -m 0644 hk/*.service hk/*.timer hk/research.slice /etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
-4. Cap proof (AQ-17H, 14:00-16:00 CST): `cap-proof.sh HK`. Limits are the ops-coord plan (1 CPU, 512 MB, nice 19) and are confirmed here.
+4. Agent launch (Q3b, no new privilege): the HK templates run `/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh` as a child of `rq-consumer.service`. Do not install a polkit rule or a sudoers entry, and do not start `rq-agent.service` from the queue. The gateway unit (`research-queue-ai/hk/rq-deepseek-gateway.service`, `Group=rq`) gives the consumer group the socket `/run/rq-gw/rq-gw.sock`; check `systemctl show rq-consumer.service -p RestrictAddressFamilies -p IPAddressDeny` and that `research-queue` can connect to the socket while `portfolio-desk` cannot.
+5. Cap proof (AQ-17H, 14:00-16:00 CST): `cap-proof.sh HK`. Limits are the ops-coord plan (1 CPU, 512 MB, nice 19) and are confirmed here.
 
 ## Mac relay
 
@@ -32,7 +33,7 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 | `linux/rq-producer.service` | 8ba544da1a58fe70e1bb4ad4dca1a61c57619f2644f3154df6037a6e8d7517c7 |
 | `linux/rq-producer.timer` | 1721ace6f645e62f1fd4a157f3a4c8336e18901b8f4f095bc09406c4065bed78 |
 | `hk/research.slice` | 1252835b86183f80e7770095d06f3a93586bc4ceb4f487377c58489f9d3ed01a |
-| `hk/rq-consumer.service` | 995af93ecb41f2b2fee0a64fa1278e59a6ad23e6c5fdabefd432b84a3a50baca |
+| `hk/rq-consumer.service` | d72dfcd1778bcf3fae340dfddde6cd765018892c781d40bce3e6d5d40169a95d |
 | `hk/rq-pause.service` | 4273d034d3539412fcae4f55447671ea3fa41b464e4961896c544ba4ad3be733 |
 | `hk/rq-pause.timer` | 9eddd695c96522998c6a8d83d9338e67b01f2e8f4750f9f7133e93bff242d419 |
 | `hk/rq-producer.service` | c2693d35901f3694b8cc70f01f2fa4d796131d1147a59894c3682a7eb5d84a51 |

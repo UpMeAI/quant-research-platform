@@ -1,22 +1,20 @@
 {
  "schema": "RESEARCH_QUEUE_TEMPLATES_V1",
- "note": "NET templates only. argv, evidence matrix ids/shas and prompt admissions are placeholders until Q2 (gateway + agent) and the coordinator's freeze page; no template is admissible until its sha is pinned in research_queue_template_pins.v1.json.",
+ "note": "NET templates only. The four T-AI-REVIEW-CARD-V1-* / T-AI-CHECK-V1-* entries are the Q2b proposal turned into real entries (Q3b); each is admissible only while its template_sha256 (sha256 of the canonical template, no sha field inside) equals the pin in research_queue_template_pins.v1.json. T-AI-PREREG-V1 is a placeholder with no pin: it is not admissible.",
  "templates": [
   {
-   "template_id": "T-AI-REVIEW-CARD-V1",
+   "template_id": "T-AI-REVIEW-CARD-V1-LINUX-CN_A",
    "version": 1,
    "kinds": [
     "AI_REVIEW_CARD"
    ],
-   "producer_host": "BY_MARKET",
-   "run_host": "BY_MARKET",
-   "agent_host": "BY_MARKET",
+   "producer_host": "LINUX",
+   "run_host": "LINUX",
+   "agent_host": "LINUX",
    "weight_class": "NET",
    "io_class": "NONE",
    "argv": [
-    "/opt/research-queue/agent/rq-agent",
-    "--role",
-    "card"
+    "/srv/research-lane/research-queue/code/current/deploy/research-queue-ai/linux/run-agent.sh"
    ],
    "params": {},
    "inputs": [
@@ -29,41 +27,83 @@
    ],
    "expected_duration_s": 600,
    "evidence_matrix": {
-    "id": "EM-PENDING-Q2-CARD",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "id": "EM-AI-REVIEW-CARD-V1",
+    "sha256": "b11c668c052d855189a476010c402a15b27def0038a710acf554d6f00410439c"
    },
+   "evidence_matrix_rows": [
+    {
+     "id": "EM-01",
+     "req": "fact pack accepted: provenance firewall, no check report as input, size <= 40k tokens (PACK_* codes absent)",
+     "evidence": "result.json status DONE and calls[] present"
+    },
+    {
+     "id": "EM-02",
+     "req": "REVIEW_AI_CARD_V1 passed the card validator (CARD_*/FACTOR_IDEA_* codes absent), cited facts and numbers",
+     "evidence": "card.json + card_sha256 in result.json"
+    },
+    {
+     "id": "EM-03",
+     "req": "1-5 FACTOR_IDEA_V1 records, or a cited no_idea_reason; every idea routed (idea_routes.jsonl row per idea)",
+     "evidence": "factor_ideas.jsonl, idea_routes.jsonl, outputs.metrics"
+    },
+    {
+     "id": "EM-04",
+     "req": "every provider call has one gateway ledger row (purpose RQ_AGENT, or one RQ_AGENT_PRO_FALLBACK after two failed flash attempts)",
+     "evidence": "result.json calls[] vs gateway.sqlite call rows for task_id"
+    },
+    {
+     "id": "EM-05",
+     "req": "no key-shaped string in any output",
+     "evidence": "scan of out/ for sk-[A-Za-z0-9]{16,}"
+    }
+   ],
    "authority_shas": [],
-   "prompt_admission_sha256": null,
+   "prompt_admission_sha256": "26c2cdc9abebf767f8d65b0198702951e7a0a2e550c5b13570ee84643d373ecf",
    "idempotent": true,
    "transient_budget": 2,
    "completion": "SELF_VALIDATED",
    "requires_trl": false,
    "markets": [
-    "CN_A",
-    "US_EQUITY",
-    "CRYPTO"
+    "CN_A"
    ],
-   "subject_keys": [
-    "week",
-    "market"
+   "subject_keys": "week, market, fact-pack sha256, prompt-admission sha256",
+   "launch": "consumer child process: the launcher starts the rootless container (--network none, no env, no key) against the user gateway socket",
+   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "gateway": {
+    "unit": "rq-deepseek-gateway.service (user)",
+    "key_id": "LINUX_RESEARCH",
+    "socket": "$XDG_RUNTIME_DIR/rq-gw.sock"
+   },
+   "windows_cst": "Linux windows of section 3.5; DeepSeek calls only off-peak (verified): Mon-Fri 00:00-09:00, 12:00-14:00, 18:00-24:00, weekends all day (agent calls outside this get RQ_PEAK_REFUSED -> DEFER)",
+   "first_run": "W48 card 11-30 after 21:30 (RQ18)",
+   "n_rule": "N = 0",
+   "recovery_note": "if the pro fallback already got an answer for this task_id the gateway refuses a second one (RQ_QUALITY_GATE_USED -> BLOCKED_DETERMINISTIC + remediation); a flash-only run repeats at flash cost",
+   "seam_out": [
+    "result.json (RQ_AGENT_RESULT_V1)",
+    "card.json",
+    "factor_ideas.jsonl",
+    "idea_routes.jsonl",
+    "proposals.jsonl",
+    "quality_gate.json (only when pro fallback ran)"
    ],
-   "status": "DRAFT_PENDING_Q2_AND_FREEZE"
+   "argv_env_required": [
+    "RQ_AGENT_IMAGE",
+    "XDG_RUNTIME_DIR"
+   ]
   },
   {
-   "template_id": "T-AI-CHECK-V1",
+   "template_id": "T-AI-CHECK-V1-LINUX-CN_A",
    "version": 1,
    "kinds": [
     "AI_CHECK"
    ],
-   "producer_host": "BY_MARKET",
-   "run_host": "BY_MARKET",
-   "agent_host": "BY_MARKET",
+   "producer_host": "LINUX",
+   "run_host": "LINUX",
+   "agent_host": "LINUX",
    "weight_class": "NET",
    "io_class": "NONE",
    "argv": [
-    "/opt/research-queue/agent/rq-agent",
-    "--role",
-    "check"
+    "/srv/research-lane/research-queue/code/current/deploy/research-queue-ai/linux/run-agent.sh"
    ],
    "params": {},
    "inputs": [
@@ -76,25 +116,235 @@
    ],
    "expected_duration_s": 600,
    "evidence_matrix": {
-    "id": "EM-PENDING-Q2-CHECK",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    "id": "EM-AI-CHECK-V1",
+    "sha256": "e7365bcc9949c91ecb35a8d44b86d0fea206ea478f7aefd3b89695d13bacae5a"
    },
+   "evidence_matrix_rows": [
+    {
+     "id": "EM-01",
+     "req": "check pack accepted: firewall, author row present when the run was AI-drafted and author != checker prompt admission",
+     "evidence": "result.json status DONE"
+    },
+    {
+     "id": "EM-02",
+     "req": "RQ_CHECK_REPORT_V1 passed the check validator (CHECK_* codes absent)",
+     "evidence": "check_report.json + check_report_sha256"
+    },
+    {
+     "id": "EM-03",
+     "req": "every evidence-matrix req_id of the checked task appears exactly once in items[]",
+     "evidence": "check_report.json items vs pack evidence_matrix"
+    },
+    {
+     "id": "EM-04",
+     "req": "every HOLD reason is cited (or HOLD_MISSING_EVIDENCE) and names a req_id; the report carries no state field",
+     "evidence": "check_report.json hold_reasons"
+    },
+    {
+     "id": "EM-05",
+     "req": "every provider call has one ledger row; no key-shaped string in outputs",
+     "evidence": "calls[] vs gateway.sqlite; scan of out/"
+    }
+   ],
    "authority_shas": [],
-   "prompt_admission_sha256": null,
+   "prompt_admission_sha256": "aa550fbe9fb08864508ad3204f8ee826ad0a697e87121967a6329a4d574c0058",
    "idempotent": true,
    "transient_budget": 2,
    "completion": "SELF_VALIDATED",
    "requires_trl": false,
    "markets": [
-    "CN_A",
-    "US_EQUITY",
-    "CRYPTO"
+    "CN_A"
    ],
-   "subject_keys": [
-    "week",
-    "market"
+   "subject_keys": "checked task_id, gate-record sha256, prompt-admission sha256",
+   "launch": "consumer child process: the launcher starts the rootless container (--network none, no env, no key) against the user gateway socket",
+   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "gateway": {
+    "unit": "rq-deepseek-gateway.service (user)",
+    "key_id": "LINUX_RESEARCH",
+    "socket": "$XDG_RUNTIME_DIR/rq-gw.sock"
+   },
+   "windows_cst": "Linux windows of section 3.5; DeepSeek calls only off-peak (verified): Mon-Fri 00:00-09:00, 12:00-14:00, 18:00-24:00, weekends all day (agent calls outside this get RQ_PEAK_REFUSED -> DEFER)",
+   "first_run": "after a gate PASS",
+   "n_rule": "N = 0",
+   "recovery_note": "if the pro fallback already got an answer for this task_id the gateway refuses a second one (RQ_QUALITY_GATE_USED -> BLOCKED_DETERMINISTIC + remediation); a flash-only run repeats at flash cost",
+   "seam_out": [
+    "result.json (RQ_AGENT_RESULT_V1)",
+    "check_report.json",
+    "quality_gate.json (only when pro fallback ran)"
    ],
-   "status": "DRAFT_PENDING_Q2_AND_FREEZE"
+   "argv_env_required": [
+    "RQ_AGENT_IMAGE",
+    "XDG_RUNTIME_DIR"
+   ]
+  },
+  {
+   "template_id": "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO",
+   "version": 1,
+   "kinds": [
+    "AI_REVIEW_CARD"
+   ],
+   "producer_host": "HK",
+   "run_host": "HK",
+   "agent_host": "HK",
+   "weight_class": "NET",
+   "io_class": "NONE",
+   "argv": [
+    "/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh"
+   ],
+   "params": {},
+   "inputs": [
+    {
+     "prefix": "{inbox}/fact-packs"
+    }
+   ],
+   "outputs": [
+    "result.json"
+   ],
+   "expected_duration_s": 600,
+   "evidence_matrix": {
+    "id": "EM-AI-REVIEW-CARD-V1",
+    "sha256": "b11c668c052d855189a476010c402a15b27def0038a710acf554d6f00410439c"
+   },
+   "evidence_matrix_rows": [
+    {
+     "id": "EM-01",
+     "req": "fact pack accepted: provenance firewall, no check report as input, size <= 40k tokens (PACK_* codes absent)",
+     "evidence": "result.json status DONE and calls[] present"
+    },
+    {
+     "id": "EM-02",
+     "req": "REVIEW_AI_CARD_V1 passed the card validator (CARD_*/FACTOR_IDEA_* codes absent), cited facts and numbers",
+     "evidence": "card.json + card_sha256 in result.json"
+    },
+    {
+     "id": "EM-03",
+     "req": "1-5 FACTOR_IDEA_V1 records, or a cited no_idea_reason; every idea routed (idea_routes.jsonl row per idea)",
+     "evidence": "factor_ideas.jsonl, idea_routes.jsonl, outputs.metrics"
+    },
+    {
+     "id": "EM-04",
+     "req": "every provider call has one gateway ledger row (purpose RQ_AGENT, or one RQ_AGENT_PRO_FALLBACK after two failed flash attempts)",
+     "evidence": "result.json calls[] vs gateway.sqlite call rows for task_id"
+    },
+    {
+     "id": "EM-05",
+     "req": "no key-shaped string in any output",
+     "evidence": "scan of out/ for sk-[A-Za-z0-9]{16,}"
+    }
+   ],
+   "authority_shas": [],
+   "prompt_admission_sha256": "26c2cdc9abebf767f8d65b0198702951e7a0a2e550c5b13570ee84643d373ecf",
+   "idempotent": true,
+   "transient_budget": 2,
+   "completion": "SELF_VALIDATED",
+   "requires_trl": false,
+   "markets": [
+    "CRYPTO",
+    "US_EQUITY"
+   ],
+   "subject_keys": "week, market, fact-pack sha256, prompt-admission sha256",
+   "launch": "consumer child process in rq-consumer.service (User=research-queue, NoNewPrivileges, empty capability set, IPAddressDeny=any, AF_UNIX only) against /run/rq-gw/rq-gw.sock; no systemctl, no polkit rule",
+   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "gateway": {
+    "unit": "rq-deepseek-gateway.service (system, User=rq-gw)",
+    "key_id": "HK_REVIEW",
+    "socket": "/run/rq-gw/rq-gw.sock"
+   },
+   "windows_cst": "NET tasks 10:45-21:45; DeepSeek calls only off-peak: weekdays 12:00-14:00 and 18:00-21:45, weekends 10:45-21:45 (all inside the verified off-peak table)",
+   "first_run": "11-30 12:00-14:00 (US and crypto cards)",
+   "n_rule": "N = 0",
+   "recovery_note": "same pro-once rule as Linux",
+   "seam_out": [
+    "result.json (RQ_AGENT_RESULT_V1)",
+    "card.json",
+    "factor_ideas.jsonl",
+    "idea_routes.jsonl",
+    "proposals.jsonl",
+    "quality_gate.json (only when pro fallback ran)"
+   ]
+  },
+  {
+   "template_id": "T-AI-CHECK-V1-HK-US-CRYPTO",
+   "version": 1,
+   "kinds": [
+    "AI_CHECK"
+   ],
+   "producer_host": "HK",
+   "run_host": "HK",
+   "agent_host": "HK",
+   "weight_class": "NET",
+   "io_class": "NONE",
+   "argv": [
+    "/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh"
+   ],
+   "params": {},
+   "inputs": [
+    {
+     "prefix": "{inbox}/bundles"
+    }
+   ],
+   "outputs": [
+    "result.json"
+   ],
+   "expected_duration_s": 600,
+   "evidence_matrix": {
+    "id": "EM-AI-CHECK-V1",
+    "sha256": "e7365bcc9949c91ecb35a8d44b86d0fea206ea478f7aefd3b89695d13bacae5a"
+   },
+   "evidence_matrix_rows": [
+    {
+     "id": "EM-01",
+     "req": "check pack accepted: firewall, author row present when the run was AI-drafted and author != checker prompt admission",
+     "evidence": "result.json status DONE"
+    },
+    {
+     "id": "EM-02",
+     "req": "RQ_CHECK_REPORT_V1 passed the check validator (CHECK_* codes absent)",
+     "evidence": "check_report.json + check_report_sha256"
+    },
+    {
+     "id": "EM-03",
+     "req": "every evidence-matrix req_id of the checked task appears exactly once in items[]",
+     "evidence": "check_report.json items vs pack evidence_matrix"
+    },
+    {
+     "id": "EM-04",
+     "req": "every HOLD reason is cited (or HOLD_MISSING_EVIDENCE) and names a req_id; the report carries no state field",
+     "evidence": "check_report.json hold_reasons"
+    },
+    {
+     "id": "EM-05",
+     "req": "every provider call has one ledger row; no key-shaped string in outputs",
+     "evidence": "calls[] vs gateway.sqlite; scan of out/"
+    }
+   ],
+   "authority_shas": [],
+   "prompt_admission_sha256": "aa550fbe9fb08864508ad3204f8ee826ad0a697e87121967a6329a4d574c0058",
+   "idempotent": true,
+   "transient_budget": 2,
+   "completion": "SELF_VALIDATED",
+   "requires_trl": false,
+   "markets": [
+    "CRYPTO",
+    "US_EQUITY"
+   ],
+   "subject_keys": "checked task_id, gate-record sha256, prompt-admission sha256",
+   "launch": "consumer child process in rq-consumer.service (User=research-queue, NoNewPrivileges, empty capability set, IPAddressDeny=any, AF_UNIX only) against /run/rq-gw/rq-gw.sock; no systemctl, no polkit rule",
+   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "gateway": {
+    "unit": "rq-deepseek-gateway.service (system, User=rq-gw)",
+    "key_id": "HK_REVIEW",
+    "socket": "/run/rq-gw/rq-gw.sock"
+   },
+   "windows_cst": "NET tasks 10:45-21:45; DeepSeek calls only off-peak: weekdays 12:00-14:00 and 18:00-21:45, weekends 10:45-21:45 (all inside the verified off-peak table)",
+   "first_run": "after a gate PASS",
+   "n_rule": "N = 0",
+   "recovery_note": "same pro-once rule as Linux",
+   "seam_out": [
+    "result.json (RQ_AGENT_RESULT_V1)",
+    "check_report.json",
+    "quality_gate.json (only when pro fallback ran)"
+   ]
   },
   {
    "template_id": "T-AI-PREREG-V1",

@@ -76,6 +76,19 @@ test('Q3b freeze: the page records the terms sha and the robustness sha; the ter
   assert.notEqual(p2.k2_sha256, p.k2_sha256);
 });
 
+test('Q3b freeze: W20 V-5 accepts the frozen K2 and declaration as they are (the verifier reads the same line)', () => {
+  const { runners } = require('../services/independent-verifier/stages');
+  const d = baseDraft();
+  const { res, ctx, p } = flow(d);
+  assert.equal(res.state, 'FROZEN', JSON.stringify(res.codes));
+  const k2 = fs.readFileSync(path.join(dirOf(ctx, d), `${d.draft_id}_K2_V1.frozen.${p.k2_sha256.slice(0, 8)}.md`));
+  const bundle = { cfg: VCFG, v1: { files: { k2: { path: 'k2.md', sha256: sha(k2) } } }, v5: { declaration: d.robustness_declaration, results: d.robustness_declaration.tests.map((t) => ({ id: t.id, value: 1 })) } };
+  const out = runners.V5(bundle, { readBytes: () => k2 });
+  assert.deepEqual(out.codes, [], JSON.stringify(out));
+  const forged = runners.V5({ ...bundle, v5: { ...bundle.v5, declaration: { tests: bundle.v5.declaration.tests.slice(1) } } }, { readBytes: () => k2 });
+  assert.deepEqual(forged.codes, ['DECLARATION_NOT_IN_K2']);
+});
+
 test('Q3b freeze: replay returns the same terms sha; bytes are identical for identical inputs', () => {
   const d = baseDraft();
   const a = flow(d);

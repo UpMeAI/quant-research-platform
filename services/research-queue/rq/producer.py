@@ -12,7 +12,7 @@ from . import core, guard, templates as T
 EXTERNAL_CODES = ("MECHANISM_REVIEW", "HOLDOUT_INCOMPLETE", "DATA_DATE", "SERIES_MISSING", "US_PIT_SOURCE", "MARKET_PAUSED",
                   "PREREG_REFUSED", "TRL_RECEIPT", "MECHANISM_ADMISSION")
 MARKET_AGENT_HOST = {"CN_A": "LINUX", "US_EQUITY": "HK", "CRYPTO": "HK"}
-CARD_TEMPLATE = "T-AI-REVIEW-CARD-V1"
+CARD_KIND = "AI_REVIEW_CARD"
 FACT_PACK_SCHEMA = "REVIEW_AI_FACT_PACK_V1"
 HK_FORBIDDEN_ARGV = ("export-crypto-desk.js", "smartflow", "127.0.0.1:3306", "localhost:3306", "mysql")
 QUOTA_PROBE_S = 6 * 3600
@@ -147,12 +147,20 @@ def _load_json(path):
         return None
 
 
-def _fact_pack_request(registry, path, pack):
-    t = registry.get(CARD_TEMPLATE)
+def card_template(registry, cfg, market):
+    """The card template for a fact pack: kind AI_REVIEW_CARD, the pack's market, preferring the one that runs on this host.
+    Host and market routing itself stays in admit(); with no template for the market the pack is skipped, with a wrong-host one it is refused there."""
+    found = [t for t in registry.templates if CARD_KIND in t["kinds"] and market in t["markets"]]
+    found.sort(key=lambda t: (t["agent_host"] not in (cfg.host, "BY_MARKET"), t["template_id"]))
+    return found[0] if found else None
+
+
+def _fact_pack_request(registry, cfg, path, pack):
+    t = card_template(registry, cfg, pack["market"])
     if not t:
         return None
     raw = pathlib.Path(path).read_bytes()
-    return {"template_id": CARD_TEMPLATE, "template_sha256": T.template_sha256(t), "market": pack["market"],
+    return {"template_id": t["template_id"], "template_sha256": T.template_sha256(t), "market": pack["market"],
             "subject": {"week": pack["week"], "market": pack["market"], "fact_pack_sha256": core.sha256_hex(raw),
                         "prompt_admission_sha256": t.get("prompt_admission_sha256")},
             "params": {}, "inputs": [{"path": str(path), "sha256": core.sha256_hex(raw)}], "depends_on": [], "priority": 50}
@@ -181,7 +189,7 @@ def tick(conn, cfg, registry, now, probes=None):
         if not (isinstance(pack, dict) and pack.get("schema") == FACT_PACK_SCHEMA and pack.get("week") and pack.get("market")):
             out["unreadable"] += 1
             continue
-        req = _fact_pack_request(registry, f, pack)
+        req = _fact_pack_request(registry, cfg, f, pack)
         if req is None:
             continue
         count(admit(conn, cfg, registry, req, now, extra_input_prefixes=[d]))

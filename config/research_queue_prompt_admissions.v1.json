@@ -1,6 +1,6 @@
 {
   "schema": "RQ_PROMPT_ADMISSIONS_V1",
-  "_comment": "AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 §5.3、§5.6：网关只转发系统消息 sha256 在这里且 state=ADMITTED 的请求。文本在 services/research-queue-agent/prompts.js，测试核对 sha 一致。改文本 = 新 sha = 新条目（旧条目不改）。AI_PREREG 的提示词在 Q3，不在这里；作者 ≠ 核对者（AQ-44）靠 sha 互不相同。ADMITTED 的依据是协调会话合并本 PR（admission_basis）。",
+  "_comment": "AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 §5.3、§5.6：网关只转发系统消息 sha256 在这里且 state=ADMITTED 的请求。文本在 services/research-queue-agent/prompts.js，测试核对 sha 一致。改文本 = 新 sha = 新条目（旧条目不改）。AI_PREREG（Q3，services/k2-freeze-program/prompt.js，Q3b 起 ADMITTED）；作者 ≠ 核对者（AQ-44）靠 sha 互不相同。ADMITTED 的依据是协调会话合并本 PR（admission_basis）。",
   "entries": [
     {
       "prompt_id": "RQ_PROMPT_AI_CHECK_V1",
@@ -17,6 +17,15 @@
       "system_sha256": "26c2cdc9abebf767f8d65b0198702951e7a0a2e550c5b13570ee84643d373ecf",
       "state": "ADMITTED",
       "admission_basis": "coordinator merge of the Q2 PR"
+    },
+    {
+      "prompt_id": "RQ_PROMPT_AI_PREREG_V1",
+      "kind": "AI_PREREG",
+      "purposes": ["RQ_AGENT", "RQ_AGENT_PRO_FALLBACK"],
+      "system_sha256": "fac82f68138a3c0edd507aa02a0760924926fc4f790b7088de30070fdb8c6057",
+      "schema_sha256": "1460b21f1b4012c3fc75cbb20747670f60fd89acf8a94c9c6cf4f9e8e0ecef21",
+      "state": "ADMITTED",
+      "admission_basis": "plan-coord read 11-23, queue AQ_Q3 REVIEW_ACCEPTED"
     }
   ]
 }
