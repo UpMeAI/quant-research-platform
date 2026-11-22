@@ -213,9 +213,9 @@ function libraryComparison(values, panel, days, { market, factorSeries: fsrc = n
  * @param {object} parsed  dsl.parse 的结果
  * @param {object} panel   HOLDOUT 面板（开过留出段之后建的）
  */
-function scoreCandidate(parsed, panel, { holding_period: H }) {
+function scoreCandidate(parsed, panel, { holding_period: H, neutralization }) {
   assertHoldoutPanel(panel);
-  const neu = scoring.neutralizedValues(parsed, panel);
+  const neu = scoring.neutralizedValues(parsed, panel, { neutralization }); // 本轮的版本，必须给（修订 SIZE_V2 N2）
   if (!neu.neutralization || neu.neutralization.industry !== 'APPLIED' || neu.neutralization.size !== 'APPLIED') fail('NOT_NEUTRALIZED');
   const days = holdoutDays(panel);
   const at = (series) => days.map((t) => series[t]);
@@ -235,6 +235,7 @@ function scoreCandidate(parsed, panel, { holding_period: H }) {
   }
   const quintiles = q.every((g) => g.length) ? q.map(mean) : null;
   const book = longOnly(neu.values, panel, H, days);
+  const sizeExposure = scoring.sizeExposure(neu.values, panel, fwd, days, neu.neutralization.version); // 修订 SIZE_V2 N3：与 IC 同一份中性化后的值、同一批名字
   const comparison = { values: neu.values, days };
   return {
     holdout: {
@@ -244,6 +245,7 @@ function scoreCandidate(parsed, panel, { holding_period: H }) {
     },
     net_of_cost: { long_only: NET.long_only, top_fraction: NET.top_fraction, benchmark: NET.benchmark, cost: { ...NET.cost }, annualized_excess: book.annualized_excess,
       periods: book.periods.length, limit_moves: NET.limit_moves, limit_events: book.events },
+    size_exposure: sizeExposure,
     series: { daily_excess: book.daily, monthly_d: book.monthly_d },
     comparison,
   };
@@ -261,10 +263,10 @@ function scoreCandidate(parsed, panel, { holding_period: H }) {
  * @param {Array<{candidate_id, parsed, formula}>} candidates
  * @returns {Array<object>} 与 candidates 同序
  */
-function roundResults(candidates, panel, { holding_period: H, market, familyTrialCount, scoredAt, validation = new Map(), familySharpes = [], mechanisms = new Map(),
+function roundResults(candidates, panel, { holding_period: H, market, familyTrialCount, scoredAt, neutralization, validation = new Map(), familySharpes = [], mechanisms = new Map(),
   factorSeries = null, segmentOpenIndex = null, openedAt = null, review = null }) {
   if (!Number.isInteger(familyTrialCount) || familyTrialCount < 1) fail('FAMILY_N_UNKNOWN', familyTrialCount);
-  const scored = candidates.map((c) => ({ c, s: scoreCandidate(c.parsed, panel, { holding_period: H }) }));
+  const scored = candidates.map((c) => ({ c, s: scoreCandidate(c.parsed, panel, { holding_period: H, neutralization }) }));
   const dayKeys = scored.map(({ s }) => new Map(s.series.daily_excess.map((x) => [x.t, x.excess])));
   const commonDays = [...new Set(dayKeys.flatMap((m) => [...m.keys()]))].sort((a, b) => a - b).filter((t) => dayKeys.every((m) => m.has(t)));
   const R = commonDays.map((t) => dayKeys.map((m) => m.get(t)));
@@ -279,6 +281,7 @@ function roundResults(candidates, panel, { holding_period: H, market, familyTria
       schema: 'MINED_CANDIDATE_RESULT_V1', candidate_id: c.candidate_id, factor_id: c.candidate_id, market, formula: c.formula, generator: c.generator || 'AI_MINED_GP',
       holdout: { ...s.holdout, opened_at: openedAt, scored_at: scoredAt, segment_open_index: segmentOpenIndex },
       net_of_cost: s.net_of_cost,
+      size_exposure: s.size_exposure,
       overfit: { dsr: dsr.dsr, dsr_segment: dsr.segment, dsr_t_months: dsr.t_months, n_trials: familyTrialCount, pbo: isNum(pbo.value) ? pbo.value : pbo, pbo_scope: 'ROUND_CANDIDATE_SET',
         pbo_rows: R.length, pbo_candidates: candidates.length },
       marginal: cmp.marginal,

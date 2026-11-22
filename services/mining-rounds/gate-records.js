@@ -24,8 +24,15 @@ const SCHEMA = 'MINING_GATE_RECORD_V1';
 const VOID_SCHEMA = 'MINING_GATE_RECORD_VOID_V1';
 const fs = require('fs');
 const THRESHOLDS_REL = 'config/mining_gate_thresholds.v1.json';
+const THRESHOLDS_V2_REL = 'config/mining_gate_thresholds.v2.json';
 const THRESHOLD_KEYS = Object.freeze(['ic_mean_min', 'icir_min', 'monotonicity_min', 'decay_ratio_min', 'marginal_ir_delta_min', 'marginal_intercept_t_min']);
-let thresholdsFile = path.join(__dirname, '..', '..', THRESHOLDS_REL);
+const SIZE_EXPOSURE_KEY = 'size_exposure_abs_max';
+// 版本跟着轮走（修订 SIZE_V2 N4）：V2 的轮读 v2 文件，第 1、2 轮（LINEAR_RAW_V1）读 v1 文件。thresholdsFile 只给测试换（同一份换到两种版本）。
+const THRESHOLDS_BY_VERSION = Object.freeze({
+  LINEAR_RAW_V1: Object.freeze({ rel: THRESHOLDS_REL, schema: 'MINING_GATE_THRESHOLDS_V1', keys: THRESHOLD_KEYS }),
+  RANK_GAUSS_V2: Object.freeze({ rel: THRESHOLDS_V2_REL, schema: 'MINING_GATE_THRESHOLDS_V2', keys: Object.freeze([...THRESHOLD_KEYS, SIZE_EXPOSURE_KEY]) }),
+});
+let thresholdsFile = null;
 const LEDGER = () => path.join(dataDir('research'), 'mining_gate_records.jsonl');
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
@@ -38,15 +45,17 @@ const realGate = () => require('../mining-gate');
 let evaluateGate = (candidate, ctx) => realGate().evaluate(candidate, ctx);
 
 /** 钉住的门槛文件：字节的 sha256 与门要用的那几项（结构不对 → 不记）。 */
-function pinnedThresholds() {
-  const bytes = fs.readFileSync(thresholdsFile);
+function pinnedThresholds(version) {
+  const spec = THRESHOLDS_BY_VERSION[version];
+  need(spec, 'MINE_GATE_RECORD_NEUTRALIZATION_UNKNOWN', String(version));
+  const bytes = fs.readFileSync(thresholdsFile || path.join(__dirname, '..', '..', spec.rel));
   let d = null;
   try { d = JSON.parse(bytes.toString('utf8')); } catch { /* 下面拒绝 */ }
   const okRef = (r) => r === null || (r && typeof r.path === 'string' && /^[0-9a-f]{64}$/.test(r.sha256 || ''));
-  need(d && d.schema === 'MINING_GATE_THRESHOLDS_V1' && ['PENDING_FREEZE', 'FROZEN'].includes(d.state) && okRef(d.frozen_ref)
-    && THRESHOLD_KEYS.every((k) => typeof d[k] === 'number' && Number.isFinite(d[k])), 'MINE_GATE_RECORD_THRESHOLDS_FILE_INVALID', THRESHOLDS_REL);
-  const used = { state: d.state, frozen_ref: d.frozen_ref, ...Object.fromEntries(THRESHOLD_KEYS.map((k) => [k, d[k]])) };
-  return { file: { path: THRESHOLDS_REL, sha256: sha256(bytes) }, used, thresholds: { ...used, source: d.source || null } };
+  need(d && d.schema === spec.schema && ['PENDING_FREEZE', 'FROZEN'].includes(d.state) && okRef(d.frozen_ref)
+    && spec.keys.every((k) => typeof d[k] === 'number' && Number.isFinite(d[k])), 'MINE_GATE_RECORD_THRESHOLDS_FILE_INVALID', spec.rel);
+  const used = { state: d.state, frozen_ref: d.frozen_ref, ...Object.fromEntries(spec.keys.map((k) => [k, d[k]])) };
+  return { file: { path: spec.rel, sha256: sha256(bytes) }, used, thresholds: { ...used, source: d.source || null } };
 }
 
 const voidsOf = (roundId) => read(LEDGER()).filter((r) => r.schema === VOID_SCHEMA && r.round_id === roundId);
@@ -97,7 +106,10 @@ function recordGateResult({ round_id: roundId, candidate_id: candidateId, candid
   const trial = [...trials.heads().values()].find((t) => t.role === 'MINED_CANDIDATE' && t.mining && t.mining.round_id === roundId && t.mining.candidate_id === candidateId);
   need(trial, 'MINE_GATE_RECORD_TRIAL_MISSING', `${roundId}:${candidateId}`);
   need(!recordsOf(roundId).some((x) => x.candidate_id === candidateId), 'MINE_GATE_RECORD_DUPLICATE', `${roundId}:${candidateId}`);
-  const pinned = pinnedThresholds();
+  const version = require('./neutralization').neutralizationOf(r); // 本轮的中性化版本：定读哪份门槛、核候选的戳对得上
+  const stamped = candidate && candidate.holdout && candidate.holdout.neutralization ? candidate.holdout.neutralization.version : undefined;
+  need(stamped === undefined || stamped === version, 'MINE_GATE_RECORD_NEUTRALIZATION_MISMATCH', `${roundId}:${candidateId}:round=${version}:result=${stamped}`); // 没有戳的结果由门的第 8 项挡（UNKNOWN）
+  const pinned = pinnedThresholds(version);
   const familyTrialCount = trials.count(trial.family_id).n_raw;
   // checkFreeze：FROZEN 时核仓库里的冻结页（docs/freeze/，sha 与 frozen_ref 一致、写着 FROZEN 与六个数），不过 → MINE_THRESHOLDS_FREEZE_REF_INVALID
   const result = evaluateGate(candidate, { thresholds: pinned.thresholds, familyTrialCount, marks: read(trials.SEGMENTS()), checkFreeze: true });
@@ -130,4 +142,4 @@ function withGate(fn, cb) {
   try { return cb(); } finally { evaluateGate = prior; }
 }
 
-module.exports = { SCHEMA, VOID_SCHEMA, LEDGER, THRESHOLDS_REL, GateRecordError, recordGateResult, recordsOf, voidsOf, voidRecords, internals: { withGate, withThresholdsFile, pinnedThresholds } };
+module.exports = { SCHEMA, VOID_SCHEMA, LEDGER, THRESHOLDS_REL, THRESHOLDS_V2_REL, GateRecordError, recordGateResult, recordsOf, voidsOf, voidRecords, internals: { withGate, withThresholdsFile, pinnedThresholds } };

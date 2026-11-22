@@ -1,0 +1,14 @@
+{
+  "schema": "MINING_GATE_THRESHOLDS_V2",
+  "doc_zh": "G-MINE 门槛 v2（RF1116 修订「评分的市值中性化 V2」FREEZE_1 1aaf43e0 / 正文 f67701e9，N4）：v1 的六个数原样，加 size_exposure_abs_max（第 8 项的市值暴露上限，★S2 (a) 0.10）。V2 的轮（轮次清单 scoring_neutralization = RANK_GAUSS_V2）读这份，第 1、2 轮（LINEAR_RAW_V1）读 v1，v1 文件字节不变。唯一出处：services/mining-gate 的 THRESHOLDS_V2 与挖掘轮次的逐候选记录都只读这份文件。PENDING_FREEZE 期间门一律失败即关（MINE_THRESHOLDS_UNFROZEN）；转 FROZEN 只经协调会话冻结的 FREEZE_2 页，同时写 frozen_ref：path 是仓库里冻结页的字节一致副本（docs/freeze/），sha256 是它的 sha，coordinator_path 是协调会话签发的那一页。第 8 项这一数只拦 V1 那种大泄漏（0.48–0.82）；V2 下纯市值替身的暴露约 0.067–0.074，由第 3 项（IC ≥ 0.02）拦（FREEZE_2 要写明）。",
+  "state": "PENDING_FREEZE",
+  "source": { "path": "artifacts/coordinator/RF1116_AMENDMENT_SIZE_NEUTRALIZATION_20261118_FREEZE_1.md", "sha256": "1aaf43e0ce0d04b28bbdbd3dcb72788efe54bad2c3eeab988f9908f94521cccb", "section": "§1 ★S2" },
+  "frozen_ref": null,
+  "ic_mean_min": 0.02,
+  "icir_min": 0.3,
+  "monotonicity_min": 0.9,
+  "decay_ratio_min": 0.5,
+  "marginal_ir_delta_min": 0,
+  "marginal_intercept_t_min": 2,
+  "size_exposure_abs_max": 0.1
+}

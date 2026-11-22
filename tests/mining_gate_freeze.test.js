@@ -82,6 +82,7 @@ test('草稿写法的页（合成，写的是 DRAFT）被拒：PAGE_NOT_FROZEN �
 
 /** 仓库里的冻结页副本（P2 执行器与留出段保管在研究车道上核，不读 Mac 的协调目录）：四份都要等于签发的 sha，谁改了这条就红。 */
 const FROZEN_COPIES = Object.freeze({
+  'docs/freeze/RF1116_AMENDMENT_SIZE_NEUTRALIZATION_20261118_FREEZE_1.md': '1aaf43e0ce0d04b28bbdbd3dcb72788efe54bad2c3eeab988f9908f94521cccb',
   'docs/freeze/RF1116_GMINE_THRESHOLDS_FREEZE_1.md': '8a36e15b995b34603fd977547fdd16fbd70717c4d541dfa2c0a669b53c30a5f4',
   'docs/freeze/MINING_SPACE_V1_CN_A_R1_FREEZE_1.md': '4ec642b9ae87e7cd69b1bd226cc8964647dcace26a1dec60c0124df23fd8af69',
   'docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json': '0d3556fa97f17d3a67b350e7f74c12fb521ca1fb60c293121601f7eb95f96637',

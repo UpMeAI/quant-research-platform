@@ -19,6 +19,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
+const cleanEnv = require('./_clean_env'); // spawned runner CLIs must not inherit the test seam that _mining_manifest.js sets
 
 const AUTH = 'TEST_LLM_ROUND_AUTHORITY';
 process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
@@ -254,7 +255,7 @@ test('B4 上限：发之前「已用 + 这次的上界」超过本轮 token 上�
 test('B6 命令行：开新轮之前先探活；网络那一步不答或没有密钥 → 退出码 75、一轮都不开；探活过了才开轮、生成到上限、选择；续跑的生成方式要和轮次一致', async () => {
   const base = (out) => ['generate', '--generator', 'AI_MINED_LLM', '--out', out, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--min-names-per-day', '5',
     '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', HOLDOUT_SUMS_SHA, '--llm-poll-ms', '10'];
-  const env = (out) => ({ ...process.env, QRP_DATA_DIR: path.join(out, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH });
+  const env = (out) => ({ ...cleanEnv(), QRP_DATA_DIR: path.join(out, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH });
   const cliAsync = (args, e) => new Promise((res) => {
     const c = spawn(process.execPath, [CLI, ...args], { env: e }); let stdout = ''; let stderr = '';
     c.stdout.on('data', (d) => { stdout += d; }); c.stderr.on('data', (d) => { stderr += d; });
@@ -307,7 +308,7 @@ test('B8 run.sh（假的 docker）：llm-ping 先建交换目录再探活；gene
   fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in *rf1116-generate-llm*) exit "${FAKE_GEN_EXIT:-0}" ;; esac\nexit 0\n', { mode: 0o755 });
   const run = (args, genExit = 0) => {
     const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-docker-log-')), 'log');
-    const r = spawnSync('bash', [RUN_SH, ...args], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log, FAKE_GEN_EXIT: String(genExit) } });
+    const r = spawnSync('bash', [RUN_SH, ...args], { encoding: 'utf8', env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log, FAKE_GEN_EXIT: String(genExit) } });
     return { ...r, calls: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').filter(Boolean) : [] };
   };
   const p = run(['llm-ping']);
@@ -396,7 +397,7 @@ test('B8b run.sh：run.sh 被杀（整个进程组）时，网络那一步容器
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fake-docker-kill-'));
   const log = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-docker-log-')), 'log');
   fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\necho "$*" >> "$DOCKER_LOG"\ncase "$*" in *rf1116-generate-llm*) sleep 20 ;; esac\nexit 0\n', { mode: 0o755 });
-  const child = spawn('bash', [RUN_SH, 'generate-llm', 'a'.repeat(64)], { detached: true, stdio: 'ignore', env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log } });
+  const child = spawn('bash', [RUN_SH, 'generate-llm', 'a'.repeat(64)], { detached: true, stdio: 'ignore', env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, RF1116_RUNNER_IMAGE: 'qrp-round-runner:test', DOCKER_LOG: log } });
   const exited = new Promise((res) => child.on('exit', (code, sig) => res({ code, sig })));
   for (let i = 0; i < 200 && !(fs.existsSync(log) && fs.readFileSync(log, 'utf8').includes('rf1116-generate-llm')); i += 1) await new Promise((r) => setTimeout(r, 25));
   assert.ok(fs.readFileSync(log, 'utf8').includes('rf1116-generate-llm'), 'generate started');
@@ -464,7 +465,7 @@ test('B13 CLI：连续空应答 → STOPPED_EMPTY_REPLIES；有尝试就继续�
   const cfg = llm.loadConfig().config;
   const base = (out) => ['generate', '--generator', 'AI_MINED_LLM', '--out', out, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--min-names-per-day', '5',
     '--holdout-ref', 'synthetic:holdout', '--holdout-sha256', HOLDOUT_SUMS_SHA, '--llm-poll-ms', '10', '--llm-wait-seconds', '60', '--opened-at', '2026-12-01T02:00:00Z'];
-  const env = (out) => ({ ...process.env, QRP_DATA_DIR: path.join(out, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH });
+  const env = (out) => ({ ...cleanEnv(), QRP_DATA_DIR: path.join(out, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH });
   const cliAsync = (args, e) => new Promise((res) => {
     const c = spawn(process.execPath, [CLI, ...args], { env: e }); let stdout = ''; let stderr = '';
     c.stdout.on('data', (d) => { stdout += d; }); c.stderr.on('data', (d) => { stderr += d; });
@@ -572,7 +573,7 @@ test('B15 CLI llm-init：建交换目录（粘滞位）并撤回上一次运行�
   llm.writeRequest(ex, { kind: 'GENERATE', key: 'MR-X:C001-aaaa0000', round_id: 'MR-X', body: llm.pingRequest(cfg) });
   llm.writeRequest(ex, { kind: 'GENERATE', key: 'MR-X:C002-bbbb0000', round_id: 'MR-X', body: llm.pingRequest(cfg) });
   fs.writeFileSync(path.join(ex, `${llm.exchangeName('MR-X:C002-bbbb0000')}.res.json`), `${JSON.stringify({ schema: 'MINING_LLM_RESPONSE_V1', key: 'MR-X:C002-bbbb0000', outcome: 'OK' })}\n`);
-  const r = spawnSync(process.execPath, [CLI, 'llm-init', '--out', out], { env: { ...process.env, QRP_DATA_DIR: path.join(out, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH }, encoding: 'utf8' });
+  const r = spawnSync(process.execPath, [CLI, 'llm-init', '--out', out], { env: { ...cleanEnv(), QRP_DATA_DIR: path.join(out, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH }, encoding: 'utf8' });
   assert.equal(r.status, 0, r.stderr);
   const o = JSON.parse(r.stdout);
   assert.deepEqual([o.command, o.withdrawn], ['llm-init', ['MR-X:C001-aaaa0000']]);

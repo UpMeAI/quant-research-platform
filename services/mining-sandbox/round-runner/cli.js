@@ -83,7 +83,8 @@ function main(argv) {
     const m = require('../segments').SEGMENTS.MINING;
     const panel = adapter.buildPanel({ sources, space: runner.loadFrozenSpace().space, segment: 'MINING', from: m.from, to: m.to });
     runner.checkCoverage(panel, floor);
-    runner.checkCanary(panel, floor); // 第 1 轮缺陷之后：固定公式算不出分就不开轮、不记续跑（generate() 里再核一次并写进 generate.json）
+    const neutral = o.resume ? runner.neutralizationOf(require('../../mining-rounds').roundHead(o.resume)) : require('../../mining-rounds/neutralization').NEW_ROUND_NEUTRALIZATION; // 版本跟着轮走：续跑用那一轮的，新开的用 RANK_GAUSS_V2
+    runner.checkCanary(panel, floor, undefined, { neutralization: neutral }); // 第 1 轮缺陷之后：固定公式算不出分就不开轮、不记续跑（generate() 里再核一次并写进 generate.json）
     let roundId = o.resume;
     if (roundId) runner.assertResumeGenerator({ roundId, mode: generator.mode }); // 续跑的生成方式要和轮次一致
     const llmOpts = isLlm ? { pollMs: o['llm-poll-ms'] === undefined ? null : Number(o['llm-poll-ms']), waitSeconds: o['llm-wait-seconds'] === undefined ? null : Number(o['llm-wait-seconds']) } : null;

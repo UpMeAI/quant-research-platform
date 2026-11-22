@@ -39,6 +39,6 @@ test('V6 的 { state, value } 形状：七个 daily_basic 读数与市值和裸�
 test('V6 形状：MISSING 字段计入 counts.daily_basic.value_missing（与裸数形状的空值同数）；金丝雀算得出分', () => {
   assert.equal(typeof v6.manifest.counts.daily_basic.value_missing, 'number');
   assert.equal(v6.manifest.counts.daily_basic.value_missing, flat.manifest.counts.daily_basic.value_missing);
-  const c = runner.checkCanary(v6, { min_names_per_day: 5 });
+  const c = runner.checkCanary(v6, { min_names_per_day: 5 }, undefined, { neutralization: 'RANK_GAUSS_V2' });
   assert.ok(Number.isFinite(c.formulas[0].score) && c.formulas[0].min_share >= 0.9, JSON.stringify(c.formulas[0]));
 });

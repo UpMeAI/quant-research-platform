@@ -364,7 +364,7 @@ const SCHEMAS = Object.freeze({
     _doc: '研究框架修订 2026-11-16 §3.3、§3.4（RF1116，签字 fd22876f / 39f8c17c）；协调会话裁定 R1（ce254328）：rulings 引裁定页、selection_rule 是冻结的验证折选择规则、holdout_opens 是留出段开启次数 —— 一轮挖掘的冻结清单（= 预登记）与状态：搜索空间 sha 与冻结页、持有期与族、生成方式（模型与知识截止日 / GP 种子）、上限 ≤ 200、留出段（第一轮冻结，以后不挪）；状态 OPEN → CAP_REACHED → SCORING（留出段已开）→ CLOSED（G-MINE 过了几个由逐候选记录数出来，gmine_basis 记依据，给暂停规则用）；或失败终态 FAILED_RESCORE（R1.8）/ FAILED_PARTIAL（R1.12，修订 4 705e2e6a）：0 个通过、已写记录标 VOID；台账 research/mining_rounds.jsonl（services/mining-rounds）',
     round_id: 's', market: 's', month: 's', space: 'o', holding_periods: 'a', family_ids: 'a', generator: 'o', holdout: 'o', cap: 'n', resumed_after_pause: 'a',
     status: 's', candidates_scored: 'n', gmine_passes: 'n?', gmine_basis: 'o?', opened_at: 's', closed_at: 's?', record_hash: 's', data_checks: 'o?',
-    rulings: 'a', selection_rule: 'o', holdout_opens: 'o?',
+    rulings: 'a', selection_rule: 'o', holdout_opens: 'o?', scoring_neutralization: 's?',
   },
   MINING_LLM_CALL_V1: {
     _doc: '大模型生成方每一次调用（或调用前被上限拦下 / 等待）的计量行（RF1116 LLM_GEN，2026-11-18；任务书 93a93509 + 补充 2）：只追加，每轮每个 seq 一行；记接口报的用量、计入本轮上限的 token（tokens_metered，basis USAGE / UPPER_BOUND / NONE）、模型名与版本、请求与应答的 sha256、原始错误（打码截断）；outcome 为 OK、WAITING_*（密钥不在、额度、限流、密钥被拒、接口不可用、版本对不上、网络那一步崩了或没答）或 STOPPED_*（token 上限、调用次数上限、请求体不合规）；final = 网络那一步答过；sent = 请求真的发到了接口（services/mining-rounds recordLlmCall）',

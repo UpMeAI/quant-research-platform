@@ -44,9 +44,9 @@ function assertValidationPanel(panel) {
  * 一个候选在各折上的 IC。
  * @returns {{fold_ic: Array<{fold, from, to, ic_mean, ic_days}>, mean_ic: number|null, ic_days: number, positive_folds: number}}
  */
-function validationStats(parsed, panel, { holding_period: H, rule = RULE }) {
+function validationStats(parsed, panel, { holding_period: H, rule = RULE, neutralization }) {
   assertValidationPanel(panel);
-  const neu = scoring.neutralizedValues(parsed, panel);
+  const neu = scoring.neutralizedValues(parsed, panel, { neutralization }); // 本轮的版本，必须给（修订 SIZE_V2 N2）
   const ic = scoring.dailyRankIc(neu.values, scoring.forwardReturns(panel, H), panel.universe);
   const fs = folds(rule);
   const per = fs.map((f) => {

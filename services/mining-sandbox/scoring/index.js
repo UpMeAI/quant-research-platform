@@ -3,11 +3,14 @@
 /**
  * 挖掘段打分（RF1116 §3.4「挖掘段：算分、生成下一批」；P2 规格 §2「适应度只用挖掘段的分数：中性化后的 rank IC 均值」）。
  *
- *   miningScore(parsed, panel, { holding_period })：面板必须是挖掘段的（segment MINING，日期整段在挖掘段里），否则 MINE_SCORE_NOT_MINING_SEGMENT ——
- *     验证折、留出段的面板一喂就抛错。因子值先过求值器的 neutralizeForScoring（行业 + 市值；只在股票池里的名字上中性化），
+ *   miningScore(parsed, panel, { holding_period, neutralization })：面板必须是挖掘段的（segment MINING，日期整段在挖掘段里），否则 MINE_SCORE_NOT_MINING_SEGMENT ——
+ *     验证折、留出段的面板一喂就抛错。因子值先过求值器的 neutralizeForScoring（行业 + 市值；只在股票池里的名字上中性化；
+ *     版本 neutralization 是本轮的版本（round-runner 的 neutralizationOf），必须给，不设默认，RF1116 修订 SIZE_V2 N2），
  *     再逐日算与前推收益的 rank IC（Spearman），分数 = 各日 IC 的均值（有效日少于 MIN_IC_DAYS → null）。
  *   forwardReturns(panel, H)：决策日开盘买、H 个交易日后的开盘卖（labels.exec_open，后复权）；超出面板的为 NaN，所以标签不会越出本段。
  *   dailyRankIc(values, fwd, universe)：每天只用池里、两边都有数的名字；少于 MIN_NAMES 个 → NaN。
+ *   sizeExposure(values, panel, fwd, days)（修订 SIZE_V2 N3）：在 days 这些打分日上，用与 IC 同一份中性化后的值、与 IC 相同的名字
+ *     （池里、因子值与前推收益都有限），逐日算它与 log(total_mv) 的 Spearman（少于 MIN_NAMES 个 → 那天不算），再取均值；days = 算得出的天数。
  * 长度惩罚在 GP 里（../gp 的 fitnessOf），这里记的分数就是试验台账 metrics.mining_segment_score。只读面板，不写台账，不连网络。
  */
 const evaluator = require('../evaluator');
@@ -66,8 +69,29 @@ function scoringPanel(panel) {
   return { ...panel, industry: panel.industry.map((row, t) => row.map((g, j) => (panel.universe[t][j] ? g : null))) };
 }
 
-/** 求值 + 打分前的中性化（求值器的 neutralizeForScoring，盖 neutralization 戳）。 */
-const neutralizedValues = (parsed, panel) => evaluator.neutralizeForScoring(evaluator.evaluate(parsed, panel), scoringPanel(panel));
+/** 求值 + 打分前的中性化（求值器的 neutralizeForScoring，盖 neutralization 戳）。neutralization = 本轮的版本，必须给（不给 → MINE_EVAL_NEUTRALIZATION_REQUIRED）。 */
+const neutralizedValues = (parsed, panel, { neutralization } = {}) => evaluator.neutralizeForScoring(evaluator.evaluate(parsed, panel), scoringPanel(panel), { neutralization });
+
+/** 留出段结果的市值暴露读数（G-MINE 第 8 项，修订 SIZE_V2 N3）。 */
+const SIZE_EXPOSURE_STATISTIC = 'MEAN_DAILY_SPEARMAN_VS_LOG_TOTAL_MV';
+/**
+ * @param {number[][]} values  中性化后的值（与 IC 同一份）
+ * @param {object} panel       面板（universe、size = total_mv）
+ * @param {number[][]} fwd     与 IC 同一份前推收益（只用来定名字：与 IC 相同）
+ * @param {number[]} days      打分日下标
+ * @param {string} version     中性化版本（戳里的 version）
+ */
+function sizeExposure(values, panel, fwd, days, version) {
+  const daily = days.map((t) => {
+    const x = []; const y = [];
+    for (let j = 0; j < values[t].length; j += 1) {
+      const s = panel.size[t][j];
+      if (panel.universe[t][j] && isNum(values[t][j]) && isNum(fwd[t][j]) && isNum(s) && s > 0) { x.push(values[t][j]); y.push(Math.log(s)); }
+    }
+    return x.length < MIN_NAMES ? NaN : pearson(averageRanks(x), averageRanks(y));
+  }).filter(isNum);
+  return { statistic: SIZE_EXPOSURE_STATISTIC, value: daily.length ? meanFinite(daily) : null, days: daily.length, neutralization_version: version };
+}
 
 const meanFinite = (xs) => { const f = xs.filter(isNum); return f.length ? f.reduce((a, b) => a + b, 0) / f.length : null; };
 
@@ -75,9 +99,9 @@ const meanFinite = (xs) => { const f = xs.filter(isNum); return f.length ? f.red
  * 挖掘段的分数（GP 的适应度用它减长度惩罚；试验台账 metrics.mining_segment_score 写它）。
  * @returns {{score: number|null, ic_days: number, holding_period: number, neutralization: object, segment: 'MINING'}}
  */
-function miningScore(parsed, panel, { holding_period: H } = {}) {
+function miningScore(parsed, panel, { holding_period: H, neutralization } = {}) {
   assertMiningPanel(panel);
-  const neu = neutralizedValues(parsed, panel);
+  const neu = neutralizedValues(parsed, panel, { neutralization });
   const ics = dailyRankIc(neu.values, forwardReturns(panel, H), panel.universe);
   const finite = ics.filter(isNum);
   return { score: finite.length >= MIN_IC_DAYS ? meanFinite(finite) : null, ic_days: finite.length, holding_period: H, neutralization: neu.neutralization, segment: 'MINING' };
@@ -85,5 +109,6 @@ function miningScore(parsed, panel, { holding_period: H } = {}) {
 
 module.exports = {
   MIN_NAMES, MIN_IC_DAYS, ScoreError, assertMiningPanel, forwardReturns, dailyRankIc, rankIcOfDay, scoringPanel, neutralizedValues, meanFinite, miningScore,
+  SIZE_EXPOSURE_STATISTIC, sizeExposure,
   internals: { averageRanks, pearson },
 };

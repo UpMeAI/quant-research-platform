@@ -88,7 +88,7 @@ node services/factor-library/build.js --write    # 全部绑定 MATCH 才写
 | 5 | 持有期加倍的 IC ≥ 0.5 × 原 IC | ★e | `MINE_DECAY_BELOW_HALF` / `_BASE_NOT_POSITIVE` |
 | 6 | 只做多前 20%、相对等权股票池；成本 ≥ G-COST `FLOORS`（CN_A 2.5 + 10 bps，卖出印花税）；年化超额 > 0 | `services/cost-gate` | `MINE_NET_COST_BELOW_FLOOR` / `_EXCESS_NOT_POSITIVE` / `_SCOPE` |
 | 7 | 对现有账本（库里同市场 `LIVE_IN_RULE`）：净信息比提高 > 0，或截距 t ≥ 2 | ★e | `MINE_MARGINAL_NOT_POSITIVE` / `_BOOK_MISMATCH` |
-| 8 | 覆盖库内同市场每个因子；|ρ| ≤ 0.7，或冲突的都已正交化且计入 N | 因子库 `DEDUPE` | `MINE_CORRELATION_ABOVE_MAX` / `_LIBRARY_INCOMPLETE` / `_UNKNOWN` / `_ORTHOGONALISED_NOT_COUNTED` |
+| 8 | 覆盖库内同市场每个因子；|ρ| ≤ 0.7，或冲突的都已正交化且计入 N | 因子库 `DEDUPE` | `MINE_CORRELATION_ABOVE_MAX` / `_LIBRARY_INCOMPLETE` / `_UNKNOWN` / `_ORTHOGONALISED_NOT_COUNTED`；市值暴露（RF1116 修订 SIZE_V2 N3，见下）：`MINE_SIZE_EXPOSURE_ABOVE_MAX` / `_UNKNOWN` |
 | 9 | 机制已登记、写了经济逻辑与失效方式、写成早于留出段打分；G-MECH 分诊不是 `NOT_DO_SETTLED` | 机制登记表 | `MINE_MECHANISM_UNKNOWN` / `_FIELDS` / `_AFTER_HOLDOUT` / `_NOT_DO_SETTLED` |
 
 ★e 的数（第 3–5、7 项）在 `THRESHOLDS` 一个常量块里，`state = PENDING_FREEZE`。冻结前 `evaluate()` 一律返回 `MINE_THRESHOLDS_UNFROZEN`，一项都不跑；写了 `FROZEN` 却缺冻结页 path + sha256 或数不是有限数，返回 `MINE_THRESHOLDS_INVALID`。冻结由协调会话在第一轮之前做，届时以冻结页 sha256 绑定，换掉这个块。（RF1116 P1 起出处是 `config/mining_gate_thresholds.v1.json`；★e 冻结 PR 把它转 `FROZEN`，`frozen_ref` 指向仓库里的冻结页副本 `docs/freeze/`，门核这一页的 sha、FROZEN 与六个数，不对 → `MINE_THRESHOLDS_FREEZE_REF_INVALID`，见 MINING_ROUNDS_V1。）
@@ -96,3 +96,13 @@ node services/factor-library/build.js --write    # 全部绑定 MATCH 才写
 ## 6. P0 不做的（草稿 §7.1）
 
 DSL 解析与求值、白名单算子的 G-CAUSAL 证明、`MINING_SPACE_V1` / `MINING_ROUND_V1`、试验台账角色 `MINED_CANDIDATE` 与累计 N、留出段保管服务、`ai_inputs` 新类别、生成方（遗传规划、大模型）：都在 Owner 签字之后的 P1、P2。
+
+### 第 8 项的市值暴露检查（RF1116 修订「评分的市值中性化 V2」，FREEZE_1 1aaf43e0，★S2 (a) 0.10）
+
+- 留出段结果带 `size_exposure { statistic: MEAN_DAILY_SPEARMAN_VS_LOG_TOTAL_MV, value, days, neutralization_version }`，取自与 IC 同一份中性化后的值。
+- 版本取留出段戳里的 `neutralization.version`：
+  - `RANK_GAUSS_V2`：|value| > `size_exposure_abs_max`（0.10）→ `MINE_SIZE_EXPOSURE_ABOVE_MAX`；值缺失、非有限、`days` < `MIN_IC_DAYS`、统计量或版本对不上、门槛块里没有这个数 → `MINE_SIZE_EXPOSURE_UNKNOWN`（失败即关）。
+  - `LINEAR_RAW_V1`（第 1、2 轮，规则冻结）：不判；值照实带着，`detail.size_exposure_check = NOT_APPLICABLE_ROUND_FROZEN_V1`。
+  - 版本缺失或不认识 → `MINE_SIZE_EXPOSURE_UNKNOWN`。
+- **这一项拦不住纯市值替身。** 它只拦 V1 那种大泄漏（0.48–0.82）；V2 下纯市值替身的暴露是 0.067–0.074，低于 0.10，靠第 3 项（IC ≥ 0.02）拦（它们的 IC 约 −0.006 / −0.009）。两道门叠着防（FREEZE_1 §1 ★S2；门槛冻结页 FREEZE_2 写明）。
+- 门槛：V2 的轮读 `config/mining_gate_thresholds.v2.json`（`MINING_GATE_THRESHOLDS_V2`：v1 的六个数加 `size_exposure_abs_max`），第 1、2 轮读 v1（字节不变）。v2 在 FREEZE_2 冻结之前是 `PENDING_FREEZE`，门失败即关（`MINE_THRESHOLDS_UNFROZEN`）。
