@@ -38,7 +38,7 @@ test('terms star values are exactly the frozen texts: alpha delta-g 2 pp per yea
   const d = insufficient.AMENDMENT_1_DEFAULT_POLICY;
   for (const k of Object.keys(s.insufficient_policy)) assert.equal(s.insufficient_policy[k], d[k], `engine default ${k}`);
   assert.equal(s.by_layer.RISK.gate, 'NON_INFERIORITY_FALLBACK', 'V1.1 5.2 B fallback until CVaR5 is defined (plan-coord 11-23)');
-  assert.deepEqual(s.by_layer.RISK.min_economic_value, { metric: 'CVAR5_IMPROVEMENT', value: 0 });
+  assert.deepEqual(s.by_layer.RISK.min_economic_value, { metrics: ['NON_INFERIORITY_D8', 'TOUCH_PROBABILITY_DIFF_X06'], value: 0 });
   assert.deepEqual(s.by_layer.RISK.thresholds, { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 } });
   assert.equal(s.by_layer.EXECUTION, undefined, 'V1.1 5.2 C names no economic-value number: stays refused');
   assert.equal('s4' in s.by_layer.ALPHA.thresholds, false);
@@ -76,10 +76,17 @@ test('the bundle context supplies promotionTermsStar from the file; an AI draft 
   assert.equal(r.state, 'REFUSED');
   assert.ok(r.codes.includes('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing'), 'the CVaR5 path stays star_missing: ' + JSON.stringify(r.codes));
   const ni = fx.baseDraft();
-  ni.promotion_terms = { layer: 'RISK', min_economic_value: s.by_layer.RISK.min_economic_value, thresholds: s.by_layer.RISK.thresholds, insufficient_policy: s.insufficient_policy, review_endpoint: { kind: 'DATE', value: '2026-12-31' } };
+  ni.promotion_terms = { layer: 'RISK', min_economic_value: { metric: 'NON_INFERIORITY_D8', value: 0 }, thresholds: s.by_layer.RISK.thresholds, insufficient_policy: s.insufficient_policy, review_endpoint: { kind: 'DATE', value: '2026-12-31' } };
   Object.assign(ni.decision_table, { template_id: 'DT-NON-INFERIORITY-V1', params: { ...ni.decision_table.params, margin_sd: 0.2 } });
   ni.desk_items.rule_ref = 'CN_A.RULE.CONCURRENCY';
   assert.equal(base(ni).state, 'WAITING_EXTERNAL', JSON.stringify(base(ni).codes));
+  const x06 = JSON.parse(JSON.stringify(ni)); x06.promotion_terms.min_economic_value = { metric: 'TOUCH_PROBABILITY_DIFF_X06', value: 0 };
+  assert.equal(base(x06).state, 'WAITING_EXTERNAL', JSON.stringify(base(x06).codes));
+  for (const [metric, value] of [['NON_INFERIORITY_D8', 0.01], ['TOUCH_PROBABILITY_DIFF_X06', 0.01]]) {
+    const bad = JSON.parse(JSON.stringify(ni)); bad.promotion_terms.min_economic_value = { metric, value };
+    assert.equal(base(bad).state, 'REFUSED', metric);
+    assert.ok(base(bad).codes.some((c) => c === 'PROMOTION_TERMS_FALLBACK_MIN_NOT_ZERO' || c.startsWith('PREREG_TERMS_VALUES_NOT_REGISTERED')), `${metric} ${JSON.stringify(base(bad).codes)}`);
+  }
   const wrongTable = fx.baseDraft();
   wrongTable.promotion_terms = ni.promotion_terms;
   assert.ok(base(wrongTable).codes.includes('PREREG_TERMS_RISK_NEEDS_NON_INFERIORITY'), 'a RISK draft keeps the non-inferiority table');
@@ -95,4 +102,19 @@ test('bundle kinds include the terms star file; the promotion engine contract sa
   const doc = fs.readFileSync(path.join(__dirname, '..', 'docs', 'contracts', 'PROMOTION_ENGINE_V1.md'), 'utf8');
   assert.match(doc, /stage evidence is passed by the caller/i);
   assert.match(doc, /evaluate\(\{[^}]*evidence/);
+});
+
+test('engine terms: RISK accepts NON_INFERIORITY_D8 and TOUCH_PROBABILITY_DIFF_X06 only with min 0; CVAR5_IMPROVEMENT stays valid but reserved; other layers do not take them', () => {
+  const engine = require('../services/promotion-engine');
+  const base = { schema: 'PROMOTION_TERMS_V1', candidate_id: 'C1', market: 'CN_A', layer: 'RISK', k2_sha256: 'a'.repeat(64), k2_frozen_at: '2026-11-24T10:05:00+08:00', terms_frozen_at: '2026-11-24T10:05:00+08:00',
+    mechanism_ids: ['ACCT.CONCURRENCY.NON_MAJOR_CAP'], min_sample_n: 32, thresholds: { s3: { cost_multiple: 2 } } };
+  const v = (over) => engine.validateTerms({ ...base, ...over });
+  assert.deepEqual(v({ min_economic_value: { metric: 'NON_INFERIORITY_D8', value: 0 } }), []);
+  assert.deepEqual(v({ min_economic_value: { metric: 'TOUCH_PROBABILITY_DIFF_X06', value: 0 } }), []);
+  assert.deepEqual(v({ min_economic_value: { metric: 'CVAR5_IMPROVEMENT', value: 0.1 } }), [], 'a valid name at engine level; the freeze program refuses it (star_missing)');
+  for (const metric of ['NON_INFERIORITY_D8', 'TOUCH_PROBABILITY_DIFF_X06']) {
+    assert.ok(v({ min_economic_value: { metric, value: 0.05 } }).includes('PROMOTION_TERMS_FALLBACK_MIN_NOT_ZERO'), metric);
+    assert.ok(v({ layer: 'ALPHA', min_economic_value: { metric, value: 0 } }).includes('PROMOTION_TERMS_ENUM:min_economic_value.metric'), `${metric} not for ALPHA`);
+  }
+  assert.ok(v({ min_economic_value: { metric: 'SOMETHING_ELSE', value: 0 } }).includes('PROMOTION_TERMS_ENUM:min_economic_value.metric'));
 });

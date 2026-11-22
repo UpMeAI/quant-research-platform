@@ -9,7 +9,7 @@
 const fs = require('fs');
 const path = require('path');
 const { fail, isObj, SHA64, canonicalJson } = require('./common');
-const { METRIC_OF } = require('../promotion-engine/terms');
+const { METRIC_OF, RISK_FALLBACK_METRICS } = require('../promotion-engine/terms');
 
 const FILE = path.join(__dirname, '..', '..', 'config', 'promotion_terms_star.v1.json');
 const SOURCE_SHA = Object.freeze({ V1_1: /^af34af38[0-9a-f]{56}$/, AMENDMENT_1: /^0e2f3181d98902f28b67c53ffd068a32e35e96bb75c1b32b62eb3ab9f45bde43$/ });
@@ -40,7 +40,9 @@ function parse(f) {
     if (!METRIC_OF[layer]) fail('TERMS_STAR_SCHEMA', `layer ${layer}`);
     if (l.usable !== true) { if (typeof l.reason !== 'string' || !l.reason) fail('TERMS_STAR_SCHEMA', `${layer}.reason`); if (isObj(l.recorded)) { checkValue(l.sources, 'min_economic_value', l.recorded.min_economic_value.value); for (const [k, v] of leaves(l.recorded.thresholds, 'thresholds')) checkValue(l.sources, k, v); } continue; }
     const m = l.min_economic_value;
-    if (!isObj(m) || m.metric !== METRIC_OF[layer] || typeof m.value !== 'number') fail('TERMS_STAR_SCHEMA', `${layer}.min_economic_value`);
+    const fallback = l.gate === 'NON_INFERIORITY_FALLBACK';
+    const metricOk = fallback ? (isObj(m) && Array.isArray(m.metrics) && m.metrics.length > 0 && m.metrics.every((x) => RISK_FALLBACK_METRICS.includes(x)) && layer === 'RISK') : (isObj(m) && m.metric === METRIC_OF[layer]);
+    if (!metricOk || typeof m.value !== 'number') fail('TERMS_STAR_SCHEMA', `${layer}.min_economic_value`);
     checkValue(l.sources, 'min_economic_value', m.value);
     if (!isObj(l.thresholds)) fail('TERMS_STAR_SCHEMA', `${layer}.thresholds`);
     for (const [k, v] of leaves(l.thresholds, 'thresholds')) checkValue(l.sources, k, v);

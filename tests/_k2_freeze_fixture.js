@@ -38,7 +38,7 @@ const POLICY = { horizon_months: 12, p_threshold: 0.5, budget_share_max: 0.2, re
 const TH = { s3: { cost_multiple: 2, max_growth_sacrifice: 0.01 }, s4: { max_overlap: 0.8 } };
 const TERMS_STAR = { insufficient_policy: POLICY, by_layer: {
   ALPHA: { min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.02 }, thresholds: TH }, EXECUTION: { min_economic_value: { metric: 'DELTA_G_PER_YEAR', value: 0.01 }, thresholds: TH },
-  RISK: { min_economic_value: { metric: 'CVAR5_IMPROVEMENT', value: 0 }, thresholds: TH, gate: 'NON_INFERIORITY_FALLBACK' } } };
+  RISK: { min_economic_value: { metrics: ['NON_INFERIORITY_D8', 'TOUCH_PROBABILITY_DIFF_X06'], value: 0 }, thresholds: TH, gate: 'NON_INFERIORITY_FALLBACK' } } };
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const pinned = datasetRegistry.pinned();

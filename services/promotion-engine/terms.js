@@ -7,6 +7,9 @@ const { validatePolicy, validateEndpoint, isLegacyK2 } = require('./insufficient
 const MARKETS = Object.freeze(['CN_A', 'US_EQUITY', 'CRYPTO']);
 const LAYERS = Object.freeze(['ALPHA', 'RISK', 'EXECUTION']);
 const METRIC_OF = Object.freeze({ ALPHA: 'DELTA_G_PER_YEAR', EXECUTION: 'DELTA_G_PER_YEAR', RISK: 'CVAR5_IMPROVEMENT' });
+/** V1.1 5.2 B fallback metrics for the RISK layer until CVaR5 is defined (plan-coord 11-23): the D8 non-inferiority gate (d38f87a9) or the X06 touch-probability difference. Min 0 = not worse than control. CVAR5_IMPROVEMENT stays reserved (the K2 freeze program's star values refuse it). */
+const RISK_FALLBACK_METRICS = Object.freeze(['NON_INFERIORITY_D8', 'TOUCH_PROBABILITY_DIFF_X06']);
+const metricsOf = (layer) => (layer === 'RISK' ? [METRIC_OF.RISK, ...RISK_FALLBACK_METRICS] : [METRIC_OF[layer]]);
 const KEYS = Object.freeze(['schema', 'candidate_id', 'market', 'layer', 'k2_sha256', 'k2_frozen_at', 'terms_frozen_at', 'next_review_endpoint', 'legacy', 'frozen_by', 'source_k2_refs', 'mechanism_ids', 'min_sample_n', 'min_economic_value', 'thresholds', 'insufficient_policy', 'review_endpoint', 'stage_evidence']);
 const REQUIRED = Object.freeze(['schema', 'candidate_id', 'market', 'layer', 'k2_frozen_at', 'mechanism_ids', 'min_sample_n', 'min_economic_value', 'thresholds']);
 const S3_KEYS = Object.freeze(['cost_multiple', 'max_growth_sacrifice']);
@@ -51,7 +54,8 @@ function validate(t, { asOf = null } = {}) {
   if ('min_economic_value' in t) {
     const m = t.min_economic_value;
     if (!isObj(m) || !num(m.value) || !(m.value >= 0)) c.push('PROMOTION_TERMS_TYPE:min_economic_value');
-    else if (LAYERS.includes(t.layer) && m.metric !== METRIC_OF[t.layer]) c.push('PROMOTION_TERMS_ENUM:min_economic_value.metric');
+    else if (LAYERS.includes(t.layer) && !metricsOf(t.layer).includes(m.metric)) c.push('PROMOTION_TERMS_ENUM:min_economic_value.metric');
+    else if (RISK_FALLBACK_METRICS.includes(m.metric) && m.value !== 0) c.push('PROMOTION_TERMS_FALLBACK_MIN_NOT_ZERO');
   }
   if ('thresholds' in t) {
     const th = t.thresholds;
@@ -78,4 +82,4 @@ function validate(t, { asOf = null } = {}) {
   return c;
 }
 
-module.exports = { MARKETS, LAYERS, METRIC_OF, validate };
+module.exports = { MARKETS, LAYERS, METRIC_OF, RISK_FALLBACK_METRICS, metricsOf, validate };

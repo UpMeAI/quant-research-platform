@@ -89,10 +89,13 @@
     "RISK": {
       "usable": true,
       "gate": "NON_INFERIORITY_FALLBACK",
-      "reason": "V1.1 5.2 B prescribes the fallback itself until CVaR5 is defined in METRIC_DEFINITIONS V1.1: risk questions keep the existing gates (non-inferiority to the control D8, or the touch-probability difference X06). A RISK draft therefore uses DT-NON-INFERIORITY-V1 with margin_sd from the registered risk rule it cites; the improvement minimum under this gate is 0 (not worse than the control). The CVaR5 path stays star_missing until CVaR5 is defined.",
+      "reason": "V1.1 5.2 B prescribes the fallback itself until CVaR5 is defined in METRIC_DEFINITIONS V1.1: risk questions keep the existing gates (non-inferiority to the control D8, or the touch-probability difference X06). A RISK draft therefore uses DT-NON-INFERIORITY-V1 with margin_sd from the registered risk rule it cites; the metric is named for what is measured, NON_INFERIORITY_D8 (the D8 gate, d38f87a9) or TOUCH_PROBABILITY_DIFF_X06 (the X06 touch-probability difference), and min 0 means not worse than the control; CVAR5_IMPROVEMENT stays reserved. The CVaR5 path stays star_missing until CVaR5 is defined.",
       "fallback_quote": "在此之前，风险题沿用现行的门：不劣于对照（D8，d38f87a9）或触线概率差（X06）",
       "min_economic_value": {
-        "metric": "CVAR5_IMPROVEMENT",
+        "metrics": [
+          "NON_INFERIORITY_D8",
+          "TOUCH_PROBABILITY_DIFF_X06"
+        ],
         "value": 0
       },
       "thresholds": {

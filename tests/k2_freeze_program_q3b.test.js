@@ -121,7 +121,7 @@ test('Q3b refusal: a draft without robustness_declaration is refused PREREG_ROBU
 
 test('Q3b refusal: terms are checked with the engine own validator (V2); min_sample_n and stage_evidence are never drafted', () => {
   const bad = (mut) => { const d = baseDraft(); mut(d.promotion_terms); return flow(d).res; };
-  let res = bad((t) => { t.layer = 'RISK'; }); // RISK layer needs CVAR5_IMPROVEMENT (and, until CVaR5 is defined, the non-inferiority table)
+  let res = bad((t) => { t.layer = 'RISK'; }); // ALPHA's metric on the RISK layer is not a RISK metric (and, until CVaR5 is defined, RISK needs the non-inferiority table)
   assert.deepEqual(failing(res), ['V2']);
   assert.ok(codesOf(res, 'V2').includes('PROMOTION_TERMS_ENUM:min_economic_value.metric'), JSON.stringify(codesOf(res, 'V2')));
   res = bad((t) => { t.thresholds = { s3: { cost_multiple: -1 } }; });
