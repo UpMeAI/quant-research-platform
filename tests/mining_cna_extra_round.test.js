@@ -129,18 +129,17 @@ test('E6 反例：没有选择记录的 FAILED_EVALUATION 照旧计数（缺失 
 
 test('E7 反例：开启过留出段的轮照旧计数（轮次行有 holdout_opens，或留出段保管里有开启记录，哪怕轮次行没记）', () => {
   freshData();
-  const a = open('CN_A', '2026-11-18T05:49:16+08:00'); seal(a); zeroSelection(a);
+  const a = open('CN_A', '2026-11-18T05:49:16+08:00'); open('CN_A', '2026-11-18T09:23:54+08:00'); // 两轮先都开着，再让第一轮开启留出段（开启之后同一段不再开新轮，E9）
+  seal(a); zeroSelection(a);
   forceHead(a.round_id, { status: 'FAILED_EVALUATION', gmine_passes: 0, holdout_opens: { segment: { ...H1 }, family_ids: ['MINE:CN_A:H5'], count: 1 }, closed_at: '2026-11-18T09:00:00+08:00' });
-  open('CN_A', '2026-11-18T09:23:54+08:00');
   assert.throws(() => open('CN_A', '2026-11-23T08:30:00+08:00'), code(/MINE_ROUND_HOLDOUT_EXHAUSTED/), 'holdout_opens on the row');
   freshData();
-  const b = open('CN_A', '2026-11-18T05:49:16+08:00'); seal(b);
+  const b = open('CN_A', '2026-11-18T05:49:16+08:00'); open('CN_A', '2026-11-18T09:23:54+08:00'); seal(b);
   rounds.recordCandidate(b.round_id, { candidate_id: `${b.round_id}:A001`, formula_canonical: 'rank(ts_mean(pb,5))', formula_sha256: sha('rank(ts_mean(pb,5))'), holding_period: 5, mining_score: 0.02 }, { registeredBy: AUTH });
   zeroSelection(b);
   vault.open({ round_id: b.round_id, candidate_ids: [`${b.round_id}:A001`], openedBy: 'TEST' });
   assert.equal(vault.openLog(b.round_id).length, 1);
   forceHead(b.round_id, { status: 'FAILED_EVALUATION', gmine_passes: 0, holdout_opens: null, closed_at: '2026-11-18T09:00:00+08:00' });
-  open('CN_A', '2026-11-18T09:23:54+08:00');
   assert.throws(() => open('CN_A', '2026-11-23T08:30:00+08:00'), code(/MINE_ROUND_HOLDOUT_EXHAUSTED/), 'vault open log only');
 });
 
@@ -161,10 +160,10 @@ test('E8 反例：只有 FAILED_EVALUATION 不计；正常 CLOSED（没开留出
 
 test('E9 MINE_ROUND_HOLDOUT_SEGMENT_OPENED 不变：这一段被任何一轮开启过，就不再开新轮（被排除的轮不改变它）', () => {
   freshData();
-  const a = open('CN_A', '2026-11-17T09:00:00+08:00'); seal(a);
+  const a = open('CN_A', '2026-11-17T09:00:00+08:00'); const b = open('CN_A', '2026-11-18T05:49:16+08:00'); seal(a); seal(b);
   rounds.recordCandidate(a.round_id, { candidate_id: `${a.round_id}:A001`, formula_canonical: 'rank(ts_mean(pb,5))', formula_sha256: sha('rank(ts_mean(pb,5))'), holding_period: 5, mining_score: 0.02 }, { registeredBy: AUTH });
   vault.open({ round_id: a.round_id, candidate_ids: [`${a.round_id}:A001`], openedBy: 'TEST' }); // 第一轮开启了这一段
-  const b = open('CN_A', '2026-11-18T05:49:16+08:00'); seal(b); zeroSelection(b); failEval(b); // 被排除的轮
+  zeroSelection(b); failEval(b); // 被排除的轮
   assert.throws(() => open('CN_A', '2026-11-23T08:30:00+08:00'), code(/MINE_ROUND_HOLDOUT_SEGMENT_OPENED:CN_A:2026-10-19\.\.2026-12-31/));
 });
 
