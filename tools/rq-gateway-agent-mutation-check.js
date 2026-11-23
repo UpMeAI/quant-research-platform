@@ -157,6 +157,7 @@ const MUTANTS = [
   m('I11A', 'idea: a market needs a verified frozen mining space', FI, "if (!frozenSpace) add('FACTOR_IDEA_NO_FROZEN_SPACE', ctx.market);", "if (false) add('FACTOR_IDEA_NO_FROZEN_SPACE', ctx.market);", [W21]),
   m('I11B', 'idea: every registered reading belongs to the frozen mining space', FI, "if (reg.readings[id].origin !== 'SPACE') add('FACTOR_IDEA_READING_NOT_IN_MINING_SPACE', `${id}@${space.sha256}`);", "if (false) add('FACTOR_IDEA_READING_NOT_IN_MINING_SPACE', `${id}@${space.sha256}`);", [W21]),
   m('I11C', 'idea: outside-space refusal identifies the frozen space sha', FI, "`${id}@${space.sha256}`", "`${id}`", [W21]),
+  m('I11D', 'idea: persisted records are revalidated against the frozen mining space', FI, '  errors.push(...validateIdeaDraft(draft, ctx).errors);', '', [W21]),
   m('I12', 'idea: holding periods come from the registered list', FI, 'Number.isInteger(h) && reg.holding_periods.includes(h)', 'Number.isInteger(h)', [VAL]),
   m('I13', 'idea: the question is interrogative', FI, "&& !INTERROGATIVE.test(d.question_zh.trim())) add('FACTOR_IDEA_QUESTION_NOT_INTERROGATIVE');", "&& false) add('FACTOR_IDEA_QUESTION_NOT_INTERROGATIVE');", [VAL]),
   m('I14', 'idea: formula check', FI, 'if (FORMULA.some((re) => re.test(t)))', 'if (false)', [VAL]),
