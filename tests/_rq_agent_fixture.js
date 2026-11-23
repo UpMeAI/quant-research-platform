@@ -29,6 +29,13 @@ function makePack(over = {}) {
 function makeRegistry(over = {}) {
   return {
     market: 'CN_A',
+    mining_space: {
+      schema: 'MINING_SPACE_V1',
+      space_ref: 'MINING_SPACE_V1:CN_A:TEST',
+      market: 'CN_A',
+      sha256: sha('fixture-mining-space'),
+      freeze_sha256: sha('fixture-mining-space-freeze'),
+    },
     mechanisms: [
       { mechanism_id: 'SEL.XSEC.REVERSAL', layer: 'SELECTION_TIMING', decision_point: 'SELECT' },
       { mechanism_id: 'SEL.XSEC.LOW_VOLATILITY', layer: 'SELECTION_TIMING', decision_point: 'SELECT' },
