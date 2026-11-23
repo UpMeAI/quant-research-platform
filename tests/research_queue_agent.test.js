@@ -258,20 +258,20 @@ test('AQ-23 a pack behind the provenance firewall is refused before any call', a
 });
 
 /* ---------------------------------------------------------------- 产物 */
-test('card task outputs: card, idea records with code fields, routes, proposals, and the P0 metric', async () => {
+test('card task outputs: card, mining-space idea records with code fields, routes, proposals, and the P0 metric', async () => {
   const nu = F.goodIdea({ mechanism: { NEW: { proposed_id: 'SEL.LIQUIDITY.AMIHUD_TILT', title_zh: '流动性冲击', description_zh: '成交额骤降后的个股后续表现', layer: 'SELECTION_TIMING', decision_point: 'SELECT' } } });
-  const lib = F.goodIdea({ readings: ['CN_A.MOM.RS60_MARKET_PCT', 'CN_A.VOL.REALIZED_20'] });
-  const card = F.makeCard({ factor_ideas: [F.goodIdea(), nu, lib] });
+  const another = F.goodIdea({ question_zh: '近期弱势后的反弹是否在缩量日之后更常见？' });
+  const card = F.makeCard({ factor_ideas: [F.goodIdea(), nu, another] });
   const r = await V.runAgentTask(cardTask(), cardBundle(), opts(mockClient([okResp(card)])));
   assert.equal(r.status, 'DONE');
   assert.equal(r.outputs.card.schema, 'REVIEW_AI_CARD_V1');
   assert.match(r.outputs.card_sha256, /^[0-9a-f]{64}$/);
   assert.deepEqual(r.outputs.factor_ideas.map((i) => i.idea_id), ['FI-CN_A-2026-W47-1', 'FI-CN_A-2026-W47-2', 'FI-CN_A-2026-W47-3']);
   for (const i of r.outputs.factor_ideas) { assert.equal(i.card_sha256, r.outputs.card_sha256); assert.equal(i.prompt_admission_sha256, F.sha(V.prompts.CARD_SYSTEM_TEXT)); }
-  assert.deepEqual(r.outputs.idea_routes.map((x) => x.state), ['GENERATOR_VIEW_PENDING', 'WAITING_MECHANISM_ADMISSION', 'PREREG_PROPOSED']);
-  assert.deepEqual(r.outputs.proposals.map((p) => p.schema), ['MECHANISM_PROPOSAL_V1', 'AI_PREREG_PROPOSAL_V1']);
+  assert.deepEqual(r.outputs.idea_routes.map((x) => x.state), ['GENERATOR_VIEW_PENDING', 'WAITING_MECHANISM_ADMISSION', 'GENERATOR_VIEW_PENDING']);
+  assert.deepEqual(r.outputs.proposals.map((p) => p.schema), ['MECHANISM_PROPOSAL_V1']);
   assert.equal(r.outputs.proposals[0].state, 'WAITING_EXTERNAL:MECHANISM_ADMISSION');
-  assert.deepEqual(r.outputs.metrics, { market: 'CN_A', week_id: '2026-W47', ideas: 3, no_idea_reason_cited: false, routes: { GENERATOR_VIEW_PENDING: 1, WAITING_MECHANISM_ADMISSION: 1, PREREG_PROPOSED: 1 } });
+  assert.deepEqual(r.outputs.metrics, { market: 'CN_A', week_id: '2026-W47', ideas: 3, no_idea_reason_cited: false, routes: { GENERATOR_VIEW_PENDING: 2, WAITING_MECHANISM_ADMISSION: 1 } });
 });
 
 test('card task: zero ideas with a cited reason is recorded in the metric', async () => {

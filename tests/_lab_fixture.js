@@ -17,6 +17,7 @@ const K = require('./_k2_freeze_fixture');
 const P = require('./_promotion_fixture');
 const { makeMiningDataFixture } = require('./_mining_data_fixture');
 const V = require('../services/research-queue-agent');
+const { buildRegistryView } = require('../services/research-queue-agent/registries');
 const causalityEvidence = require('../services/research-lab-e2e/causality-evidence');
 const backtester = require('../services/research-lab-e2e/backtester');
 const datasetRegistry = require('../services/dataset-registry');
@@ -32,7 +33,7 @@ const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const AS_OF = '2026-11-24T18:00:00+08:00';
 const W47_DATE = '2026-11-20';
 const HOLDOUT_PATH_DATE = '2026-09-14';
-const MECH = K.MECH_OK; // CN_A, NORMAL_NO_PRIOR in the checked-in register
+const MECH = 'SEL.XSEC.REVERSAL'; // CN_A selection/timing, NORMAL_NO_PRIOR in the checked-in register
 const FORMULAS = ['rank((-ret_1d))', 'nope(close_hfq)', 'rank( (-ret_1d) )', 'zscore((-ret_1d))', 'rank(pb)']; // scored, parse-refused, deduped, scored, scored
 const CANDIDATE_FORMULA = FORMULAS[0];
 const SCORED_FORMULAS = ['rank((-ret_1d))', 'zscore((-ret_1d))', 'rank((-ts_mean(ret_1d,5)))', 'rank(pb)', 'rank(ts_delta(close_hfq,1))', 'zscore(turnover_f)', 'rank((-ts_mean(ret_1d,3)))', 'rank((-ts_mean(ret_1d,10)))', 'rank(ret_1d)', 'zscore(ret_1d)']; // the scored round also has losers (the validation rule rejects them)
@@ -57,7 +58,19 @@ function syntheticV3({ dsr = 0.97 } = {}) {
 const mockClient = (script) => ({ calls: [], async chat(req) { this.calls.push(req); const r = script.shift(); if (r === undefined) throw new Error('mock client: no more scripted responses'); return r; } });
 const okResp = (obj) => ({ ok: true, status: 200, data: { model: 'deepseek-flash', choices: [{ message: { role: 'assistant', content: JSON.stringify(obj) } }], usage: {} } });
 const cardTask = () => ({ task_id: 'RQT-LINUX-20261124-aaaa1111', host: 'LINUX', agent_host: 'LINUX', kind: 'AI_REVIEW_CARD', market: 'CN_A', template_id: 'AI_REVIEW_CARD_V1', template_sha256: sha('tpl'), attempt_no: 1 });
-const registry = () => F.makeRegistry({ mechanisms: [...F.makeRegistry().mechanisms, { mechanism_id: MECH, layer: 'SELECTION_TIMING', decision_point: 'SELECT' }] });
+let RQ_REGISTRY = null;
+const registry = () => {
+  if (!RQ_REGISTRY) {
+    const frozen = runner.loadFrozenSpace();
+    const freezeBytes = fs.readFileSync(path.join(__dirname, '..', frozen.freeze.path));
+    RQ_REGISTRY = buildRegistryView({
+      market: 'CN_A',
+      space: frozen.space,
+      spaceFreeze: { ...frozen.freeze, bytes: freezeBytes },
+    });
+  }
+  return JSON.parse(JSON.stringify(RQ_REGISTRY));
+};
 /** The review facts are dated `factDate`: W47 (2026-11-20) overlaps the RF1116 holdout 10-19..12-31 (SEEN, forward path); an earlier date does not (holdout path). */
 const packOf = (factDate) => { const p = F.makePack(); return { ...p, facts: p.facts.map((f) => ({ ...f, at: `${factDate}T18:00:00+08:00` })) }; };
 const bundleOf = (factDate = HOLDOUT_PATH_DATE) => ({ schema: 'RQ_AGENT_BUNDLE_V1', market: 'CN_A', week_id: '2026-W47', pack: packOf(factDate), registry: registry() });
@@ -92,7 +105,7 @@ async function buildWorld({ asOf = AS_OF, patch = null, factDate = HOLDOUT_PATH_
   const outDir = path.join(work, 'out'); fs.mkdirSync(outDir);
   const inDir = path.join(work, 'in'); fs.mkdirSync(inDir);
   const triage = () => ({ route: 'NORMAL_NO_PRIOR', cite_seal_sha256: [] });
-  const client = mockClient([okResp(F.makeCard({ factor_ideas: [F.goodIdea({ mechanism: MECH })] }))]);
+  const client = mockClient([okResp(F.makeCard({ factor_ideas: [F.goodIdea({ mechanism: MECH, readings: ['ret_1d', 'amount'], holding_periods: [5] })] }))]);
   const result = await V.runAgentTask(cardTask(), bundleOf(factDate), { client, env: {}, host: 'LINUX', triage, now: () => '2026-11-24T09:00:00+08:00' });
   const write = (name, text) => { const p = path.join(inDir, name); fs.writeFileSync(p, text); return p; };
   const files = { card_result: write('card_result.json', `${canonicalJson(result)}\n`) };

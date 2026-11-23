@@ -189,12 +189,15 @@ for (const [code, mut] of IDEA_FIXTURES) {
   });
 }
 
-test('AQ-45 factor idea: a good draft passes; NEW mechanism passes; factor library readings pass', () => {
+test('AQ-45 factor idea: a good draft passes; NEW mechanism passes; registered factor-library readings outside the frozen space are refused', () => {
   assert.deepEqual(V.validateIdeaDraft(F.goodIdea(), F.ctx()).errors, []);
   const nu = F.goodIdea({ mechanism: { NEW: { proposed_id: 'SEL.LIQUIDITY.AMIHUD_TILT', title_zh: '流动性冲击后的选股倾向', description_zh: '成交额骤降后的个股，其后续相对表现是否与流动性恢复有关', layer: 'SELECTION_TIMING', decision_point: 'SELECT' } } });
   assert.deepEqual(V.validateIdeaDraft(nu, F.ctx()).errors, []);
   const lib = F.goodIdea({ readings: ['CN_A.MOM.RS60_MARKET_PCT', 'CN_A.VOL.REALIZED_20'] });
-  assert.deepEqual(V.validateIdeaDraft(lib, F.ctx()).errors, []);
+  assert.deepEqual(codes(V.validateIdeaDraft(lib, F.ctx())), [
+    'FACTOR_IDEA_READING_NOT_IN_MINING_SPACE',
+    'FACTOR_IDEA_READING_NOT_IN_MINING_SPACE',
+  ]);
 });
 
 test('AQ-45 factor idea: more than 5 per market per week is refused (card level and with ideas already recorded)', () => {
@@ -449,13 +452,19 @@ test('mechanism admission stub: a NEW idea is queued as WAITING, never admitted 
 
 test('registry view builder (host side): mechanisms with layers from the real register, factor-library readings with PIT copied, frozen-space readings as SPACE', () => {
   const { buildRegistryView } = require('../services/research-queue-agent/registries');
-  const reg = buildRegistryView({ market: 'CN_A', space: { readings: [{ name: 'RS60', pit_available_at: 'T 日收盘后' }], holding_periods: [5, 10] } });
+  const space = {
+    schema: 'MINING_SPACE_V1', space_ref: 'MINING_SPACE_V1:CN_A:TEST', market: 'CN_A', sha256: F.sha('space'),
+    readings: [{ name: 'RS60', pit_available_at: 'T 日收盘后' }], holding_periods: [5, 10],
+  };
+  const freezeBytes = Buffer.from(`# MINING_SPACE_V1 FROZEN\n${space.sha256}\n`);
+  const reg = buildRegistryView({ market: 'CN_A', space, spaceFreeze: { path: 'test-freeze.md', bytes: freezeBytes, sha256: F.sha(freezeBytes) } });
   const m = reg.mechanisms.find((x) => x.mechanism_id === 'SEL.XSEC.REVERSAL');
   assert.deepEqual([m.layer, m.decision_point], ['SELECTION_TIMING', 'SELECT']);
   assert.deepEqual(reg.readings.RS60, { pit_available_at: 'T 日收盘后', origin: 'SPACE' });
   assert.equal(reg.readings['CN_A.MOM.RS60_MARKET_PCT'].origin, 'FACTOR_LIBRARY');
   assert.equal(typeof reg.readings['CN_A.MOM.RS60_MARKET_PCT'].pit_available_at, 'string');
   assert.deepEqual(reg.holding_periods, [5, 10]);
+  assert.deepEqual(reg.mining_space, { schema: 'MINING_SPACE_V1', space_ref: space.space_ref, market: 'CN_A', sha256: space.sha256, freeze_sha256: F.sha(freezeBytes) });
   assert.equal(Object.values(reg.readings).some((r) => r.origin === 'FACTOR_LIBRARY' && r.pit_available_at === undefined), false);
 });
 
