@@ -24,6 +24,7 @@ const { dataDir, now, append, read } = require('../../packages/ledger');
 const { validateRecord } = require('../../schemas');
 const trials = require('../trial-ledger');
 const { NEW_ROUND_NEUTRALIZATION, legacyForTests } = require('./neutralization');
+const holdoutSegments = require('./holdout-segments');
 
 const SCHEMA = 'MINING_ROUND_V1';
 const LEDGER = () => path.join(dataDir('research'), 'mining_rounds.jsonl');
@@ -141,9 +142,27 @@ function excludedFromHoldoutCount(r) {
 }
 
 /**
+ * 登记表选的段能不能再开一轮（RF1116 第二段修订，holdout-segments.js）。失败关闭：选不到可用的段就不开，从不借别的段。
+ *   - 台账里有一轮的窗口不在登记表里 → MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE（数不清用了几轮，不数）；
+ *   - 已有更靠后的段的轮（往回开）→ MINE_ROUND_HOLDOUT_MOVED；
+ *   - 这一段用满了 rounds_per_holdout 轮（计数口径同 excludedFromHoldoutCount）→ MINE_ROUND_HOLDOUT_EXHAUSTED:<段号>；
+ *   - 这一段被开启过 → MINE_ROUND_HOLDOUT_SEGMENT_OPENED:<市场>:<段号>。
+ */
+function checkSegmentUsable(entry, prior, market) {
+  const owned = prior.map((r) => ({ r, e: holdoutSegments.entryOfBlock(r.holdout) }));
+  const stray = owned.find((x) => !x.e);
+  need(!stray, 'MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE', `${market}:${stray && stray.r.round_id}: window is not in the registry`);
+  need(!owned.some((x) => x.e.number > entry.number), 'MINE_ROUND_HOLDOUT_MOVED', `${entry.id}: a later segment already has rounds`);
+  const mine = owned.filter((x) => x.e === entry).map((x) => x.r);
+  need(mine.filter((r) => !excludedFromHoldoutCount(r)).length < LIMITS.rounds_per_holdout, 'MINE_ROUND_HOLDOUT_EXHAUSTED', entry.id);
+  const vault = require('../holdout-vault');
+  need(!mine.some((r) => r.holdout_opens || vault.openLog(r.round_id).length), 'MINE_ROUND_HOLDOUT_SEGMENT_OPENED', `${market}:${entry.id}`);
+}
+
+/**
  * 开一轮（冻结的轮次清单）。
  * @param {object} o { market, space: { space_ref, sha256, freeze: { path, sha256 } }, holding_periods: [交易日…], generator: { mode, model?, model_knowledge_cutoff?, gp_seed? },
- *   holdout: { from, to }, cap?: ≤ 200, openedAt?, rulings: [{ path, sha256 }], selection_rule: VALIDATION_SELECTION_V1 }（后两项协调会话裁定 R1.2，每份清单必带）
+ *   holdout?: { from, to }（不给 = 登记表按开轮月份选段，生产路径；给 = 旧路径，合成市场与测试）, cap?: ≤ 200, openedAt?, rulings: [{ path, sha256 }], selection_rule: VALIDATION_SELECTION_V1 }（后两项协调会话裁定 R1.2，每份清单必带）
  */
 function openRound(o = {}) {
   need(MARKETS.includes(o.market), 'MINE_ROUND_MARKET_INVALID', o.market);
@@ -156,21 +175,31 @@ function openRound(o = {}) {
     need(isText(g.model) && DATE.test(g.model_knowledge_cutoff || ''), 'MINE_ROUND_GENERATOR_INVALID', 'LLM needs model and model_knowledge_cutoff');
     checkLlmBlock(g.llm); // 执行器开 LLM 轮要带 llm 块（配置 sha 与本轮上限）；别处直接开的合成轮（测试）可以不带
   } else need(Number.isInteger(g.gp_seed), 'MINE_ROUND_GENERATOR_INVALID', 'GP needs gp_seed');
-  need(isObj(o.holdout) && DATE.test(o.holdout.from || '') && DATE.test(o.holdout.to || '') && o.holdout.from <= o.holdout.to, 'MINE_ROUND_HOLDOUT_INVALID');
-  if (g.mode === 'AI_MINED_LLM') need(o.holdout.from > g.model_knowledge_cutoff, 'MINE_ROUND_HOLDOUT_BEFORE_CUTOFF', `${o.holdout.from}<=${g.model_knowledge_cutoff}`);
+  // 留出段（RF1116 第二段修订，holdout-segments.js）：不给窗口 = 登记表按开轮月份（北京时间）选段，选不到 → MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE；
+  // 给窗口 = 旧路径（合成市场与测试），逐字不变。生产的 requestRound 不给窗口。
+  const openedAt = o.openedAt || now();
+  const month = monthCst(openedAt);
+  const auto = o.holdout === undefined;
+  const entry = auto ? holdoutSegments.entryForMonth(month, o.market) : null;
+  if (auto) need(entry, 'MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE', `${o.market}:${month}`);
+  const holdout = auto ? holdoutSegments.holdoutOf(entry) : o.holdout;
+  if (!auto) need(isObj(holdout) && DATE.test(holdout.from || '') && DATE.test(holdout.to || '') && holdout.from <= holdout.to, 'MINE_ROUND_HOLDOUT_INVALID');
+  if (g.mode === 'AI_MINED_LLM') need(holdoutSegments.lowerBoundOf(holdout) > g.model_knowledge_cutoff, 'MINE_ROUND_HOLDOUT_BEFORE_CUTOFF', `${holdoutSegments.lowerBoundOf(holdout)}<=${g.model_knowledge_cutoff}`);
   const cap = o.cap === undefined ? LIMITS.candidates_per_round : o.cap;
   need(Number.isInteger(cap) && cap >= 1 && cap <= LIMITS.candidates_per_round, 'MINE_ROUND_CAP_INVALID', cap);
   const rulings = checkRulings(o.rulings);
   // 版本：新开的轮只能是 RANK_GAUSS_V2（不给就是它）；LINEAR_RAW_V1 只在测试的环境开关下认（neutralization.js 的 legacyForTests），生产没有这个口子
   need(o.scoring_neutralization === undefined || o.scoring_neutralization === NEW_ROUND_NEUTRALIZATION || (o.scoring_neutralization === 'LINEAR_RAW_V1' && legacyForTests()), 'MINE_ROUND_NEUTRALIZATION_INVALID', String(o.scoring_neutralization));
   const selectionRule = checkSelectionRule(o.selection_rule);
-  const openedAt = o.openedAt || now();
   const prior = roundsOf(o.market);
   // 留出段（R1.6）：一段最多给 rounds_per_holdout 轮用；要么沿用最新那一段（还没用满），要么换一段整段在以前各段之后的新段；
   // 其余（重叠、往前挪）一律 MINE_ROUND_HOLDOUT_MOVED，用满了 MINE_ROUND_HOLDOUT_EXHAUSTED。
   // 修订 4 写明本意：共用只限这一段第一次被开启之前；这个市场里任何一轮开启过这一段（轮次行有 holdout_opens，或留出段保管有开启记录），
   // 就不再在这一段上开新轮 → MINE_ROUND_HOLDOUT_SEGMENT_OPENED。没开启留出段就关的轮不算开启。
-  if (prior.length) {
+  if (auto) checkSegmentUsable(entry, prior, o.market);
+  else if (prior.length) {
+    // 台账里已有登记表选的段（带段号的行）：窗口只会来自登记表，不再接受调用方给的窗口（失败关闭，不拿窗口凑）
+    need(!prior.some((r) => r.holdout && r.holdout.segment !== undefined), 'MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE', `${o.market}: explicit window after registry segments`);
     const same = (h) => h.from === o.holdout.from && h.to === o.holdout.to;
     const latest = prior[prior.length - 1].holdout;
     const lastEnd = prior.reduce((m, r) => (r.holdout.to > m ? r.holdout.to : m), '');
@@ -184,7 +213,6 @@ function openRound(o = {}) {
   }
   const stillOpen = prior.filter((r) => !TERMINAL.includes(r.status)).length;
   need(stillOpen < LIMITS.open_rounds_per_market, 'MINE_ROUND_ALREADY_OPEN', `${o.market}:${stillOpen}`);
-  const month = monthCst(openedAt);
   need(prior.filter((r) => r.month === month).length < monthlyCapOf(o.market, month), 'MINE_ROUND_MONTHLY_CAP', `${o.market}:${month}`);
   const pause = pauseState(o.market);
   if (pause.paused) need(!pause.spaces_used.includes(o.space.sha256), 'MINE_MARKET_PAUSED', `${o.market}:${pause.failed_rounds.join(',')}`);
@@ -194,7 +222,7 @@ function openRound(o = {}) {
     holding_periods: [...o.holding_periods], family_ids: o.holding_periods.map((h) => `MINE:${o.market}:H${h}`),
     generator: { mode: g.mode, model: g.model || null, model_knowledge_cutoff: g.model_knowledge_cutoff || null, gp_seed: g.mode === 'AI_MINED_GP' ? g.gp_seed : null,
       ...(g.mode === 'AI_MINED_LLM' && g.llm !== undefined ? { llm: JSON.parse(JSON.stringify(g.llm)) } : {}) },
-    holdout: { from: o.holdout.from, to: o.holdout.to }, cap, resumed_after_pause: pause.paused ? pause.failed_rounds : [], rulings, selection_rule: selectionRule, holdout_opens: null,
+    holdout: auto ? JSON.parse(JSON.stringify(holdout)) : { from: o.holdout.from, to: o.holdout.to }, cap, resumed_after_pause: pause.paused ? pause.failed_rounds : [], rulings, selection_rule: selectionRule, holdout_opens: null,
     scoring_neutralization: o.scoring_neutralization === undefined ? NEW_ROUND_NEUTRALIZATION : o.scoring_neutralization, // 修订 SIZE_V2 N2：新开的轮一律 RANK_GAUSS_V2（第 1、2 轮在 neutralization.js 的名单里）
     status: 'OPEN', candidates_scored: 0, gmine_passes: null, gmine_basis: null, opened_at: openedAt, closed_at: null,
     data_checks: isObj(o.data_checks) ? JSON.parse(JSON.stringify(o.data_checks)) : null, // 执行器开轮前做过的数据核对（覆盖下限，压低了也照实写）
@@ -435,6 +463,6 @@ function generatorView(roundId) {
   });
 }
 
-module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, MONTHLY_CAP_EXCEPTIONS, monthlyCapOf, TERMINAL, FAILED_TERMINAL, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf,
+module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, MONTHLY_CAP_EXCEPTIONS, monthlyCapOf, monthCst, TERMINAL, FAILED_TERMINAL, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf,
   beginScoring, closeRound, failRescore, failPartial, failEvaluation, recordResumeCheck,
   roundHead, roundsOf, pauseState, familyN, generatorView, manifestSha, LLM_CALLS, llmCalls, recordLlmCall, llmState, llmUsage };

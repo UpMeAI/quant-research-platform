@@ -55,7 +55,7 @@ function forceHead(roundId, patch) {
 }
 const addCandidate = (r, n = 1) => {
   const id = `${r.round_id}:A00${n}`;
-  rounds.recordCandidate(r.round_id, { candidate_id: id, formula_canonical: 'rank(ts_mean(pb,5))', formula_sha256: sha(`rank(ts_mean(pb,5))-${n}`), holding_period: 5, mining_score: 0.02 }, { registeredBy: AUTH });
+  rounds.recordCandidate(r.round_id, { candidate_id: id, formula_canonical: 'rank(ts_mean(pb,5))', formula_sha256: sha('rank(ts_mean(pb,5))'), holding_period: 5, mining_score: 0.02 }, { registeredBy: AUTH });
   return id;
 };
 
