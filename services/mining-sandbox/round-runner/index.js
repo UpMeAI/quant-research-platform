@@ -503,7 +503,7 @@ function select({ roundId, sources, outDir, accessLog = null }) {
  *     导出规格 rev 3 的日历每次都是整段（到 2026-12-31），所以不能只看日历。
  * 核过才把目录交给面板；任何一条不过都在开启之前拒绝，那一次开启不被耗掉。
  */
-function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null, deferredSeal = false } = {}) {
+function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null, deferredSeal = false, anchors = null } = {}) {
   need(Number.isInteger(minNamesPerDay) && minNamesPerDay >= 1, 'HOLDOUT_FLOOR_INVALID', minNamesPerDay);
   need(seal && SHA64_RE.test(seal.data_sha256 || '') && seal.segment && seal.segment.from && seal.segment.to, 'NOT_SEALED');
   need(dir && fs.existsSync(path.join(dir, 'SHA256SUMS')), 'HOLDOUT_DIR_INVALID', dir);
@@ -581,11 +581,15 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     const per = list.map((d) => (all.get(d) ? all.get(d).size : 0));
     const sealedCounts = list.filter((d) => sealedOnly.has(d)).map((d) => sealedOnly.get(d).size);
     need(sealedCounts.length || deferredSeal, 'HOLDOUT_SEALED_DAYS_EMPTY', view ? `${file}:${view}` : file);
-    const anchor = sealedCounts.length ? median(sealedCounts) : median(per); // 延迟封存：没有封存的数据行，锚是这份数据自己各日的中位数
+    // 延迟封存：没有封存的数据行。锚 = R1 打分时记在开启记录里的同一张表的中位数（有就用，anchors），没有就是这份数据自己各日的中位数
+    const given = !sealedCounts.length && anchors ? (view === 'LABEL' ? anchors.labels[file] : anchors.rows[file]) : undefined;
+    const fromR1 = typeof given === 'number' && given > 0;
+    const anchor = sealedCounts.length ? median(sealedCounts) : (fromR1 ? given : median(per));
     list.forEach((d, k) => {
       need(per[k] >= minNamesPerDay && per[k] >= HOLDOUT_FLOOR.min_share_of_sealed_median * anchor, 'HOLDOUT_INCOMPLETE', view ? `${file}:${view}:${d}:${per[k]}` : `${file}:${d}:${per[k]}`);
     });
-    return { min_names: Math.min(...per), median_names: median(per), sealed_days: sealedCounts.length, sealed_median_names: anchor, trade_dates: { from: list[0], to: list[list.length - 1] } };
+    return { min_names: Math.min(...per), median_names: median(per), sealed_days: sealedCounts.length, sealed_median_names: anchor, trade_dates: { from: list[0], to: list[list.length - 1] },
+      ...(deferredSeal ? { anchor_basis: fromR1 ? 'R1_OPEN_RECORD' : 'OWN_DAYS_MEDIAN' } : {}) };
   };
   const rowsPerDay = {}; const labelRowsPerDay = {};
   const fieldKeys = Object.values(adapter.BASIC_FIELDS);
@@ -635,7 +639,9 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     for (const k of fieldKeys) {
       const per = feedDays.map((d) => all.get(`${k}|${d}`) || 0);
       const sealedCounts = sealedDays.map((d) => sealedT.get(`${k}|${d}`) || 0);
-      const anchor = sealedCounts.length ? median(sealedCounts) : (deferredSeal ? median(per) : 0);
+      const givenF = deferredSeal && !sealedCounts.length && anchors ? anchors.fields[k] : undefined;
+      const fromR1F = typeof givenF === 'number' && givenF > 0;
+      const anchor = sealedCounts.length ? median(sealedCounts) : (deferredSeal ? (fromR1F ? givenF : median(per)) : 0);
       need(anchor > 0, 'HOLDOUT_FIELD_EMPTY', `${file}:${k}`);
       const abs = HOLDOUT_FIELD_FLOOR.absolute_floor_fields.includes(k);
       const skipped = [];
@@ -643,7 +649,7 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
         if (excluded.has(`${k}|${d}`)) { skipped.push(d); return; }
         need(per[i] >= HOLDOUT_FIELD_FLOOR.min_share_of_sealed_median * anchor && (!abs || per[i] >= minNamesPerDay), 'HOLDOUT_FIELD_INCOMPLETE', `${file}:${k}:${d}:${per[i]}`);
       });
-      fieldStates[k] = { min: Math.min(...per), median: median(per), sealed_median: anchor, excluded_days: skipped };
+      fieldStates[k] = { min: Math.min(...per), median: median(per), sealed_median: anchor, excluded_days: skipped, ...(deferredSeal ? { anchor_basis: fromR1F ? 'R1_OPEN_RECORD' : 'OWN_DAYS_MEDIAN' } : {}) };
     }
   }
   const { min_names_per_day: _d, ...rest } = HOLDOUT_FLOOR;
@@ -651,7 +657,7 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     rows_per_day: rowsPerDay, label_rows_per_day: labelRowsPerDay, field_states_per_day: fieldStates, floor: { min_names_per_day: minNamesPerDay, ...rest },
     field_floor: { ...HOLDOUT_FIELD_FLOOR, absolute_floor_fields: [...HOLDOUT_FIELD_FLOOR.absolute_floor_fields] },
     field_exclusions: fieldExclusions ? { sha256: fieldExclusions.sha256, ruling: fieldExclusions.ruling, pairs: fieldExclusions.pairs } : null, source: src,
-    ...(deferredSeal ? { seal_mode: 'DEFERRED_PENDING_SEAL', anchor: 'OWN_DAYS_MEDIAN' } : {}) };
+    ...(deferredSeal ? { seal_mode: 'DEFERRED_PENDING_SEAL', anchor: anchors ? 'R1_OPEN_RECORD' : 'OWN_DAYS_MEDIAN', anchor_record_hash: anchors ? anchors.open_record_hash : null } : {}) };
 }
 
 /**
@@ -686,11 +692,28 @@ function verifyHoldoutDir(roundId, dir, opts = {}) {
   // 窗口：R1 与旧窗口来自清单（与封存记录的起止相同），R2 来自解析记录；R2 的目录走延迟封存的核对（只封存了 SEAL_PENDING_V1.json）
   const { window: given, ...rest } = opts;
   const win = given || windowOrFail(rounds.roundHead(roundId));
-  return { ...holdoutDirCheck(dir, { ...seal, segment: { from: win.from, to: win.to } }, { ...rest, deferredSeal: win.segment !== null }), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
+  const deferredSeal = win.segment !== null;
+  return { ...holdoutDirCheck(dir, { ...seal, segment: { from: win.from, to: win.to } }, { ...rest, deferredSeal, anchors: deferredSeal ? r1AnchorsOf() : null }), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
+}
+/**
+ * R1's recorded medians, the anchor of an R2 directory check (RF1116 R2: no sealed data rows to anchor on): the FIRST R1 holdout-open row of this market that carries them
+ * (holdout_dir.rows_per_day / label_rows_per_day [file].sealed_median_names, field_states_per_day [field].sealed_median). Same market, same tables. R1 is scored in January 2027,
+ * before R2 can be; no such row (R1 not opened) -> null and the check anchors on the data's own median of days. Its record_hash goes into the check record.
+ */
+function r1AnchorsOf() {
+  const r1 = new Set(rounds.roundsOf(MARKET).filter((r) => { const w = segmentResolution.windowOf(r); return w && w.segment === null && w.from === segs.SEGMENTS.HOLDOUT.from && w.to === segs.SEGMENTS.HOLDOUT.to; }).map((r) => r.round_id));
+  const med = (o, key) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v && typeof v[key] === 'number' && v[key] > 0).map(([k, v]) => [k, v[key]]));
+  for (const o of require('../../../packages/ledger').read(vault.LEDGER())) {
+    if (o.schema !== 'HOLDOUT_OPEN_V1' || !r1.has(o.round_id)) continue;
+    const hd = o.pre_open_checks && o.pre_open_checks.holdout_dir;
+    if (!hd || !hd.rows_per_day || !hd.label_rows_per_day || !hd.field_states_per_day) continue;
+    return { rows: med(hd.rows_per_day, 'sealed_median_names'), labels: med(hd.label_rows_per_day, 'sealed_median_names'), fields: med(hd.field_states_per_day, 'sealed_median'), open_record_hash: o.record_hash };
+  }
+  return null;
 }
 /** 留出段目录核对写进开启记录与 score.json 的那一份（复审 #127 P2-3：逐字段的计数、字段下限、排除文件都在，事后能说清是哪些数放它开的）。 */
 const holdoutDirRecord = (c) => ({ open_days: c.open_days, calendar_to: c.calendar_to, trade_dates: c.trade_dates, rows_per_day: c.rows_per_day, label_rows_per_day: c.label_rows_per_day,
-  field_states_per_day: c.field_states_per_day, field_floor: c.field_floor, field_exclusions: c.field_exclusions, ...(c.seal_mode ? { seal_mode: c.seal_mode, anchor: c.anchor } : {}) });
+  field_states_per_day: c.field_states_per_day, field_floor: c.field_floor, field_exclusions: c.field_exclusions, ...(c.seal_mode ? { seal_mode: c.seal_mode, anchor: c.anchor, anchor_record_hash: c.anchor_record_hash } : {}) });
 /** 覆盖下限的记录（写进台账：开轮写进轮次清单，打分写进开启记录）：用了几、默认几、是不是压低了。 */
 const floorRecord = (floor, base = COVERAGE_FLOOR) => ({ min_names_per_day: { value: floor.min_names_per_day, default: base.min_names_per_day, overridden: floor.min_names_per_day !== base.min_names_per_day } });
 

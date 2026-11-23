@@ -264,3 +264,43 @@ test('RC7 run.sh: resolve-segment and seal-init-r2 are commands; score for R2 mo
   const line = sh.split('\n').find((l) => l.includes('--name "rf1116-resolve-segment"'));
   for (const f of ['--network none', '--read-only', '--cap-drop ALL', '-v "$HOLDOUT:/data/holdout:ro"']) assert.ok(line.includes(f), f);
 });
+
+test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the record hash is in the check record); without one the data\'s own median; a high R1 anchor makes a normal R2 directory incomplete', () => {
+  freshData();
+  const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1A', sha256: sha('r1a'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
+  const r2 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
+  const d = r2Dir();
+  runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: d.sealSha });
+  forgeResolution();
+  const check = () => runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() });
+  const own = check();
+  assert.deepEqual([own.anchor, own.anchor_record_hash], ['OWN_DAYS_MEDIAN', null]);
+  assert.ok(Object.values(own.rows_per_day).every((x) => x.anchor_basis === 'OWN_DAYS_MEDIAN'));
+  // an R1 round and its open row (what R1's scoring records in January 2027)
+  const openRow = (scale) => {
+    const per = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { ...v, sealed_median_names: Math.round(v.median_names * scale), anchor_basis: undefined }]));
+    const body = { schema: 'HOLDOUT_OPEN_V1', round_id: r1.round_id, seal_hash: sha('seal'), candidate_ids: ['x'], opened_by: 'TEST', opened_at: '2027-01-10T10:00:00+08:00', segment_open_index: 1,
+      pre_open_checks: { holdout_dir: { rows_per_day: per(own.rows_per_day), label_rows_per_day: per(own.label_rows_per_day),
+        field_states_per_day: Object.fromEntries(Object.entries(own.field_states_per_day).map(([k, v]) => [k, { ...v, sealed_median: Math.round(v.median * scale) }])) } }, selection_record_hash: null, inputs_sha256: null };
+    ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
+    return trials.recordHash(body);
+  };
+  const h1 = openRow(1);
+  const withR1 = check();
+  assert.deepEqual([withR1.anchor, withR1.anchor_record_hash], ['R1_OPEN_RECORD', h1]);
+  assert.ok(Object.values(withR1.rows_per_day).every((x) => x.anchor_basis === 'R1_OPEN_RECORD'));
+  // a later R1 open row does not replace the first one
+  openRow(100);
+  assert.equal(check().anchor_record_hash, h1);
+  // a high anchor (R1 had 100 times the names): the same R2 directory is incomplete
+  freshData();
+  const r1b = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1B', sha256: sha('r1b'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
+  const r2b = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
+  runner.sealHoldout({ roundId: r2b.round_id, dataRef: R2REF, dataSha256: d.sealSha });
+  forgeResolution();
+  const per = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { ...v, sealed_median_names: v.median_names * 100 }]));
+  const body = { schema: 'HOLDOUT_OPEN_V1', round_id: r1b.round_id, seal_hash: sha('seal'), candidate_ids: ['x'], opened_by: 'TEST', opened_at: '2027-01-10T10:00:00+08:00', segment_open_index: 1,
+    pre_open_checks: { holdout_dir: { rows_per_day: per(own.rows_per_day), label_rows_per_day: per(own.label_rows_per_day), field_states_per_day: own.field_states_per_day } }, selection_record_hash: null, inputs_sha256: null };
+  ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
+  assert.throws(() => runner.verifyHoldoutDir(r2b.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
+});
