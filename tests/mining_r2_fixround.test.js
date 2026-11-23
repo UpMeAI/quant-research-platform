@@ -227,6 +227,11 @@ test('FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consis
   // arrive verifies against the anchors before it appends
   const src = A().csvDayDropSource(dropRoot(DAYS.slice(0, 7)));
   assert.throws(() => A().arrive({ dir: rolled, source: src, anchors: rolledAnchors }), code(/ROLLBACK/));
+  // the anchors are checked BEFORE the calendar step writes anything: a rolled-back chain and a source whose calendar has new rows leave the directory untouched
+  const listing = (d) => Object.fromEntries(fs.readdirSync(d).sort().map((n) => [n, sha(fs.readFileSync(path.join(d, n)))]));
+  const before = listing(rolled);
+  assert.throws(() => A().arrive({ dir: rolled, source: A().csvDayDropSource(dropRoot(DAYS.slice(0, 7), { calendar: calendarCsv('2027-03-05') })), anchors: rolledAnchors }), code(/ROLLBACK/));
+  assert.deepEqual(listing(rolled), before, 'nothing written (no calendar part, no lock left)');
   assert.throws(() => A().arrive({ dir: rew, source: src, anchors: rewAnchors }), code(/REWRITE/));
   assert.equal(A().arrive({ dir: good, source: src, anchors }).status, 'ARRIVED');
   assert.equal(A().arrive({ dir: good, source: src, anchors }).seq, 7, 'the old anchor is below the new head: fine');
