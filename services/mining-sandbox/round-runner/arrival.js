@@ -1,24 +1,27 @@
 'use strict';
 
 /**
- * RF1116 R2: the DATA ARRIVAL program and its hash chain (plan-coord 2026-11-23).
+ * RF1116 holdout DATA ARRIVAL: the program and its hash chain (plan-coord 2026-11-23). Serves R2 (no data at seal time) and R1 (the sealed export ends at D1 = 2026-11-17; the days after it arrive here).
  *
- * R2's data does not exist when the segment is sealed (services/mining-rounds/holdout-segments.js; deploy/.../seal-init-r2.sh). A program copies each new SSE trading day from
- * V6's canonical daily data (read-only) into the R2 directory and is the ONLY writer of it. Every arriving file is recorded in an append-only chain,
- * ARRIVAL_CHAIN_V1.jsonl in the same directory (HOLDOUT_ARRIVAL_V1: seq, kind CALENDAR | DAY, trade_date, files [{name, sha256, rows}], source, arrived_at, prev_hash,
- * record_hash). The scorer verifies the whole chain against the directory (verifyChain): any gap, edit, or out-of-order day makes scoring refuse (MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID),
- * and days that have not arrived yet are MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>.
+ * A program copies each new SSE trading day from V6's canonical daily data (exported read-only by deploy/research-lane/r2-day-export) into the segment's holdout directory and is the ONLY
+ * writer of it. Every arriving file is recorded in an append-only chain, ARRIVAL_CHAIN_V1.jsonl in the same directory (HOLDOUT_ARRIVAL_V1: seq, segment, kind CALENDAR | DAY, trade_date,
+ * files [{name, sha256, rows}], readiness, source, arrived_at, prev_hash, record_hash). The scorer verifies the whole chain against the directory (verifyChain): any gap, edit, or
+ * out-of-order day makes scoring refuse (MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID), and days that have not arrived yet are MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>.
  *
- *   layout     the spec's layout (RF1116_CN_A_LANE_EXPORT_SPEC_V1): a base file per table that is HEADER ONLY and one part per table and day, <table>_<YYYYMMDD>.csv, which the data
- *              adapter already reads (base first, then the dated parts); trading_calendar.csv first (chain row 0), later calendar rows as trading_calendar_<YYYYMMDD>.csv.
- *              The chain file is not listed in SHA256SUMS (it grows); every other file after the sealed line is listed and named by exactly one chain row.
- *   next day   always the next SSE open day of the calendar in the directory after the last arrived day (the first is the first open day after 2026-12-31). A gap, an earlier day or a
- *              closed day is refused; an arrived day is a no-op. The calendar comes first: nothing else arrives until it is there.
- *   a day      is written only if the source has all six tables for it, each header equals the base header, every row is that day's (trade_date; business_date for the master), and
- *              prices is not empty. Files are written whole (temp + rename), SHA256SUMS lines appended, the chain row last (the commit point). Every step is idempotent and compares
- *              bytes, so a crash between steps is healed by the next run; a different file on disk is MINE_RUNNER_ARRIVE_CONFLICT.
- *   sources    CSV_DAY_DROP (a V6-side read-only job drops <root>/trading_calendar.csv and <root>/<YYYYMMDD>/<table>.csv) and PG_PSQL (the spec's queries per day through psql with a
- *              read-only role; the queries and the psql arguments are tested, no database is).
+ *   profiles   R2: sealed PENDING (SEAL_PENDING_V1.json only), the calendar arrives first (chain row 0), every base file is header only, start rule 2026-12-31.
+ *              R1: sealed with data (SHA256SUMS.sealed lists the six daily tables and the calendar), the calendar is sealed (no calendar row), the sealed base files are never touched, only
+ *              the industry table (absent from the sealed export) gets a header-only base file; days after 2026-11-17 only.
+ *   layout     the spec's layout (RF1116_CN_A_LANE_EXPORT_SPEC_V1): one part per table and day, <table>_<YYYYMMDD>.csv, which the data adapter already reads (base first, then the dated
+ *              parts); later R2 calendar rows as trading_calendar_<YYYYMMDD>.csv. Seven tables: the six daily ones and the industry membership (export spec rev 5 change 2), whose rows belong
+ *              to a day by first_available_at: [previous open day + 1 00:00+08, day + 1 00:00+08), the first part of a segment from its industryFrom; a header-only part is normal.
+ *              The chain file is not listed in SHA256SUMS (it grows); every other file after the sealed lines is listed and named by exactly one chain row.
+ *   next day   always the next SSE open day of the calendar in the directory after the last arrived day. A gap, an earlier day or a closed day is refused; an arrived day is a no-op.
+ *   a day      is written only if the source has all seven tables and the readiness record for it, each header equals the base header, every row is that day's (trade_date; business_date for the
+ *              master; the first_available_at window for industry), and prices is not empty. Files are written whole (temp + rename), SHA256SUMS lines appended, the chain row last (the
+ *              commit point). Every step is idempotent and compares bytes, so a crash between steps is healed by the next run; a different file on disk is MINE_RUNNER_ARRIVE_CONFLICT.
+ *   readiness  the exporter's READINESS.json (probe R2_DAY_EXPORT_READINESS_V2: ready_via POST_CLOSE_D | NEXT_PREMARKET, name counts) is validated and recorded in the chain row.
+ *   sources    CSV_DAY_DROP (the day directories r2-day-export drops, read-only here) and PG_PSQL (the spec's queries per day through psql with a read-only role; the queries and the psql
+ *              arguments are tested, no database is; no readiness record).
  * Errors MINE_RUNNER_ARRIVE_*; verification errors MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:<reason>.
  */
 const fs = require('fs');
@@ -32,6 +35,9 @@ const CHAIN_FILE = 'ARRIVAL_CHAIN_V1.jsonl';
 const SCHEMA = 'HOLDOUT_ARRIVAL_V1';
 const PENDING = 'SEAL_PENDING_V1.json';
 const CAL_STEM = 'trading_calendar';
+const READINESS_FILE = 'READINESS.json';
+const READY_VIA = Object.freeze(['POST_CLOSE_D', 'NEXT_PREMARKET']);
+const READINESS_SCHEMA = 'R2_DAY_EXPORT_READINESS_RECORD_V1';
 const START_AFTER = '2026-12-31'; // R2's start rule (holdout-segments.js): the first trading day after it
 const SUFFIX = /^_(\d{8})\.csv$/;
 /**
@@ -133,6 +139,9 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
       if (!ok) invalid('FILE_NAME', names.join(','));
     } else {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(r.trade_date || '')) invalid('SCHEMA', `trade_date ${i}`);
+      // the readiness record is part of every DAY row (null only for a source that has none, the PG driver)
+      if (r.readiness === undefined || (r.readiness !== null && (typeof r.readiness !== 'object' || !READY_VIA.includes(r.readiness.ready_via)))) invalid('SCHEMA', `readiness ${i}`);
+      if (r.readiness === null && r.source && r.source.driver === 'CSV_DAY_DROP') invalid('SCHEMA', `readiness ${i}: a dropped day carries its readiness record`);
       const first = !rows.slice(0, i).some((x) => x.kind === 'DAY');
       let expectedNames = 0;
       for (const t of TABLES) {
@@ -245,6 +254,18 @@ function calendarLinesOf(dir) {
   return { header, lines };
 }
 
+const isCount = (n) => Number.isInteger(n) && n >= 0;
+/**
+ * The exporter's readiness record of one day (r2-day-export READINESS.json, probe R2_DAY_EXPORT_READINESS_V2.sql): which rule made the day ready (POST_CLOSE_D, or NEXT_PREMARKET for a day
+ * whose POST_CLOSE was BLOCKED and backfilled) and the name counts at probe time. It is not data: it is recorded in the chain row (plan-coord condition iii), nothing is written to the directory.
+ */
+function checkReadiness(day, bytes) {
+  let o; try { o = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { return fail('READINESS', `${day}: not JSON`); }
+  if (!o || o.schema !== READINESS_SCHEMA || o.trade_date !== day || !READY_VIA.includes(o.ready_via) || !['n_prices', 'n_basic', 'n_adj', 'n_cov'].every((k) => isCount(o[k]))
+      || !/^[0-9a-f]{64}$/.test(o.probe_sha256 || '') || typeof o.probed_at !== 'string') return fail('READINESS', `${day}: not a readiness record of this day`);
+  return { ready_via: o.ready_via, n_prices: o.n_prices, n_basic: o.n_basic, n_adj: o.n_adj, n_cov: o.n_cov, probe_sha256: o.probe_sha256, probed_at: o.probed_at, file_sha256: sha256(Buffer.from(bytes)) };
+}
+
 /**
  * One step of the arrival: R2: the calendar (first, and when it has rows the directory lacks); then the next open day. R1: the next open day after the sealed export's D1 (the calendar
  * is sealed and never delivered). Idempotent.
@@ -322,6 +343,7 @@ function arrive({ dir, segment = 'R2', source, arrivedAt = null, day = null, win
   for (const t of TABLES) { const f = path.join(dir, `${t.stem}.csv`); if (fs.existsSync(f)) baseHeaders[t.stem] = firstLineOf(f); }
   const checked = checkDay(next, got.files, baseHeaders, { industryFrom });
   if (!checked) return { status: 'NOT_AVAILABLE', what: next };
+  const readiness = got.readiness === undefined ? null : checkReadiness(next, got.readiness); // plan-coord condition (iii): the readiness rule that let the day through is part of the chain row
   // healing: orphan files of this day that are not what the source delivers are refused (putFile); orphans of any other name are refused here
   const pendingNames = new Set(TABLES.flatMap((t) => [`${t.stem}.csv`, `${t.stem}_${compact(next)}.csv`]));
   const unchained = existing ? verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true }).unchained : readSums(dir).entries.map((e) => e.name).filter((n) => !sealed.has(n));
@@ -332,7 +354,7 @@ function arrive({ dir, segment = 'R2', source, arrivedAt = null, day = null, win
   for (const t of TABLES) { const name = `${t.stem}_${compact(next)}.csv`; putFile(dir, name, checked[t.stem].buf); files.push(fileEntry(name, checked[t.stem].buf, checked[t.stem].rows)); }
   faultAt('AFTER_FILES');
   putSums(dir, files); faultAt('AFTER_SUMS');
-  const row = appendChain(dir, profile.segment, { kind: 'DAY', trade_date: next, files, source: srcRef, arrived_at: at });
+  const row = appendChain(dir, profile.segment, { kind: 'DAY', trade_date: next, files, readiness, source: srcRef, arrived_at: at });
   return { status: 'ARRIVED', kind: 'DAY', day: next, seq: row.seq };
 }
 
@@ -362,7 +384,8 @@ function csvDayDropSource(root) {
       if (!fs.existsSync(dir)) return null;
       const files = {};
       for (const t of TABLES) { const f = path.join(dir, `${t.stem}.csv`); if (!fs.existsSync(f)) return null; files[t.stem] = fs.readFileSync(f); }
-      return { files };
+      const rf = path.join(dir, READINESS_FILE); if (!fs.existsSync(rf)) return null; // the exporter writes it with the day: a day without its readiness record is not there yet
+      return { files, readiness: fs.readFileSync(rf) };
     },
   };
 }
@@ -401,4 +424,4 @@ function pgDaySource({ run }) {
   };
 }
 
-module.exports = { CHAIN_FILE, SCHEMA, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, pgQueries, pgCalendarQuery, psqlArgs, pgDaySource, internals: { withFault } };
+module.exports = { CHAIN_FILE, SCHEMA, READINESS_FILE, READINESS_SCHEMA, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, pgQueries, pgCalendarQuery, psqlArgs, pgDaySource, internals: { withFault } };

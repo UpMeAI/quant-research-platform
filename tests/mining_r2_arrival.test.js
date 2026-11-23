@@ -52,6 +52,8 @@ function dayTexts(day, { rows = 3, wrongDate = null, emptyPrices = false, header
     industry_membership_sw2021: csv('industry_membership_sw2021', industry),
   };
 }
+/** The readiness record the exporter writes with a day (R2_DAY_EXPORT_READINESS_V2 row + the probe's sha256). */
+const readinessOf = (day) => ({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: sha('probe-v2'), ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${addDays(day, 0)}T21:15:00+08:00` });
 /** A CSV_DAY_DROP root: calendar plus one directory per day (YYYYMMDD) with the six files. opts per day: { [day]: dayTexts options | null (not dropped yet) } */
 function dropRoot(days, opts = {}, { calendar = calendarCsv() } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2drop-'));
@@ -60,6 +62,8 @@ function dropRoot(days, opts = {}, { calendar = calendarCsv() } = {}) {
     if (opts[day] === null) continue;
     const dir = path.join(root, compact(day)); fs.mkdirSync(dir);
     for (const [stem, text] of Object.entries(dayTexts(day, opts[day] || {}))) fs.writeFileSync(path.join(dir, `${stem}.csv`), text);
+    const rdOpt = (opts[day] || {}).readiness;
+    if (rdOpt !== 'omit') fs.writeFileSync(path.join(dir, 'READINESS.json'), `${JSON.stringify({ ...readinessOf(day), ...(rdOpt || {}) })}\n`);
   }
   return root;
 }
@@ -440,8 +444,21 @@ test('AR13 checkComplete: after the window end, the days that have not arrived a
   const r2 = sealedDir(); drain(r2, A().csvDayDropSource(dropRoot(DAYS.slice(0, 3))));
   const c2 = A().checkComplete({ dir: r2, windowEnd: DAYS[5] });
   assert.deepEqual([c2.complete, c2.last_day, c2.missing], [false, DAYS[2], DAYS.slice(3, 6)]);
+  // the calendar has to reach the window end too: everything arrived up to the calendar's last day, window end beyond it = not complete
+  const r2full = sealedDir(); drain(r2full, A().csvDayDropSource(dropRoot(OPEN.filter((d) => d > '2026-12-31'))));
+  const beyond = A().checkComplete({ dir: r2full, windowEnd: '2027-03-05' });
+  assert.deepEqual([beyond.complete, beyond.missing], [false, []], 'no day is missing but the calendar stops before the window end');
   const cli = require('../services/mining-sandbox/round-runner/cli');
   assert.ok(cli.OPTIONS['holdout-arrive'].includes('check-complete') && cli.OPTIONS['holdout-arrive'].includes('segment'));
+  // the CLI: check-complete names the missing days (the process exits 4 on INCOMPLETE); holdout-arrive loops until nothing is left and reports the days
+  const out = cli.main(['holdout-arrive', '--segment', 'R1', '--holdout', dir, '--check-complete', 'true']);
+  assert.deepEqual([out.command, out.segment, out.status, out.window_end, out.last_day, out.missing.length], ['holdout-arrive', 'R1', 'INCOMPLETE', '2026-12-31', R1_DAYS[4], R1_DAYS.length - 5]);
+  assert.equal(cli.main(['holdout-arrive', '--segment', 'R1', '--holdout', full, '--check-complete', 'true']).status, 'COMPLETE');
+  const fresh = sealedR1Dir(); const root = dropRoot(R1_DAYS.slice(0, 3), {}, { calendar: null });
+  const ran = cli.main(['holdout-arrive', '--segment', 'R1', '--holdout', fresh, '--driver', 'csv-day-drop', '--source', root]);
+  assert.deepEqual([ran.command, ran.segment, ran.arrived, ran.status, ran.last_day, ran.window_end], ['holdout-arrive', 'R1', R1_DAYS.slice(0, 3), 'NOT_AVAILABLE', R1_DAYS[2], '2026-12-31']);
+  assert.throws(() => cli.main(['holdout-arrive', '--segment', 'R3', '--holdout', fresh, '--check-complete', 'true']), code(/MINE_RUNNER_OPTION_UNKNOWN/));
+  assert.throws(() => cli.main(['holdout-arrive', '--holdout', fresh, '--driver', 'csv-day-drop']), code(/MINE_RUNNER_OPTION_REQUIRED/));
 });
 
 test('AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged', () => {
@@ -466,4 +483,47 @@ test('AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival
   assert.throws(() => check(short, { requireChain: true }), code(new RegExp(`MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:${R1_DAYS[5]}`)));
   const cli = require('../services/mining-sandbox/round-runner/cli');
   for (const c of ['score', 'rescore']) assert.ok(cli.OPTIONS[c].includes('require-arrival-chain'), c);
+});
+
+test('AR15 readiness (plan-coord condition iii): the exporter\'s READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field', () => {
+  const dir = sealedDir(); const root = dropRoot(DAYS.slice(0, 3), { [DAYS[1]]: { readiness: { ready_via: 'NEXT_PREMARKET', n_prices: 5001 } } });
+  const src = A().csvDayDropSource(root);
+  drain(dir, src);
+  const rows = chainOf(dir).filter((r) => r.kind === 'DAY');
+  assert.equal(rows.length, 3);
+  assert.deepEqual([rows[0].readiness.ready_via, rows[0].readiness.n_prices, rows[0].readiness.n_cov, rows[0].readiness.probe_sha256], ['POST_CLOSE_D', 5260, 1, sha('probe-v2')]);
+  assert.deepEqual([rows[1].readiness.ready_via, rows[1].readiness.n_prices], ['NEXT_PREMARKET', 5001]);
+  assert.equal(rows[0].readiness.file_sha256, sha(fs.readFileSync(path.join(root, compact(DAYS[0]), 'READINESS.json'))));
+  assert.ok(!fs.existsSync(path.join(dir, 'READINESS.json')) && !fs.readdirSync(dir).some((n) => n.includes('READINESS')), 'the record goes into the chain row, not into the directory');
+  assert.equal(A().verifyChain(dir).days.length, 3);
+  // a day whose record is missing is not available yet (nothing is written)
+  const d2 = sealedDir(); const src2 = A().csvDayDropSource(dropRoot(DAYS.slice(0, 2), { [DAYS[0]]: { readiness: 'omit' } }));
+  A().arrive({ dir: d2, source: src2 }); const snap = snapshot(d2);
+  const na = A().arrive({ dir: d2, source: src2 }); assert.deepEqual([na.status, na.what], ['NOT_AVAILABLE', DAYS[0]]);
+  assert.deepEqual(snapshot(d2), snap);
+  // refused records
+  const bad = (readiness, label) => {
+    const d = sealedDir(); const s = A().csvDayDropSource(dropRoot(DAYS.slice(0, 1), { [DAYS[0]]: { readiness } }));
+    A().arrive({ dir: d, source: s }); const before = snapshot(d);
+    assert.throws(() => A().arrive({ dir: d, source: s }), code(/MINE_RUNNER_ARRIVE_READINESS/), label);
+    assert.deepEqual(snapshot(d), before, label);
+  };
+  bad({ trade_date: DAYS[1] }, 'a record of another day');
+  bad({ ready_via: 'SOMETIMES' }, 'an unknown ready_via');
+  bad({ n_basic: 5217.5 }, 'a non-integer count');
+  bad({ n_adj: -1 }, 'a negative count');
+  bad({ probe_sha256: 'x' }, 'a probe sha that is not a sha256');
+  bad({ schema: 'OTHER' }, 'another schema');
+  // the verifier: the field is required on every DAY row, and its ready_via must be a known one
+  const rechain = (d, f) => { const t = require('../services/trial-ledger'); let prev = null; const re = f(chainOf(d)).map((r, i) => { const body = { ...r, seq: i, prev_hash: prev }; delete body.record_hash; const rec = { ...body, record_hash: t.recordHash(body) }; prev = rec.record_hash; return rec; }); fs.writeFileSync(path.join(d, 'ARRIVAL_CHAIN_V1.jsonl'), `${re.map((r) => JSON.stringify(r)).join('\n')}\n`); };
+  const mk = () => { const d = sealedDir(); drain(d, A().csvDayDropSource(dropRoot(DAYS.slice(0, 2)))); return d; };
+  const noField = mk(); rechain(noField, (rs) => rs.map((r) => { const { readiness, ...rest } = r; return rest; }));
+  assert.throws(() => A().verifyChain(noField), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/));
+  const badVia = mk(); rechain(badVia, (rs) => rs.map((r) => (r.kind === 'DAY' ? { ...r, readiness: { ...r.readiness, ready_via: 'NEVER' } } : r)));
+  assert.throws(() => A().verifyChain(badVia), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/));
+  const nulled = mk(); rechain(nulled, (rs) => rs.map((r) => (r.kind === 'DAY' ? { ...r, readiness: null } : r)));
+  assert.throws(() => A().verifyChain(nulled), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'a dropped day cannot lose its record');
+  // an edited record without re-chaining is a hash mismatch
+  const edited = mk(); fs.writeFileSync(path.join(edited, 'ARRIVAL_CHAIN_V1.jsonl'), chainOf(edited).map((r) => JSON.stringify(r.kind === 'DAY' && r.seq === 1 ? { ...r, readiness: { ...r.readiness, n_prices: 9999 } } : r)).join('\n') + '\n');
+  assert.throws(() => A().verifyChain(edited), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:RECORD_HASH/));
 });
