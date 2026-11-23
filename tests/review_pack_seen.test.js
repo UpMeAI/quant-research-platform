@@ -95,11 +95,11 @@ test('AC3: independent verifier V-2 refuses the reviewed interval as an unseen s
   unseen('CN_A_H5', '2026-10-19', '2026-12-31');
   mark(aiPack({ window: W46_WINDOW }));
   const claim = (from, to) => (v2) => { v2.unseenClaim = { from, to }; v2.segmentMarks = rowsOnDisk(); };
-  const bad = verify({ asOf: '2027-01-10', v2: claim('2026-11-01', '2026-11-10') });
+  const bad = verify({ v2: claim('2026-11-01', '2026-11-10') });
   assert.equal(bad.generator.verdict, 'fail');
   assert.equal(bad.internal.failedStage, 'V2');
   assert.ok(bad.generator.reasonCodes.includes('V2_UNSEEN_CLAIM_NOT_UNSEEN'), bad.generator.reasonCodes.join(','));
-  const straddle = verify({ asOf: '2027-01-10', v2: claim('2026-11-10', '2026-11-20') });
+  const straddle = verify({ v2: claim('2026-11-10', '2026-11-20') });
   assert.ok(straddle.generator.reasonCodes.includes('V2_UNSEEN_CLAIM_NOT_UNSEEN'), 'a claim that starts inside the reviewed interval fails');
 });
 
@@ -110,7 +110,7 @@ test('AC4 (positive): dates after the cutoff can still be UNSEEN, and claiming t
   assert.deepEqual(labelsOf(trials.segmentsFor('CN_A_H5', '2026-11-01', '2026-11-13')), ['SEEN'], 'inside the cutoff it is SEEN');
   assert.deepEqual(labelsOf(trials.segmentsFor('CN_A_H5', '2026-11-14', '2026-12-31')), ['UNSEEN']);
   const claim = (v2) => { v2.unseenClaim = { from: '2026-11-14', to: '2026-12-31' }; v2.segmentMarks = rowsOnDisk(); };
-  const ok = verify({ asOf: '2027-01-10', v2: claim });
+  const ok = verify({ v2: claim });
   assert.equal(ok.generator.verdict, 'pass', ok.generator.reasonCodes.join(','));
 });
 
@@ -213,6 +213,7 @@ test('AC9: the readers of SEEN / UNSEEN keep no range algorithm of their own; th
   assert.match(src('services/independent-verifier/stages.js'), /trials\.segmentsFor\(/);
   assert.match(src('services/k2-freeze-program/validators.js'), /trials\.segmentLabels\(/);
   assert.match(src('services/research-mechanism-register/index.js'), /trials\.segmentsFor\(/);
+  assert.equal(require('../services/research-mechanism-register').MARKET_ALIAS, trials.MARKET_ALIAS, 'one market alias table');
   const lab = require('../services/research-lab-e2e');
   assert.equal(typeof lab.seen.seenRangesOf, 'function');
   freshLedger();

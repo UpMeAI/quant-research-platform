@@ -58,8 +58,8 @@ const mockClient = (script) => ({ calls: [], async chat(req) { this.calls.push(r
 const okResp = (obj) => ({ ok: true, status: 200, data: { model: 'deepseek-flash', choices: [{ message: { role: 'assistant', content: JSON.stringify(obj) } }], usage: {} } });
 const cardTask = () => ({ task_id: 'RQT-LINUX-20261124-aaaa1111', host: 'LINUX', agent_host: 'LINUX', kind: 'AI_REVIEW_CARD', market: 'CN_A', template_id: 'AI_REVIEW_CARD_V1', template_sha256: sha('tpl'), attempt_no: 1 });
 const registry = () => F.makeRegistry({ mechanisms: [...F.makeRegistry().mechanisms, { mechanism_id: MECH, layer: 'SELECTION_TIMING', decision_point: 'SELECT' }] });
-/** The review facts are dated `factDate`: W47 (2026-11-20) overlaps the RF1116 holdout 10-19..12-31 (SEEN, forward path); an earlier date does not (holdout path). */
-const packOf = (factDate) => { const p = F.makePack(); return { ...p, facts: p.facts.map((f) => ({ ...f, at: `${factDate}T18:00:00+08:00` })) }; };
+/** The review facts are dated `factDate`: W47 (2026-11-20) overlaps the RF1116 holdout 10-19..12-31 (SEEN, forward path); an earlier date does not (holdout path). The pack is a REVIEW_AI_FACT_PACK_V1 and every fact states its window (W05: a fact with no window widens the SEEN range to the market data start). */
+const packOf = (factDate) => { const p = F.makePack(); return { ...p, schema: 'REVIEW_AI_FACT_PACK_V1', facts: p.facts.map((f) => ({ ...f, at: `${factDate}T18:00:00+08:00`, window: { from: factDate, to: factDate } })) }; };
 const bundleOf = (factDate = HOLDOUT_PATH_DATE) => ({ schema: 'RQ_AGENT_BUNDLE_V1', market: 'CN_A', week_id: '2026-W47', pack: packOf(factDate), registry: registry() });
 
 /** The experiment executor: one RF1116 round on the fixture data, in this process, replaying the AI's batch (the test seam of the runner; the lane uses the CLI). */

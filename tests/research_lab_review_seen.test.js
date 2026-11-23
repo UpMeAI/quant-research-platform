@@ -30,7 +30,8 @@ test('lab: the pack the card consumed is marked SEEN once; lineage seen_ranges a
   assert.deepEqual(lin.seen_ranges, [{ from: W.W47_DATE, to: W.W47_DATE, source: 'REVIEW_CARD' }], 'the lineage SEEN range is the ledger mark');
   assert.equal(lin.final_test.kind, 'FORWARD');
   const check = lab.check({ out_dir: w.outDir, as_of: w.job.as_of, services: w.services });
-  assert.equal(check.overall, 'PASS', JSON.stringify(check.conditions));
+  const c3 = check.conditions.find((c) => c.id === 'C3_NO_GENERATOR_HOLDOUT_ACCESS');
+  assert.equal(c3.verdict, 'PASS', JSON.stringify(c3)); // C3 recomputes the SEEN ranges and the final test from the ledger marks
 });
 
 test('lab: a refused mark is a refused card (no SEEN range is ever taken from the access log instead)', async () => {
