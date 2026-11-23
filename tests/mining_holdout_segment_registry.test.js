@@ -146,13 +146,14 @@ function realLedgerShape() {
   return [r1, r2, r3];
 }
 
-test('S6 replay of the real ledger shape: December selects R2 (the segment check passes); what refuses it today is the unclosed-round limit (R1.6: 2 per market), not the segment', () => {
+test('S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused', () => {
   freshData();
   const [r1, r2, r3] = realLedgerShape();
   assert.throws(() => openAuto('2026-11-24T02:00:00Z'), code(/MINE_ROUND_HOLDOUT_EXHAUSTED:R1/), 'R1 is full: rounds 2 and 3 count, round 1 does not');
-  // FINDING (plan-coord told 2026-11-23): rounds 2 and 3 stay unclosed until the R1 holdout is scored (after 12-31), so with LIMITS.open_rounds_per_market = 2
-  // a December round on a perfectly good R2 is refused here. The segment checks come first and pass: the refusal is ALREADY_OPEN, not a segment code.
-  assert.throws(() => openAuto('2026-12-01T02:00:00Z'), code(/MINE_ROUND_ALREADY_OPEN:CN_A:2/));
+  // rounds 2 and 3 stay unclosed until the R1 holdout is scored (after 12-31); the 2026-12 exception (tests/mining_cna_open_rounds_dec.test.js) gives R2 two extra places
+  const d1 = openAuto('2026-12-01T02:00:00Z'); const d2 = openAuto('2026-12-01T10:00:00Z');
+  assert.deepEqual([d1.holdout, d2.holdout], [R2_BLOCK, R2_BLOCK]);
+  assert.throws(() => openAuto('2026-12-02T02:00:00Z'), code(/MINE_ROUND_HOLDOUT_EXHAUSTED:R2/));
   for (const r of [r1, r2, r3]) assert.deepEqual(rounds.roundHead(r.round_id).holdout, H1, 'R1 rows untouched');
 });
 
