@@ -44,6 +44,7 @@ const OPTIONS = Object.freeze({
   'resolve-segment': ['out', 'segment', 'holdout', 'resolved-at'],
   'r2-arrive': ['holdout', 'driver', 'source', 'arrived-at'],
   'holdout-arrive': ['holdout', 'segment', 'driver', 'source', 'arrived-at', 'check-complete'],
+  'holdout-anchor': ['out', 'segment', 'arrival-json'],
 });
 
 function parseArgs(argv) {
@@ -173,9 +174,13 @@ function main(argv) {
     const rec = segment === 'R2' ? require('../../mining-rounds/segment-resolution').resolutionOf('R2') : null;
     const windowEnd = segment === 'R2' ? (rec ? rec.window.to : null) : require('../segments').SEGMENTS.HOLDOUT.to;
     const startAfter = rec ? rec.rule.start_after : undefined;
+    // the chain heads written to the lane ledger after earlier arrivals: a rolled-back or rewritten chain is refused here too (review 2026-11-23)
+    const anchors = require('../../mining-rounds/arrival-anchor').pairsOf(segment);
+    const hasChain = require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE));
     if (o['check-complete']) {
       // read-only: the open days of the window that have not arrived; exit code 4 when some are missing (the timer alerts on it)
       if (!windowEnd) return { command: 'holdout-arrive', segment, status: 'WINDOW_END_UNKNOWN', missing: [] };
+      if (hasChain) arrival.verifyChain(o.holdout, { segment, startAfter, anchors, tolerateUnchained: true });
       const c = arrival.checkComplete({ dir: o.holdout, segment, windowEnd, startAfter });
       return { command: 'holdout-arrive', segment, status: c.complete ? 'COMPLETE' : 'INCOMPLETE', window_end: windowEnd, last_day: c.last_day, missing: c.missing };
     }
@@ -185,12 +190,25 @@ function main(argv) {
     else throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `${cmd} --driver ${o.driver}`);
     const rows = []; let last = null;
     for (let i = 0; i < 500; i += 1) {
-      last = arrival.arrive({ dir: o.holdout, segment, source, arrivedAt: o['arrived-at'] || null, windowEnd, startAfter });
+      last = arrival.arrive({ dir: o.holdout, segment, source, arrivedAt: o['arrived-at'] || null, windowEnd, startAfter, anchors });
       if (last.status !== 'ARRIVED') break;
       rows.push(last.kind === 'DAY' ? last.day : 'CALENDAR');
     }
-    const v = require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE)) ? arrival.verifyChain(o.holdout, { segment, startAfter }) : null;
-    return { command: cmd, segment, status: last.status, what: last.what === undefined ? null : last.what, arrived: rows, last_day: v ? v.last_day : null, chain_head: v ? v.head_hash : null, window_end: windowEnd };
+    const v = hasChain || require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE)) ? arrival.verifyChain(o.holdout, { segment, startAfter, anchors }) : null;
+    // chain_seq, chain_head, last_day: what `holdout-anchor` writes to the lane ledger (run.sh arrive runs it after this step)
+    return { command: cmd, segment, status: last.status, what: last.what === undefined ? null : last.what, arrived: rows, last_day: v ? v.last_day : null, chain_seq: v ? v.head_seq : null, chain_head: v ? v.head_hash : null, window_end: windowEnd };
+  }
+  if (cmd === 'holdout-anchor') {
+    // #157 review: the chain head of an arrival is written to the lane ledger by a container that holds ONLY the ledger (no holdout directory, no drop): the values come from the arrival step's JSON
+    required(o, ['out', 'segment', 'arrival-json']);
+    runner.start({ outDir: o.out });
+    let a; try { a = JSON.parse(o['arrival-json']); } catch { throw new runner.RunnerError('MINE_RUNNER_ANCHOR_INPUT', 'arrival-json is not JSON'); }
+    if (!a || a.segment !== o.segment) throw new runner.RunnerError('MINE_RUNNER_ANCHOR_SEGMENT', `${a && a.segment} vs ${o.segment}`);
+    if (a.chain_seq === null || a.chain_seq === undefined || a.chain_head === null || a.chain_head === undefined) return { command: 'holdout-anchor', segment: o.segment, status: 'NOTHING_TO_ANCHOR' };
+    const anchor = require('../../mining-rounds/arrival-anchor');
+    const had = anchor.anchorsOf(o.segment).some((r) => r.seq === a.chain_seq && r.chain_record_hash === a.chain_head);
+    const row = anchor.record({ segment: o.segment, seq: a.chain_seq, recordHash: a.chain_head, lastDay: a.last_day === undefined ? null : a.last_day, anchoredBy: registeredBy });
+    return { command: 'holdout-anchor', segment: o.segment, status: had ? 'ALREADY_ANCHORED' : 'ANCHORED', seq: row.seq, record_hash: row.chain_record_hash, last_day: row.last_day };
   }
   if (cmd === 'resolve-segment') {
     // RF1116 第二段修订：从留出段目录的上交所日历解出这一段的窗口，写一行解析记录（读了哪份日历、数出哪些日子）；日历还没列够 → status NOT_READY，什么都不写，退出码 0（定时器再来）

@@ -375,6 +375,8 @@ test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the
 
 test('RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory\'s chain must verify; without the strict flag nothing changes', () => {
   const out = freshData();
+  // an R1 round first (an explicit-window round is refused once registry rounds exist)
+  const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1X', sha256: sha('r1x'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
   const r = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 2 }, cap: KNOWN.length, openedAt: '2026-12-01T20:50:00+08:00' });
   const d = r2Dir();
   runner.sealHoldout({ roundId: r.round_id, dataRef: R2REF, dataSha256: d.sealSha });
@@ -383,9 +385,7 @@ test('RC10 strict gate (--require-arrival-chain): an R2 score is refused until a
   reviewAll(r.round_id);
   forgeResolution();
   const strict = () => runner.scoreHoldout({ roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV, requireChain: true });
-  // no R1 round at all, then an R1 round that has not been opened: refused before any holdout read
-  assert.throws(strict, code(/MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED:R1/));
-  const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1X', sha256: sha('r1x'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
+  // an R1 round that has not been opened: refused before any holdout read
   assert.throws(strict, code(/MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED:R1/));
   assert.equal(vault.openLog(r.round_id).length, 0, 'nothing was opened');
   // an R1 open row: the precondition holds; the prior-live directory (no chain in this fixture) is refused next

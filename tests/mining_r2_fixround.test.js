@@ -203,23 +203,29 @@ test('FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consis
   assert.throws(() => A().arrive({ dir: rolled, source: src, anchors: rolledAnchors }), code(/ROLLBACK/));
   assert.throws(() => A().arrive({ dir: rew, source: src, anchors: rewAnchors }), code(/REWRITE/));
   assert.equal(A().arrive({ dir: good, source: src, anchors }).status, 'ARRIVED');
-  assert.equal(A().arrive({ dir: good, source: src, anchors }).seq, 6, 'the old anchor is below the new head: fine');
+  assert.equal(A().arrive({ dir: good, source: src, anchors }).seq, 7, 'the old anchor is below the new head: fine');
 });
 
 test('FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_seq, chain_head, last_day); `holdout-anchor` writes it to the lane ledger from a container that holds only the ledger (no holdout directory); run.sh arrive runs the two steps; arrive-check and arrive verify against the anchors', () => {
   const cli = require('../services/mining-sandbox/round-runner/cli');
   assert.ok(cli.OPTIONS['holdout-anchor'] && ['out', 'segment', 'arrival-json'].every((o) => cli.OPTIONS['holdout-anchor'].includes(o)));
+  freshData();
   const dir = sealedDir(); const root = dropRoot(DAYS.slice(0, 3));
   const out = cli.main(['holdout-arrive', '--segment', 'R2', '--holdout', dir, '--driver', 'csv-day-drop', '--source', root]);
   assert.equal(out.chain_seq, 3); assert.match(out.chain_head, /^[0-9a-f]{64}$/); assert.equal(out.last_day, DAYS[2]);
-  const data = freshData(); fs.mkdirSync(path.join(data, 'x'), { recursive: true });
-  const outDir = path.dirname(data); void outDir;
-  process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = 'TEST_FIXROUND';
-  const a1 = cli.main(['holdout-anchor', '--out', path.dirname(data), '--segment', 'R2', '--arrival-json', JSON.stringify(out)]);
-  assert.deepEqual([a1.command, a1.status, a1.seq, a1.record_hash], ['holdout-anchor', 'ANCHORED', 3, out.chain_head]);
-  assert.equal(cli.main(['holdout-anchor', '--out', path.dirname(data), '--segment', 'R2', '--arrival-json', JSON.stringify(out)]).status, 'ALREADY_ANCHORED');
-  assert.throws(() => cli.main(['holdout-anchor', '--out', path.dirname(data), '--segment', 'R1', '--arrival-json', JSON.stringify(out)]), code(/MINE_RUNNER_ANCHOR_SEGMENT/));
-  assert.equal(cli.main(['holdout-anchor', '--out', path.dirname(data), '--segment', 'R2', '--arrival-json', JSON.stringify({ command: 'holdout-arrive', segment: 'R2', chain_seq: null, chain_head: null, last_day: null })]).status, 'NOTHING_TO_ANCHOR');
+  // `holdout-anchor` as the lane runs it: its own process (the runner locks writes to --out), the ledger under <out>/qrp-data
+  const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fx-anchor-out-')); fs.mkdirSync(path.join(outDir, 'qrp-data'));
+  const CLI = path.join(ROOT, 'services/mining-sandbox/round-runner/cli.js');
+  const anchorCli = (args) => { const r = spawnSync(process.execPath, [CLI, 'holdout-anchor', '--out', outDir, ...args], { encoding: 'utf8', env: { ...require('./_clean_env')(), QRP_DATA_DIR: path.join(outDir, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: 'TEST_FIXROUND' } }); return { status: r.status, out: r.stdout ? JSON.parse(r.stdout) : null, err: r.stderr }; };
+  const a1 = anchorCli(['--segment', 'R2', '--arrival-json', JSON.stringify(out)]);
+  assert.equal(a1.status, 0, a1.err);
+  assert.deepEqual([a1.out.command, a1.out.status, a1.out.seq, a1.out.record_hash], ['holdout-anchor', 'ANCHORED', 3, out.chain_head]);
+  assert.equal(anchorCli(['--segment', 'R2', '--arrival-json', JSON.stringify(out)]).out.status, 'ALREADY_ANCHORED');
+  const wrongSeg = anchorCli(['--segment', 'R1', '--arrival-json', JSON.stringify(out)]); assert.equal(wrongSeg.status, 2); assert.match(wrongSeg.err, /MINE_RUNNER_ANCHOR_SEGMENT/);
+  assert.equal(anchorCli(['--segment', 'R2', '--arrival-json', JSON.stringify({ command: 'holdout-arrive', segment: 'R2', chain_seq: null, chain_head: null, last_day: null })]).out.status, 'NOTHING_TO_ANCHOR');
+  const ledgerRows = fs.readFileSync(path.join(outDir, 'qrp-data/research/holdout_arrival_anchors.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  assert.deepEqual([ledgerRows.length, ledgerRows[0].schema, ledgerRows[0].seq, ledgerRows[0].chain_record_hash, ledgerRows[0].last_day], [1, 'HOLDOUT_ARRIVAL_ANCHOR_V1', 3, out.chain_head, DAYS[2]]);
+  process.env.QRP_DATA_DIR = path.join(outDir, 'qrp-data'); // the anchors now exist: arrive reads them
   // check-complete and arrive read the anchors
   const rolled = chainOf(dir).slice(0, -1); fs.writeFileSync(path.join(dir, 'ARRIVAL_CHAIN_V1.jsonl'), `${rolled.map((r) => JSON.stringify(r)).join('\n')}\n`);
   assert.throws(() => cli.main(['holdout-arrive', '--segment', 'R2', '--holdout', dir, '--driver', 'csv-day-drop', '--source', root]), code(/ROLLBACK|UNCHAINED/));
@@ -232,38 +238,6 @@ test('FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_se
   assert.ok(!anchorLine.includes('/data/holdout') && !anchorLine.includes('DAYDROP'), 'the anchor container sees no holdout data');
   assert.match(block('arrive-check'), /--user 0:0/, 'arrive-check reads the 0700 directory as its owner');
   assert.match(block('arrive-check'), /-v "\$OUT:\/out:ro"/);
-});
-
-// ── FX4 gate wiring ──────────────────────────────────────────────────────────────────────────
-test('FX4 gate wiring: `score` and `rescore` CLI hand requireChain to the runner when --require-arrival-chain true (and not otherwise); run.sh passes the flag in BOTH branches (each branch examined on its own)', () => {
-  const runner = require('../services/mining-sandbox/round-runner');
-  const cli = require('../services/mining-sandbox/round-runner/cli');
-  const fx = require('./_mining_data_fixture').makeMiningDataFixture(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fx-mfx-')));
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fx-cli-'));
-  process.env.QRP_DATA_DIR = path.join(out, 'qrp-data'); fs.mkdirSync(process.env.QRP_DATA_DIR, { recursive: true });
-  process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = 'TEST_FIXROUND';
-  const lane = fx.dirs.lane; const tail = fx.dirs.tail; const hold = fx.dirs.holdout;
-  const origScore = runner.scoreHoldout; const origRescore = runner.rescore; let seen = null;
-  try {
-    runner.scoreHoldout = (o) => { seen = o; throw new Error('STOP_SCORE'); };
-    runner.rescore = (o) => { seen = o; throw new Error('STOP_RESCORE'); };
-    const base = ['--out', out, '--round', 'R', '--lane', lane, '--tail', tail, '--holdout', hold];
-    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], false], [['--require-arrival-chain', 'false'], false]]) {
-      seen = null; assert.throws(() => cli.main(['score', ...base, ...flag]), /STOP_SCORE/); assert.equal(seen.requireChain, want, `score ${flag.join(' ')}`);
-      seen = null; assert.throws(() => cli.main(['rescore', ...base, '--reason', 'x', '--crash-log', path.join(out, 'crash.log'), ...flag]), /STOP_RESCORE|ENOENT/);
-    }
-    fs.writeFileSync(path.join(out, 'crash.log'), 'x');
-    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], false]]) {
-      seen = null; assert.throws(() => cli.main(['rescore', ...base, '--reason', 'x', '--crash-log', path.join(out, 'crash.log'), ...flag]), /STOP_RESCORE/); assert.equal(seen.requireChain, want, `rescore ${flag.join(' ')}`);
-    }
-  } finally { runner.scoreHoldout = origScore; runner.rescore = origRescore; }
-  const sh = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/run.sh'), 'utf8');
-  const block = (name) => sh.split(new RegExp(`^  ${name}\\)\\n`, 'm'))[1].split(/^    ;;$/m)[0];
-  for (const name of ['score', 'rescore']) {
-    const dockerLine = block(name).split('\n').find((l) => /^\s*docker run /.test(l));
-    assert.ok(dockerLine.includes('--require-arrival-chain true'), `${name}: the flag is on the docker line of its own branch`);
-  }
-  assert.ok(!block('score').includes('rescore'), 'the score branch is bounded at its own end');
 });
 
 // ── FX7 run.sh exclusion (behavioural, stub docker) ───────────────────────────────────────────
@@ -321,3 +295,68 @@ test('FX7 run.sh: arrive and score/rescore exclude each other (the lock file and
   const bad = runShSandbox({ arriveOut: head, arriveRc: 2 }); const r2 = bad.run(['arrive']);
   assert.equal(r2.status, 2); assert.equal(runs(bad.calls()).length, 1, 'no anchor after a failed arrival');
 });
+
+test('FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY the calendar files and SHA256SUMS (directory 0711, those files 0644) for the resolver container and closes them again (0700 / 0600), also when the container fails; the data files stay 0600', () => {
+  const s = runShSandbox();
+  const dir = s.holdout('R2');
+  fs.chmodSync(dir, 0o700);
+  for (const n of ['trading_calendar.csv', 'trading_calendar_20270110.csv', 'SHA256SUMS', 'prices_daily_stock_20270104.csv', 'SEAL_PENDING_V1.json']) { fs.writeFileSync(path.join(dir, n), 'x\n'); fs.chmodSync(path.join(dir, n), 0o600); }
+  const watch = path.join(s.lane, 'watch.log');
+  const stubDocker = path.join(s.lane, '..', 'bin', 'docker');
+  fs.writeFileSync(stubDocker, `#!/bin/bash
+case "$1" in
+  ps) exit 0;;
+  run) for p in "${dir}" "${dir}"/*; do echo "$(stat -c %a "$p") $(basename "$p")" >> "${watch}"; done; exit \${STUB_RC:-0};;
+esac
+exit 0
+`, { mode: 0o755 });
+  const modes = () => Object.fromEntries(fs.readdirSync(dir).map((n) => [n, (fs.statSync(path.join(dir, n)).mode & 0o777).toString(8)]));
+  const r = s.run(['resolve-segment'], { RF1116_HOLDOUT_SEGMENT: 'R2' });
+  assert.equal(r.status, 0, r.err);
+  const seen = fs.readFileSync(watch, 'utf8').split('\n').filter(Boolean).map((l) => l.split(' '));
+  const at = (name) => seen.find((x) => x[1] === name)[0];
+  assert.equal(at(path.basename(dir)), '711');
+  assert.equal(at('trading_calendar.csv'), '644'); assert.equal(at('trading_calendar_20270110.csv'), '644'); assert.equal(at('SHA256SUMS'), '644');
+  assert.equal(at('prices_daily_stock_20270104.csv'), '600', 'a data file is never opened'); assert.equal(at('SEAL_PENDING_V1.json'), '600');
+  const after = modes();
+  assert.equal((fs.statSync(dir).mode & 0o777).toString(8), '700');
+  assert.deepEqual(after, { 'trading_calendar.csv': '600', 'trading_calendar_20270110.csv': '600', SHA256SUMS: '600', 'prices_daily_stock_20270104.csv': '600', 'SEAL_PENDING_V1.json': '600' });
+  // a failing container: closed again
+  const bad = s.run(['resolve-segment'], { RF1116_HOLDOUT_SEGMENT: 'R2', STUB_RC: '3' });
+  assert.equal(bad.status, 3);
+  assert.equal((fs.statSync(dir).mode & 0o777).toString(8), '700');
+  assert.equal(modes().SHA256SUMS, '600');
+});
+
+// ── FX4 gate wiring ──────────────────────────────────────────────────────────────────────────
+test('FX4 gate wiring: `score` and `rescore` CLI hand requireChain to the runner when --require-arrival-chain true (and not otherwise); run.sh passes the flag in BOTH branches (each branch examined on its own)', () => {
+  const runner = require('../services/mining-sandbox/round-runner');
+  const cli = require('../services/mining-sandbox/round-runner/cli');
+  const fx = require('./_mining_data_fixture').makeMiningDataFixture(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fx-mfx-')));
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fx-cli-'));
+  process.env.QRP_DATA_DIR = path.join(out, 'qrp-data'); fs.mkdirSync(process.env.QRP_DATA_DIR, { recursive: true });
+  process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = 'TEST_FIXROUND';
+  const lane = fx.dirs.lane; const tail = fx.dirs.tail; const hold = fx.dirs.holdout;
+  const origScore = runner.scoreHoldout; const origRescore = runner.rescore; let seen = null;
+  try {
+    runner.scoreHoldout = (o) => { seen = o; throw new Error('STOP_SCORE'); };
+    runner.rescore = (o) => { seen = o; throw new Error('STOP_RESCORE'); };
+    const base = ['--out', out, '--round', 'R', '--lane', lane, '--tail', tail, '--holdout', hold];
+    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], false], [['--require-arrival-chain', 'false'], false]]) {
+      seen = null; assert.throws(() => cli.main(['score', ...base, ...flag]), /STOP_SCORE/); assert.equal(seen.requireChain, want, `score ${flag.join(' ')}`);
+      seen = null; assert.throws(() => cli.main(['rescore', ...base, '--reason', 'x', '--crash-log', path.join(out, 'crash.log'), ...flag]), /STOP_RESCORE|ENOENT/);
+    }
+    fs.writeFileSync(path.join(out, 'crash.log'), 'x');
+    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], false]]) {
+      seen = null; assert.throws(() => cli.main(['rescore', ...base, '--reason', 'x', '--crash-log', path.join(out, 'crash.log'), ...flag]), /STOP_RESCORE/); assert.equal(seen.requireChain, want, `rescore ${flag.join(' ')}`);
+    }
+  } finally { runner.scoreHoldout = origScore; runner.rescore = origRescore; }
+  const sh = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/run.sh'), 'utf8');
+  const block = (name) => sh.split(new RegExp(`^  ${name}\\)\\n`, 'm'))[1].split(/^    ;;$/m)[0];
+  for (const name of ['score', 'rescore']) {
+    const dockerLine = block(name).split('\n').find((l) => /^\s*docker run /.test(l));
+    assert.ok(dockerLine.includes('--require-arrival-chain true'), `${name}: the flag is on the docker line of its own branch`);
+  }
+  assert.ok(!block('score').includes('rescore'), 'the score branch is bounded at its own end');
+});
+

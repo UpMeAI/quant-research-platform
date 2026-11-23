@@ -89,7 +89,31 @@ function chainRows(dir) {
   if (!fs.existsSync(f)) return null;
   return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return invalid('PARSE'); } });
 }
-const atomicWrite = (file, bytes) => { const tmp = `${file}.tmp-${process.pid}`; fs.writeFileSync(tmp, bytes); fs.renameSync(tmp, file); };
+// at rest nothing the arrival writes is group- or world-readable (review 2026-11-23): 0600 whatever the umask; the directory's own mode is the operator's (0700, like R1); the score hand-over chmods it at score time
+const FILE_MODE = 0o600;
+const atomicWrite = (file, bytes) => { const tmp = `${file}.tmp-${process.pid}`; fs.writeFileSync(tmp, bytes, { mode: FILE_MODE }); fs.chmodSync(tmp, FILE_MODE); fs.renameSync(tmp, file); };
+
+/**
+ * One arrival at a time per directory (review 2026-11-23: two arrivals corrupted the chain irreversibly). An exclusive lock file in the directory, taken with O_EXCL, held for the whole step.
+ * A lock older than LOCK_STALE_MS (an arrival that died) is taken over. run.sh looks at the same file (score/rescore refuse HOLDOUT_ARRIVAL_IN_PROGRESS).
+ */
+const LOCK_FILE = '.arrival.lock';
+const LOCK_STALE_MS = 30 * 60 * 1000;
+function sleepMs(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+function withArrivalLock(dir, fn) {
+  const lock = path.join(dir, LOCK_FILE);
+  const take = () => { const fd = fs.openSync(lock, 'wx', FILE_MODE); try { fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: new Date().toISOString() })); } finally { fs.closeSync(fd); } };
+  try { take(); } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+    let age = 0; try { age = Date.now() - fs.statSync(lock).mtimeMs; } catch { age = LOCK_STALE_MS + 1; }
+    if (age <= LOCK_STALE_MS) fail('LOCKED', lock);
+    try { fs.rmSync(lock); take(); } catch { fail('LOCKED', lock); } // taken over; losing the race for it is LOCKED too
+  }
+  try {
+    if (process.env.QRP_ARRIVE_TEST_HOLD_MS) sleepMs(Number(process.env.QRP_ARRIVE_TEST_HOLD_MS)); // tests only: hold the lock so a second arrival can be tried against it
+    return fn();
+  } finally { fs.rmSync(lock, { force: true }); }
+}
 
 /** A source directory view: the SSE open days the directory's own calendar lists (same reading as the panel builder). */
 function openDaysOfDir(dir) {
@@ -105,7 +129,7 @@ const expectedDaysOf = (openDays, startAfter) => openDays.filter((d) => d > star
  * returned instead of refused, so a crash between the SUMS and the chain row can be healed.
  * @returns {{rows: number, days: string[], last_day: string|null, head_hash: string, unchained: string[]}}
  */
-function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefined, tolerateUnchained = false } = {}) {
+function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefined, tolerateUnchained = false, anchors = null, requireAnchor = false } = {}) {
   const profile = profileOf(segment);
   const after = startAfter === undefined ? profile.startAfter : startAfter;
   const rows = chainRows(dir);
@@ -159,6 +183,13 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
       if (names.length !== expectedNames) invalid('FILE_NAME', names.join(','));
     }
   });
+  // the anchors (review 2026-11-23): the chain head was written to a lane ledger after every arrival. A head below the last anchor is a rollback; a row at an anchored seq with another hash is a rewrite
+  // (a consistent rewrite of the last day, or of an earlier day with every later row re-chained, changes the hash the anchor holds). Strict mode also refuses rows beyond the last anchor.
+  const anchored = (anchors || []).filter((a) => a && Number.isInteger(a.seq));
+  const maxAnchor = anchored.length ? Math.max(...anchored.map((a) => a.seq)) : -1;
+  if (rows.length - 1 < maxAnchor) invalid('ROLLBACK', `head seq ${rows.length - 1} is below the anchored seq ${maxAnchor}`);
+  for (const a of anchored) if (rows[a.seq].record_hash !== a.record_hash) invalid('REWRITE', `row ${a.seq} is not the anchored one`);
+  if (requireAnchor && rows.length - 1 > maxAnchor) invalid('UNANCHORED', `head seq ${rows.length - 1}, last anchored seq ${maxAnchor}`);
   const unchained = sums.entries.map((e) => e.name).filter((n) => !sealed.has(n) && !named.has(n));
   if (unchained.length && !tolerateUnchained) invalid('UNCHAINED', unchained.join(','));
   // days against the calendar of the directory
@@ -176,7 +207,7 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
     const missing = need.find((d) => !days.includes(d));
     if (missing !== undefined) throw new ArrivalError('MINE_RUNNER_HOLDOUT_INCOMPLETE', `arrival:${missing}`);
   }
-  return { rows: rows.length, days, last_day: days.length ? days[days.length - 1] : null, head_hash: rows[rows.length - 1].record_hash, unchained };
+  return { rows: rows.length, head_seq: rows.length - 1, days, last_day: days.length ? days[days.length - 1] : null, head_hash: rows[rows.length - 1].record_hash, unchained };
 }
 
 // ── the arrival program ─────────────────────────────────────────────────────────────────────────
@@ -249,7 +280,7 @@ function appendChain(dir, segment, body) {
   const rows = chainRows(dir) || [];
   const row = { schema: SCHEMA, segment, seq: rows.length, ...body, prev_hash: rows.length ? rows[rows.length - 1].record_hash : null };
   const rec = { ...row, record_hash: rowHash(row) };
-  fs.appendFileSync(path.join(dir, CHAIN_FILE), `${JSON.stringify(rec)}\n`);
+  fs.appendFileSync(path.join(dir, CHAIN_FILE), `${JSON.stringify(rec)}\n`, { mode: FILE_MODE });
   return rec;
 }
 const fileEntry = (name, buf, rows) => ({ name, sha256: sha256(buf), rows });
@@ -284,7 +315,8 @@ function checkReadiness(day, bytes, { expectedFrom, nextOpen }) {
  *          arrivedAt?: string, day?: string, windowEnd?: string, startAfter?: string}} o
  * @returns {{status: 'ARRIVED', kind: 'CALENDAR'|'DAY', seq: number, day?: string} | {status: 'NOOP'|'NOT_AVAILABLE'|'NOT_YET'|'COMPLETE', what?: string}}
  */
-function arrive({ dir, segment = 'R2', source, arrivedAt = null, day = null, windowEnd = null, startAfter = undefined } = {}) {
+function arrive(o = {}) { return withArrivalLock(o.dir, () => arriveLocked(o)); }
+function arriveLocked({ dir, segment = 'R2', source, arrivedAt = null, day = null, windowEnd = null, startAfter = undefined, anchors = null } = {}) {
   const profile = profileOf(segment);
   const after = startAfter === undefined ? profile.startAfter : startAfter;
   const sealed = sealedNamesOf(dir);
@@ -298,7 +330,7 @@ function arrive({ dir, segment = 'R2', source, arrivedAt = null, day = null, win
   const at = arrivedAt || stamp();
   const srcRef = { driver: source.driver };
   const existing = chainRows(dir);
-  if (existing) verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true });
+  if (existing) verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true, anchors });
   const needsBase = (t) => !(sealed && sealed.has(`${t.stem}.csv`));
   // 1. the calendar (R2 only)
   const calBuf = profile.calendarArrives ? source.calendar() : null;
@@ -365,7 +397,7 @@ function arrive({ dir, segment = 'R2', source, arrivedAt = null, day = null, win
   if (!checked) return { status: 'NOT_AVAILABLE', what: next };
   // healing: orphan files of this day that are not what the source delivers are refused (putFile); orphans of any other name are refused here
   const pendingNames = new Set(TABLES.flatMap((t) => [`${t.stem}.csv`, `${t.stem}_${compact(next)}.csv`]));
-  const unchained = existing ? verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true }).unchained : readSums(dir).entries.map((e) => e.name).filter((n) => !sealed.has(n));
+  const unchained = existing ? verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true, anchors }).unchained : readSums(dir).entries.map((e) => e.name).filter((n) => !sealed.has(n));
   for (const n of unchained) if (!pendingNames.has(n)) fail('CONFLICT', `unchained ${n}`);
   const first = arrivedDays.length === 0;
   const files = [];
@@ -410,4 +442,4 @@ function csvDayDropSource(root) {
 }
 
 
-module.exports = { CHAIN_FILE, SCHEMA, READINESS_FILE, READINESS_SCHEMA, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, internals: { withFault } };
+module.exports = { CHAIN_FILE, LOCK_FILE, LOCK_STALE_MS, SCHEMA, READINESS_FILE, READINESS_SCHEMA, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, internals: { withFault } };
