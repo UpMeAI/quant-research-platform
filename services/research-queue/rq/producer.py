@@ -157,11 +157,11 @@ def card_template(registry, cfg, market):
 
 
 REVISION_SKIPPED = "REVISION_OF_CARDED_WEEK"
-TERMINAL_FAILURE = ("BLOCKED_DETERMINISTIC", "FAILED")   # and every REFUSED_*: a card task in one of these never delivered its idea ids
+FREES_WEEK = ("BLOCKED_DETERMINISTIC", "CANCELLED", "GATE_FAIL")   # and every REFUSED_*: a card task in one of these never delivered its idea ids (CANCELLED is what follows BLOCKED_DETERMINISTIC); every other state holds the week
 
 
-def _is_failure(state):
-    return state in TERMINAL_FAILURE or str(state).startswith("REFUSED_")
+def _frees_week(state):
+    return state in FREES_WEEK or str(state).startswith("REFUSED_")
 
 
 def _card_tasks(conn, market, week):
@@ -180,11 +180,11 @@ def _card_tasks(conn, market, week):
 
 def _holding_card(conn, pack, name):
     """plan-coord ruling 11-23 13:35 (M6): ONE card task per (market, weekId), the first admitted pack wins. The task id of a card task of this pack's market and week that was admitted from
-    ANOTHER pack file and is in any state but a terminal failure, else None (the pack has its own task, or none holds the week). Re-evaluated every tick: a card that fails later frees the week."""
+    ANOTHER pack file and is in any state that holds a week (all but BLOCKED_DETERMINISTIC, CANCELLED, GATE_FAIL, REFUSED_*), else None (the pack has its own task, or none holds the week). Re-evaluated every tick: a card that fails later frees the week."""
     tasks = _card_tasks(conn, pack["market"], packshape.week_of(pack))
     if any(n == name for _, _, n in tasks):
         return None
-    live = [t for t, s, _ in tasks if not _is_failure(s)]
+    live = [t for t, s, _ in tasks if not _frees_week(s)]
     return live[0] if live else None
 
 
