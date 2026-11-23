@@ -413,6 +413,18 @@ test('ruling 1: a candidate born from the W47 card (facts SEEN, overlapping the 
   assert.equal(lab.run(w2.job, w2.services).terminal_state, 'FROZEN_AWAITING_FORWARD');
 });
 
+test('W21: the real W47 lab card is refused when a persisted idea is changed to a registered reading outside its frozen mining space', async () => {
+  const w = await buildWorld({ factDate: W.W47_DATE });
+  const result = json(w.files.card_result);
+  result.outputs.card.factor_ideas[0].readings = ['ret_1d', 'CN_A.MOM.RS60_MARKET_PCT'];
+  fs.writeFileSync(w.files.card_result, `${JSON.stringify(result)}\n`);
+  const refused = lab.run(w.job, w.services);
+  assert.deepEqual(
+    [refused.status, refused.stopped_at, refused.reason_code],
+    ['REFUSED', 'CARD', 'LAB_CARD_INVALID_FACTOR_IDEA_READING_NOT_IN_MINING_SPACE'],
+  );
+});
+
 test('ruling 1 (W05 semantics): the holdout-path claim goes through V-2 UNSEEN marks built from the lineage SEEN ranges', async () => {
   const { w } = await complete();
   const lin = json(path.join(w.outDir, 'lineage.json'));

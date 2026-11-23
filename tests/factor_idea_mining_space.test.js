@@ -42,6 +42,13 @@ for (const market of ['US_EQUITY', 'CRYPTO']) {
   });
 }
 
+test('W21: malformed or wrong-market frozen-space metadata fails closed', () => {
+  const malformed = F.makeRegistry({ mining_space: { ...F.makeRegistry().mining_space, sha256: 'not-a-sha' } });
+  assert.deepEqual(codes(V.validateIdeaDraft(F.goodIdea(), F.ctx({ registry: malformed }))), ['FACTOR_IDEA_NO_FROZEN_SPACE']);
+  const wrongMarket = F.makeRegistry({ mining_space: { ...F.makeRegistry().mining_space, market: 'US' } });
+  assert.deepEqual(codes(V.validateIdeaDraft(F.goodIdea(), F.ctx({ registry: wrongMarket }))), ['FACTOR_IDEA_NO_FROZEN_SPACE']);
+});
+
 test('W21: a persisted record tampered to cite an outside reading is refused', () => {
   const ctx = F.ctx();
   const rec = V.buildIdeaRecords(F.makeCard(), ctx, {

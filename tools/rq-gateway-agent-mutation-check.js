@@ -15,6 +15,7 @@ const { spawnSync, execFileSync } = require('child_process');
 const ROOT = path.join(__dirname, '..');
 const PY = 'services/rq-deepseek-gateway/test_rq_gateway.py';
 const VAL = 'tests/research_queue_validators.test.js';
+const W21 = 'tests/factor_idea_mining_space.test.js';
 const AGT = 'tests/research_queue_agent.test.js';
 const GW = 'services/rq-deepseek-gateway/rq_gateway.py';
 const D = 'services/research-queue-agent';
@@ -154,6 +155,9 @@ const MUTANTS = [
   m('I09', 'idea: NEW layer is SELECTION_TIMING', FI, "\n      && n.layer === 'SELECTION_TIMING' && NEW_DECISION_POINTS", '\n      && NEW_DECISION_POINTS', [VAL]),
   m('I10', 'idea: NEW decision point is SELECT/DIRECTION/ENTRY', FI, ' && NEW_DECISION_POINTS.includes(n.decision_point)', '', [VAL]),
   m('I11', 'idea: readings are registered', FI, "d.readings.every((r) => typeof r === 'string' && own(reg.readings, r))", "d.readings.every((r) => typeof r === 'string')", [VAL]),
+  m('I11A', 'idea: a market needs a verified frozen mining space', FI, "if (!frozenSpace) add('FACTOR_IDEA_NO_FROZEN_SPACE', ctx.market);", "if (false) add('FACTOR_IDEA_NO_FROZEN_SPACE', ctx.market);", [W21]),
+  m('I11B', 'idea: every registered reading belongs to the frozen mining space', FI, "if (reg.readings[id].origin !== 'SPACE') add('FACTOR_IDEA_READING_NOT_IN_MINING_SPACE', `${id}@${space.sha256}`);", "if (false) add('FACTOR_IDEA_READING_NOT_IN_MINING_SPACE', `${id}@${space.sha256}`);", [W21]),
+  m('I11C', 'idea: outside-space refusal identifies the frozen space sha', FI, "`${id}@${space.sha256}`", "`${id}`", [W21]),
   m('I12', 'idea: holding periods come from the registered list', FI, 'Number.isInteger(h) && reg.holding_periods.includes(h)', 'Number.isInteger(h)', [VAL]),
   m('I13', 'idea: the question is interrogative', FI, "&& !INTERROGATIVE.test(d.question_zh.trim())) add('FACTOR_IDEA_QUESTION_NOT_INTERROGATIVE');", "&& false) add('FACTOR_IDEA_QUESTION_NOT_INTERROGATIVE');", [VAL]),
   m('I14', 'idea: formula check', FI, 'if (FORMULA.some((re) => re.test(t)))', 'if (false)', [VAL]),
