@@ -248,3 +248,18 @@ test('RS10 UNSEEN: the resolved window is marked UNSEEN through trials.markSegme
   runner.resolveSegment({ segmentId: 'R2', dir: calendarDir(synthetic('2026-12-21', '2027-04-30')).dir });
   assert.equal(fs.existsSync(trials.SEGMENTS()) ? ledger.read(trials.SEGMENTS()).length : 0, 0, 'no round on R2: nothing to mark');
 });
+
+test('RS11 UNSEEN: a mark somebody wrote on purpose is never overwritten; only unmarked days of the window get UNSEEN, and a rerun writes nothing', () => {
+  freshData();
+  const dec = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-UNS2', sha256: sha('uns2'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, openedAt: '2026-12-01T20:50:00+08:00', ...R1 });
+  assert.deepEqual(dec.family_ids, ['MINE:CN_A:H5']);
+  trials.markSegments([{ family_id: 'MINE:CN_A:H5', market: 'CN_A', from: '2027-02-01', to: '2027-02-10', label: 'SEEN', seen_kind: 'SEEN_DATA', reason: 'somebody looked at these days' }], { registeredBy: AUTH });
+  const { dir } = calendarDir(synthetic('2026-12-21', '2027-04-30'));
+  runner.resolveSegment({ segmentId: 'R2', dir, resolvedAt: '2027-01-20T10:00:00+08:00' });
+  const view = trials.segmentsFor('MINE:CN_A:H5', '2027-01-04', '2027-03-18');
+  assert.deepEqual(view.pieces.map((p) => [p.from, p.to, p.label]), [['2027-01-04', '2027-01-31', 'UNSEEN'], ['2027-02-01', '2027-02-10', 'SEEN'], ['2027-02-11', '2027-03-18', 'UNSEEN']]);
+  const n = ledger.read(trials.SEGMENTS()).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1').length;
+  assert.equal(n, 3);
+  runner.resolveSegment({ segmentId: 'R2', dir });
+  assert.equal(ledger.read(trials.SEGMENTS()).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1').length, n, 'a rerun writes nothing');
+});

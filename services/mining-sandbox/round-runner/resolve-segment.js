@@ -15,7 +15,6 @@ const holdoutSegments = require('../../mining-rounds/holdout-segments');
 const resolution = require('../../mining-rounds/segment-resolution');
 const rounds = require('../../mining-rounds');
 const trials = require('../../trial-ledger');
-const { read } = require('../../../packages/ledger');
 
 const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 class SegmentResolveError extends Error {
@@ -31,11 +30,12 @@ const stamp = () => new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z',
  */
 function ensureUnseenMarks(rec, entry) {
   const families = [...new Set(rounds.roundsOf(entry.market).filter((r) => r.holdout && r.holdout.segment === rec.segment).flatMap((r) => r.family_ids))].sort();
-  const have = read(trials.SEGMENTS()).filter((m) => m.schema === 'DATA_SEGMENT_MARK_V1' && m.label === 'UNSEEN' && m.from === rec.window.from && m.to === rec.window.to);
-  const todo = families.filter((f) => !have.some((m) => m.family_id === f)).map((f) => ({
-    family_id: f, market: entry.market, from: rec.window.from, to: rec.window.to, label: 'UNSEEN',
+  // only days nobody marked yet (trials.segmentsFor: unmarked days are the SEEN default): a mark someone wrote on purpose, SEEN or UNSEEN, is never overwritten, and a rerun writes nothing
+  const unmarked = (f) => trials.segmentsFor(f, rec.window.from, rec.window.to).pieces.filter((p) => p.source === 'UNMARKED_DEFAULT_SEEN');
+  const todo = families.flatMap((f) => unmarked(f).map((p) => ({
+    family_id: f, market: entry.market, from: p.from, to: p.to, label: 'UNSEEN',
     reason: `RF1116 ${rec.segment} holdout window (end-resolution record ${rec.record_hash.slice(0, 12)}): data that did not exist when the candidates were frozen`, source_refs: [`HOLDOUT_SEGMENT_RESOLUTION_V1:${rec.record_hash}`],
-  }));
+  })));
   return todo.length ? trials.markSegments(todo, { registeredBy: process.env.QRP_PRODUCT_MILESTONE_AUTHORITY }) : [];
 }
 
