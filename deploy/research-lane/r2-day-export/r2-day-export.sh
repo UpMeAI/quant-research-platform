@@ -51,7 +51,9 @@ cst() { TZ=Asia/Shanghai date -d "@$1" +"$2"; }
 START_EPOCH="$(now_epoch)"
 TODAY="$(cst "$START_EPOCH" %F)"
 STALE_DAYS=3
-READY_SQL=R2_DAY_EXPORT_READINESS_V2.sql
+# the readiness probe is ONE file (ops-coord fills it with R2_DAY_EXPORT_READINESS_V2.sql byte-identical; the copy next to this script is that file)
+READY_SQL="${R2EXP_READY_SQL:-$HERE/R2_DAY_EXPORT_READINESS_V2.sql}"
+[ -f "$READY_SQL" ] || { echo "PROBE_SQL_MISSING: $READY_SQL" >&2; exit 2; }
 PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-1}"
 STEMS="prices_daily_stock market_daily_basic_observation_stock adjustment_factor_observation_stock security_master_stock security_suspension_observation security_suspension_day_coverage industry_membership_sw2021"
 
@@ -85,7 +87,7 @@ ageof() { echo $(( ( $(date -u -d "$TODAY" +%s) - $(date -u -d "$1" +%s) ) / 864
 # a SQL template with @DAY@ @NEXT@ @LOWER@ filled in (comment lines dropped)
 render() {
   local t; t="$(grep -v '^--' "$HERE/sql/$1.sql" | tr -d '\n')"
-  t="${t//@DAY@/${2:-}}"; t="${t//@NEXT@/${3:-}}"; t="${t//@LOWER@/${4:-}}"
+  t="${t//@DAY@/${2:-}}"; t="${t//@UPPER@/${3:-}}"; t="${t//@LOWER@/${4:-}}"
   printf '%s' "$t"
 }
 copy_to() { printf 'COPY (%s) TO STDOUT WITH (FORMAT csv, HEADER true);\n' "$(render "$@")" | pg -f -; }
@@ -119,24 +121,26 @@ export_segment() {
     copy_to trading_calendar > "$root/.trading_calendar.tmp" || { rm -f "$root/.trading_calendar.tmp"; echo "r2-day-export: calendar query failed" >&2; return 2; }
     mv -f "$root/.trading_calendar.tmp" "$root/trading_calendar.csv"
   fi
-  local i=0 D lower c tmp fin stem next stale=0
+  local i=0 D lower c tmp fin stem stale=0 nx a
   for D in "${days[@]+"${days[@]}"}"; do
-    if [ "$i" -eq 0 ]; then lower="$FIRST_LOWER"; else lower="$(addday "${days[$((i-1))]}" 1)"; fi
+    # the industry window of D (plan-coord 2026-11-23): [the previous part's upper bound, 09:00+08 of the next SSE open day after D); the previous part's upper bound is D's own 09:00+08, the first part starts at the segment's lower bound
+    if [ "$i" -eq 0 ]; then lower="$FIRST_LOWER 00:00:00+08"; else lower="$D 09:00:00+08"; fi
     i=$((i+1))
     if [ -n "$DAY" ] && [ "$D" != "$DAY" ]; then continue; fi
     c="${D//-/}"; fin="$root/$c"; tmp="$root/.tmp-$c"
     if [ -d "$fin" ]; then echo "$seg ALREADY_EXPORTED:$D"; continue; fi
-    # the next SSE open day after D must have reached 09:00+08: the panel counts only rows that were in by then, so the export of D holds all of them
-    if [ "$PIT_CUTOFF" = 1 ]; then
-      local nx="" a cut=0; for a in "${all[@]+"${all[@]}"}"; do if [[ "$a" > "$D" ]]; then nx="$a"; break; fi; done
-      [ -z "$nx" ] || [ "$(now_epoch)" -lt "$(date -d "$nx 09:00:00+08:00" +%s)" ] && cut=1
-      if [ "$cut" = 1 ]; then
-        if [ -n "$DAY" ]; then echo "$seg REFUSED_BEFORE_CUTOFF:$D"; return 3; fi
-        echo "$seg WAITING_CUTOFF:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
-      fi
+    # the next SSE open day after D closes its window (an unknown one: not exportable yet); with the cutoff on (default) it must also have reached 09:00+08: the panel counts only rows that were in
+    # by then, so the export of D holds all of them
+    nx=""; for a in "${all[@]+"${all[@]}"}"; do if [[ "$a" > "$D" ]]; then nx="$a"; break; fi; done
+    local cut=0
+    [ -n "$nx" ] || cut=1
+    if [ "$PIT_CUTOFF" = 1 ] && [ -n "$nx" ] && [ "$(now_epoch)" -lt "$(date -d "$nx 09:00:00+08:00" +%s)" ]; then cut=1; fi
+    if [ "$cut" = 1 ]; then
+      if [ -n "$DAY" ]; then echo "$seg REFUSED_BEFORE_CUTOFF:$D"; return 3; fi
+      echo "$seg WAITING_CUTOFF:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
     fi
     if [ "$(now_epoch)" -ge "$DEADLINE" ]; then echo "$seg SLOT_ENDED:$D"; break; fi
-    local ready; ready="$(pg -At -v "d=$D" -f - < "$HERE/R2_DAY_EXPORT_READINESS_V2.sql")" || { echo "$seg PROBE_FAILED:$D" >&2; return 2; }
+    local ready; ready="$(pg -At -v "d=$D" -f - < "$READY_SQL")" || { echo "$seg PROBE_FAILED:$D" >&2; return 2; }
     if [ -z "$ready" ]; then
       if [ -n "$DAY" ]; then echo "$seg REFUSED_NOT_READY:$D"; return 3; fi
       echo "$seg WAITING:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
@@ -145,17 +149,17 @@ export_segment() {
     local r_day r_via r_np r_nb r_na r_nc
     IFS='|' read -r r_day r_via r_np r_nb r_na r_nc <<< "$ready"
     if [ "$r_day" != "$D" ] || { [ "$r_via" != POST_CLOSE_D ] && [ "$r_via" != NEXT_PREMARKET ]; } || ! [[ "$r_np$r_nb$r_na$r_nc" =~ ^[0-9]+$ ]]; then echo "$seg PROBE_BAD_ROW:$D:$ready" >&2; return 2; fi
-    next="$(addday "$D" 1)"
+    local upper="$nx 09:00:00+08"
     rm -rf "$tmp"; mkdir "$tmp"
     for stem in $STEMS; do
-      if ! copy_to "$stem" "$D" "$next" "$lower" > "$tmp/$stem.csv"; then rm -rf "$tmp"; echo "$seg EXPORT_FAILED:$D:$stem" >&2; return 2; fi
+      if ! copy_to "$stem" "$D" "$upper" "$lower" > "$tmp/$stem.csv"; then rm -rf "$tmp"; echo "$seg EXPORT_FAILED:$D:$stem" >&2; return 2; fi
       [ -s "$tmp/$stem.csv" ] || { rm -rf "$tmp"; echo "$seg EXPORT_FAILED:$D:$stem:empty output" >&2; return 2; }
     done
     if [ "$(wc -l < "$tmp/prices_daily_stock.csv")" -le 1 ]; then
       rm -rf "$tmp"; echo "$seg NOT_AVAILABLE:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
     fi
     # the readiness record goes into the arrival-chain row (plan-coord condition iii): which rule made the day ready and the counts at probe time
-    printf '{"schema":"R2_DAY_EXPORT_READINESS_RECORD_V1","trade_date":"%s","probe_sha256":"%s","ready_via":"%s","n_prices":%s,"n_basic":%s,"n_adj":%s,"n_cov":%s,"probed_at":"%s"}\n' "$D" "$(sha256sum "$HERE/$READY_SQL" | cut -d' ' -f1)" "$r_via" "$r_np" "$r_nb" "$r_na" "$r_nc" "$(TZ=Asia/Shanghai date +%FT%T+08:00)" > "$tmp/READINESS.json"
+    printf '{"schema":"R2_DAY_EXPORT_READINESS_RECORD_V1","trade_date":"%s","probe_sha256":"%s","ready_via":"%s","n_prices":%s,"n_basic":%s,"n_adj":%s,"n_cov":%s,"probed_at":"%s","window_from":"%s","window_to":"%s"}\n' "$D" "$(sha256sum "$READY_SQL" | cut -d' ' -f1)" "$r_via" "$r_np" "$r_nb" "$r_na" "$r_nc" "$(TZ=Asia/Shanghai date +%FT%T+08:00)" "${lower/ /T}:00" "${upper/ /T}:00" > "$tmp/READINESS.json"
     ( cd "$tmp" && { for stem in $STEMS; do sha256sum "$stem.csv"; done; sha256sum READINESS.json; } > SHA256SUMS )
     mv "$tmp" "$fin"
     echo "$seg EXPORTED:$D"

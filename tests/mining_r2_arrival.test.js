@@ -53,7 +53,10 @@ function dayTexts(day, { rows = 3, wrongDate = null, emptyPrices = false, header
   };
 }
 /** The readiness record the exporter writes with a day (R2_DAY_EXPORT_READINESS_V2 row + the probe's sha256). */
-const readinessOf = (day) => ({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: sha('probe-v2'), ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${addDays(day, 0)}T21:15:00+08:00` });
+// the industry window of a day (plan-coord 2026-11-23): [previous part's upper bound, 09:00+08 of the next open day); the first day of a segment starts at the segment's lower bound
+const nextOpenOf = (day) => [...new Set([...R1_CAL_OPEN, ...OPEN])].sort().find((d) => d > day) || addDays(day, 3);
+const windowOfDay = (day) => ({ window_from: (day === '2026-11-18' || day === DAYS[0]) ? (day < '2027' ? '2026-10-17T00:00:00+08:00' : '2027-01-01T00:00:00+08:00') : `${day}T09:00:00+08:00`, window_to: `${nextOpenOf(day)}T09:00:00+08:00` });
+const readinessOf = (day) => ({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: sha('probe-v2'), ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${day}T16:00:00+08:00`, ...windowOfDay(day) });
 /** A CSV_DAY_DROP root: calendar plus one directory per day (YYYYMMDD) with the six files. opts per day: { [day]: dayTexts options | null (not dropped yet) } */
 function dropRoot(days, opts = {}, { calendar = calendarCsv() } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2drop-'));
@@ -200,9 +203,9 @@ test('AR5 a day is validated before anything is written: wrong header, a row of 
   bad({ wrongDate: { table: 'market_daily_basic_observation_stock', date: '2027-01-04' } }, /MINE_RUNNER_ARRIVE_ROW_DATE/);
   bad({ wrongDate: { table: 'security_master_stock', date: '2027-01-06' } }, /MINE_RUNNER_ARRIVE_ROW_DATE/);
   bad({ emptyPrices: true }, /MINE_RUNNER_ARRIVE_EMPTY_DAY/);
-  // industry rows must lie in the day's first_available_at window [previous open day + 1 00:00+08, day + 1 00:00+08): DAYS[1] = 2027-01-05, window starts 2027-01-05 00:00 (the day after DAYS[0])
+  // industry rows must lie in the day's first_available_at window [previous part's upper bound, 09:00+08 of the next open day): DAYS[1] = 2027-01-05, window [2027-01-05 09:00, 2027-01-06 09:00)
   bad({ industry: ['ind:a,S01.SH,SW2021,L1,2027-01-04 23:59:59+08'] }, /MINE_RUNNER_ARRIVE_ROW_WINDOW/);
-  bad({ industry: ['ind:b,S01.SH,SW2021,L1,2027-01-06 00:00:00+08'] }, /MINE_RUNNER_ARRIVE_ROW_WINDOW/);
+  bad({ industry: ['ind:b,S01.SH,SW2021,L1,2027-01-06 09:00:00+08'] }, /MINE_RUNNER_ARRIVE_ROW_WINDOW/);
   bad({ industry: ['ind:c,S01.SH,SW2021,L1,'] }, /MINE_RUNNER_ARRIVE_ROW_WINDOW/);
   const root = dropRoot(DAYS.slice(0, 1)); fs.rmSync(path.join(root, compact(DAYS[0]), 'security_master_stock.csv'));
   const dirM = sealedDir(); A().arrive({ dir: dirM, source: A().csvDayDropSource(root) });
@@ -256,10 +259,12 @@ test('AR7 verifyChain: a good chain passes; every kind of tampering is caught (e
   const rechain = (d, rows) => { let prev = null; const re = rows.map((r, i) => { const body = { ...r, seq: i, prev_hash: prev }; delete body.record_hash; const rec = { ...body, record_hash: require('../services/trial-ledger').recordHash(body) }; prev = rec.record_hash; return rec; }); fs.writeFileSync(path.join(d, 'ARRIVAL_CHAIN_V1.jsonl'), `${re.map((r) => JSON.stringify(r)).join('\n')}\n`); };
   invalid((d) => rechain(d, chainOf(d).map((r) => (r.seq === 2 ? { ...r, files: [...r.files, r.files[0]] } : r))), /MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:DUPLICATE/, 'a file named twice');
   invalid((d) => rechain(d, chainOf(d).map((r) => (r.seq === 3 ? { ...r, files: r.files.filter((f) => !f.name.startsWith('security_master_stock')) } : r))), /MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:MISSING_TABLE/, 'a day without one of its tables');
+  // (a careful forger also re-windows the later rows, so only the calendar can tell)
   // a skipped open day: re-chain rows 3.. as if day 3 had never arrived (a consistent forgery of the chain, caught by the calendar)
   invalid((d) => {
     const rows = chainOf(d); const skipped = rows.filter((r) => r.trade_date !== DAYS[2]);
-    let prev = null; const re = skipped.map((r, i) => { const body = { ...r, seq: i, prev_hash: prev }; delete body.record_hash; const rec = { ...body, record_hash: require('../services/trial-ledger').recordHash(body) }; prev = rec.record_hash; return rec; });
+    let prev = null; let prevTo = null; const re = skipped.map((r, i) => { const body = { ...r, seq: i, prev_hash: prev }; delete body.record_hash;
+      if (r.kind === 'DAY') { if (prevTo) body.window_from = prevTo; prevTo = body.window_to; } const rec = { ...body, record_hash: require('../services/trial-ledger').recordHash(body) }; prev = rec.record_hash; return rec; });
     fs.writeFileSync(path.join(d, 'ARRIVAL_CHAIN_V1.jsonl'), `${re.map((r) => JSON.stringify(r)).join('\n')}\n`);
     for (const f of rows.find((r) => r.trade_date === DAYS[2]).files) fs.rmSync(path.join(d, f.name));
     fs.writeFileSync(path.join(d, 'SHA256SUMS'), fs.readFileSync(path.join(d, 'SHA256SUMS'), 'utf8').split('\n').filter((l) => !l.includes(`_${compact(DAYS[2])}.csv`)).join('\n') + '\n');
@@ -303,7 +308,7 @@ test('AR8 the calendar can be updated later: new or changed rows arrive as a dat
 
 test('AR9 PG_PSQL driver: the spec\'s queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs', () => {
   const a = A();
-  const ctx = { industryFrom: '2027-01-01' };
+  const ctx = { industryFrom: '2027-01-01T00:00:00+08:00', industryTo: '2027-01-05T09:00:00+08:00' };
   const qs = a.pgQueries('2027-01-04', ctx);
   assert.deepEqual(qs.map((q) => q.stem), Object.keys(HEADERS));
   for (const q of qs) {
@@ -314,9 +319,11 @@ test('AR9 PG_PSQL driver: the spec\'s queries per day (read-only, parameterised 
   assert.match(qs[0].sql, /FROM prices_daily WHERE trade_date = '2027-01-04' AND security_id IN \(SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL\)/);
   assert.match(qs[3].sql, /FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL AND business_date = '2027-01-04'/);
   // industry (export spec rev 5 change 2): the membership rows that became available in [industryFrom 00:00+08, day + 1 00:00+08); no effective_from cut per day
-  assert.match(qs[6].sql, /^SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 00:00:00\+08' ORDER BY security_id, industry_standard, industry_level, effective_from, revision$/);
+  assert.match(qs[6].sql, /^SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 09:00:00\+08' ORDER BY security_id, industry_standard, industry_level, effective_from, revision$/);
   assert.ok(!/effective_from <=/.test(qs[6].sql));
   assert.throws(() => a.pgQueries('2027-01-04'), code(/INDUSTRY_FROM/), 'the lower bound is required');
+  assert.throws(() => a.pgQueries('2027-01-04', { industryFrom: ctx.industryFrom }), code(/INDUSTRY_TO/), 'the upper bound is required');
+  assert.equal(a.pgDaySource({ run: () => Buffer.from('') }).day('2027-01-04', { industryFrom: ctx.industryFrom, industryTo: null }), null, 'the next open day (the window end) is not known yet: the day is not available');
   assert.match(a.pgCalendarQuery(), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31'/);
   const args = a.psqlArgs('SELECT 1');
   assert.deepEqual(args.slice(0, 5), ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c']);
@@ -521,6 +528,12 @@ test('AR15 readiness (plan-coord condition iii): the exporter\'s READINESS.json 
   bad({ n_adj: -1 }, 'a negative count');
   bad({ probe_sha256: 'x' }, 'a probe sha that is not a sha256');
   bad({ schema: 'OTHER' }, 'another schema');
+  // the industry window (plan-coord 2026-11-23): contiguous with the previous part, upper bound 09:00+08 of the next open day
+  bad({ window_from: '2027-01-02T00:00:00+08:00' }, 'window_from that does not start where the previous part ended');
+  bad({ window_to: `${DAYS[0]}T09:00:00+08:00` }, 'window_to not after the day');
+  bad({ window_to: `${addDays(DAYS[0], 2)}T09:00:00+08:00` }, 'window_to that is not the next open day although the calendar knows it');
+  bad({ window_to: `${nextOpenOf(DAYS[0])}T10:00:00+08:00` }, 'window_to that is not 09:00+08');
+  bad({ window_to: `${nextOpenOf(DAYS[0])}T09:00:00Z` }, 'window_to in another offset');
   // the verifier: the field is required on every DAY row, and its ready_via must be a known one
   const rechain = (d, f) => { const t = require('../services/trial-ledger'); let prev = null; const re = f(chainOf(d)).map((r, i) => { const body = { ...r, seq: i, prev_hash: prev }; delete body.record_hash; const rec = { ...body, record_hash: t.recordHash(body) }; prev = rec.record_hash; return rec; }); fs.writeFileSync(path.join(d, 'ARRIVAL_CHAIN_V1.jsonl'), `${re.map((r) => JSON.stringify(r)).join('\n')}\n`); };
   const mk = () => { const d = sealedDir(); drain(d, A().csvDayDropSource(dropRoot(DAYS.slice(0, 2)))); return d; };
@@ -530,6 +543,12 @@ test('AR15 readiness (plan-coord condition iii): the exporter\'s READINESS.json 
   assert.throws(() => A().verifyChain(badVia), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/));
   const nulled = mk(); rechain(nulled, (rs) => rs.map((r) => (r.kind === 'DAY' ? { ...r, readiness: null } : r)));
   assert.throws(() => A().verifyChain(nulled), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'a dropped day cannot lose its record');
+  const noWindow = mk(); rechain(noWindow, (rs) => rs.map((r) => { const { window_to, ...rest } = r; return rest; }));
+  assert.throws(() => A().verifyChain(noWindow), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'the window is part of every DAY row');
+  const gap = mk(); rechain(gap, (rs) => rs.map((r) => (r.kind === 'DAY' && r.seq === 2 ? { ...r, window_from: '2027-01-05T10:00:00+08:00' } : r)));
+  assert.throws(() => A().verifyChain(gap), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:WINDOW/), 'a gap between two industry windows');
+  const wrongTo = mk(); rechain(wrongTo, (rs) => rs.map((r) => (r.kind === 'DAY' && r.seq === 1 ? { ...r, window_to: `${addDays(DAYS[0], 2)}T09:00:00+08:00` } : r)));
+  assert.throws(() => A().verifyChain(wrongTo), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:WINDOW/), 'an upper bound that is not the next open day');
   // an edited record without re-chaining is a hash mismatch
   const edited = mk(); fs.writeFileSync(path.join(edited, 'ARRIVAL_CHAIN_V1.jsonl'), chainOf(edited).map((r) => JSON.stringify(r.kind === 'DAY' && r.seq === 1 ? { ...r, readiness: { ...r.readiness, n_prices: 9999 } } : r)).join('\n') + '\n');
   assert.throws(() => A().verifyChain(edited), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:RECORD_HASH/));
