@@ -224,6 +224,9 @@ test('RS9 seal-init-r2.sh: creates the pending seal directory once, prints the s
 test('RS10 UNSEEN: the resolved window is marked UNSEEN through trials.markSegments for the families of the rounds on R2 (SEEN by default before), once; no R2 round, no mark', () => {
   freshData();
   const mk = (at, extra = {}) => rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-UNS', sha256: sha(`uns-${at}`), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, openedAt: at, ...R1, ...extra });
+  // a November round on R1 with another holding period: its family is not R2's and is never marked
+  const nov = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-UNS-R1', sha256: sha('uns-r1'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [10], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { from: '2026-10-19', to: '2026-12-31' }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
+  assert.deepEqual(nov.family_ids, ['MINE:CN_A:H10']);
   const dec = mk('2026-12-01T20:50:00+08:00');
   assert.deepEqual(dec.family_ids, ['MINE:CN_A:H5']);
   const win = ['2027-01-04', '2027-03-18'];

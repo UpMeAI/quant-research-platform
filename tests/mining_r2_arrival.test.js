@@ -197,6 +197,12 @@ test('AR6 crash healing: files written but no chain row (or SUMS lines missing) 
   assert.throws(() => A().internals.withFault('AFTER_FILES', () => A().arrive({ dir, source: src })), code(/TEST_FAULT/));
   fs.appendFileSync(path.join(dir, `prices_daily_stock_${compact(DAYS[0])}.csv`), 'x\n');
   assert.throws(() => A().arrive({ dir, source: src }), code(/MINE_RUNNER_ARRIVE_CONFLICT/), 'a file on disk that is not what the source delivers');
+  // a stray file listed in SHA256SUMS that no chain row names is not "healed": the next run refuses
+  const dir2 = sealedDir(); const src2 = A().csvDayDropSource(dropRoot(DAYS.slice(0, 3)));
+  A().arrive({ dir: dir2, source: src2 }); A().arrive({ dir: dir2, source: src2 });
+  const stray = 'record_id\nx\n'; fs.writeFileSync(path.join(dir2, 'zzz_stray.csv'), stray); fs.appendFileSync(path.join(dir2, 'SHA256SUMS'), `${sha(stray)}  zzz_stray.csv\n`);
+  assert.throws(() => A().arrive({ dir: dir2, source: src2 }), code(/MINE_RUNNER_ARRIVE_CONFLICT:unchained zzz_stray\.csv/));
+  assert.equal(chainOf(dir2).length, 2);
 });
 
 test('AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)', () => {
@@ -215,6 +221,9 @@ test('AR7 verifyChain: a good chain passes; every kind of tampering is caught (e
   invalid((d) => fs.writeFileSync(path.join(d, 'SHA256SUMS'), fs.readFileSync(path.join(d, 'SHA256SUMS'), 'utf8').split('\n').filter((l) => !l.includes(`security_master_stock_${compact(DAYS[1])}`)).join('\n') + '\n'), /MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SUMS/, 'a file the chain names but SUMS does not list');
   invalid((d) => { const t = 'extra,1\n'; fs.writeFileSync(path.join(d, 'prices_daily_stock_20270199.csv'), t); fs.appendFileSync(path.join(d, 'SHA256SUMS'), `${sha(t)}  prices_daily_stock_20270199.csv\n`); }, /MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNCHAINED/, 'a file in SUMS that no chain row names');
   invalid((d) => fs.rmSync(path.join(d, 'ARRIVAL_CHAIN_V1.jsonl')), /MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:NO_CHAIN/, 'no chain at all');
+  const rechain = (d, rows) => { let prev = null; const re = rows.map((r, i) => { const body = { ...r, seq: i, prev_hash: prev }; delete body.record_hash; const rec = { ...body, record_hash: require('../services/trial-ledger').recordHash(body) }; prev = rec.record_hash; return rec; }); fs.writeFileSync(path.join(d, 'ARRIVAL_CHAIN_V1.jsonl'), `${re.map((r) => JSON.stringify(r)).join('\n')}\n`); };
+  invalid((d) => rechain(d, chainOf(d).map((r) => (r.seq === 2 ? { ...r, files: [...r.files, r.files[0]] } : r))), /MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:DUPLICATE/, 'a file named twice');
+  invalid((d) => rechain(d, chainOf(d).map((r) => (r.seq === 3 ? { ...r, files: r.files.filter((f) => !f.name.startsWith('security_master_stock')) } : r))), /MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:MISSING_TABLE/, 'a day without one of its tables');
   // a skipped open day: re-chain rows 3.. as if day 3 had never arrived (a consistent forgery of the chain, caught by the calendar)
   invalid((d) => {
     const rows = chainOf(d); const skipped = rows.filter((r) => r.trade_date !== DAYS[2]);
