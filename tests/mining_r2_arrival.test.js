@@ -7,7 +7,7 @@
  *   - the day files are the spec's per-day parts `<table>_<YYYYMMDD>.csv` (the base `<table>.csv` is header only), lines appended to SHA256SUMS after the sealed line;
  *   - the next day is always the next SSE open day of the calendar file; a day is written only if its rows are that day's, the header matches, and prices is not empty;
  *   - a crash between the files and the chain row is healed by the next run (every step is idempotent and compares bytes);
- *   - the source is a driver: CSV_DAY_DROP (day files dropped by a V6-side read-only job) and PG_PSQL (the spec's queries per day; tested for text and args, not against a database).
+ *   - the source is CSV_DAY_DROP only (day files dropped by the V6-side read-only job r2-day-export); the lane has no database driver.
  */
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -306,41 +306,16 @@ test('AR8 the calendar can be updated later: new or changed rows arrive as a dat
 
 });
 
-test('AR9 PG_PSQL driver: the spec\'s queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs', () => {
+test('AR9 the lane has no database driver (plan-coord: it must never touch the V6 production DB): the only source is CSV_DAY_DROP; the export SQL lives in deploy/.../r2-day-export/sql and is run by the V6-side job only', () => {
   const a = A();
-  const ctx = { industryFrom: '2027-01-01T00:00:00+08:00', industryTo: '2027-01-05T09:00:00+08:00' };
-  const qs = a.pgQueries('2027-01-04', ctx);
-  assert.deepEqual(qs.map((q) => q.stem), Object.keys(HEADERS));
-  for (const q of qs) {
-    assert.ok(/^SELECT /.test(q.sql), q.stem);
-    assert.ok(!/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT)\b/i.test(q.sql), `${q.stem}: read-only`);
-    if (q.stem !== 'industry_membership_sw2021') assert.ok(q.sql.includes("'2027-01-04'"), `${q.stem}: the day`); // industry is a first_available_at window, checked below
-  }
-  assert.match(qs[0].sql, /FROM prices_daily WHERE trade_date = '2027-01-04' AND security_id IN \(SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL\)/);
-  assert.match(qs[3].sql, /FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL AND business_date = '2027-01-04'/);
-  // industry (export spec rev 5 change 2): the membership rows that became available in [industryFrom 00:00+08, day + 1 00:00+08); no effective_from cut per day
-  assert.match(qs[6].sql, /^SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 09:00:00\+08' ORDER BY security_id, industry_standard, industry_level, effective_from, revision$/);
-  assert.ok(!/effective_from <=/.test(qs[6].sql));
-  assert.throws(() => a.pgQueries('2027-01-04'), code(/INDUSTRY_FROM/), 'the lower bound is required');
-  assert.throws(() => a.pgQueries('2027-01-04', { industryFrom: ctx.industryFrom }), code(/INDUSTRY_TO/), 'the upper bound is required');
-  assert.equal(a.pgDaySource({ run: () => Buffer.from('') }).day('2027-01-04', { industryFrom: ctx.industryFrom, industryTo: null }), null, 'the next open day (the window end) is not known yet: the day is not available');
-  assert.match(a.pgCalendarQuery(), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31'/);
-  const args = a.psqlArgs('SELECT 1');
-  assert.deepEqual(args.slice(0, 5), ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c']);
-  assert.equal(args[5], '\\copy (SELECT 1) TO STDOUT WITH (FORMAT csv, HEADER true)');
-  const asked = [];
-  const run = (sql) => { asked.push(sql); const stem = Object.keys(HEADERS).find((s) => qs.find((q) => q.stem === s && q.sql === sql)); return Buffer.from(stem ? dayTexts('2027-01-04')[stem] : calendarCsv()); };
-  const src = a.pgDaySource({ run });
-  assert.equal(src.driver, 'PG_PSQL');
-  assert.ok(src.calendar().toString().startsWith(CAL_COLS));
-  const got = src.day('2027-01-04', ctx);
-  assert.deepEqual(Object.keys(got.files), Object.keys(HEADERS));
-  assert.equal(asked.length, 1 + 7);
-  const emptyPrices = a.pgDaySource({ run: (sql) => Buffer.from(/prices_daily/.test(sql) ? `${HEADERS.prices_daily_stock}\n` : dayTexts('2027-01-04').security_master_stock) });
-  assert.equal(emptyPrices.day('2027-01-04', ctx), null, 'no prices yet = the day is not available');
-  // the same core accepts it (calendar, then the first day; the stub returns day 2027-01-04 for every query)
-  const dir = sealedDir(); a.arrive({ dir, source: src }); assert.equal(a.arrive({ dir, source: src }).day, '2027-01-04');
-  assert.deepEqual(a.verifyChain(dir).days, ['2027-01-04']);
+  for (const k of ['pgQueries', 'pgCalendarQuery', 'psqlArgs', 'pgDaySource']) assert.equal(a[k], undefined, k);
+  assert.equal(fs.existsSync(path.join(__dirname, '..', 'services/mining-rounds/arrival-psql.js')), false);
+  assert.equal(a.csvDayDropSource('/nonexistent').driver, 'CSV_DAY_DROP');
+  const cli = require('../services/mining-sandbox/round-runner/cli');
+  assert.throws(() => cli.main(['holdout-arrive', '--segment', 'R1', '--holdout', '/nonexistent', '--driver', 'pg-psql']), code(/MINE_RUNNER_OPTION_UNKNOWN/));
+  // nothing under services/ names psql or a database connection for the arrival
+  const src = fs.readFileSync(path.join(__dirname, '..', 'services/mining-sandbox/round-runner/arrival.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/psql|pg-psql|child_process|spawn/.test(src));
 });
 
 test('AR10 CLI r2-arrive and run.sh: the arrival is a command that loops until nothing is left, reads the window end from the resolution record, and its container is the only one that writes the R2 directory', () => {
