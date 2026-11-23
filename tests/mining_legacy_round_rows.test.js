@@ -119,3 +119,12 @@ test('L4 a new round always carries the key (openRound writes it); no data on a 
   }
   assert.equal(LEGACY_ABSENT_FIELDS.MINING_ROUND_V1.scoring_neutralization.length, 2);
 });
+
+test('L5 the relaxation is for one schema: a row of another schema with the same field name and a legacy round_id is still MISSING', () => {
+  const { SCHEMAS } = require('../schemas');
+  SCHEMAS.TEST_OTHER_V1 = { _doc: 'test only', round_id: 's', scoring_neutralization: 's' };
+  try {
+    assert.deepEqual(validateRecord({ schema: 'TEST_OTHER_V1', round_id: ROUND_2 }).problems, ['MISSING:scoring_neutralization']);
+    assert.deepEqual(validateRecord({ schema: 'TEST_OTHER_V1', round_id: ROUND_2, scoring_neutralization: 'x' }).problems, []);
+  } finally { delete SCHEMAS.TEST_OTHER_V1; }
+});
