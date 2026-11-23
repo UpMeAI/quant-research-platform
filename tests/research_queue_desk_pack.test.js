@@ -62,6 +62,8 @@ const vctx = (pack) => ({ pack, registry: F.makeRegistry({ market: pack.market }
 /**
  * Where the lab card step also writes the pack's SEEN mark (the W05 branch: steps.card calls review_pack_seen.markPack) it needs the ledger authority and a ledger directory in the environment.
  * This test sets both itself (the authority name and a temp dir, restored afterwards) so it passes on plain main (the variables are unused there) and on main + W05.
+ * The fixtures are dated 2031; W05 refuses a pack cutoff later than its clock + 36 h (REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE), so the step is given a clock after the fixtures:
+ * services.reviewSeen.now = 2031-03-01 (inert on plain main).
  */
 function withSeenLedger(fn) {
   const keys = ['QRP_PRODUCT_MILESTONE_AUTHORITY', 'QRP_DATA_DIR'];
@@ -116,7 +118,7 @@ test('lab card step (steps.card): a DONE card over a real pack passes with the r
   accessLog.writer(logFile).record({ principal: 'review-agent', op: 'READ', dataset: 'REVIEW_FACT_PACK_V1', from: days[0], to: days[days.length - 1] });
   const resultFile = path.join(dir, 'result.json');
   fs.writeFileSync(resultFile, JSON.stringify(result));
-  const S = { job: { files: { card_result: resultFile, review_agent_access_log: logFile }, card_id: task.task_id, market: pack.market }, services: { bundle: () => bundle }, data: {}, asOf: '2026-11-24T18:00:00+08:00' };
+  const S = { job: { files: { card_result: resultFile, review_agent_access_log: logFile }, card_id: task.task_id, market: pack.market }, services: { bundle: () => bundle, reviewSeen: { now: () => Date.parse('2031-03-01T00:00:00+08:00') } }, data: {}, asOf: '2026-11-24T18:00:00+08:00' };
   const r = withSeenLedger(() => steps.card(S));
   assert.equal(r.reason, undefined, r.reason);
   assert.deepEqual(Object.keys(r.files).sort(), ['card_result.json', 'review_agent_access_log.jsonl']);
