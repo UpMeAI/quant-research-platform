@@ -99,6 +99,12 @@ test('S2 end resolution (pure): R2 end is UNKNOWN until the SSE calendar covers 
   assert.deepEqual(g.resolveWindow(r2, all), { status: 'RESOLVED', from: first[0], to: first[53] }, 'the 54th open day counting the start as day 1');
   assert.equal(g.resolveWindow(r2, all.filter((d) => d !== '2027-01-04')).from, '2027-01-05', 'an unlisted day is not an open day: the start is the first LISTED day after 12-31');
   assert.deepEqual(g.resolveWindow(r2, ['2026-12-31', ...first]).from, first[0], 'the day 12-31 itself is not the start');
+  // a block is "resolved" only with both ends as dates: a known start with an unknown end is not scorable
+  assert.equal(g.isResolved(H1), true);
+  assert.equal(g.isResolved({ from: '2027-01-04', to: UNKNOWN }), false);
+  assert.equal(g.isResolved({ from: UNKNOWN, to: '2027-03-31' }), false);
+  assert.equal(g.isResolved(g.holdoutOf(r2)), false);
+  assert.equal(g.isResolved(null), false);
 });
 
 test('S3 R1 byte-identical: a registry-selected November round is the same ledger row (record_hash included) as the explicit-window round', () => {
