@@ -97,6 +97,9 @@ test('stage: card input = a fact pack, wrapped into RQ_AGENT_BUNDLE_V1 with the 
   assert.equal(s.bundle.week_id, '2026-W47');
   assert.deepEqual(s.bundle.pack.facts, pack.facts);
   assert.ok(s.bundle.registry && Array.isArray(s.bundle.registry.mechanisms));
+  const deskPack = { contract: 'REVIEW_AI_FACT_PACK_V1', weekId: '2026-W47', market: 'CN_A', facts: pack.facts, code_counts: pack.code_counts };
+  const desk = stageFiles({ row, input: deskPack, buildRegistry: () => F.makeRegistry() });
+  assert.equal(desk.bundle.week_id, '2026-W47', 'the canonical desk pack uses weekId, not week');
   const cb = checkBundle();
   const c = stageFiles({ row: { ...row, kind: 'AI_CHECK' }, input: cb });
   assert.deepEqual(c.bundle, cb);

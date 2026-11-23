@@ -1,6 +1,7 @@
 """Q3c: the consumer stages the agent's inputs, maps its result.json onto the outcome classes, and completes only on its own re-validation (never the agent's block).
 Also the HK spool hand-off (rq-agent.service as a oneshot that drains a spool) and its units. Node is required for the validator; without it the tests that need it are skipped."""
 import json, os, shutil, subprocess, threading, time, unittest
+from unittest import mock
 from helpers import *  # noqa
 from rq import agentseam  # noqa
 
@@ -49,6 +50,40 @@ class Mapping(unittest.TestCase):
             self.assertEqual(o.kind, "Q")
             (p / "result.json").write_text(json.dumps({"anything": 1}))
             self.assertEqual(consumer.classify(p, {"exit_code": 0}).kind, "SUCCESS")  # non-agent tasks keep the Q1 protocol
+
+    def test_untrusted_result_fields_are_validated_and_retry_after_is_clamped(self):
+        bad_fields = (
+            {"status": ["WAITING"], "wait_state": "WAITING_QUOTA"},
+            {"status": "WAITING", "wait_state": ["WAITING_QUOTA"]},
+            {"status": "WAITING", "wait_state": "WAITING_QUOTA", "reason_code": {"code": "RQ_QUOTA"}},
+            {"status": "BLOCKED_DETERMINISTIC", "reason_code": "X" * 65},
+            {"status": "RETRY", "retry_after_s": True},
+        )
+        for result in bad_fields:
+            outcome = agentseam.map_result({"schema": "RQ_AGENT_RESULT_V1", **result})
+            self.assertEqual((outcome.kind, outcome.code), ("D", "RESULT_FIELD_INVALID"), result)
+        outcome = agentseam.map_result({"schema": "RQ_AGENT_RESULT_V1", "status": "RETRY", "reason_code": "RQ_PROVIDER", "retry_after_s": 300_000_000_000})
+        self.assertEqual((outcome.kind, outcome.code, outcome.retry_after_s), ("T3", "RQ_PROVIDER", 86400))
+
+
+class FinalizationSafety(Base):
+    def test_unexpected_finalize_error_blocks_once_instead_of_crashing_the_consumer_loop(self):
+        t = tpl("T-STUB-W0-V1")
+        admitted = self.admit(registry([t]), req(t))
+        claimed = core.claim(self.conn, host="LINUX", worker=self.cfg.worker, now=self.t0)
+        core.transition(self.conn, admitted.task_id, "RUNNING", actor="rq-consumer", now=self.t0, token=claimed["lease_token"])
+
+        class Exited:
+            @staticmethod
+            def status(_attempt_dir):
+                return runtime.RuntimeStatus(True, False, {"exit_code": 0})
+
+        with mock.patch.object(consumer, "_finalize", side_effect=TypeError("poisoned result")) as finalize:
+            summary = consumer.tick(self.conn, self.cfg, Exited(), self.t0)
+            self.assertEqual(summary["finished"], [admitted.task_id])
+            self.assertEqual((self.state(admitted.task_id), self.row(admitted.task_id)["state_reason"]), ("BLOCKED_DETERMINISTIC", "FINALIZE_ERROR"))
+            consumer.tick(self.conn, self.cfg, Exited(), self.t0)
+            self.assertEqual(finalize.call_count, 1, "the same poison result must not be finalized in a restart loop")
 
 
 class Outcomes(Base):
@@ -284,6 +319,10 @@ class SpoolUnits(unittest.TestCase):
         self.assertRegex(tf, r"d /var/lib/rq-spool/in\s+2750 research-queue rq-agent")
         self.assertRegex(tf, r"d /var/lib/rq-spool/out\s+2770 research-queue rq-agent")
         self.assertNotIn("rq-agent rq", tf)
+        self.assertRegex(tf, r"d /var/lib/rq-gw\s+0700 rq-gw rq-gw")
+        self.assertNotIn("/var/lib/research-queue/gateway", tf)
+        self.assertIn("--db /var/lib/rq-gw/gateway.sqlite", g)
+        self.assertIn("ReadWritePaths=/var/lib/rq-gw", g)
 
     def test_consumer_and_pause_units_may_write_the_spool_only_where_needed(self):
         c = unit(DEPLOY / "research-queue" / "hk" / "rq-consumer.service")

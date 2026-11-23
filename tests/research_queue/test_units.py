@@ -1,5 +1,5 @@
 """AQ-17H / AQ-17L (static part and the evaluator), AQ-18 unit side, AQ-19 unit side. The real cap proofs run at install."""
-import re, subprocess, unittest
+import json, pathlib, re, shutil, subprocess, tarfile, tempfile, unittest
 from helpers import *  # noqa
 from rq import capproof  # noqa
 
@@ -105,7 +105,8 @@ class HKUnits(unittest.TestCase):
         self.assertRegex(s, r"(?m)^g\s+rq\b")
         t = (D / "hk/rq.tmpfiles.conf").read_text()
         self.assertRegex(t, r"(?m)^d /var/lib/research-queue\s+2770 research-queue rq")
-        self.assertRegex(t, r"(?m)^d /var/lib/research-queue/gateway\s+0700 rq-gw")
+        self.assertRegex(t, r"(?m)^d /var/lib/rq-gw\s+0700 rq-gw rq-gw")
+        self.assertNotIn("/var/lib/research-queue/gateway", t)
 
     def test_cap_proof_evaluator_hk(self):
         good = {"cpu_seconds": 120.0, "window_s": 120, "oom_kill": 1, "peak_bytes": 500 * 2**20, "pm2_restarts": 0, "new_error_lines": 0,
@@ -119,6 +120,31 @@ class HKUnits(unittest.TestCase):
 
 
 class DeployDoc(unittest.TestCase):
+    def test_consumer_cli_resolves_from_the_full_deploy_archive(self):
+        for name in ("DEPLOY.md", "DEPLOY.head.md"):
+            doc = (D / name).read_text()
+            self.assertRegex(doc, r"git archive <sha>\s*\|\s*tar -x")
+            self.assertNotRegex(doc, r"git archive <sha>\s+(services|config|docs)/")
+        self.assertIn("Environment=PATH=/srv/research-lane/tools/node-v23.11.0-linux-x64/bin:/usr/bin:/bin", (D / "linux/rq-consumer.service").read_text())
+        self.assertIn("Environment=PATH=/opt/node22/bin:/usr/bin:/bin", (D / "hk/rq-consumer.service").read_text())
+
+        node = shutil.which("node")
+        self.assertIsNotNone(node, "ci-linux must run this suite with node on PATH")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            archive = root / "repo.tar"
+            made = subprocess.run(["git", "archive", "-o", str(archive), "HEAD"], cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(made.returncode, 0, made.stderr)
+            with tarfile.open(archive) as bundle:
+                bundle.extractall(root / "tree", filter="data")
+            for name, value in (("task.json", {}), ("bundle.json", {}), ("result.json", None)):
+                (root / name).write_text(json.dumps(value))
+            cli = root / "tree/services/research-queue-agent/cli.js"
+            run = subprocess.run([node, str(cli), "validate", "--task", str(root / "task.json"), "--bundle", str(root / "bundle.json"), "--result", str(root / "result.json")],
+                                 capture_output=True, text=True, env={"PATH": str(pathlib.Path(node).parent) + ":/usr/bin:/bin"})
+            self.assertEqual(run.returncode, 0, run.stderr)
+            self.assertIs(json.loads(run.stdout)["ok"], False)
+
     def test_deploy_readme_has_sha_table_matching_files(self):
         doc = (D / "DEPLOY.md").read_text()
         import hashlib
