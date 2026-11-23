@@ -59,6 +59,22 @@ function cardFor(pack, over = {}) {
 }
 const vctx = (pack) => ({ pack, registry: F.makeRegistry({ market: pack.market }), market: pack.market, week_id: pack.weekId, existing_idea_count: 0 });
 
+/**
+ * Where the lab card step also writes the pack's SEEN mark (the W05 branch: steps.card calls review_pack_seen.markPack) it needs the ledger authority and a ledger directory in the environment.
+ * This test sets both itself (the authority name and a temp dir, restored afterwards) so it passes on plain main (the variables are unused there) and on main + W05.
+ */
+function withSeenLedger(fn) {
+  const keys = ['QRP_PRODUCT_MILESTONE_AUTHORITY', 'QRP_DATA_DIR'];
+  const keep = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const ledgerDir = fs.mkdtempSync(path.join(os.tmpdir(), 'desk-pack-ledger-'));
+  process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = 'V8_1_COORDINATOR';
+  process.env.QRP_DATA_DIR = ledgerDir;
+  try { return fn(); } finally {
+    for (const k of keys) { if (keep[k] === undefined) delete process.env[k]; else process.env[k] = keep[k]; }
+    fs.rmSync(ledgerDir, { recursive: true, force: true });
+  }
+}
+
 /* ---------------------------------------------------------------- the fixtures are the desk producer's bytes for synthetic weeks */
 test('fixtures: six desk-shaped packs (3 markets x base/revision), byte for byte the manifest sha256, made from synthetic weeks; the desk header (contract, weekId, no schema/week/code_counts)', () => {
   assert.equal(PACKS.length, 6);
@@ -101,7 +117,7 @@ test('lab card step (steps.card): a DONE card over a real pack passes with the r
   const resultFile = path.join(dir, 'result.json');
   fs.writeFileSync(resultFile, JSON.stringify(result));
   const S = { job: { files: { card_result: resultFile, review_agent_access_log: logFile }, card_id: task.task_id, market: pack.market }, services: { bundle: () => bundle }, data: {}, asOf: '2026-11-24T18:00:00+08:00' };
-  const r = steps.card(S);
+  const r = withSeenLedger(() => steps.card(S));
   assert.equal(r.reason, undefined, r.reason);
   assert.deepEqual(Object.keys(r.files).sort(), ['card_result.json', 'review_agent_access_log.jsonl']);
   fs.rmSync(dir, { recursive: true, force: true });
