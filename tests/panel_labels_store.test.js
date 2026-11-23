@@ -14,6 +14,9 @@ const fx = require('./_panel_labels_fixture');
  */
 const refuses = (fn, code) => assert.throws(fn, (e) => e.code === code, code);
 const ZERO = '0'.repeat(64);
+const hashOf = (e) => fx.sha(panel.vocab.canonicalJson({ seq: e.seq, prev: e.prev, label: e.label }));
+/** Rebuild a table text so that every line's own hash is right and only the one property named differs: the chain checks are told apart by what is left wrong. */
+const relink = (ls, { startSeq = 1, chainPrev = true } = {}) => { let prev = ZERO; return ls.map((l, i) => { const e = JSON.parse(l); e.seq = startSeq + i; e.prev = chainPrev ? prev : ZERO; e.hash = hashOf(e); prev = e.hash; return JSON.stringify(e); }); };
 let n = 0;
 
 function world() {
@@ -61,9 +64,15 @@ test('a broken chain refuses the read before anything is recorded: an edited lab
     'middle line removed': (ls) => [ls[0], ls[2]],
     'two lines swapped': (ls) => [ls[1], ls[0], ls[2]],
     'partial last line': (ls) => [...ls, '{"seq":4,"prev":"'],
-    'one line rewritten with its own hash recomputed': (ls) => {
-      const e = JSON.parse(ls[0]); e.label.grossReturn = 0.5; e.hash = fx.sha(panel.vocab.canonicalJson({ seq: e.seq, prev: e.prev, label: e.label })); ls[0] = JSON.stringify(e); return ls;
+    'first line rewritten (clock field, label hash intact) and its own hash recomputed: the next line no longer links': (ls) => {
+      const e = JSON.parse(ls[0]); e.label.computedAt = '2026-12-30T00:00:00.000Z'; e.hash = hashOf(e); ls[0] = JSON.stringify(e); return ls;
     },
+    'last line label edited and its own hash recomputed: only the label hash catches it': (ls) => {
+      const e = JSON.parse(ls[2]); e.label.grossReturn = 0.5; e.hash = hashOf(e); ls[2] = JSON.stringify(e); return ls;
+    },
+    'only the stored hash of the last line edited': (ls) => { const e = JSON.parse(ls[2]); e.hash = `${'0'.repeat(63)}1`; ls[2] = JSON.stringify(e); return ls; },
+    'the whole chain renumbered from seq 5, every hash consistent': (ls) => relink(ls, { startSeq: 5 }),
+    'every line linked to the zero hash, every hash consistent': (ls) => relink(ls, { chainPrev: false }),
     'line with a foreign key': (ls) => { const e = JSON.parse(ls[2]); e.extra = 1; ls[2] = JSON.stringify(e); return ls; },
   };
   for (const [name, mutate] of Object.entries(cases)) {
