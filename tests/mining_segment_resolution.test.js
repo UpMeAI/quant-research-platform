@@ -220,3 +220,28 @@ test('RS9 seal-init-r2.sh: creates the pending seal directory once, prints the s
   assert.notEqual(c.status, 0);
   assert.deepEqual(fs.readdirSync(other), ['x.csv']);
 });
+
+test('RS10 UNSEEN: the resolved window is marked UNSEEN through trials.markSegments for the families of the rounds on R2 (SEEN by default before), once; no R2 round, no mark', () => {
+  freshData();
+  const mk = (at, extra = {}) => rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-UNS', sha256: sha(`uns-${at}`), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, openedAt: at, ...R1, ...extra });
+  const dec = mk('2026-12-01T20:50:00+08:00');
+  assert.deepEqual(dec.family_ids, ['MINE:CN_A:H5']);
+  const win = ['2027-01-04', '2027-03-18'];
+  const before = trials.segmentsFor('MINE:CN_A:H5', '2027-01-04', '2027-03-18');
+  assert.deepEqual(before.pieces.map((p) => [p.label, p.source]), [['SEEN', 'UNMARKED_DEFAULT_SEEN']], 'unmarked dates are SEEN by default');
+  const { dir } = calendarDir(synthetic('2026-12-21', '2027-04-30'));
+  const out = runner.resolveSegment({ segmentId: 'R2', dir, resolvedAt: '2027-01-20T10:00:00+08:00' });
+  assert.deepEqual([out.record.window.from, out.record.window.to], win);
+  const after = trials.segmentsFor('MINE:CN_A:H5', '2026-12-30', '2027-03-19');
+  assert.deepEqual(after.pieces.map((p) => [p.from, p.to, p.label]), [['2026-12-30', '2027-01-03', 'SEEN'], ['2027-01-04', '2027-03-18', 'UNSEEN'], ['2027-03-19', '2027-03-19', 'SEEN']]);
+  const marks = ledger.read(trials.SEGMENTS()).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1');
+  assert.equal(marks.length, 1);
+  assert.deepEqual([marks[0].family_id, marks[0].market, marks[0].label, marks[0].from, marks[0].to, marks[0].production_effect], ['MINE:CN_A:H5', 'CN_A', 'UNSEEN', win[0], win[1], 'NONE']);
+  assert.ok(JSON.stringify(marks[0].source_refs).includes(out.record.record_hash), 'the mark names the resolution record');
+  runner.resolveSegment({ segmentId: 'R2', dir }); // idempotent: no second mark
+  assert.equal(ledger.read(trials.SEGMENTS()).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1').length, 1);
+  // a family of a later round is marked on the next run (the mark is per family and written once)
+  freshData();
+  runner.resolveSegment({ segmentId: 'R2', dir: calendarDir(synthetic('2026-12-21', '2027-04-30')).dir });
+  assert.equal(fs.existsSync(trials.SEGMENTS()) ? ledger.read(trials.SEGMENTS()).length : 0, 0, 'no round on R2: nothing to mark');
+});
