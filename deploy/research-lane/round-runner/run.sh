@@ -17,7 +17,7 @@
 # The generate container for an LLM round stays --network none and talks to the step only through the exchange directory.
 set -euo pipefail
 
-LANE=/srv/research-lane/rf1116-mining
+LANE="${RF1116_LANE_FOR_TESTS:-/srv/research-lane/rf1116-mining}"   # RF1116_LANE_FOR_TESTS: the tests point run.sh at a scratch lane with a stub docker; never set in production
 IMAGE="${RF1116_RUNNER_IMAGE:?set RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12>}"
 export DOCKER_HOST="${DOCKER_HOST:-unix:///run/user/1000/docker.sock}"
 LANE_COPY="$LANE/data/rf1116-cn-a-lane-copy-20200601-20260928"

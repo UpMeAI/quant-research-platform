@@ -372,3 +372,43 @@ test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the
   ledger.append(vault.LEDGER(), { ...bodyC, record_hash: trials.recordHash(bodyC) });
   assert.throws(() => runner.verifyHoldoutDir(r2c.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE/));
 });
+
+test('RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory\'s chain must verify; without the strict flag nothing changes', () => {
+  const out = freshData();
+  const r = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 2 }, cap: KNOWN.length, openedAt: '2026-12-01T20:50:00+08:00' });
+  const d = r2Dir();
+  runner.sealHoldout({ roundId: r.round_id, dataRef: R2REF, dataSha256: d.sealSha });
+  runner.internals.withGenerator(knownGen, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: COV }));
+  runner.select({ roundId: r.round_id, sources: sources(), outDir: out });
+  reviewAll(r.round_id);
+  forgeResolution();
+  const strict = () => runner.scoreHoldout({ roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV, requireChain: true });
+  // no R1 round at all, then an R1 round that has not been opened: refused before any holdout read
+  assert.throws(strict, code(/MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED:R1/));
+  const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1X', sha256: sha('r1x'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
+  assert.throws(strict, code(/MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED:R1/));
+  assert.equal(vault.openLog(r.round_id).length, 0, 'nothing was opened');
+  // an R1 open row: the precondition holds; the prior-live directory (no chain in this fixture) is refused next
+  const body = { schema: 'HOLDOUT_OPEN_V1', round_id: r1.round_id, seal_hash: sha('seal'), candidate_ids: ['x'], opened_by: 'TEST', opened_at: '2027-01-10T10:00:00+08:00', segment_open_index: 1, pre_open_checks: {}, selection_record_hash: null, inputs_sha256: null };
+  ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
+  assert.throws(strict, code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:NO_CHAIN/));
+  assert.equal(vault.openLog(r.round_id).length, 0);
+  // without the flag the old behaviour: the score goes through
+  const plain = runner.scoreHoldout({ roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV });
+  assert.equal(plain.opened, true);
+});
+
+test('RC11 the R1-before-R2 predicate: no R1 round = refused; an R1 round without an open row = refused; an open row = ok; every R1 round terminal = ok', () => {
+  freshData();
+  const open1 = (n) => rounds.openRound({ market: 'CN_A', space: { space_ref: `MS-P${n}`, sha256: sha(`p${n}`), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: n }, holdout: { ...R1W }, openedAt: `2026-11-18T05:49:1${n}+08:00`, ...R1 });
+  assert.deepEqual([runner.priorSegmentReady('CN_A').ok, runner.priorSegmentReady('CN_A').reason], [false, 'NO_R1_ROUND']);
+  const a = open1(1);
+  assert.deepEqual([runner.priorSegmentReady('CN_A').ok, runner.priorSegmentReady('CN_A').reason], [false, 'R1_NOT_OPENED']);
+  rounds.failEvaluation(a.round_id, { reason: 'never evaluated', evidenceSha256: sha('e') });
+  assert.equal(runner.priorSegmentReady('CN_A').ok, true, 'every R1 round terminal');
+  const b = open1(2);
+  assert.equal(runner.priorSegmentReady('CN_A').ok, false, 'a new R1 round that is neither opened nor terminal');
+  const body = { schema: 'HOLDOUT_OPEN_V1', round_id: b.round_id, seal_hash: sha('seal'), candidate_ids: ['x'], opened_by: 'TEST', opened_at: '2027-01-10T10:00:00+08:00', segment_open_index: 1, pre_open_checks: {}, selection_record_hash: null, inputs_sha256: null };
+  ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
+  assert.equal(runner.priorSegmentReady('CN_A').ok, true, 'an R1 round with an open row');
+});

@@ -100,7 +100,7 @@ test('DX0 files: the script, the SQL it sends, ops-coord\'s readiness probe byte
 
 test('DX1 read-only by construction: the script text has no SET / RESET / BEGIN READ WRITE / write verb, sets PGOPTIONS default_transaction_read_only=on, checks the session, and every SQL file is one SELECT', () => {
   const text = fs.readFileSync(SH, 'utf8');
-  assert.ok(text.includes("PGOPTIONS='-c default_transaction_read_only=on'"));
+  assert.ok(text.includes('-c default_transaction_read_only=on -c statement_timeout='), 'the read-only session setting and a server-side statement timeout travel in the same PGOPTIONS string');
   assert.ok(!/default_transaction_read_only\s*=\s*(off|false|0)/i.test(text));
   assert.ok(!/\b(SET|RESET)\s+(SESSION\s+|LOCAL\s+)?(default_transaction_read_only|transaction_read_only|CHARACTERISTICS)/i.test(text));
   assert.ok(!/BEGIN\s+(TRANSACTION\s+)?READ\s+WRITE|START\s+TRANSACTION\s+READ\s+WRITE|SET\s+TRANSACTION\s+READ\s+WRITE/i.test(text));
@@ -125,7 +125,7 @@ test('DX2 the SQL sent for a day is the arrival program\'s PG query set (one pro
   assert.equal(sent.length, want.length);
   for (const q of want) assert.ok(sent.includes(`COPY (${q.sql}) TO STDOUT WITH (FORMAT csv, HEADER true);`), q.stem);
   for (const line of fs.readFileSync(`${sb.log}.args`, 'utf8').split('\n').filter(Boolean)) {
-    assert.ok(line.startsWith('PGOPTIONS=-c default_transaction_read_only=on\t'), line);
+    assert.match(line, /^PGOPTIONS=-c default_transaction_read_only=on -c statement_timeout=\d+\t/, line);
     assert.match(line, /-X -q -v ON_ERROR_STOP=1/);
   }
 });
@@ -227,6 +227,8 @@ test('DX8 unit and timer: a oneshot user unit running the script for both segmen
   const svc = fs.readFileSync(path.join(DIR, 'r2-day-export.service'), 'utf8');
   const tim = fs.readFileSync(path.join(DIR, 'r2-day-export.timer'), 'utf8');
   assert.match(svc, /^Type=oneshot$/m);
+  assert.match(svc, /^TimeoutStartSec=\d+$/m, 'a hard limit for the whole run (ops-coord: hard timeout before the end of the slot)');
+  assert.ok(Number(/^TimeoutStartSec=(\d+)$/m.exec(svc)[1]) <= 2700, 'shorter than the shortest slot (45 minutes)');
   assert.match(svc, /^ExecStart=.*r2-day-export\.sh --segment all$/m);
   assert.match(svc, /^EnvironmentFile=.*r2-day-export\.env$/m);
   assert.match(svc, /^Environment=DOCKER_HOST=unix:\/\/\/run\/user\/%U\/docker\.sock$/m);
@@ -251,7 +253,7 @@ test('DX10 docker is a closed exception (ops-coord, same as #122 RULING_1 D3): e
   const uses = code0.match(/\bdocker\b/g) || [];
   assert.equal(uses.length, 1, 'one docker word in the code');
   assert.match(code0, /local t="\$\{R2EXP_TIMEOUT:-600\}"/, 'a time limit per call, clamped to the end of the slot');
-  assert.match(code0, /timeout "\$t" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "\$R2EXP_PG_CONTAINER" sh -c '[^']*exec psql -X -q -v ON_ERROR_STOP=1 -U "\$u" -d "\$d" "\$@"' sh "\$R2EXP_PG_USER" "\$R2EXP_PG_DB" "\$@"/);
+  assert.match(code0, /timeout -k 10 "\$t" docker exec -i -e PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=\$\(\(t \* 1000\)\)" "\$R2EXP_PG_CONTAINER" sh -c '[^']*exec psql -X -q -v ON_ERROR_STOP=1 -U "\$u" -d "\$d" "\$@"' sh "\$R2EXP_PG_USER" "\$R2EXP_PG_DB" "\$@"/);
   for (const verb of ['run', 'cp', 'rm', 'kill', 'stop', 'restart', 'pause', 'unpause', 'start', 'build', 'compose', 'volume', 'network', 'commit', 'exec -u 0', 'exec --privileged']) assert.ok(!new RegExp(`docker ${verb}\\b`).test(code0), verb);
   assert.ok(!/\bpsql\b[^\n]*\s-c\s/.test(code0.replace(/sh -c '[^']*'/g, '')), 'psql -c is not used: the SQL comes on stdin');
   assert.ok(!/DOCKER_HOST|sudo/.test(code0), 'no daemon switch, no sudo (the unit names the daemon)');
@@ -259,7 +261,7 @@ test('DX10 docker is a closed exception (ops-coord, same as #122 RULING_1 D3): e
   assert.equal(sb.run(['--segment', 'R1', '--day', '2026-11-19']).status, 0);
   const calls = fs.readFileSync(sb.dockerLog, 'utf8').split('\n').filter(Boolean);
   assert.ok(calls.length >= 10);
-  for (const c of calls) assert.match(c, /^exec -i -e PGOPTIONS=-c default_transaction_read_only=on pgc sh -c /, c.slice(0, 80));
+  for (const c of calls) assert.match(c, /^exec -i -e PGOPTIONS=-c default_transaction_read_only=on -c statement_timeout=\d+ pgc sh -c /, c.slice(0, 80));
   const svc = fs.readFileSync(path.join(DIR, 'r2-day-export.service'), 'utf8');
   assert.match(svc, /^Environment=DOCKER_HOST=unix:\/\/\/run\/user\/%U\/docker\.sock$/m, 'the unit names the rootless daemon');
 });
@@ -413,4 +415,41 @@ test('DX17 the export SQL (export spec section 2, rev 5 change 2): one day per q
   assert.ok(!/effective_from <=|effective_from >=|WHERE effective_from/.test(ind), 'no per-day effective_from cut');
   assert.match(renderSql('trading_calendar', '', '', ''), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' ORDER BY calendar_date, exchange, revision DESC, first_available_at DESC$/);
   for (const t of A().TABLES) assert.ok(!/@[A-Z]+@/.test(sql(t.stem)), `${t.stem}: every placeholder is filled`);
+});
+
+test('DX18 the "waiting more than 3 days" alert counts from the day\'s cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1\'s last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4', () => {
+  // R1's last day: everything else exported, 2026-12-31 waits for 2027-01-04 09:00
+  const ready = OPEN.filter((d) => d > '2026-11-17' && d <= '2026-12-31');
+  const last = sandbox({ ready });
+  const early = last.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-04T08:30:00+08:00' });
+  assert.equal(early.status, 0, early.out); assert.match(early.out, /WAITING_CUTOFF:2026-12-31/);
+  // a ten-day closure inside R2 (no open days 2027-02-08..02-19): the day before it waits for 02-22 09:00 without alerting, every run
+  const closure = OPEN.filter((d) => d < '2027-02-08' || d > '2027-02-19');
+  const rdy = closure.filter((d) => d > '2026-12-31' && d <= '2027-02-05');
+  const clo = sandbox({ ready: rdy, open: closure });
+  for (const now of ['2027-02-09T16:00:00+08:00', '2027-02-12T16:00:00+08:00', '2027-02-17T16:00:00+08:00', '2027-02-22T08:30:00+08:00']) {
+    const r = clo.run(['--segment', 'R2'], { R2EXP_NOW: now });
+    assert.equal(r.status, 0, `${now}: ${r.out}`);
+  }
+  assert.match(clo.run(['--segment', 'R2'], { R2EXP_NOW: '2027-02-17T16:00:00+08:00' }).out, /WAITING_CUTOFF:2027-02-05/);
+  // after the cutoff, a day that is still not ready: alert only more than 3 days (72 h) after the cutoff instant
+  const nr = sandbox({ ready: [] });
+  assert.equal(nr.run(['--segment', 'R1'], { R2EXP_NOW: '2026-11-22T08:00:00+08:00' }).status, 0, '2 days 23 hours after the cutoff of 2026-11-18: not yet');
+  assert.equal(nr.run(['--segment', 'R1'], { R2EXP_NOW: '2026-11-22T10:00:00+08:00' }).status, 4, '3 days 1 hour after the cutoff of 2026-11-18: the alert');
+  assert.equal(nr.run(['--segment', 'R1'], { R2EXP_NOW: '2026-11-19T16:00:00+08:00' }).status, 0);
+});
+
+test('DX19 modes at rest: dropped day directories 0750 and files 0640 (umask 027; group of the exporting account, kayla), the R2 calendar 0640; INSTALL.md says 0750 for the drop directories', () => {
+  const mode = (p) => (fs.statSync(p).mode & 0o777);
+  const sb = sandbox({ ready: ['2026-11-18'] });
+  assert.equal(sb.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_ENV_FILE: '/nonexistent' }).status, 0);
+  const dir = dayDir(sb, 'R1', '2026-11-18');
+  assert.equal(mode(dir), 0o750);
+  for (const n of fs.readdirSync(dir)) assert.equal(mode(path.join(dir, n)), 0o640, n);
+  const r2 = sandbox({ ready: ['2027-01-04'] });
+  r2.run(['--segment', 'R2'], { R2EXP_NOW: '2027-01-05T16:00:00+08:00' });
+  assert.equal(mode(path.join(r2.drop, 'R2', 'trading_calendar.csv')), 0o640);
+  const inst = fs.readFileSync(path.join(DIR, 'INSTALL.md'), 'utf8');
+  assert.match(inst, /install -d -m 0750 [^\n]*holdout-daydrop\/R1[^\n]*holdout-daydrop\/R2/);
+  assert.ok(!/install -d -m 0755 [^\n]*holdout-daydrop/.test(inst));
 });
