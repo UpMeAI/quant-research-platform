@@ -355,7 +355,7 @@ test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the
   forgeResolution();
   const per = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { ...v, sealed_median_names: v.median_names * 100 }]));
   const body = { schema: 'HOLDOUT_OPEN_V1', round_id: r1b.round_id, seal_hash: sha('seal'), candidate_ids: ['x'], opened_by: 'TEST', opened_at: '2027-01-10T10:00:00+08:00', segment_open_index: 1,
-    pre_open_checks: { holdout_dir: { rows_per_day: per(own.rows_per_day), label_rows_per_day: per(own.label_rows_per_day), field_states_per_day: own.field_states_per_day } }, selection_record_hash: null, inputs_sha256: null };
+    pre_open_checks: { holdout_dir: { rows_per_day: per(own.rows_per_day), label_rows_per_day: per(own.label_rows_per_day), field_states_per_day: Object.fromEntries(Object.entries(own.field_states_per_day).map(([k, v]) => [k, { ...v, sealed_median: v.median * 100 }])) } }, selection_record_hash: null, inputs_sha256: null };
   ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
   assert.throws(() => runner.verifyHoldoutDir(r2b.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
 });

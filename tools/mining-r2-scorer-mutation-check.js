@@ -26,7 +26,11 @@ const CL = 'services/mining-sandbox/round-runner/cli.js';
 const SH = 'deploy/research-lane/round-runner/run.sh';
 const SI = 'deploy/research-lane/round-runner/seal-init-r2.sh';
 
-const m = (id, guard, file, find, replace) => ({ id, guard, file, find, replace, tests: TESTS });
+const T_AR = 'tests/mining_r2_arrival.test.js';
+const T_SC = 'tests/mining_r2_scoring.test.js';
+const T_RS = 'tests/mining_segment_resolution.test.js';
+const AV = 'services/mining-sandbox/round-runner/arrival.js';
+const m = (id, guard, file, find, replace, tests = TESTS) => ({ id, guard, file, find, replace, tests });
 const MUTANTS = [
   m('M01', 'only rule-defined segments are resolvable', SR, "need(entry && entry.start, 'MINE_SEGMENT_RESOLUTION_NOT_RESOLVABLE'", "need(entry, 'MINE_SEGMENT_RESOLUTION_NOT_RESOLVABLE'"),
   m('M02', 'the window starts strictly after the rule date', SR, 'w.from <= w.to && w.from > entry.start.after', 'w.from <= w.to && w.from >= entry.start.after'),
@@ -69,6 +73,39 @@ const MUTANTS = [
   m('M39', 'seal-init: the sealed copy exists', SI, '&& cp SHA256SUMS SHA256SUMS.sealed )', ')'),
   m('M40', 'seal-init: a foreign directory is not touched', SI, '  exit 3\n', '  exit 0\n'),
   m('M41', 'seal-init: idempotent', SI, 'if [ -f "$DIR/SEAL_PENDING_V1.json" ] && [ -f "$DIR/SHA256SUMS.sealed" ]; then', 'if false; then'),
+  // R2 data arrival, the hash chain, the R1-median anchor and the UNSEEN mark (tests/mining_r2_arrival.test.js, mining_r2_scoring.test.js, mining_segment_resolution.test.js)
+  m('A01', 'chain: rows are in sequence and linked', AV, "if (r.seq !== i || r.prev_hash !== (i ? rows[i - 1].record_hash : null)) invalid('SEQ', i);", "if (false) invalid('SEQ', i);", [T_AR]),
+  m('A02', 'chain: every row hash is recomputed', AV, "if (h !== rowHash(body)) invalid('RECORD_HASH', i);", "if (false) invalid('RECORD_HASH', i);", [T_AR]),
+  m('A03', 'chain: file bytes match the row', AV, "if (!fs.existsSync(full) || sha256(fs.readFileSync(full)) !== f.sha256) invalid('FILE_SHA', f.name);", "if (false) invalid('FILE_SHA', f.name);", [T_AR, T_SC]),
+  m('A04', 'chain: the chained file is listed in SHA256SUMS with the same sha', AV, "if (sums.byName.get(f.name) !== f.sha256) invalid('SUMS', f.name);", "if (false) invalid('SUMS', f.name);", [T_AR]),
+  m('A05', 'chain: a file is named once', AV, "if (named.has(f.name)) invalid('DUPLICATE', f.name);", '', [T_AR]),
+  m('A06', 'chain: every day has all six tables', AV, "if (!names.includes(part)) invalid('MISSING_TABLE', `${r.trade_date}:${t.stem}`);", '', [T_AR]),
+  m('A07', 'chain: a listed file that no row names is refused', AV, "if (unchained.length && !tolerateUnchained) invalid('UNCHAINED', unchained.join(','));", '', [T_AR, T_SC]),
+  m('A08', 'chain: days are the consecutive open days of the calendar', AV, 'if (r.trade_date !== expected[i]) invalid(', 'if (false) invalid(', [T_AR]),
+  m('A09', 'chain: days not arrived yet are INCOMPLETE', AV, "if (missing !== undefined) throw new ArrivalError('MINE_RUNNER_HOLDOUT_INCOMPLETE', `arrival:${missing}`);", '', [T_AR, T_SC]),
+  m('A10', 'arrive: only into a sealed directory', AV, "fail('NOT_SEALED', dir);", ';', [T_AR]),
+  m('A11', 'arrive: no skipping or going back', AV, "if (day !== null && day !== next) fail('ORDER', `${day} is not the next open day (${next})`);", '', [T_AR]),
+  m('A12', 'arrive: a closed day is refused', AV, "if (day !== null && !cal.days.includes(day)) fail('NOT_OPEN_DAY', day);", '', [T_AR]),
+  m('A13', 'arrive: an arrived day is a no-op', AV, "if (day !== null && arrivedDays.includes(day)) return { status: 'NOOP', what: day };", '', [T_AR]),
+  m('A14', 'arrive: the header equals the base header', AV, "if (base[t.stem] !== undefined && base[t.stem] !== lines[0]) fail('HEADER', `${t.stem}`);", '', [T_AR]),
+  m('A15', 'arrive: every row is that day\'s', AV, "if (r[t.dateCol] !== day) fail('ROW_DATE', `${t.stem}:${r[t.dateCol]}`);", '', [T_AR]),
+  m('A16', 'arrive: prices is not empty', AV, "if (t.stem === 'prices_daily_stock' && rows === 0) fail('EMPTY_DAY', day);", '', [T_AR]),
+  m('A17', 'arrive: a different file on disk is a conflict', AV, "if (!fs.readFileSync(f).equals(bytes)) fail('CONFLICT', name);", '', [T_AR]),
+  m('A18', 'arrive: a calendar that closes an arrived day is refused', AV, "if (!arrived.every((d, i) => merged[i] === d)) fail('CALENDAR_CONFLICT', `arrived days no longer fit the calendar`);", '', [T_AR]),
+  m('A19', 'arrive: the end of the window is COMPLETE', AV, "if (windowEnd && last !== null && last >= windowEnd) return { status: 'COMPLETE', what: last };", '', [T_AR]),
+  m('A20', 'chain rows are linked by prev_hash', AV, "...body, prev_hash: rows.length ? rows[rows.length - 1].record_hash : null };", '...body, prev_hash: null };', [T_AR]),
+  m('A21', 'arrive: a stray listed file is not healed away', AV, "for (const n of verifyChain(dir, { startAfter, tolerateUnchained: true }).unchained) if (!pendingNames.has(n)) fail('CONFLICT', `unchained ${n}`);", '', [T_AR]),
+  m('A22', 'pg: the query is for one day', AV, 'FROM prices_daily WHERE trade_date = ${d}', 'FROM prices_daily WHERE trade_date >= ${d}', [T_AR]),
+  m('A23', 'pg: psql stops on error', AV, "'ON_ERROR_STOP=1'", "'ON_ERROR_STOP=0'", [T_AR]),
+  m('A24', 'pg: no prices rows = not available', AV, 'csvLines(files.prices_daily_stock).length > 1 ?', 'csvLines(files.prices_daily_stock).length >= 1 ?', [T_AR]),
+  m('A25', 'scorer: the arrival chain is verified before any row is read', RN, 'if (deferredSeal) arrivalChain.verifyChain(', 'if (false) arrivalChain.verifyChain(', [T_SC]),
+  m('A26', 'scorer: the chain starts at the resolution record\'s start rule', RN, '...(rec ? { startAfter: rec.rule.start_after } : {})', '...({})', [T_SC]),
+  m('A27', 'anchor: R1\'s recorded row medians are used', RN, 'const anchor = sealedCounts.length ? median(sealedCounts) : (fromR1 ? given : median(per));', 'const anchor = sealedCounts.length ? median(sealedCounts) : median(per);', [T_SC]),
+  m('A28', 'anchor: R1\'s recorded field medians are used', RN, '(deferredSeal ? (fromR1F ? givenF : median(per)) : 0)', '(deferredSeal ? median(per) : 0)', [T_SC]),
+  m('A29', 'anchor: the check record names the R1 open row', RN, 'anchor_record_hash: anchors ? anchors.open_record_hash : null', 'anchor_record_hash: null', [T_SC]),
+  m('A30', 'UNSEEN: the mark is written with the resolution row', RV, 'const marks = ensureUnseenMarks(rec, entry);', 'const marks = [];', [T_RS]),
+  m('A31', 'UNSEEN: only the families of the rounds on the segment', RV, 'r.holdout && r.holdout.segment === rec.segment', 'r.holdout', [T_RS]),
+  m('A32', 'UNSEEN: once per family', RV, 'families.filter((f) => !have.some((m) => m.family_id === f))', 'families.filter(() => true)', [T_RS]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }
