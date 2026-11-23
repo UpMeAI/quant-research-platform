@@ -433,11 +433,16 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   const all = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
   // RF1116 LLM_GEN（2026-11-18）：网络那一步（services/mining-llm-step）是唯一连网的容器，单独核；其余照旧 --network none
   const stepRuns = all.filter((l) => l.includes('services/mining-llm-step/cli.js'));
-  const runs = all.filter((l) => !stepRuns.includes(l));
+  // RF1116 R2 data arrival (arrival.js): the ONLY container that writes the R2 holdout directory (host owner via rootless root, no capabilities, no network); checked on its own below
+  const arriveRuns = all.filter((l) => l.includes('--name "rf1116-r2-arrive"'));
+  const runs = all.filter((l) => !stepRuns.includes(l) && !arriveRuns.includes(l));
   // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score、fail-evaluation（★RF1116_ROUND1_STATE (a)）；
   // 大模型：llm-init（建交换目录）、generate-llm、resume-llm；RF1116 R2：resolve-segment（只读日历，写一行解析记录）
-  assert.equal(runs.length, 11);
+  assert.equal(runs.length, 11, 'resolve-segment is one of them; r2-arrive is counted apart');
   assert.equal(stepRuns.length, 2, 'llm step: serve (detached) and ping');
+  assert.equal(arriveRuns.length, 1, 'r2-arrive');
+  for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '-v "$HOLDOUT:/data/holdout:rw"', '-v "$DAYDROP:/data/daydrop:ro"', '-v "$OUT:/out:ro"']) assert.ok(arriveRuns[0].includes(flag), `arrive: ${flag}`);
+  assert.deepEqual([...arriveRuns[0].matchAll(/-v "([^"]+)"/g)].map((m) => m[1]).filter((m) => !m.endsWith(':ro')), ['$HOLDOUT:/data/holdout:rw'], 'the arrival container writes only the R2 directory');
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/mining_llm_generator.v1.json'), 'utf8'));
   assert.ok(new RegExp(`^KEY_FILE="?${cfg.key.host_path.replace(/[.]/g, '\\.')}"?$`, 'm').test(sh), 'KEY_FILE is the configured host path');
   // Docker's -v creates a DIRECTORY for a missing host path: the key mount exists only when the key file does (review 2026-11-22 #3)

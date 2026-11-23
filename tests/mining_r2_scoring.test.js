@@ -44,21 +44,58 @@ const WINDOW = Object.freeze({ from: '2026-11-02', to: '2026-12-15' });
 const R2REF = 'lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-r2';
 const runDirOf = (out, id) => path.join(out, 'rounds', id.replace(/[^A-Za-z0-9_-]/g, '_'));
 
-/** The fixture's complete holdout directory with R2's seal: SEAL_PENDING_V1.json is the only sealed file, the data files are listed after it (appended, as the export program does). */
-function r2Dir() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-'));
-  for (const n of fs.readdirSync(fx.dirs.holdout)) if (n !== 'SHA256SUMS.sealed') fs.copyFileSync(path.join(fx.dirs.holdout, n), path.join(dir, n));
+/**
+ * R2's directory the way production produces it: the fixture's holdout days inside WINDOW are dropped per day (CSV_DAY_DROP), and the ARRIVAL PROGRAM writes the sealed directory
+ * (pending seal, header-only base files, per-day parts, SHA256SUMS lines, the hash chain). Rows before WINDOW.from go to a separate "prior" directory (the R1 directory's role: ordinary
+ * LIVE history for the feed day and the lookbacks); rows after WINDOW.to are not dropped. thin: { stem, day, keep } drops all but `keep` rows of one table on one day (before arrival);
+ * stopAfter: the arrival stops at that day (the chain is then short of the window).
+ */
+const arrival = require('../services/mining-sandbox/round-runner/arrival');
+let currentStartAfter = '2026-12-31'; let currentPrior = null;
+function r2Dir({ thin = null, stopAfter = null } = {}) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-'));
+  const dropDir = path.join(root, 'drop'); const priorDir = path.join(root, 'prior'); const dir = path.join(root, 'r2');
+  for (const p of [dropDir, priorDir, dir]) fs.mkdirSync(p);
+  const cal = adapter.openDaysOf([adapter.csvDirSource(fx.dirs.holdout, { mode: 'LIVE', label: 'fx', holdout: true })]).days;
+  const days = cal.filter((d) => d >= WINDOW.from && d <= WINDOW.to);
+  const startAfter = cal[cal.indexOf(days[0]) - 1];
+  const priorSums = [];
+  for (const t of arrival.TABLES) {
+    const lines = fs.readFileSync(path.join(fx.dirs.holdout, `${t.stem}.csv`), 'utf8').split('\n').filter(Boolean);
+    const idx = lines[0].split(',').indexOf(t.dateCol);
+    const before = []; const byDay = new Map(days.map((d) => [d, []]));
+    for (const l of lines.slice(1)) { const d = l.split(',')[idx]; if (d < WINDOW.from) before.push(l); else if (byDay.has(d)) byDay.get(d).push(l); }
+    for (const [d, rows] of byDay) {
+      const keep = thin && thin.stem === t.stem && thin.day === d ? rows.slice(0, thin.keep) : rows;
+      const dd = path.join(dropDir, d.replace(/-/g, '')); fs.mkdirSync(dd, { recursive: true });
+      fs.writeFileSync(path.join(dd, `${t.stem}.csv`), `${lines[0]}\n${keep.length ? `${keep.join('\n')}\n` : ''}`);
+    }
+    const pb = Buffer.from(`${lines[0]}\n${before.length ? `${before.join('\n')}\n` : ''}`);
+    fs.writeFileSync(path.join(priorDir, `${t.stem}.csv`), pb); priorSums.push(`${sha(pb)}  ${t.stem}.csv`);
+  }
+  const calBytes = fs.readFileSync(path.join(fx.dirs.holdout, 'trading_calendar.csv'));
+  fs.writeFileSync(path.join(dropDir, 'trading_calendar.csv'), calBytes);
+  fs.writeFileSync(path.join(priorDir, 'trading_calendar.csv'), calBytes); priorSums.push(`${sha(calBytes)}  trading_calendar.csv`);
+  fs.writeFileSync(path.join(priorDir, 'SHA256SUMS'), `${priorSums.join('\n')}\n`);
   const pending = `${JSON.stringify({ schema: 'HOLDOUT_SEAL_PENDING_V1', segment: 'R2', data: 'NONE_AT_SEAL_TIME', sealed_at: '2026-12-01T20:50:00+08:00' })}\n`;
   fs.writeFileSync(path.join(dir, 'SEAL_PENDING_V1.json'), pending);
   const pendingLine = `${sha(pending)}  SEAL_PENDING_V1.json\n`;
-  fs.writeFileSync(path.join(dir, 'SHA256SUMS.sealed'), pendingLine);
-  fs.writeFileSync(path.join(dir, 'SHA256SUMS'), pendingLine + fs.readFileSync(path.join(fx.dirs.holdout, 'SHA256SUMS'), 'utf8'));
-  return { dir, sealSha: sha(pendingLine) };
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS.sealed'), pendingLine); fs.writeFileSync(path.join(dir, 'SHA256SUMS'), pendingLine);
+  const src = arrival.csvDayDropSource(dropDir);
+  for (let i = 0; i < 400; i += 1) {
+    const r = arrival.arrive({ dir, source: src, startAfter, windowEnd: stopAfter || WINDOW.to, arrivedAt: '2027-04-01T20:30:00+08:00' });
+    if (r.status !== 'ARRIVED') break;
+  }
+  currentStartAfter = startAfter; currentPrior = priorDir;
+  return { dir, sealSha: sha(pendingLine), priorDir, startAfter, days };
 }
+/** The sources a scoring run of an R2 round is given: lane, tail and the "prior" directory (the R1 directory's role). */
+const srcs = () => [...sources(), adapter.csvDirSource(currentPrior, { mode: 'LIVE', label: 'prior-live' })];
+
 /** A resolution row written straight into the ledger (what resolveSegment writes for a real 2027 calendar, with the fixture's days as the window). */
-function forgeResolution(window = WINDOW) {
+function forgeResolution(window = WINDOW, startAfter = currentStartAfter) {
   const body = { schema: 'HOLDOUT_SEGMENT_RESOLUTION_V1', segment: 'R2', market: 'CN_A',
-    rule: { start_rule: 'FIRST_TRADING_DAY_AFTER', start_after: '2026-12-31', length_trading_days: 54, freeze: require('../services/mining-rounds/holdout-segments').REGISTRY[1].freeze },
+    rule: { start_rule: 'FIRST_TRADING_DAY_AFTER', start_after: startAfter, length_trading_days: 54, freeze: require('../services/mining-rounds/holdout-segments').REGISTRY[1].freeze },
     calendar: { exchange: 'SSE', files: [{ name: 'trading_calendar.csv', sha256: sha('cal') }], sums_sha256: sha('sums'), rows_read: 10, last_date: window.to },
     window: { from: window.from, to: window.to, days: 54, days_sha256: sha('days') }, resolved_at: '2027-01-20T10:00:00+08:00', resolved_by: 'TEST' };
   fs.mkdirSync(path.dirname(res().LEDGER()), { recursive: true });
@@ -77,7 +114,7 @@ test('RC1 scoring on R2, end to end: refused while the window is unrecorded; wit
   const sel = runner.select({ roundId: r.round_id, sources: sources(), outDir: out });
   assert.ok(sel.selected.length >= 1);
   reviewAll(r.round_id);
-  const score = () => runner.scoreHoldout({ roundId: r.round_id, sources: sources(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV });
+  const score = () => runner.scoreHoldout({ roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV });
   assert.throws(score, code(/MINE_RUNNER_HOLDOUT_SEGMENT_END_UNKNOWN/), 'no resolution record, no read');
   assert.equal(vault.openLog(r.round_id).length, 0);
   const rec = forgeResolution();
@@ -104,7 +141,7 @@ test('RC1b R2 crash after the open: the one rescore uses the same resolved windo
   runner.select({ roundId: r.round_id, sources: sources(), outDir: out });
   reviewAll(r.round_id);
   const rec = forgeResolution();
-  const args = { roundId: r.round_id, sources: sources(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV };
+  const args = { roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV };
   assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(args)), code(/MINE_RUNNER_TEST_FAULT/));
   assert.equal(rounds.roundHead(r.round_id).status, 'SCORING');
   const rs = runner.rescore({ ...args, reason: 'crash (synthetic)', log: 'x' });
@@ -122,7 +159,7 @@ test('RC2 deferred seal: the R2 directory (pending line sealed, data appended) p
   const r2 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: d.sealSha });
   forgeResolution();
-  const c = runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() });
+  const c = runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() });
   assert.deepEqual([c.trade_dates.from, c.trade_dates.to], ['2026-10-30', '2026-12-14']);
   const sealedDays = JSON.stringify(c).match(/"sealed_days":(\d+)/g);
   assert.ok(sealedDays && sealedDays.length > 0 && sealedDays.every((x) => x === '"sealed_days":0'), 'nothing was sealed with rows');
@@ -139,7 +176,7 @@ test('RC3 deferred seal still checks everything else: a file edited after the li
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: base.sealSha });
   forgeResolution();
   const copy = () => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-var-')); for (const n of fs.readdirSync(base.dir)) fs.copyFileSync(path.join(base.dir, n), path.join(dir, n)); return dir; };
-  const check = (dir) => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: sources() });
+  const check = (dir) => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: srcs() });
   const edited = copy(); fs.appendFileSync(path.join(edited, 'prices_daily_stock.csv'), '\n'); assert.throws(() => check(edited), code(/MINE_RUNNER_HOLDOUT_FILE_SHA_MISMATCH/));
   const unlisted = copy(); fs.writeFileSync(path.join(unlisted, 'extra.csv'), 'x'); assert.throws(() => check(unlisted), code(/MINE_RUNNER_HOLDOUT_FILE_UNLISTED/));
   const noPending = copy(); fs.writeFileSync(path.join(noPending, 'SHA256SUMS'), fs.readFileSync(path.join(noPending, 'SHA256SUMS'), 'utf8').split('\n').slice(1).join('\n'));
@@ -151,24 +188,42 @@ test('RC3 deferred seal still checks everything else: a file edited after the li
   const late = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 4 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
   runner.sealHoldout({ roundId: late.round_id, dataRef: R2REF, dataSha256: base.sealSha });
   forgeResolution({ from: '2026-10-19', to: '2027-03-18' });
-  assert.throws(() => runner.verifyHoldoutDir(late.round_id, base.dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
+  assert.throws(() => runner.verifyHoldoutDir(late.round_id, base.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
 });
 
 test('RC3b deferred seal still catches a thin day: the anchor is the data\'s own median of days, so a day far below it is incomplete', () => {
   freshData();
   const r2 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
+  const thin = r2Dir({ thin: { stem: 'prices_daily_stock', day: '2026-12-08', keep: 6 } }); // 6 of 16 names on one day, delivered that way (the chain is valid)
+  runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: thin.sealSha });
+  forgeResolution(WINDOW, thin.startAfter);
+  assert.throws(() => runner.verifyHoldoutDir(r2.round_id, thin.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv/));
+  const ok = r2Dir();
+  assert.doesNotThrow(() => runner.verifyHoldoutDir(r2.round_id, ok.dir, { minNamesPerDay: 5, priorSources: srcs() }), 'the untouched directory passes');
+});
+
+test('RC9 the arrival chain is part of the check: a consistent edit (file and SHA256SUMS line both changed), no chain, and days that have not arrived yet are each refused', () => {
+  freshData();
+  const r2 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
   const base = r2Dir();
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: base.sealSha });
-  forgeResolution();
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-thin-')); for (const n of fs.readdirSync(base.dir)) fs.copyFileSync(path.join(base.dir, n), path.join(dir, n));
-  const f = path.join(dir, 'prices_daily_stock.csv'); const lines = fs.readFileSync(f, 'utf8').split('\n'); const ti = lines[0].split(',').indexOf('trade_date');
-  assert.ok(ti >= 0);
-  let kept = 0; const thinned = lines.filter((l, i) => { if (i === 0 || !l) return true; if (l.split(',')[ti] !== '2026-12-08') return true; kept += 1; return kept <= 6; });
-  const bytes = thinned.join('\n'); fs.writeFileSync(f, bytes);
-  const old = sha(fs.readFileSync(path.join(base.dir, 'prices_daily_stock.csv')));
-  fs.writeFileSync(path.join(dir, 'SHA256SUMS'), fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').replace(old, sha(bytes)));
-  assert.throws(() => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv/));
-  assert.doesNotThrow(() => runner.verifyHoldoutDir(r2.round_id, base.dir, { minNamesPerDay: 5, priorSources: sources() }), 'the untouched directory passes');
+  forgeResolution(WINDOW, base.startAfter);
+  const check = (dir) => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: srcs() });
+  assert.doesNotThrow(() => check(base.dir));
+  const copy = () => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-chain-')); for (const n of fs.readdirSync(base.dir)) fs.copyFileSync(path.join(base.dir, n), path.join(dir, n)); return dir; };
+  // the edit is consistent with SHA256SUMS, so only the chain can see it
+  const edited = copy(); const part = path.join(edited, `prices_daily_stock_${base.days[3].replace(/-/g, '')}.csv`);
+  const old = sha(fs.readFileSync(part)); fs.appendFileSync(part, '\n'); const nu = sha(fs.readFileSync(part));
+  fs.writeFileSync(path.join(edited, 'SHA256SUMS'), fs.readFileSync(path.join(edited, 'SHA256SUMS'), 'utf8').replace(old, nu));
+  assert.throws(() => check(edited), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:FILE_SHA/));
+  const noChain = copy(); fs.rmSync(path.join(noChain, 'ARRIVAL_CHAIN_V1.jsonl'));
+  assert.throws(() => check(noChain), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:NO_CHAIN/));
+  const unchained = copy(); const extra = 'record_id,security_id,trade_date,open,high\n'; fs.writeFileSync(path.join(unchained, 'prices_daily_stock_20261231.csv'), extra);
+  fs.appendFileSync(path.join(unchained, 'SHA256SUMS'), `${sha(extra)}  prices_daily_stock_20261231.csv\n`);
+  assert.throws(() => check(unchained), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNCHAINED/));
+  // the arrival stopped early: the window is not complete yet (not tampering)
+  const short = r2Dir({ stopAfter: '2026-12-10' });
+  assert.throws(() => check(short.dir), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:2026-12-11/));
 });
 
 test('RC3c deferred seal needs the pending statement to be what was sealed: a sealed file that does not contain SEAL_PENDING_V1.json is refused', () => {
@@ -180,7 +235,7 @@ test('RC3c deferred seal needs the pending statement to be what was sealed: a se
   fs.writeFileSync(path.join(dir, 'SHA256SUMS.sealed'), priceLine);
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: sha(priceLine) });
   forgeResolution();
-  assert.throws(() => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_SEAL_PENDING_MISSING/));
+  assert.throws(() => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_SEAL_PENDING_MISSING/));
 });
 
 test('RC4 not-before and dataset label: a read is allowed from 2027-01-01 or the day after the resolved end, whichever is later; the access-log dataset names the segment', () => {
@@ -272,7 +327,7 @@ test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the
   const d = r2Dir();
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: d.sealSha });
   forgeResolution();
-  const check = () => runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() });
+  const check = () => runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() });
   const own = check();
   assert.deepEqual([own.anchor, own.anchor_record_hash], ['OWN_DAYS_MEDIAN', null]);
   assert.ok(Object.values(own.rows_per_day).every((x) => x.anchor_basis === 'OWN_DAYS_MEDIAN'));
@@ -302,5 +357,5 @@ test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the
   const body = { schema: 'HOLDOUT_OPEN_V1', round_id: r1b.round_id, seal_hash: sha('seal'), candidate_ids: ['x'], opened_by: 'TEST', opened_at: '2027-01-10T10:00:00+08:00', segment_open_index: 1,
     pre_open_checks: { holdout_dir: { rows_per_day: per(own.rows_per_day), label_rows_per_day: per(own.label_rows_per_day), field_states_per_day: own.field_states_per_day } }, selection_record_hash: null, inputs_sha256: null };
   ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
-  assert.throws(() => runner.verifyHoldoutDir(r2b.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
+  assert.throws(() => runner.verifyHoldoutDir(r2b.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
 });

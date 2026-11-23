@@ -23,6 +23,7 @@ const rounds = require('../../mining-rounds');
 const holdoutSegments = require('../../mining-rounds/holdout-segments');
 const segmentResolution = require('../../mining-rounds/segment-resolution');
 const { resolveSegment } = require('./resolve-segment');
+const arrivalChain = require('./arrival');
 const vault = require('../../holdout-vault');
 const gateRecords = require('../../mining-rounds/gate-records');
 const spaceMod = require('../space');
@@ -503,7 +504,7 @@ function select({ roundId, sources, outDir, accessLog = null }) {
  *     导出规格 rev 3 的日历每次都是整段（到 2026-12-31），所以不能只看日历。
  * 核过才把目录交给面板；任何一条不过都在开启之前拒绝，那一次开启不被耗掉。
  */
-function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null, deferredSeal = false, anchors = null } = {}) {
+function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null, deferredSeal = false, anchors = null, startAfter = arrivalChain.START_AFTER } = {}) {
   need(Number.isInteger(minNamesPerDay) && minNamesPerDay >= 1, 'HOLDOUT_FLOOR_INVALID', minNamesPerDay);
   need(seal && SHA64_RE.test(seal.data_sha256 || '') && seal.segment && seal.segment.from && seal.segment.to, 'NOT_SEALED');
   need(dir && fs.existsSync(path.join(dir, 'SHA256SUMS')), 'HOLDOUT_DIR_INVALID', dir);
@@ -552,6 +553,9 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   const openAll = [...cal.entries()].filter(([, v]) => v.open).map(([d]) => d).sort();
   const days = openAll.filter((d) => d >= seal.segment.from && d <= seal.segment.to);
   need(days.length, 'HOLDOUT_INCOMPLETE', 'trading_calendar.csv:no open day');
+  // R2: the data arrived through the arrival program, so the whole chain must verify (a gap, an edit or an out-of-order day = MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID, no re-run;
+  // days that have not arrived yet = MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>). Before any row is read.
+  if (deferredSeal) arrivalChain.verifyChain(dir, { window: { from: seal.segment.from, to: seal.segment.to }, startAfter });
   // 复审 #127 P3-2：面板读的是「喂」这些决策日的交易日——每个决策日的前一个开市日（第一个决策日的前一天在验证尾段里），不是决策日本身；
   // 日线、复权因子另有决策日当天的执行价（标签），那一份不看截止。P1-1：LIVE 截止与面板同一个函数（adapter.liveCutoffs）。
   const k0 = openAll.indexOf(days[0]);
@@ -693,7 +697,8 @@ function verifyHoldoutDir(roundId, dir, opts = {}) {
   const { window: given, ...rest } = opts;
   const win = given || windowOrFail(rounds.roundHead(roundId));
   const deferredSeal = win.segment !== null;
-  return { ...holdoutDirCheck(dir, { ...seal, segment: { from: win.from, to: win.to } }, { ...rest, deferredSeal, anchors: deferredSeal ? r1AnchorsOf() : null }), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
+  const rec = deferredSeal ? segmentResolution.resolutionOf(win.segment) : null;
+  return { ...holdoutDirCheck(dir, { ...seal, segment: { from: win.from, to: win.to } }, { ...rest, deferredSeal, anchors: deferredSeal ? r1AnchorsOf() : null, ...(rec ? { startAfter: rec.rule.start_after } : {}) }), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
 }
 /**
  * R1's recorded medians, the anchor of an R2 directory check (RF1116 R2: no sealed data rows to anchor on): the FIRST R1 holdout-open row of this market that carries them
