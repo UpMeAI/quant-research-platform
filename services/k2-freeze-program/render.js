@@ -43,11 +43,13 @@ function renderK2(draft, { priorTableSha256 }) {
   L(`- 市场：${draft.market}`);
   L(`- 族：${draft.family_id}`);
   L(`- 草稿修订：${draft.revision}`);
-  L('- 渲染：K2_FREEZE_PROGRAM_V1 按 K2_DRAFT_V1 渲染；正文不含公式，判定表只取冻结模板。');
+  L(`- 草稿 schema：${draft.schema}`);
+  if (typeof draft.layer === 'string') L(`- 研究层：${draft.layer}`);
+  L(`- 渲染：K2_FREEZE_PROGRAM_V1 按 ${draft.schema} 渲染；正文不含公式，判定表只取冻结模板。`);
   L();
   L('## 0 机制与角色');
   L();
-  L(`**机制**：${s.mechanism_ids.join('、')}：${s.mechanism_text_zh}`);
+  L(`**机制**：${s.mechanism_ids.length ? `${s.mechanism_ids.join('、')}：` : '无登记机制：'}${s.mechanism_text_zh}`);
   L(`**预期失效方式**：${s.failure_mode_zh}`);
   L(`**可能被哪条现行规则解释**：${s.explained_by_zh}`);
   L(`**AI 输入**：${line4(s.ai_inputs)}`);
@@ -81,6 +83,17 @@ function renderK2(draft, { priorTableSha256 }) {
   L(`7. 「做」之后的计量计划：${d.measurement_plan_zh}`);
   L(`8. paper 验证的预签停止条件：${d.paper_stop_zh}`);
   L();
+  if (draft.schema === 'K2_DRAFT_V2_PROPOSED') {
+    L('### 1.1 十一项研究问题中的新增字段（proposed）');
+    L();
+    L(`- Universe：${draft.universe.definition_zh}；可得性 ${draft.universe.availability_zh}；进入 ${draft.universe.entry_rule_zh}；退出 ${draft.universe.exit_rule_zh}`);
+    L(`- Holding period：预测窗口 ${draft.holding_period.prediction_window_zh}；持有 ${draft.holding_period.holding_period_zh}；换仓 ${draft.holding_period.rebalance_frequency_zh}；出场规则 ${draft.holding_period.exit_rule_ref}`);
+    L(`- Regime：${draft.regime.applicability_zh}；用途 ${draft.regime.use}`);
+    for (const stage of ['development', 'validation', 'final_test', 'forward']) L(`- In-sample / OOS ${stage}：${draft.evaluation_boundaries[stage].from} 至 ${draft.evaluation_boundaries[stage].to}`);
+    L(`- Costs：${draft.costs.assumptions_zh}`);
+    L(`- Drawdown：${draft.drawdown.policy_zh}`);
+    L();
+  }
   L('## 2 臂');
   L();
   L('| 配置名 | 角色 | 阶段 | 组成 | 参数 |');
@@ -139,8 +152,8 @@ function renderPage({ block }) {
     `- 依据：RF1118 修订 2，冻结页 ${block.rf1118.sha256}（生效 ${block.rf1118.effective_from}）。`,
     `- 作者：${block.authored_by.kind}。`,
     `- 预登记试验：${block.trial_ids.join('、')}；族 ${block.family_n.family_id} 的 N（不同配置）= ${block.family_n.n_distinct_configs}。`,
-    `- 晋级条款文件 ${block.promotion_terms.file}（与本 K2 同一次冻结，以 k2_sha256 绑定）。`,
-    `PROMOTION_TERMS_SHA256: ${block.promotion_terms.sha256}`,
+    ...(block.promotion_terms ? [`- 晋级条款文件 ${block.promotion_terms.file}（与本 K2 同一次冻结，以 k2_sha256 绑定）。`, `PROMOTION_TERMS_SHA256: ${block.promotion_terms.sha256}`]
+      : [`- 晋级条款：不适用（研究层 ${block.research_layer}）。`, `PROMOTION_TERMS_SHA256: NOT_APPLICABLE:${block.research_layer}`]),
     `ROBUSTNESS_DECLARATION_SHA256: ${block.robustness_declaration_sha256}`,
     '- 协调会话事后审计；撤回只用 `…_REVOCATION_1.md` 页，本页不改。',
     '',

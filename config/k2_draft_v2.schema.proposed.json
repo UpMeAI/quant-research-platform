@@ -1,0 +1,56 @@
+{
+  "schema": "K2_DRAFT_V2_SCHEMA_PROPOSED",
+  "draft_schema": "K2_DRAFT_V2_PROPOSED",
+  "status": "PROPOSED_NOT_FROZEN",
+  "base_schema": "K2_DRAFT_V1",
+  "layer_codes": [
+    "SELECTION_TIMING",
+    "RISK",
+    "ACCOUNT",
+    "DIAGNOSTIC_BASELINE",
+    "DIAGNOSTIC",
+    "NA_ENGINEERING",
+    "NA_EXECUTION",
+    "UNDECIDED"
+  ],
+  "reading_classes": [
+    "MACRO_CYCLE",
+    "MARKET_SENTIMENT",
+    "MARKET_STRUCTURE",
+    "MAINLINE",
+    "VOLUME_PRICE",
+    "TECHNICAL",
+    "FUNDAMENTAL",
+    "ACCOUNT_STATE"
+  ],
+  "new_required_keys": [
+    "universe",
+    "holding_period",
+    "regime",
+    "evaluation_boundaries",
+    "costs",
+    "drawdown"
+  ],
+  "fields": {
+    "universe": {
+      "required": ["definition_zh", "availability_zh", "entry_rule_zh", "exit_rule_zh"]
+    },
+    "holding_period": {
+      "required": ["prediction_window_zh", "holding_period_zh", "rebalance_frequency_zh", "exit_rule_ref"]
+    },
+    "regime": {
+      "required": ["applicability_zh", "use"],
+      "use_enum": ["TRADE_LOGIC", "DIAGNOSTIC_ONLY"]
+    },
+    "evaluation_boundaries": {
+      "required": ["development", "validation", "final_test", "forward"],
+      "boundary_required": ["from", "to"]
+    },
+    "costs": {
+      "required": ["assumptions_zh"]
+    },
+    "drawdown": {
+      "required": ["policy_zh"]
+    }
+  }
+}

@@ -8,6 +8,7 @@
 const trials = require('../trial-ledger');
 const { isObj, SHA64 } = require('./common');
 const promotionTerms = require('./promotion_terms');
+const proposed = require('./proposed');
 
 const MARKETS = Object.freeze(['CN_A', 'US_EQUITY', 'CRYPTO']);
 const ROLES = Object.freeze(['VERDICT_ARM', 'BASELINE', 'REPORT_ONLY_VARIANT', 'DIAGNOSTIC_ARM']);
@@ -18,6 +19,7 @@ const LIVE_CLASSES = Object.freeze(['NONE', 'NEEDS_SIGNATURE']);
 const DESK_ITEMS = Object.freeze(['candidate_ref', 'rule_ref', 'change_and_window_zh', 'decision_criteria_zh', 'data_limits_zh', 'round2_plan_zh', 'lease_ref', 'measurement_plan_zh', 'paper_stop_zh']);
 const TOP = Object.freeze(['schema', 'draft_id', 'market', 'family_id', 'study_ref', 'title_zh', 'revision', 'authored_by', 'section0', 'data_inputs', 'causality', 'desk_items', 'arms', 'comparison', 'sample',
   'decision_table', 'power', 'scope', 'deviation_codes', 'promotion_terms', 'robustness_declaration']);
+const PROPOSED_TOP = Object.freeze([...TOP, 'layer', ...proposed.NEW_KEYS]);
 /** Q3b: a missing section has its own code (the freeze cannot record a terms sha or a V-5 declaration sha without it). */
 const MISSING_CODE = Object.freeze({ promotion_terms: 'PREREG_TERMS_SHA_MISSING', robustness_declaration: 'PREREG_ROBUSTNESS_DECLARATION_MISSING' });
 const TERMS_LAYERS = Object.freeze(['ALPHA', 'RISK', 'EXECUTION']);
@@ -40,9 +42,21 @@ function validate(draft) {
   const date = (v, at) => { if (typeof v !== 'string' || !DATE.test(v)) type(at); };
 
   if (!isObj(draft)) return ['PREREG_SCHEMA_TYPE:draft'];
-  keysOf(draft, TOP, '', codes);
-  for (const k of TOP) if (!(k in draft)) { if (MISSING_CODE[k]) codes.push(MISSING_CODE[k]); else miss(k); }
-  if ('schema' in draft && draft.schema !== 'K2_DRAFT_V1') type('schema');
+  const isProposed = draft.schema === proposed.DRAFT_SCHEMA;
+  const allowedTop = isProposed ? PROPOSED_TOP : TOP;
+  keysOf(draft, allowedTop, '', codes);
+  for (const k of TOP) {
+    if (isProposed && k === 'promotion_terms') continue;
+    if (!(k in draft)) { if (MISSING_CODE[k]) codes.push(MISSING_CODE[k]); else miss(k); }
+  }
+  if ('schema' in draft && draft.schema !== 'K2_DRAFT_V1' && !isProposed) type('schema');
+  if (isProposed) {
+    if (!('layer' in draft)) codes.push('PREREG_LAYER_MISSING');
+    else if (typeof draft.layer !== 'string') codes.push('PREREG_LAYER_TYPE');
+    else if (!proposed.LAYER_CODES.includes(draft.layer)) codes.push(`PREREG_LAYER_INVALID:${draft.layer}`);
+    else if (draft.layer === 'UNDECIDED') codes.push('PREREG_LAYER_UNDECIDED');
+    codes.push(...proposed.validateFields(draft));
+  }
   for (const k of ['draft_id', 'family_id', 'study_ref']) if (k in draft) token(draft[k], k);
   if ('title_zh' in draft) text(draft.title_zh, 'title_zh');
   if ('market' in draft && !MARKETS.includes(draft.market)) enumBad('market');
@@ -72,7 +86,11 @@ function validate(draft) {
     else {
       keysOf(s, ['mechanism_ids', 'mechanism_text_zh', 'failure_mode_zh', 'explained_by_zh', 'ai_inputs'], 'section0', codes);
       for (const k of ['mechanism_ids', 'mechanism_text_zh', 'failure_mode_zh', 'explained_by_zh', 'ai_inputs']) if (!(k in s)) miss(`section0.${k}`);
-      if ('mechanism_ids' in s) { if (!Array.isArray(s.mechanism_ids) || !s.mechanism_ids.length) type('section0.mechanism_ids'); else s.mechanism_ids.forEach((id, i) => token(id, `section0.mechanism_ids[${i}]`)); }
+      if ('mechanism_ids' in s) {
+        const emptyAllowed = isProposed && ['DIAGNOSTIC_BASELINE', 'DIAGNOSTIC', 'NA_ENGINEERING'].includes(draft.layer);
+        if (!Array.isArray(s.mechanism_ids) || (!s.mechanism_ids.length && !emptyAllowed)) type('section0.mechanism_ids');
+        else s.mechanism_ids.forEach((id, i) => token(id, `section0.mechanism_ids[${i}]`));
+      }
       for (const k of ['mechanism_text_zh', 'failure_mode_zh', 'explained_by_zh']) if (k in s) text(s[k], `section0.${k}`);
       if ('ai_inputs' in s) {
         if (!Array.isArray(s.ai_inputs)) type('section0.ai_inputs');
@@ -239,5 +257,6 @@ function validate(draft) {
 
 /** Pin of the K2_DRAFT_V1 structure the prompt admission names (V14): changes whenever a key list or enum above changes. */
 const SCHEMA_SHA256 = require('crypto').createHash('sha256').update(JSON.stringify({ TOP, DESK_ITEMS, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, LIVE_CLASSES, TERMS: [promotionTerms.TERMS_KEYS, promotionTerms.TERMS_REQUIRED, TERMS_LAYERS], DECLARATION: [promotionTerms.TEST_KEYS] })).digest('hex');
+const sha256Of = (name) => (name === proposed.DRAFT_SCHEMA ? proposed.SCHEMA_SHA256 : name === 'K2_DRAFT_V1' ? SCHEMA_SHA256 : null);
 
-module.exports = { SCHEMA_SHA256, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, DESK_ITEMS, TOP, validate };
+module.exports = { SCHEMA_SHA256, PROPOSED_SCHEMA_SHA256: proposed.SCHEMA_SHA256, MARKETS, ROLES, HOSTS, AUTHOR_KINDS, DESK_ITEMS, TOP, PROPOSED_TOP, sha256Of, validate };
