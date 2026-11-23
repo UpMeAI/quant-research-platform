@@ -1,9 +1,10 @@
 [Unit]
-Description=RF1116 r2-day-export, daily after V6 POST_CLOSE (the chain runs 18:10-20:45 CST) with two retry slots
+Description=RF1116 r2-day-export on open days, in the V6-window slots only (ops-coord): 08:20 (after PREMARKET), 16:00 (after the 09:00 point-in-time cutoff of the next open day) and 21:40 (retry)
 [Timer]
-OnCalendar=*-*-* 21:15:00 Asia/Shanghai
-OnCalendar=*-*-* 23:45:00 Asia/Shanghai
-OnCalendar=*-*-* 07:30:00 Asia/Shanghai
-Persistent=true
+OnCalendar=Mon..Fri 08:20:00 Asia/Shanghai
+OnCalendar=Mon..Fri 16:00:00 Asia/Shanghai
+OnCalendar=Mon..Fri 21:40:00 Asia/Shanghai
+RandomizedDelaySec=0
+Persistent=false
 [Install]
 WantedBy=timers.target

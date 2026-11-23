@@ -16,7 +16,12 @@
 #             4 a day has been waiting for more than 3 days (the alert: the unit fails and ops-coord looks).
 # Configuration (r2-day-export.env, see r2-day-export.env.example): R2EXP_PG_CONTAINER, R2EXP_PG_USER, R2EXP_PG_DB (the V6 Postgres container, V6's own existing DB account and database), R2EXP_DROP_ROOT,
 # R2EXP_TIMEOUT (seconds per psql call, default 600). The only docker form is `docker exec -i -e PGOPTIONS=... <container> sh -c '... psql ...'` (ops-coord, same closed exception as #122 RULING_1 D3):
-# the SQL comes on stdin, every call runs under `timeout`, any non-zero rc stops the run (fail closed). R2EXP_TODAY (YYYY-MM-DD, CST) is for tests.
+# the SQL comes on stdin, every call runs under `timeout`, any non-zero rc stops the run (fail closed). R2EXP_NOW (an ISO time with offset) replaces the clock, for tests only.
+#
+# V6 windows (ops-coord 2026-11-23, V6 and research share the Linux host): on weekdays (CST) this job runs ONLY in 08:20-09:05, 15:40-18:05 and 21:35-00:10 and otherwise exits 0 with OUTSIDE_SLOT
+# (the forbidden windows are 06:30-08:00, 09:15-15:30, 18:10-21:30 and 00:15-01:15); every psql call is clamped to the end of the slot and no new day starts after it (SLOT_ENDED, the next slot resumes).
+# Point-in-time cutoff: a day D is exported only when the next SSE open day after D has reached 09:00+08 (the scorer's panel counts only rows that were in by then), so every row it may count is in the export;
+# R2EXP_PIT_CUTOFF=0 switches the rule off (plan-coord's call).
 set -euo pipefail
 export LC_ALL=C
 umask 022
@@ -40,14 +45,40 @@ if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
 : "${R2EXP_PG_USER:?R2EXP_PG_USER is required}"
 : "${R2EXP_PG_DB:?R2EXP_PG_DB is required}"
 DROP_ROOT="${R2EXP_DROP_ROOT:-/srv/research-lane/rf1116-mining/holdout-daydrop}"
-TODAY="${R2EXP_TODAY:-$(TZ=Asia/Shanghai date +%F)}"
+# the clock: one place, so the tests can fix it
+now_epoch() { if [ -n "${R2EXP_NOW:-}" ]; then date -d "$R2EXP_NOW" +%s; else date +%s; fi; }
+cst() { TZ=Asia/Shanghai date -d "@$1" +"$2"; }
+START_EPOCH="$(now_epoch)"
+TODAY="$(cst "$START_EPOCH" %F)"
 STALE_DAYS=3
 READY_SQL=R2_DAY_EXPORT_READINESS_V2.sql
+PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-1}"
 STEMS="prices_daily_stock market_daily_basic_observation_stock adjustment_factor_observation_stock security_master_stock security_suspension_observation security_suspension_day_coverage industry_membership_sw2021"
 
-# every statement goes through here, SQL on stdin: read-only session (PGOPTIONS passed into the container), no psqlrc, stop on the first error, a time limit, no other docker verb
+# V6 windows. Weekdays: allowed slots only (08:20-09:05, 15:40-18:05, 21:35-00:10 CST); weekends: any time, but not into the Monday 00:15 window. Prints DENY, or ALLOW <epoch the run must end by>.
+slot_of() {
+  local e="$1" dow hm d0 end
+  dow="$(cst "$e" %u)"; hm=$((10#$(cst "$e" %H%M))); d0="$(cst "$e" %F)"
+  if [ "$dow" -le 5 ]; then
+    if   [ "$hm" -ge 820 ]  && [ "$hm" -le 905 ];  then end="$d0 09:05"
+    elif [ "$hm" -ge 1540 ] && [ "$hm" -le 1805 ]; then end="$d0 18:05"
+    elif [ "$hm" -ge 2135 ]; then end="$(date -u -d "$d0 + 1 day" +%F) 00:10"
+    elif [ "$hm" -le 10 ]; then end="$d0 00:10"
+    else echo DENY; return 0; fi
+  else
+    end="$(date -u -d "$d0 + $((8 - dow)) day" +%F) 00:10"
+  fi
+  echo "ALLOW $(TZ=Asia/Shanghai date -d "$end" +%s)"
+}
+slot="$(slot_of "$START_EPOCH")"
+if [ "$slot" = DENY ]; then echo "OUTSIDE_SLOT: $(cst "$START_EPOCH" '%F %H:%M') CST is outside the allowed V6-window slots (weekdays 08:20-09:05, 15:40-18:05, 21:35-00:10); nothing done"; exit 0; fi
+DEADLINE="${slot#ALLOW }"
+
+# every statement goes through here, SQL on stdin: read-only session (PGOPTIONS passed into the container), no psqlrc, stop on the first error, a time limit (clamped to the end of the slot), no other docker verb
 pg() {
-  timeout "${R2EXP_TIMEOUT:-600}" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "$R2EXP_PG_CONTAINER" sh -c 'u="$1"; d="$2"; shift 2; exec psql -X -q -v ON_ERROR_STOP=1 -U "$u" -d "$d" "$@"' sh "$R2EXP_PG_USER" "$R2EXP_PG_DB" "$@"
+  local t="${R2EXP_TIMEOUT:-600}" left=$(( DEADLINE - $(now_epoch) ))
+  [ "$left" -ge "$t" ] || t=$(( left > 1 ? left : 1 ))
+  timeout "$t" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "$R2EXP_PG_CONTAINER" sh -c 'u="$1"; d="$2"; shift 2; exec psql -X -q -v ON_ERROR_STOP=1 -U "$u" -d "$d" "$@"' sh "$R2EXP_PG_USER" "$R2EXP_PG_DB" "$@"
 }
 addday() { date -u -d "$1 + $2 day" +%F; }
 ageof() { echo $(( ( $(date -u -d "$TODAY" +%s) - $(date -u -d "$1" +%s) ) / 86400 )); }
@@ -73,10 +104,11 @@ export_segment() {
   if [ -n "$DAY" ]; then
     if [[ "$DAY" < "$(addday "$START_AFTER" 1)" ]] || { [ -n "$END" ] && [[ "$DAY" > "$END" ]]; }; then echo "$seg REFUSED_OUTSIDE_WINDOW:$DAY"; return 3; fi
   fi
-  local hi="$TODAY"; if [ -n "$END" ] && [[ "$END" < "$hi" ]]; then hi="$END"; fi
-  local out; out="$(pg -At -v "lo=$(addday "$START_AFTER" 1)" -v "hi=$hi" -f - < "$HERE/sql/open_days.sql")" || { echo "r2-day-export: open-day query failed" >&2; return 2; }
-  local days=(); local l
-  while IFS= read -r l; do [ -n "$l" ] && days+=("$l"); done <<< "$out"
+  # every open day up to today (the day after the last one of a window is needed for the point-in-time cutoff); the window's days are the ones up to END
+  local out; out="$(pg -At -v "lo=$(addday "$START_AFTER" 1)" -v "hi=$TODAY" -f - < "$HERE/sql/open_days.sql")" || { echo "r2-day-export: open-day query failed" >&2; return 2; }
+  local all=() days=(); local l
+  while IFS= read -r l; do [ -n "$l" ] && all+=("$l"); done <<< "$out"
+  for l in "${all[@]+"${all[@]}"}"; do if [ -z "$END" ] || ! [[ "$l" > "$END" ]]; then days+=("$l"); fi; done
   if [ "$MAXDAYS" -gt 0 ] && [ "${#days[@]}" -gt "$MAXDAYS" ]; then days=("${days[@]:0:$MAXDAYS}"); fi
   if [ -n "$DAY" ]; then
     local found=0 d; for d in "${days[@]+"${days[@]}"}"; do [ "$d" = "$DAY" ] && found=1; done
@@ -94,6 +126,16 @@ export_segment() {
     if [ -n "$DAY" ] && [ "$D" != "$DAY" ]; then continue; fi
     c="${D//-/}"; fin="$root/$c"; tmp="$root/.tmp-$c"
     if [ -d "$fin" ]; then echo "$seg ALREADY_EXPORTED:$D"; continue; fi
+    # the next SSE open day after D must have reached 09:00+08: the panel counts only rows that were in by then, so the export of D holds all of them
+    if [ "$PIT_CUTOFF" = 1 ]; then
+      local nx="" a cut=0; for a in "${all[@]+"${all[@]}"}"; do if [[ "$a" > "$D" ]]; then nx="$a"; break; fi; done
+      [ -z "$nx" ] || [ "$(now_epoch)" -lt "$(date -d "$nx 09:00:00+08:00" +%s)" ] && cut=1
+      if [ "$cut" = 1 ]; then
+        if [ -n "$DAY" ]; then echo "$seg REFUSED_BEFORE_CUTOFF:$D"; return 3; fi
+        echo "$seg WAITING_CUTOFF:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
+      fi
+    fi
+    if [ "$(now_epoch)" -ge "$DEADLINE" ]; then echo "$seg SLOT_ENDED:$D"; break; fi
     local ready; ready="$(pg -At -v "d=$D" -f - < "$HERE/R2_DAY_EXPORT_READINESS_V2.sql")" || { echo "$seg PROBE_FAILED:$D" >&2; return 2; }
     if [ -z "$ready" ]; then
       if [ -n "$DAY" ]; then echo "$seg REFUSED_NOT_READY:$D"; return 3; fi

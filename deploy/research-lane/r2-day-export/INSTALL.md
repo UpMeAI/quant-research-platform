@@ -42,7 +42,13 @@ What it is: a read-only job on the V6 host that copies finished V6 trading days 
    R2EXP_ENV_FILE=~/.config/rf1116/r2-day-export.env /srv/research-lane/rf1116-mining/ops/r2-day-export/r2-day-export.sh --segment R1 --day 2026-11-19
    ls /srv/research-lane/rf1116-mining/holdout-daydrop/R1/20261119   # seven csv + SHA256SUMS
    ```
-6. Enable: `systemctl --user daemon-reload && systemctl --user enable --now r2-day-export.timer`. The timer runs 21:15 and 23:45 CST (after the post-close chain, 18:10-20:45) and 07:30 (retry), `Persistent=true`.
+6. Enable: `systemctl --user daemon-reload && systemctl --user enable --now r2-day-export.timer`. The timer runs on open days (Mon..Fri) at 08:20, 16:00 and 21:40 CST, `Persistent=false`, `RandomizedDelaySec=0`.
+
+## V6 windows and the point-in-time cutoff
+
+V6 runs on the same host; research stays out of its windows on weekdays (ops-coord 2026-11-23). The script therefore runs **only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST on weekdays** and otherwise exits 0 with `OUTSIDE_SLOT` without a docker call (forbidden windows: 06:30-08:00, 09:15-15:30, 18:10-21:30, 00:15-01:15; weekends: any time, not into Monday 00:15). Every psql call is clamped to the end of the slot (`timeout`), and no new day starts after it (`SLOT_ENDED`, the next slot resumes).
+
+A day D is exported only when the next SSE open day after D has reached 09:00+08 (`WAITING_CUTOFF` before that; `--day` refuses with `REFUSED_BEFORE_CUTOFF`): the scorer's panel counts only rows that were in by then, so the export holds every row it may count. The 16:00 run is the one that exports D-1; the 08:20 run catches up what the 16:00 and 21:40 runs could not. `R2EXP_PIT_CUTOFF=0` switches the rule off (plan-coord's call, asked 2026-11-23).
 
 ## Exit codes and what to do
 
