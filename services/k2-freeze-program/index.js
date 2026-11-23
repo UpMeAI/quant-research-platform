@@ -23,6 +23,7 @@ const render = require('./render');
 const val = require('./validators');
 const schema = require('./schema');
 const promotionTerms = require('./promotion_terms');
+const proposed = require('./proposed');
 
 const PROGRAM = 'K2_FREEZE_PROGRAM_V1';
 const MAX_REVISION = 3;
@@ -32,6 +33,7 @@ function programSha256() {
   const dir = __dirname;
   const parts = fs.readdirSync(dir).filter((n) => n.endsWith('.js')).sort().map((n) => `${n}\0${sha256(fs.readFileSync(path.join(dir, n)))}`);
   parts.push(`k2_decision_table_templates.v1.json\0${sha256(fs.readFileSync(templates.FILE))}`);
+  for (const file of [proposed.SCHEMA_FILE, proposed.TEMPLATE_FILE]) parts.push(`${path.basename(file)}\0${sha256(fs.readFileSync(file))}`);
   return sha256(parts.join('\n'));
 }
 const PROGRAM_SHA256 = programSha256();
@@ -192,23 +194,25 @@ function finalize(draft, receipts, ctx, prepared) {
   const trialIds = draft.arms.map((a) => render.trialIdOf(draft, a));
   const n = trials.count(draft.family_id, { rows: Array.isArray(ctx.ledgerRows) ? ctx.ledgerRows : [], asOf: ctx.now });
   // Q3b: the candidate's PROMOTION_TERMS_V1 is frozen in this same event, bound to the K2 by sha; the V-5 declaration sha is the line the K2 text already carries
-  const termsFile = promotionTerms.file(draft, { k2Sha256: ev.k2Sha, frozenAt: ctx.now });
+  const termsFile = draft.promotion_terms === undefined ? null : promotionTerms.file(draft, { k2Sha256: ev.k2Sha, frozenAt: ctx.now });
   const robustnessSha = promotionTerms.declarationSha256(draft);
   const report = render.renderReport({ draft, draftSha256: sha256(canonicalJson(draft)), k2Sha256: ev.k2Sha, k2FrozenAt: ctx.now, results: finalResults, programSha256: PROGRAM_SHA256, libSha256: templates.LIBRARY.library_sha256,
-    promotionTermsSha256: termsFile.sha256, robustnessDeclarationSha256: robustnessSha });
+    promotionTermsSha256: termsFile ? termsFile.sha256 : null, robustnessDeclarationSha256: robustnessSha });
   const id = draft.draft_id;
   const n_ = names(id);
   const block = {
     schema: 'K2_PROGRAM_FREEZE_PAGE_V1', draft_id: id, market: draft.market, family_id: draft.family_id, study_ref: draft.study_ref, k2_sha256: ev.k2Sha, k2_file: k2Name(id, ev.k2Sha),
-    k2_frozen_at: ctx.now, report_file: n_.report, report_sha256: sha256(report), program_version: PROGRAM, program_sha256: PROGRAM_SHA256, authored_by: draft.authored_by, frozen_by: PROGRAM,
+    k2_frozen_at: ctx.now, report_file: n_.report, report_sha256: sha256(report), program_version: PROGRAM, program_sha256: PROGRAM_SHA256, draft_schema: draft.schema,
+    research_layer: draft.layer || null, authored_by: draft.authored_by, frozen_by: PROGRAM,
     rf1118: { path: rf1118.FREEZE.path, sha256: rf1118.FREEZE.sha256, effective_from: rf1118.EFFECTIVE_FROM }, template_library_sha256: templates.LIBRARY.library_sha256,
-    prior_table: { file: tableName(id, ev.table.sha256), sha256: ev.table.sha256 }, promotion_terms: { file: termsFile.name, sha256: termsFile.sha256 }, robustness_declaration_sha256: robustnessSha, trial_ids: [...trialIds].sort(),
+    prior_table: { file: tableName(id, ev.table.sha256), sha256: ev.table.sha256 }, promotion_terms: termsFile ? { file: termsFile.name, sha256: termsFile.sha256 } : null,
+    robustness_declaration_sha256: robustnessSha, trial_ids: [...trialIds].sort(),
     family_n: { family_id: draft.family_id, n_raw: n.n_raw, n_distinct_configs: n.n_distinct_configs, n_is_lower_bound: n.n_is_lower_bound }, host: ctx.host || 'LINUX',
   };
   const page = render.renderPage({ block });
   const files = [
     [k2Name(id, ev.k2Sha), Buffer.from(ev.text)], [`${k2Name(id, ev.k2Sha)}.sha256`, sidecar(ev.k2Sha, k2Name(id, ev.k2Sha))],
-    [termsFile.name, termsFile.bytes], [`${termsFile.name}.sha256`, sidecar(termsFile.sha256, termsFile.name)],
+    ...(termsFile ? [[termsFile.name, termsFile.bytes], [`${termsFile.name}.sha256`, sidecar(termsFile.sha256, termsFile.name)]] : []),
     [tableName(id, ev.table.sha256), ev.table.bytes], [`${tableName(id, ev.table.sha256)}.sha256`, sidecar(ev.table.sha256, tableName(id, ev.table.sha256))],
     [n_.report, report], [`${n_.report}.sha256`, sidecar(sha256(report), n_.report)],
     [n_.page, page], [`${n_.page}.sha256`, sidecar(sha256(page), n_.page)],
@@ -220,7 +224,7 @@ function finalize(draft, receipts, ctx, prepared) {
     return { state: 'REFUSED', codes: [code], results: r2, ...refusal(draft, ctx, r2, [code]) };
   }
   return { state: 'FROZEN', results: finalResults, k2_sha256: ev.k2Sha, k2_frozen_at: ctx.now, trial_ids: trialIds, page_sha256: sha256(page), report_sha256: sha256(report),
-    promotion_terms_sha256: termsFile.sha256, robustness_declaration_sha256: robustnessSha,
+    promotion_terms_sha256: termsFile ? termsFile.sha256 : null, robustness_declaration_sha256: robustnessSha,
     queue_line: queueLine.lineFor({ draftId: id, k2Sha: ev.k2Sha, pageSha: sha256(page), market: draft.market, host: ctx.host || 'LINUX' }), files: files.map(([name, bytes]) => ({ name, sha256: sha256(bytes) })) };
 }
 

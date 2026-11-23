@@ -92,6 +92,7 @@ function renderSections(draft) {
   out.push('## 6 鲁棒性声明（独立验证器 V-5 读取）', '');
   for (const t of draft.robustness_declaration.tests) out.push(`- 测试 ${t.id}：类别 ${t.kind}；指标 ${t.metric}；比较 ${t.op} ${t.threshold}${'multiplier' in t ? `；倍数 ${t.multiplier}` : ''}`);
   out.push('', `${LINE}: ${declarationSha256(draft)}`, '');
+  if (draft.promotion_terms === undefined) return out;
   out.push('## 7 晋级条款（PROMOTION_TERMS_V1 内容；条款文件与本文同一次冻结，文件 sha 见冻结页）', '');
   const t = draft.promotion_terms;
   out.push(`- 层：${t.layer}`, `- 最小经济价值：${canonicalJson(t.min_economic_value)}`, `- 阈值：${canonicalJson(t.thresholds)}`, `- 证据不足处理：${canonicalJson(t.insufficient_policy)}`,

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fx = require('./_k2_freeze_fixture');
 
 const prog = require('../services/k2-freeze-program');
+const proposal = require('../services/k2-freeze-program/proposed');
 
 const V2 = 'K2_DRAFT_V2_PROPOSED';
 const SEL = 'SEL.CARRY.FUNDING_BASIS';
@@ -109,5 +110,21 @@ test('W10 transition: a K2_DRAFT_V1 fixture remains accepted without proposed fi
   const res = prog.prepare(fx.baseDraft(), fx.baseCtx());
   assert.equal(res.state, 'WAITING_EXTERNAL');
   assert.deepEqual(fx.failing(res), []);
+});
+
+test('W10 proposed schema and template are addressable by their shipped sha256 sidecars', () => {
+  assert.match(proposal.SCHEMA_SHA256, /^[0-9a-f]{64}$/);
+  assert.match(proposal.TEMPLATE_SHA256, /^[0-9a-f]{64}$/);
+  assert.equal(proposal.SCHEMA.status, 'PROPOSED_NOT_FROZEN');
+  assert.equal(proposal.TEMPLATE.status, 'PROPOSED_NOT_FROZEN');
+  assert.deepEqual(proposal.NEW_KEYS, ['universe', 'holding_period', 'regime', 'evaluation_boundaries', 'costs', 'drawdown']);
+});
+
+test('W10 real-material spot check covers every layer-register row and every tracked K2 draft fixture without relaxing findings', () => {
+  const report = require('../tools/k2-w10-layer-spot-check').audit();
+  assert.equal(report.register.total, require('../services/research-layer-register').REGISTER.entries.length);
+  assert.deepEqual([report.register.pass, report.register.refused], [43, 0]);
+  assert.deepEqual([report.drafts.total, report.drafts.pass, report.drafts.refused], [5, 1, 4]);
+  assert.deepEqual(report.drafts.reasons, { PREREG_LAYER_MISSING: 4 });
 });
 
