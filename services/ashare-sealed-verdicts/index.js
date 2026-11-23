@@ -110,7 +110,7 @@ const RXM1_LINE4 = '无。只用封存回放与实盘账本里抽取的事实。
 const RXM1_SOURCE = '来源：Linux 封存 /srv/research-lane2/overseas/rxm1/sealed-20261117（SEAL_MANIFEST 63de15fa，15 个文件；Mac 副本逐个文件相符），运行代码 rxm1-run.js f516ae39（测试 7/7，两遍逐字节相同），封存 2026-11-17。'
   + '门的裁定页 R_XM_1_IMPORT_GATES_RULING_1：G-TRIAL PRE、G-MECH、G-CAUSAL 都记 DEVIATION_ACCEPTED；G-COST、G-PARITY 照常 PASS。'
   + '实盘 T0 检查按 NOTE_2（900d38cc）：c_{t−1} + 停放累计现金 + min(同一开盘本的卖出回笼, G_t) − G_t ≥ 0，回放里 M 三种读法缺口都是 0。';
-const rxm1Entry = (id, row, code, expect, labelZh, titleZh, noteZh) => ({ id, label_zh: labelZh, strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-17', title_zh: titleZh,
+const rxm1Entry = (id, row, code, expect, labelZh, titleZh, noteZh, stateZh) => ({ id, label_zh: labelZh, strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-17', title_zh: titleZh,
   file: RXM1_RESULT, also: RXM1_ALSO, k2: RXM1_K2, freeze: RXM1_FREEZE, k2_notes: RXM1_NOTES, run_log: RXM1_RUN_LOG, k2_frozen_at: '2026-11-17T15:42:02+08:00',
   trial_gates_ruling: Object.freeze({ spec: RXM1_GATES_RULING, pre: Object.freeze({ status: 'DEVIATION_ACCEPTED', codes: Object.freeze(['PRE_REGISTERED_AFTER_FREEZE_BEFORE_FIRST_RUN']),
     preregistered_at: '2026-11-17T07:48:36.403Z', first_run_at: '2026-11-17T07:54:06.728Z' }) }),
@@ -118,6 +118,8 @@ const rxm1Entry = (id, row, code, expect, labelZh, titleZh, noteZh) => ({ id, la
   mechanism_ruling: Object.freeze({ spec: RXM1_GATES_RULING, deviations: Object.freeze(['MECHANISM_PRIOR_TABLE_NOT_IN_K2', 'AI_ROLE_K2_LINE4_READ_AS_NONE']), line4_text: RXM1_LINE4 }),
   causality_ruling: Object.freeze({ spec: RXM1_GATES_RULING, scope_not_applicable: 'RISK_K_OR_ACCOUNT_LAYER' }),
   read: Object.freeze({ decision: `rows.${row}.verdict`, strength: null, use: null, text: null }), expect,
+  // 结果文件 rows.<row> 只有 verdict 与 state=MEASURED，回程 verdictState 取登记的 state_zh（导入规格修订 4 §4）：用词取冻结 K2 §5 判定表（第 5 条）「做」「不做」两行的原词。
+  state_zh: stateZh,
   note_zh: `${noteZh}${RXM1_SOURCE}` });
 
 // 修订 7（docs/contracts/ASHARE_SEALED_VERDICTS_IMPORT_PROFILE_V1_AMENDMENT_7.md）：R-STK-1 D4（③ 排序净化加价值底线初筛，个股簿）与 X07b（按 k 分档的日 / 周亏损锁，个股簿）。
@@ -241,10 +243,12 @@ const ENTRIES = Object.freeze([
     '做（有支持，★R1 (b)，裁定页 28bf76ca）：配对 g +1.47 %/年，95 % [+1.35 %, +1.59 %]，MDE80 0.18 %；ΔMDD −4.46 个百分点（3.02 % 对 7.49 %）；T0 缺口 0，T1 压力 3 次 6,675 元（只报）；'
     + '29 笔、成本 467 元、分配 9,326 元；1537 个会话、76 个月，75 个月为正。过拟合披露 OVD-95fd157215597f79 的机械读数 DSR 0.033（族方差 V 含本题 3 行）原样保留；'
     + '★R1 (b) 的读法：族方差 V 不用本题自己的行（RXM1_M、RXM1_M_LOWCOST、RXM1_B），只用 R8_X04 三行与 R21 两行，V 0.0165、N 50、T 76、DSR 1，证据门不降级。'
-    + '上线前提：V6 先放行 511880、采日线、个股本停放放在默认关闭的开关后（R_XM_1_V6_PARKING_PREREQUISITES 272c8939），生产另走变更；「做」≠ 生产采用。'),
+    + '上线前提：V6 先放行 511880、采日线、个股本停放放在默认关闭的开关后（R_XM_1_V6_PARKING_PREREQUISITES 272c8939），生产另走变更；「做」≠ 生产采用。',
+    '做（配对 g 的 95% 区间下沿大于 0，ΔMDD 不超过 +0.50 个百分点，T0 缺口为 0）'),
   rxm1Entry('CN-RXM1-B', 'RXM1_B', '511010.SH', '不做', 'R-XM-1 闲置现金停放（短债 ETF）', '个股本闲置现金按同一规则停放 511010.SH 上证 5 年期国债 ETF（B），开盘成交，对现金基线 C（2020-06-01 → 2026-09-28）',
     '不做：配对 g +2.24 %/年，95 % [+1.00 %, +3.37 %]，但 T0 缺口 34 次 53,415 元（2020-08-27 → 2021-02-08 债市下跌期，2 次落在本的买入日），「T0 缺口为 0」是 K2 §5.5 的必要条件；'
-    + 'NOTE_2 的封顶读法下仍是 34 次，最宽读法下也有 31 次。过拟合披露 OVD-02f289abe66f0225 原样保留（证据门对「不做」不起作用；★R1 (b) 读法下 DSR 0.785）。裁定页 28bf76ca。'),
+    + 'NOTE_2 的封顶读法下仍是 34 次，最宽读法下也有 31 次。过拟合披露 OVD-02f289abe66f0225 原样保留（证据门对「不做」不起作用；★R1 (b) 读法下 DSR 0.785）。裁定页 28bf76ca。',
+    '不做（其余情况）'),
   { id: 'CN-R-STK-1-D4', label_zh: 'R-STK-1 D4 初筛与排序', strategy_ref: 'ASHARE_V6_PAPER', kind: 'RESULT', sealed_on: '2026-11-18',
     title_zh: '个股簿 ③ 排序净化加价值底线初筛：C_RS_FLOOR（新排序加初筛）对现行 C_RS，两阶段合并（2020-06-01 → 2026-09-28）',
     file: coord(`${D4_SEAL}/RSTKD4_VERDICT.json`, '63e91f82312ce61ebe990edb503185c8bff8e9430c1a49ac63dc39340e5a4446'),
