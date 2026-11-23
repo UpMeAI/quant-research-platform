@@ -15,6 +15,7 @@ const accessLog = require('../independent-verifier/access-log');
 const k2Validators = require('../k2-freeze-program/validators');
 const k2Program = require('../k2-freeze-program');
 const engine = require('../promotion-engine');
+const reviewSeen = require('../trial-ledger/review_pack_seen');
 
 const first = (codes) => String((codes && codes[0]) || 'UNKNOWN');
 
@@ -43,6 +44,14 @@ function card(S) {
   const days = bundle.pack.facts.map((f) => String(f.at).slice(0, 10)).sort();
   const read = logCheck.rows.filter((r) => r.op === 'READ');
   if (!read.length || read.some((r) => r.from > days[0] || r.to < days[days.length - 1])) return { reason: 'LAB_CARD_ACCESS_LOG_RANGE_MISMATCH' };
+  // W05: the pack the card was built from is a delivered review fact pack, so this step is one of its entry points: write its SEEN mark (idempotent by the pack sha256; a pack the relay
+  // or the producer already marked is a replay). A refused mark is a refused card. The SEEN ranges of the lineage and the final test are read back from the ledger marks, not from the log.
+  const seenSvc = services.reviewSeen || {};
+  try {
+    // the clock of the future-date check is the job as_of (the lab reads no host clock); services.reviewSeen.now overrides it
+    reviewSeen.markPack(bundle.pack, { registeredBy: seenSvc.registeredBy || process.env.QRP_PRODUCT_MILESTONE_AUTHORITY, registeredAt: S.asOf, now: seenSvc.now || (() => Date.parse(S.asOf)) });
+  } catch (e) { return { reason: `LAB_CARD_SEEN_MARK_${e.code || 'FAILED'}` }; }
+  S.data.packMarks = reviewSeen.packMarks({ market: job.market, asOf: S.asOf });
   S.data.reviewRows = logCheck.rows;
   S.data.card = { result, vctx }; S.data.reviewLogSha = sha256(log);
   return { files: { 'card_result.json': bytes, 'review_agent_access_log.jsonl': log }, primary: 'card_result.json' };

@@ -42,7 +42,7 @@ const PREFIX_LAYER = Object.freeze({ SEL: 'SELECTION_TIMING', RISK: 'RISK', ACCT
 const DECISION_POINTS = Object.freeze({ SELECT: '选标的', DIRECTION: '方向', ENTRY: '入场', EXIT: '出场', SIZING: '仓位', COST: '成本' });
 /** 框架 §6.6 的三个市场；试验台账与查询输入的别名按这里归一（E8）。 */
 const MARKETS = Object.freeze(['CN_A', 'US_EQUITY', 'CRYPTO']);
-const MARKET_ALIAS = Object.freeze({ CN_A: 'CN_A', CN: 'CN_A', US_EQUITY: 'US_EQUITY', CRYPTO: 'CRYPTO', CRYPTO_USDM_PERP: 'CRYPTO' });
+const MARKET_ALIAS = trials.MARKET_ALIAS; // one alias table, the trial ledger's (W05: the review-pack SEEN marks are per market)
 const VERDICTS = Object.freeze(['DONT', 'DO_INSUFFICIENT', 'DO_SUPPORTED']);
 const SEALED_SOURCES = Object.freeze(['ASHARE_SEALED_VERDICTS', 'OVERSEAS_SEALED_VERDICTS']);
 const POWER_THRESHOLD = 0.8;

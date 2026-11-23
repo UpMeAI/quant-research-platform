@@ -172,7 +172,7 @@ function questionRefOf(entry, profile) {
  * → link_id 已存在什么也不写；不存在就用 registerReviewQuestion 登记一条。某行登记不了（档案未登记、case 开不了）记入 refused 并继续下一行。
  * 文件级核对不过时整份拒收，什么也不写。返回摘要（只给调用方看，不落盘）。
  */
-function importQueue({ deskRoot, file = null, openCases = false, recordedAt = null, caseOptions = {} } = {}) {
+function importQueue({ deskRoot, file = null, openCases = false, recordedAt = null, caseOptions = {}, seenMark = null } = {}) {
   const loop = require('../runtime-research-loop');
   const profiles = require('../strategy-profiles');
   const profileCases = require('../runtime-research-loop/profile_cases');
@@ -181,6 +181,13 @@ function importQueue({ deskRoot, file = null, openCases = false, recordedAt = nu
     queue: { file: queue.file, sha256: queue.sha256, weekId: queue.payload.weekId, revision: queue.payload.revision, entries: queue.payload.entries.length },
     registered: [], unchanged: [], refused: [], engineering: [],
   };
+  // W05（plan-coord 裁定 11-23）：队列的 sourceWeek 就是交给复盘的人工周编（REVIEW_LOOP_WEEK_V1），这里是它记入研究侧的入口：先写它的 SEEN 标记（每个市场一条，按周档 sha256 幂等），
+  // 写不了就整份不导入（失败关闭）。seenMark = { registeredBy, registeredAt? }；不给 = 与以前一样不写（库内调用）；命令行 import_desk_research_queue.js 一定给。
+  if (seenMark) {
+    const reviewSeen = require('../trial-ledger/review_pack_seen');
+    const weekBytes = fs.readFileSync(path.join(reviewLoopRootOf(deskRoot), WEEK_DIR, queue.payload.sourceWeek.file));
+    out.review_pack_seen = reviewSeen.markBytes(weekBytes, { registeredBy: seenMark.registeredBy, registeredAt: seenMark.registeredAt || null, now: seenMark.now }).map(reviewSeen.summary);
+  }
   for (const entry of queue.payload.entries) {
     const row = { questionKey: entry.questionKey, candidateId: entry.candidateId, ledgerId: entry.ledgerId };
     // 修订 7 §4.5：工程类候选只进分诊清单，不登记成研究问题。

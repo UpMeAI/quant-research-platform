@@ -221,7 +221,9 @@ def _fact_pack_request(registry, cfg, path, pack):
             "params": {}, "inputs": [{"path": str(path), "sha256": core.sha256_hex(raw)}], "depends_on": [], "priority": 50}
 
 
-def tick(conn, cfg, registry, now, probes=None):
+def tick(conn, cfg, registry, now, probes=None, seen_marker=None):
+    """seen_marker (W05, plan-coord ruling 11-23): marker(host, name, pack_bytes) returns None once the pack's SEEN mark is in the trial ledger, else an error code; a pack that cannot be marked
+    gets no card task and is retried on the next tick (out['seen_mark_failed']). None = this host has no marker configured (the Mac relay marked the pack before shipping it)."""
     probes = probes or NullProbes()
     out = {"admitted": 0, "refused": 0, "unreadable": 0, "resumed": []}
 
@@ -272,6 +274,16 @@ def tick(conn, cfg, registry, now, probes=None):
             use = merged_dir / f.name
             use.write_text(json.dumps(merged, sort_keys=True, separators=(",", ":")))
             pack = merged
+        if seen_marker is not None:
+            data = use.read_bytes()
+            sha_ = core.sha256_hex(data)
+            if state.setdefault("seen_marked", {}).get(use.name) != sha_:  # a pack whose bytes were marked on an earlier tick is not marked again
+                code = seen_marker(cfg.host, use.name, data)
+                if code:
+                    out.setdefault("seen_mark_failed", []).append([f.name, code])
+                    continue
+                state["seen_marked"][use.name] = sha_
+                state_dirty = True
         req = _fact_pack_request(registry, cfg, use, pack)
         if req is None:
             continue

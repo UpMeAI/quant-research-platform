@@ -16,6 +16,7 @@ const { runners } = require('../independent-verifier/stages');
 const verdictMod = require('./verdict');
 const feedback = require('./feedback');
 const seen = require('./seen');
+const reviewSeen = require('../trial-ledger/review_pack_seen');
 const lineageMod = require('./lineage');
 
 const SCHEMA = 'LAB_ACCEPTANCE_V1';
@@ -101,7 +102,11 @@ function check({ out_dir: outDir, as_of: checkAsOf = null, services = {}, next_b
   const incidents = [];
   const reviewLog = readIfFile(abs(lineage.review_agent_access_log.path));
   const ideaArt = safe(() => readJson(abs(linkOf(2).artifact_path)), () => null);
-  let seenRanges = [];
+  // W05: the SEEN ranges are the ledger marks of the card market as of the run (the lineage recorded the same read); no range is recomputed from the log or the fact dates
+  const market = lineage.market;
+  const packMarks = reviewSeen.packMarks({ market, asOf: chain.as_of });
+  const seenRanges = seen.seenRangesOf({ market, asOf: chain.as_of });
+  if (canonicalJson(seenRanges) !== canonicalJson(lineage.seen_ranges)) c3.push('SEEN_RANGES_MISMATCH');
   if (!reviewLog) c3.push('REVIEW_AGENT_LOG_MISSING');
   else {
     if (!ideaArt || ideaArt.review_agent_access_log_sha256 !== sha256(reviewLog)) c3.push('REVIEW_AGENT_LOG_SHA_MISMATCH');
@@ -113,8 +118,6 @@ function check({ out_dir: outDir, as_of: checkAsOf = null, services = {}, next_b
         if (r.op === 'HOLDOUT_READ_REFUSED') incidents.push({ log: 'review-agent', seq: r.seq, principal: r.principal, op: r.op, code: r.code || null });
         if (r.dataset !== 'REVIEW_FACT_PACK_V1') c3.push(`REVIEW_AGENT_READ_NOT_FACT_PACK:${r.dataset}`);
       }
-      seenRanges = seen.seenRangesOf(v.rows);
-      if (canonicalJson(seenRanges) !== canonicalJson(lineage.seen_ranges)) c3.push('SEEN_RANGES_MISMATCH');
     }
   }
   const finalTest = seen.finalTestOf(seenRanges);
@@ -126,7 +129,7 @@ function check({ out_dir: outDir, as_of: checkAsOf = null, services = {}, next_b
     const ref = { path: lineage.access_log.path, sha256: sha256(miningLog) };
     const grants = readIfFile(abs(`${lineageMod.dirOf(7)}/holdout_grants.jsonl`)) ? abs(`${lineageMod.dirOf(7)}/holdout_grants.jsonl`) : abs(`${lineageMod.dirOf(7)}/no_grants.jsonl`);
     const bundle = { candidateSha256: lineage.candidate.sha256, asOf: String(chain.as_of).slice(0, 10), familyId: 'LAB_CHECK', v2: { accessLog: ref } };
-    if (finalTest.kind === 'HOLDOUT') { bundle.v2.unseenClaim = { from: finalTest.from, to: finalTest.to }; bundle.v2.segmentMarks = seen.marksFor({ familyId: 'LAB_CHECK', seenRanges }); }
+    if (finalTest.kind === 'HOLDOUT') { bundle.v2.unseenClaim = { from: finalTest.from, to: finalTest.to }; bundle.v2.segmentMarks = seen.marksFor({ familyId: 'LAB_CHECK', market, marks: packMarks }); }
     try { c3.push(...runners.V2(bundle, { readBytes: () => miningLog, authority: { ledgerFile: grants } }, authority.loadConfig()).codes.map((c) => `V2_${c}`)); } catch (e) { c3.push(`V2_${e.code || 'STAGE_ERROR'}`); }
     const v = accessLog.verifyBytes(miningLog);
     if (v.ok) {

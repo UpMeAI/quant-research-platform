@@ -89,7 +89,7 @@ function tail(S) {
     familyTrialCount: exp.attempts.length, asOf: S.asOf, gateOptions: services.verifierGateOptions || {}, override: services.devEvidence || {} });
   if (dv.refusal) return refuse(S, byName('VERDICT'), `LAB_EVIDENCE_${dv.refusal}`, { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [dv.refusal] });
   const bundle = verdict.assembleBundle({ chain: { candidateId: exp.candidate.id, candidateSha256: exp.candidate.sha256, market: S.job.market, familyId, mechanismId: data.mechanism.id, dedupeDecision: data.mechanism.route,
-    accessLog: logRef, k2: k2Ref, unseenClaim: data.finalTest.kind === 'HOLDOUT' ? { from: data.finalTest.from, to: data.finalTest.to } : null, segmentMarks: seen.marksFor({ familyId, seenRanges: data.seenRanges }) },
+    accessLog: logRef, k2: k2Ref, unseenClaim: data.finalTest.kind === 'HOLDOUT' ? { from: data.finalTest.from, to: data.finalTest.to } : null, segmentMarks: seen.marksFor({ familyId, market: S.job.market, marks: data.packMarks }) },
     evidence: dv.bundle, asOf: S.asOf.slice(0, 10) });
   const base = verdict.engineS0S1(common, engine);
   if (!base.ok) return refuse(S, byName('VERDICT'), base.reason_code, { terminalState: 'REFUSED_AT_VERDICT', reasonCodes: [base.reason_code] });
@@ -179,7 +179,7 @@ function run(job, services = {}) {
     if (out.wait) return finish('WAITING_EXTERNAL', step, { waiting: out.wait });
     chain.add(step.n, out.files, out.primary);
   }
-  S.data.seenRanges = seen.seenRangesOf(S.data.reviewRows);
+  S.data.seenRanges = seen.seenRangesOf({ market: job.market, asOf: S.asOf }); // the ledger marks (W05), not the review log
   S.data.finalTest = seen.finalTestOf(S.data.seenRanges);
   const t = tail(S);
   if (t.reason) return finish('REFUSED', t.step, { reason_code: t.reason, terminal: { state: 'REFUSED' } });
