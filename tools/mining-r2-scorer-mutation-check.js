@@ -125,7 +125,7 @@ function main(argv) {
     const dirty = execFileSync('git', ['status', '--porcelain', '--', ...new Set(MUTANTS.map((x) => x.file))], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
     if (dirty) { process.stderr.write(`refusing to run: uncommitted changes in mutated files:\n${dirty}\n`); return 2; }
   } catch { if (!head) { process.stderr.write('not a git checkout: pass --head <sha>\n'); return 2; } }
-  const base = runTests(TESTS);
+  const base = runTests([...new Set(MUTANTS.flatMap((x) => x.tests))]);
   if (base.status !== 0) { process.stderr.write(`baseline is not green: ${JSON.stringify(base.failing)}\n`); return 2; }
   const results = [];
   for (const x of MUTANTS.filter((y) => !only || only.has(y.id))) {
