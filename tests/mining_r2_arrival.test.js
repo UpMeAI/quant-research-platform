@@ -550,6 +550,14 @@ test('AR15 readiness (plan-coord condition iii): the exporter\'s READINESS.json 
   const wrongTo = mk(); rechain(wrongTo, (rs) => rs.map((r) => (r.kind === 'DAY' && r.seq === 1 ? { ...r, window_to: `${addDays(DAYS[0], 2)}T09:00:00+08:00` } : r)));
   assert.throws(() => A().verifyChain(wrongTo), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:WINDOW/), 'an upper bound that is not the next open day');
   // an edited record without re-chaining is a hash mismatch
+  const wrongLast = mk(); rechain(wrongLast, (rs) => rs.map((r) => (r.kind === 'DAY' && r.seq === 2 ? { ...r, window_to: `${addDays(DAYS[1], 2)}T09:00:00+08:00` } : r)));
+  assert.throws(() => A().verifyChain(wrongLast), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:WINDOW/), 'the last row\'s upper bound is not the calendar\'s next open day');
+  // a calendar that ends with the day knows no next open day (R1\'s sealed calendar ends 2026-12-31): the upper bound only has to be a later 09:00+08
+  const endCal = (win) => { const d = sealedDir(); const s = A().csvDayDropSource(dropRoot(DAYS.slice(0, 2), { [DAYS[1]]: { readiness: win } }, { calendar: calendarCsv(DAYS[1]) })); A().arrive({ dir: d, source: s }); A().arrive({ dir: d, source: s }); return { d, s }; };
+  const okEnd = endCal({ window_to: `${addDays(DAYS[1], 3)}T09:00:00+08:00` });
+  assert.equal(A().arrive({ dir: okEnd.d, source: okEnd.s }).day, DAYS[1]);
+  const sameDay = endCal({ window_to: `${DAYS[1]}T09:00:00+08:00` });
+  assert.throws(() => A().arrive({ dir: sameDay.d, source: sameDay.s }), code(/MINE_RUNNER_ARRIVE_READINESS/), 'the upper bound is not after the day');
   const edited = mk(); fs.writeFileSync(path.join(edited, 'ARRIVAL_CHAIN_V1.jsonl'), chainOf(edited).map((r) => JSON.stringify(r.kind === 'DAY' && r.seq === 1 ? { ...r, readiness: { ...r.readiness, n_prices: 9999 } } : r)).join('\n') + '\n');
   assert.throws(() => A().verifyChain(edited), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:RECORD_HASH/));
 });
