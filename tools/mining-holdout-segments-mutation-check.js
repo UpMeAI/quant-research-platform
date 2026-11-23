@@ -24,7 +24,8 @@ const CLI = 'services/mining-sandbox/round-runner/cli.js';
 const SH = 'deploy/research-lane/round-runner/run.sh';
 
 /** Each mutant: `find` occurs exactly once in `file`, replaced by `replace`; `tests` are the files that must go red. */
-const m = (id, guard, file, find, replace) => ({ id, guard, file, find, replace, tests: [T] });
+const T2 = 'tests/mining_cna_open_rounds_dec.test.js';
+const m = (id, guard, file, find, replace, tests = [T]) => ({ id, guard, file, find, replace, tests });
 const MUTANTS = [
   m('H01', 'R1 serves 2026-11 and earlier only', REG, "months: Object.freeze({ from: null, to: '2026-11' })", "months: Object.freeze({ from: null, to: '2026-12' })"),
   m('H02', 'R2 serves 2026-12 onwards', REG, "months: Object.freeze({ from: '2026-12', to: null })", "months: Object.freeze({ from: '2027-01', to: null })"),
@@ -64,6 +65,16 @@ const MUTANTS = [
   m('H36', 'run.sh defaults to R1', SH, '"${RF1116_HOLDOUT_SEGMENT:-R1}" in', '"${RF1116_HOLDOUT_SEGMENT:-R2}" in'),
   m('H37', 'run.sh refuses an unknown segment', SH, '*) echo "run.sh: unknown RF1116_HOLDOUT_SEGMENT: ${RF1116_HOLDOUT_SEGMENT} (R1 or R2)" >&2; exit 64 ;;', '*) ;;'),
   m('H38', 'the cited R2 page sha is checked against the repo copy', REG, "sha256: 'b97f9916b20ba5a6ba8c8db8e5a6e5e750578a02c6635c812d4bbd2b01993dab',", "sha256: 'b97f9916b20ba5a6ba8c8db8e5a6e5e750578a02c6635c812d4bbd2b01993dac',"),
+  // amendment 2026-12: the narrow exception to the unclosed-round limit (tests/mining_cna_open_rounds_dec.test.js)
+  m('H39', 'the exception is for 2026-12 only', RRC, "market: 'CN_A', month: '2026-12', open_rounds_per_market: 4, segment: 'R2',", "market: 'CN_A', month: '2027-01', open_rounds_per_market: 4, segment: 'R2',", [T2]),
+  m('H40', 'the exception allows exactly 4', RRC, "market: 'CN_A', month: '2026-12', open_rounds_per_market: 4, segment: 'R2',", "market: 'CN_A', month: '2026-12', open_rounds_per_market: 5, segment: 'R2',", [T2]),
+  m('H41', 'the exception is for rounds assigned to R2 only', RRC, 'e.market === market && e.month === month && e.segment === segmentId', 'e.market === market && e.month === month', [T2]),
+  m('H42', 'the exception is for CN_A only', RRC, 'e.market === market && e.month === month && e.segment === segmentId', 'e.month === month && e.segment === segmentId', [T2]),
+  m('H43', 'the exception does not roll over (month is matched)', RRC, 'e.market === market && e.month === month && e.segment === segmentId', 'e.market === market && e.segment === segmentId', [T2]),
+  m('H44', 'a round on the R1 window counts as R1 even when given explicitly', RRC, "const assigned = auto ? entry.id : ((holdoutSegments.entryOfBlock(holdout) || {}).id || null);", "const assigned = 'R2';", [T2]),
+  m('H45', 'openRound uses the exception table', RRC, 'need(stillOpen < openRoundsLimitOf(o.market, month, assigned),', 'need(stillOpen < LIMITS.open_rounds_per_market,', [T2, T]),
+  m('H46', 'the cited ruling page sha is checked against the repo copy', RRC, "sha256: '884fd0f8fb65ef1735cfa5a623d3476780dc915f1e3d534cc0da91fb7da453ca',", "sha256: '884fd0f8fb65ef1735cfa5a623d3476780dc915f1e3d534cc0da91fb7da453cb',", [T2]),
+  m('H47', 'LIMITS.open_rounds_per_market stays 2 for everything else', RRC, 'pause_after_failed_rounds: 3, open_rounds_per_market: 2,', 'pause_after_failed_rounds: 3, open_rounds_per_market: 3,', [T2]),
 ];
 
 function listFailures(out) {

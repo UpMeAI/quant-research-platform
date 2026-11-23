@@ -52,6 +52,22 @@ const monthlyCapOf = (market, month) => {
   const x = MONTHLY_CAP_EXCEPTIONS.find((e) => e.market === market && e.month === month);
   return x ? x.rounds_per_month : LIMITS.rounds_per_month;
 };
+/**
+ * 未关闭的轮的上限的例外（RF1116 修订 2026-12 FREEZE_1，plan-coord 裁定 (a)，2026-11-23 12:12 CST 冻结）：只有 2026-12 这一个月（北京时间），A 股（CN_A）可以有 4 个未关闭的轮
+ * （两个等第一段留出段打分的 11 月轮，加两个 12 月轮），而且多出的两个名额只给分配到第二段（R2）的轮。其余一律 LIMITS.open_rounds_per_market（2）：11 月的轮、
+ * 分配到 R1 的轮、2027-01、别的市场。到期不顺延：第一段 2027 年打分、两个 11 月轮关闭之后上限回到 2，2027-01 的新轮没有例外。页引用同 MONTHLY_CAP_EXCEPTIONS
+ * （path / sha256 / repo_copy；副本在 docs/freeze/，在 tests/mining_gate_freeze.test.js 的 FROZEN_COPIES 名单里）。
+ */
+const OPEN_ROUNDS_EXCEPTIONS = Object.freeze([Object.freeze({
+  market: 'CN_A', month: '2026-12', open_rounds_per_market: 4, segment: 'R2',
+  amendment: Object.freeze({ path: 'artifacts/coordinator/RF1116_AMENDMENT_2026_12_CN_A_OPEN_ROUNDS_FREEZE_1.md', sha256: '884fd0f8fb65ef1735cfa5a623d3476780dc915f1e3d534cc0da91fb7da453ca',
+    repo_copy: 'docs/freeze/RF1116_AMENDMENT_2026_12_CN_A_OPEN_ROUNDS_FREEZE_1.md' }),
+})]);
+/** 这一轮（市场、开轮月份、分配到的留出段号；没有登记段的窗口是 null）最多可以和多少个未关闭的轮同时存在。 */
+const openRoundsLimitOf = (market, month, segmentId) => {
+  const x = OPEN_ROUNDS_EXCEPTIONS.find((e) => e.market === market && e.month === month && e.segment === segmentId);
+  return x ? x.open_rounds_per_market : LIMITS.open_rounds_per_market;
+};
 /** 裁定页的仓库副本放在这里（车道上照它核，不读协调目录）。 */
 const FREEZE_DIR = path.join(__dirname, '..', '..', 'docs', 'freeze');
 const SHA64 = /^[0-9a-f]{64}$/;
@@ -212,7 +228,8 @@ function openRound(o = {}) {
     } else need(o.holdout.from > lastEnd, 'MINE_ROUND_HOLDOUT_MOVED', `${o.holdout.from}..${o.holdout.to} vs ${latest.from}..${latest.to}`);
   }
   const stillOpen = prior.filter((r) => !TERMINAL.includes(r.status)).length;
-  need(stillOpen < LIMITS.open_rounds_per_market, 'MINE_ROUND_ALREADY_OPEN', `${o.market}:${stillOpen}`);
+  const assigned = auto ? entry.id : ((holdoutSegments.entryOfBlock(holdout) || {}).id || null); // 分配到的登记段（旧路径给的窗口等于 R1 窗口也算 R1）
+  need(stillOpen < openRoundsLimitOf(o.market, month, assigned), 'MINE_ROUND_ALREADY_OPEN', `${o.market}:${stillOpen}`);
   need(prior.filter((r) => r.month === month).length < monthlyCapOf(o.market, month), 'MINE_ROUND_MONTHLY_CAP', `${o.market}:${month}`);
   const pause = pauseState(o.market);
   if (pause.paused) need(!pause.spaces_used.includes(o.space.sha256), 'MINE_MARKET_PAUSED', `${o.market}:${pause.failed_rounds.join(',')}`);
@@ -463,6 +480,6 @@ function generatorView(roundId) {
   });
 }
 
-module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, MONTHLY_CAP_EXCEPTIONS, monthlyCapOf, monthCst, TERMINAL, FAILED_TERMINAL, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf,
+module.exports = { SCHEMA, LEDGER, SELECTION_SCHEMA, SELECTIONS, MARKETS, GENERATORS, LIMITS, MONTHLY_CAP_EXCEPTIONS, monthlyCapOf, OPEN_ROUNDS_EXCEPTIONS, openRoundsLimitOf, monthCst, TERMINAL, FAILED_TERMINAL, MiningRoundError, openRound, recordCandidate, recordSelection, selectionOf,
   beginScoring, closeRound, failRescore, failPartial, failEvaluation, recordResumeCheck,
   roundHead, roundsOf, pauseState, familyN, generatorView, manifestSha, LLM_CALLS, llmCalls, recordLlmCall, llmState, llmUsage };
