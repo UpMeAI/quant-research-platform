@@ -102,9 +102,18 @@ function describeSample(joined, { windows = [], sessionGap = null } = {}) {
  * A closed list of patterns, not a proof that every wording is caught: wordings outside it (for example 观测值 144, 'size of the sample: 144') are NOT covered; see the doc.
  */
 const SAMPLE_PATTERNS = Object.freeze([
-  /样本量/, /样本\s*(容量|规模|个数|数|大小)/, /样本\s*[是为:：=＝]?\s*\d/, /\d+\s*(个|条|笔)?\s*(独立|有效)?\s*(样本|观测)/, /观测\s*(数|个数|量)\s*[是为:：=＝]?\s*\d/,
-  /\d+\s*(independent\s+|effective\s+)?(observations?|samples?)\b/i, /(sample|observation)s?\s*(size|count|number)?\s*(is|are|of|=|:)?\s*\d/i, /number\s+of\s+(samples|observations)/i,
-  /effective\s*(sample|n)\b/i, /有效\s*N(?![A-Za-z/])/i, /(^|[^A-Za-z0-9/_])N(?![A-Za-z0-9/_])/, /(^|[^A-Za-z0-9/_])n(?![A-Za-z0-9/_])[^\n]*\d/,
+  /样本量/,
+  /样本\s*(容量|规模|个数|数|大小)/,
+  /样本\s*[是为:：=＝]?\s*\d/,
+  /\d+\s*(个|条|笔)?\s*(独立|有效)?\s*(样本|观测)/,
+  /观测\s*(数|个数|量)\s*[是为:：=＝]?\s*\d/,
+  /\d+\s*(independent\s+|effective\s+)?(observations?|samples?)\b/i,
+  /(sample|observation)s?\s*(size|count|number)?\s*(is|are|of|=|:)?\s*\d/i,
+  /number\s+of\s+(samples|observations)/i,
+  /effective\s*(sample|n)\b/i,
+  /有效\s*N(?![A-Za-z/])/i,
+  /(^|[^A-Za-z0-9/_])N(?![A-Za-z0-9/_])/,
+  /(^|[^A-Za-z0-9/_])n(?![A-Za-z0-9/_])[^\n]*\d/,
 ]);
 const mentionsSampleSize = (line) => SAMPLE_PATTERNS.some((re) => re.test(line));
 /** The one line a sample size may appear on: the number (or N/A) and its clustering method together. */
