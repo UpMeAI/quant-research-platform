@@ -14,7 +14,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
-const { spawnSync } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const DIR = path.join(__dirname, '..', 'deploy/research-lane/r2-day-export');
 const SH = path.join(DIR, 'r2-day-export.sh');
@@ -86,7 +86,9 @@ function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail
   const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, STUB_IND_ROWS: indRows, R2EXP_NOW: '2027-04-30T16:00:00+08:00' };
   const run = (args, extra = {}) => { const r = spawnSync('bash', [SH, ...args], { env: { ...env, ...extra }, encoding: 'utf8' }); return { status: r.status, out: r.stdout, err: r.stderr }; };
   const statements = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n----\n').filter(Boolean) : []);
-  return { root, drop, run, statements, log, dockerLog: path.join(root, 'docker.log') };
+  // start: the same run as a child process (for the tests that need two runs at once or a killed one)
+  const start = (args, extra = {}) => spawn('bash', [SH, ...args], { env: { ...env, ...extra } });
+  return { root, drop, run, start, statements, log, dockerLog: path.join(root, 'docker.log') };
 }
 /** A sql/<stem>.sql template with its placeholders filled in (comment lines dropped): the same rendering the script does, written separately. */
 const renderSql = (stem, day, lower, upper) => fs.readFileSync(path.join(DIR, 'sql', `${stem}.sql`), 'utf8').split('\n').filter((l) => !l.startsWith('--')).join('').trim().replace(/@DAY@/g, day).replace(/@LOWER@/g, lower).replace(/@UPPER@/g, upper);
@@ -452,4 +454,37 @@ test('DX19 modes at rest: dropped day directories 0750 and files 0640 (umask 027
   const inst = fs.readFileSync(path.join(DIR, 'INSTALL.md'), 'utf8');
   assert.match(inst, /install -d -m 0750 [^\n]*holdout-daydrop\/R1[^\n]*holdout-daydrop\/R2/);
   assert.ok(!/install -d -m 0755 [^\n]*holdout-daydrop/.test(inst));
+});
+
+const closed = (p) => new Promise((resolve) => p.on('close', resolve));
+const nap = (ms) => new Promise((r) => setTimeout(r, ms));
+test('DX20 exporter lock (the same mechanism as the arrival lock): two runs at once = the second does nothing (EXPORT_LOCKED, exit 0); released at exit and on error; a run killed with SIGKILL leaves its lock, which blocks for a bounded time only (an aged lock is taken over)', async () => {
+  const sb = sandbox({ ready: ['2026-11-18'], sleep: '3' });
+  const lockDir = path.join(sb.drop, '.r2-day-export.lock');
+  const first = sb.start(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_TIMEOUT: '30' });
+  await nap(1500);
+  assert.ok(fs.existsSync(lockDir), 'the first run holds the lock inside its slow query');
+  const second = sb.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '' });
+  assert.equal(second.status, 0); assert.match(second.out, /EXPORT_LOCKED/);
+  assert.equal(fs.existsSync(path.join(sb.drop, 'R1', '20261118')), false, 'the second run exported nothing');
+  await closed(first);
+  assert.equal(fs.existsSync(lockDir), false, 'released at exit');
+  assert.ok(fs.existsSync(dayDir(sb, 'R1', '2026-11-18')), 'the first run finished its day');
+  // released on an error exit too
+  const bad = sandbox({ ready: ['2026-11-18'], fail: 'copy' });
+  assert.equal(bad.run(['--segment', 'R1', '--day', '2026-11-18']).status, 2);
+  assert.equal(fs.existsSync(path.join(bad.drop, '.r2-day-export.lock')), false);
+  // SIGKILL: no trap runs, the lock stays; a fresh one blocks, an aged one is taken over
+  const sb2 = sandbox({ ready: ['2026-11-18'], sleep: '4' });
+  const lock2 = path.join(sb2.drop, '.r2-day-export.lock');
+  const victim = sb2.start(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_TIMEOUT: '30' });
+  await nap(1500); victim.kill('SIGKILL'); await closed(victim);
+  assert.ok(fs.existsSync(lock2), 'a killed run cannot release its lock');
+  assert.match(sb2.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '' }).out, /EXPORT_LOCKED/, 'fresh: blocked (bounded)');
+  const old = new Date(Date.now() - 2 * 3600e3); fs.utimesSync(lock2, old, old);
+  const take = sb2.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '' });
+  assert.equal(take.status, 0, take.err); assert.match(take.out, /EXPORTED:2026-11-18/);
+  assert.equal(fs.existsSync(lock2), false);
+  const inst = fs.readFileSync(path.join(DIR, 'INSTALL.md'), 'utf8');
+  assert.match(inst, /\.r2-day-export\.lock[^\n]*(60 minutes|one hour|3600)/i);
 });

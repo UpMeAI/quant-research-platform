@@ -220,6 +220,10 @@ const MUTANTS = [
   m('D41', 'export: timeout -k', DX, 'timeout -k 10 "$t" docker exec', 'timeout "$t" docker exec', [T_DX]),
   m('D42', 'export: umask 027 (dirs 0750, files 0640)', DX, 'umask 027', 'umask 022', [T_DX]),
   m('D43', 'export unit: a hard limit for the run', 'deploy/research-lane/r2-day-export/r2-day-export.service', 'TimeoutStartSec=2400', 'TimeoutStartSec=24000', [T_DX]),
+  m('D44', 'export lock: an aged lock (a killed run) is taken over', DX, 'LOCK_STALE_S=3600', 'LOCK_STALE_S=360000000', [T_DX]),
+  m('D45', 'export lock: a fresh lock is respected', DX, 'LOCK_STALE_S=3600', 'LOCK_STALE_S=0', [T_DX]),
+  m('D46', 'export lock: released at exit', DX, "trap 'rmdir \"$LOCK_DIR\" 2>/dev/null || true' EXIT", ':', [T_DX]),
+  m('D47', 'export lock: one export at a time', DX, 'if ! mkdir "$LOCK_DIR" 2>/dev/null; then', 'if false; then', [T_DX]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }
