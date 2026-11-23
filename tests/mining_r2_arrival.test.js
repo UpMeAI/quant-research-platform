@@ -246,7 +246,7 @@ test('AR8 the calendar can be updated later: new or changed rows arrive as a dat
   assert.equal(chainOf(dir).filter((x) => x.kind === 'DAY').length, 5);
   assert.equal(A().verifyChain(dir).days.length, 5);
   // the same calendar again: nothing to deliver
-  assert.equal(A().arrive({ dir, source: src2, arrivedAt: '2027-01-09T20:30:00+08:00' }).status, 'NOT_YET');
+  assert.equal(A().arrive({ dir, source: src2, arrivedAt: '2027-01-09T20:30:00+08:00' }).status, 'NOT_AVAILABLE', 'no calendar delta; the next day is not dropped yet');
   // a revised calendar that closes an arrived day is refused (the chain would no longer fit the calendar); nothing is written
   const closes = `${calendarCsv()}${DAYS[1]},A_SHARE,SSE,f,,2027-01-09 08:00:00+08,2027-01-09 08:00:00+08,cal:${DAYS[1]}:2,2,synthetic-v1,READY\n`;
   const snap = snapshot(dir);
@@ -285,22 +285,22 @@ test('AR9 PG_PSQL driver: the spec\'s queries per day (read-only, parameterised 
   assert.equal(asked.length, 1 + 6);
   const emptyPrices = a.pgDaySource({ run: (sql) => Buffer.from(/prices_daily/.test(sql) ? `${HEADERS.prices_daily_stock}\n` : dayTexts('2027-01-04').security_master_stock) });
   assert.equal(emptyPrices.day('2027-01-04'), null, 'no prices yet = the day is not available');
-  // the same core accepts it
-  const dir = sealedDir(); drain(dir, src);
-  assert.equal(a.verifyChain(dir).days.length >= 1, true);
+  // the same core accepts it (calendar, then the first day; the stub returns day 2027-01-04 for every query)
+  const dir = sealedDir(); a.arrive({ dir, source: src }); assert.equal(a.arrive({ dir, source: src }).day, '2027-01-04');
+  assert.deepEqual(a.verifyChain(dir).days, ['2027-01-04']);
 });
 
 test('AR10 CLI r2-arrive and run.sh: the arrival is a command that loops until nothing is left, reads the window end from the resolution record, and its container is the only one that writes the R2 directory', () => {
   const cli = require('../services/mining-sandbox/round-runner/cli');
   assert.ok(cli.OPTIONS['r2-arrive']);
-  for (const o of ['out', 'holdout', 'driver', 'source', 'arrived-at']) assert.ok(cli.OPTIONS['r2-arrive'].includes(o), o);
+  for (const o of ['holdout', 'driver', 'source', 'arrived-at']) assert.ok(cli.OPTIONS['r2-arrive'].includes(o), o);
   const sh = fs.readFileSync(path.join(__dirname, '..', 'deploy/research-lane/round-runner/run.sh'), 'utf8');
   assert.match(sh, /^  r2-arrive\)/m);
   const line = sh.split('\n').find((l) => l.includes('--name "rf1116-r2-arrive"'));
   assert.ok(line, 'the container line');
-  for (const f of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '-v "$HOLDOUT:/data/holdout:rw"', '-v "$DAYDROP:/data/daydrop:ro"', '-v "$OUT:/out:rw"', 'r2-arrive --out /out']) assert.ok(line.includes(f), f);
+  for (const f of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '-v "$HOLDOUT:/data/holdout:rw"', '-v "$DAYDROP:/data/daydrop:ro"', '-v "$OUT:/out:ro"', 'r2-arrive --holdout /data/holdout --driver csv-day-drop --source /data/daydrop']) assert.ok(line.includes(f), f);
   assert.ok(!line.includes('/data/lane') && !line.includes('$FACTOR_SERIES'), 'it sees no other data');
-  assert.match(sh, /^DAYDROP="\$LANE\/r2-daydrop"$/m);
+  assert.match(sh, /^DAYDROP="\$LANE\/r2-daydrop"/m);
   // every other container keeps the sealed directory read-only
   for (const l of sh.split('\n').filter((x) => /^\s*docker run /.test(x) && !x.includes('rf1116-r2-arrive'))) assert.ok(!l.includes('$HOLDOUT:/data/holdout:rw'), l.slice(0, 80));
 });

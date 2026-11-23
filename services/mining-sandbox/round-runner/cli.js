@@ -42,6 +42,7 @@ const OPTIONS = Object.freeze({
   rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256'],
   'fail-evaluation': ['out', 'round', 'reason', 'evidence-sha256', 'failed-at'],
   'resolve-segment': ['out', 'segment', 'holdout', 'resolved-at'],
+  'r2-arrive': ['holdout', 'driver', 'source', 'arrived-at'],
 });
 
 function parseArgs(argv) {
@@ -159,6 +160,25 @@ function main(argv) {
     const row = require('../../mining-rounds').failEvaluation(o.round, { reason: o.reason, evidenceSha256: o['evidence-sha256'], failedAt: o['failed-at'] || null });
     return { command: 'fail-evaluation', round_id: o.round, status: row.status, gmine_passes: row.gmine_passes, evidence_sha256: row.gmine_basis.failed_evaluation.evidence_sha256,
       attempts: row.gmine_basis.failed_evaluation.attempts, record_hash: row.record_hash, closed_at: row.closed_at };
+  }
+  if (cmd === 'r2-arrive') {
+    // RF1116 R2 data arrival (services/.../arrival.js): the only writer of the R2 directory. It is NOT a sandboxed run: it writes the R2 directory (the one thing it may write) and
+    // only READS the ledger (the resolution record gives the window end). Loops until nothing is left to do, so a daily timer catches up after a missed day.
+    required(o, ['holdout', 'driver']);
+    const arrival = require('./arrival');
+    let source;
+    if (o.driver === 'csv-day-drop') { required(o, ['source']); source = arrival.csvDayDropSource(o.source); } else if (o.driver === 'pg-psql') source = arrival.pgDaySource({ run: arrival.psqlRunner() });
+    else throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `r2-arrive --driver ${o.driver}`);
+    const rec = require('../../mining-rounds/segment-resolution').resolutionOf('R2');
+    const windowEnd = rec ? rec.window.to : null;
+    const rows = []; let last = null;
+    for (let i = 0; i < 500; i += 1) {
+      last = arrival.arrive({ dir: o.holdout, source, arrivedAt: o['arrived-at'] || null, windowEnd, startAfter: rec ? rec.rule.start_after : undefined });
+      if (last.status !== 'ARRIVED') break;
+      rows.push(last.kind === 'DAY' ? last.day : 'CALENDAR');
+    }
+    const v = require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE)) ? arrival.verifyChain(o.holdout, { startAfter: rec ? rec.rule.start_after : undefined }) : null;
+    return { command: 'r2-arrive', status: last.status, what: last.what === undefined ? null : last.what, arrived: rows, last_day: v ? v.last_day : null, chain_head: v ? v.head_hash : null, window_end: windowEnd };
   }
   if (cmd === 'resolve-segment') {
     // RF1116 第二段修订：从留出段目录的上交所日历解出这一段的窗口，写一行解析记录（读了哪份日历、数出哪些日子）；日历还没列够 → status NOT_READY，什么都不写，退出码 0（定时器再来）
