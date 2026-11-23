@@ -37,12 +37,16 @@ test('R-6 labels join to the panel only by candidateId and panelRecordHash: a re
   assert.deepEqual(ok.map((j) => [j.candidateId, j.state, j.panel.securityId]), record.rows.map((r) => [r.candidateId, 'VALUE', r.securityId]));
   assert.equal(ok[0].panel.sessionDate, '2026-11-02');
 
-  const bad = panel.joinLabels({ labels: store.rows(), panelRecords: [fx.tampered(record)] });
+  // the record was written again with another output: same candidateId, another recordHash
+  const bad = panel.joinLabels({ labels: store.rows(), panelRecords: [fx.rewritten(record)] });
   for (const j of bad) {
     assert.deepEqual([j.state, j.reasonCode], ['UNKNOWN', 'PANEL_RECORD_MISMATCH']);
     assert.equal(RETURN_KEYS.some((k) => k in j || k in j.label), false, 'a mismatched label shows no return');
     assert.equal(j.mismatchDetail, 'RECORD_HASH_DIFFERS');
   }
+  // content changed under a stale hash field: the stated hash would match the label, the recomputed one does not
+  const stale = panel.joinLabels({ labels: store.rows(), panelRecords: [fx.tampered(record)] });
+  for (const j of stale) assert.deepEqual([j.state, j.reasonCode, j.mismatchDetail], ['UNKNOWN', 'PANEL_RECORD_MISMATCH', 'RECORD_CONTENT_HASH_INVALID']);
   // same security, same date, different evaluation (different evaluatedAt => different ids): the labels do not move onto it
   const other = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T08:00:00.000Z', candidates: SECURITIES.map((securityId) => ({ securityId })) });
   assert.notEqual(other.rows[0].candidateId, record.rows[0].candidateId);

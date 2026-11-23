@@ -46,8 +46,10 @@ function panelRecord({ producer = 'ASHARE_V6', market = 'CN', book = 'CN_STOCK',
   return rec;
 }
 
-/** The same record with one byte of content changed and the hash field left as it was written (a record that no longer matches its label). */
+/** The same record with one byte of content changed and the hash field left as it was written (content that no longer matches its own stated hash). */
 const tampered = (rec) => ({ ...rec, rows: rec.rows.map((r, i) => (i === 0 ? { ...r, rawScore: { name: 'score', value: 2 } } : r)) });
+/** The same candidates written again with a different output and a freshly computed hash (the label was computed against the earlier version: same candidateId, other recordHash). */
+const rewritten = (rec) => { const next = tampered(rec); next.recordHash = recordHashOf(next); return next; };
 
 const CN_CLOSE_AVAILABLE = (date) => `${date}T07:30:00.000Z`;
 
@@ -63,4 +65,4 @@ function setCnW1(provider, instrument, open, close) {
   return provider;
 }
 
-module.exports = { sha, panelRecord, candidateRow, tampered, recordHashOf, cnProvider, setCnW1, CN_CLOSE_AVAILABLE, fixtureProvider };
+module.exports = { sha, panelRecord, candidateRow, tampered, rewritten, recordHashOf, cnProvider, setCnW1, CN_CLOSE_AVAILABLE, fixtureProvider };
