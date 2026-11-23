@@ -504,7 +504,7 @@ function select({ roundId, sources, outDir, accessLog = null }) {
  *     导出规格 rev 3 的日历每次都是整段（到 2026-12-31），所以不能只看日历。
  * 核过才把目录交给面板；任何一条不过都在开启之前拒绝，那一次开启不被耗掉。
  */
-function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null, deferredSeal = false, anchors = null, startAfter = arrivalChain.START_AFTER } = {}) {
+function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null, deferredSeal = false, anchors = null, startAfter = undefined, requireChain = false, segment = null } = {}) {
   need(Number.isInteger(minNamesPerDay) && minNamesPerDay >= 1, 'HOLDOUT_FLOOR_INVALID', minNamesPerDay);
   need(seal && SHA64_RE.test(seal.data_sha256 || '') && seal.segment && seal.segment.from && seal.segment.to, 'NOT_SEALED');
   need(dir && fs.existsSync(path.join(dir, 'SHA256SUMS')), 'HOLDOUT_DIR_INVALID', dir);
@@ -555,7 +555,7 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   need(days.length, 'HOLDOUT_INCOMPLETE', 'trading_calendar.csv:no open day');
   // R2: the data arrived through the arrival program, so the whole chain must verify (a gap, an edit or an out-of-order day = MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID, no re-run;
   // days that have not arrived yet = MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>). Before any row is read.
-  if (deferredSeal) arrivalChain.verifyChain(dir, { window: { from: seal.segment.from, to: seal.segment.to }, startAfter });
+  if (deferredSeal || requireChain) arrivalChain.verifyChain(dir, { segment: segment || (deferredSeal ? "R2" : "R1"), window: { from: seal.segment.from, to: seal.segment.to }, startAfter });
   // 复审 #127 P3-2：面板读的是「喂」这些决策日的交易日——每个决策日的前一个开市日（第一个决策日的前一天在验证尾段里），不是决策日本身；
   // 日线、复权因子另有决策日当天的执行价（标签），那一份不看截止。P1-1：LIVE 截止与面板同一个函数（adapter.liveCutoffs）。
   const k0 = openAll.indexOf(days[0]);
@@ -698,7 +698,7 @@ function verifyHoldoutDir(roundId, dir, opts = {}) {
   const win = given || windowOrFail(rounds.roundHead(roundId));
   const deferredSeal = win.segment !== null;
   const rec = deferredSeal ? segmentResolution.resolutionOf(win.segment) : null;
-  return { ...holdoutDirCheck(dir, { ...seal, segment: { from: win.from, to: win.to } }, { ...rest, deferredSeal, anchors: deferredSeal ? r1AnchorsOf() : null, ...(rec ? { startAfter: rec.rule.start_after } : {}) }), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
+  return { ...holdoutDirCheck(dir, { ...seal, segment: { from: win.from, to: win.to } }, { ...rest, deferredSeal, segment: win.segment, anchors: deferredSeal ? r1AnchorsOf() : null, ...(rec ? { startAfter: rec.rule.start_after } : {}) }), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
 }
 /**
  * R1's recorded medians, the anchor of an R2 directory check (RF1116 R2: no sealed data rows to anchor on): the FIRST R1 holdout-open row of this market that carries them
@@ -761,7 +761,7 @@ function reviewedMechanisms(roundId, selRow, before, { strict = true } = {}) {
  * 开启之前的一切（第一次打分与 R1.8 的重打分共用）：选择记录与 selection.json、现有因子序列、留出段目录的核对、机制登记与协调会话的复审、
  * 以及这次打分的全部输入的 sha（inputs_sha256：重打分要与开启时一样）。不写任何东西。reviewBefore：复审必须早于它（默认现在）。
  */
-function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore = null, fieldExclusions = null, window: win = null }) {
+function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore = null, fieldExclusions = null, window: win = null, requireChain = false }) {
   win = win || windowOrFail(rounds.roundHead(roundId));
   for (const s of sources) need(!s.holdout, 'HOLDOUT_PASSED_AS_SOURCE', s.label);
   const dir = runDir(outDir, roundId);
@@ -780,7 +780,7 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
   const factorSeries = factorSeriesDir ? require('../factor-series').loadFactorSeries(factorSeriesDir) : null;
   // 复审 #127 P3-2：第一个决策日的前一个交易日在验证尾段（LIVE 源）里，一并核；字段排除文件（有就用，sha 钉住）
   const exclusions = fieldExclusions ? loadFieldExclusions(fieldExclusions.file, fieldExclusions.sha256, roundId) : null;
-  const checked = selRow.selected.length ? verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: holdoutFloor.min_names_per_day, priorSources: sources, fieldExclusions: exclusions, window: win }) : null;
+  const checked = selRow.selected.length ? verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: holdoutFloor.min_names_per_day, priorSources: sources, fieldExclusions: exclusions, window: win, requireChain }) : null;
   // R1.5：开启之前写的机制登记（开启之后不能再写）
   const mechs = new Map(require('../../mining-rounds/mechanisms').mechanismsOf(roundId).map((m) => [m.candidate_id, m]));
   const reviewed = selRow.selected.length ? reviewedMechanisms(roundId, selRow, reviewBefore || now(), { strict: Boolean(reviewBefore) }) : null;
@@ -860,7 +860,7 @@ function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenI
  * 第 6–8 步：核留出段目录 → holdout-vault.open（每轮一次，记下选择记录的 hash 与 inputs_sha256）→ 只经 holdout-scoring 打分 → 每个候选 recordGateResult。
  * 没有候选过验证折：不开留出段，返回 { opened: false }（关轮记 0）。holdoutFloor 默认 HOLDOUT_FLOOR（每天 4,000 只；测试可以压低，压低的数写进开启记录）。
  */
-function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null, grantCtx = {} }) {
+function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null, grantCtx = {}, requireChain = false }) {
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
@@ -868,7 +868,7 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
   need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
   const win = windowOrFail(r);
   if (accessLog) assertHoldoutDate(scoredAt, win); // W24：挖掘候选的留出段 2027-01-01T00:00+08:00 之前不读（RF1116）；R2 要等到窗口终点的次日
-  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, fieldExclusions, window: win });
+  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, fieldExclusions, window: win, requireChain });
   if (!p.selRow.selected.length) { writeJson(path.join(p.dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
   const c = p.checked;
   if (accessLog) takeHoldoutReads({ roundId, selected: p.selRow.selected, formulas: p.formulas, accessLog, grantCtx, window: win }); // 核对都过了、开启之前：每个候选一次授权 + 一行记录
@@ -889,7 +889,7 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
  *     释放名额，留出段开启照旧计数），拒绝（MINE_RUNNER_RESCORE_RECORDS_EXIST）；
  *   之后任何打分或重打分 → MINE_RUNNER_ROUND_FAILED_RESCORE / MINE_RUNNER_ROUND_FAILED_PARTIAL。
  */
-function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null }) {
+function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null, requireChain = false }) {
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
@@ -909,7 +909,7 @@ function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', score
     rounds.failPartial(roundId, { reason, logSha256: sha256(String(log || '')) });
     fail('RESCORE_RECORDS_EXIST', `${roundId}: ${written} G-MINE record(s) written before the crash, closed as FAILED_PARTIAL (R1.12)`);
   }
-  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore: open.opened_at, fieldExclusions, window: win }); // 复审要早于那一次开启
+  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore: open.opened_at, fieldExclusions, window: win, requireChain }); // 复审要早于那一次开启
   if (accessLog) accessLog.record({ principal: holdoutScorerPrincipal(), op: 'READ', dataset: 'HOLDOUT_RESCORE_SAME_OPEN', from: win.from, to: win.to }); // R1.8：同一次开启的重打分，不再领授权
   vault.recordRescore({ round_id: roundId, reason, log, inputs_sha256: p.inputs_sha256, rescoredBy: RUNNER_ID });
   faultAt('AFTER_RESCORE_EVENT');

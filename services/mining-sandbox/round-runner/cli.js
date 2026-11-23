@@ -36,13 +36,14 @@ const adapter = require('../data-adapter');
 const OPTIONS = Object.freeze({
   generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day', 'llm-poll-ms', 'llm-wait-seconds'],
   'llm-init': ['out'],
-  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256'],
+  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256', 'require-arrival-chain'],
   mechanisms: ['out', 'round', 'register'],
   review: ['out', 'round', 'file'],
-  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256'],
+  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256', 'require-arrival-chain'],
   'fail-evaluation': ['out', 'round', 'reason', 'evidence-sha256', 'failed-at'],
   'resolve-segment': ['out', 'segment', 'holdout', 'resolved-at'],
   'r2-arrive': ['holdout', 'driver', 'source', 'arrived-at'],
+  'holdout-arrive': ['holdout', 'segment', 'driver', 'source', 'arrived-at', 'check-complete'],
 });
 
 function parseArgs(argv) {
@@ -161,24 +162,35 @@ function main(argv) {
     return { command: 'fail-evaluation', round_id: o.round, status: row.status, gmine_passes: row.gmine_passes, evidence_sha256: row.gmine_basis.failed_evaluation.evidence_sha256,
       attempts: row.gmine_basis.failed_evaluation.attempts, record_hash: row.record_hash, closed_at: row.closed_at };
   }
-  if (cmd === 'r2-arrive') {
-    // RF1116 R2 data arrival (services/.../arrival.js): the only writer of the R2 directory. It is NOT a sandboxed run: it writes the R2 directory (the one thing it may write) and
-    // only READS the ledger (the resolution record gives the window end). Loops until nothing is left to do, so a daily timer catches up after a missed day.
-    required(o, ['holdout', 'driver']);
+  if (cmd === 'holdout-arrive' || cmd === 'r2-arrive') {
+    // RF1116 holdout data arrival (services/.../arrival.js): the only writer of an R1 / R2 holdout directory. It is NOT a sandboxed run: it writes that directory (the one thing it may write)
+    // and only READS the ledger (the resolution record gives R2's window end). Loops until nothing is left to do, so a daily timer catches up after a missed day.
+    // `r2-arrive` is the R2 command as first built; `holdout-arrive --segment R1|R2` serves both.
+    const segment = cmd === 'r2-arrive' ? 'R2' : o.segment;
+    required(o, cmd === 'r2-arrive' ? ['holdout', 'driver'] : ['holdout', 'segment']);
     const arrival = require('./arrival');
+    if (!arrival.PROFILES[segment]) throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `${cmd} --segment ${segment}`);
+    const rec = segment === 'R2' ? require('../../mining-rounds/segment-resolution').resolutionOf('R2') : null;
+    const windowEnd = segment === 'R2' ? (rec ? rec.window.to : null) : require('../segments').SEGMENTS.HOLDOUT.to;
+    const startAfter = rec ? rec.rule.start_after : undefined;
+    if (o['check-complete']) {
+      // read-only: the open days of the window that have not arrived; exit code 4 when some are missing (the timer alerts on it)
+      if (!windowEnd) return { command: 'holdout-arrive', segment, status: 'WINDOW_END_UNKNOWN', missing: [] };
+      const c = arrival.checkComplete({ dir: o.holdout, segment, windowEnd, startAfter });
+      return { command: 'holdout-arrive', segment, status: c.complete ? 'COMPLETE' : 'INCOMPLETE', window_end: windowEnd, last_day: c.last_day, missing: c.missing };
+    }
+    required(o, ['driver']);
     let source;
     if (o.driver === 'csv-day-drop') { required(o, ['source']); source = arrival.csvDayDropSource(o.source); } else if (o.driver === 'pg-psql') source = arrival.pgDaySource({ run: require('../../mining-rounds/arrival-psql').psqlRunner() });
-    else throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `r2-arrive --driver ${o.driver}`);
-    const rec = require('../../mining-rounds/segment-resolution').resolutionOf('R2');
-    const windowEnd = rec ? rec.window.to : null;
+    else throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `${cmd} --driver ${o.driver}`);
     const rows = []; let last = null;
     for (let i = 0; i < 500; i += 1) {
-      last = arrival.arrive({ dir: o.holdout, source, arrivedAt: o['arrived-at'] || null, windowEnd, startAfter: rec ? rec.rule.start_after : undefined });
+      last = arrival.arrive({ dir: o.holdout, segment, source, arrivedAt: o['arrived-at'] || null, windowEnd, startAfter });
       if (last.status !== 'ARRIVED') break;
       rows.push(last.kind === 'DAY' ? last.day : 'CALENDAR');
     }
-    const v = require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE)) ? arrival.verifyChain(o.holdout, { startAfter: rec ? rec.rule.start_after : undefined }) : null;
-    return { command: 'r2-arrive', status: last.status, what: last.what === undefined ? null : last.what, arrived: rows, last_day: v ? v.last_day : null, chain_head: v ? v.head_hash : null, window_end: windowEnd };
+    const v = require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE)) ? arrival.verifyChain(o.holdout, { segment, startAfter }) : null;
+    return { command: cmd, segment, status: last.status, what: last.what === undefined ? null : last.what, arrived: rows, last_day: v ? v.last_day : null, chain_head: v ? v.head_hash : null, window_end: windowEnd };
   }
   if (cmd === 'resolve-segment') {
     // RF1116 第二段修订：从留出段目录的上交所日历解出这一段的窗口，写一行解析记录（读了哪份日历、数出哪些日子）；日历还没列够 → status NOT_READY，什么都不写，退出码 0（定时器再来）
@@ -203,12 +215,12 @@ function main(argv) {
     required(o, ['reason', 'crash-log']);
     const log = require('fs').readFileSync(o['crash-log'], 'utf8');
     const rr = runner.rescore({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions, accessLog });
+      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions, accessLog, requireChain: o['require-arrival-chain'] === 'true' });
     const closedR = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
     return { command: 'rescore', round_id: o.round, rescored: rr.rescored, records: rr.records.length, passes: closedR.gmine_passes, status: closedR.status };
   }
   const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-    factorSeriesDir: o['factor-series'] || null, fieldExclusions, accessLog });
+    factorSeriesDir: o['factor-series'] || null, fieldExclusions, accessLog, requireChain: o['require-arrival-chain'] === 'true' });
   const closed = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };
 }
@@ -217,7 +229,7 @@ if (require.main === module) {
   try {
     const out = main(process.argv.slice(2));
     process.stdout.write(`${JSON.stringify(out)}\n`);
-    if (out.status === 'WAITING') process.exitCode = 75; else if (out.status === 'STOPPED') process.exitCode = 3;
+    if (out.status === 'WAITING') process.exitCode = 75; else if (out.status === 'STOPPED') process.exitCode = 3; else if (out.status === 'INCOMPLETE') process.exitCode = 4; // holdout-arrive --check-complete
   } catch (e) {
     process.stderr.write(`${JSON.stringify({ error: e.code || 'MINE_RUNNER_FAILED', message: e.message })}\n`);
     process.exitCode = 2;
