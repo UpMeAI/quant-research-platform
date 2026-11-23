@@ -24,7 +24,7 @@
 # R2EXP_PIT_CUTOFF=0 switches the rule off (plan-coord's call).
 set -euo pipefail
 export LC_ALL=C
-umask 022
+umask 027   # dropped data is a second copy of the holdout: dirs 0750, files 0640 (the lane user is in the exporting account's group), nothing world-readable at rest
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 SEGMENT=all; DAY=""
@@ -76,14 +76,17 @@ slot="$(slot_of "$START_EPOCH")"
 if [ "$slot" = DENY ]; then echo "OUTSIDE_SLOT: $(cst "$START_EPOCH" '%F %H:%M') CST is outside the allowed V6-window slots (weekdays 08:20-09:05, 15:40-18:05, 21:35-00:10); nothing done"; exit 0; fi
 DEADLINE="${slot#ALLOW }"
 
-# every statement goes through here, SQL on stdin: read-only session (PGOPTIONS passed into the container), no psqlrc, stop on the first error, a time limit (clamped to the end of the slot), no other docker verb
+# every statement goes through here, SQL on stdin: read-only session and a server-side statement_timeout (the same PGOPTIONS string, passed into the container: killing the docker client does not stop a running
+# statement), no psqlrc, stop on the first error, `timeout -k` (clamped to the end of the slot), no other docker verb
 pg() {
   local t="${R2EXP_TIMEOUT:-600}" left=$(( DEADLINE - $(now_epoch) ))
   [ "$left" -ge "$t" ] || t=$(( left > 1 ? left : 1 ))
-  timeout "$t" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "$R2EXP_PG_CONTAINER" sh -c 'u="$1"; d="$2"; shift 2; exec psql -X -q -v ON_ERROR_STOP=1 -U "$u" -d "$d" "$@"' sh "$R2EXP_PG_USER" "$R2EXP_PG_DB" "$@"
+  timeout -k 10 "$t" docker exec -i -e PGOPTIONS="-c default_transaction_read_only=on -c statement_timeout=$((t * 1000))" "$R2EXP_PG_CONTAINER" sh -c 'u="$1"; d="$2"; shift 2; exec psql -X -q -v ON_ERROR_STOP=1 -U "$u" -d "$d" "$@"' sh "$R2EXP_PG_USER" "$R2EXP_PG_DB" "$@"
 }
 addday() { date -u -d "$1 + $2 day" +%F; }
-ageof() { echo $(( ( $(date -u -d "$TODAY" +%s) - $(date -u -d "$1" +%s) ) / 86400 )); }
+# a day is "waiting too long" only more than STALE_DAYS (72 h) after ITS cutoff instant (09:00+08 of the next open day), never from the day itself: before the cutoff nothing can be exported (review 2026-11-23: a false
+# exit 4 on R1's last day and over every holiday closure). The wait for the cutoff itself is not stale.
+stale_after_cutoff() { [ -n "$nx" ] && [ $(( $(now_epoch) - $(date -d "$nx 09:00:00+08:00" +%s) )) -gt $(( STALE_DAYS * 86400 )) ]; }
 # a SQL template with @DAY@ @NEXT@ @LOWER@ filled in (comment lines dropped)
 render() {
   local t; t="$(grep -v '^--' "$HERE/sql/$1.sql" | tr -d '\n')"
@@ -137,13 +140,13 @@ export_segment() {
     if [ "$PIT_CUTOFF" = 1 ] && [ -n "$nx" ] && [ "$(now_epoch)" -lt "$(date -d "$nx 09:00:00+08:00" +%s)" ]; then cut=1; fi
     if [ "$cut" = 1 ]; then
       if [ -n "$DAY" ]; then echo "$seg REFUSED_BEFORE_CUTOFF:$D"; return 3; fi
-      echo "$seg WAITING_CUTOFF:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
+      echo "$seg WAITING_CUTOFF:$D"; continue
     fi
     if [ "$(now_epoch)" -ge "$DEADLINE" ]; then echo "$seg SLOT_ENDED:$D"; break; fi
     local ready; ready="$(pg -At -v "d=$D" -f - < "$READY_SQL")" || { echo "$seg PROBE_FAILED:$D" >&2; return 2; }
     if [ -z "$ready" ]; then
       if [ -n "$DAY" ]; then echo "$seg REFUSED_NOT_READY:$D"; return 3; fi
-      echo "$seg WAITING:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
+      echo "$seg WAITING:$D"; if stale_after_cutoff; then stale=1; fi; continue
     fi
     # the probe row: trade_date|ready_via|n_prices|n_basic|n_adj|n_cov; anything else is a failed probe (fail closed), not "not ready"
     local r_day r_via r_np r_nb r_na r_nc
@@ -156,7 +159,7 @@ export_segment() {
       [ -s "$tmp/$stem.csv" ] || { rm -rf "$tmp"; echo "$seg EXPORT_FAILED:$D:$stem:empty output" >&2; return 2; }
     done
     if [ "$(wc -l < "$tmp/prices_daily_stock.csv")" -le 1 ]; then
-      rm -rf "$tmp"; echo "$seg NOT_AVAILABLE:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
+      rm -rf "$tmp"; echo "$seg NOT_AVAILABLE:$D"; if stale_after_cutoff; then stale=1; fi; continue
     fi
     # the readiness record goes into the arrival-chain row (plan-coord condition iii): which rule made the day ready and the counts at probe time
     printf '{"schema":"R2_DAY_EXPORT_READINESS_RECORD_V1","trade_date":"%s","probe_sha256":"%s","ready_via":"%s","n_prices":%s,"n_basic":%s,"n_adj":%s,"n_cov":%s,"probed_at":"%s","window_from":"%s","window_to":"%s"}\n' "$D" "$(sha256sum "$READY_SQL" | cut -d' ' -f1)" "$r_via" "$r_np" "$r_nb" "$r_na" "$r_nc" "$(TZ=Asia/Shanghai date +%FT%T+08:00)" "${lower/ /T}:00" "${upper/ /T}:00" > "$tmp/READINESS.json"

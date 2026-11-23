@@ -2,6 +2,7 @@
 Description=RF1116 r2-day-export: read-only export of V6 trading days into the lane drop directory (R1 catch-up and R2)
 [Service]
 Type=oneshot
+TimeoutStartSec=2400
 EnvironmentFile=%h/.config/rf1116/r2-day-export.env
 Environment=DOCKER_HOST=unix:///run/user/%U/docker.sock
 ExecStart=/srv/research-lane/rf1116-mining/ops/r2-day-export/r2-day-export.sh --segment all

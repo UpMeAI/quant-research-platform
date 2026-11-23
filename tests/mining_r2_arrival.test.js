@@ -330,8 +330,10 @@ test('AR10 CLI r2-arrive and run.sh: the arrival is a command that loops until n
   for (const f of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '-v "$HOLDOUT:/data/holdout:rw"', '-v "$DAYDROP:/data/daydrop:ro"', '-v "$OUT:/out:ro"', 'holdout-arrive --segment "${RF1116_HOLDOUT_SEGMENT:-R1}" --holdout /data/holdout --driver csv-day-drop --source /data/daydrop']) assert.ok(line.includes(f), f);
   assert.ok(!line.includes('/data/lane') && !line.includes('$FACTOR_SERIES'), 'it sees no other data');
   assert.match(sh, /^DAYDROP="\$LANE\/holdout-daydrop\/\$\{RF1116_HOLDOUT_SEGMENT:-R1\}"/m, 'one drop directory per segment');
-  assert.match(sh, /^  score\)[\s\S]*?--require-arrival-chain/m, 'score always requires the arrival chain (R1: the hand supplement path is closed in production)');
-  assert.match(sh, /^  rescore\)[\s\S]*?--require-arrival-chain/m);
+  // each branch on its own (the old regex ran on past the end of the branch and could be satisfied by the next one): from `  <name>)` to the `    ;;` that closes it
+  const branch = (name) => sh.split(new RegExp(`^  ${name}\\)\\n`, 'm'))[1].split(/^    ;;$/m)[0];
+  assert.ok(branch('score').includes('--require-arrival-chain true'), 'score always requires the arrival chain (R1: the hand supplement path is closed in production)');
+  assert.ok(branch('rescore').includes('--require-arrival-chain true'), 'rescore too');
   // every other container keeps the sealed directory read-only
   for (const l of sh.split('\n').filter((x) => /^\s*docker run /.test(x) && !x.includes('rf1116-holdout-arrive'))) assert.ok(!l.includes('$HOLDOUT:/data/holdout:rw'), l.slice(0, 80));
 });
@@ -455,21 +457,23 @@ test('AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival
   const build = () => { const d = sealedR1Dir(); drain(d, A().csvDayDropSource(dropRoot(R1_DAYS, {}, { calendar: null })), { ...R1, windowEnd: '2026-12-31' }); return d; };
   const seal = (d) => ({ data_sha256: sha(fs.readFileSync(path.join(d, 'SHA256SUMS.sealed'))), segment: { from: '2026-10-19', to: '2026-12-31' } });
   const check = (d, o = {}) => runner.holdoutDirCheck(d, seal(d), { minNamesPerDay: 1, ...o });
+  // the strict gate also needs the chain head to be anchored (the lane ledger row `run.sh arrive` writes after every arrival): a fresh ledger per directory, its head anchored
+  const strict = (d) => { process.env.QRP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-ar14-data-')); const rows = chainOf(d); const h = rows[rows.length - 1]; if (h) require('../services/mining-rounds/arrival-anchor').record({ segment: 'R1', seq: h.seq, recordHash: h.record_hash, lastDay: h.trade_date, anchoredBy: 'TEST' }); return check(d, { requireChain: true }); };
   // the synthetic directory has no validation tail, so every run stops at the row floors (after the chain stage): that error is the "chain accepted" signal
   const good = build();
-  assert.throws(() => check(good, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/), 'a valid R1 chain passes the chain stage (R1 profile, not the R2 one)');
+  assert.throws(() => strict(good), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/), 'a valid R1 chain passes the chain stage (R1 profile, not the R2 one)');
   // a consistent edit: change an arrived day's file and its SHA256SUMS line
   const edited = build(); const name = `prices_daily_stock_${compact(R1_DAYS[3])}.csv`; const text = `${fs.readFileSync(path.join(edited, name), 'utf8')}pd:S99:x,S99.SH,${R1_DAYS[3]},9,9\n`;
   fs.writeFileSync(path.join(edited, name), text);
   fs.writeFileSync(path.join(edited, 'SHA256SUMS'), fs.readFileSync(path.join(edited, 'SHA256SUMS'), 'utf8').split('\n').map((l) => (l.endsWith(`  ${name}`) ? `${sha(text)}  ${name}` : l)).join('\n'));
-  assert.throws(() => check(edited, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:FILE_SHA/));
+  assert.throws(() => strict(edited), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:FILE_SHA/));
   assert.throws(() => check(edited), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/), 'the library default does not consult the chain');
   const noChain = build(); fs.rmSync(path.join(noChain, 'ARRIVAL_CHAIN_V1.jsonl'));
   assert.throws(() => check(noChain, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:NO_CHAIN/));
   assert.throws(() => check(noChain), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/));
   // days missing at the end are INCOMPLETE:arrival, not tampering
   const short = sealedR1Dir(); drain(short, A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 5), {}, { calendar: null })), R1);
-  assert.throws(() => check(short, { requireChain: true }), code(new RegExp(`MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:${R1_DAYS[5]}`)));
+  assert.throws(() => strict(short), code(new RegExp(`MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:${R1_DAYS[5]}`)));
   const cli = require('../services/mining-sandbox/round-runner/cli');
   for (const c of ['score', 'rescore']) assert.ok(cli.OPTIONS[c].includes('require-arrival-chain'), c);
 });

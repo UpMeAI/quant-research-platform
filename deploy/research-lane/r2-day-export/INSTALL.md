@@ -27,9 +27,9 @@ What it is: a read-only job on the V6 host that copies finished V6 trading days 
    install -m 0644 r2-day-export.service r2-day-export.timer ~/.config/systemd/user/
    (cd /srv/research-lane/rf1116-mining/ops/r2-day-export && sha256sum -c SHA256SUMS)   # every line OK
    ```
-2. Drop directories. The lane arrival container (root of the rootless daemon = the lane user) mounts them read-only: they must be readable by that user.
+2. Drop directories. The dropped days are a second copy of the holdout: nothing in them is world-readable at rest. The directories are 0750 and owned by the exporting account, in a group that includes the lane user (kayla); the exporter runs with `umask 027` (dirs 0750, files 0640). The lane arrival container (container root = the lane user) reads them through that group and mounts them read-only.
    ```sh
-   install -d -m 0755 /srv/research-lane/rf1116-mining/holdout-daydrop/R1 /srv/research-lane/rf1116-mining/holdout-daydrop/R2
+   install -d -m 0750 /srv/research-lane/rf1116-mining/holdout-daydrop/R1 /srv/research-lane/rf1116-mining/holdout-daydrop/R2
    ```
 3. Connection: copy `r2-day-export.env.example` to `~/.config/rf1116/r2-day-export.env` and fill `R2EXP_PG_CONTAINER`, `R2EXP_PG_USER`, `R2EXP_PG_DB` (V6 Postgres container, V6's own DB user and database; read from the live Linux host after the cutover, not hard-coded). The unit runs as `kayla` on the same host as V6's Postgres and the lane (rootless docker, `DOCKER_HOST=unix:///run/user/%U/docker.sock` is in the unit); the script does not copy over a network and never writes under `/srv/v6-prod`. The only docker form it uses is `docker exec -i -e PGOPTIONS=... <container> sh -c '... psql ...'` (SQL on stdin, every call under `timeout`, any non-zero rc stops the run).
 4. Acceptance probe, `default_transaction_read_only`: one write in a rolled-back transaction must fail with SQLSTATE 25006 under the same command line the unit uses:
@@ -61,6 +61,13 @@ A day D is exported only when the next SSE open day after D has reached 09:00+08
 | 4 | a day has been waiting for more than 3 days (not ready, or no prices rows) | the unit fails: alert. The arrival program takes days in calendar order and stops at a missing day, and the scorer refuses an R1/R2 directory with a missing day (`MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>`). A coordinator ruling is needed for a day V6 will never finish |
 
 Known case before install: V6's POST_CLOSE of 2026-11-18 was BLOCKED but its data was backfilled by 11-19 07:01 and the 11-19 PREMARKET ran DATA_REFRESH SUCCEEDED, so V2 makes 2026-11-18 ready via `NEXT_PREMARKET` (about one BLOCKED day per 15 trading days; 11-02 was the same). The first run after install therefore exports 11-18 with `ready_via` recorded.
+
+## Limits stated by the review (2026-11-23)
+
+- A consistent rewrite of the chain that also forges `source.driver` or sets `readiness` to null is only caught for the rows the anchor covers (every arrival writes the chain head to the lane ledger, `HOLDOUT_ARRIVAL_ANCHOR_V1`); rows before the first anchor of a segment have no external witness.
+- R1's last day: its sealed calendar ends 2026-12-31, so the arrival program only requires `window_to` to be a later 09:00+08 (the exporter writes 2027-01-04 09:00+08). It is pinned when a calendar part with the next open day arrives.
+- The read-only property rests on the script text, the session default (`PGOPTIONS`) and the server-side `statement_timeout`, not on a read-only DB role (no new role on V6, plan-coord).
+- `R2EXP_NOW` is a test clock; never set it in the unit.
 
 ## Lane side (not this job)
 
