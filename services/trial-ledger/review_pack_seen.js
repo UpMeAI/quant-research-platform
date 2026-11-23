@@ -14,6 +14,8 @@
  *   WEEKLY_COMPILE  { contract: REVIEW_LOOP_WEEK_V1, weekId, generatedAt, periods: { CN | US | CRYPTO: { from, to } } }，每个 period 的市场一条标记；
  *                   周编没有逐条事实的窗口 → 起点 = 该市场数据起点；截止日 = period.to 与周编生成日（CST）里较晚的一个。
  * 包的 sha256 = 规范 JSON（键排序）的 sha256，与 services/research-queue-agent 的 packSha 同一算法；交付的文件字节另存 file_sha256。
+ * 复核修正（plan-coord 11-23 14:00，W05_REVIEW P2-1/2/3）：写完读回（读不出 → NOT_READBACK）；截止日晚于「现在 + 36 小时」→ 拒收 CUTOFF_IN_FUTURE（宿主时钟，可注入 now）；
+ * 明写的截止日（decision_cutoff / decisionCutoff / cutoff，周编的 generatedAt）写了却读不出 → 拒收 CUTOFF_INVALID，只有没写才退回别的日期来源。
  */
 const crypto = require('crypto');
 const fs = require('fs');
@@ -49,10 +51,24 @@ function validDate(d) {
 }
 /** 带时间的写法取它自己写的日期（2026-11-13T18:00:00+08:00 → 2026-11-13）；不是日期 → null。 */
 const dayOf = (v) => (typeof v === 'string' && validDate(v.slice(0, 10)) ? v.slice(0, 10) : null);
+/** 完整时刻（ISO 8601，带 Z 或偏移）的毫秒数；别的写法（2026/11/16、数字）一律读不出 → NaN，不交给引擎的宽松解析。 */
+const STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/;
+const stampMs = (s) => (typeof s === 'string' && STAMP.test(s) ? Date.parse(s) : NaN);
 /** 一个时刻在 CST（+08:00）的日期；读不出 → null。 */
 function cstDay(stamp) {
-  const t = typeof stamp === 'string' ? Date.parse(stamp) : NaN;
+  const t = stampMs(stamp);
   return Number.isFinite(t) ? new Date(t + 8 * 3600 * 1000).toISOString().slice(0, 10) : null;
+}
+/**
+ * 截止日不得晚于「现在 + 36 小时」所在的 CST 日（宿主时钟，可注入：函数、毫秒数、Date 或 ISO 时刻）。写错的日期不能把未来整段标成 SEEN：
+ * segmentsFor 不认 supersedes，台账上没有追加更正的路（W05 复核 P2-2）。
+ */
+const FUTURE_TOLERANCE_MS = 36 * 3600 * 1000;
+function futureLimit(now) {
+  const v = typeof now === 'function' ? now() : now;
+  const t = v === undefined ? Date.now() : v instanceof Date ? v.getTime() : typeof v === 'number' ? v : stampMs(v);
+  need(Number.isFinite(t), 'NOW_INVALID', String(v));
+  return new Date(t + FUTURE_TOLERANCE_MS + 8 * 3600 * 1000).toISOString().slice(0, 10);
 }
 const maxOf = (xs) => xs.reduce((m, x) => (x > m ? x : m));
 const minOf = (xs) => xs.reduce((m, x) => (x < m ? x : m));
@@ -77,7 +93,12 @@ function describeAi(p, base) {
     const at = dayOf(f.at);
     if (at) ends.push(at);
   }
-  for (const k of ['decision_cutoff', 'decisionCutoff', 'cutoff']) { const d = dayOf(p[k]); if (d) ends.push(d); }
+  for (const k of ['decision_cutoff', 'decisionCutoff', 'cutoff']) {
+    if (p[k] === undefined) continue; // absent: the other date sources carry the cutoff, as before
+    const d = dayOf(p[k]);
+    need(d, 'CUTOFF_INVALID', `${k}=${JSON.stringify(p[k])}`); // present: it must be a date, never silently ignored (W05 复核 P2-3)
+    ends.push(d);
+  }
   const periodTo = isObj(p.period) ? dayOf(p.period.to) : null;
   if (periodTo) ends.push(periodTo);
   need(ends.length, 'NO_CUTOFF', `${weekOf(p)} ${market}: no fact date, window, period or decision cutoff`);
@@ -89,7 +110,8 @@ function describeAi(p, base) {
 
 function describeWeekly(p, base) {
   need(isObj(p.periods) && Object.keys(p.periods).length > 0, 'PERIODS_MISSING', String(weekOf(p)));
-  const generated = cstDay(p.generatedAt);
+  let generated = null; // the compile time is the weekly compile's explicit cutoff: absent falls back to the period ends, present must parse
+  if (p.generatedAt !== undefined) { generated = cstDay(p.generatedAt); need(generated, 'CUTOFF_INVALID', `generatedAt=${JSON.stringify(p.generatedAt)}`); }
   return Object.keys(p.periods).sort().map((src) => {
     const market = WEEK_MARKETS[src];
     need(market, 'PERIOD_MARKET_UNKNOWN', src);
@@ -107,12 +129,16 @@ function describeWeekly(p, base) {
  * @param {object} input 解析后的包
  * @param {{fileBytes?: Buffer}} [o] 交付的文件字节（有就记 file_sha256）
  */
-function describe(input, { fileBytes = null } = {}) {
+function describe(input, { fileBytes = null, now = undefined } = {}) {
   need(isObj(input), 'NOT_OBJECT');
   const base = { week_id: weekOf(input), revision: revisionOf(input), sha256: packSha256(input), file_sha256: fileBytes ? sha256(fileBytes) : null };
-  if (schemaOf(input) === 'REVIEW_AI_FACT_PACK_V1') return describeAi(input, base);
-  if (input.contract === 'REVIEW_LOOP_WEEK_V1') return describeWeekly(input, base);
-  return fail('KIND_UNKNOWN', String(schemaOf(input)));
+  let items;
+  if (schemaOf(input) === 'REVIEW_AI_FACT_PACK_V1') items = describeAi(input, base);
+  else if (input.contract === 'REVIEW_LOOP_WEEK_V1') items = describeWeekly(input, base);
+  else fail('KIND_UNKNOWN', String(schemaOf(input)));
+  const limit = futureLimit(now);
+  for (const it of items) need(it.to <= limit, 'CUTOFF_IN_FUTURE', `${it.market} ${it.week_id}: cutoff ${it.to} is later than now + 36 h (limit day ${limit})`);
+  return items;
 }
 
 const refOf = (it) => ({ kind: KIND, sha256: it.sha256, file_sha256: it.file_sha256, pack_kind: it.pack_kind, week_id: it.week_id, revision: it.revision, fact_windows: it.fact_windows });
@@ -131,13 +157,31 @@ function markItems(items, { registeredBy, registeredAt = null, dryRun = false } 
   if (todo.length) {
     const rows = ledger.markSegments(todo.map((t) => t.spec), { registeredBy, registeredAt, dryRun });
     todo.forEach((t, k) => { out[t.i] = dryRun ? { ...rows[k], dryRun: true } : rows[k]; });
+    if (!dryRun) readBack(todo.map((t) => items[t.i]));
   }
   return out;
 }
 
+/**
+ * 写完要读回（W05 复核 P2-1）：台账是追加文件，读的时候丢掉解析不了的行；上一次写到一半（磁盘满、进程被杀）留下的残行会把新写的一行粘坏，
+ * 写入照常返回、标记却读不出来。读回走读者的同一条路（读台账行 → segmentsFor / reviewedThrough）：这些包的标记必须在、区间上每一天都被标记盖住、
+ * 该市场「复盘看到哪天」不早于它的截止日；否则拒绝（REVIEW_PACK_SEEN_NOT_READBACK），入库方不算交付，下一轮重试（残行已被新行收尾，重试写的是新的一行）。
+ */
+function readBack(items) {
+  const after = read(ledger.SEGMENTS());
+  for (const it of items) {
+    const where = `${it.market} ${it.week_id}`;
+    need(findMark(after, it), 'NOT_READBACK', `${where}: the mark is not in the ledger as read back`);
+    const { pieces } = ledger.segmentsFor(`${ledger.MARKET_FAMILY_PREFIX}${it.market}`, it.from, it.to, { marks: after, market: it.market });
+    need(pieces.every((p) => p.label === 'SEEN' && p.source !== 'UNMARKED_DEFAULT_SEEN'), 'NOT_READBACK', `${where}: segmentsFor does not see the range ${it.from}..${it.to} as marked`);
+    const through = reviewedThrough(it.market, { marks: after });
+    need(through !== null && through >= it.to, 'NOT_READBACK', `${where}: reviewed through ${through} is before ${it.to}`);
+  }
+}
+
 /** 交付一份事实包：写它的 SEEN 标记（每个市场一条）。 */
 function markPack(input, opts = {}) {
-  return markItems(describe(input, { fileBytes: opts.fileBytes || null }), opts);
+  return markItems(describe(input, { fileBytes: opts.fileBytes || null, now: opts.now }), opts);
 }
 
 /** 交付的文件字节：解析、核对、写标记。 */
@@ -187,7 +231,7 @@ const keyOf = (e) => [e.kind, e.week_id, e.revision === undefined ? 0 : e.revisi
  * @param {{archives: string[], expected?: {kind: 'WEEKLY_COMPILE'|'AI_FACT_PACK', week_id: string, revision?: number, market?: string}[]}} o
  * @returns {{marked: object[], invalid: object[], missing: object[]}}
  */
-function backfill({ archives, expected = [], registeredBy, registeredAt = null, dryRun = false } = {}) {
+function backfill({ archives, expected = [], registeredBy, registeredAt = null, dryRun = false, now = undefined } = {}) {
   need(Array.isArray(archives) && archives.length > 0, 'ARCHIVE_REQUIRED');
   const marked = []; const invalid = []; const found = new Set();
   for (const dir of archives) {
@@ -196,7 +240,7 @@ function backfill({ archives, expected = [], registeredBy, registeredAt = null, 
       try {
         let parsed;
         try { parsed = JSON.parse(bytes.toString('utf8')); } catch { fail('NOT_JSON', name); }
-        const items = describe(parsed, { fileBytes: bytes });
+        const items = describe(parsed, { fileBytes: bytes, now });
         const rows = markItems(items, { registeredBy, registeredAt, dryRun });
         items.forEach((it, i) => {
           found.add(keyOf({ kind: it.pack_kind, week_id: it.week_id, revision: it.revision, market: it.market }));

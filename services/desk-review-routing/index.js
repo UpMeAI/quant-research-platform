@@ -186,7 +186,7 @@ function importQueue({ deskRoot, file = null, openCases = false, recordedAt = nu
   if (seenMark) {
     const reviewSeen = require('../trial-ledger/review_pack_seen');
     const weekBytes = fs.readFileSync(path.join(reviewLoopRootOf(deskRoot), WEEK_DIR, queue.payload.sourceWeek.file));
-    out.review_pack_seen = reviewSeen.markBytes(weekBytes, { registeredBy: seenMark.registeredBy, registeredAt: seenMark.registeredAt || null }).map(reviewSeen.summary);
+    out.review_pack_seen = reviewSeen.markBytes(weekBytes, { registeredBy: seenMark.registeredBy, registeredAt: seenMark.registeredAt || null, now: seenMark.now }).map(reviewSeen.summary);
   }
   for (const entry of queue.payload.entries) {
     const row = { questionKey: entry.questionKey, candidateId: entry.candidateId, ledgerId: entry.ledgerId };

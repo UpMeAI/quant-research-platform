@@ -48,7 +48,8 @@ function card(S) {
   // or the producer already marked is a replay). A refused mark is a refused card. The SEEN ranges of the lineage and the final test are read back from the ledger marks, not from the log.
   const seenSvc = services.reviewSeen || {};
   try {
-    reviewSeen.markPack(bundle.pack, { registeredBy: seenSvc.registeredBy || process.env.QRP_PRODUCT_MILESTONE_AUTHORITY, registeredAt: S.asOf });
+    // the clock of the future-date check is the job as_of (the lab reads no host clock); services.reviewSeen.now overrides it
+    reviewSeen.markPack(bundle.pack, { registeredBy: seenSvc.registeredBy || process.env.QRP_PRODUCT_MILESTONE_AUTHORITY, registeredAt: S.asOf, now: seenSvc.now || (() => Date.parse(S.asOf)) });
   } catch (e) { return { reason: `LAB_CARD_SEEN_MARK_${e.code || 'FAILED'}` }; }
   S.data.packMarks = reviewSeen.packMarks({ market: job.market, asOf: S.asOf });
   S.data.reviewRows = logCheck.rows;
