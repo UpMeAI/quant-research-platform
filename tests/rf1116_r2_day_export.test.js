@@ -53,7 +53,13 @@ case "$sql" in
       *"FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL AND business_date"*) echo "record_id,security_id,business_date,ticker"; echo "sm:1,S01.SH,$day,S01";;
       *"FROM security_suspension_observation "*) echo "record_id,security_id,trade_date,suspension_type";;
       *"FROM security_suspension_day_coverage "*) echo "coverage_id,trade_date,provider_row_count"; echo "cv:1,$day,1";;
-      *"FROM industry_membership "*) echo "record_id,security_id,industry_standard,industry_level,first_available_at";;
+      *"FROM industry_membership "*)
+        echo "record_id,security_id,industry_standard,industry_level,effective_from,first_available_at"
+        if [ -n "$STUB_IND_ROWS" ]; then
+          lo="$(echo "$sql" | sed -n "s/.*first_available_at >= TIMESTAMPTZ '\\([^']*\\)'.*/\\1/p")"; hi="$(echo "$sql" | sed -n "s/.*first_available_at < TIMESTAMPTZ '\\([^']*\\)'.*/\\1/p")"
+          loe=$(date -d "$lo" +%s); hie=$(date -d "$hi" +%s)
+          while IFS=, read -r id sec std lvl eff fa; do [ -z "$id" ] && continue; e=$(date -d "$fa" +%s); if [ "$e" -ge "$loe" ] && [ "$e" -lt "$hie" ]; then echo "$id,$sec,$std,$lvl,$eff,$fa"; fi; done < "$STUB_IND_ROWS"
+        fi;;
       *"FROM canonical_calendar_observation "*) echo "calendar_date,market,exchange,is_open"; for o in $STUB_OPEN; do echo "$o,A_SHARE,SSE,t"; done;;
     esac;;
   *"is_open"*"calendar_date"*) for o in $STUB_OPEN; do if [[ "$o" > "$lo" || "$o" == "$lo" ]] && [[ "$o" < "$hi" || "$o" == "$hi" ]]; then echo "$o"; fi; done;;
@@ -71,13 +77,13 @@ exec sh -c "$script" "$@"
 `;
 
 /** A sandbox: stub psql and docker on PATH, drop root, env. */
-function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail = '', sleep = '' } = {}) {
+function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail = '', sleep = '', indRows = '' } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-dayexp-'));
   const bin = path.join(root, 'bin'); fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'psql'), STUB, { mode: 0o755 }); fs.writeFileSync(path.join(bin, 'docker'), DOCKER_STUB, { mode: 0o755 });
   const drop = path.join(root, 'drop'); fs.mkdirSync(drop);
   const log = path.join(root, 'stub.log');
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, R2EXP_NOW: '2027-04-30T16:00:00+08:00' };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, STUB_IND_ROWS: indRows, R2EXP_NOW: '2027-04-30T16:00:00+08:00' };
   const run = (args, extra = {}) => { const r = spawnSync('bash', [SH, ...args], { env: { ...env, ...extra }, encoding: 'utf8' }); return { status: r.status, out: r.stdout, err: r.stderr }; };
   const statements = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n----\n').filter(Boolean) : []);
   return { root, drop, run, statements, log, dockerLog: path.join(root, 'docker.log') };
@@ -112,7 +118,7 @@ test('DX2 the SQL sent for a day is the arrival program\'s PG query set (one pro
   const r = sb.run(['--segment', 'R1', '--day', '2026-11-19']);
   assert.equal(r.status, 0, r.err);
   const sent = sb.statements().filter((s) => s.startsWith('COPY ('));
-  const want = A().pgQueries('2026-11-19', { industryFrom: '2026-11-19' }); // previous open day 11-18 + 1 (11-18 is not the first R1 day: D1 is 11-17, so 11-18 is the first)
+  const want = A().pgQueries('2026-11-19', { industryFrom: '2026-11-19T09:00:00+08:00', industryTo: '2026-11-20T09:00:00+08:00' }); // the window: [11-19 09:00, next open day 11-20 09:00)
   // 2026-11-19: the previous open day is 11-18, so the industry window starts 11-19 00:00+08
   assert.equal(sent.length, want.length);
   for (const q of want) assert.ok(sent.includes(`COPY (${q.sql}) TO STDOUT WITH (FORMAT csv, HEADER true);`), q.stem);
@@ -170,13 +176,13 @@ test('DX5 industry window: the first R1 part reaches back to 2026-10-17, later p
   sb.run(['--segment', 'R1']);
   const ind = sb.statements().filter((s) => s.includes('FROM industry_membership '));
   const lowers = ind.map((s) => /first_available_at >= TIMESTAMPTZ '([^']+)'/.exec(s)[1]);
-  assert.deepEqual(lowers, ['2026-10-17 00:00:00+08', '2026-11-19 00:00:00+08', '2026-11-21 00:00:00+08']);
+  assert.deepEqual(lowers, ['2026-10-17 00:00:00+08', '2026-11-19 09:00:00+08', '2026-11-23 09:00:00+08']);
   const uppers = ind.map((s) => /first_available_at < TIMESTAMPTZ '([^']+)'/.exec(s)[1]);
-  assert.deepEqual(uppers, ['2026-11-19 00:00:00+08', '2026-11-20 00:00:00+08', '2026-11-24 00:00:00+08']);
+  assert.deepEqual(uppers, ['2026-11-19 09:00:00+08', '2026-11-20 09:00:00+08', '2026-11-24 09:00:00+08']);
   const sb2 = sandbox({ ready: ['2027-01-04'] });
   sb2.run(['--segment', 'R2']);
   const i2 = sb2.statements().filter((s) => s.includes('FROM industry_membership '));
-  assert.match(i2[0], /first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 00:00:00\+08'/);
+  assert.match(i2[0], /first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 09:00:00\+08'/);
 });
 
 test('DX6 catch-up in calendar order: every open day after D1 up to today that is ready is exported (a day that is not ready is skipped and reported, later ready days still are); R1 stops at 2026-12-31; R2 at its 54th open day; R2 also gets the calendar', () => {
@@ -208,8 +214,8 @@ test('DX6 catch-up in calendar order: every open day after D1 up to today that i
 test('DX7 constants agree with the code they feed: the segments D1 / window end / 54 days / first industry bound are the arrival program\'s PROFILES and the registry\'s R2 rule', () => {
   const text = fs.readFileSync(SH, 'utf8');
   const P = A().PROFILES;
-  assert.match(text, new RegExp(`R1\\) START_AFTER=${P.R1.startAfter}; FIRST_LOWER=${P.R1.industryFrom}; END=2026-12-31; MAXDAYS=0`));
-  assert.match(text, new RegExp(`R2\\) START_AFTER=${P.R2.startAfter}; FIRST_LOWER=${P.R2.industryFrom}; END=; MAXDAYS=54`));
+  assert.match(text, new RegExp(`R1\\) START_AFTER=${P.R1.startAfter}; FIRST_LOWER=${P.R1.industryFrom.slice(0, 10)}; END=2026-12-31; MAXDAYS=0`));
+  assert.match(text, new RegExp(`R2\\) START_AFTER=${P.R2.startAfter}; FIRST_LOWER=${P.R2.industryFrom.slice(0, 10)}; END=; MAXDAYS=54`));
   const reg = require('../services/mining-rounds/holdout-segments').REGISTRY.find((e) => e.id === 'R2');
   assert.equal(reg.length_trading_days, 54);
   assert.equal(require('../services/mining-sandbox/segments').SEGMENTS.HOLDOUT.to, '2026-12-31');
@@ -281,6 +287,7 @@ test('DX12 readiness V2: the probe row is written to READINESS.json in the day d
   assert.deepEqual([rec('2026-11-18').ready_via, rec('2026-11-19').ready_via], ['NEXT_PREMARKET', 'POST_CLOSE_D']);
   const r = rec('2026-11-18');
   assert.deepEqual([r.schema, r.trade_date, r.n_prices, r.n_basic, r.n_adj, r.n_cov, r.probe_sha256], ['R2_DAY_EXPORT_READINESS_RECORD_V1', '2026-11-18', 5260, 5217, 5229, 1, '57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582']);
+  assert.deepEqual([r.window_from, r.window_to], ['2026-10-17T00:00:00+08:00', '2026-11-19T09:00:00+08:00'], 'the industry window is recorded for the arrival chain');
   assert.match(r.probed_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+08:00$/);
   // the probe ran for every open day not yet exported, on this tick (a second run asks again for the days still waiting, and not for the exported ones)
   const before = sb.statements().filter((s) => s.includes('pipeline_completion')).length;
@@ -341,4 +348,51 @@ test('DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-0
   assert.equal(e.status, 0); assert.match(e.out, /SLOT_ENDED:2026-11-18/);
   assert.ok(!fs.existsSync(dayDir(end, 'R1', '2026-11-18')));
   assert.equal(end.statements().filter((s) => s.startsWith('COPY (')).length, 0);
+});
+
+test('DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched', () => {
+  const rows = [
+    ['i01,S01.SH,SW2021,L1,2020-01-01,2026-10-16 23:59:59+08', false],   // before the first window
+    ['i02,S01.SH,SW2021,L1,2020-01-01,2026-10-17 00:00:00+08', true],    // first bound, inclusive
+    ['i03,S02.SH,SW2021,L1,2026-12-01,2026-10-20 10:00:00+08', true],    // effective_from AFTER first_available_at
+    ['i04,S03.SH,SW2021,L1,2026-11-18,2026-11-19 08:59:59+08', true],    // 11-18 window (ends 11-19 09:00)
+    ['i05,S03.SH,SW2021,L1,2026-11-19,2026-11-19 09:00:00+08', true],    // 11-19 window (starts 11-19 09:00)
+    ['i06,S04.SH,SW2021,L1,2026-11-30,2026-11-21 12:00:00+08', true],    // a Saturday, effective in the future: the Friday 11-20 window [11-20 09:00, 11-23 09:00)
+    ['i07,S05.SH,SW2021,L1,2027-02-01,2026-12-31 10:00:00+08', true],    // the last R1 day
+    ['i08,S06.SH,SW2021,L1,2027-01-05,2027-01-04 08:00:00+08', true],    // after 12-31, before 2027-01-04 09:00: still the 12-31 part
+    ['i09,S06.SH,SW2021,L1,2027-01-05,2027-01-04 09:00:00+08', false],   // after R1's last window
+    ['i10,S07.SH,SW2021,L1,2026-11-02,2026-11-02 10:00:00+08', true],
+    ['i11,S07.SH,SW2021,L1,2026-11-02,2026-11-02 10:00:00+08', true],    // a revision with the same timestamp: both rows
+  ];
+  const sb0 = sandbox({ ready: [] }); const file = path.join(sb0.root, 'ind.csv'); fs.writeFileSync(file, `${rows.map((r) => r[0]).join('\n')}\n`);
+  const sb = sandbox({ ready: OPEN.filter((d) => d > '2026-11-17' && d <= '2026-12-31'), indRows: file });
+  const r = sb.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-05T16:00:00+08:00' });
+  assert.equal(r.status, 0, r.err + r.out);
+  const got = [];
+  for (const d of OPEN.filter((x) => x > '2026-11-17' && x <= '2026-12-31')) {
+    const lines = fs.readFileSync(path.join(dayDir(sb, 'R1', d), 'industry_membership_sw2021.csv'), 'utf8').split('\n').filter(Boolean);
+    assert.equal(lines[0], 'record_id,security_id,industry_standard,industry_level,effective_from,first_available_at');
+    got.push(...lines.slice(1));
+  }
+  const oneExport = rows.filter((x) => x[1]).map((x) => x[0]);
+  assert.deepEqual([...got].sort(), [...oneExport].sort(), 'the parts together are the one export, nothing lost, nothing twice');
+  assert.equal(got.length, 9, 'nine rows are inside the window (i11 is a second row with the same timestamp as i10)');
+  assert.equal(new Set(got.map((l) => l.split(',')[0])).size, 9);
+  assert.ok(got.includes('i03,S02.SH,SW2021,L1,2026-12-01,2026-10-20 10:00:00+08'), 'a row effective after it became available is exported on the day it became available, effective_from as it is');
+  // the windows the exporter wrote are contiguous
+  const recs = OPEN.filter((x) => x > '2026-11-17' && x <= '2026-12-31').map((d) => JSON.parse(fs.readFileSync(path.join(dayDir(sb, 'R1', d), 'READINESS.json'), 'utf8')));
+  assert.equal(recs[0].window_from, '2026-10-17T00:00:00+08:00');
+  for (let i = 1; i < recs.length; i += 1) assert.equal(recs[i].window_from, recs[i - 1].window_to, recs[i].trade_date);
+  assert.equal(recs[recs.length - 1].window_to, '2027-01-04T09:00:00+08:00');
+});
+
+test('DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the V2 file next to the script): the file it names is the one run and its sha goes into the record; a missing file stops the run (exit 2)', () => {
+  const sb = sandbox({ ready: ['2026-11-18'] });
+  const other = path.join(sb.root, 'probe.sql'); fs.writeFileSync(other, `${fs.readFileSync(path.join(DIR, 'R2_DAY_EXPORT_READINESS_V2.sql'), 'utf8')}-- a different file\n`);
+  assert.equal(sb.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_READY_SQL: other }).status, 0);
+  const rec = JSON.parse(fs.readFileSync(path.join(dayDir(sb, 'R1', '2026-11-18'), 'READINESS.json'), 'utf8'));
+  assert.equal(rec.probe_sha256, sha(fs.readFileSync(other)));
+  assert.ok(sb.statements().some((s) => s.includes('-- a different file') || s.includes('pipeline_completion')), 'the probe ran');
+  const none = sandbox({ ready: ['2026-11-18'] }).run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_READY_SQL: '/nonexistent/probe.sql' });
+  assert.equal(none.status, 2); assert.match(none.err, /PROBE_SQL_MISSING/);
 });

@@ -13,7 +13,8 @@
  *              the industry table (absent from the sealed export) gets a header-only base file; days after 2026-11-17 only.
  *   layout     the spec's layout (RF1116_CN_A_LANE_EXPORT_SPEC_V1): one part per table and day, <table>_<YYYYMMDD>.csv, which the data adapter already reads (base first, then the dated
  *              parts); later R2 calendar rows as trading_calendar_<YYYYMMDD>.csv. Seven tables: the six daily ones and the industry membership (export spec rev 5 change 2), whose rows belong
- *              to a day by first_available_at: [previous open day + 1 00:00+08, day + 1 00:00+08), the first part of a segment from its industryFrom; a header-only part is normal.
+ *              to a day by first_available_at: [previous part's upper bound, 09:00+08 of the next open day), the first part of a segment from its industryFrom; the window is recorded in the chain row
+ *              (window_from, window_to) and consecutive rows are contiguous; a header-only part is normal.
  *              The chain file is not listed in SHA256SUMS (it grows); every other file after the sealed lines is listed and named by exactly one chain row.
  *   next day   always the next SSE open day of the calendar in the directory after the last arrived day. A gap, an earlier day or a closed day is refused; an arrived day is a no-op.
  *   a day      is written only if the source has all seven tables and the readiness record for it, each header equals the base header, every row is that day's (trade_date; business_date for the
@@ -47,8 +48,8 @@ const SUFFIX = /^_(\d{8})\.csv$/;
  * industryFrom: the lower bound of the first industry part (export spec rev 5 change 2: first_available_at from 2026-10-17 00:00+08 for R1; the day after the start rule for R2).
  */
 const PROFILES = Object.freeze({
-  R1: Object.freeze({ segment: 'R1', startAfter: '2026-11-17', industryFrom: '2026-10-17', calendarArrives: false }),
-  R2: Object.freeze({ segment: 'R2', startAfter: START_AFTER, industryFrom: '2027-01-01', calendarArrives: true }),
+  R1: Object.freeze({ segment: 'R1', startAfter: '2026-11-17', industryFrom: '2026-10-17T00:00:00+08:00', calendarArrives: false }),
+  R2: Object.freeze({ segment: 'R2', startAfter: START_AFTER, industryFrom: '2027-01-01T00:00:00+08:00', calendarArrives: true }),
 });
 const profileOf = (segment = 'R2') => PROFILES[segment] || fail('SEGMENT', String(segment));
 const T = (stem, dateCol) => Object.freeze({ stem, dateCol });
@@ -142,6 +143,10 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
       // the readiness record is part of every DAY row (null only for a source that has none, the PG driver)
       if (r.readiness === undefined || (r.readiness !== null && (typeof r.readiness !== 'object' || !READY_VIA.includes(r.readiness.ready_via)))) invalid('SCHEMA', `readiness ${i}`);
       if (r.readiness === null && r.source && r.source.driver === 'CSV_DAY_DROP') invalid('SCHEMA', `readiness ${i}: a dropped day carries its readiness record`);
+      // the industry window recorded in the row: contiguous with the previous DAY row (the first from the segment's industryFrom), upper bound 09:00+08 of a later date
+      if (!ISO_ST.test(r.window_from || '') || !ISO_ST.test(r.window_to || '') || !r.window_to.endsWith('T09:00:00+08:00') || r.window_to.slice(0, 10) <= r.trade_date) invalid('SCHEMA', `window `);
+      const prevDay = rows.slice(0, i).filter((x) => x.kind === 'DAY').pop();
+      if (r.window_from !== (prevDay ? prevDay.window_to : profile.industryFrom)) invalid('WINDOW', `${r.trade_date}: ${r.window_from} does not continue the previous part`);
       const first = !rows.slice(0, i).some((x) => x.kind === 'DAY');
       let expectedNames = 0;
       for (const t of TABLES) {
@@ -163,6 +168,8 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
   dayRows.forEach((r, i) => {
     if (r.trade_date !== expected[i]) invalid(expected[i] !== undefined && r.trade_date < expected[i] ? 'ORDER' : 'GAP', `${r.trade_date} vs ${expected[i]}`);
   });
+  // with a calendar that knows a later open day, the upper bound is that day's 09:00+08
+  for (const r of dayRows) { const nx = cal.days.find((d) => d > r.trade_date); if (nx && r.window_to.slice(0, 10) !== nx) invalid('WINDOW', `${r.trade_date}: window_to ${r.window_to} is not 09:00+08 of the next open day ${nx}`); }
   const days = dayRows.map((r) => r.trade_date);
   if (window) {
     const need = cal.days.filter((d) => d >= window.from && d <= window.to && d > after); // days up to the sealed export's D1 (R1) are in the sealed files, not in the chain
@@ -187,11 +194,12 @@ function firstLineOf(file) {
   } finally { fs.closeSync(fd); }
 }
 /**
- * The first_available_at window of the industry part of one day: [industryFrom 00:00+08, day + 1 00:00+08). Parts follow each other without a gap or an overlap
- * (industryFrom is the previous open day + 1, so a weekend belongs to the Monday part).
+ * The first_available_at window of the industry part of one day (plan-coord 2026-11-23): [previous part's upper bound, 09:00+08 of the next SSE open day after the day). The first part of a segment
+ * starts at its industryFrom; parts follow each other without a gap or an overlap, and a part holds every row the scorer's panel may count for the day (it counts only rows in by 09:00 on the next open
+ * day). The exporter fixes the window (window_from, window_to in READINESS.json); the arrival program checks the contiguity and, when its calendar knows the next open day, the upper bound.
  */
-const industryWindow = (day, industryFrom) => ({ lo: Date.parse(`${industryFrom}T00:00:00+08:00`), hi: Date.parse(`${addDays(day, 1)}T00:00:00+08:00`) });
-function checkDay(day, files, base, { industryFrom }) {
+const ISO_ST = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+08:00$/;
+function checkDay(day, files, base, { window }) {
   const out = {};
   for (const t of TABLES) {
     const buf = files[t.stem];
@@ -205,7 +213,7 @@ function checkDay(day, files, base, { industryFrom }) {
     try {
       if (t.dateCol) adapter.internals.forEachCsvRow(tmp, (r) => { rows += 1; if (r[t.dateCol] !== day) fail('ROW_DATE', `${t.stem}:${r[t.dateCol]}`); });
       else {
-        const w = industryWindow(day, industryFrom);
+        const w = { lo: Date.parse(window.from), hi: Date.parse(window.to) };
         adapter.internals.forEachCsvRow(tmp, (r) => {
           rows += 1;
           let at = NaN; try { at = adapter.internals.parseTs(r.first_available_at); } catch { /* refused below */ }
@@ -259,11 +267,14 @@ const isCount = (n) => Number.isInteger(n) && n >= 0;
  * The exporter's readiness record of one day (r2-day-export READINESS.json, probe R2_DAY_EXPORT_READINESS_V2.sql): which rule made the day ready (POST_CLOSE_D, or NEXT_PREMARKET for a day
  * whose POST_CLOSE was BLOCKED and backfilled) and the name counts at probe time. It is not data: it is recorded in the chain row (plan-coord condition iii), nothing is written to the directory.
  */
-function checkReadiness(day, bytes) {
+function checkReadiness(day, bytes, { expectedFrom, nextOpen }) {
   let o; try { o = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { return fail('READINESS', `${day}: not JSON`); }
   if (!o || o.schema !== READINESS_SCHEMA || o.trade_date !== day || !READY_VIA.includes(o.ready_via) || !['n_prices', 'n_basic', 'n_adj', 'n_cov'].every((k) => isCount(o[k]))
       || !/^[0-9a-f]{64}$/.test(o.probe_sha256 || '') || typeof o.probed_at !== 'string') return fail('READINESS', `${day}: not a readiness record of this day`);
-  return { ready_via: o.ready_via, n_prices: o.n_prices, n_basic: o.n_basic, n_adj: o.n_adj, n_cov: o.n_cov, probe_sha256: o.probe_sha256, probed_at: o.probed_at, file_sha256: sha256(Buffer.from(bytes)) };
+  // the industry window: contiguous with the previous part, upper bound = 09:00+08 of the next SSE open day (the calendar's when it knows one, else a later date)
+  if (!ISO_ST.test(o.window_from || '') || !ISO_ST.test(o.window_to || '') || o.window_from !== expectedFrom) return fail('READINESS', `${day}: window_from ${o.window_from} is not the previous part's upper bound ${expectedFrom}`);
+  if (!(o.window_to.endsWith('T09:00:00+08:00') && o.window_to.slice(0, 10) > day) || (nextOpen && o.window_to.slice(0, 10) !== nextOpen)) return fail('READINESS', `${day}: window_to ${o.window_to} is not 09:00+08 of the next open day`);
+  return { readiness: { ready_via: o.ready_via, n_prices: o.n_prices, n_basic: o.n_basic, n_adj: o.n_adj, n_cov: o.n_cov, probe_sha256: o.probe_sha256, probed_at: o.probed_at, file_sha256: sha256(Buffer.from(bytes)) }, window: { from: o.window_from, to: o.window_to } };
 }
 
 /**
@@ -336,14 +347,22 @@ function arrive({ dir, segment = 'R2', source, arrivedAt = null, day = null, win
   const next = expectedDaysOf(cal.days, after).find((d) => last === null || d > last);
   if (day !== null && day !== next) fail('ORDER', `${day} is not the next open day (${next})`);
   if (next === undefined) return { status: 'NOT_YET', what: last };
-  const industryFrom = last ? addDays(last, 1) : profile.industryFrom; // the previous industry part ended at (previous open day + 1) 00:00+08
-  const got = source.day(next, { industryFrom });
+  // the industry window of this day starts where the previous part ended; it ends at 09:00+08 of the next open day (unknown to a calendar that ends here: R1's sealed one ends 2026-12-31)
+  const dayRows = (existing || []).filter((r) => r.kind === 'DAY');
+  const expectedFrom = dayRows.length ? dayRows[dayRows.length - 1].window_to : profile.industryFrom;
+  const nextOpen = cal.days.find((d) => d > next);
+  const ctx = { industryFrom: expectedFrom, industryTo: nextOpen ? `${nextOpen}T09:00:00+08:00` : null };
+  const got = source.day(next, ctx);
   if (!got) return { status: 'NOT_AVAILABLE', what: next };
+  // plan-coord condition (iii): the readiness rule that let the day through, and the window of its industry part, are part of the chain row
+  const rd = got.readiness === undefined ? null : checkReadiness(next, got.readiness, { expectedFrom, nextOpen });
+  const readiness = rd ? rd.readiness : null;
+  const window = rd ? rd.window : (ctx.industryTo ? { from: ctx.industryFrom, to: ctx.industryTo } : null);
+  if (!window) return { status: 'NOT_AVAILABLE', what: next };
   const baseHeaders = {};
   for (const t of TABLES) { const f = path.join(dir, `${t.stem}.csv`); if (fs.existsSync(f)) baseHeaders[t.stem] = firstLineOf(f); }
-  const checked = checkDay(next, got.files, baseHeaders, { industryFrom });
+  const checked = checkDay(next, got.files, baseHeaders, { window });
   if (!checked) return { status: 'NOT_AVAILABLE', what: next };
-  const readiness = got.readiness === undefined ? null : checkReadiness(next, got.readiness); // plan-coord condition (iii): the readiness rule that let the day through is part of the chain row
   // healing: orphan files of this day that are not what the source delivers are refused (putFile); orphans of any other name are refused here
   const pendingNames = new Set(TABLES.flatMap((t) => [`${t.stem}.csv`, `${t.stem}_${compact(next)}.csv`]));
   const unchained = existing ? verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true }).unchained : readSums(dir).entries.map((e) => e.name).filter((n) => !sealed.has(n));
@@ -354,7 +373,7 @@ function arrive({ dir, segment = 'R2', source, arrivedAt = null, day = null, win
   for (const t of TABLES) { const name = `${t.stem}_${compact(next)}.csv`; putFile(dir, name, checked[t.stem].buf); files.push(fileEntry(name, checked[t.stem].buf, checked[t.stem].rows)); }
   faultAt('AFTER_FILES');
   putSums(dir, files); faultAt('AFTER_SUMS');
-  const row = appendChain(dir, profile.segment, { kind: 'DAY', trade_date: next, files, readiness, source: srcRef, arrived_at: at });
+  const row = appendChain(dir, profile.segment, { kind: 'DAY', trade_date: next, files, readiness, window_from: window.from, window_to: window.to, source: srcRef, arrived_at: at });
   return { status: 'ARRIVED', kind: 'DAY', day: next, seq: row.seq };
 }
 
@@ -392,10 +411,11 @@ function csvDayDropSource(root) {
 
 const STOCKS = "SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL";
 /** The spec's per-table queries (RF1116_CN_A_LANE_EXPORT_SPEC_V1 section 2) for ONE trading day: read-only SELECTs. */
-function pgQueries(day, { industryFrom } = {}) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(industryFrom || '')) fail('INDUSTRY_FROM', String(industryFrom));
+function pgQueries(day, { industryFrom, industryTo } = {}) {
+  if (!ISO_ST.test(industryFrom || '')) fail('INDUSTRY_FROM', String(industryFrom));
+  if (!ISO_ST.test(industryTo || '')) fail('INDUSTRY_TO', String(industryTo));
   const d = `'${day}'`;
-  const next = `'${addDays(day, 1)} 00:00:00+08'`;
+  const sqlTs = (iso) => `'${iso.slice(0, 10)} ${iso.slice(11, 19)}+08'`;
   return [
     { stem: 'prices_daily_stock', sql: `SELECT record_id, security_id, trade_date, open, high, low, close, previous_close, volume_shares, turnover_amount_cny, adjustment_factor, adjustment_mode, value_states, first_available_at, known_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM prices_daily WHERE trade_date = ${d} AND security_id IN (${STOCKS}) ORDER BY security_id, trade_date, source_record_id, revision` },
     { stem: 'market_daily_basic_observation_stock', sql: `SELECT record_id, raw_record_id, security_id, trade_date, "values", first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state, source_reconciliation_state FROM market_daily_basic_observation WHERE trade_date = ${d} AND security_id IN (${STOCKS}) ORDER BY security_id, trade_date, source_record_id, revision` },
@@ -403,9 +423,9 @@ function pgQueries(day, { industryFrom } = {}) {
     { stem: 'security_master_stock', sql: `SELECT record_id, security_id, business_date, ticker, security_code, exchange, board, asset_class, display_name, name_integrity, listing_date, delisting_date, listing_status, risk_warning_status, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state, allow_new_risk FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL AND business_date = ${d} ORDER BY security_id, business_date, revision` },
     { stem: 'security_suspension_observation', sql: `SELECT record_id, security_id, trade_date, suspension_type, suspension_timing, full_session, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM security_suspension_observation WHERE trade_date = ${d} ORDER BY security_id, trade_date, source_record_id, revision` },
     { stem: 'security_suspension_day_coverage', sql: `SELECT coverage_id, trade_date, provider_row_count, accepted_row_count, full_session_count, first_available_at, ingested_at, job_run_id, source_registry_version, quality_state FROM security_suspension_day_coverage WHERE trade_date = ${d} ORDER BY trade_date, coverage_id` },
-    // export spec rev 5 change 2: the membership rows that became available in [industryFrom 00:00+08, day + 1 00:00+08). No per-day effective_from cut (it would lose rows that
-    // became available before their effective_from); the scorer reads industry by first_available_at anyway.
-    { stem: 'industry_membership_sw2021', sql: `SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ '${industryFrom} 00:00:00+08' AND first_available_at < TIMESTAMPTZ ${next} ORDER BY security_id, industry_standard, industry_level, effective_from, revision` },
+    // export spec rev 5 change 2, windowed per day (plan-coord 2026-11-23): the membership rows that became available in [industryFrom, industryTo), consecutive parts contiguous, industryTo = 09:00+08 of the
+    // next open day. No per-day effective_from cut (it would lose rows that became available before their effective_from); the effective_from column is exported untouched and the data adapter applies it itself.
+    { stem: 'industry_membership_sw2021', sql: `SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ ${sqlTs(industryFrom)} AND first_available_at < TIMESTAMPTZ ${sqlTs(industryTo)} ORDER BY security_id, industry_standard, industry_level, effective_from, revision` },
   ];
 }
 /** The calendar query of the spec (section 2.2), the range extended to the end of 2027. */
@@ -417,6 +437,7 @@ function pgDaySource({ run }) {
     driver: 'PG_PSQL',
     calendar() { return run(pgCalendarQuery()); },
     day(d, ctx) {
+      if (!ctx || !ctx.industryTo) return null; // the next open day (the window's upper bound) is not known yet
       const files = {};
       for (const q of pgQueries(d, ctx)) files[q.stem] = run(q.sql);
       return csvLines(files.prices_daily_stock).length > 1 ? { files } : null;

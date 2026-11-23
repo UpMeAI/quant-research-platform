@@ -163,6 +163,23 @@ const MUTANTS = [
   m('D23', 'export cutoff: the point-in-time rule is on by default', DX, 'PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-1}"', 'PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-0}"', [T_DX]),
   m('D24', 'export cutoff: the next open day at 09:00+08', DX, 'date -d "$nx 09:00:00+08:00"', 'date -d "$nx 08:00:00+08:00"', [T_DX]),
   m('D25', 'export slot: weekends are not restricted to the weekday slots', DX, 'if [ "$dow" -le 5 ]; then', 'if true; then', [T_DX]),
+  m('B28', 'readiness: window_from continues the previous part', AV, 'o.window_from !== expectedFrom', 'false', [T_AR]),
+  m('B29', 'readiness: window_to is 09:00+08', AV, "(o.window_to.endsWith('T09:00:00+08:00') && o.window_to.slice(0, 10) > day)", '(o.window_to.slice(0, 10) > day)', [T_AR]),
+  m('B30', 'readiness: window_to is after the day', AV, "(o.window_to.endsWith('T09:00:00+08:00') && o.window_to.slice(0, 10) > day)", "(o.window_to.endsWith('T09:00:00+08:00'))", [T_AR]),
+  m('B31', 'readiness: window_to is the calendar\'s next open day when it knows one', AV, '(nextOpen && o.window_to.slice(0, 10) !== nextOpen)', '(false)', [T_AR]),
+  m('B32', 'verifier: consecutive industry windows are contiguous', AV, "if (r.window_from !== (prevDay ? prevDay.window_to : profile.industryFrom)) invalid('WINDOW'", "if (false) invalid('WINDOW'", [T_AR]),
+  m('B33', 'verifier: window_to is the calendar\'s next open day', AV, "if (nx && r.window_to.slice(0, 10) !== nx) invalid('WINDOW'", "if (false) invalid('WINDOW'", [T_AR]),
+  m('B34', 'arrive: a day\'s window starts where the last arrived part ended', AV, 'dayRows[dayRows.length - 1].window_to', 'dayRows[0].window_to', [T_AR]),
+  m('B35', 'arrive: the window goes into the chain row', AV, 'window_from: window.from, window_to: window.to', 'window_from: null, window_to: null', [T_AR]),
+  m('B36', 'pg: a day whose window end is unknown is not available', AV, 'if (!ctx || !ctx.industryTo) return null;', '', [T_AR]),
+  m('B37', 'pg: the window bounds keep their time of day', AV, '${iso.slice(0, 10)} ${iso.slice(11, 19)}+08', '${iso.slice(0, 10)} 00:00:00+08', [T_AR]),
+  m('D26', 'export window: a later part starts at the day\'s own 09:00 (the previous part\'s end)', DX, 'else lower="$D 09:00:00+08"', 'else lower="$D 00:00:00+08"', [T_DX]),
+  m('D27', 'export window: a part ends at the next open day\'s 09:00', DX, 'local upper="$nx 09:00:00+08"', 'local upper="$nx 00:00:00+08"', [T_DX]),
+  m('D28', 'export window: the first part starts at the segment\'s lower bound', DX, 'lower="$FIRST_LOWER 00:00:00+08"', 'lower="$FIRST_LOWER 09:00:00+08"', [T_DX]),
+  m('D29', 'export window: a day with no known next open day waits', DX, '[ -n "$nx" ] || cut=1', ':', [T_DX]),
+  m('D30', 'export window: window_from is recorded', DX, '"${lower/ /T}:00"', '"${upper/ /T}:00"', [T_DX]),
+  m('D31', 'export probe: one variable names the probe file', DX, 'READY_SQL="${R2EXP_READY_SQL:-$HERE/R2_DAY_EXPORT_READINESS_V2.sql}"', 'READY_SQL="$HERE/R2_DAY_EXPORT_READINESS_V2.sql"', [T_DX]),
+  m('D32', 'export probe: a missing probe file stops the run', DX, '[ -f "$READY_SQL" ] || { echo "PROBE_SQL_MISSING: $READY_SQL" >&2; exit 2; }', ':', [T_DX]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }
