@@ -134,7 +134,7 @@ class DeployDoc(unittest.TestCase):
             root = pathlib.Path(tmp)
             archive = root / "repo.tar"
             with tarfile.open(archive, "w") as bundle:
-                for name in ("services", "independent-verifier", "adapters", "packages", "schemas", "config"):
+                for name in ("services", "adapters", "packages", "schemas", "config"):
                     bundle.add(ROOT / name, arcname=name)
             with tarfile.open(archive) as bundle:
                 bundle.extractall(root / "tree", filter="data")
