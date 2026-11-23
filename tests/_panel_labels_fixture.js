@@ -1,13 +1,24 @@
 'use strict';
 /**
- * Synthetic CANDIDATE_PANEL_V1 records and fixture price series for the W18 part 2 tests (docs/contracts/PANEL_LABELS_V1.md).
+ * Synthetic CANDIDATE_PANEL_V1 records, fixture price series, K2 bytes and the controlled-read plumbing for the W18 part 2 tests (docs/contracts/PANEL_LABELS_V1.md).
  * The numbers have no economic meaning. A panel record here has only the fields the label join reads; the part 1 producers own the real shape.
+ * The label table is read only through readLabels (the report flows below go through it); `rowsOf` is a test side look at the file, the way a host operator would.
  */
 const crypto = require('crypto');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const { canonicalJson } = require('../services/trial-ledger');
+const trials = require('../services/trial-ledger');
+const authority = require('../services/independent-verifier/authority');
 const fixtureProvider = require('../services/panel-labels/fixture-provider');
+const panel = require('../services/panel-labels');
 
+const AUTH = 'W18_TEST_AUTHORITY';
+process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
+const EVALUATOR = authority.loadConfig().holdoutScorerPrincipal;
 const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
+const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 const SELECTED_OUTCOMES = ['SELECTED', 'SELECTED_SCALED'];
 
 const LAYERS = (outcome) => ['SELECTION_TIMING', 'RISK', 'ACCOUNT', 'EXECUTION'].map((layer) => ({ layer, state: 'EVALUATED', outcome: outcome === 'BLOCKED_ACCOUNT' && layer === 'ACCOUNT' ? 'BLOCKED' : 'PASSED', checks: [] }));
@@ -65,4 +76,61 @@ function setCnW1(provider, instrument, open, close) {
   return provider;
 }
 
-module.exports = { sha, panelRecord, candidateRow, tampered, rewritten, recordHashOf, cnProvider, setCnW1, CN_CLOSE_AVAILABLE, fixtureProvider };
+/* ------------------------------------------------------------------ the controlled read plumbing */
+
+/** Register a directory as controlled for the existing authority layer the way a host does: QRP_HOLDOUT_DATA_DIRS (the list the generator process lock reads too). */
+function protect(dir) {
+  const cur = (process.env.QRP_HOLDOUT_DATA_DIRS || '').split(path.delimiter).filter(Boolean);
+  if (!cur.includes(dir)) { cur.push(dir); process.env.QRP_HOLDOUT_DATA_DIRS = cur.join(path.delimiter); }
+}
+
+const K2_BYTES = new Map();
+/** A K2 whose section 0 names its freezer; the bytes are kept so ctx.k2Bytes can hand them out. `frozenBy` null leaves the line out. */
+function k2(id, frozenBy) {
+  const line = frozenBy === null ? '- (no freezer line)' : `- **作者与冻结者**：design agent drafted, 冻结者 ${frozenBy}，2026-11-23T00:00:00+08:00。`;
+  const text = `# ${id}\n\n## 0. file head\n\n${line}\n`;
+  const sha256 = sha(text);
+  K2_BYTES.set(sha256, Buffer.from(text));
+  return { id, sha256 };
+}
+const k2Bytes = (ref) => K2_BYTES.get(ref.sha256) || null;
+const COORD = k2('K2-COORD', 'COORDINATOR');
+
+/** A REGISTRATION row of the trial ledger for (family, K2): what binds a K2 to a family. */
+function bind(family, k2Ref = COORD, market = 'CN_A') {
+  return trials.register({ family_id: family, market, study_ref: 'W18_FIXTURE', k2_sha256: k2Ref.sha256, stage: 'SIGNAL', role: 'SIGNAL_TEST', config_label: `c-${family}-${k2Ref.id}`, rule_config: { family, k2: k2Ref.id } },
+    { registeredBy: AUTH, registeredAt: '2026-11-01T00:00:00.000Z' });
+}
+
+const NOW = '2026-12-31T00:00:00.000Z';
+/** A read context for a label store: the store directory is registered, the clock is fixed, K2 bytes come from the fixture K2 registry. */
+function ctxFor(store, extra = {}) {
+  protect(store.dir);
+  const work = tmp('w18-ctx-');
+  return { store, accessLogFile: path.join(work, 'access.jsonl'), readLedgerFile: path.join(work, 'reads.jsonl'), registeredBy: AUTH, k2Bytes, now: () => NOW, ...extra };
+}
+
+/** A valid read request; `family` must be bound to the K2 (bind) unless the test is about the binding. */
+function request(family, panelRecords, extra = {}) {
+  return { principal: EVALUATOR, k2Ref: COORD, stage: 'SEEN', market: 'CN', families: [family], from: '2026-11-01', to: '2026-11-30', windows: ['W1S'], panelRecords, ...extra };
+}
+
+let seq = 0;
+/** The report flows: bind a fresh family, read through readLabels (principal, gate, join), hand back the joined rows. */
+function readJoined({ store, records, windows, market = 'CN', from = '2026-11-01', to = '2026-12-31', ctx = null }) {
+  seq += 1;
+  const family = `W18_FIXTURE_FAMILY_${process.pid}_${seq}`;
+  bind(family);
+  return panel.readLabels(request(family, records, { market, windows, from, to }), ctx || ctxFor(store)).rows;
+}
+
+/** Test side look at the label file (the host operator's view): the labels in append order. */
+function rowsOf(store) {
+  if (!fs.existsSync(store.file)) return [];
+  return fs.readFileSync(store.file, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l).label);
+}
+
+module.exports = {
+  AUTH, EVALUATOR, NOW, sha, tmp, panelRecord, candidateRow, tampered, rewritten, recordHashOf, cnProvider, setCnW1, CN_CLOSE_AVAILABLE, fixtureProvider, protect, k2, k2Bytes, COORD, bind, ctxFor, request,
+  readJoined, rowsOf,
+};

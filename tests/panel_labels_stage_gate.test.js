@@ -2,69 +2,59 @@
 require('./_env');
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const crypto = require('crypto');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const trials = require('../services/trial-ledger');
-const authority = require('../services/independent-verifier/authority');
+const gate = require('../services/k2-freeze-program/program_freeze_gate');
 const { read } = require('../packages/ledger');
 const panel = require('../services/panel-labels');
+const reader = require('../services/panel-labels/reader');
 const fx = require('./_panel_labels_fixture');
 
 /**
- * W18 part 2, acceptance R-2 and R-3 (contract section 7.1 LB-4, LB-5; RF1118 star P1 / P3; W05 ruling: marks come from the trial ledger only).
- * A read is gated by trial-ledger segmentsFor: SEEN readable; UNSEEN only as the registered K2's own first read and never for a program frozen K2;
- * FORWARD_RESERVED only for its holder after its declared read time, then FORWARD_READ. Every read appends a read record and a DATA_SEGMENT_MARK_V1 SEEN mark.
+ * W18 part 2, acceptance R-2 and R-3 (contract section 7.1 LB-4, LB-5; RF1118 star P1 / P3; W05 ruling: marks come from the trial ledger only), as narrowed and fixed by
+ * W18_ALL_CANDIDATE_PANEL_CONTRACT_V1_FREEZE_1_NOTE_1 and the independent review (P1-1 .. P1-3):
+ *   - every read, at every stage, is bound to a K2: ctx.k2Bytes must hash to k2Ref.sha256 and the trial ledger must hold a REGISTRATION row (family, K2 sha) for EACH declared family;
+ *   - the read time is the host clock (ctx.now, default the ledger clock); request.readAt is not trusted, the SEEN mark is stamped with the host clock;
+ *   - SEEN readable; UNSEEN only as the bound coordinator-frozen K2's own first read; FORWARD_RESERVED: a non-holder is refused, and the holder is refused too
+ *     (FORWARD_READ_TIME_NOT_IN_LEDGER: the ledger holds no declared read time, so this version never converts a reservation to FORWARD_READ);
+ *   - a read whose [from, to] contains ANY family's FORWARD_RESERVED day of the market is refused unless the requester is that family's holder (labels are per market, marks per family);
+ *   - the range test (exitAt, else maturesAt, not after `to`) holds for every label state.
  */
-const AUTH = 'W18_TEST_AUTHORITY';
-process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = AUTH;
-const sha = (s) => crypto.createHash('sha256').update(s).digest('hex');
-const tmp = (p) => fs.mkdtempSync(path.join(os.tmpdir(), p));
-const lines = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 const refuses = (fn, code) => assert.throws(fn, (e) => e.code === code, code);
-const EVALUATOR = authority.loadConfig().holdoutScorerPrincipal;
-
-const K2_BYTES = new Map();
-function k2(id, frozenBy) {
-  const text = `# ${id}\n\n## 0. file head\n\n- **作者与冻结者**：design agent drafted, 冻结者 ${frozenBy}，2026-11-23T00:00:00+08:00。\n`;
-  const sha256 = sha(text);
-  K2_BYTES.set(sha256, Buffer.from(text));
-  return { id, sha256 };
-}
-const COORD = k2('K2-COORD', 'COORDINATOR');
-const PROGRAM = k2('K2-PROGRAM', 'K2_FREEZE_PROGRAM_V1');
-const COORD_OTHER = k2('K2-COORD-OTHER', 'COORDINATOR');
-
-function world() {
-  const work = tmp('w18-gate-');
-  const labelsDir = path.join(work, 'labels');
-  const store = panel.createStore({ dir: labelsDir });
-  const record = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T07:30:00.000Z', candidates: [{ securityId: '600000.SH' }] });
-  const provider = fx.cnProvider();
-  fx.setCnW1(provider, '600000.SH', 10, 10.5);
-  fx.setCnW1(provider, 'CSI300', 4000, 4040);
-  panel.materialize({ records: [record], windows: ['W1S'], provider, store, now: '2026-11-04T00:00:00.000Z' });
-  const ctx = { store, holdoutDirs: [labelsDir], accessLogFile: path.join(work, 'access.jsonl'), readLedgerFile: path.join(work, 'reads.jsonl'), registeredBy: AUTH, k2Bytes: (ref) => K2_BYTES.get(ref.sha256) || null };
-  const request = (family, o = {}) => ({ principal: EVALUATOR, k2Ref: COORD, stage: 'SEEN', market: 'CN', families: [family], from: '2026-11-01', to: '2026-11-30', windows: ['W1S'],
-    readAt: '2026-11-05T00:00:00.000Z', panelRecords: [record], ...o });
-  return { work, ctx, record, request };
-}
-const mark = (family, label, extra = {}) => trials.markSegments({ family_id: family, market: 'CN_A', from: '2026-11-01', to: '2026-11-30', label, reason: 'W18 stage gate fixture', ...extra }, { registeredBy: AUTH, registeredAt: '2026-11-01T00:00:00.000Z' });
-const register = (family, k2Ref) => trials.register({ family_id: family, market: 'CN_A', study_ref: 'W18_STAGE', k2_sha256: k2Ref.sha256, stage: 'SIGNAL', role: 'SIGNAL_TEST', config_label: `c-${family}-${k2Ref.id}`, rule_config: { family, k2: k2Ref.id } },
-  { registeredBy: AUTH, registeredAt: '2026-11-01T00:00:00.000Z' });
+const lines = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
 const marksOf = (family) => read(trials.SEGMENTS()).filter((m) => m.family_id === family);
 const labelsOf = (out) => out.rows.map((r) => r.label.state);
+const PROGRAM = fx.k2('K2-PROGRAM', 'K2_FREEZE_PROGRAM_V1');
+const SOMEONE = fx.k2('K2-SOMEONE', 'SOMEONE_ELSE');
+const NO_FREEZER = fx.k2('K2-NO-FREEZER', null);
+const COORD_OTHER = fx.k2('K2-COORD-OTHER', 'COORDINATOR');
+let n = 0;
+const fam = (tag) => { n += 1; return `W18_GATE_${tag}_${process.pid}_${n}`; };
+// the market wide FORWARD scan sees every family's marks, so every test starts from an empty trial ledger
+test.beforeEach(() => { for (const f of [trials.TRIALS(), trials.SEGMENTS()]) fs.rmSync(f, { force: true }); });
+const mark = (family, label, extra = {}) => trials.markSegments({ family_id: family, market: 'CN_A', from: '2026-11-01', to: '2026-11-30', label, reason: 'W18 stage gate fixture', ...extra },
+  { registeredBy: fx.AUTH, registeredAt: '2026-11-01T00:00:00.000Z' });
 
-test('R-2 / R-3 a SEEN range is readable; the read appends a read record (LB-5) and a SEEN mark whose source is the read record sha256; segmentsFor then shows SEEN from that mark; a replay adds a record but no second mark', () => {
-  const w = world();
-  const F = 'W18_GATE_SEEN';
+function world(securities = ['600000.SH']) {
+  const store = panel.createStore({ dir: path.join(fx.tmp('w18-gate-'), 'labels') });
+  const record = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T07:30:00.000Z', candidates: securities.map((securityId) => ({ securityId })) });
+  const provider = fx.cnProvider();
+  for (const s of securities) fx.setCnW1(provider, s, 10, 10.5);
+  fx.setCnW1(provider, 'CSI300', 4000, 4040);
+  panel.materialize({ records: [record], windows: ['W1S'], provider, store, now: '2026-11-04T00:00:00.000Z' });
+  const ctx = fx.ctxFor(store);
+  return { store, record, provider, ctx, request: (family, o = {}) => fx.request(family, [record], o) };
+}
+
+test('R-2 / R-3 a SEEN range is readable by a bound K2; the read appends a read record (LB-5) and a SEEN mark whose source is the read record sha256; segmentsFor then shows SEEN from that mark; a replay adds a record but no second mark', () => {
+  const w = world(); const F = fam('SEEN'); fx.bind(F);
   const out = panel.readLabels(w.request(F), w.ctx);
   assert.deepEqual(labelsOf(out), ['VALUE']);
   const [rec] = lines(w.ctx.readLedgerFile);
   for (const k of ['readerRole', 'k2Ref', 'stage', 'families', 'from', 'to', 'windows', 'readAt', 'rowsReturned', 'sha256']) assert.ok(k in rec, `read record has ${k}`);
-  assert.deepEqual([rec.readerRole, rec.stage, rec.families, rec.from, rec.to, rec.windows, rec.readAt, rec.rowsReturned], [EVALUATOR, 'SEEN', [F], '2026-11-01', '2026-11-30', ['W1S'], '2026-11-05T00:00:00.000Z', 1]);
-  assert.deepEqual(rec.k2Ref, COORD);
+  assert.deepEqual([rec.readerRole, rec.stage, rec.families, rec.from, rec.to, rec.windows, rec.readAt, rec.rowsReturned], [fx.EVALUATOR, 'SEEN', [F], '2026-11-01', '2026-11-30', ['W1S'], fx.NOW, 1]);
+  assert.deepEqual(rec.k2Ref, fx.COORD);
   assert.equal(rec.sha256, panel.readRecordHashOf(rec), 'the record sha256 is the hash of the record content');
   const marks = marksOf(F);
   assert.equal(marks.length, 1);
@@ -74,23 +64,63 @@ test('R-2 / R-3 a SEEN range is readable; the read appends a read record (LB-5) 
   const { pieces } = trials.segmentsFor(F, '2026-11-01', '2026-11-30');
   assert.deepEqual(pieces.map((p) => [p.from, p.to, p.label, p.source === marks[0].mark_id]), [['2026-11-01', '2026-11-30', 'SEEN', true]]);
 
-  panel.readLabels(w.request(F, { readAt: '2026-11-06T00:00:00.000Z' }), w.ctx);
+  panel.readLabels(w.request(F), { ...w.ctx, now: () => '2027-01-02T00:00:00.000Z' });
   assert.equal(lines(w.ctx.readLedgerFile).length, 2, 'the replay is a read and is recorded');
   assert.equal(marksOf(F).length, 1, 'the same read replayed produces one mark only');
-  panel.readLabels(w.request(F, { windows: ['W1S'], from: '2026-11-01', to: '2026-11-20' }), w.ctx);
+  panel.readLabels(w.request(F, { to: '2026-11-20' }), w.ctx);
   assert.equal(marksOf(F).length, 2, 'a different range is a different read and gets its own mark');
 });
 
-test('R-2 an UNSEEN range: a program frozen K2 is refused LABEL_READ_UNSEEN_NOT_PERMITTED (nothing returned, nothing marked); a K2 that is not registered for the family, an unreadable K2 and a SEEN-stage request are refused too; the registered coordinator-frozen K2 reads it once and the range turns SEEN', () => {
-  const w = world();
-  const F = 'W18_GATE_UNSEEN';
+test('P1-2 the read time is the host clock: request.readAt is ignored, the read record and the SEEN mark carry ctx.now(); without ctx.now the ledger clock is used', () => {
+  const w = world(); const F = fam('CLOCK'); fx.bind(F);
+  panel.readLabels(w.request(F, { readAt: '2000-01-01T00:00:00.000Z' }), { ...w.ctx, now: () => '2026-12-05T08:09:10.111Z' });
+  const [rec] = lines(w.ctx.readLedgerFile);
+  assert.equal(rec.readAt, '2026-12-05T08:09:10.111Z');
+  assert.equal(marksOf(F)[0].registered_at, '2026-12-05T08:09:10.111Z');
+  const G = fam('CLOCK2'); fx.bind(G);
+  const before = Date.now();
+  const { now: _n, ...noClock } = w.ctx;
+  panel.readLabels(w.request(G, { readAt: '1999-01-01T00:00:00.000Z' }), noClock);
+  const stamped = marksOf(G)[0].registered_at;
+  assert.ok(Date.parse(stamped) >= before - 1 && Date.parse(stamped) <= Date.now() + 1, `ledger clock ${stamped}`);
+  assert.equal(lines(w.ctx.readLedgerFile)[1].readAt, stamped);
+  refuses(() => panel.readLabels(w.request(G), { ...w.ctx, now: () => 'noon' }), 'LABEL_READ_CONTEXT_INVALID');
+});
+
+test('P1-1 every read is bound to a K2 for EVERY declared family, at every stage: byte mismatch, unreadable K2, a family the K2 is not registered for, all refused LABEL_READ_K2_NOT_BOUND with nothing recorded or marked', () => {
+  const w = world(); const A = fam('BOUND_A'); const B = fam('BOUND_B'); const C = fam('BOUND_C');
+  fx.bind(A); fx.bind(B); fx.bind(C, COORD_OTHER);
+  const before = marksOf(A).length;
+  const bound = (o = {}, ctx = w.ctx) => panel.readLabels(w.request(A, o), ctx);
+  // family binding: K2 registered for A and B, not for C, and only for A with the other K2
+  assert.equal(bound({ families: [A, B] }).rows.length, 1, 'bound for both families');
+  refuses(() => bound({ families: [A, B, C] }), 'LABEL_READ_K2_NOT_BOUND');
+  refuses(() => bound({ families: [fam('UNREGISTERED')] }), 'LABEL_READ_K2_NOT_BOUND');
+  refuses(() => bound({ k2Ref: COORD_OTHER }), 'LABEL_READ_K2_NOT_BOUND');
+  // byte binding (R06)
+  refuses(() => bound({}, { ...w.ctx, k2Bytes: () => Buffer.from('some other K2 text') }), 'LABEL_READ_K2_NOT_BOUND');
+  refuses(() => bound({}, { ...w.ctx, k2Bytes: () => null }), 'LABEL_READ_K2_NOT_BOUND');
+  const { k2Bytes: _k, ...noBytes } = w.ctx;
+  refuses(() => bound({}, noBytes), 'LABEL_READ_K2_NOT_BOUND');
+  // the same at the other stages
+  refuses(() => bound({ stage: 'UNSEEN_FIRST_READ', k2Ref: COORD_OTHER }), 'LABEL_READ_K2_NOT_BOUND');
+  refuses(() => bound({ stage: 'FORWARD', forward: { shadowRef: 'SH-X' }, k2Ref: COORD_OTHER }), 'LABEL_READ_K2_NOT_BOUND');
+  assert.equal(marksOf(A).length, before + 1, 'only the one passed read marked');
+  assert.equal(lines(w.ctx.readLedgerFile).length, 1, 'refused reads leave no read record');
+  const refused = lines(w.ctx.accessLogFile).filter((r) => r.op === 'HOLDOUT_READ_REFUSED');
+  assert.equal(refused.length, 8);
+  assert.equal(refused.every((r) => r.code === 'LABEL_READ_K2_NOT_BOUND'), true);
+});
+
+test('R-2 an UNSEEN range: a program frozen K2, a K2 with an unknown freezer and a K2 without a freezer line are refused LABEL_READ_UNSEEN_NOT_PERMITTED (nothing returned, nothing marked); so is a SEEN-stage request; the bound coordinator-frozen K2 reads it once and the range turns SEEN', () => {
+  const w = world(); const F = fam('UNSEEN');
   mark(F, 'UNSEEN');
-  register(F, COORD); register(F, PROGRAM);
+  for (const k of [fx.COORD, PROGRAM, SOMEONE, NO_FREEZER]) fx.bind(F, k);
   const before = marksOf(F).length;
   const unseen = (o) => w.request(F, { stage: 'UNSEEN_FIRST_READ', ...o });
   refuses(() => panel.readLabels(unseen({ k2Ref: PROGRAM }), w.ctx), 'LABEL_READ_UNSEEN_NOT_PERMITTED');
-  refuses(() => panel.readLabels(unseen({ k2Ref: COORD_OTHER }), w.ctx), 'LABEL_READ_UNSEEN_NOT_PERMITTED');
-  refuses(() => panel.readLabels(unseen({ k2Ref: { id: 'K2-GONE', sha256: sha('gone') } }), w.ctx), 'LABEL_READ_UNSEEN_NOT_PERMITTED');
+  refuses(() => panel.readLabels(unseen({ k2Ref: SOMEONE }), w.ctx), 'LABEL_READ_UNSEEN_NOT_PERMITTED');
+  refuses(() => panel.readLabels(unseen({ k2Ref: NO_FREEZER }), w.ctx), 'LABEL_READ_UNSEEN_NOT_PERMITTED');
   refuses(() => panel.readLabels(w.request(F, { stage: 'SEEN' }), w.ctx), 'LABEL_READ_UNSEEN_NOT_PERMITTED');
   assert.equal(marksOf(F).length, before, 'a refused read marks nothing');
   assert.equal(lines(w.ctx.readLedgerFile).length, 0, 'a refused read leaves no read record');
@@ -99,59 +129,151 @@ test('R-2 an UNSEEN range: a program frozen K2 is refused LABEL_READ_UNSEEN_NOT_
   assert.equal(refused.length, 4);
   assert.equal(refused.every((r) => r.code === 'LABEL_READ_UNSEEN_NOT_PERMITTED' && r.dataset === 'PANEL_LABELS_V1'), true);
 
-  const ok = panel.readLabels(unseen({ k2Ref: COORD }), w.ctx);
+  const ok = panel.readLabels(unseen({ k2Ref: fx.COORD }), w.ctx);
   assert.deepEqual(labelsOf(ok), ['VALUE']);
   assert.deepEqual(trials.segmentsFor(F, '2026-11-01', '2026-11-30').pieces.map((p) => [p.from, p.to, p.label]), [['2026-11-01', '2026-11-30', 'SEEN']], 'R-3: after the read the range is SEEN');
   assert.equal(marksOf(F).filter((m) => m.label === 'SEEN').length, 1);
-  // once SEEN, the same data is development information: a program frozen K2 may read it as SEEN, and nobody can claim it as an UNSEEN first read again
+  // once SEEN, the same data is development information: a bound program frozen K2 may read it as SEEN
   assert.deepEqual(labelsOf(panel.readLabels(w.request(F, { k2Ref: PROGRAM, stage: 'SEEN' }), w.ctx)), ['VALUE']);
 });
 
-test('R-2 FORWARD_RESERVED: a non-holder is refused; the holder is refused before its declared read time and passes after it; the read turns the range FORWARD_READ and it stays SEEN for others; the part still reserved stays closed', () => {
-  const w = world();
-  const F = 'W18_GATE_FORWARD';
+test('R-2 FORWARD_RESERVED, first version (NOTE_1 item 3): a non-holder is refused; the holder is refused at any clock because the ledger holds no declared read time (FORWARD_READ_TIME_NOT_IN_LEDGER); no FORWARD_READ mark is ever written; a stage FORWARD request is closed even with no reservation', () => {
+  const w = world(); const F = fam('FORWARD'); fx.bind(F);
   mark(F, 'FORWARD_RESERVED', { from: '2026-11-01', to: '2026-12-31', shadow_ref: 'SH-A' });
-  const fwd = (o) => w.request(F, { stage: 'FORWARD', forward: { shadowRef: 'SH-A', declaredReadAt: '2026-12-01T00:00:00.000Z' }, readAt: '2026-12-02T00:00:00.000Z', ...o });
+  const fwd = (o) => w.request(F, { stage: 'FORWARD', forward: { shadowRef: 'SH-A' }, ...o });
   refuses(() => panel.readLabels(w.request(F, { stage: 'SEEN' }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
-  refuses(() => panel.readLabels(fwd({ forward: { shadowRef: 'SH-B', declaredReadAt: '2026-12-01T00:00:00.000Z' } }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
-  refuses(() => panel.readLabels(fwd({ readAt: '2026-11-05T00:00:00.000Z' }), w.ctx), 'LABEL_READ_FORWARD_BEFORE_READ_TIME');
+  refuses(() => panel.readLabels(fwd({ forward: { shadowRef: 'SH-B' } }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
   refuses(() => panel.readLabels(fwd({ forward: undefined }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
-  assert.equal(marksOf(F).length, 1, 'refusals mark nothing');
+  for (const clock of ['2026-11-05T00:00:00.000Z', '2026-12-02T00:00:00.000Z', '2030-01-01T00:00:00.000Z']) {
+    refuses(() => panel.readLabels(fwd({}), { ...w.ctx, now: () => clock }), 'FORWARD_READ_TIME_NOT_IN_LEDGER');
+    refuses(() => panel.readLabels(fwd({ forward: { shadowRef: 'SH-A', declaredReadAt: '2026-11-01T00:00:00.000Z' } }), { ...w.ctx, now: () => clock }), 'FORWARD_READ_TIME_NOT_IN_LEDGER');
+  }
+  assert.equal(marksOf(F).length, 1, 'only the reservation: nothing was marked');
   assert.equal(lines(w.ctx.readLedgerFile).length, 0);
-
-  const ok = panel.readLabels(fwd({ to: '2026-11-30' }), w.ctx);
-  assert.deepEqual(labelsOf(ok), ['VALUE']);
-  const { reservations, pieces } = trials.segmentsFor(F, '2026-11-01', '2026-12-31');
-  assert.deepEqual(reservations.map((r) => [r.from, r.to, r.label, r.shadow_ref]), [['2026-11-01', '2026-12-31', 'FORWARD_RESERVED', 'SH-A'], ['2026-11-01', '2026-11-30', 'FORWARD_READ', 'SH-A']]);
-  assert.deepEqual(pieces.map((p) => [p.from, p.to, p.label]), [['2026-11-01', '2026-11-30', 'SEEN'], ['2026-12-01', '2026-12-31', 'SEEN']]);
-  const [rec] = lines(w.ctx.readLedgerFile);
-  assert.deepEqual(rec.forward, { shadowRef: 'SH-A', declaredReadAt: '2026-12-01T00:00:00.000Z' });
-  // the part that was read is spent; the rest of the reservation is still closed to everyone else
-  assert.deepEqual(labelsOf(panel.readLabels(w.request(F, { stage: 'SEEN', to: '2026-11-30' }), w.ctx)), ['VALUE']);
-  refuses(() => panel.readLabels(w.request(F, { stage: 'SEEN', to: '2026-12-31' }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
+  const { reservations } = trials.segmentsFor(F, '2026-11-01', '2026-12-31');
+  assert.deepEqual(reservations.map((r) => [r.label, r.shadow_ref]), [['FORWARD_RESERVED', 'SH-A']]);
+  // a stage FORWARD request with nothing reserved in its range is closed too
+  const G = fam('FORWARD_NONE'); fx.bind(G);
+  refuses(() => panel.readLabels(w.request(G, { stage: 'FORWARD', forward: { shadowRef: 'SH-A' } }), w.ctx), 'FORWARD_READ_TIME_NOT_IN_LEDGER');
 });
 
-test('a label is returned only when its whole window lies inside [from, to] (the read must not show prices after the range the gate checked); the request must name allowed windows and families', () => {
+test('R-2 a reservation that a FORWARD_READ mark already closed (written elsewhere) is spent for everyone; the part still reserved stays closed', () => {
+  const w = world(); const F = fam('FORWARD_SPENT'); fx.bind(F);
+  mark(F, 'FORWARD_RESERVED', { from: '2026-11-01', to: '2026-12-31', shadow_ref: 'SH-A' });
+  mark(F, 'FORWARD_READ', { from: '2026-11-01', to: '2026-11-30', shadow_ref: 'SH-A' });
+  assert.deepEqual(labelsOf(panel.readLabels(w.request(F, { to: '2026-11-30' }), w.ctx)), ['VALUE']);
+  refuses(() => panel.readLabels(w.request(F, { to: '2026-12-31' }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
+});
+
+test('NOTE_1 item 4: a read whose range contains ANY family\'s reserved day of the market is refused unless the requester is that family\'s holder; other markets and days outside the range do not block', () => {
   const w = world();
-  const F = 'W18_GATE_RANGE';
+  const A = fam('XFAM_A'); const B = fam('XFAM_B'); fx.bind(A);
+  mark(B, 'FORWARD_RESERVED', { from: '2026-11-15', to: '2026-12-31', shadow_ref: 'SH-B' }); // B is not declared by the request
+  refuses(() => panel.readLabels(w.request(A, { stage: 'SEEN' }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
+  refuses(() => panel.readLabels(w.request(A, { stage: 'FORWARD', forward: { shadowRef: 'SH-A' } }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
+  refuses(() => panel.readLabels(w.request(A, { stage: 'FORWARD', forward: { shadowRef: 'SH-B' } }), w.ctx), 'FORWARD_READ_TIME_NOT_IN_LEDGER');
+  assert.deepEqual(labelsOf(panel.readLabels(w.request(A, { to: '2026-11-14' }), w.ctx)), ['VALUE'], 'the range ends before the reserved days');
+  // market aliases of the ledger count as the same market; another market does not
+  const Cn = fam('XFAM_CN_ALIAS'); const Us = fam('XFAM_US');
+  mark(Cn, 'FORWARD_RESERVED', { market: 'CN', from: '2026-11-01', to: '2026-11-03', shadow_ref: 'SH-C' });
+  refuses(() => panel.readLabels(w.request(A, { from: '2026-11-01', to: '2026-11-03' }), w.ctx), 'LABEL_READ_FORWARD_NOT_PERMITTED');
+  const w2 = world(); const D = fam('XFAM_D'); fx.bind(D);
+  mark(Us, 'FORWARD_RESERVED', { market: 'US_EQUITY', from: '2026-11-01', to: '2026-11-30', shadow_ref: 'SH-U' });
+  const lonely = (to) => panel.readLabels(w2.request(D, { from: '2026-11-04', to }), w2.ctx);
+  assert.ok(lonely('2026-11-14'), 'a US reservation does not block a CN read (and CN reservations ended by 11-03)');
+});
+
+test('P1-3 the range test holds for every label state: a label whose window ends (exitAt, else maturesAt) after `to` is not returned, whether it is VALUE, NOT_APPLICABLE, PRICE_UNAVAILABLE or immature', () => {
+  const store = panel.createStore({ dir: path.join(fx.tmp('w18-range-'), 'labels') });
+  const settled = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T07:30:00.000Z', candidates: ['OK.SH', 'GONE.SH', 'NOPX.SH'].map((securityId) => ({ securityId })) });
+  const late = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T08:00:00.000Z', candidates: [{ securityId: 'LATE.SH' }] });
+  const p = fx.cnProvider({ delisted: { 'GONE.SH': '2026-11-03T05:00:00.000Z' } });
+  for (const s of ['OK.SH', 'GONE.SH', 'LATE.SH']) fx.setCnW1(p, s, 10, 10.5);
+  fx.setCnW1(p, 'CSI300', 4000, 4040);
+  p.set('NOPX.SH', 'OPEN', '2026-11-03T01:30:00.000Z', 10);
+  panel.materialize({ records: [settled], windows: ['W1S'], provider: p, store, now: '2026-11-04T00:00:00.000Z' });
+  panel.materialize({ records: [late], windows: ['W1S'], provider: p, store, now: '2026-11-03T03:00:00.000Z' }); // immature: UNKNOWN / LABEL_NOT_MATURED
+  const states = fx.rowsOf(store).map((l) => `${l.state}/${l.reasonCode}`).sort();
+  assert.deepEqual(states, ['NOT_APPLICABLE/INSTRUMENT_DELISTED_IN_WINDOW', 'UNKNOWN/LABEL_NOT_MATURED', 'UNKNOWN/PRICE_UNAVAILABLE', 'VALUE/null']);
+  const F = fam('RANGE'); fx.bind(F);
+  const read = (to) => panel.readLabels(fx.request(F, [settled, late], { to }), fx.ctxFor(store)).rows.map((r) => `${r.state}/${r.reasonCode}`).sort();
+  assert.deepEqual(read('2026-11-02'), [], 'nothing whose window ends on 11-03 is returned, whatever its state');
+  assert.deepEqual(read('2026-11-03'), states);
+  // a long availability lag puts maturesAt on the next calendar day: a label without exitAt is cut by maturesAt, a value by exitAt
+  const lagged = fx.cnProvider({ lagMs: { CN: 20 * 3600000 } });
+  fx.setCnW1(lagged, 'OK.SH', 10, 10.5); lagged.set('OK.SH', 'CLOSE', '2026-11-03T07:00:00.000Z', 10.5, '2026-11-04T03:00:00.000Z');
+  const rec = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T07:30:00.000Z', candidates: [{ securityId: 'OK.SH' }, { securityId: 'MISSING.SH' }] });
+  const store2 = panel.createStore({ dir: path.join(fx.tmp('w18-range2-'), 'labels') });
+  panel.materialize({ records: [rec], windows: ['W1S'], provider: lagged, store: store2, now: '2026-11-05T00:00:00.000Z' });
+  const G = fam('RANGE2'); fx.bind(G);
+  const cut = (to) => panel.readLabels(fx.request(G, [rec], { to }), fx.ctxFor(store2)).rows.map((r) => r.state).sort();
+  assert.deepEqual(cut('2026-11-03'), ['VALUE'], 'the value (exit 11-03) is inside; the unavailable label (matures 11-04) is not');
+  assert.deepEqual(cut('2026-11-04'), ['UNKNOWN', 'VALUE']);
+});
+
+test('market and window filters: records of another market are not returned; only the requested windows are', () => {
+  const store = panel.createStore({ dir: path.join(fx.tmp('w18-filter-'), 'labels') });
+  const record = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T07:30:00.000Z', candidates: [{ securityId: '600000.SH' }] });
+  const p = fx.cnProvider(); fx.setCnW1(p, '600000.SH', 10, 10.5); fx.setCnW1(p, 'CSI300', 4000, 4040);
+  p.set('600000.SH', 'CLOSE', '2026-11-09T07:00:00.000Z', 11, '2026-11-09T07:30:00.000Z'); p.set('CSI300', 'CLOSE', '2026-11-09T07:00:00.000Z', 4080, '2026-11-09T07:30:00.000Z');
+  p.set('600000.SH', 'OPEN', '2026-11-03T01:30:00.000Z', 10);
+  panel.materialize({ records: [record], windows: ['W1S', 'W5S'], provider: p, store, now: '2026-11-10T00:00:00.000Z' });
+  const ctx = fx.ctxFor(store);
+  const F = fam('FILTER'); fx.bind(F);
+  const ids = (o) => panel.readLabels(fx.request(F, [record], { ...o }), ctx).rows.map((r) => r.windowId);
+  assert.deepEqual(ids({ windows: ['W1S'], to: '2026-12-31' }), ['W1S']);
+  assert.deepEqual(ids({ windows: ['W5S'], to: '2026-12-31' }), ['W5S']);
+  assert.deepEqual(ids({ windows: ['W1S', 'W5S'], to: '2026-12-31' }), ['W1S', 'W5S']);
+  // the same candidates read as market US: the records are CN, so nothing comes back
+  assert.deepEqual(ids({ market: 'US', windows: ['W1S'], to: '2026-12-31' }), []);
+  assert.deepEqual(ids({ market: 'CRYPTO', windows: ['W4H'], to: '2026-12-31' }), []);
+});
+
+test('a label is returned only when its whole window lies inside [from, to]; the request must name allowed windows, families, a stage, a K2 sha256 and an ordered range', () => {
+  const w = world(); const F = fam('RANGE_REQ'); fx.bind(F);
   assert.deepEqual(labelsOf(panel.readLabels(w.request(F, { to: '2026-11-02' }), w.ctx)), [], 'the window ends 2026-11-03, outside the range');
   assert.deepEqual(labelsOf(panel.readLabels(w.request(F, { to: '2026-11-03' }), w.ctx)), ['VALUE']);
   assert.deepEqual(labelsOf(panel.readLabels(w.request(F, { from: '2026-11-03', to: '2026-11-30' }), w.ctx)), [], 'the evaluation date is before the range');
   refuses(() => panel.readLabels(w.request(F, { windows: ['W7S'] }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
+  refuses(() => panel.readLabels(w.request(F, { windows: ['W5H'] }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
   refuses(() => panel.readLabels(w.request(F, { windows: [] }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
   refuses(() => panel.readLabels(w.request(F, { families: [] }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
   refuses(() => panel.readLabels(w.request(F, { stage: 'ANYTHING' }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
   refuses(() => panel.readLabels(w.request(F, { k2Ref: { id: 'x', sha256: 'nothex' } }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
   refuses(() => panel.readLabels(w.request(F, { from: '2026-11-30', to: '2026-11-01' }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
+  refuses(() => panel.readLabels(w.request(F, { forward: { shadowRef: '' } }), w.ctx), 'LABEL_READ_REQUEST_INVALID');
 });
 
 test('a mark that cannot be written stops the read: no rows are returned and an abort row is appended', () => {
-  const w = world();
-  const F = 'W18_GATE_MARKFAIL';
+  const w = world(); const F = fam('MARKFAIL'); fx.bind(F);
   refuses(() => panel.readLabels(w.request(F), { ...w.ctx, registeredBy: 'not-the-authority' }), 'LABEL_READ_MARK_FAILED');
   const rows = lines(w.ctx.readLedgerFile);
   assert.equal(rows.length, 2);
   assert.equal(rows[1].schema, 'PANEL_LABEL_READ_ABORTED_V1');
   assert.equal(rows[1].readRecordSha256, rows[0].sha256);
   assert.equal(marksOf(F).length, 0);
+});
+
+test('parity: the K2 freezer classification in the reader equals the K2 freeze program gate (program_freeze_gate.check) on the same K2 texts', () => {
+  const head = (line) => `# K2\n\n## 0.\n\n${line}\n`;
+  const texts = [
+    [head('- **作者与冻结者**：agent，冻结者 COORDINATOR，2026-11-23。'), 'COORDINATOR'],
+    [head('- **作者与冻结者**：agent，冻结者 K2_FREEZE_PROGRAM_V1，2026-11-23。'), 'K2_FREEZE_PROGRAM_V1'],
+    [head('- **作者与冻结者**：agent，冻结者 SOMEONE_ELSE，2026-11-23。'), 'UNKNOWN'],
+    [head('- **作者与冻结者**：agent，没写冻结者'), 'UNKNOWN'],
+    [head('- no freezer line at all'), null],
+    [head('- **作者与冻结者**：冻结者 COORDINATOR；曾由 冻结者 K2_FREEZE_PROGRAM_V1 起草'), 'K2_FREEZE_PROGRAM_V1'],
+    [`${head('- **作者与冻结者**：冻结者 COORDINATOR')}\n- **作者与冻结者**：冻结者 K2_FREEZE_PROGRAM_V1\n`, 'COORDINATOR'],
+    [head('- 冻结者 K2_FREEZE_PROGRAM_V1 (no label)'), null],
+  ];
+  const oracle = (text) => {
+    try { return gate.check({ id: 'x', kind: 'RESULT', k2: { sha256: 'a'.repeat(64) } }, { k2Bytes: () => Buffer.from(text) }); } catch (e) { return { threw: e.code }; }
+  };
+  for (const [text, expected] of texts) {
+    assert.equal(reader.frozenByOf(text), expected, text);
+    const g = oracle(text);
+    const viaGate = g.threw === 'K2_FREEZE_PROGRAM_PAGE_MISSING' ? 'K2_FREEZE_PROGRAM_V1' : g.threw === 'K2_FREEZE_PROGRAM_FROZEN_BY_INVALID' ? 'UNKNOWN'
+      : g.reason === 'COORDINATOR_FREEZE' ? 'COORDINATOR' : g.reason === 'NOT_PROGRAM_FROZEN' ? null : `?${JSON.stringify(g)}`;
+    assert.equal(viaGate, expected, `the gate classifies the same way: ${text}`);
+  }
 });

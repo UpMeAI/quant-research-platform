@@ -47,7 +47,7 @@ test('R-5 an immature label is UNKNOWN / LABEL_NOT_MATURED with no return key, i
 
   const late = panel.materialize({ records: [record], windows: ['W5S'], provider, store, now: '2026-11-10T00:00:00.000Z' });
   assert.deepEqual([late.written, late.skipped], [1, 0]);
-  const rows = store.rows();
+  const rows = fx.rowsOf(store);
   assert.equal(rows.length, 2);
   assert.equal(fs.readFileSync(store.file, 'utf8').startsWith(firstBytes), true, 'append only: the old row is byte for byte unchanged');
   assert.equal(rows[0].state, 'UNKNOWN');
@@ -55,11 +55,11 @@ test('R-5 an immature label is UNKNOWN / LABEL_NOT_MATURED with no return key, i
   close(rows[1].grossReturn, 0.05);
   assert.equal(rows[1].maturedAt, '2026-11-09T07:30:00.000Z');
   assert.equal(rows[1].maturedAt >= rows[1].maturesAt, true);
-  assert.equal(store.heads().get(`${row.candidateId}|W5S`).state, 'VALUE');
+  assert.equal(fx.rowsOf(store).filter((x) => x.candidateId === row.candidateId && x.windowId === 'W5S').pop().state, 'VALUE');
   const again = panel.materialize({ records: [record], windows: ['W5S'], provider, store, now: '2026-11-11T00:00:00.000Z' });
   assert.deepEqual([again.written, again.skipped], [0, 1], 'a matured label is never rewritten');
-  assert.equal(store.rows().length, 2);
-  for (const r of store.rows().filter((x) => x.state !== 'VALUE')) assert.equal(RETURN_KEYS.some((k) => k in r), false);
+  assert.equal(fx.rowsOf(store).length, 2);
+  for (const r of fx.rowsOf(store).filter((x) => x.state !== 'VALUE')) assert.equal(RETURN_KEYS.some((k) => k in r), false);
 });
 
 test('R-4 a label without windowId, or a matured label without maturedAt, is refused LABEL_WINDOW_OR_MATURITY_MISSING; a tampered hash is refused', () => {
@@ -79,17 +79,17 @@ test('R-4 a label without windowId, or a matured label without maturedAt, is ref
   refuses(() => store.append({ ...matured, grossReturn: 0.5 }), 'LABEL_HASH_MISMATCH');
   assert.equal(fs.existsSync(store.file), false, 'refused labels leave no file');
   store.append(matured);
-  assert.equal(store.rows().length, 1);
+  assert.equal(fx.rowsOf(store).length, 1);
   refuses(() => store.append(rehash({ ...matured, grossReturn: 0.07, excessReturn: 0.05 })), 'LABEL_MATURED_VALUE_CHANGED');
   refuses(() => store.append(rehash({ ...matured, state: 'UNKNOWN', reasonCode: 'LABEL_NOT_MATURED', maturedAt: null, grossReturn: undefined, benchmarkReturn: undefined, excessReturn: undefined })), 'LABEL_APPEND_REGRESSION');
-  assert.equal(store.rows().length, 1);
+  assert.equal(fx.rowsOf(store).length, 1);
 });
 
 test('label shape: candidateId and panelRecordHash point at the panel; closed state and reason vocabulary; no model, probability, capital or order field', () => {
   const { record, row, provider } = cnWorld();
   const l = panel.computeLabel({ record, row, windowId: 'W5S', provider, now: '2026-11-10T00:00:00.000Z' });
   assert.deepEqual(Object.keys(l).sort(), ['benchmarkReturn', 'candidateId', 'computedAt', 'entryAt', 'entryBasis', 'excessReturn', 'exitAt', 'grossReturn', 'labelHash', 'maturedAt', 'maturesAt',
-    'panelRecordHash', 'priceSourceRef', 'productionEffect', 'reasonCode', 'researchOnly', 'schema', 'state', 'windowId', 'windowLength', 'windowUnit']);
+    'panelRecordHash', 'priceSourceRef', 'reasonCode', 'researchOnly', 'schema', 'state', 'windowId', 'windowLength', 'windowUnit']);
   assert.equal(l.candidateId, row.candidateId);
   assert.equal(l.panelRecordHash, record.recordHash);
   assert.equal(l.entryBasis, 'NEXT_SESSION_OPEN');
@@ -102,7 +102,7 @@ test('label shape: candidateId and panelRecordHash point at the panel; closed st
   assert.equal(l.priceSourceRef.benchmarkId, 'CSI300');
   assert.equal(l.priceSourceRef.pricedInstrument, '600000.SH');
   assert.equal(l.researchOnly, true);
-  assert.equal(l.productionEffect, 'NONE');
+  assert.equal('productionEffect' in l, false, 'no production effect field: a label is a research fact');
   assert.equal(l.labelHash, panel.labelHashOf(l));
   assert.equal(JSON.stringify(l).match(/(model|prob|capital|order|broker|position|rank|score)/i), null);
   // recomputation: same inputs and a later clock give the same hash (computedAt is outside the hash)
@@ -204,4 +204,129 @@ test('the label program is deterministic and has no model, network or database d
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     assert.equal(/require\(['"](https?|net|dns|child_process|pg|mysql2?|sqlite3?)['"]\)|fetch\(|XMLHttpRequest|Math\.random|Date\.now\(|new Date\(\)/.test(src), false, `${f}: clock, randomness and network are injected, not read`);
   }
+});
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------
+ * Independent review fix round (NOTE_1): behaviours that the first round left unguarded. Each test below names the guard it pins.
+ * ---------------------------------------------------------------------------------------------------------------------------------------- */
+const rehash = (l) => ({ ...l, labelHash: panel.labelHashOf(l) });
+const matured = () => { const w = cnWorld(); return { ...w, label: panel.computeLabel({ record: w.record, row: w.row, windowId: 'W5S', provider: w.provider, now: '2026-11-10T00:00:00.000Z' }) }; };
+
+test('maturity boundary: the label matures exactly at maturesAt (not one millisecond before)', () => {
+  const { record, row, provider } = cnWorld();
+  const at = (now) => panel.computeLabel({ record, row, windowId: 'W5S', provider, now });
+  assert.equal(at('2026-11-09T07:30:00.000Z').state, 'VALUE', 'now == maturesAt is mature');
+  const before = at('2026-11-09T07:29:59.999Z');
+  assert.deepEqual([before.state, before.reasonCode], ['UNKNOWN', 'LABEL_NOT_MATURED']);
+});
+
+test('store: a return key on a label that has no value is refused, even a 0 and even a four-state object', () => {
+  const { label } = matured();
+  const store = panel.createStore({ dir: tmp('w18-lab-l3-') });
+  const unknown = { ...label, state: 'UNKNOWN', reasonCode: 'PRICE_UNAVAILABLE', maturedAt: null, entryAt: null, exitAt: null };
+  delete unknown.grossReturn; delete unknown.benchmarkReturn; delete unknown.excessReturn;
+  for (const extra of [{ grossReturn: 0 }, { benchmarkReturn: { state: 'UNKNOWN', reasonCode: 'BENCHMARK_PRICE_UNAVAILABLE' } }, { excessReturn: 0.01 }]) {
+    refuses(() => store.append(rehash({ ...unknown, ...extra })), 'LABEL_RETURN_ON_NON_VALUE');
+  }
+  assert.equal(fs.existsSync(store.file), false);
+  store.append(rehash(unknown));
+  assert.equal(fx.rowsOf(store).length, 1, 'the same row without a return key is accepted');
+});
+
+test('store: no model, probability, capital, order, broker, position or production effect key, at the top or inside priceSourceRef', () => {
+  const { label } = matured();
+  const store = panel.createStore({ dir: tmp('w18-lab-l8-') });
+  for (const key of ['modelScore', 'probability', 'capitalAllocation', 'orderId', 'brokerRef', 'positionSize', 'productionEffect']) {
+    refuses(() => store.append(rehash({ ...label, [key]: 'NONE' })), 'LABEL_FORBIDDEN_FIELD');
+    refuses(() => store.append(rehash({ ...label, priceSourceRef: { ...label.priceSourceRef, [key]: 1 } })), 'LABEL_FORBIDDEN_FIELD');
+  }
+  assert.equal(fs.existsSync(store.file), false);
+});
+
+test('store: a label that is not research only, or whose clocks are incoherent, is refused (maturedAt >= maturesAt, computedAt >= maturedAt)', () => {
+  const { label } = matured();
+  const store = panel.createStore({ dir: tmp('w18-lab-coh-') });
+  refuses(() => store.append(rehash({ ...label, researchOnly: false })), 'LABEL_NOT_RESEARCH_ONLY');
+  const { researchOnly: _r, ...noFlag } = label;
+  refuses(() => store.append(rehash(noFlag)), 'LABEL_NOT_RESEARCH_ONLY');
+  refuses(() => store.append(rehash({ ...label, maturedAt: '2026-11-09T07:29:59.999Z' })), 'LABEL_MATURITY_INCOHERENT');
+  refuses(() => store.append(rehash({ ...label, computedAt: '2026-11-09T07:29:59.999Z' })), 'LABEL_MATURITY_INCOHERENT');
+  refuses(() => store.append(rehash({ ...label, computedAt: 'yesterday' })), 'LABEL_MATURITY_INCOHERENT');
+  assert.equal(fs.existsSync(store.file), false);
+  assert.ok(store.append(rehash({ ...label, computedAt: label.maturedAt })), 'computedAt == maturedAt is coherent');
+});
+
+test('CN price method: a provider that does not declare the B13 method for CN is refused; the other markets take the provider method', () => {
+  const { record, row, provider } = cnWorld();
+  const wrong = { ...provider, priceMethod: () => 'RAW_CLOSE_ONLY' };
+  refuses(() => panel.computeLabel({ record, row, windowId: 'W5S', provider: wrong, now: '2026-11-10T00:00:00.000Z' }), 'LABEL_PRICE_METHOD_NOT_ALLOWED');
+  const right = { ...provider, priceMethod: (m) => (m === 'CN' ? 'RAW_OPEN_AND_CLOSE_TIMES_HISTORICAL_ADJ_FACTOR_V1' : 'X') };
+  assert.equal(panel.computeLabel({ record, row, windowId: 'W5S', provider: right, now: '2026-11-10T00:00:00.000Z' }).state, 'VALUE');
+});
+
+test('entry never before the evaluation: a provider whose entryAt precedes evaluatedAt is refused; entry exactly at evaluatedAt is allowed', () => {
+  const { record, row, provider } = cnWorld();
+  const early = { ...provider, entryAt: () => '2026-11-02T07:29:59.999Z' };
+  refuses(() => panel.computeLabel({ record, row, windowId: 'W5S', provider: early, now: '2026-11-10T00:00:00.000Z' }), 'LABEL_PROVIDER_INVALID');
+  provider.set('600000.SH', 'OPEN', record.evaluatedAt, 10);
+  provider.set('CSI300', 'OPEN', record.evaluatedAt, 4000);
+  const exact = { ...provider, entryAt: () => record.evaluatedAt, exitAt: () => '2026-11-09T07:00:00.000Z' };
+  assert.equal(panel.computeLabel({ record, row, windowId: 'W5S', provider: exact, now: '2026-11-10T00:00:00.000Z' }).entryAt, record.evaluatedAt, 'the label shows the instant the entry price was taken');
+  const flat = { ...provider, exitAt: () => '2026-11-02T07:30:00.000Z' };
+  refuses(() => panel.computeLabel({ record, row, windowId: 'W5S', provider: flat, now: '2026-11-10T00:00:00.000Z' }), 'LABEL_PROVIDER_INVALID');
+});
+
+test('maturedAt is when the data became available: the latest availableAt of the entry, exit and benchmark prices, never earlier than maturesAt', () => {
+  const rec = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T07:30:00.000Z', candidates: [{ securityId: '600000.SH' }] });
+  const build = (exitAvail, benchAvail, entryAvail = '2026-11-03T01:30:00.000Z') => {
+    const p = fx.cnProvider();
+    p.set('600000.SH', 'OPEN', '2026-11-03T01:30:00.000Z', 10, entryAvail);
+    p.set('600000.SH', 'CLOSE', '2026-11-03T07:00:00.000Z', 10.5, exitAvail);
+    p.set('CSI300', 'OPEN', '2026-11-03T01:30:00.000Z', 4000);
+    p.set('CSI300', 'CLOSE', '2026-11-03T07:00:00.000Z', 4040, benchAvail);
+    return panel.computeLabel({ record: rec, row: rec.rows[0], windowId: 'W1S', provider: p, now: '2026-11-04T00:00:00.000Z' }).maturedAt;
+  };
+  assert.equal(build('2026-11-03T09:00:00.000Z', '2026-11-03T07:30:00.000Z'), '2026-11-03T09:00:00.000Z', 'exit price available after maturesAt');
+  assert.equal(build('2026-11-03T07:30:00.000Z', '2026-11-03T10:00:00.000Z'), '2026-11-03T10:00:00.000Z', 'benchmark price available last');
+  assert.equal(build('2026-11-03T07:30:00.000Z', '2026-11-03T07:30:00.000Z', '2026-11-03T11:00:00.000Z'), '2026-11-03T11:00:00.000Z', 'entry price available last');
+  assert.equal(build('2026-11-03T07:10:00.000Z', '2026-11-03T07:10:00.000Z'), '2026-11-03T07:30:00.000Z', 'prices available before maturesAt: matured at maturesAt');
+});
+
+test('matured values do not change: gross return, entryAt, exitAt, and a numeric benchmark or excess return are fixed; a benchmark that was missing may be added later', () => {
+  const rec = fx.panelRecord({ sessionDate: '2026-11-02', evaluatedAt: '2026-11-02T07:30:00.000Z', candidates: [{ securityId: 'NOBM.SH' }] });
+  const noBench = fx.cnProvider(); fx.setCnW1(noBench, 'NOBM.SH', 10, 10.1);
+  const withBench = fx.cnProvider(); fx.setCnW1(withBench, 'NOBM.SH', 10, 10.1); fx.setCnW1(withBench, 'CSI300', 4000, 4040);
+  const at = (provider, now) => panel.computeLabel({ record: rec, row: rec.rows[0], windowId: 'W1S', provider, now });
+  const first = at(noBench, '2026-11-04T00:00:00.000Z');
+  assert.deepEqual(first.benchmarkReturn, { state: 'UNKNOWN', reasonCode: 'BENCHMARK_PRICE_UNAVAILABLE' });
+  const store = panel.createStore({ dir: tmp('w18-lab-s2-') });
+  store.append(first);
+  const upgraded = at(withBench, '2026-11-05T00:00:00.000Z');
+  assert.equal(typeof upgraded.benchmarkReturn, 'number');
+  assert.ok(store.append(upgraded), 'a missing benchmark may be filled in by a later row');
+  assert.equal(fx.rowsOf(store).length, 2);
+  for (const patch of [{ grossReturn: 0.5 }, { entryAt: '2026-11-03T01:31:00.000Z' }, { exitAt: '2026-11-03T07:01:00.000Z' }, { benchmarkReturn: 0.5 }, { excessReturn: 0.5 }]) {
+    refuses(() => store.append(rehash({ ...upgraded, ...patch })), 'LABEL_MATURED_VALUE_CHANGED');
+  }
+  refuses(() => store.append(rehash({ ...upgraded, benchmarkReturn: { state: 'UNKNOWN', reasonCode: 'BENCHMARK_PRICE_UNAVAILABLE' } })), 'LABEL_MATURED_VALUE_CHANGED');
+  refuses(() => store.append(rehash({ ...upgraded, excessReturn: { state: 'UNKNOWN', reasonCode: 'EXCESS_BENCHMARK_UNAVAILABLE' } })), 'LABEL_MATURED_VALUE_CHANGED');
+  assert.equal(fx.rowsOf(store).length, 2, 'every refusal left the table as it was');
+});
+
+test('window unit per market: a window of the wrong unit is refused even when its length is allowed for the market (sessions for CN and US, hours for crypto)', () => {
+  for (const [market, id] of [['CN', 'W5H'], ['CN', 'W20H'], ['US', 'W1H'], ['US', 'W10H'], ['CRYPTO', 'W24S'], ['CRYPTO', 'W4S'], ['CRYPTO', 'W72S']]) {
+    refuses(() => panel.vocab.parseWindowId(market, id), 'LABEL_WINDOW_NOT_ALLOWED');
+  }
+  assert.deepEqual(panel.vocab.parseWindowId('CN', 'W5S'), { windowId: 'W5S', unit: 'SESSION', length: 5 });
+  assert.deepEqual(panel.vocab.parseWindowId('CRYPTO', 'W24H'), { windowId: 'W24H', unit: 'HOUR', length: 24 });
+  const { record, row, provider } = cnWorld();
+  refuses(() => panel.computeLabel({ record, row, windowId: 'W5H', provider, now: '2026-11-10T00:00:00.000Z' }), 'LABEL_WINDOW_NOT_ALLOWED');
+});
+
+test('the store offers no read path: the object has only dir, file and append, and the package exports no table reader', () => {
+  const store = panel.createStore({ dir: tmp('w18-lab-api-') });
+  assert.deepEqual(Object.keys(store).sort(), ['append', 'dir', 'file']);
+  for (const name of ['rows', 'heads', 'readAll', 'read', 'load', 'readRows', 'readEntries']) assert.equal(name in store, false, name);
+  for (const name of Object.keys(panel)) assert.equal(/^(rows|heads|read(All|Rows|Entries|Store|Table))$/.test(name), false, `package export ${name}`);
+  assert.equal(typeof panel.readLabels, 'function', 'readLabels is the one read');
 });
