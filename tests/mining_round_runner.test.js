@@ -409,7 +409,7 @@ test('隔离（§4 第 7 条）：执行器启动即 lockdown，写输出目录�
   assert.deepEqual(fs.readdirSync(outside), []);
   const src = fs.readFileSync(CLI, 'utf8');
   const main = src.slice(src.indexOf('function main'));
-  assert.equal(main.split('runner.start(').length - 1, 6, 'llm-init (RF1116 LLM_GEN), generate, mechanisms, review (R1.5), fail-evaluation (★RF1116_ROUND1_STATE) and score all lock down first');
+  assert.equal(main.split('runner.start(').length - 1, 7, 'llm-init (RF1116 LLM_GEN), generate, mechanisms, review (R1.5), fail-evaluation (★RF1116_ROUND1_STATE), resolve-segment (RF1116 R2) and score all lock down first');
   assert.ok(main.indexOf('runner.start(') < main.indexOf('runner.generate(') && main.lastIndexOf('runner.start(') < main.indexOf('runner.scoreHoldout('));
   assert.ok(main.lastIndexOf('runner.start(') > main.indexOf('runner.select('), 'the score branch has its own start');
 });
@@ -435,8 +435,8 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   const stepRuns = all.filter((l) => l.includes('services/mining-llm-step/cli.js'));
   const runs = all.filter((l) => !stepRuns.includes(l));
   // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score、fail-evaluation（★RF1116_ROUND1_STATE (a)）；
-  // 大模型：llm-init（建交换目录）、generate-llm、resume-llm
-  assert.equal(runs.length, 10);
+  // 大模型：llm-init（建交换目录）、generate-llm、resume-llm；RF1116 R2：resolve-segment（只读日历，写一行解析记录）
+  assert.equal(runs.length, 11);
   assert.equal(stepRuns.length, 2, 'llm step: serve (detached) and ping');
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/mining_llm_generator.v1.json'), 'utf8'));
   assert.ok(new RegExp(`^KEY_FILE="?${cfg.key.host_path.replace(/[.]/g, '\\.')}"?$`, 'm').test(sh), 'KEY_FILE is the configured host path');
