@@ -466,7 +466,8 @@ test('B11 计量不明（应答没有 usage）→ 失败即关：WAITING_METER_U
 
 test('B12 LLM 轮的留出段结果记 AI_MINED_LLM，不能写成 GP（复审 2026-11-22 #1）', () => {
   const out = freshData();
-  const r = openLlm({ cap: KNOWN.length });
+  // A November round (R1): December rounds select R2 whose end is UNKNOWN, and the holdout of a round on R2 is refused (RF1116 second segment, tests/mining_holdout_segment_registry.test.js).
+  const r = openLlm({ cap: KNOWN.length, openedAt: '2026-11-24T02:00:00Z' });
   prewrite(out, r.round_id, KNOWN.length, { content: KNOWN.join('\n') });
   const g = gen(out, r.round_id);
   assert.deepEqual([g.status, g.total, g.llm.state], ['CAP_REACHED', KNOWN.length, null]);
