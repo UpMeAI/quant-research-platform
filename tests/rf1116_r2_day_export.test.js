@@ -37,11 +37,13 @@ for ((i=0;i<\${#args[@]};i++)); do
     -f) [ "\${args[$((i+1))]}" = "-" ] && sql="$(cat)";;
   esac
 done
+case "$STUB_FAIL:$sql" in ready:*pipeline_completion*|copy:*"COPY ("*) exit 1;; esac
+case "$STUB_SLEEP:$sql" in :*) ;; *:*"COPY ("*) sleep "$STUB_SLEEP";; esac
 printf '%s\\t%s\\n' "PGOPTIONS=$PGOPTIONS" "$*" >> "$LOG.args"
 printf '%s\\n----\\n' "$sql" >> "$LOG"
 case "$sql" in
   *"SHOW default_transaction_read_only"*) echo "\${STUB_READONLY:-on}";;
-  *pipeline_completion*) for r in $STUB_READY; do [ "$r" = "$d" ] && echo "$d:POST_CLOSE:$d|DEGRADED|$d""T20:10:00"; done;;
+  *pipeline_completion*) for r in $STUB_READY; do [ "$r" = "$d" ] && echo "$d:POST_CLOSE:$d|DEGRADED|$d""T20:10:00"; done; true;;
   *"COPY ("*)
     day="$(echo "$sql" | grep -o "'[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}'" | head -1 | tr -d "'")"
     case "$sql" in
@@ -58,16 +60,27 @@ case "$sql" in
 esac
 `;
 
-/** A sandbox: stub psql, drop root, env. */
-function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '' } = {}) {
+// stub docker: the ONLY accepted form is `docker exec -i -e PGOPTIONS=<v> <container> sh -c <script> sh <args...>` (ops-coord's closed exception); anything else exits 99 and is logged.
+// It runs the script with sh, so the real wrapper text of the script is what the stub psql sees.
+const DOCKER_STUB = `#!/bin/bash
+echo "$*" >> "$DOCKER_LOG"
+if [ "$1" != exec ] || [ "$2" != -i ] || [ "$3" != -e ] || [[ "$4" != PGOPTIONS=* ]] || [ "$6" != sh ] || [ "$7" != -c ]; then echo "unexpected docker form: $*" >&2; exit 99; fi
+export PGOPTIONS="\${4#PGOPTIONS=}"
+script="$8"; shift 8
+exec sh -c "$script" "$@"
+`;
+
+/** A sandbox: stub psql and docker on PATH, drop root, env. */
+function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail = '', sleep = '' } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-dayexp-'));
-  const stub = path.join(root, 'psql-stub'); fs.writeFileSync(stub, STUB, { mode: 0o755 });
+  const bin = path.join(root, 'bin'); fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'psql'), STUB, { mode: 0o755 }); fs.writeFileSync(path.join(bin, 'docker'), DOCKER_STUB, { mode: 0o755 });
   const drop = path.join(root, 'drop'); fs.mkdirSync(drop);
   const log = path.join(root, 'stub.log');
-  const env = { ...process.env, R2EXP_PSQL: stub, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, R2EXP_TODAY: '2027-04-30' };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, R2EXP_TODAY: '2027-04-30' };
   const run = (args, extra = {}) => { const r = spawnSync('bash', [SH, ...args], { env: { ...env, ...extra }, encoding: 'utf8' }); return { status: r.status, out: r.stdout, err: r.stderr }; };
   const statements = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n----\n').filter(Boolean) : []);
-  return { root, drop, run, statements, log };
+  return { root, drop, run, statements, log, dockerLog: path.join(root, 'docker.log') };
 }
 const dayDir = (sb, seg, day) => path.join(sb.drop, seg, compact(day));
 
@@ -102,7 +115,7 @@ test('DX2 the SQL sent for a day is the arrival program\'s PG query set (one pro
   const want = A().pgQueries('2026-11-19', { industryFrom: '2026-11-19' }); // previous open day 11-18 + 1 (11-18 is not the first R1 day: D1 is 11-17, so 11-18 is the first)
   // 2026-11-19: the previous open day is 11-18, so the industry window starts 11-19 00:00+08
   assert.equal(sent.length, want.length);
-  for (const q of want) assert.ok(sent.includes(`COPY (${q.sql}) TO STDOUT WITH (FORMAT csv, HEADER true)`), q.stem);
+  for (const q of want) assert.ok(sent.includes(`COPY (${q.sql}) TO STDOUT WITH (FORMAT csv, HEADER true);`), q.stem);
   for (const line of fs.readFileSync(`${sb.log}.args`, 'utf8').split('\n').filter(Boolean)) {
     assert.ok(line.startsWith('PGOPTIONS=-c default_transaction_read_only=on\t'), line);
     assert.match(line, /-X -q -v ON_ERROR_STOP=1/);
@@ -208,12 +221,12 @@ test('DX8 unit and timer: a oneshot user unit running the script for both segmen
   assert.match(svc, /^Type=oneshot$/m);
   assert.match(svc, /^ExecStart=.*r2-day-export\.sh --segment all$/m);
   assert.match(svc, /^EnvironmentFile=.*r2-day-export\.env$/m);
-  assert.ok(!/docker/.test(svc.replace(/#[^\n]*/g, '')));
+  assert.match(svc, /^Environment=DOCKER_HOST=unix:\/\/\/run\/user\/%U\/docker\.sock$/m);
   assert.match(tim, /^OnCalendar=\*-\*-\* 21:15:00 Asia\/Shanghai$/m);
   assert.ok((tim.match(/^OnCalendar=/gm) || []).length >= 2, 'a retry slot');
   assert.match(tim, /^Persistent=true$/m);
   const env = fs.readFileSync(path.join(DIR, 'r2-day-export.env.example'), 'utf8');
-  for (const k of ['R2EXP_PSQL', 'R2EXP_DROP_ROOT']) assert.ok(env.includes(k), k);
+  for (const k of ['R2EXP_PG_CONTAINER', 'R2EXP_PG_USER', 'R2EXP_PG_DB', 'R2EXP_DROP_ROOT']) assert.ok(env.includes(k), k);
   assert.ok(!/PASSWORD|PGPASSWORD|secret|token/i.test(env), 'no credential in the example');
   const inst = fs.readFileSync(path.join(DIR, 'INSTALL.md'), 'utf8');
   for (const s of ['25006', 'default_transaction_read_only', 'systemctl --user', 'SHA256SUMS', 'cf8380f0']) assert.ok(inst.includes(s), s);
@@ -224,4 +237,39 @@ test('DX9 SHA256SUMS (installed with the script) lists the script, the readiness
   const want = ['r2-day-export.sh', 'R2_DAY_EXPORT_READINESS_V1.sql', ...fs.readdirSync(path.join(DIR, 'sql')).map((f) => `sql/${f}`)].sort();
   assert.deepEqual(lines.map((l) => l.split('  ')[1]).sort(), want);
   for (const l of lines) { const [h, n] = l.split('  '); assert.equal(sha(fs.readFileSync(path.join(DIR, n))), h, n); }
+});
+
+test('DX10 docker is a closed exception (ops-coord, same as #122 RULING_1 D3): exactly one docker invocation in the script, `docker exec -i -e PGOPTIONS=... <container> sh -c ...`, every call under `timeout`, SQL on stdin; every call the stub saw has that form', () => {
+  const code0 = fs.readFileSync(SH, 'utf8').split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
+  const uses = code0.match(/\bdocker\b/g) || [];
+  assert.equal(uses.length, 1, 'one docker word in the code');
+  assert.match(code0, /timeout "\$\{R2EXP_TIMEOUT:-600\}" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "\$R2EXP_PG_CONTAINER" sh -c '[^']*exec psql -X -q -v ON_ERROR_STOP=1 -U "\$u" -d "\$d" "\$@"' sh "\$R2EXP_PG_USER" "\$R2EXP_PG_DB" "\$@"/);
+  for (const verb of ['run', 'cp', 'rm', 'kill', 'stop', 'restart', 'pause', 'unpause', 'start', 'build', 'compose', 'volume', 'network', 'commit', 'exec -u 0', 'exec --privileged']) assert.ok(!new RegExp(`docker ${verb}\\b`).test(code0), verb);
+  assert.ok(!/\bpsql\b[^\n]*\s-c\s/.test(code0.replace(/sh -c '[^']*'/g, '')), 'psql -c is not used: the SQL comes on stdin');
+  assert.ok(!/DOCKER_HOST|sudo/.test(code0), 'no daemon switch, no sudo (the unit names the daemon)');
+  const sb = sandbox({ ready: ['2026-11-19'] });
+  assert.equal(sb.run(['--segment', 'R1', '--day', '2026-11-19']).status, 0);
+  const calls = fs.readFileSync(sb.dockerLog, 'utf8').split('\n').filter(Boolean);
+  assert.ok(calls.length >= 10);
+  for (const c of calls) assert.match(c, /^exec -i -e PGOPTIONS=-c default_transaction_read_only=on pgc sh -c /, c.slice(0, 80));
+  const svc = fs.readFileSync(path.join(DIR, 'r2-day-export.service'), 'utf8');
+  assert.match(svc, /^Environment=DOCKER_HOST=unix:\/\/\/run\/user\/%U\/docker\.sock$/m, 'the unit names the rootless daemon');
+});
+
+test('DX11 fail closed: a failing readiness probe, a failing data query, or a psql call that runs past the time limit stops the run with exit 2 and exports nothing (a failed probe is not "not ready yet")', () => {
+  const probe = sandbox({ ready: ['2026-11-19'], fail: 'ready' });
+  const p = probe.run(['--segment', 'R1', '--day', '2026-11-19']);
+  assert.equal(p.status, 2); assert.match(p.err, /PROBE_FAILED:2026-11-19/);
+  assert.ok(!fs.existsSync(dayDir(probe, 'R1', '2026-11-19')));
+  const copy = sandbox({ ready: ['2026-11-19'], fail: 'copy' });
+  const c = copy.run(['--segment', 'R1', '--day', '2026-11-19']);
+  assert.equal(c.status, 2); assert.match(c.err, /EXPORT_FAILED:2026-11-19:prices_daily_stock/);
+  assert.deepEqual(fs.readdirSync(path.join(copy.drop, 'R1')), [], 'no day directory and no temp directory is left');
+  const slow = sandbox({ ready: ['2026-11-19'], sleep: '5' });
+  const s = slow.run(['--segment', 'R1', '--day', '2026-11-19'], { R2EXP_TIMEOUT: '1' });
+  assert.equal(s.status, 2);
+  assert.deepEqual(fs.readdirSync(path.join(slow.drop, 'R1')), []);
+  // the session check also fails closed when psql itself fails
+  const nopsql = sandbox({ ready: ['2026-11-19'] }); fs.rmSync(path.join(nopsql.root, 'bin', 'psql'));
+  assert.equal(nopsql.run(['--segment', 'R1', '--day', '2026-11-19']).status, 2);
 });
