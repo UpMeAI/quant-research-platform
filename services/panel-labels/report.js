@@ -96,8 +96,17 @@ function describeSample(joined, { windows = [], sessionGap = null } = {}) {
   };
 }
 
-/** Any wording of a sample size: 样本量, 样本数, 有效样本, 有效N, sample size, effective n, "N = 12", "N 12", "n=12". */
-const SAMPLE_WORD = /样本量|样本数|有效\s*样本|有效\s*N(?![A-Za-z/])|sample\s*size|effective\s*(sample|n)\b|(^|[^A-Za-z0-9/_])N\s*[=＝:：为]\s*\d|(^|[^A-Za-z0-9/_])N\s+\d/i;
+/**
+ * What counts as a sample size claim, line by line (NOTE_2): the words 样本量/样本数/样本容量/样本规模/样本个数, 样本 or 观测 next to a number, a number before 个样本,
+ * `sample size|count`, `number of samples`, `N samples`, `effective n`, a standalone N (N/A excluded), a standalone n with a number on the line.
+ * A closed list of patterns, not a proof that every wording is caught: wordings outside it (for example 观测值 144, 'size of the sample: 144') are NOT covered; see the doc.
+ */
+const SAMPLE_PATTERNS = Object.freeze([
+  /样本量/, /样本\s*(容量|规模|个数|数|大小)/, /样本\s*[是为:：=＝]?\s*\d/, /\d+\s*(个|条|笔)?\s*(独立|有效)?\s*(样本|观测)/, /观测\s*(数|个数|量)\s*[是为:：=＝]?\s*\d/,
+  /\d+\s*(independent\s+|effective\s+)?(observations?|samples?)\b/i, /(sample|observation)s?\s*(size|count|number)?\s*(is|are|of|=|:)?\s*\d/i, /number\s+of\s+(samples|observations)/i,
+  /effective\s*(sample|n)\b/i, /有效\s*N(?![A-Za-z/])/i, /(^|[^A-Za-z0-9/_])N(?![A-Za-z0-9/_])/, /(^|[^A-Za-z0-9/_])n(?![A-Za-z0-9/_])[^\n]*\d/,
+]);
+const mentionsSampleSize = (line) => SAMPLE_PATTERNS.some((re) => re.test(line));
 /** The one line a sample size may appear on: the number (or N/A) and its clustering method together. */
 const STRUCTURED = /^有效样本量[：:]\s*(N\/A|\d+)\s*[；;]\s*聚类方法[：:]\s*([A-Z_+]+)\s*([；;].*)?$/;
 const BOOK_LINE = /^账本\s*[:：]\s*(.+)$/m;
@@ -114,7 +123,7 @@ function checkReportTemplate(text, { books = [] } = {}) {
   const methods = [];
   let unstructured = false;
   for (const line of text.split('\n')) {
-    if (!SAMPLE_WORD.test(line)) continue;
+    if (!mentionsSampleSize(line)) continue;
     const m = STRUCTURED.exec(line.trim());
     if (m) methods.push(m[2].split('+')); else unstructured = true;
   }

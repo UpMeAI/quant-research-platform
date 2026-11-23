@@ -11,10 +11,11 @@
  * (LABEL_STORE_NOT_PROTECTED): the authority layer allows reads of directories it does not control, so silence would be a hole.
  * Every read leaves a read record (LB-5) and a row in the W24 hash chained access log; every refusal leaves a refused row.
  *
- * Gate (in this order, every stage): the K2 is bound (its bytes hash to k2Ref.sha256 and the trial ledger holds a REGISTRATION row (family, K2) for EACH declared family);
+ * Gate (in this order, every stage): the K2 is bound (its bytes hash to k2Ref.sha256 and the trial ledger holds a REGISTRATION row (family, K2) for EACH declared family, in the
+ * requested market: LABEL_READ_MARKET_MISMATCH otherwise);
  * no FORWARD_RESERVED day of ANY family of the market in [from, to] unless the requester is that family's holder, and a holder is refused too
  * (FORWARD_READ_TIME_NOT_IN_LEDGER: the ledger holds no declared read time, so this version never converts a reservation to FORWARD_READ); UNSEEN only as the bound
- * coordinator-frozen K2's own first read (RF1118 star P3). The read time is the host clock (ctx.now, default the ledger clock); the request's own time is not used.
+ * coordinator-frozen K2's own first read (RF1118 star P3), and no day UNSEEN for another family of the market (LABEL_READ_CROSS_FAMILY_UNSEEN, NOTE_2). The read time is the host clock (ctx.now, default the ledger clock); the request's own time is not used.
  * A passed read appends a DATA_SEGMENT_MARK_V1 SEEN mark through the existing markSegments (W05 ruling: the ledger holds the marks, no range is computed here);
  * replaying the same read adds a read record but no second mark.
  */
@@ -80,6 +81,7 @@ function bindK2(r, ctx) {
   for (const family of r.families) {
     const row = rows.find((t) => t.family_id === family);
     if (!row) no(`K2_NOT_REGISTERED_FOR_FAMILY:${family}`);
+    if (!v.MARKET_MARK_NAMES[r.market].includes(row.market)) fail('LABEL_READ_MARKET_MISMATCH', `${family}:${row.market} is not ${r.market}`);
     markets.set(family, row.market);
   }
   return { bytes, markets };
@@ -128,6 +130,21 @@ function unseenGate(r, bound) {
     const by = frozenByOf(bound.bytes.toString('utf8'));
     if (by === PROGRAM) no('PROGRAM_FROZEN_K2');
     if (by !== COORDINATOR) no('FROZEN_BY_NOT_COORDINATOR');
+  }
+}
+
+/**
+ * NOTE_2 item 1: labels are per market, UNSEEN per family. A day that is UNSEEN for any family of the market that the request does not declare refuses the whole read:
+ * the read would show that family's unseen sample without marking it SEEN, and marking it SEEN would burn it silently. Fail closed, like the FORWARD scan.
+ * (The declared families' own UNSEEN days are judged by unseenGate: their own first read.)
+ */
+function crossFamilyUnseenGate(r) {
+  const all = read(trials.SEGMENTS()).filter((m) => m.schema === 'DATA_SEGMENT_MARK_V1');
+  const names = v.MARKET_MARK_NAMES[r.market];
+  const foreign = new Set(all.filter((m) => names.includes(m.market) && !r.families.includes(m.family_id)).map((m) => m.family_id));
+  for (const family of foreign) {
+    const { pieces } = trials.segmentsFor(family, r.from, r.to, { marks: all });
+    if (pieces.some((p) => p.label === 'UNSEEN')) fail('LABEL_READ_CROSS_FAMILY_UNSEEN', family);
   }
 }
 
@@ -192,6 +209,7 @@ function readLabels(request, ctx) {
     const b = bindK2(request, ctx);
     forwardGate(request);
     unseenGate(request, b);
+    crossFamilyUnseenGate(request);
     return b;
   });
 
