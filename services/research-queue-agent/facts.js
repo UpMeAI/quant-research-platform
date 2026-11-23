@@ -50,6 +50,34 @@ function numbersNotInFacts(text, citedIds, factsById) {
 const estimateTokens = (obj) => Math.ceil(Buffer.byteLength(typeof obj === 'string' ? obj : JSON.stringify(obj)) / 3);
 const factsMap = (pack) => new Map(((pack && pack.facts) || []).filter((f) => isObj(f) && typeof f.id === 'string').map((f) => [f.id, f]));
 
+const WEEK_KEYS = ['week', 'weekId', 'week_id'];
+/**
+ * The ISO week of a fact pack. The desk writes `weekId` (REVIEW_AI_FACT_PACK_V1, ops/review-loop/ai-review-facts.cjs), the queue's own packs `week` / `week_id`. Every alias that is
+ * present must be the same non-empty string; otherwise (none, empty, not a string, disagreeing) there is no week: null. rq/packshape.py reads the same keys.
+ */
+function packWeek(pack) {
+  if (!isObj(pack)) return null;
+  const present = WEEK_KEYS.filter((k) => k in pack).map((k) => pack[k]);
+  return present.length > 0 && present.every((v) => typeof v === 'string' && v !== '' && v === present[0]) ? present[0] : null;
+}
+
+/**
+ * The repeated-pattern counts of a pack, [{key, count, fact_id}]: the pack's own `code_counts` array when it has one (the queue's shape); otherwise one entry per code of every
+ * COUNT fact (the desk's shape: value {subject, counts: {code: n}}), key `<subject>:<code>` (the subjects do not share a namespace), codes sorted, in fact order.
+ * The card validator and the prompt's repeated_pattern_counts both read this, nothing else.
+ */
+function codeCounts(pack) {
+  if (!isObj(pack)) return [];
+  if (Array.isArray(pack.code_counts)) return pack.code_counts;
+  const out = [];
+  for (const f of Array.isArray(pack.facts) ? pack.facts : []) {
+    const v = isObj(f) && f.kind === 'COUNT' && typeof f.id === 'string' ? f.value : null;
+    if (!isObj(v) || typeof v.subject !== 'string' || v.subject === '' || !isObj(v.counts)) continue;
+    for (const code of Object.keys(v.counts).sort()) if (Number.isInteger(v.counts[code])) out.push({ key: `${v.subject}:${code}`, count: v.counts[code], fact_id: f.id });
+  }
+  return out;
+}
+
 function scanKeys(v, found = []) {
   if (Array.isArray(v)) v.forEach((x) => scanKeys(x, found));
   else if (isObj(v)) for (const [k, x] of Object.entries(v)) { if (FORBIDDEN_KEY.test(k)) found.push(k); scanKeys(x, found); }
@@ -112,4 +140,4 @@ function splitPackByRow(pack, { maxTokens = MAX_CALL_TOKENS } = {}) {
   return parts;
 }
 
-module.exports = { MAX_CALL_TOKENS, FACT_ID, firewallHit, isCheckReportSource, numericTokens, numbersNotInFacts, estimateTokens, factsMap, checkPack, splitPackByRow, canonicalJson };
+module.exports = { MAX_CALL_TOKENS, FACT_ID, firewallHit, isCheckReportSource, numericTokens, numbersNotInFacts, estimateTokens, factsMap, packWeek, codeCounts, checkPack, splitPackByRow, canonicalJson };

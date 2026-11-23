@@ -10,7 +10,7 @@
  */
 const cfg = require('../../config/rq_deepseek_gateway.v1.json');
 const { canonicalJson, sha256, isObj, scrubSecrets } = require('./canon');
-const { checkPack, splitPackByRow } = require('./facts');
+const { checkPack, splitPackByRow, codeCounts } = require('./facts');
 const { validateCheckReport } = require('./check-report');
 const { validateCard } = require('./card');
 const { buildIdeaRecords, packSha } = require('./factor-idea');
@@ -146,7 +146,7 @@ async function runAgentTask(taskRow, bundle, opts) {
   if (isCard) {
     if (typeof bundle.week_id !== 'string' || !isObj(bundle.registry)) return blocked('RQ_BUNDLE_INVALID', 'week_id/registry');
     const vctx = { pack, registry: bundle.registry, market: task.market, week_id: bundle.week_id, existing_idea_count: bundle.existing_idea_count || 0 };
-    const user = JSON.stringify({ market: task.market, week_id: bundle.week_id, facts: pack.facts, repeated_pattern_counts: pack.code_counts || [], registry: registryView(bundle.registry) });
+    const user = JSON.stringify({ market: task.market, week_id: bundle.week_id, facts: pack.facts, repeated_pattern_counts: codeCounts(pack), registry: registryView(bundle.registry) });
     const r = await askUntilValid({ client: opts.client, task, system, admission: adm.system_sha256, user, validate: (raw) => validateCard(raw, vctx), kindLabel: task.kind, ctx });
     if (!r.ok) return result(r.outcome);
     const card = { schema: 'REVIEW_AI_CARD_V1', task_id: task.task_id, ...r.value.card, prompt_admission_sha256: adm.system_sha256, model: r.model };

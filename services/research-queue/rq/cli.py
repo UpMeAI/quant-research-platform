@@ -5,7 +5,7 @@ import os
 import sys
 import time
 
-from . import complete, config, consumer, core, pause, producer, runtime, status, templates
+from . import complete, config, consumer, core, pause, producer, relay, runtime, status, templates
 
 EXIT_ENV_MISMATCH = 78
 
@@ -54,7 +54,8 @@ def main(argv=None):
         if cfg.gateway_socket:
             from .probes import GatewayProbes
             probes = GatewayProbes(cfg.gateway_socket)
-        print(json.dumps(producer.tick(conn, cfg, _registry(cfg), now, probes)))
+        # W05: the host marks the pack it admits when RQ_SEEN_MARK_QRP_ROOT names a QRP checkout (apps/research-cli/review_pack_seen.js); unset = not configured here
+        print(json.dumps(producer.tick(conn, cfg, _registry(cfg), now, probes, seen_marker=relay.NodeSeenMarker.from_env(os.environ))))
         status.write(conn, cfg, now)
     elif args.cmd == "complete-tick":
         print(json.dumps(complete.tick(conn, cfg, now)))

@@ -522,3 +522,21 @@ test('真实登记表：每个 RESULT 的期望结论都能写成做 / 不做（
   assert.deepEqual(Object.keys(sealed.X08_LINES).sort(), ['V1', 'V2_SPMO', 'V2_SPY']);
   assert.throws(() => sealed.verdictWord('INSUFFICIENT', 'x'), /RETURN_SEALED_VERDICT_NOT_DO_OR_DONT/);
 });
+
+test('W47 修复：R-XM-1 两题的结果文件不写状态字，登记表必须带 state_zh（K2 §5 判定表原词），否则回程整周拒绝导出', () => {
+  // 11-23 W47 周编 QRP_EXPORT 因 RETURN_SEALED_STATE_MISSING:CN-RXM1-M 停住；结果文件 rows.RXM1_M / RXM1_B 只有 verdict 与 state=MEASURED（不进 read），
+  // 修订 4 §4 的做法：登记 state_zh，用词取冻结 K2 §5 判定表（R_XM_1_ASHARE_IDLE_CASH_K2_V1 §5 第 5 条）「做」「不做」两行的原词。
+  const want = {
+    'CN-RXM1-M': '做（配对 g 的 95% 区间下沿大于 0，ΔMDD 不超过 +0.50 个百分点，T0 缺口为 0）',
+    'CN-RXM1-B': '不做（其余情况）',
+  };
+  for (const [id, state] of Object.entries(want)) {
+    const entry = ashare.ENTRIES.find((e) => e.id === id);
+    assert.ok(entry, `${id} 缺`);
+    assert.equal(entry.state_zh, state, id);
+    assert.deepEqual(entry.read, { decision: `rows.${id === 'CN-RXM1-M' ? 'RXM1_M' : 'RXM1_B'}.verdict`, strength: null, use: null, text: null }, '修订 6 钉住的读法不变');
+  }
+  // 同一规则的守卫：A 股登记表里读法没有 state、也没有 strength 的 RESULT 题，要么带 state_zh，要么在 RUE1/X08 的裁定里；R-XM-1 两题不得缺。
+  const bare = ashare.ENTRIES.filter((e) => e.kind === 'RESULT' && e.read && !e.read.state && !e.read.strength && !e.read.final && !e.state_zh).map((e) => e.id);
+  assert.equal(bare.includes('CN-RXM1-M') || bare.includes('CN-RXM1-B'), false);
+});

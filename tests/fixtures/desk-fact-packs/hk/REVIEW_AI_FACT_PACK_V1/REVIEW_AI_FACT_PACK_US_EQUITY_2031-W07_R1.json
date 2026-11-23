@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 1,
+  "contract": "REVIEW_AI_FACT_PACK_V1",
+  "producer": "DESK_REVIEW_LOOP",
+  "market": "US_EQUITY",
+  "weekId": "2031-W07",
+  "revision": 1,
+  "period": {
+    "from": "2031-02-10",
+    "to": "2031-02-14",
+    "clock": "NYSE_SESSIONS"
+  },
+  "sourceWeek": {
+    "file": "REVIEW_LOOP_WEEK_2031-W07_R1.json",
+    "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+    "hash": "28a1b18caee4a83b9b4d764fb8b924fc64e6500c09d670d106933fb336914c27"
+  },
+  "routes": "SYN_ROUTES@v1",
+  "facts": [
+    {
+      "id": "F-001",
+      "kind": "PERIOD",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.periods.US"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "from": "2031-02-10",
+        "to": "2031-02-14",
+        "clock": "NYSE_SESSIONS"
+      }
+    },
+    {
+      "id": "F-002",
+      "kind": "FINDING",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings[4]"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "findingId": "SYN-2031W07-5",
+        "triggerId": "SYN01",
+        "ledgerId": "SYN_LEDGER_GAMMA",
+        "text": "Synthetic finding five (made-up text for tests): item gamma.",
+        "disposition": "ATTACHED",
+        "reasonCode": "SYN_REASON",
+        "route": "SYN_ROUTE_A",
+        "candidateId": "SYN-US-2031W06-1",
+        "evidence": [
+          {
+            "contract": "SYNTHETIC_EVIDENCE_V1",
+            "file": "synthetic/evidence/us_a.json",
+            "hash": "49211c6a8d90078f4a7659547c532524ea0191729d2734614d4e438a710fa831",
+            "path": "$.rows[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-003",
+      "kind": "FINDING",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings[5]"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "findingId": "SYN-2031W07-6",
+        "triggerId": "SYN02",
+        "ledgerId": "SYN_LEDGER_GAMMA",
+        "text": "Synthetic finding six (made-up text for tests): item delta.",
+        "disposition": "ATTACHED",
+        "reasonCode": "SYN_REASON",
+        "route": "SYN_ROUTE_A",
+        "candidateId": "SYN-US-2031W06-2",
+        "evidence": [
+          {
+            "contract": "SYNTHETIC_EVIDENCE_V1",
+            "file": "synthetic/evidence/us_a.json",
+            "hash": "49211c6a8d90078f4a7659547c532524ea0191729d2734614d4e438a710fa831",
+            "path": "$.rows[1]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-004",
+      "kind": "FINDING",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings[6]"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "findingId": "SYN-2031W07-7",
+        "triggerId": "SYN04",
+        "ledgerId": "SYN_LEDGER_GAMMA",
+        "text": "Synthetic finding seven (made-up text for tests): item epsilon.",
+        "disposition": "NO_CANDIDATE",
+        "reasonCode": "SYN_REASON",
+        "route": "SYN_ROUTE_A",
+        "candidateId": null,
+        "evidence": [
+          {
+            "contract": "SYNTHETIC_EVIDENCE_V1",
+            "file": "synthetic/evidence/us_b.json",
+            "hash": "b34d21a254373b97db61afcce3c8a5f731f1fdcbf91a7d85d8f1c0eb9f415597",
+            "path": "$.rows[2]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-005",
+      "kind": "CANDIDATE",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.candidates[2]"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "candidateId": "SYN-US-2031W06-1",
+        "type": "SYN_TYPE_A",
+        "ledgerId": "SYN_LEDGER_GAMMA",
+        "state": "SYN_OPEN",
+        "ruleRef": [],
+        "effect": {
+          "state": "NOT_MEASURED",
+          "reasonCode": "SYN_NOT_MEASURED",
+          "unit": "SYN_UNIT",
+          "value": null
+        },
+        "sample": {
+          "n": 2,
+          "unit": "EVENTS",
+          "floor": 1,
+          "state": "AT_OR_ABOVE_FLOOR"
+        },
+        "recurrence": {
+          "firstWeek": "2031-W06",
+          "weeksSeen": 2
+        }
+      }
+    },
+    {
+      "id": "F-006",
+      "kind": "CANDIDATE",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.candidates[3]"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "candidateId": "SYN-US-2031W06-2",
+        "type": "SYN_TYPE_C",
+        "ledgerId": "SYN_LEDGER_GAMMA",
+        "state": "SYN_OPEN",
+        "ruleRef": [],
+        "effect": {
+          "state": "NOT_MEASURED",
+          "reasonCode": "SYN_NOT_MEASURED",
+          "unit": "SYN_UNIT",
+          "value": null
+        },
+        "sample": {
+          "n": 2,
+          "unit": "EVENTS",
+          "floor": 1,
+          "state": "AT_OR_ABOVE_FLOOR"
+        },
+        "recurrence": {
+          "firstWeek": "2031-W06",
+          "weeksSeen": 2
+        }
+      }
+    },
+    {
+      "id": "F-007",
+      "kind": "COUNT",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "subject": "FINDINGS_BY_TRIGGER",
+        "total": 3,
+        "counts": {
+          "SYN01": 1,
+          "SYN02": 1,
+          "SYN04": 1
+        },
+        "derivedBy": "ai-review-facts@1"
+      }
+    },
+    {
+      "id": "F-008",
+      "kind": "COUNT",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "subject": "FINDINGS_BY_DISPOSITION",
+        "total": 3,
+        "counts": {
+          "ATTACHED": 2,
+          "NO_CANDIDATE": 1
+        },
+        "derivedBy": "ai-review-facts@1"
+      }
+    },
+    {
+      "id": "F-009",
+      "kind": "COUNT",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.candidates"
+      },
+      "at": "2031-02-14",
+      "value": {
+        "subject": "CANDIDATES_BY_TYPE",
+        "total": 2,
+        "counts": {
+          "SYN_TYPE_A": 1,
+          "SYN_TYPE_C": 1
+        },
+        "derivedBy": "ai-review-facts@1"
+      }
+    }
+  ],
+  "refused": [
+    {
+      "code": "FIREWALL:MINING_OUT",
+      "ref": "SYN-2031W07-8"
+    }
+  ],
+  "excludedSections": [
+    "ownerDecisions",
+    "register",
+    "researchReturns",
+    "triageDecisions"
+  ],
+  "noFindingsReason": null,
+  "interpretation": "REVIEW_AI_FACTS_NOT_ADVICE",
+  "realOrder": 0,
+  "brokerWrite": false,
+  "hash": "70cae906a7c19badf6710b9279807559f5adc775c74cef281020442728bb8e46"
+}

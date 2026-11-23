@@ -1,0 +1,24 @@
+{
+  "schema": "DESK_FACT_PACK_FIXTURES_V1",
+  "note": "SYNTHETIC fixtures with the REAL shape. The two week files in weeks/ are written by make_synthetic_weeks.cjs (made-up ids, texts, dates and hashes; weekId 2031-W07; no real desk or Owner data). The six packs are the desk producer's own output for them, byte for byte (plan-coord ruling 11-23 13:35: no real desk content in this public repo). A test checks every file against these sha256 values, so an edited fixture fails.",
+  "producer": {
+    "repo": "portfolio-desk",
+    "commit": "19a332646ac3e9f814f0889465745952c31c9ce3",
+    "file": "ops/review-loop/ai-review-facts.cjs",
+    "last_changed_by": "4ae6433 AQ D1 (#131)",
+    "command": "node ops/review-loop/ai-review-facts.cjs --week-file weeks/<file> --outbox <dir>",
+    "node": "v22.23.3 (Linux research host)"
+  },
+  "week_files": {
+    "weeks/REVIEW_LOOP_WEEK_2031-W07.json": "334676e521af2db1f4c79f047dd1bad5adf913fdcef0132c1bf15143640b4424",
+    "weeks/REVIEW_LOOP_WEEK_2031-W07_R1.json": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f"
+  },
+  "packs": {
+    "linux/REVIEW_AI_FACT_PACK_V1/REVIEW_AI_FACT_PACK_CN_A_2031-W07.json": "23943617814485ebe3d0c2433ac1ac9fec00bde68d471d0ba0647ea437ef94ef",
+    "linux/REVIEW_AI_FACT_PACK_V1/REVIEW_AI_FACT_PACK_CN_A_2031-W07_R1.json": "9e90aeeaceb7c4651971831fe896b2215e9fa5628dfe604a44ac99d73b088a79",
+    "hk/REVIEW_AI_FACT_PACK_V1/REVIEW_AI_FACT_PACK_US_EQUITY_2031-W07.json": "cf1458ddd92a7cd0c5bfa1c080f45c27751e2c105880cfacf2c11fa57bc99fc5",
+    "hk/REVIEW_AI_FACT_PACK_V1/REVIEW_AI_FACT_PACK_US_EQUITY_2031-W07_R1.json": "ba092f9c4fba8750dfeb00cd96cea01729a1f4528c68008f2d77b823d01ef853",
+    "hk/REVIEW_AI_FACT_PACK_V1/REVIEW_AI_FACT_PACK_CRYPTO_2031-W07.json": "480f898aef6132c19e539730ee959f76c8a2e9aac034689966626bac659e0b9d",
+    "hk/REVIEW_AI_FACT_PACK_V1/REVIEW_AI_FACT_PACK_CRYPTO_2031-W07_R1.json": "c4ed3fe570bc7eb9fbc34f62ebc20fef066efec0c85b48cbe543bbe94788d38a"
+  }
+}

@@ -28,7 +28,7 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 
 ## Mac relay
 
-`mac/com.upmeai.research-queue-relay.plist.template` (every 15 min), config `~/Library/Application Support/research-queue/relay.json` (optional; defaults match the desk outbox and the existing ssh aliases). It ships fact packs from `rq-relay-outbox/{linux,hk}/REVIEW_AI_FACT_PACK_V1/` to each host's `inbox/fact-packs/` and pulls each host's `outbox/*.json` into the QRP `var/research-queue-return/<host>/`, verifying by sha256 both ways. No new keys.
+`mac/com.upmeai.research-queue-relay.plist.template` (every 15 min), config `~/Library/Application Support/research-queue/relay.json` (optional; defaults match the desk outbox and the existing ssh aliases). It ships fact packs from `rq-relay-outbox/{linux,hk}/REVIEW_AI_FACT_PACK_V1/` to each host's `inbox/fact-packs/` and pulls each host's `outbox/*.json` into the QRP `var/research-queue-return/<host>/`, verifying by sha256 both ways. No new keys. W05: before a pack is pushed its SEEN mark is written into the QRP trial ledger by `node apps/research-cli/review_pack_seen.js mark --file -` (needs `QRP_PRODUCT_MILESTONE_AUTHORITY` in the launchd environment; `relay.json` may carry `"seen_mark": {"qrp_root": "...", "node": "..."}`); a pack that cannot be marked is not pushed (`failed ... SEEN_MARK_FAILED:<code>`) and is retried on the next pass. A host that also wants to mark what its producer admits sets `RQ_SEEN_MARK_QRP_ROOT` (and optionally `RQ_SEEN_MARK_NODE`) for `producer-tick`; without it the producer marks nothing.
 
 ## File sha256 (must match after install)
 

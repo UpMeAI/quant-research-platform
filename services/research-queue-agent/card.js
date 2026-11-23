@@ -4,7 +4,7 @@
  * （0 条要有带引用的 no_idea_reason）、至多 2 条非因子问题。模型只写这些键；schema、task_id、哈希由代码补。
  */
 const { isObj } = require('./canon');
-const { factsMap } = require('./facts');
+const { factsMap, codeCounts } = require('./facts');
 const { textErrors } = require('./text-rules');
 const { validateIdeaDraft, MAX_IDEAS_PER_WEEK } = require('./factor-idea');
 
@@ -46,7 +46,7 @@ function validateCard(raw, ctx) {
     });
   }
 
-  const counts = new Map(((ctx.pack && ctx.pack.code_counts) || []).map((x) => [x.key, x.count]));
+  const counts = new Map(codeCounts(ctx.pack).map((x) => [x.key, x.count]));
   if (!Array.isArray(c.repeated_patterns)) add('CARD_ITEM_KEYS', 'repeated_patterns');
   else c.repeated_patterns.forEach((p, i) => {
     const path = `repeated_patterns[${i}]`;
