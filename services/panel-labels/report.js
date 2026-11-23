@@ -90,22 +90,38 @@ function describeSample(joined, { windows = [], sessionGap = null } = {}) {
   if (markets.has('CRYPTO') || [...books.keys()].some((b) => SCAN_BOOKS.includes(b))) methods.push('EVENT');
   if (industry.state === 'VALUE') methods.push('INDUSTRY');
   return {
-    rows: rowsWithPanel.length, unjoinedRows: joined.length - rowsWithPanel.length, dates: dates.size, events: countEvents(books), industries: industry,
+    rows: rowsWithPanel.length, unjoinedRows: joined.length - rowsWithPanel.length, dates: dates.size, events: countEvents(books), industries: industry, books: [...books.keys()].sort(),
     windowOverlap: windows.map((w) => overlapOf(w, books, sessionGap)), clusterMethods: methods,
     effectiveSampleSize: { state: 'N/A', reasonCode: 'NO_ESTIMATOR_DECLARED' },
   };
 }
 
-const SAMPLE_WORD = /样本量|(^|[^A-Za-z0-9/])N\s*[=＝:：]/m;
-const METHOD_LINE = /聚类方法\s*[:：]\s*([A-Z_+]+)/;
+/** Any wording of a sample size: 样本量, 样本数, 有效样本, 有效N, sample size, effective n, "N = 12", "N 12", "n=12". */
+const SAMPLE_WORD = /样本量|样本数|有效\s*样本|有效\s*N(?![A-Za-z/])|sample\s*size|effective\s*(sample|n)\b|(^|[^A-Za-z0-9/_])N\s*[=＝:：为]\s*\d|(^|[^A-Za-z0-9/_])N\s+\d/i;
+/** The one line a sample size may appear on: the number (or N/A) and its clustering method together. */
+const STRUCTURED = /^有效样本量[：:]\s*(N\/A|\d+)\s*[；;]\s*聚类方法[：:]\s*([A-Z_+]+)\s*([；;].*)?$/;
+const BOOK_LINE = /^账本\s*[:：]\s*(.+)$/m;
 
-/** ES-1, ES-2 (date is the minimum clustering), ES-3 (insufficient power is never "不做"). */
-function checkReportTemplate(text) {
+/**
+ * ES-1: a sample size or N in any wording is valid only on one structured line that states the number and its clustering method together.
+ * ES-2: the method includes DATE (the minimum), and EVENT for a scan book (C17, US_V5 scans); the books come from the `账本：` line or from `options.books`.
+ * ES-3: insufficient power is never "不做".
+ */
+function checkReportTemplate(text, { books = [] } = {}) {
   const violations = [];
-  if (SAMPLE_WORD.test(text)) {
-    const m = METHOD_LINE.exec(text);
-    if (!m) violations.push('SAMPLE_SIZE_WITHOUT_CLUSTER_METHOD');
-    else if (!m[1].split('+').includes('DATE')) violations.push('CLUSTER_METHOD_MISSING_DATE');
+  const bookLine = BOOK_LINE.exec(text);
+  const scan = [...books, ...(bookLine ? bookLine[1].split(/[,，、\s]+/).filter(Boolean) : [])].some((b) => SCAN_BOOKS.includes(b));
+  const methods = [];
+  let unstructured = false;
+  for (const line of text.split('\n')) {
+    if (!SAMPLE_WORD.test(line)) continue;
+    const m = STRUCTURED.exec(line.trim());
+    if (m) methods.push(m[2].split('+')); else unstructured = true;
+  }
+  if (unstructured) violations.push('SAMPLE_SIZE_WITHOUT_CLUSTER_METHOD');
+  else {
+    if (methods.some((m) => !m.includes('DATE'))) violations.push('CLUSTER_METHOD_MISSING_DATE');
+    if (scan && methods.some((m) => !m.includes('EVENT'))) violations.push('CLUSTER_METHOD_MISSING_EVENT');
   }
   if (/功效不足[^\n]*不做|不做[^\n]*功效不足/.test(text)) violations.push('POWER_INSUFFICIENT_MUST_NOT_BE_NOT_DO');
   return { ok: violations.length === 0, violations };
@@ -136,10 +152,10 @@ function renderReport({ joined, panelRecords, windows = [], sessionGap = null })
   const industry = s.industries.state === 'VALUE' ? `行业数 ${s.industries.count}` : s.industries.state === 'NOT_APPLICABLE' ? '行业 不适用' : `行业 未知（${s.industries.reasonCode}）`;
   const lines = [
     '候选面板标签读数（只陈述事实，不下结论）',
+    ...(s.books.length ? [`账本：${s.books.join(', ')}`] : []),
     `行数 ${s.rows}；未关联行数 ${s.unjoinedRows}`,
     `日期数 ${s.dates}；事件数 ${s.events}；${industry}`,
-    `聚类方法：${s.clusterMethods.join('+')}`,
-    `有效样本量：N/A（${s.effectiveSampleSize.reasonCode}）`,
+    `有效样本量：N/A；聚类方法：${s.clusterMethods.join('+')}；原因：${s.effectiveSampleSize.reasonCode}`,
     ...s.windowOverlap.map((o) => `窗口重叠：${gapText(o)}`),
     `截断 ${t.truncatedNoLabel} 个，无标签`,
     ...t.problems.map((p) => `截断记录问题：${p.code}`),

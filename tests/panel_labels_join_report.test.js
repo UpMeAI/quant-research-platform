@@ -162,7 +162,7 @@ test('R-7 part 2 never writes a panel file: observed (every write call is record
     assert.deepEqual(written.filter((p) => p === panelDir || p.startsWith(`${panelDir}${path.sep}`)), [], 'no write call touched the panel directory');
     // control: a write into the panel directory would be seen (and refused by the read only directory)
     const control = spyWrites(() => { try { fs.writeFileSync(path.join(panelDir, 'x.jsonl'), 'x'); } catch { /* read only */ } });
-    assert.deepEqual(control, [path.join(panelDir, 'x.jsonl')]);
+    assert.ok(control.length >= 1 && control.every((p) => p === path.join(panelDir, 'x.jsonl')), 'the observer sees the write attempt (once per layer: Node versions differ)');
     assert.equal(sha256File(panelFile), before, 'the panel file is byte for byte unchanged');
   } finally { fs.chmodSync(panelDir, 0o755); fs.chmodSync(panelFile, 0o644); }
 });

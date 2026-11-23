@@ -17,8 +17,8 @@
 const v = require('./vocab');
 
 const { fail, need, sha256, canonicalJson } = v;
-/** LB-1: no model / probability / capital / order field in the table. */
-const FORBIDDEN_KEY = /(model|prob|capital|order|broker|position)/i;
+/** LB-1: no model / probability / capital / order field in the table, and no production effect field: a label is a research fact (researchOnly true is the marker). */
+const FORBIDDEN_KEY = /(model|prob|capital|order|broker|position|production)/i;
 const SOURCE_REFS = 'sourceRef';
 
 function assertProvider(p) {
@@ -57,6 +57,10 @@ function validateLabel(label) {
     need(v.REASON_CODES.includes(label.reasonCode), 'LABEL_INVALID', `reasonCode:${label.reasonCode}`);
     for (const k of v.RETURN_KEYS) need(!has(label, k), 'LABEL_RETURN_ON_NON_VALUE', k);
   }
+  need(label.researchOnly === true, 'LABEL_NOT_RESEARCH_ONLY', String(label.researchOnly));
+  // clocks: a value matures no earlier than maturesAt and is computed no earlier than it matured
+  need(v.isIso(label.computedAt), 'LABEL_MATURITY_INCOHERENT', 'computedAt');
+  if (label.state === 'VALUE') need(Date.parse(label.maturedAt) >= Date.parse(label.maturesAt) && Date.parse(label.computedAt) >= Date.parse(label.maturedAt), 'LABEL_MATURITY_INCOHERENT', label.candidateId);
   for (const k of [...Object.keys(label), ...Object.keys(label.priceSourceRef || {})]) need(!FORBIDDEN_KEY.test(k), 'LABEL_FORBIDDEN_FIELD', k);
   need(label.labelHash === labelHashOf(label), 'LABEL_HASH_MISMATCH', label.candidateId);
   return label;
@@ -97,7 +101,7 @@ function computeLabel({ record, row, windowId, provider, now, benchmarkKey } = {
     schema: 'PANEL_LABEL_V1', candidateId: row.candidateId, panelRecordHash: record.recordHash, windowId, windowUnit: win.unit, windowLength: win.length,
     entryBasis: v.ENTRY_BASIS[market], entryAt: null, exitAt: null, maturesAt, maturedAt: null, state: 'UNKNOWN', reasonCode: null,
     priceSourceRef: { providerId: provider.providerId, providerVersion: provider.providerVersion, priceMethod, pricedInstrument: instrumentKey, benchmarkId },
-    computedAt: now, researchOnly: true, productionEffect: 'NONE',
+    computedAt: now, researchOnly: true,
   };
   const unresolved = (state, reasonCode) => finish({ ...base, state, reasonCode });
   // LB-6: before maturesAt nothing is read and nothing is claimed

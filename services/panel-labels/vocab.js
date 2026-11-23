@@ -16,8 +16,8 @@ const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
 /** Panel market codes (CANDIDATE_PANEL_V1 `market`). */
 const MARKETS = Object.freeze(['CN', 'US', 'CRYPTO']);
-/** The trial ledger's market names (DATA_SEGMENT_MARK_V1 `market`). */
-const QRP_MARKET = Object.freeze({ CN: 'CN_A', US: 'US', CRYPTO: 'CRYPTO' });
+/** The names the trial ledger uses for a market in DATA_SEGMENT_MARK_V1 `market` (the mechanism register's aliases): a mark is of this market when its `market` is one of them. */
+const MARKET_MARK_NAMES = Object.freeze({ CN: Object.freeze(['CN_A', 'CN']), US: Object.freeze(['US_EQUITY', 'US']), CRYPTO: Object.freeze(['CRYPTO', 'CRYPTO_USDM_PERP']) });
 /** TM-0 calendar zones of the contract: the market's local date is the session date. */
 const TIME_ZONE = Object.freeze({ CN: 'Asia/Shanghai', US: 'America/New_York', CRYPTO: 'UTC' });
 
@@ -74,6 +74,6 @@ function localDate(market, instant) {
 }
 
 module.exports = {
-  PanelLabelError, fail, need, sha256, canonicalJson, MARKETS, QRP_MARKET, TIME_ZONE, WINDOW_TABLE, windowIdOf, isAllowedWindow, parseWindowId, ENTRY_BASIS, CN_PRICE_METHOD,
+  PanelLabelError, fail, need, sha256, canonicalJson, MARKETS, MARKET_MARK_NAMES, TIME_ZONE, WINDOW_TABLE, windowIdOf, isAllowedWindow, parseWindowId, ENTRY_BASIS, CN_PRICE_METHOD,
   BENCHMARKS, STATES, REASON_CODES, FOUR_STATES, RETURN_KEYS, READ_STAGES, READ_DATASET, DATE, SHA64, isIso, isText, isObj, iso, localDate,
 };

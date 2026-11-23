@@ -266,7 +266,7 @@ test('CN price method: a provider that does not declare the B13 method for CN is
 
 test('entry never before the evaluation: a provider whose entryAt precedes evaluatedAt is refused; entry exactly at evaluatedAt is allowed', () => {
   const { record, row, provider } = cnWorld();
-  const early = { ...provider, entryAt: () => '2026-11-02T07:29:59.999Z' };
+  const early = { ...provider, entryAt: () => '2026-11-02T07:29:59.999Z', exitAt: () => '2026-11-09T07:00:00.000Z' };
   refuses(() => panel.computeLabel({ record, row, windowId: 'W5S', provider: early, now: '2026-11-10T00:00:00.000Z' }), 'LABEL_PROVIDER_INVALID');
   provider.set('600000.SH', 'OPEN', record.evaluatedAt, 10);
   provider.set('CSI300', 'OPEN', record.evaluatedAt, 4000);
