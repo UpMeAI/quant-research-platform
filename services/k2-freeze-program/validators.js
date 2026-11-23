@@ -14,7 +14,7 @@ const parityGate = require('../parity-gate');
 const costGate = require('../cost-gate');
 const addendum1 = require('../research-framework-amendment-20261112-addendum-1');
 const { LIBRARY: FACTOR_LIBRARY } = require('../factor-library');
-const { codeOf, sha256, isObj, isCstStamp, SHA64 } = require('./common');
+const { codeOf, sha256, canonicalJson, isObj, isCstStamp, SHA64 } = require('./common');
 const templates = require('./templates');
 const power = require('./power');
 const rf1118 = require('./rf1118');
@@ -22,6 +22,8 @@ const bundleBuilder = require('./bundle');
 const queueLine = require('./queue_line');
 const promotionTerms = require('./promotion_terms');
 const schema = require('./schema');
+const layerRules = require('./layer');
+const proposed = require('./proposed');
 const FLASH_MODEL = 'deepseek-flash';
 
 const NAMES = Object.freeze({
@@ -57,6 +59,13 @@ function skewCode(trialId, registeredAt, frozenAt, offsets) {
 
 /** The prior-conclusion table (G-MECH) at as_of; computed once and also the input of the K2 text (its sha is written into the text). */
 function priorTable(draft, ctx, asOf) {
+  if (draft.schema === proposed.DRAFT_SCHEMA && Array.isArray(draft.section0.mechanism_ids) && draft.section0.mechanism_ids.length === 0) {
+    const table = { schema: 'MECHANISM_PRIOR_TABLE_V1', query: { mechanism_ids: [], market: draft.market, owner_named: false }, as_of: asOf,
+      register: { contract: mech.CONTRACT, path: mech.REGISTER_PATH, sha256: sha256(ctx.registerBytes), commit: ctx.registerCommit || null }, marks_used: [], by_id: [], route: 'NOT_APPLICABLE',
+      route_zh: '诊断或工程标签不登记研究机制', cite_seal_sha256: [], production_effect: 'NONE' };
+    const bytes = canonicalJson(table);
+    return { table, bytes, sha256: sha256(bytes), error: null, notApplicable: true };
+  }
   try {
     const table = mech.query({ mechanism_ids: draft.section0.mechanism_ids, market: draft.market, owner_named: false },
       { registerBytes: ctx.registerBytes, registerCommit: ctx.registerCommit || null, marks: ctx.marks || [], asOf });
@@ -83,11 +92,14 @@ const V = {};
 
 // V2 also judges what the K2 freezes for the engine and the verifier (Q3b): the PROMOTION_TERMS_V1 it would write (the engine's own validator, registered values for an AI draft)
 // and the robustness declaration (the verifier's required kinds and cost multiplier).
-V.V2 = ({ draft, ctx, k2Sha }) => [
-  ...templates.validate(draft.decision_table, { riskRules: ctx.riskRules || null, ruleRef: draft.desk_items.rule_ref }),
-  ...promotionTerms.validateTerms(draft, ctx, { k2Sha256: k2Sha, frozenAt: ctx.now }),
-  ...promotionTerms.validateDeclaration(draft.robustness_declaration),
-];
+V.V2 = ({ draft, ctx, k2Sha }) => {
+  const proposedPair = draft.schema !== proposed.DRAFT_SCHEMA || (layerRules.PROMOTION_PAIR[draft.layer] === (draft.promotion_terms && draft.promotion_terms.layer));
+  return [
+    ...templates.validate(draft.decision_table, { riskRules: ctx.riskRules || null, ruleRef: draft.desk_items.rule_ref }),
+    ...(draft.promotion_terms === undefined || !proposedPair ? [] : promotionTerms.validateTerms(draft, ctx, { k2Sha256: k2Sha, frozenAt: ctx.now })),
+    ...promotionTerms.validateDeclaration(draft.robustness_declaration),
+  ];
+};
 
 V.V3 = ({ draft, ctx }) => {
   const codes = [];
@@ -111,6 +123,9 @@ V.V3 = ({ draft, ctx }) => {
 
 V.V4 = ({ draft, ctx, text, k2Sha, table, asOf }) => {
   if (table.error) return [table.error];
+  const layerCodes = layerRules.validate(draft, ctx);
+  if (layerCodes.length) return layerCodes;
+  if (table.notApplicable) return [];
   const codes = [];
   for (const row of table.table.by_id) if (REFUSED_ROUTES.includes(row.route)) codes.push(`PREREG_ROUTED_${row.route}:${row.mechanism_id}`);
   if (codes.length) return codes;
@@ -179,7 +194,8 @@ const IDENT = /^[A-Za-z0-9_.:-]+$/;
 V.V7 = ({ draft, ctx }) => {
   const codes = [];
   const reg = ctx.registeredComponents || {};
-  const sets = { FACTOR: factorIds(ctx), READING: new Set(reg.readings || []), RULE_PART: new Set(reg.ruleParts || []) };
+  const registeredReadings = Array.isArray(reg.readings) ? reg.readings : isObj(reg.readings) ? Object.keys(reg.readings) : [];
+  const sets = { FACTOR: factorIds(ctx), READING: new Set(registeredReadings), RULE_PART: new Set(reg.ruleParts || []) };
   for (const a of draft.arms) {
     const rc = a.rule_config;
     for (const k of Object.keys(rc)) if (k !== 'components' && k !== 'params') codes.push(`PREREG_FORMULA_FORBIDDEN:RULE_CONFIG_KEY:${a.config_label}.${k}`);
@@ -311,7 +327,7 @@ V.V14 = ({ draft, ctx }) => {
   // admissions use the queue's RQ_PROMPT_ADMISSIONS_V1 entry shape: { kind: 'AI_PREREG', system_sha256, state: 'ADMITTED' }
   const hit = (ctx.admissions || []).some((x) => x.kind === 'AI_PREREG' && x.state === 'ADMITTED' && x.system_sha256 === a.prompt_sha256);
   if (!hit) return [`PREREG_PROMPT_NOT_ADMITTED:${String(a.prompt_sha256).slice(0, 12)}`];
-  if (a.schema_sha256 !== schema.SCHEMA_SHA256) return ['PREREG_PROMPT_NOT_ADMITTED:schema_sha256'];
+  if (a.schema_sha256 !== schema.sha256Of(draft.schema)) return ['PREREG_PROMPT_NOT_ADMITTED:schema_sha256'];
   // RF1118 C7: flash by default; any other model only with a quality-gate record id
   if (a.model !== FLASH_MODEL && !a.quality_gate_record_id) return [`PREREG_MODEL_NOT_ADMITTED:${a.model}`];
   return [];

@@ -16,6 +16,7 @@ const ROOT = path.join(__dirname, '..');
 const T1 = 'tests/k2_freeze_program_validators.test.js';
 const T2 = 'tests/k2_freeze_program_pipeline.test.js';
 const T3 = 'tests/k2_freeze_program_support.test.js';
+const T4 = 'tests/k2_freeze_program_w10.test.js';
 const D = 'services/k2-freeze-program';
 const VAL = `${D}/validators.js`;
 const IDX = `${D}/index.js`;
@@ -23,6 +24,7 @@ const SCH = `${D}/schema.js`;
 const TPL = `${D}/templates.js`;
 const GATE = `${D}/program_freeze_gate.js`;
 const BND = `${D}/bundle.js`;
+const LAYER = `${D}/layer.js`;
 
 /** Each mutant: `find` occurs exactly once in `file`; it is replaced by `replace`; `tests` is the one test file that must fail. */
 const MUTANTS = [
@@ -86,6 +88,15 @@ const MUTANTS = [
   { id: 'M59', guard: 'V3: min_sample_n copied exactly', file: VAL, find: "if (typeof t.min_sample_n === 'number' && t.min_sample_n !== out.n_required) codes.push(", replace: "if (false) codes.push(", tests: [T1] },
   { id: 'M60', guard: 'V3: power outputs must be the tool\'s own', file: VAL, find: "if (out[k] !== tool[k]) return [", replace: "if (false) return [", tests: [T1] },
   { id: 'M52', guard: 'queue line: append is idempotent by k2 sha', file: `${D}/queue_line.js`, find: 'if (count(logText, m[2]) >= 1) return { text: logText, appended: false };', replace: '', tests: [T2] },
+  { id: 'M61', guard: 'W10 V1: proposed drafts require a research layer', file: SCH, find: "if (!('layer' in draft)) codes.push('PREREG_LAYER_MISSING');", replace: "if (false) codes.push('PREREG_LAYER_MISSING');", tests: [T4] },
+  { id: 'M62', guard: 'W10 V1: UNDECIDED is not an openable research layer', file: SCH, find: "else if (draft.layer === 'UNDECIDED') codes.push('PREREG_LAYER_UNDECIDED');", replace: "else if (false) codes.push('PREREG_LAYER_UNDECIDED');", tests: [T4] },
+  { id: 'M63', guard: 'W10 V4: one draft cannot cite mechanisms from two layers', file: LAYER, find: "if (distinct.length > 1) return [`PREREG_LAYER_MULTIPLE_MECHANISM_LAYERS:${distinct.join(',')}`];", replace: "if (false) return [`PREREG_LAYER_MULTIPLE_MECHANISM_LAYERS:${distinct.join(',')}`];", tests: [T4] },
+  { id: 'M64', guard: 'W10 V4: mechanism layer equals draft layer', file: LAYER, find: "if (mismatch) return [`PREREG_LAYER_MECHANISM_MISMATCH:${mismatch.id}:${mismatch.layer}!=${layer}`];", replace: 'if (false) return [];', tests: [T4] },
+  { id: 'M65', guard: 'W10 V4: registered readings without a class fail closed', file: LAYER, find: "if (typeof className !== 'string' || !proposed.READING_CLASSES.includes(className)) return [`PREREG_LAYER_READING_CLASS_MISSING:${component.id}`];", replace: 'if (false) return [];', tests: [T4] },
+  { id: 'M66', guard: 'W10 V4: a forbidden reading class cannot cross the layer boundary', file: LAYER, find: "if (forbidden) return [`PREREG_LAYER_READING_CLASS_FORBIDDEN:${layer}:${className}:${component.id}`];", replace: 'if (false) return [];', tests: [T4] },
+  { id: 'M67', guard: 'W10 V4: ACCOUNT drafts are not supported by the freeze program yet', file: LAYER, find: "if (layer === 'ACCOUNT') return ['PREREG_LAYER_ACCOUNT_NOT_SUPPORTED'];", replace: 'if (false) return [];', tests: [T4] },
+  { id: 'M68', guard: 'W10 V4: diagnostic and N/A layers cannot carry promotion terms', file: LAYER, find: "if (NON_PROMOTABLE.has(layer)) return [`PREREG_LAYER_PROMOTION_FORBIDDEN:${layer}`];", replace: 'if (false) return [];', tests: [T4] },
+  { id: 'M69', guard: 'W10 V4: unsettled research/promotion layer pairs fail closed', file: LAYER, find: "if (!expected || draft.promotion_terms.layer !== expected) return [`PREREG_LAYER_PROMOTION_PAIR_UNSETTLED:${layer}:${String(draft.promotion_terms.layer)}`];", replace: 'if (false) return [];', tests: [T4] },
 ];
 
 function listFailures(out) {
@@ -103,7 +114,7 @@ function main(argv) {
   const head = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
   const dirty = execFileSync('git', ['status', '--porcelain', '--', ...new Set(MUTANTS.map((m) => m.file))], { cwd: ROOT, encoding: 'utf8' }).trim();
   if (dirty) { process.stderr.write(`refusing to run: uncommitted changes in mutated files:\n${dirty}\n`); return 2; }
-  for (const t of [T1, T2, T3]) { // baseline: one file at a time
+  for (const t of [T1, T2, T3, T4]) { // baseline: one file at a time
     const base = runTests([t]);
     if (base.status !== 0) { process.stderr.write(`baseline is not green (${t}): ${JSON.stringify(base.failing)}\n`); return 2; }
   }
