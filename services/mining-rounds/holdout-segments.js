@@ -71,8 +71,11 @@ function entryOfBlock(h) {
 /** True when the block names a real window (both ends are dates). R2 rows are never resolved at open: the calendar is not known then. */
 const isResolved = (h) => isObj(h) && DATE.test(h.from || '') && DATE.test(h.to || '');
 
-/** A lower bound for "the holdout starts after the model's cutoff": the start, or the day the start rule counts from (the start is strictly after it). */
-const lowerBoundOf = (h) => (DATE.test(h.from || '') ? h.from : h.start_after);
+/**
+ * Does the holdout start strictly after the model's knowledge cutoff? A window with a start date: start > cutoff. A rule-defined start (R2): the start is strictly after
+ * the day the rule counts from, so start_after >= cutoff is enough (and the check stays exact: nothing is assumed about the unresolved day).
+ */
+const startsAfter = (h, cutoff) => (DATE.test(h.from || '') ? h.from > cutoff : h.start_after >= cutoff);
 
 /**
  * The window of a segment given the SSE open days known so far (ascending ISO dates; unsorted input is sorted). Pure; the loader that feeds it is not part of this module.
@@ -96,4 +99,4 @@ function refOwner(dataRef) {
   return REGISTRY.find((e) => e.sealed_dir === last) || null;
 }
 
-module.exports = { REGISTRY, UNKNOWN, entryForMonth, holdoutOf, entryOfBlock, isResolved, lowerBoundOf, resolveWindow, refOwner };
+module.exports = { REGISTRY, UNKNOWN, entryForMonth, holdoutOf, entryOfBlock, isResolved, startsAfter, resolveWindow, refOwner };
