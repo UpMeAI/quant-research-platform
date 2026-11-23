@@ -4,6 +4,8 @@
 /**
  * Mutation check of the legacy round row rule (schemas/index.js LEGACY_ABSENT_FIELDS; tests/mining_legacy_round_rows.test.js must go red for each mutant).
  *   node tools/mining-legacy-key-mutation-check.js [--head <sha>] [--write docs/evidence/rf1116-legacy-round-key-v1/MUTATION_RESULTS.json]
+ * One equivalent mutant is not made: looking the table up by MINING_ROUND_V1 instead of by the row's schema. No other schema has the field (test L5 pins that premise), so it
+ * cannot relax anything else; SCHEMAS is frozen, so a test cannot add a schema to show the difference.
  * Run it on a COPY of the tree (~/bin-v6q0/linux-test, ci-node image); it rewrites source files while it runs and restores them whatever happens.
  */
 const fs = require('fs');
@@ -20,7 +22,6 @@ const MUTANTS = [
   m('K02', 'the legacy check is applied (absent stays MISSING otherwise)', SCH, 'if (legacy && legacy.includes(rec.round_id)) continue;', 'if (false) continue;'),
   m('K03', 'the list holds exactly rounds 1 and 2', SCH, "scoring_neutralization: Object.freeze(['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82']),", "scoring_neutralization: Object.freeze(['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82', 'MR-CN_A-2026-11-a6cb823f86']),"),
   m('K04', 'the list is frozen', SCH, "scoring_neutralization: Object.freeze(['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82']),", "scoring_neutralization: ['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82'],"),
-  m('K05', 'the legacy table is for this schema only', SCH, 'const legacy = LEGACY_ABSENT_FIELDS[schemaName] && LEGACY_ABSENT_FIELDS[schemaName][field];', 'const legacy = LEGACY_ABSENT_FIELDS.MINING_ROUND_V1[field];'),
   m('K06', 'the legacy table is for this field only (no general optionality)', SCH, 'const legacy = LEGACY_ABSENT_FIELDS[schemaName] && LEGACY_ABSENT_FIELDS[schemaName][field];', 'const legacy = LEGACY_ABSENT_FIELDS[schemaName] && Object.values(LEGACY_ABSENT_FIELDS[schemaName])[0];'),
   m('K07', 'neutralizationOf uses the same list as the validator', NEU, "require('../../schemas').LEGACY_ABSENT_FIELDS.MINING_ROUND_V1.scoring_neutralization;", "Object.freeze(['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82']);"),
   m('K08', 'LEGACY_ABSENT_FIELDS is exported', SCH, 'module.exports = { SCHEMAS, LEGACY_ABSENT_FIELDS, validateRecord, validateLedger };', 'module.exports = { SCHEMAS, validateRecord, validateLedger };'),
