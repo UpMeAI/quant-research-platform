@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "contract": "REVIEW_AI_FACT_PACK_V1",
+  "producer": "DESK_REVIEW_LOOP",
+  "market": "CRYPTO",
+  "weekId": "2031-W07",
+  "revision": 1,
+  "period": {
+    "from": "2031-02-10",
+    "to": "2031-02-16",
+    "clock": "UTC_DAYS"
+  },
+  "sourceWeek": {
+    "file": "REVIEW_LOOP_WEEK_2031-W07_R1.json",
+    "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+    "hash": "28a1b18caee4a83b9b4d764fb8b924fc64e6500c09d670d106933fb336914c27"
+  },
+  "routes": "SYN_ROUTES@v1",
+  "facts": [
+    {
+      "id": "F-001",
+      "kind": "PERIOD",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.periods.CRYPTO"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "from": "2031-02-10",
+        "to": "2031-02-16",
+        "clock": "UTC_DAYS"
+      }
+    },
+    {
+      "id": "F-002",
+      "kind": "FINDING",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings[8]"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "findingId": "SYN-2031W07-9",
+        "triggerId": "SYN01",
+        "ledgerId": "SYN_LEDGER_DELTA",
+        "text": "Synthetic finding nine (made-up text for tests): item zeta.",
+        "disposition": "ATTACHED",
+        "reasonCode": "SYN_REASON",
+        "route": "SYN_ROUTE_A",
+        "candidateId": "SYN-CRYPTO-2031W06-1",
+        "evidence": [
+          {
+            "contract": "SYNTHETIC_EVIDENCE_V1",
+            "file": "synthetic/evidence/crypto_a.json",
+            "hash": "d01cd70c224c12e56594c13bc990426a453744bdda9b7a619461623e0f2ff7c3",
+            "path": "$.rows[0]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-003",
+      "kind": "FINDING",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings[9]"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "findingId": "SYN-2031W07-10",
+        "triggerId": "SYN06",
+        "ledgerId": "SYN_LEDGER_DELTA",
+        "text": "Synthetic finding ten (made-up text for tests): item eta.",
+        "disposition": "NO_CANDIDATE",
+        "reasonCode": "SYN_REASON",
+        "route": "SYN_ROUTE_A",
+        "candidateId": null,
+        "evidence": [
+          {
+            "contract": "SYNTHETIC_EVIDENCE_V1",
+            "file": "synthetic/evidence/crypto_b.json",
+            "hash": "e393478b18750818f0459be7a0254229569c5579a38d4ac4f6d44da202181a05",
+            "path": "$.rows[1]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-004",
+      "kind": "FINDING",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings[10]"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "findingId": "SYN-2031W07-11",
+        "triggerId": "SYN06",
+        "ledgerId": "SYN_LEDGER_DELTA",
+        "text": "Synthetic finding eleven (made-up text for tests): item theta.",
+        "disposition": "NO_CANDIDATE",
+        "reasonCode": "SYN_REASON",
+        "route": "SYN_ROUTE_A",
+        "candidateId": null,
+        "evidence": [
+          {
+            "contract": "SYNTHETIC_EVIDENCE_V1",
+            "file": "synthetic/evidence/crypto_b.json",
+            "hash": "e393478b18750818f0459be7a0254229569c5579a38d4ac4f6d44da202181a05",
+            "path": "$.rows[2]"
+          }
+        ]
+      }
+    },
+    {
+      "id": "F-005",
+      "kind": "CANDIDATE",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.candidates[4]"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "candidateId": "SYN-CRYPTO-2031W06-1",
+        "type": "SYN_TYPE_A",
+        "ledgerId": "SYN_LEDGER_DELTA",
+        "state": "SYN_OPEN",
+        "ruleRef": [],
+        "effect": {
+          "state": "NOT_MEASURED",
+          "reasonCode": "SYN_NOT_MEASURED",
+          "unit": "SYN_UNIT",
+          "value": null
+        },
+        "sample": {
+          "n": 2,
+          "unit": "EVENTS",
+          "floor": 1,
+          "state": "AT_OR_ABOVE_FLOOR"
+        },
+        "recurrence": {
+          "firstWeek": "2031-W06",
+          "weeksSeen": 2
+        }
+      }
+    },
+    {
+      "id": "F-006",
+      "kind": "COUNT",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "subject": "FINDINGS_BY_TRIGGER",
+        "total": 3,
+        "counts": {
+          "SYN01": 1,
+          "SYN06": 2
+        },
+        "derivedBy": "ai-review-facts@1"
+      }
+    },
+    {
+      "id": "F-007",
+      "kind": "COUNT",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.findings"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "subject": "FINDINGS_BY_DISPOSITION",
+        "total": 3,
+        "counts": {
+          "ATTACHED": 1,
+          "NO_CANDIDATE": 2
+        },
+        "derivedBy": "ai-review-facts@1"
+      }
+    },
+    {
+      "id": "F-008",
+      "kind": "COUNT",
+      "source": {
+        "path": "docs/review-loop/REVIEW_LOOP_WEEK_2031-W07_R1.json",
+        "sha256": "2b98d1c9f247e177f2e234b4fb97d9609e04ab9c2a9fb744510028fccb083a9f",
+        "pointer": "$.candidates"
+      },
+      "at": "2031-02-16",
+      "value": {
+        "subject": "CANDIDATES_BY_TYPE",
+        "total": 1,
+        "counts": {
+          "SYN_TYPE_A": 1
+        },
+        "derivedBy": "ai-review-facts@1"
+      }
+    }
+  ],
+  "refused": [],
+  "excludedSections": [
+    "ownerDecisions",
+    "register",
+    "researchReturns",
+    "triageDecisions"
+  ],
+  "noFindingsReason": null,
+  "interpretation": "REVIEW_AI_FACTS_NOT_ADVICE",
+  "realOrder": 0,
+  "brokerWrite": false,
+  "hash": "8dcda9ae81caa3f2a283ee14a7c6b35b3d8d19d3ecb5ceb0333e50e7640c32fd"
+}
