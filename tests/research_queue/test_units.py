@@ -137,7 +137,12 @@ class DeployDoc(unittest.TestCase):
                 for name in ("services", "adapters", "packages", "schemas", "config"):
                     bundle.add(ROOT / name, arcname=name)
             with tarfile.open(archive) as bundle:
-                bundle.extractall(root / "tree", filter="data")
+                members = bundle.getmembers()
+                for member in members:
+                    path = pathlib.PurePosixPath(member.name)
+                    self.assertFalse(path.is_absolute() or ".." in path.parts, member.name)
+                    self.assertFalse(member.issym() or member.islnk(), member.name)
+                bundle.extractall(root / "tree", members=members)
             for name, value in (("task.json", {}), ("bundle.json", {}), ("result.json", None)):
                 (root / name).write_text(json.dumps(value))
             cli = root / "tree/services/research-queue-agent/cli.js"
