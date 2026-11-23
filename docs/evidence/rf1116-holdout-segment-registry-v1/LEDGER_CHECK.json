@@ -1,0 +1,98 @@
+{
+"read_at": "2026-11-23T12:23:40+08:00 (CST)",
+"source": "lane1 /srv/research-lane/rf1116-mining/out/qrp-data/research/ (read-only copy via lx cat)",
+"sha256": {"mining_rounds.jsonl": "edb3666a461f89e0835c0d0132071feb1341693a04447ff75e88030fce24e801", "mining_selections.jsonl": "df6f72d6b62d43f68d5b8c1b0c2cfa507f587d29e37b20118662a40421860cbb", "holdout_vault.jsonl": "be375c2e5ec96bc011de0d492ef5e54be8c4fcdab4becea37fc7ec70f370d4e9"},
+"code_head": "365fa14",
+"scripts": ["ledger_check.js", "legacy_row_write_check.js"],
+"ledger_check": [
+ {
+  "label": "ledger rows (round, status, holdout)",
+  "rows": [
+   {
+    "round_id": "MR-CN_A-2026-11-e1ab63a27b",
+    "status": "FAILED_EVALUATION",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   },
+   {
+    "round_id": "MR-CN_A-2026-11-2a1d2c9c82",
+    "status": "CAP_REACHED",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   },
+   {
+    "round_id": "MR-CN_A-2026-11-a6cb823f86",
+    "status": "CAP_REACHED",
+    "holdout": {
+     "from": "2026-10-19",
+     "to": "2026-12-31"
+    }
+   }
+  ]
+ },
+ {
+  "label": "A November round, registry selects (2026-11-24 10:00 CST)",
+  "result": "REFUSED",
+  "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:R1"
+ },
+ {
+  "label": "B December round 1, registry selects (2026-12-01 20:50 CST)",
+  "result": "REFUSED",
+  "code": "MINE_ROUND_ALREADY_OPEN:CN_A:2"
+ },
+ {
+  "label": "C December round, explicit R1 window (the legacy path)",
+  "result": "REFUSED",
+  "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:2026-10-19..2026-12-31"
+ },
+ {
+  "label": "copy only: rounds 2 and 3 closed"
+ },
+ {
+  "label": "D December round 1, registry selects",
+  "result": "OPENED",
+  "round_id": "MR-CN_A-2026-12-cc1b59cce6",
+  "month": "2026-12",
+  "holdout": {
+   "segment": "R2",
+   "start_rule": "FIRST_TRADING_DAY_AFTER",
+   "start_after": "2026-12-31",
+   "length_trading_days": 54,
+   "from": "UNKNOWN / CALENDAR_NOT_PUBLISHED",
+   "to": "UNKNOWN / CALENDAR_NOT_PUBLISHED"
+  }
+ },
+ {
+  "label": "E December round 2, registry selects",
+  "result": "OPENED",
+  "round_id": "MR-CN_A-2026-12-1547aab5b9",
+  "month": "2026-12",
+  "holdout": {
+   "segment": "R2",
+   "start_rule": "FIRST_TRADING_DAY_AFTER",
+   "start_after": "2026-12-31",
+   "length_trading_days": 54,
+   "from": "UNKNOWN / CALENDAR_NOT_PUBLISHED",
+   "to": "UNKNOWN / CALENDAR_NOT_PUBLISHED"
+  }
+ },
+ {
+  "label": "F December round 3, registry selects",
+  "result": "REFUSED",
+  "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:R2"
+ },
+ {
+  "label": "G January round on a full R2, registry selects",
+  "result": "REFUSED",
+  "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:R2"
+ }
+]
+,
+"legacy_row_write_check": [
+{"round_id":"MR-CN_A-2026-11-2a1d2c9c82","status":"CAP_REACHED","has_scoring_neutralization_key":false,"result":"MINE_ROUND_SCHEMA_INVALID:MISSING:scoring_neutralization"},{"round_id":"MR-CN_A-2026-11-a6cb823f86","status":"CAP_REACHED","has_scoring_neutralization_key":true,"result":"beginScoring OK (on the copy)"}
+]
+}
