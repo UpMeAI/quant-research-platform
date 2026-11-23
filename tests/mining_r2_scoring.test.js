@@ -38,7 +38,9 @@ const COV = Object.freeze({ min_names_per_day: 5 });
 const KNOWN = ['rank((-ret_1d))', 'zscore((-ret_1d))', 'rank((-ts_mean(ret_1d,5)))', 'rank(pb)', 'rank(ts_delta(close_hfq,1))', 'zscore(turnover_f)'];
 const knownGen = { mode: 'AI_MINED_GP', seed: 0, params: { batch_size: 40 }, nextBatch: (view, { n }) => KNOWN.slice(view.mining_scores.length, view.mining_scores.length + n) };
 const res = () => require('../services/mining-rounds/segment-resolution');
-const WINDOW = Object.freeze({ from: '2026-10-19', to: '2026-12-31' }); // the fixture's holdout days, standing in for R2's resolved window
+const R1W = Object.freeze({ from: '2026-10-19', to: '2026-12-31' }); // R1's window (segments.js HOLDOUT): the default of the panel builder and the scorer
+// A window inside the fixture's holdout days, standing in for R2's resolved window. It differs from R1's at BOTH ends, so scoring code that falls back to R1's constants is visible.
+const WINDOW = Object.freeze({ from: '2026-11-02', to: '2026-12-15' });
 const R2REF = 'lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-r2';
 const runDirOf = (out, id) => path.join(out, 'rounds', id.replace(/[^A-Za-z0-9_-]/g, '_'));
 
@@ -84,12 +86,34 @@ test('RC1 scoring on R2, end to end: refused while the window is unrecorded; wit
   assert.equal(s.records.length, sel.selected.length);
   const [open] = vault.openLog(r.round_id);
   assert.deepEqual(open.pre_open_checks.segment_window, { from: WINDOW.from, to: WINDOW.to, segment: 'R2', resolution_record_hash: rec.record_hash });
-  assert.equal(open.pre_open_checks.holdout_dir.trade_dates.from, '2026-10-16');
+  assert.deepEqual([open.pre_open_checks.holdout_dir.trade_dates.from, open.pre_open_checks.holdout_dir.trade_dates.to], ['2026-10-30', '2026-12-14'], 'the feed days of the window, not of R1');
+  assert.deepEqual([open.pre_open_checks.holdout_dir.seal_mode, open.pre_open_checks.holdout_dir.anchor], ['DEFERRED_PENDING_SEAL', 'OWN_DAYS_MEDIAN']);
   const scoreFile = JSON.parse(fs.readFileSync(path.join(runDirOf(out, r.round_id), 'score.json'), 'utf8'));
   assert.ok(scoreFile.results.length >= 1);
   for (const x of scoreFile.results) assert.deepEqual([x.holdout.segment, x.holdout.from, x.holdout.to], ['HOLDOUT', WINDOW.from, WINDOW.to]);
   assert.equal(rounds.roundHead(r.round_id).status, 'SCORING');
   assert.equal(runner.close({ roundId: r.round_id }).status, 'CLOSED');
+});
+
+test('RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)', () => {
+  const out = freshData();
+  const r = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 2 }, cap: KNOWN.length, openedAt: '2026-12-01T20:50:00+08:00' });
+  const d = r2Dir();
+  runner.sealHoldout({ roundId: r.round_id, dataRef: R2REF, dataSha256: d.sealSha });
+  runner.internals.withGenerator(knownGen, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: COV }));
+  runner.select({ roundId: r.round_id, sources: sources(), outDir: out });
+  reviewAll(r.round_id);
+  const rec = forgeResolution();
+  const args = { roundId: r.round_id, sources: sources(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV };
+  assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(args)), code(/MINE_RUNNER_TEST_FAULT/));
+  assert.equal(rounds.roundHead(r.round_id).status, 'SCORING');
+  const rs = runner.rescore({ ...args, reason: 'crash (synthetic)', log: 'x' });
+  assert.equal(rs.rescored, true);
+  assert.ok(rs.records.length >= 1);
+  const file = JSON.parse(fs.readFileSync(path.join(runDirOf(out, r.round_id), 'score.rescore.json'), 'utf8'));
+  for (const x of file.results) assert.deepEqual([x.holdout.from, x.holdout.to], [WINDOW.from, WINDOW.to]);
+  assert.equal(vault.rescoreLog(r.round_id).length, 1);
+  assert.equal(res().resolutionOf('R2').record_hash, rec.record_hash, 'the resolution row is untouched');
 });
 
 test('RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor', () => {
@@ -99,12 +123,12 @@ test('RC2 deferred seal: the R2 directory (pending line sealed, data appended) p
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: d.sealSha });
   forgeResolution();
   const c = runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() });
-  assert.deepEqual([c.trade_dates.from, c.trade_dates.to], ['2026-10-16', '2026-12-30']);
+  assert.deepEqual([c.trade_dates.from, c.trade_dates.to], ['2026-10-30', '2026-12-14']);
   const sealedDays = JSON.stringify(c).match(/"sealed_days":(\d+)/g);
   assert.ok(sealedDays && sealedDays.length > 0 && sealedDays.every((x) => x === '"sealed_days":0'), 'nothing was sealed with rows');
   freshData();
-  const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1', sha256: sha('r1'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...WINDOW }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
-  vault.seal({ round_id: r1.round_id, segment: { ...WINDOW }, data_ref: 'synthetic', data_sha256: d.sealSha, sealedBy: 'TEST' });
+  const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1', sha256: sha('r1'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
+  vault.seal({ round_id: r1.round_id, segment: { ...R1W }, data_ref: 'synthetic', data_sha256: d.sealSha, sealedBy: 'TEST' });
   assert.throws(() => runner.verifyHoldoutDir(r1.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_SEALED_DAYS_EMPTY/), 'R1 is unchanged');
 });
 
@@ -130,6 +154,35 @@ test('RC3 deferred seal still checks everything else: a file edited after the li
   assert.throws(() => runner.verifyHoldoutDir(late.round_id, base.dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
 });
 
+test('RC3b deferred seal still catches a thin day: the anchor is the data\'s own median of days, so a day far below it is incomplete', () => {
+  freshData();
+  const r2 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
+  const base = r2Dir();
+  runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: base.sealSha });
+  forgeResolution();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-thin-')); for (const n of fs.readdirSync(base.dir)) fs.copyFileSync(path.join(base.dir, n), path.join(dir, n));
+  const f = path.join(dir, 'prices_daily_stock.csv'); const lines = fs.readFileSync(f, 'utf8').split('\n'); const ti = lines[0].split(',').indexOf('trade_date');
+  assert.ok(ti >= 0);
+  let kept = 0; const thinned = lines.filter((l, i) => { if (i === 0 || !l) return true; if (l.split(',')[ti] !== '2026-12-08') return true; kept += 1; return kept <= 6; });
+  const bytes = thinned.join('\n'); fs.writeFileSync(f, bytes);
+  const old = sha(fs.readFileSync(path.join(base.dir, 'prices_daily_stock.csv')));
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS'), fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').replace(old, sha(bytes)));
+  assert.throws(() => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE:prices_daily_stock\.csv/));
+  assert.doesNotThrow(() => runner.verifyHoldoutDir(r2.round_id, base.dir, { minNamesPerDay: 5, priorSources: sources() }), 'the untouched directory passes');
+});
+
+test('RC3c deferred seal needs the pending statement to be what was sealed: a sealed file that does not contain SEAL_PENDING_V1.json is refused', () => {
+  freshData();
+  const r2 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
+  const base = r2Dir();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-nopend-')); for (const n of fs.readdirSync(base.dir)) fs.copyFileSync(path.join(base.dir, n), path.join(dir, n));
+  const priceLine = `${fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').split('\n').find((l) => /prices_daily_stock\.csv$/.test(l))}\n`;
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS.sealed'), priceLine);
+  runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: sha(priceLine) });
+  forgeResolution();
+  assert.throws(() => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_SEAL_PENDING_MISSING/));
+});
+
 test('RC4 not-before and dataset label: a read is allowed from 2027-01-01 or the day after the resolved end, whichever is later; the access-log dataset names the segment', () => {
   const { notBeforeOf, datasetLabelOf } = runner.internals;
   assert.equal(notBeforeOf({ from: '2026-10-19', to: '2026-12-31', segment: null }), '2027-01-01T00:00:00+08:00', 'R1 as before');
@@ -143,12 +196,12 @@ test('RC5 panel builder and scorer take the window as a parameter and are unchan
   const holdoutSrc = adapter.csvDirSource(fx.dirs.holdout, { mode: 'LIVE', label: 'holdout', holdout: true });
   const all = [...sources(), holdoutSrc];
   const dflt = adapter.buildPanel({ sources: all, space: SPACE, segment: 'HOLDOUT', from: '2023-01-03', to: '2026-12-31' });
-  const same = adapter.buildPanel({ sources: all, space: SPACE, segment: 'HOLDOUT', from: '2023-01-03', to: '2026-12-31', holdoutWindow: { ...WINDOW } });
+  const same = adapter.buildPanel({ sources: all, space: SPACE, segment: 'HOLDOUT', from: '2023-01-03', to: '2026-12-31', holdoutWindow: { ...R1W } });
   assert.equal(JSON.stringify(same.manifest), JSON.stringify(dflt.manifest), 'an explicit window equal to R1 is the default, byte for byte');
   assert.throws(() => adapter.buildPanel({ sources: all, space: SPACE, segment: 'HOLDOUT', from: '2023-01-03', to: '2027-01-15' }), /SEGMENT_RANGE/);
   assert.throws(() => adapter.buildPanel({ sources: all, space: SPACE, segment: 'HOLDOUT', from: '2023-01-03', to: '2027-01-15', holdoutWindow: { from: '2027-01-04', to: '2027-01-15' } }), /CALENDAR_RANGE/);
   assert.throws(() => adapter.buildPanel({ sources: all, space: SPACE, segment: 'VALIDATION', from: '2023-01-03', to: '2026-10-16', holdoutWindow: { from: '2027-01-04', to: '2027-01-15' } }), /HOLDOUT_WINDOW_OUTSIDE_HOLDOUT/, 'the window parameter is for the holdout panel only');
-  assert.deepEqual(holdoutScoring.holdoutDays(dflt), holdoutScoring.holdoutDays(dflt, { ...WINDOW }));
+  assert.deepEqual(holdoutScoring.holdoutDays(dflt), holdoutScoring.holdoutDays(dflt, { ...R1W }));
   const shorter = holdoutScoring.holdoutDays(dflt, { from: '2026-12-01', to: '2026-12-31' });
   assert.ok(shorter.length > 0 && shorter.length < holdoutScoring.holdoutDays(dflt).length);
   assert.doesNotThrow(() => holdoutScoring.assertHoldoutPanel(dflt));
@@ -165,6 +218,10 @@ test('RC6 CLI: resolve-segment is a command; score and rescore accept --prior-li
   assert.ok(cli.OPTIONS['resolve-segment'] && cli.OPTIONS['resolve-segment'].includes('segment') && cli.OPTIONS['resolve-segment'].includes('holdout'));
   for (const c of ['score', 'rescore']) assert.ok(cli.OPTIONS[c].includes('prior-live'), c);
   assert.ok(!cli.OPTIONS.generate.includes('prior-live'));
+  const { sourcesOf } = require('../services/mining-sandbox/round-runner/cli');
+  assert.deepEqual(sourcesOf({ lane: fx.dirs.lane, tail: fx.dirs.tail }).map((s) => [s.label, s.mode, s.holdout]), [['lane', 'HISTORY', false], ['tail', 'LIVE', false]]);
+  assert.deepEqual(sourcesOf({ lane: fx.dirs.lane, tail: fx.dirs.tail, 'prior-live': fx.dirs.holdout }).map((s) => [s.label, s.mode, s.holdout]),
+    [['lane', 'HISTORY', false], ['tail', 'LIVE', false], ['prior-live', 'LIVE', false]], 'an earlier segment is ordinary LIVE history, not a holdout source');
   const out = outOf();
   const calDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2cli-'));
   const days = []; for (let d = '2026-12-21'; d <= '2027-04-30'; d = new Date(Date.parse(`${d}T00:00:00Z`) + 864e5).toISOString().slice(0, 10)) { const w = new Date(`${d}T00:00:00Z`).getUTCDay(); days.push([d, w !== 0 && w !== 6 && d !== '2027-01-01']); }
@@ -197,6 +254,8 @@ test('RC7 run.sh: resolve-segment and seal-init-r2 are commands; score for R2 mo
   assert.match(sh, /seal-init-r2\.sh/);
   assert.match(sh, /resolve-segment\)/);
   assert.match(sh, /--name "rf1116-resolve-segment"/);
+  assert.match(sh, /resolve-segment needs RF1116_HOLDOUT_SEGMENT=R2/);
+  assert.match(sh, /^prior_live\(\) \{\n  PRIORM=\(\); PRIORO=\(\)\n  if \[ "\$\{RF1116_HOLDOUT_SEGMENT:-R1\}" = R2 \]; then/m);
   assert.match(sh, /--prior-live \/data\/prior-live/);
   assert.match(sh, /-v "\$R1_HOLDOUT:\/data\/prior-live:ro"/);
   assert.ok(sh.includes('HOLDOUT="$LANE/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"'));

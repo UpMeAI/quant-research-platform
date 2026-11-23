@@ -204,4 +204,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { OPTIONS, parseArgs, main };
+module.exports = { OPTIONS, parseArgs, main, sourcesOf };
