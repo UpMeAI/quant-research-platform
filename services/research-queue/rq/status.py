@@ -71,6 +71,14 @@ def _alerts(conn, cfg, now, counts):
     return out
 
 
+def _revision_skipped(cfg):
+    """The fact packs the producer skipped on its last tick as revisions of a carded week (plan-coord M6 ruling 11-23): pack, sha256, week, market, of_task, reason."""
+    try:
+        return json.loads((cfg.state_dir / core.REVISION_SKIPPED_FILE).read_text())["packs"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
 def build(conn, cfg, now):
     counts = dict(conn.execute("select state, count(*) from task group by state").fetchall())
     oldest = {s: int((now - core.parse_iso(m)).total_seconds()) for s, m in conn.execute("select state, min(updated_at) from task group by state")}
@@ -81,7 +89,7 @@ def build(conn, cfg, now):
             "consumer_heartbeat": hb.read_text().strip() if hb.exists() else None,
             "pauses": {"paused_tasks": counts.get("PAUSED", 0), "brakes": ps.get("brakes", {}), "pause_state_at": ps.get("at")},
             "circuits": core.open_circuits(conn, cfg.host, now), "event_head": core.chain_head(conn),
-            "spend": month_spend(cfg.gateway_db, now), "alerts": _alerts(conn, cfg, now, counts)}
+            "spend": month_spend(cfg.gateway_db, now), "alerts": _alerts(conn, cfg, now, counts), "revision_skipped": _revision_skipped(cfg)}
 
 
 def write(conn, cfg, now):
