@@ -98,7 +98,7 @@ function describeSample(joined, { windows = [], sessionGap = null } = {}) {
 
 /**
  * What counts as a sample size claim, line by line (NOTE_2): the words 样本量/样本数/样本容量/样本规模/样本个数, 样本 or 观测 next to a number, a number before 个样本,
- * `sample size|count`, `number of samples`, `N samples`, `effective n`, a standalone N (N/A excluded), a standalone n with a number on the line.
+ * `sample|observation` size/count/number or `samples = 144`, a number before samples/observations, a standalone N (N/A excluded, so also `有效N` and `N is 144`), a standalone n with a number on the line (so also `effective n = 12`).
  * A closed list of patterns, not a proof that every wording is caught: wordings outside it (for example 观测值 144, 'size of the sample: 144') are NOT covered; see the doc.
  */
 const SAMPLE_PATTERNS = Object.freeze([
@@ -109,9 +109,6 @@ const SAMPLE_PATTERNS = Object.freeze([
   /观测\s*(数|个数|量)\s*[是为:：=＝]?\s*\d/,
   /\d+\s*(independent\s+|effective\s+)?(observations?|samples?)\b/i,
   /(sample|observation)s?\s*(size|count|number)?\s*(is|are|of|=|:)?\s*\d/i,
-  /number\s+of\s+(samples|observations)/i,
-  /effective\s*(sample|n)\b/i,
-  /有效\s*N(?![A-Za-z/])/i,
   /(^|[^A-Za-z0-9/_])N(?![A-Za-z0-9/_])/,
   /(^|[^A-Za-z0-9/_])n(?![A-Za-z0-9/_])[^\n]*\d/,
 ]);
