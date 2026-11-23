@@ -6,14 +6,14 @@ import os
 import pathlib
 import re
 
-from . import core, guard, templates as T
+from . import core, guard, packshape, templates as T
 
 # Only external waits that depend on facts outside the queue. There is no cost-cap wait (★RQ4).
 EXTERNAL_CODES = ("MECHANISM_REVIEW", "HOLDOUT_INCOMPLETE", "DATA_DATE", "SERIES_MISSING", "US_PIT_SOURCE", "MARKET_PAUSED",
                   "PREREG_REFUSED", "TRL_RECEIPT", "MECHANISM_ADMISSION")
 MARKET_AGENT_HOST = {"CN_A": "LINUX", "US_EQUITY": "HK", "CRYPTO": "HK"}
 CARD_KIND = "AI_REVIEW_CARD"
-FACT_PACK_SCHEMA = "REVIEW_AI_FACT_PACK_V1"
+FACT_PACK_SCHEMA = packshape.SCHEMA
 LAB_FEEDBACK_SCHEMA = "LAB_FEEDBACK_FACTS_V1"
 HK_FORBIDDEN_ARGV = ("export-crypto-desk.js", "smartflow", "127.0.0.1:3306", "localhost:3306", "mysql")
 QUOTA_PROBE_S = 6 * 3600
@@ -184,7 +184,7 @@ def _fact_pack_request(registry, cfg, path, pack):
         return None
     raw = pathlib.Path(path).read_bytes()
     return {"template_id": t["template_id"], "template_sha256": T.template_sha256(t), "market": pack["market"],
-            "subject": {"week": pack["week"], "market": pack["market"], "fact_pack_sha256": core.sha256_hex(raw),
+            "subject": {"week": packshape.week_of(pack), "market": pack["market"], "fact_pack_sha256": core.sha256_hex(raw),
                         "prompt_admission_sha256": t.get("prompt_admission_sha256")},
             "params": {}, "inputs": [{"path": str(path), "sha256": core.sha256_hex(raw)}], "depends_on": [], "priority": 50}
 
@@ -216,7 +216,7 @@ def tick(conn, cfg, registry, now, probes=None):
     state_dirty = False
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
         pack = _load_json(f)
-        if not (isinstance(pack, dict) and pack.get("schema") == FACT_PACK_SCHEMA and pack.get("week") and pack.get("market")):
+        if not (packshape.schema_ok(pack) and packshape.week_of(pack) and pack.get("market")):
             out["unreadable"] += 1
             continue
         # W24 (plan-coord 11-23 (5)): a pack takes the lab feedback that exists the first time the producer sees it and keeps exactly that set. Feedback arriving later is never added to a

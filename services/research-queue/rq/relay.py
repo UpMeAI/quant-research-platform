@@ -11,9 +11,11 @@ import shlex
 import subprocess
 import sys
 
+from . import packshape
+
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.json")
 SECRET_RE = re.compile(rb"sk-[A-Za-z0-9]{16,}")
-SCHEMA = "REVIEW_AI_FACT_PACK_V1"
+SCHEMA = packshape.SCHEMA
 HOME = pathlib.Path.home()
 
 DEFAULT_CONFIG = {
@@ -87,7 +89,7 @@ def _valid_pack(data):
         j = json.loads(data)
     except ValueError:
         return "NOT_JSON"
-    if not (isinstance(j, dict) and j.get("schema") == SCHEMA):
+    if not packshape.schema_ok(j):
         return "SCHEMA"
     return None
 
