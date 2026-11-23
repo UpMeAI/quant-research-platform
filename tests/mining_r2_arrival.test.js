@@ -457,6 +457,13 @@ test('AR13 checkComplete: after the window end, the days that have not arrived a
   const fresh = sealedR1Dir(); const root = dropRoot(R1_DAYS.slice(0, 3), {}, { calendar: null });
   const ran = cli.main(['holdout-arrive', '--segment', 'R1', '--holdout', fresh, '--driver', 'csv-day-drop', '--source', root]);
   assert.deepEqual([ran.command, ran.segment, ran.arrived, ran.status, ran.last_day, ran.window_end], ['holdout-arrive', 'R1', R1_DAYS.slice(0, 3), 'NOT_AVAILABLE', R1_DAYS[2], '2026-12-31']);
+  // as a process: INCOMPLETE exits with 4 (the timer alerts on it), COMPLETE with 0
+  const CLI = path.join(__dirname, '..', 'services/mining-sandbox/round-runner/cli.js');
+  const env = { ...require('./_clean_env')(), QRP_DATA_DIR: fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-arr-data-')) };
+  const p4 = require('child_process').spawnSync(process.execPath, [CLI, 'holdout-arrive', '--segment', 'R1', '--holdout', dir, '--check-complete', 'true'], { env, encoding: 'utf8' });
+  assert.equal(p4.status, 4, p4.stderr); assert.equal(JSON.parse(p4.stdout).status, 'INCOMPLETE');
+  const p0 = require('child_process').spawnSync(process.execPath, [CLI, 'holdout-arrive', '--segment', 'R1', '--holdout', full, '--check-complete', 'true'], { env, encoding: 'utf8' });
+  assert.equal(p0.status, 0, p0.stderr); assert.equal(JSON.parse(p0.stdout).status, 'COMPLETE');
   assert.throws(() => cli.main(['holdout-arrive', '--segment', 'R3', '--holdout', fresh, '--check-complete', 'true']), code(/MINE_RUNNER_OPTION_UNKNOWN/));
   assert.throws(() => cli.main(['holdout-arrive', '--holdout', fresh, '--driver', 'csv-day-drop']), code(/MINE_RUNNER_OPTION_REQUIRED/));
 });
