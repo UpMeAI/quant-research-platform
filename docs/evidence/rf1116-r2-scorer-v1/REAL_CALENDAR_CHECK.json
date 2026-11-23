@@ -1,0 +1,8 @@
+{
+"read_at": "2026-11-23T13:12+08:00",
+"what": "resolve-segment R2 run on the REAL lane-copy calendar, read-only mount, throwaway ledger (nothing written anywhere): proves the real calendar format parses with openDaysOf and that the 2027 calendar is not in the data yet",
+"command": "docker run --rm --network none --read-only --tmpfs /o -v <code>:/w:ro -v /srv/research-lane/rf1116-mining/data/rf1116-cn-a-lane-copy-20200601-20260928:/data/cal:ro ci-node:22.22.0 node services/mining-sandbox/round-runner/cli.js resolve-segment --out /o --segment R2 --holdout /data/cal",
+"code_head": "cc51fed",
+"result": {"command":"resolve-segment","status":"NOT_READY","segment":"R2","reason":"listed 0 open days after 2026-12-31, need 54","calendar_last_date":"2026-12-31"},
+"calendar_tail": ["2026-12-30,A_SHARE,SSE,t,2026-12-29,...,trade_cal:SSE:2026-12-30,1,CANONICAL_CALENDAR_OBSERVAT...", "2026-12-31,A_SHARE,SSE,t,2026-12-30,...,trade_cal:SSE:2026-12-31,1,CANONICAL_CALENDAR_OBSERVAT..."]
+}
