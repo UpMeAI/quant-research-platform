@@ -462,6 +462,16 @@ test('AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival
   // the synthetic directory has no validation tail, so every run stops at the row floors (after the chain stage): that error is the "chain accepted" signal
   const good = build();
   assert.throws(() => strict(good), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/), 'a valid R1 chain passes the chain stage (R1 profile, not the R2 one)');
+  // the scorer compares the chain with the lane ledger: no anchor at all, an anchor beyond the head (rollback) and a wrong hash at an anchored seq (rewrite) are each refused under the strict gate
+  process.env.QRP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-ar14-noanchor-'));
+  assert.throws(() => check(good, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNANCHORED/), 'strict: the chain head must be anchored');
+  const anchorMod = require('../services/mining-rounds/arrival-anchor'); const hd = chainOf(good).pop();
+  anchorMod.record({ segment: 'R1', seq: hd.seq + 3, recordHash: sha('later head'), lastDay: hd.trade_date, anchoredBy: 'TEST' });
+  assert.throws(() => check(good, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:ROLLBACK/), 'an anchor beyond the head: the chain was rolled back');
+  process.env.QRP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-ar14-rewrite-'));
+  anchorMod.record({ segment: 'R1', seq: hd.seq, recordHash: sha('another row'), lastDay: hd.trade_date, anchoredBy: 'TEST' });
+  assert.throws(() => check(good, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:REWRITE/), 'another hash at the anchored seq: rewritten');
+  assert.throws(() => check(good), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/), 'the library default does not consult the chain or the anchors');
   // a consistent edit: change an arrived day's file and its SHA256SUMS line
   const edited = build(); const name = `prices_daily_stock_${compact(R1_DAYS[3])}.csv`; const text = `${fs.readFileSync(path.join(edited, name), 'utf8')}pd:S99:x,S99.SH,${R1_DAYS[3]},9,9\n`;
   fs.writeFileSync(path.join(edited, name), text);
