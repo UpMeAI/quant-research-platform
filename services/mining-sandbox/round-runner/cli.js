@@ -179,8 +179,8 @@ function main(argv) {
     const hasChain = require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE));
     if (o['check-complete']) {
       // read-only: the open days of the window that have not arrived; exit code 4 when some are missing (the timer alerts on it)
-      if (!windowEnd) return { command: 'holdout-arrive', segment, status: 'WINDOW_END_UNKNOWN', missing: [] };
       if (hasChain) arrival.verifyChain(o.holdout, { segment, startAfter, anchors, tolerateUnchained: true });
+      if (!windowEnd) return { command: 'holdout-arrive', segment, status: 'WINDOW_END_UNKNOWN', missing: [] };
       const c = arrival.checkComplete({ dir: o.holdout, segment, windowEnd, startAfter });
       return { command: 'holdout-arrive', segment, status: c.complete ? 'COMPLETE' : 'INCOMPLETE', window_end: windowEnd, last_day: c.last_day, missing: c.missing };
     }

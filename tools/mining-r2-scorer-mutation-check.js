@@ -28,6 +28,8 @@ const SI = 'deploy/research-lane/round-runner/seal-init-r2.sh';
 
 const T_AR = 'tests/mining_r2_arrival.test.js';
 const T_DX = 'tests/rf1116_r2_day_export.test.js';
+const T_FX = 'tests/mining_r2_fixround.test.js';
+const AN = 'services/mining-rounds/arrival-anchor.js';
 const DX = 'deploy/research-lane/r2-day-export/r2-day-export.sh';
 const T_SC = 'tests/mining_r2_scoring.test.js';
 const T_RS = 'tests/mining_segment_resolution.test.js';
@@ -177,6 +179,47 @@ const MUTANTS = [
   m('D35', 'export SQL: the industry window\'s upper bound is exclusive', 'deploy/research-lane/r2-day-export/sql/industry_membership_sw2021.sql', "first_available_at < TIMESTAMPTZ '@UPPER@'", "first_available_at <= TIMESTAMPTZ '@UPPER@'", [T_DX]),
   m('D36', 'export SQL: stocks only', 'deploy/research-lane/r2-day-export/sql/market_daily_basic_observation_stock.sql', "AND security_id IN (SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL)", '', [T_DX]),
   m('D37', 'export SQL: the master snapshot is of the day', 'deploy/research-lane/r2-day-export/sql/security_master_stock.sql', "business_date = '@DAY@'", "business_date <= '@DAY@'", [T_DX]),
+  // #157 review fix round (tests/mining_r2_fixround.test.js, tests/mining_r2_arrival.test.js AR14, tests/mining_r2_scoring.test.js RC10/RC11, tests/rf1116_r2_day_export.test.js DX1-DX19)
+  m('E01', 'arrival lock: exclusive creation', AV, "fs.openSync(lock, 'wx', FILE_MODE)", "fs.openSync(lock, 'w', FILE_MODE)", [T_FX]),
+  m('E02', 'arrival lock: a fresh lock is respected', AV, 'const LOCK_STALE_MS = 30 * 60 * 1000;', 'const LOCK_STALE_MS = 0;', [T_FX]),
+  m('E03', 'arrival lock: a dead arrival\'s lock is taken over', AV, 'const LOCK_STALE_MS = 30 * 60 * 1000;', 'const LOCK_STALE_MS = 3000 * 3600 * 1000;', [T_FX]),
+  m('E04', 'arrival lock: released when the step ends', AV, '} finally { fs.rmSync(lock, { force: true }); }', '} finally { /* kept */ }', [T_FX]),
+  m('E05', 'at rest: everything the arrival writes is 0600', AV, 'const FILE_MODE = 0o600;', 'const FILE_MODE = 0o644;', [T_FX]),
+  m('E06', 'at rest: the chain file is created 0600', AV, "`${JSON.stringify(rec)}\\n`, { mode: FILE_MODE }", "`${JSON.stringify(rec)}\\n`", [T_FX]),
+  m('E07', 'anchor: a head below the last anchor is a rollback', AV, "if (rows.length - 1 < maxAnchor) invalid('ROLLBACK'", "if (false) invalid('ROLLBACK'", [T_FX]),
+  m('E08', 'anchor: another hash at an anchored seq is a rewrite', AV, "if (rows[a.seq].record_hash !== a.record_hash) invalid('REWRITE'", "if (false) invalid('REWRITE'", [T_FX]),
+  m('E09', 'anchor: every anchor is checked, not only the last', AV, 'for (const a of anchored) if (rows[a.seq]', 'for (const a of anchored.slice(-1)) if (rows[a.seq]', [T_FX]),
+  m('E10', 'anchor: the strict gate refuses rows beyond the last anchor', AV, "if (requireAnchor && rows.length - 1 > maxAnchor) invalid('UNANCHORED'", "if (false) invalid('UNANCHORED'", [T_FX]),
+  m('E11', 'anchor: arrive verifies the chain against the anchors first', AV, 'if (existing) verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true, anchors });', 'if (existing) verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true });', [T_FX]),
+  m('E12', 'anchor ledger: a seq below the last anchor is refused', AN, "need(seq > last, 'MINE_ANCHOR_BELOW_LAST'", "need(true, 'MINE_ANCHOR_BELOW_LAST'", [T_FX]),
+  m('E13', 'anchor ledger: another hash at an anchored seq is refused', AN, "need(same.chain_record_hash === recordHash, 'MINE_ANCHOR_CONFLICT'", "need(true, 'MINE_ANCHOR_CONFLICT'", [T_FX]),
+  m('E14', 'anchor ledger: the same anchor again is a no-op', AN, '.slice(0, 12)}`); return same; }', '.slice(0, 12)}`); }', [T_FX]),
+  m('E15', 'anchor ledger: the segment is R1 or R2', AN, "need(SEGMENTS.includes(segment), 'MINE_ANCHOR_SEGMENT'", "need(true, 'MINE_ANCHOR_SEGMENT'", [T_FX]),
+  m('E16', 'cli holdout-anchor: the arrival JSON must be of the named segment', CL, "if (!a || a.segment !== o.segment) throw new runner.RunnerError('MINE_RUNNER_ANCHOR_SEGMENT'", "if (false) throw new runner.RunnerError('MINE_RUNNER_ANCHOR_SEGMENT'", [T_FX]),
+  m('E17', 'cli arrive: the anchors are passed to the arrival', CL, 'windowEnd, startAfter, anchors });', 'windowEnd, startAfter });', [T_FX]),
+  m('E18', 'cli arrive-check: the chain is verified against the anchors', CL, 'if (hasChain) arrival.verifyChain(o.holdout, { segment, startAfter, anchors, tolerateUnchained: true });', ';', [T_FX]),
+  m('E19', 'cli score/rescore: --require-arrival-chain reaches the runner (the review\'s surviving mutant)', CL, "const requireChain = o['require-arrival-chain'] === 'true';", 'const requireChain = false;', [T_FX]),
+  m('E20', 'scorer: the chain is compared with the anchors under the strict gate', RN, 'anchors: arrivalAnchor.pairsOf(seg), requireAnchor: requireChain', 'anchors: null, requireAnchor: false', [T_AR]),
+  m('E21', 'scorer: an R2 score needs R1 opened (or terminal)', RN, "need(ready.ok, 'PRIOR_SEGMENT_NOT_OPENED'", "need(true, 'PRIOR_SEGMENT_NOT_OPENED'", [T_SC]),
+  m('E22', 'scorer: the prior-live (R1) chain is verified', RN, "priorChain = arrivalChain.verifyChain(prior.dir, { segment: 'R1', anchors: arrivalAnchor.pairsOf('R1'), requireAnchor: true });", 'priorChain = null;', [T_SC]),
+  m('E23', 'predicate: an R1 round with an open row is ready', RN, "return { ok: true, reason: 'R1_OPENED' };", "return { ok: false, reason: 'R1_OPENED' };", [T_SC]),
+  m('E24', 'predicate: only when EVERY R1 round is terminal', RN, "if (r1.every((r) => ['CLOSED'", "if (r1.some((r) => ['CLOSED'", [T_SC]),
+  m('E25', 'run.sh: score refuses while an arrival runs', SH, '    arrival_busy_check\n    docker run --rm --name "rf1116-score"', '    docker run --rm --name "rf1116-score"', [T_FX]),
+  m('E26', 'run.sh: rescore refuses while an arrival runs', SH, '    arrival_busy_check\n    docker run --rm --name "rf1116-rescore"', '    docker run --rm --name "rf1116-rescore"', [T_FX]),
+  m('E27', 'run.sh: arrive refuses while a score runs', SH, '    score_busy_check\n    # step 1', '    # step 1', [T_FX]),
+  m('E28', 'run.sh: the lock file counts as busy for 30 minutes', SH, '-mmin -30', '-mmin -0', [T_FX]),
+  m('E29', 'run.sh: an unreadable docker ps stops everything', SH, 'exit 74; }; printf \'%s\' "$n"; }', '}; printf \'%s\' "$n"; }', [T_FX]),
+  m('E30', 'run.sh: a failed arrival is not anchored', SH, '[ "$arrive_rc" -eq 0 ] || exit "$arrive_rc"', ':', [T_FX]),
+  m('E31', 'run.sh: arrive-check reads the 0700 directory as its owner', SH, 'holdout-arrive-check" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 0:0', 'holdout-arrive-check" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000', [T_FX]),
+  m('E32', 'run.sh: resolve-segment closes the directory again', SH, 'chmod 0600 "$f"; done; chmod 0700 "$HOLDOUT"; }', 'chmod 0600 "$f"; done; }', [T_FX]),
+  m('E33', 'run.sh: resolve-segment opens only the calendar files', SH, 'for f in "$HOLDOUT"/trading_calendar*.csv "$HOLDOUT/SHA256SUMS"', 'for f in "$HOLDOUT"/*.csv "$HOLDOUT/SHA256SUMS"', [T_FX]),
+  m('E34', 'seal-init-r2: the R2 directory is 0700', SI, 'chmod 0700 "$DIR"', 'chmod 0755 "$DIR"', [T_FX]),
+  m('D38', 'export staleness: a day not ready is stale only after its cutoff + 72 h', DX, 'echo "$seg WAITING:$D"; if stale_after_cutoff; then stale=1; fi; continue', 'echo "$seg WAITING:$D"; stale=1; continue', [T_DX]),
+  m('D39', 'export staleness: waiting for the cutoff is not stale', DX, 'echo "$seg WAITING_CUTOFF:$D"; continue', 'echo "$seg WAITING_CUTOFF:$D"; stale=1; continue', [T_DX]),
+  m('D40', 'export: a server-side statement timeout', DX, ' -c statement_timeout=$((t * 1000))', '', [T_DX]),
+  m('D41', 'export: timeout -k', DX, 'timeout -k 10 "$t" docker exec', 'timeout "$t" docker exec', [T_DX]),
+  m('D42', 'export: umask 027 (dirs 0750, files 0640)', DX, 'umask 027', 'umask 022', [T_DX]),
+  m('D43', 'export unit: a hard limit for the run', 'deploy/research-lane/r2-day-export/r2-day-export.service', 'TimeoutStartSec=2400', 'TimeoutStartSec=24000', [T_DX]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }

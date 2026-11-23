@@ -194,6 +194,7 @@ test('FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consis
   // an anchor in the middle is checked too
   const mid = build(); const midAnchors = [{ seq: 2, record_hash: chainOf(mid)[2].record_hash }, anchorOf(mid)];
   assert.doesNotThrow(() => A().verifyChain(mid, { anchors: midAnchors }));
+  assert.throws(() => A().verifyChain(mid, { anchors: [{ seq: 2, record_hash: sha('not the row') }, anchorOf(mid)] }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:REWRITE/), 'every anchor is checked, not only the last');
   // strict: rows beyond the last anchor = UNANCHORED (the anchor step has not run for them yet)
   assert.throws(() => A().verifyChain(good, { anchors: [{ seq: 3, record_hash: chainOf(good)[3].record_hash }], requireAnchor: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNANCHORED/));
   assert.throws(() => A().verifyChain(good, { anchors: [], requireAnchor: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNANCHORED/), 'a chain with no anchor at all');
@@ -229,6 +230,7 @@ test('FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_se
   // check-complete and arrive read the anchors
   const rolled = chainOf(dir).slice(0, -1); fs.writeFileSync(path.join(dir, 'ARRIVAL_CHAIN_V1.jsonl'), `${rolled.map((r) => JSON.stringify(r)).join('\n')}\n`);
   assert.throws(() => cli.main(['holdout-arrive', '--segment', 'R2', '--holdout', dir, '--driver', 'csv-day-drop', '--source', root]), code(/ROLLBACK|UNCHAINED/));
+  assert.throws(() => cli.main(['holdout-arrive', '--segment', 'R2', '--holdout', dir, '--check-complete', 'true']), code(/ROLLBACK/), 'arrive-check refuses a rolled-back chain too');
   const sh = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/run.sh'), 'utf8');
   const block = (name) => sh.split(new RegExp(`^  ${name}\\)\\n`, 'm'))[1].split(/^    ;;$/m)[0];
   const arriveBlock = block('arrive\\|r2-arrive');
