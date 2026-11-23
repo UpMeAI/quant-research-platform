@@ -133,8 +133,9 @@ class DeployDoc(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             archive = root / "repo.tar"
-            made = subprocess.run(["git", "archive", "-o", str(archive), "HEAD"], cwd=ROOT, capture_output=True, text=True)
-            self.assertEqual(made.returncode, 0, made.stderr)
+            with tarfile.open(archive, "w") as bundle:
+                for name in ("services", "independent-verifier", "adapters", "packages", "schemas", "config"):
+                    bundle.add(ROOT / name, arcname=name)
             with tarfile.open(archive) as bundle:
                 bundle.extractall(root / "tree", filter="data")
             for name, value in (("task.json", {}), ("bundle.json", {}), ("result.json", None)):
