@@ -1,6 +1,6 @@
 """plan-coord ruling 11-23 13:35 (M6, revisions): ONE card task per (market, weekId); the first admitted pack wins; a later revision pack (REVIEW_AI_FACT_PACK_<M>_<week>_R1 after the base pack, or the
 reverse) creates NO second task. producer.tick looks, before it creates a card task for a pack, for a card task of the same market and weekId in ANY state except the terminal-failure states
-(BLOCKED_DETERMINISTIC, FAILED, REFUSED_*): found -> the pack is skipped (`revision_skipped` in the tick stats, reason REVISION_OF_CARDED_WEEK, pack sha256 in the status); a failed earlier card
+(BLOCKED_DETERMINISTIC, CANCELLED, GATE_FAIL, REFUSED_*; plan-coord 13:41 correction: FAILED is no state, CANCELLED is what follows BLOCKED): found -> the pack is skipped (`revision_skipped` in the tick stats, reason REVISION_OF_CARDED_WEEK, pack sha256 in the status); a failed earlier card
 lets the revision in (the old idea ids were never delivered). Other markets and other weeks are independent. The relay still ships every pack. Packs: the synthetic desk-shaped fixtures."""
 import datetime as dt, hashlib, json, pathlib, shutil, unittest
 from helpers import *  # noqa
@@ -9,6 +9,8 @@ from test_lab_feedback import feedback  # noqa
 
 FIX = ROOT / "tests" / "fixtures" / "desk-fact-packs"
 REASON = "REVISION_OF_CARDED_WEEK"
+FREES = ("BLOCKED_DETERMINISTIC", "CANCELLED", "GATE_FAIL", "REFUSED_ADMISSION")   # the states that do NOT hold a week (plan-coord 13:41); every other core state holds it
+HOLDS = tuple(s for s in core.STATES if s not in FREES)
 
 
 def pack(market, revision=False, week="2031-W07"):
@@ -95,12 +97,15 @@ class OneCardPerMarketAndWeek(Cards):
         self.assertEqual(out.get("revision_skipped"), 0)
         self.assertEqual(status.build(self.conn, self.cfg, self.t0)["revision_skipped"], [])
 
-    def test_a_card_in_any_other_state_still_holds_the_week(self):
+    def test_a_card_in_any_state_but_the_freeing_ones_holds_the_week(self):
+        self.assertIn("SAFETY_STOP", HOLDS)
+        self.assertIn("COMPLETE", HOLDS)
+        self.assertEqual(sorted(set(core.STATES) - set(HOLDS)), sorted(FREES), "every core state is either freeing or holding")
         self.put(BASE)
         self.tick()
         (task_id, _, _), = self.cards()
         self.put(R1)
-        for state in ("READY", "CLAIMED", "RUNNING", "PAUSED", "EVIDENCE_WRITTEN", "CHECK_HOLD", "COMPLETE", "CANCELLED", "WAITING_EXTERNAL", "WAITING_QUOTA", "SAFETY_STOP"):
+        for state in HOLDS:
             self.set_state(task_id, state)
             out = self.tick()
             self.assertEqual((out["admitted"], out.get("revision_skipped"), len(self.cards())), (0, 1, 1), state)
@@ -120,8 +125,24 @@ class OneCardPerMarketAndWeek(Cards):
     def test_a_blocked_first_card_lets_the_revision_in(self):
         self._revision_after_failed_first("BLOCKED_DETERMINISTIC")
 
-    def test_a_failed_first_card_lets_the_revision_in(self):
-        self._revision_after_failed_first("FAILED")
+    def test_a_cancelled_first_card_lets_the_revision_in(self):
+        self._revision_after_failed_first("CANCELLED")
+
+    def test_a_blocked_card_the_coordinator_then_cancels_never_holds_the_week(self):
+        """BLOCKED_DETERMINISTIC -> CANCELLED is the only way out of a blocked card; the revision that arrives after the cancel must not be skipped forever."""
+        self.put(BASE)
+        self.tick()
+        (task_id, _, _), = self.cards()
+        self.set_state(task_id, "BLOCKED_DETERMINISTIC")
+        self.assertEqual(self.tick().get("revision_skipped"), 0)
+        self.set_state(task_id, "CANCELLED")
+        self.put(R1)
+        out = self.tick()
+        self.assertEqual((out["admitted"], out.get("revision_skipped")), (1, 0), out)
+        self.assertEqual([(s, n) for _, s, n in self.cards()], [("CANCELLED", BASE.name), ("READY", R1.name)])
+
+    def test_a_gate_failed_first_card_lets_the_revision_in(self):
+        self._revision_after_failed_first("GATE_FAIL")
 
     def test_a_refused_first_card_lets_the_revision_in(self):
         self._revision_after_failed_first("REFUSED_ADMISSION")
