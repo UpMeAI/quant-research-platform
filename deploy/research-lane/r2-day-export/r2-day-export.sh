@@ -10,7 +10,7 @@
 #   R2   the first 54 SSE open days after 2026-12-31, plus trading_calendar.csv (the arrival program takes the calendar first).
 #   A day is exported only if it is an SSE open day of the segment's window AND the day is ready by R2_DAY_EXPORT_READINESS_V2.sql (ops-coord; plan-coord ruling 11-23 option (b); byte-identical; >= 4000 names in the three tables, a coverage row, POST_CLOSE(D) OK or the next PREMARKET OK; its row is recorded in READINESS.json) AND its
 #   prices query returns rows. One directory per day, <drop>/<segment>/<YYYYMMDD>/, written under a temp name and renamed (the lane never sees a partial day), with a SHA256SUMS of its
-#   seven tables; an exported day is never exported again (idempotent). The SQL is the arrival program's PG query set (sql/*.sql, one producer: tests compare it with arrival.js pgQueries).
+#   seven tables; an exported day is never exported again (idempotent). The SQL is sql/*.sql (export spec section 2; the only place it lives: the lane has no database driver).
 #
 # Exit codes: 0 done / caught up / days still waiting for V6's POST_CLOSE; 2 psql failed or the session is not read-only; 3 a refusal (--day: not an open day of the window, not ready);
 #             4 a day has been waiting for more than 3 days (the alert: the unit fails and ops-coord looks).

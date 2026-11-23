@@ -181,7 +181,7 @@ function main(argv) {
     }
     required(o, ['driver']);
     let source;
-    if (o.driver === 'csv-day-drop') { required(o, ['source']); source = arrival.csvDayDropSource(o.source); } else if (o.driver === 'pg-psql') source = arrival.pgDaySource({ run: require('../../mining-rounds/arrival-psql').psqlRunner() });
+    if (o.driver === 'csv-day-drop') { required(o, ['source']); source = arrival.csvDayDropSource(o.source); }
     else throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `${cmd} --driver ${o.driver}`);
     const rows = []; let last = null;
     for (let i = 0; i < 500; i += 1) {

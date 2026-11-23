@@ -1,2 +1,2 @@
--- generated from services/mining-sandbox/round-runner/arrival.js pgQueries (RF1116_CN_A_LANE_EXPORT_SPEC_V1 section 2, rev 5 change 2 for industry); @DAY@ is substituted by r2-day-export.sh; one SELECT
+-- RF1116 V6-side export query (the only place the SQL lives; the lane has no database driver) (RF1116_CN_A_LANE_EXPORT_SPEC_V1 section 2, rev 5 change 2 for industry); @DAY@ is substituted by r2-day-export.sh; one SELECT
 SELECT coverage_id, trade_date, provider_row_count, accepted_row_count, full_session_count, first_available_at, ingested_at, job_run_id, source_registry_version, quality_state FROM security_suspension_day_coverage WHERE trade_date = '@DAY@' ORDER BY trade_date, coverage_id

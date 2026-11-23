@@ -21,8 +21,8 @@
  *              master; the first_available_at window for industry), and prices is not empty. Files are written whole (temp + rename), SHA256SUMS lines appended, the chain row last (the
  *              commit point). Every step is idempotent and compares bytes, so a crash between steps is healed by the next run; a different file on disk is MINE_RUNNER_ARRIVE_CONFLICT.
  *   readiness  the exporter's READINESS.json (probe R2_DAY_EXPORT_READINESS_V2: ready_via POST_CLOSE_D | NEXT_PREMARKET, name counts) is validated and recorded in the chain row.
- *   sources    CSV_DAY_DROP (the day directories r2-day-export drops, read-only here) and PG_PSQL (the spec's queries per day through psql with a read-only role; the queries and the psql
- *              arguments are tested, no database is; no readiness record).
+ *   sources    CSV_DAY_DROP: the day directories r2-day-export drops (read-only here). The lane never connects to V6: there is no database driver (plan-coord: the lane must never touch the V6 production DB).
+ *              The SQL of the export lives in deploy/research-lane/r2-day-export/sql/ and is run by the V6-side job only.
  * Errors MINE_RUNNER_ARRIVE_*; verification errors MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:<reason>.
  */
 const fs = require('fs');
@@ -409,40 +409,5 @@ function csvDayDropSource(root) {
   };
 }
 
-const STOCKS = "SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL";
-/** The spec's per-table queries (RF1116_CN_A_LANE_EXPORT_SPEC_V1 section 2) for ONE trading day: read-only SELECTs. */
-function pgQueries(day, { industryFrom, industryTo } = {}) {
-  if (!ISO_ST.test(industryFrom || '')) fail('INDUSTRY_FROM', String(industryFrom));
-  if (!ISO_ST.test(industryTo || '')) fail('INDUSTRY_TO', String(industryTo));
-  const d = `'${day}'`;
-  const sqlTs = (iso) => `'${iso.slice(0, 10)} ${iso.slice(11, 19)}+08'`;
-  return [
-    { stem: 'prices_daily_stock', sql: `SELECT record_id, security_id, trade_date, open, high, low, close, previous_close, volume_shares, turnover_amount_cny, adjustment_factor, adjustment_mode, value_states, first_available_at, known_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM prices_daily WHERE trade_date = ${d} AND security_id IN (${STOCKS}) ORDER BY security_id, trade_date, source_record_id, revision` },
-    { stem: 'market_daily_basic_observation_stock', sql: `SELECT record_id, raw_record_id, security_id, trade_date, "values", first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state, source_reconciliation_state FROM market_daily_basic_observation WHERE trade_date = ${d} AND security_id IN (${STOCKS}) ORDER BY security_id, trade_date, source_record_id, revision` },
-    { stem: 'adjustment_factor_observation_stock', sql: `SELECT record_id, raw_record_id, security_id, trade_date, adjustment_factor, value_state, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM adjustment_factor_observation WHERE trade_date = ${d} AND security_id IN (${STOCKS}) ORDER BY security_id, trade_date, source_record_id, revision` },
-    { stem: 'security_master_stock', sql: `SELECT record_id, security_id, business_date, ticker, security_code, exchange, board, asset_class, display_name, name_integrity, listing_date, delisting_date, listing_status, risk_warning_status, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state, allow_new_risk FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL AND business_date = ${d} ORDER BY security_id, business_date, revision` },
-    { stem: 'security_suspension_observation', sql: `SELECT record_id, security_id, trade_date, suspension_type, suspension_timing, full_session, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM security_suspension_observation WHERE trade_date = ${d} ORDER BY security_id, trade_date, source_record_id, revision` },
-    { stem: 'security_suspension_day_coverage', sql: `SELECT coverage_id, trade_date, provider_row_count, accepted_row_count, full_session_count, first_available_at, ingested_at, job_run_id, source_registry_version, quality_state FROM security_suspension_day_coverage WHERE trade_date = ${d} ORDER BY trade_date, coverage_id` },
-    // export spec rev 5 change 2, windowed per day (plan-coord 2026-11-23): the membership rows that became available in [industryFrom, industryTo), consecutive parts contiguous, industryTo = 09:00+08 of the
-    // next open day. No per-day effective_from cut (it would lose rows that became available before their effective_from); the effective_from column is exported untouched and the data adapter applies it itself.
-    { stem: 'industry_membership_sw2021', sql: `SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ ${sqlTs(industryFrom)} AND first_available_at < TIMESTAMPTZ ${sqlTs(industryTo)} ORDER BY security_id, industry_standard, industry_level, effective_from, revision` },
-  ];
-}
-/** The calendar query of the spec (section 2.2), the range extended to the end of 2027. */
-const pgCalendarQuery = () => "SELECT DISTINCT ON (calendar_date, exchange) calendar_date, market, exchange, is_open, previous_open_date, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' ORDER BY calendar_date, exchange, revision DESC, first_available_at DESC";
-const psqlArgs = (sql) => ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c', `\\copy (${sql}) TO STDOUT WITH (FORMAT csv, HEADER true)`];
-/** PG_PSQL: the spec's queries per day through `run(sql) -> CSV Buffer`. No prices rows for the day = the day is not available yet. */
-function pgDaySource({ run }) {
-  return {
-    driver: 'PG_PSQL',
-    calendar() { return run(pgCalendarQuery()); },
-    day(d, ctx) {
-      if (!ctx || !ctx.industryTo) return null; // the next open day (the window's upper bound) is not known yet
-      const files = {};
-      for (const q of pgQueries(d, ctx)) files[q.stem] = run(q.sql);
-      return csvLines(files.prices_daily_stock).length > 1 ? { files } : null;
-    },
-  };
-}
 
-module.exports = { CHAIN_FILE, SCHEMA, READINESS_FILE, READINESS_SCHEMA, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, pgQueries, pgCalendarQuery, psqlArgs, pgDaySource, internals: { withFault } };
+module.exports = { CHAIN_FILE, SCHEMA, READINESS_FILE, READINESS_SCHEMA, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, internals: { withFault } };

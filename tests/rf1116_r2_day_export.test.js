@@ -3,7 +3,7 @@
  * RF1116 `r2-day-export` (plan-coord 2026-11-23, deploy/research-lane/r2-day-export/): the V6-side, read-only job that exports ONE trading day of V6's canonical data into the drop directory
  * the lane's arrival program reads (CSV_DAY_DROP), for the R1 catch-up (11-18..12-31) and for R2 (from the first trading day of 2027). Tests: text, arguments and refusals only; a stub
  * `psql` stands in for the database (no Postgres, no docker, no network). Red first.
- *   - the SQL it sends is, byte for byte, the SQL of the arrival program's PG driver (one producer: arrival.js pgQueries) wrapped in COPY (...) TO STDOUT;
+ *   - the SQL it sends is, byte for byte, the sql/*.sql templates (export spec section 2; the lane has no database driver, so these files are the only place the SQL lives) wrapped in COPY (...) TO STDOUT;
  *   - read-only everywhere: PGOPTIONS default_transaction_read_only=on, a session check, no SET / RESET / BEGIN READ WRITE anywhere in the script text, SELECT and COPY (SELECT) only;
  *   - readiness = ops-coord's R2_DAY_EXPORT_READINESS_V2.sql, byte-identical (sha 57e26c03...); a day that is not an SSE open day, or not ready, is refused (never exported);
  *   - one atomic directory per day (temp + rename) with a SHA256SUMS of its files; idempotent; catch-up in calendar order; a day that stays unready for more than 3 days is exit 4 (alert).
@@ -88,6 +88,8 @@ function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail
   const statements = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n----\n').filter(Boolean) : []);
   return { root, drop, run, statements, log, dockerLog: path.join(root, 'docker.log') };
 }
+/** A sql/<stem>.sql template with its placeholders filled in (comment lines dropped): the same rendering the script does, written separately. */
+const renderSql = (stem, day, lower, upper) => fs.readFileSync(path.join(DIR, 'sql', `${stem}.sql`), 'utf8').split('\n').filter((l) => !l.startsWith('--')).join('').trim().replace(/@DAY@/g, day).replace(/@LOWER@/g, lower).replace(/@UPPER@/g, upper);
 const dayDir = (sb, seg, day) => path.join(sb.drop, seg, compact(day));
 
 test('DX0 files: the script, the SQL it sends, ops-coord\'s readiness probe byte-identical (sha 57e26c03...), the unit and the timer, the install notes', () => {
@@ -118,8 +120,8 @@ test('DX2 the SQL sent for a day is the arrival program\'s PG query set (one pro
   const r = sb.run(['--segment', 'R1', '--day', '2026-11-19']);
   assert.equal(r.status, 0, r.err);
   const sent = sb.statements().filter((s) => s.startsWith('COPY ('));
-  const want = A().pgQueries('2026-11-19', { industryFrom: '2026-11-19T09:00:00+08:00', industryTo: '2026-11-20T09:00:00+08:00' }); // the window: [11-19 09:00, next open day 11-20 09:00)
-  // 2026-11-19: the previous open day is 11-18, so the industry window starts 11-19 00:00+08
+  // the sql/*.sql templates rendered independently here: the window of 11-19 is [11-19 09:00, next open day 11-20 09:00)
+  const want = A().TABLES.map((t) => ({ stem: t.stem, sql: renderSql(t.stem, '2026-11-19', '2026-11-19 09:00:00+08', '2026-11-20 09:00:00+08') }));
   assert.equal(sent.length, want.length);
   for (const q of want) assert.ok(sent.includes(`COPY (${q.sql}) TO STDOUT WITH (FORMAT csv, HEADER true);`), q.stem);
   for (const line of fs.readFileSync(`${sb.log}.args`, 'utf8').split('\n').filter(Boolean)) {
@@ -396,4 +398,19 @@ test('DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the V2 
   assert.ok(sb.statements().some((s) => s.includes('-- a different file') || s.includes('pipeline_completion')), 'the probe ran');
   const none = sandbox({ ready: ['2026-11-18'] }).run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_READY_SQL: '/nonexistent/probe.sql' });
   assert.equal(none.status, 2); assert.match(none.err, /PROBE_SQL_MISSING/);
+});
+
+test('DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec\'s column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027', () => {
+  const sql = (stem) => renderSql(stem, '2027-01-04', '2027-01-01 00:00:00+08', '2027-01-05 09:00:00+08');
+  const STOCKS = "security_id IN (SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL)";
+  assert.match(sql('prices_daily_stock'), new RegExp(`^SELECT record_id, security_id, trade_date, open, high, low, close, .* FROM prices_daily WHERE trade_date = '2027-01-04' AND ${STOCKS.replace(/[()]/g, '\\$&')} ORDER BY security_id, trade_date, source_record_id, revision$`));
+  for (const [stem, table] of [['market_daily_basic_observation_stock', 'market_daily_basic_observation'], ['adjustment_factor_observation_stock', 'adjustment_factor_observation']]) assert.match(sql(stem), new RegExp(`FROM ${table} WHERE trade_date = '2027-01-04' AND `));
+  assert.match(sql('security_master_stock'), /FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL AND business_date = '2027-01-04' ORDER BY security_id, business_date, revision$/);
+  assert.match(sql('security_suspension_observation'), /FROM security_suspension_observation WHERE trade_date = '2027-01-04' ORDER BY/);
+  assert.match(sql('security_suspension_day_coverage'), /FROM security_suspension_day_coverage WHERE trade_date = '2027-01-04' ORDER BY trade_date, coverage_id$/);
+  const ind = sql('industry_membership_sw2021');
+  assert.match(ind, /^SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 09:00:00\+08' ORDER BY security_id, industry_standard, industry_level, effective_from, revision$/);
+  assert.ok(!/effective_from <=|effective_from >=|WHERE effective_from/.test(ind), 'no per-day effective_from cut');
+  assert.match(renderSql('trading_calendar', '', '', ''), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' ORDER BY calendar_date, exchange, revision DESC, first_available_at DESC$/);
+  for (const t of A().TABLES) assert.ok(!/@[A-Z]+@/.test(sql(t.stem)), `${t.stem}: every placeholder is filled`);
 });

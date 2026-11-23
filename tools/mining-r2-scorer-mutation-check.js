@@ -98,9 +98,6 @@ const MUTANTS = [
   m('A19', 'arrive: the end of the window is COMPLETE', AV, "if (windowEnd && last !== null && last >= windowEnd) return { status: 'COMPLETE', what: last };", '', [T_AR]),
   m('A20', 'chain rows are linked by prev_hash', AV, "...body, prev_hash: rows.length ? rows[rows.length - 1].record_hash : null };", '...body, prev_hash: null };', [T_AR]),
   m('A21', 'arrive: a stray listed file is not healed away', AV, "for (const n of unchained) if (!pendingNames.has(n)) fail('CONFLICT', `unchained ${n}`);", '', [T_AR]),
-  m('A22', 'pg: the query is for one day', AV, 'FROM prices_daily WHERE trade_date = ${d}', 'FROM prices_daily WHERE trade_date >= ${d}', [T_AR]),
-  m('A23', 'pg: psql stops on error', AV, "'ON_ERROR_STOP=1'", "'ON_ERROR_STOP=0'", [T_AR]),
-  m('A24', 'pg: no prices rows = not available', AV, 'csvLines(files.prices_daily_stock).length > 1 ?', 'csvLines(files.prices_daily_stock).length >= 1 ?', [T_AR]),
   m('A25', 'scorer: the arrival chain is verified before any row is read', RN, 'if (deferredSeal || requireChain) arrivalChain.verifyChain(', 'if (false) arrivalChain.verifyChain(', [T_SC]),
   m('A26', 'scorer: the chain starts at the resolution record\'s start rule', RN, '...(rec ? { startAfter: rec.rule.start_after } : {})', '...({})', [T_SC]),
   m('A27', 'anchor: R1\'s recorded row medians are used', RN, 'const anchor = sealedCounts.length ? median(sealedCounts) : (fromR1 ? given : median(per));', 'const anchor = sealedCounts.length ? median(sealedCounts) : median(per);', [T_SC]),
@@ -123,7 +120,6 @@ const MUTANTS = [
   m('B10', 'checkComplete names the missing days', AV, 'd <= windowEnd && !days.includes(d)', 'd <= windowEnd && false', [T_AR]),
   m('B11', 'checkComplete: the calendar has to reach the window end', AV, 'cal.days.some((d) => d >= windowEnd)', 'true', [T_AR]),
   m('B12', 'verifyChain window: days up to the sealed D1 are not chain days', AV, 'd >= window.from && d <= window.to && d > after', 'd >= window.from && d <= window.to', [T_AR]),
-  m('B14', 'pg: the industry query\'s lower bound is inclusive', AV, 'first_available_at >= TIMESTAMPTZ ${sqlTs(industryFrom)}', 'first_available_at > TIMESTAMPTZ ${sqlTs(industryFrom)}', [T_AR]),
   m('B15', 'readiness: ready_via must be a known rule', AV, '!READY_VIA.includes(o.ready_via)', 'false', [T_AR]),
   m('B16', 'readiness: the record must be of this day', AV, 'o.trade_date !== day', 'false', [T_AR]),
   m('B17', 'readiness: the record\'s file sha goes into the chain row', AV, 'file_sha256: sha256(Buffer.from(bytes))', 'file_sha256: null', [T_AR]),
@@ -169,8 +165,6 @@ const MUTANTS = [
   m('B33', 'verifier: window_to is the calendar\'s next open day', AV, "if (nx && r.window_to.slice(0, 10) !== nx) invalid('WINDOW'", "if (false) invalid('WINDOW'", [T_AR]),
   m('B34', 'arrive: a day\'s window starts where the last arrived part ended', AV, 'dayRows[dayRows.length - 1].window_to', 'dayRows[0].window_to', [T_AR]),
   m('B35', 'arrive: the window goes into the chain row', AV, 'window_from: window.from, window_to: window.to', 'window_from: null, window_to: null', [T_AR]),
-  m('B36', 'pg: a day whose window end is unknown is not available', AV, 'if (!ctx || !ctx.industryTo) return null;', '', [T_AR]),
-  m('B37', 'pg: the window bounds keep their time of day', AV, '${iso.slice(0, 10)} ${iso.slice(11, 19)}+08', '${iso.slice(0, 10)} 00:00:00+08', [T_AR]),
   m('D26', 'export window: a later part starts at the day\'s own 09:00 (the previous part\'s end)', DX, 'else lower="$D 09:00:00+08"', 'else lower="$D 00:00:00+08"', [T_DX]),
   m('D27', 'export window: a part ends at the next open day\'s 09:00', DX, 'local upper="$nx 09:00:00+08"', 'local upper="$nx 00:00:00+08"', [T_DX]),
   m('D28', 'export window: the first part starts at the segment\'s lower bound', DX, 'lower="$FIRST_LOWER 00:00:00+08"', 'lower="$FIRST_LOWER 09:00:00+08"', [T_DX]),
@@ -178,6 +172,11 @@ const MUTANTS = [
   m('D30', 'export window: window_from is recorded', DX, '"${lower/ /T}:00"', '"${upper/ /T}:00"', [T_DX]),
   m('D31', 'export probe: one variable names the probe file', DX, 'READY_SQL="${R2EXP_READY_SQL:-$HERE/R2_DAY_EXPORT_READINESS_V2.sql}"', 'READY_SQL="$HERE/R2_DAY_EXPORT_READINESS_V2.sql"', [T_DX]),
   m('D32', 'export probe: a missing probe file stops the run', DX, '[ -f "$READY_SQL" ] || { echo "PROBE_SQL_MISSING: $READY_SQL" >&2; exit 2; }', ':', [T_DX]),
+  m('D33', 'export SQL: a query is for one day', 'deploy/research-lane/r2-day-export/sql/prices_daily_stock.sql', "trade_date = '@DAY@'", "trade_date >= '@DAY@'", [T_DX]),
+  m('D34', 'export SQL: the industry window\'s lower bound is inclusive', 'deploy/research-lane/r2-day-export/sql/industry_membership_sw2021.sql', "first_available_at >= TIMESTAMPTZ '@LOWER@'", "first_available_at > TIMESTAMPTZ '@LOWER@'", [T_DX]),
+  m('D35', 'export SQL: the industry window\'s upper bound is exclusive', 'deploy/research-lane/r2-day-export/sql/industry_membership_sw2021.sql', "first_available_at < TIMESTAMPTZ '@UPPER@'", "first_available_at <= TIMESTAMPTZ '@UPPER@'", [T_DX]),
+  m('D36', 'export SQL: stocks only', 'deploy/research-lane/r2-day-export/sql/market_daily_basic_observation_stock.sql', "AND security_id IN (SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL)", '', [T_DX]),
+  m('D37', 'export SQL: the master snapshot is of the day', 'deploy/research-lane/r2-day-export/sql/security_master_stock.sql', "business_date = '@DAY@'", "business_date <= '@DAY@'", [T_DX]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }
