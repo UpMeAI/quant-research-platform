@@ -1,0 +1,2 @@
+-- SSE open days in [:'lo', :'hi'], read the way the arrival program reads the calendar (READY rows, the latest first_available_at then revision per (date, exchange), is_open); one SELECT
+SELECT calendar_date FROM (SELECT DISTINCT ON (calendar_date, exchange) calendar_date, is_open FROM canonical_calendar_observation WHERE exchange = 'SSE' AND quality_state = 'READY' AND calendar_date >= :'lo' AND calendar_date <= :'hi' ORDER BY calendar_date, exchange, first_available_at DESC, revision DESC) c WHERE c.is_open ORDER BY calendar_date

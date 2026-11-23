@@ -1,0 +1,2 @@
+-- generated from services/mining-sandbox/round-runner/arrival.js pgQueries (RF1116_CN_A_LANE_EXPORT_SPEC_V1 section 2, rev 5 change 2 for industry); @DAY@ @NEXT@ @LOWER@ are substituted by r2-day-export.sh; one SELECT
+SELECT record_id, security_id, trade_date, suspension_type, suspension_timing, full_session, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM security_suspension_observation WHERE trade_date = '@DAY@' ORDER BY security_id, trade_date, source_record_id, revision
