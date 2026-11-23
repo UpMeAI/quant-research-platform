@@ -173,6 +173,17 @@ test('S7 fail closed: no segment for the market; unregistered window already in 
   assert.throws(() => openWindow('2026-12-02T02:00:00Z', H1), code(/MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE/), 'once registry rounds exist an explicit window is refused');
 });
 
+test('S7b fail closed: a stored R2 block that does not match the registry rule is not a registry segment', () => {
+  freshData();
+  const a = openAuto('2026-12-01T02:00:00Z');
+  forceHead(a.round_id, { holdout: { ...a.holdout, start_after: '2027-01-04' } });
+  assert.throws(() => openAuto('2026-12-02T02:00:00Z'), code(/MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE/));
+  freshData();
+  const b = openAuto('2026-12-01T02:00:00Z');
+  forceHead(b.round_id, { holdout: { ...b.holdout, length_trading_days: 53 } });
+  assert.throws(() => openAuto('2026-12-02T02:00:00Z'), code(/MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE/));
+});
+
 test('S8 never borrow: R1 full -> a November round is refused (R2 is free but is not its segment); R2 full -> a January round is refused (no R3 is invented)', () => {
   freshData();
   openAuto('2026-11-01T02:00:00Z'); openAuto('2026-11-02T02:00:00Z');
@@ -262,6 +273,18 @@ test('S13 runner: requestRound selects by month (GP and LLM); the LLM cutoff rul
   assert.throws(() => runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, openedAt: '2026-12-03T02:00:00Z' }), code(/MINE_ROUND_HOLDOUT_EXHAUSTED:R2/));
 });
 
+test('S13b LLM cutoff against R2: the start is strictly after 2026-12-31, so a cutoff of 12-31 passes and 2027-01-01 is refused; R1 keeps its strict start > cutoff', () => {
+  const llm = (cutoff) => ({ mode: 'AI_MINED_LLM', model: 'm', model_knowledge_cutoff: cutoff });
+  freshData();
+  assert.equal(openAuto('2026-12-01T02:00:00Z', 'CN_A', { generator: llm('2026-12-31') }).holdout.segment, 'R2');
+  assert.throws(() => openAuto('2026-12-02T02:00:00Z', 'CN_A', { generator: llm('2027-01-01') }), code(/MINE_ROUND_HOLDOUT_BEFORE_CUTOFF/));
+  assert.throws(() => openAuto('2026-12-02T02:00:00Z', 'CN_A', { generator: llm('2027-03-01') }), code(/MINE_ROUND_HOLDOUT_BEFORE_CUTOFF/));
+  freshData();
+  assert.equal(openAuto('2026-11-20T02:00:00Z', 'CN_A', { generator: llm('2026-10-18') }).holdout.to, '2026-12-31');
+  assert.throws(() => openAuto('2026-11-20T02:00:00Z', 'CN_A', { generator: llm('2026-10-19') }), code(/MINE_ROUND_HOLDOUT_BEFORE_CUTOFF/), 'R1 start 10-19 is not after a cutoff of 10-19');
+  assert.equal(rounds.roundsOf('CN_A').length, 1, 'the refused rounds wrote nothing');
+});
+
 test('S14 holdout ref: the other segment\'s sealed directory is refused before any round is opened; legacy synthetic refs are untouched', () => {
   const g = reg();
   const R1REF = `lane:rf1116-mining/holdout-sealed/${g.REGISTRY[0].sealed_dir}`;
@@ -272,6 +295,10 @@ test('S14 holdout ref: the other segment\'s sealed directory is refused before a
   assert.doesNotThrow(() => runner.assertHoldoutRef({ openedAt: '2026-12-01T02:00:00Z', dataRef: 'synthetic:holdout' }), 'tests and fixtures name no segment directory');
   assert.throws(() => runner.assertHoldoutRef({ openedAt: '2026-12-01T02:00:00Z', dataRef: R1REF }), code(/MINE_RUNNER_HOLDOUT_REF_MISMATCH/), 'a December round must not seal the R1 directory');
   assert.throws(() => runner.assertHoldoutRef({ openedAt: '2026-11-20T02:00:00Z', dataRef: R2REF }), code(/MINE_RUNNER_HOLDOUT_REF_MISMATCH/), 'a November round must not seal the R2 directory');
+  // wiring: the CLI checks the ref before it opens a round (static, like the other command-line wiring checks)
+  const cli = fs.readFileSync(path.join(ROOT, 'services/mining-sandbox/round-runner/cli.js'), 'utf8');
+  const at = cli.indexOf('runner.assertHoldoutRef('); const open = cli.indexOf('runner.requestRound(');
+  assert.ok(at > 0 && open > 0 && at < open, 'cli.js: assertHoldoutRef before requestRound');
 });
 
 test('S15 run.sh: the segment directory is chosen by RF1116_HOLDOUT_SEGMENT (default R1, the old strings unchanged); an unknown segment exits 64', () => {

@@ -184,7 +184,7 @@ function openRound(o = {}) {
   if (auto) need(entry, 'MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE', `${o.market}:${month}`);
   const holdout = auto ? holdoutSegments.holdoutOf(entry) : o.holdout;
   if (!auto) need(isObj(holdout) && DATE.test(holdout.from || '') && DATE.test(holdout.to || '') && holdout.from <= holdout.to, 'MINE_ROUND_HOLDOUT_INVALID');
-  if (g.mode === 'AI_MINED_LLM') need(holdoutSegments.lowerBoundOf(holdout) > g.model_knowledge_cutoff, 'MINE_ROUND_HOLDOUT_BEFORE_CUTOFF', `${holdoutSegments.lowerBoundOf(holdout)}<=${g.model_knowledge_cutoff}`);
+  if (g.mode === 'AI_MINED_LLM') need(holdoutSegments.startsAfter(holdout, g.model_knowledge_cutoff), 'MINE_ROUND_HOLDOUT_BEFORE_CUTOFF', `${holdout.from}<=${g.model_knowledge_cutoff}`);
   const cap = o.cap === undefined ? LIMITS.candidates_per_round : o.cap;
   need(Number.isInteger(cap) && cap >= 1 && cap <= LIMITS.candidates_per_round, 'MINE_ROUND_CAP_INVALID', cap);
   const rulings = checkRulings(o.rulings);
