@@ -24,7 +24,13 @@ if [ ! -d "$SPOOL/in/$ID" ] && [ ! -d "$SPOOL/out/$ID" ]; then
   cp "$ATT/in/task.json" "$ATT/in/bundle.json" "$TMP/"
   mv "$TMP" "$SPOOL/in/$ID"
 fi
-START=$(date +%s)
+MAX_POLLS=$(awk -v timeout="$TIMEOUT" -v poll="$POLL" 'BEGIN {
+  if (timeout <= 0 || poll <= 0) exit 1
+  n = int(timeout / poll)
+  if (n * poll < timeout) n++
+  print n < 1 ? 1 : n
+}') || { echo "RQ_SPOOL_TIMEOUT_INVALID" >&2; exit 66; }
+POLL_COUNT=0
 while :; do
   if [ -f "$SPOOL/out/$ID/result.json" ]; then
     # the agent's output is untrusted data: a link in it (to the queue database, say) is refused, never followed
@@ -39,9 +45,9 @@ while :; do
     N=$(sed -n 's/.*"exit_code": *\([0-9][0-9]*\).*/\1/p' "$SPOOL/out/$ID/agent-error.json" | head -n 1)
     fail D "AGENT_EXIT_${N:-UNKNOWN}" 70
   fi
-  NOW=$(date +%s)
-  if [ $((NOW - START)) -ge "$TIMEOUT" ]; then
+  sleep "$POLL"
+  POLL_COUNT=$((POLL_COUNT + 1))
+  if [ "$POLL_COUNT" -ge "$MAX_POLLS" ]; then
     fail T1 SPOOL_TIMEOUT 75
   fi
-  sleep "$POLL"
 done

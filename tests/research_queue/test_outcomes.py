@@ -1,6 +1,7 @@
 """AQ-10 wait states, AQ-11 no cost-cap state, AQ-13 completion authority (core part), AQ-14 circuits."""
 import datetime as dt, json, os, re, unittest
 from helpers import *  # noqa
+from rq import agentseam  # noqa
 
 SRC = ROOT / "services" / "research-queue" / "rq"
 
@@ -117,6 +118,10 @@ class CompletionAuthority(Base):
             d = self.cfg.runs_dir / r.task_id / "attempt-1" / "result.json"
             d.write_text(json.dumps({"outputs": [], "validator": {"ok": False}}))
         return r.task_id
+
+    def test_future_agent_kind_never_trusts_its_own_validator_block(self):
+        task = {"kind": "AI_FUTURE_KIND", "agent_host": "HK", "host": "LINUX"}
+        self.assertTrue(agentseam.needs_consumer_revalidation(task))
 
     def test_only_rq_complete_may_write_complete(self):
         tid = self.evidence()

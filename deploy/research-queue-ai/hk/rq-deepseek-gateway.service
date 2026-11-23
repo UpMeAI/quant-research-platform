@@ -14,7 +14,7 @@ Group=rq-agent
 EnvironmentFile=-/root/.config/research-queue/deepseek-review.env
 RuntimeDirectory=rq-gw
 RuntimeDirectoryMode=0750
-ExecStart=/usr/bin/python3 /opt/research-queue/current/services/rq-deepseek-gateway/rq_gateway.py serve --config /opt/research-queue/current/config/rq_deepseek_gateway.v1.json --key-id HK_REVIEW --db /var/lib/research-queue/gateway/gateway.sqlite --socket /run/rq-gw/rq-gw.sock --socket-mode 0660
+ExecStart=/usr/bin/python3 /opt/research-queue/current/services/rq-deepseek-gateway/rq_gateway.py serve --config /opt/research-queue/current/config/rq_deepseek_gateway.v1.json --key-id HK_REVIEW --db /var/lib/rq-gw/gateway.sqlite --socket /run/rq-gw/rq-gw.sock --socket-mode 0660
 Restart=on-failure
 RestartSec=10
 Slice=research.slice
@@ -26,7 +26,7 @@ PrivateTmp=yes
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectProc=invisible
-ReadWritePaths=/var/lib/research-queue/gateway
+ReadWritePaths=/var/lib/rq-gw
 
 [Install]
 WantedBy=multi-user.target

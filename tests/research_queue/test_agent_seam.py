@@ -269,6 +269,12 @@ class SpoolScripts(unittest.TestCase):
         err = json.loads((self.att / "error.json").read_text())
         self.assertEqual((err["class"], err["code"]), ("T1", "SPOOL_TIMEOUT"))
 
+    def test_timeout_counts_active_poll_iterations_not_wall_clock(self):
+        code = (AI / "spool-client.sh").read_text()
+        self.assertNotIn("date +%s", code)
+        self.assertIn("POLL_COUNT", code)
+        self.assertIn("MAX_POLLS", code)
+
     def test_client_without_staged_input_refuses_66(self):
         shutil.rmtree(self.att / "in")
         r = subprocess.run(["sh", str(AI / "spool-client.sh")], env=self.env, capture_output=True, text=True, timeout=30)
@@ -302,9 +308,11 @@ class SpoolUnits(unittest.TestCase):
         self.assertEqual(g("TemporaryFileSystem"), "/var/lib:ro")
         self.assertEqual(g("BindReadOnlyPaths"), "/var/lib/rq-spool/in")
         self.assertEqual(g("BindPaths"), "/var/lib/rq-spool/out")
+        self.assertEqual(g("TimeoutStartSec"), "infinity")
         self.assertNotIn(("[Service]", "EnvironmentFile"), u)
         t = unit(AI / "rq-agent.timer")
         self.assertRegex(t[("[Timer]", "OnCalendar")][-1], r"10\.\.21:0/5")
+        self.assertTrue(t[("[Timer]", "OnCalendar")][-1].endswith(" Asia/Shanghai"))
         self.assertEqual(t[("[Timer]", "Unit")][-1] if ("[Timer]", "Unit") in t else "rq-agent.service", "rq-agent.service")
 
     def test_groups_keep_the_agent_out_of_the_queue_group_and_the_socket_belongs_to_the_agent_group(self):

@@ -13,7 +13,7 @@ def complete_self_validated(conn, cfg, task_id, now):
     adm = json.loads(task["admission_json"])["derived"]
     if adm["completion"] != "SELF_VALIDATED":
         return task["state"]
-    if task["kind"] in agentseam.AGENT_KINDS:
+    if agentseam.needs_consumer_revalidation(task):
         return _complete_agent(conn, cfg, task, now)
     p = cfg.runs_dir / task_id / ("attempt-%d" % task["attempt_no"]) / "result.json"
     try:

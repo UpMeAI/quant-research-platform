@@ -234,7 +234,13 @@ def tick(conn, cfg, rt, now, *, worker=None, sensors=None, blackouts=None):
         st = rt.status(d)
         try:
             if st.exit is not None:
-                _finalize(conn, cfg, task, d, st, now)
+                try:
+                    _finalize(conn, cfg, task, d, st, now)
+                except (core.LeaseTokenStale, core.TransitionRefused):
+                    raise
+                except Exception as exc:
+                    core.transition(conn, tid, "BLOCKED_DETERMINISTIC", actor="rq-consumer", now=now, reason="FINALIZE_ERROR",
+                                    token=task["lease_token"], detail={"error": exc.__class__.__name__})
                 summary["finished"].append(tid)
             elif core.parse_iso(task["lease_expires_at"]) <= now:
                 if st.alive:

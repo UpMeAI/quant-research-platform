@@ -11,7 +11,8 @@ User=rq-agent
 Group=rq-agent
 Environment=RQ_SPOOL_DIR=/var/lib/rq-spool
 ExecStart=/bin/sh /opt/research-queue/current/deploy/research-queue-ai/hk/rq-agent-drain.sh
-TimeoutStartSec=1800
+# The client counts active poll iterations; a system freeze must not consume the task timeout.
+TimeoutStartSec=infinity
 Slice=research.slice
 MemoryMax=256M
 Nice=19

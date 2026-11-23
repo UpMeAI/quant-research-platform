@@ -15,6 +15,7 @@ ReadWritePaths=/var/lib/research-queue /var/lib/rq-spool
 CapabilityBoundingSet=
 IPAddressDeny=any
 Environment=PYTHONPATH=/opt/research-queue/current/services/research-queue
+Environment=PATH=/opt/node22/bin:/usr/bin:/bin
 Environment=RQ_CONFIG=/etc/research-queue/rq.json
 ExecStart=/usr/bin/python3 -m rq consumer-run
 Restart=always

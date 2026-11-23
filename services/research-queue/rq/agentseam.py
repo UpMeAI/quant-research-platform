@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import subprocess
 
 
@@ -15,6 +16,8 @@ AGENT_KINDS = ("AI_REVIEW_CARD", "AI_CHECK")
 NODE_TIMEOUT_S = 120
 WAIT_STATES = {"WAITING_CREDENTIAL": "A", "WAITING_QUOTA": "Q", "WAITING_EXTERNAL": "E"}
 DEFER_S = 1800
+RESULT_FIELD_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
+MAX_RETRY_AFTER_S = 86400
 
 
 class SeamError(Exception):
@@ -31,6 +34,12 @@ def _outcome(kind, code=None, http_status=None, retry_after_s=None):
 def map_result(res):
     """RQ_AGENT_RESULT_V1.status -> consumer Outcome (queue-seam.js transitionFor, in the consumer's own classes)."""
     st = res.get("status") if isinstance(res, dict) else None
+    if isinstance(res, dict) and "status" in res and (not isinstance(st, str) or not RESULT_FIELD_RE.fullmatch(st)):
+        return _outcome("D", "RESULT_FIELD_INVALID")
+    for name in ("reason_code", "wait_state"):
+        value = res.get(name) if isinstance(res, dict) else None
+        if isinstance(res, dict) and name in res and (not isinstance(value, str) or not RESULT_FIELD_RE.fullmatch(value)):
+            return _outcome("D", "RESULT_FIELD_INVALID")
     reason = (res.get("reason_code") or None) if isinstance(res, dict) else None
     if st == "DONE":
         return _outcome("SUCCESS")
@@ -39,7 +48,9 @@ def map_result(res):
         return _outcome(kind, reason or res.get("wait_state")) if kind else _outcome("D", "RESULT_WAIT_STATE_INVALID")
     if st == "RETRY":
         ra = res.get("retry_after_s")
-        return _outcome("T3", reason or "PROVIDER", None, ra if isinstance(ra, int) and ra > 0 else None)
+        if ra is not None and (isinstance(ra, bool) or not isinstance(ra, int) or ra <= 0):
+            return _outcome("D", "RESULT_FIELD_INVALID")
+        return _outcome("T3", reason or "PROVIDER", None, min(ra, MAX_RETRY_AFTER_S) if ra is not None else None)
     if st == "DEFER":
         return _outcome("DEFER", reason or "DEFER")
     if st == "BLOCKED_DETERMINISTIC":
@@ -70,6 +81,12 @@ def needs_staging(task):
     if task["kind"] not in AGENT_KINDS:
         return False
     return bool(json.loads(task["admission_json"])["request"].get("inputs"))
+
+
+def needs_consumer_revalidation(task):
+    """Agent-produced SELF_VALIDATED results are untrusted by default, including future/unlisted agent kinds."""
+    kind = task.get("kind") or ""
+    return kind in AGENT_KINDS or kind.startswith("AI_") or task.get("agent_host") != task.get("host")
 
 
 def stage(cfg, task, attempt_dir):

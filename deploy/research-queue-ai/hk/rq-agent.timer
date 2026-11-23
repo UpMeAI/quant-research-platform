@@ -4,7 +4,7 @@
 Description=rq-agent drain timer (HK, every 5 minutes, 10:00-21:55)
 
 [Timer]
-OnCalendar=*-*-* 10..21:0/5:00
+OnCalendar=*-*-* 10..21:0/5:00 Asia/Shanghai
 AccuracySec=30s
 Persistent=no
 Unit=rq-agent.service
