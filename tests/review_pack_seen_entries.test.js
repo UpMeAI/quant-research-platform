@@ -55,10 +55,10 @@ test('entry: the front door CLI marks a pack from stdin (what the relay and the 
   assert.equal(packMarks().length, 1, 'failures wrote nothing');
 });
 
-function desk(weekId = '2026-W46') {
+function desk(weekId = '2026-W46', { generatedAt = '2026-11-16T02:30:29.237Z' } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-w05-desk-'));
   fs.mkdirSync(path.join(root, routing.QUEUE_DIR), { recursive: true });
-  const week = { schemaVersion: 1, contract: 'REVIEW_LOOP_WEEK_V1', producer: 'COORDINATOR', weekId, revision: 0, generatedAt: '2026-11-16T02:30:29.237Z',
+  const week = { schemaVersion: 1, contract: 'REVIEW_LOOP_WEEK_V1', producer: 'COORDINATOR', weekId, revision: 0, generatedAt,
     periods: { CN: { from: '2026-11-09', to: '2026-11-13', clock: 'SSE_SESSIONS' }, US: { from: '2026-11-09', to: '2026-11-13', clock: 'NYSE_SESSIONS' }, CRYPTO: { from: '2026-11-09', to: '2026-11-15', clock: 'UTC_DAYS' } }, fixture: true };
   week.hash = contentHash(week);
   const weekFile = `REVIEW_LOOP_WEEK_${weekId}.json`;
@@ -100,4 +100,50 @@ test('entry: the queue import CLI passes the ledger authority and refuses to run
   const ok = run({});
   assert.equal(ok.status, 0, ok.stderr);
   assert.equal(packMarks().length, 3);
+});
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * Review fixes (plan-coord 11-23 14:00, P2-1 read-back, P2-2 far-future cutoff, P2-3 unparsable cutoff) at the entry points: each refuses with the code, nothing is delivered unmarked.
+ * ---------------------------------------------------------------------------------------------------------------------------------------------------------------- */
+const tearLedger = (dir) => { const file = path.join(dir, 'research', 'data_segments.jsonl'); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, '{"schema":"DATA_SEGMENT_MARK_V1","mark_id":"SEG-torn","family_id":"X","mar'); };
+
+test('review fix P2-1 (CLI): a torn ledger tail makes `mark` exit 1 with REVIEW_PACK_SEEN_NOT_READBACK, never 0 with an unreadable mark; the retry exits 0 and the mark is readable', () => {
+  const dir = freshLedger();
+  tearLedger(dir);
+  const bytes = JSON.stringify(AI_PACK);
+  const bad = cli(['mark', '--file', '-'], { input: bytes });
+  assert.equal(bad.status, 1, bad.stdout);
+  assert.match(bad.stderr, /^REVIEW_PACK_SEEN_NOT_READBACK/);
+  assert.equal(bad.stdout, '', 'no mark is reported');
+  assert.equal(packMarks().length, 0);
+  const ok = cli(['mark', '--file', '-'], { input: bytes });
+  assert.equal(ok.status, 0, ok.stderr);
+  assert.equal(packMarks().length, 1);
+});
+
+test('review fix P2-1 (weekly compile import): a torn ledger tail refuses the import with REVIEW_PACK_SEEN_NOT_READBACK', () => {
+  const dir = freshLedger();
+  tearLedger(dir);
+  const d = desk();
+  assert.throws(() => routing.importQueue({ deskRoot: d.root, seenMark: { registeredBy: AUTH, registeredAt: '2026-11-23T10:30:00+08:00' } }), /REVIEW_PACK_SEEN_NOT_READBACK/);
+  assert.equal(packMarks().filter((m) => m.market === 'CN_A').length, 0);
+});
+
+test('review fix P2-2 and P2-3 (CLI): a date far in the future exits 1 with REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE; a present but unparsable cutoff exits 1 with REVIEW_PACK_SEEN_CUTOFF_INVALID; neither writes', () => {
+  freshLedger();
+  const far = cli(['mark', '--file', '-'], { input: JSON.stringify({ ...AI_PACK, decision_cutoff: '2099-01-01' }) });
+  assert.equal(far.status, 1);
+  assert.match(far.stderr, /^REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE/);
+  const bad = cli(['mark', '--file', '-'], { input: JSON.stringify({ ...AI_PACK, decision_cutoff: '2026/11/30' }) });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /^REVIEW_PACK_SEEN_CUTOFF_INVALID/);
+  assert.equal(packMarks().length, 0);
+  assert.equal(cli(['mark', '--file', '-'], { input: JSON.stringify(AI_PACK) }).status, 0, 'the same pack without the bad cutoff still marks');
+});
+
+test('review fix P2-2 (weekly compile import): a compile dated far after now is refused and imports nothing', () => {
+  freshLedger();
+  const d = desk('2099-W01', { generatedAt: '2099-01-05T00:00:00Z' });
+  assert.throws(() => routing.importQueue({ deskRoot: d.root, seenMark: { registeredBy: AUTH, registeredAt: '2026-11-23T10:30:00+08:00' } }), /REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE/);
+  assert.equal(packMarks().length, 0);
 });

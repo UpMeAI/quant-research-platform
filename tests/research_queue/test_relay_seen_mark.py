@@ -76,6 +76,16 @@ class RelayMarksBeforeShipping(unittest.TestCase):
         self.assertEqual(calls, [self.name])
 
 
+    def test_the_review_fix_codes_block_the_delivery_like_any_other_mark_failure(self):
+        """W05 review P2-1/2/3: a mark that cannot be read back, a cutoff in the future and an unparsable cutoff are CLI failures; the relay does not deliver and retries."""
+        for code in ("REVIEW_PACK_SEEN_NOT_READBACK", "REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE", "REVIEW_PACK_SEEN_CUTOFF_INVALID"):
+            def run(argv, input=None, capture_output=False, timeout=None, env=None, **kw):
+                return mock.Mock(returncode=1, stdout=b"", stderr=(code + ":detail\n").encode())
+            out = relay.run(self.cfg, self.tr, marker=relay.NodeSeenMarker("/qrp", run=run))
+            self.assertEqual((out["pushed"], out["failed"]), ([], [["linux", self.name, "SEEN_MARK_FAILED:" + code]]), code)
+        self.assertFalse([e for e in self.log if e[0] == "push"], "nothing was delivered")
+
+
 class NodeMarker(unittest.TestCase):
     def fake(self, rc=0, err=b""):
         seen = {}
@@ -141,6 +151,13 @@ class ProducerMarksTheAdmittedPack(Base):
         self.assertIsNone(self.conn.execute("select 1 from task where state='READY'").fetchone())
         out = producer.tick(self.conn, self.cfg, shipped(), self.t0, seen_marker=lambda host, name, data: None)
         self.assertEqual(out["admitted"], 1)
+
+    def test_the_review_fix_codes_leave_the_pack_without_a_card_task(self):
+        for code in ("REVIEW_PACK_SEEN_NOT_READBACK", "REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE", "REVIEW_PACK_SEEN_CUTOFF_INVALID"):
+            self.drop()
+            out = producer.tick(self.conn, self.cfg, shipped(), self.t0, seen_marker=lambda host, name, data: code)
+            self.assertEqual((out["admitted"], out["seen_mark_failed"]), (0, [["2026-W47-CN_A.json", code]]), code)
+        self.assertIsNone(self.conn.execute("select 1 from task where state='READY'").fetchone())
 
     def test_without_a_marker_the_tick_is_unchanged(self):
         self.drop()

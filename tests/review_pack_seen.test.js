@@ -222,3 +222,100 @@ test('AC9: the readers of SEEN / UNSEEN keep no range algorithm of their own; th
   assert.deepEqual(lab.seen.seenRangesOf({ market: 'US_EQUITY', asOf: '2026-12-01T00:00:00+08:00' }), []);
   assert.deepEqual(lab.seen.seenRangesOf({ market: 'CN_A', asOf: '2026-11-01T00:00:00+08:00' }), [], 'a mark registered after as_of is not part of that run');
 });
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ * Review fixes (plan-coord 11-23 14:00, W05_REVIEW_20261123 P2-1, P2-2, P2-3): read-back after the write, a cutoff far in the future is refused, a present but unparsable cutoff is refused.
+ * ---------------------------------------------------------------------------------------------------------------------------------------------------------------- */
+const NOW = () => Date.parse('2026-11-23T12:00:00+08:00'); // the injectable host clock: now + 36 h = 2026-11-25T00:00+08:00
+const tear = () => { const file = trials.SEGMENTS(); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, '{"schema":"DATA_SEGMENT_MARK_V1","mark_id":"SEG-torn","family_id":"X","mar'); };
+
+test('P2-1 read-back: a torn ledger tail makes the mark unreadable, so the write is refused (REVIEW_PACK_SEEN_NOT_READBACK), never reported as a mark; the retry then succeeds', () => {
+  freshLedger();
+  tear();
+  assert.throws(() => mark(aiPack({ window: W46_WINDOW }), { now: NOW }), /REVIEW_PACK_SEEN_NOT_READBACK/);
+  assert.equal(reviewSeen.packMarks({ market: 'CN_A' }).length, 0, 'the readers do not see a mark');
+  assert.equal(reviewSeen.reviewedThrough('CN_A'), null);
+  const retry = mark(aiPack({ window: W46_WINDOW }), { now: NOW });
+  assert.equal(retry.length, 1);
+  assert.equal(retry[0].replayHit, undefined, 'a real write, readable this time');
+  assert.equal(reviewSeen.reviewedThrough('CN_A'), '2026-11-13');
+  assert.equal(reviewSeen.packMarks({ market: 'CN_A' }).length, 1);
+  assert.equal(mark(aiPack({ window: W46_WINDOW }), { now: NOW })[0].replayHit, true, 'and idempotent as before');
+});
+
+test('P2-1 read-back (all markets): a weekly compile writes three rows, and if any of them cannot be read back the whole call is refused', () => {
+  freshLedger();
+  tear();
+  assert.throws(() => mark(weeklyCompile(), { now: NOW }), /REVIEW_PACK_SEEN_NOT_READBACK/);
+  assert.equal(reviewSeen.packMarks({ market: 'CN_A' }).length, 0, 'the row glued to the torn fragment is not readable');
+  const retry = mark(weeklyCompile(), { now: NOW });
+  assert.deepEqual(retry.map((r) => [r.market, r.replayHit === true]).sort(), [['CN_A', false], ['CRYPTO', true], ['US_EQUITY', true]], 'the retry writes the missing row and replays the two that were readable');
+  assert.equal(reviewSeen.packMarks({}).length, 3);
+});
+
+test('P2-1 read-back: a dry run writes nothing and so reads nothing back', () => {
+  freshLedger();
+  tear();
+  assert.equal(mark(aiPack({ window: W46_WINDOW }), { now: NOW, dryRun: true })[0].dryRun, true);
+});
+
+test('P2-2 far-future cutoff: a cutoff or fact date later than now + 36 hours (host clock, injectable) is refused (REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE), whatever date source carries it', () => {
+  freshLedger();
+  const refused = (pack, label) => assert.throws(() => mark(pack, { now: NOW }), /REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE/, label);
+  refused(aiPack({ at: '2099-01-01' }), 'a fact date');
+  refused(aiPack({ week: '2026-W45', extra: { decision_cutoff: '2099-01-01' } }), 'a stated decision cutoff');
+  refused(aiPack({ week: '2026-W44', window: { from: '2026-11-01', to: '2099-01-01' } }), 'a window end');
+  refused({ contract: 'REVIEW_AI_FACT_PACK_V1', market: 'CN_A', weekId: '2026-W43', period: { from: '2026-11-09', to: '2099-01-01' }, facts: aiPack({ week: '2026-W43' }).facts }, 'the period end');
+  const weekly = weeklyCompile(); weekly.periods.CN.to = '2099-01-01';
+  refused(weekly, 'a weekly period end');
+  refused(weeklyCompile({ generatedAt: '2099-01-01T00:00:00Z' }), 'a weekly compile time');
+  refused(aiPack({ week: '2026-W42', at: '2026-11-26' }), 'one day past the limit day');
+  assert.equal(mark(aiPack({ week: '2026-W41', at: '2026-11-25' }), { now: NOW }).length, 1, 'the limit day itself (now + 36 h) is fine');
+  assert.equal(mark(aiPack({ week: '2026-W40', at: '2026-11-13' }), { now: '2026-11-23T12:00:00+08:00' }).length, 1, 'now as an ISO stamp');
+  assert.equal(rowsOnDisk().length, 2, 'refused packs wrote nothing');
+});
+
+test('P2-2 far-future cutoff: the clock is injectable (a 2031 pack marks when the clock is after it) and backfill applies the same limit', () => {
+  freshLedger();
+  const later = () => Date.parse('2031-03-01T00:00:00+08:00');
+  assert.equal(mark(aiPack({ week: '2031-W07', at: '2031-02-14' }), { now: later })[0].to, '2031-02-14');
+  assert.throws(() => mark(aiPack({ week: '2031-W08', at: '2031-02-21' })), /REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE/, 'the default clock is the host clock');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-w05-archive-'));
+  fs.writeFileSync(path.join(dir, 'REVIEW_LOOP_WEEK_2099-W01.json'), `${JSON.stringify(weeklyCompile({ weekId: '2099-W01', generatedAt: '2099-01-05T00:00:00Z' }))}\n`);
+  const out = reviewSeen.backfill({ archives: [dir], registeredBy: AUTH, registeredAt: T1, now: NOW });
+  assert.deepEqual(out.invalid.map((x) => [x.file, x.code]), [['REVIEW_LOOP_WEEK_2099-W01.json', 'REVIEW_PACK_SEEN_CUTOFF_IN_FUTURE']]);
+  assert.equal(out.marked.length, 0);
+});
+
+test('P2-3 an explicit decision cutoff that is present but unparsable is refused (REVIEW_PACK_SEEN_CUTOFF_INVALID); only an absent one falls back to the other date sources', () => {
+  freshLedger();
+  for (const key of ['decision_cutoff', 'decisionCutoff', 'cutoff']) {
+    for (const bad of ['2026/11/30', 12345, null, '', 'tomorrow', '2026-02-31']) {
+      assert.throws(() => mark(aiPack({ week: '2026-W45', extra: { [key]: bad } }), { now: NOW }), /REVIEW_PACK_SEEN_CUTOFF_INVALID/, `${key}=${JSON.stringify(bad)}`);
+    }
+  }
+  assert.equal(mark(aiPack({ week: '2026-W45', extra: { decision_cutoff: '2026-11-15' } }), { now: NOW })[0].to, '2026-11-15', 'a valid stated cutoff is used');
+  assert.equal(mark(aiPack({ week: '2026-W44' }), { now: NOW })[0].to, '2026-11-13', 'absent: the facts date, as before');
+  const weekly = weeklyCompile(); weekly.generatedAt = '2026/11/16';
+  assert.throws(() => mark(weekly, { now: NOW }), /REVIEW_PACK_SEEN_CUTOFF_INVALID/, 'the weekly compile time, present but unparsable');
+  const numeric = weeklyCompile(); numeric.generatedAt = 12345;
+  assert.throws(() => mark(numeric, { now: NOW }), /REVIEW_PACK_SEEN_CUTOFF_INVALID/);
+  const absent = weeklyCompile(); delete absent.generatedAt;
+  assert.deepEqual(mark(absent, { now: NOW }).map((r) => [r.market, r.to]).sort(), [['CN_A', '2026-11-13'], ['CRYPTO', '2026-11-15'], ['US_EQUITY', '2026-11-13']], 'absent compile time: the period ends, as before');
+  assert.equal(rowsOnDisk().length, 5, 'refused packs wrote nothing');
+});
+
+test('a real desk pack shape (contract / weekId / period, COUNT facts, plain-date at, no decision_cutoff, no window) still marks under the new checks, on the host clock too', () => {
+  freshLedger();
+  const src = { path: 'docs/review-loop/REVIEW_LOOP_WEEK_2026-W46.json', sha256: 'c'.repeat(64) };
+  const desk = { schemaVersion: 1, contract: 'REVIEW_AI_FACT_PACK_V1', producer: 'DESK_REVIEW_LOOP', market: 'CN_A', weekId: '2026-W46', revision: 0, period: { from: '2026-11-09', to: '2026-11-13', clock: 'SSE_SESSIONS' },
+    sourceWeek: { file: 'REVIEW_LOOP_WEEK_2026-W46.json', sha256: 'c'.repeat(64), hash: 'd'.repeat(64) }, routes: 'REVIEW_LOOP_DEFAULT_ROUTES@v2',
+    facts: [{ id: 'F-001', kind: 'PERIOD', source: { ...src, pointer: '$.periods.CN' }, at: '2026-11-13', value: { from: '2026-11-09', to: '2026-11-13', clock: 'SSE_SESSIONS' } },
+      { id: 'F-002', kind: 'FINDING', source: { ...src, pointer: '$.findings[0]' }, at: '2026-11-13', value: { findingId: 'F-1' } },
+      { id: 'F-003', kind: 'COUNT', source: { ...src, pointer: '$.findings' }, at: '2026-11-13', value: { subject: 'FINDINGS_BY_TRIGGER', total: 1, counts: { F08: 1 }, derivedBy: 'ai-review-facts@1' } }],
+    refused: [], excludedSections: [], noFindingsReason: null, interpretation: 'REVIEW_AI_FACTS_NOT_ADVICE', realOrder: 0, brokerWrite: false, hash: 'e'.repeat(64) };
+  const first = mark(desk, { now: NOW })[0];
+  assert.deepEqual([first.market, first.from, first.to], ['CN_A', '2020-06-01', '2026-11-13']);
+  const hostClock = mark({ ...desk, weekId: '2026-W45', period: { ...desk.period, to: '2026-11-06' }, facts: desk.facts.map((f) => ({ ...f, at: '2026-11-06' })) })[0];
+  assert.equal(hostClock.to, '2026-11-06');
+});
