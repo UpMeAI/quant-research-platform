@@ -5,7 +5,7 @@
  * `psql` stands in for the database (no Postgres, no docker, no network). Red first.
  *   - the SQL it sends is, byte for byte, the SQL of the arrival program's PG driver (one producer: arrival.js pgQueries) wrapped in COPY (...) TO STDOUT;
  *   - read-only everywhere: PGOPTIONS default_transaction_read_only=on, a session check, no SET / RESET / BEGIN READ WRITE anywhere in the script text, SELECT and COPY (SELECT) only;
- *   - readiness = ops-coord's R2_DAY_EXPORT_READINESS_V1.sql, byte-identical (sha cf8380f0...); a day that is not an SSE open day, or not ready, is refused (never exported);
+ *   - readiness = ops-coord's R2_DAY_EXPORT_READINESS_V2.sql, byte-identical (sha 57e26c03...); a day that is not an SSE open day, or not ready, is refused (never exported);
  *   - one atomic directory per day (temp + rename) with a SHA256SUMS of its files; idempotent; catch-up in calendar order; a day that stays unready for more than 3 days is exit 4 (alert).
  */
 const test = require('node:test');
@@ -43,7 +43,7 @@ printf '%s\\t%s\\n' "PGOPTIONS=$PGOPTIONS" "$*" >> "$LOG.args"
 printf '%s\\n----\\n' "$sql" >> "$LOG"
 case "$sql" in
   *"SHOW default_transaction_read_only"*) echo "\${STUB_READONLY:-on}";;
-  *pipeline_completion*) for r in $STUB_READY; do [ "$r" = "$d" ] && echo "$d:POST_CLOSE:$d|DEGRADED|$d""T20:10:00"; done; true;;
+  *pipeline_completion*) for r in $STUB_READY; do if [ "\${r%%:*}" = "$d" ]; then v="\${r#*:}"; [ "$v" = "$r" ] && v=POST_CLOSE_D; echo "$d|$v|5260|5217|5229|1"; fi; done; true;;
   *"COPY ("*)
     day="$(echo "$sql" | grep -o "'[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}'" | head -1 | tr -d "'")"
     case "$sql" in
@@ -84,10 +84,10 @@ function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail
 }
 const dayDir = (sb, seg, day) => path.join(sb.drop, seg, compact(day));
 
-test('DX0 files: the script, the SQL it sends, ops-coord\'s readiness probe byte-identical (sha cf8380f0...), the unit and the timer, the install notes', () => {
-  for (const f of ['r2-day-export.sh', 'R2_DAY_EXPORT_READINESS_V1.sql', 'r2-day-export.service', 'r2-day-export.timer', 'r2-day-export.env.example', 'INSTALL.md', 'sql/trading_calendar.sql', 'sql/open_days.sql',
+test('DX0 files: the script, the SQL it sends, ops-coord\'s readiness probe byte-identical (sha 57e26c03...), the unit and the timer, the install notes', () => {
+  for (const f of ['r2-day-export.sh', 'R2_DAY_EXPORT_READINESS_V2.sql', 'r2-day-export.service', 'r2-day-export.timer', 'r2-day-export.env.example', 'INSTALL.md', 'sql/trading_calendar.sql', 'sql/open_days.sql',
     ...A().TABLES.map((t) => `sql/${t.stem}.sql`)]) assert.ok(fs.existsSync(path.join(DIR, f)), f);
-  assert.equal(sha(fs.readFileSync(path.join(DIR, 'R2_DAY_EXPORT_READINESS_V1.sql'))), 'cf8380f097714bed9d9fb38303ecf9f94864ec28ffb8233d8a3a1f1806871b14');
+  assert.equal(sha(fs.readFileSync(path.join(DIR, 'R2_DAY_EXPORT_READINESS_V2.sql'))), '57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582');
 });
 
 test('DX1 read-only by construction: the script text has no SET / RESET / BEGIN READ WRITE / write verb, sets PGOPTIONS default_transaction_read_only=on, checks the session, and every SQL file is one SELECT', () => {
@@ -103,7 +103,7 @@ test('DX1 read-only by construction: the script text has no SET / RESET / BEGIN 
     assert.match(sql, /^SELECT /, f); assert.ok(!/;\s*\S/.test(sql), `${f}: one statement`);
     assert.ok(!/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|COPY|SET)\b/i.test(sql), f);
   }
-  const probe = fs.readFileSync(path.join(DIR, 'R2_DAY_EXPORT_READINESS_V1.sql'), 'utf8').replace(/^--[^\n]*\n/gm, '');
+  const probe = fs.readFileSync(path.join(DIR, 'R2_DAY_EXPORT_READINESS_V2.sql'), 'utf8').replace(/^--[^\n]*\n/gm, '');
   assert.match(probe.trim(), /^SELECT /);
 });
 
@@ -146,9 +146,9 @@ test('DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the se
   const r = sb.run(['--segment', 'R1', '--day', '2026-11-18']);
   assert.equal(r.status, 0, r.err);
   const dir = dayDir(sb, 'R1', '2026-11-18');
-  assert.deepEqual(fs.readdirSync(dir).sort(), [...A().TABLES.map((t) => `${t.stem}.csv`), 'SHA256SUMS'].sort());
+  assert.deepEqual(fs.readdirSync(dir).sort(), [...A().TABLES.map((t) => `${t.stem}.csv`), 'READINESS.json', 'SHA256SUMS'].sort());
   const sums = fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').split('\n').filter(Boolean);
-  assert.equal(sums.length, 7);
+  assert.equal(sums.length, 8, 'seven tables and the readiness record');
   for (const l of sums) { const [h, n] = l.split('  '); assert.equal(sha(fs.readFileSync(path.join(dir, n))), h, n); }
   assert.deepEqual(fs.readdirSync(path.join(sb.drop, 'R1')).filter((n) => n.startsWith('.tmp')), []);
   const first = fs.readFileSync(path.join(dir, 'prices_daily_stock.csv'), 'utf8');
@@ -229,12 +229,12 @@ test('DX8 unit and timer: a oneshot user unit running the script for both segmen
   for (const k of ['R2EXP_PG_CONTAINER', 'R2EXP_PG_USER', 'R2EXP_PG_DB', 'R2EXP_DROP_ROOT']) assert.ok(env.includes(k), k);
   assert.ok(!/PASSWORD|PGPASSWORD|secret|token/i.test(env), 'no credential in the example');
   const inst = fs.readFileSync(path.join(DIR, 'INSTALL.md'), 'utf8');
-  for (const s of ['25006', 'default_transaction_read_only', 'systemctl --user', 'SHA256SUMS', 'cf8380f0']) assert.ok(inst.includes(s), s);
+  for (const s of ['25006', 'default_transaction_read_only', 'systemctl --user', 'SHA256SUMS', '57e26c03']) assert.ok(inst.includes(s), s);
 });
 
-test('DX9 SHA256SUMS (installed with the script) lists the script, the readiness probe and every sql file, and each line is the file\'s sha256; any edit has to regenerate it', () => {
+test('DX9 SHA256SUMS (installed with the script) lists the script, the readiness probe and every sql file, and each line is the file\'s sha256; any edit has to regenerate it', { skip: process.env.QRP_MUTATION_RUN ? 'a mutation run edits the script on purpose' : false }, () => {
   const lines = fs.readFileSync(path.join(DIR, 'SHA256SUMS'), 'utf8').split('\n').filter(Boolean);
-  const want = ['r2-day-export.sh', 'R2_DAY_EXPORT_READINESS_V1.sql', ...fs.readdirSync(path.join(DIR, 'sql')).map((f) => `sql/${f}`)].sort();
+  const want = ['r2-day-export.sh', 'R2_DAY_EXPORT_READINESS_V2.sql', ...fs.readdirSync(path.join(DIR, 'sql')).map((f) => `sql/${f}`)].sort();
   assert.deepEqual(lines.map((l) => l.split('  ')[1]).sort(), want);
   for (const l of lines) { const [h, n] = l.split('  '); assert.equal(sha(fs.readFileSync(path.join(DIR, n))), h, n); }
 });
@@ -272,4 +272,28 @@ test('DX11 fail closed: a failing readiness probe, a failing data query, or a ps
   // the session check also fails closed when psql itself fails
   const nopsql = sandbox({ ready: ['2026-11-19'] }); fs.rmSync(path.join(nopsql.root, 'bin', 'psql'));
   assert.equal(nopsql.run(['--segment', 'R1', '--day', '2026-11-19']).status, 2);
+});
+
+test('DX12 readiness V2: the probe row is written to READINESS.json in the day directory (ready_via, counts, the probe\'s sha256) for the arrival program to record; NEXT_PREMARKET days are exported; a malformed probe row is a failed probe (exit 2), not "not ready"; the probe is re-run on every tick (never cached)', () => {
+  const sb = sandbox({ ready: ['2026-11-18:NEXT_PREMARKET', '2026-11-19'] });
+  assert.equal(sb.run(['--segment', 'R1']).status, 4, 'the other days are not ready for ages: alert exit; the two ready days are exported');
+  const rec = (d) => JSON.parse(fs.readFileSync(path.join(dayDir(sb, 'R1', d), 'READINESS.json'), 'utf8'));
+  assert.deepEqual([rec('2026-11-18').ready_via, rec('2026-11-19').ready_via], ['NEXT_PREMARKET', 'POST_CLOSE_D']);
+  const r = rec('2026-11-18');
+  assert.deepEqual([r.schema, r.trade_date, r.n_prices, r.n_basic, r.n_adj, r.n_cov, r.probe_sha256], ['R2_DAY_EXPORT_READINESS_RECORD_V1', '2026-11-18', 5260, 5217, 5229, 1, '57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582']);
+  assert.match(r.probed_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+08:00$/);
+  // the probe ran for every open day not yet exported, on this tick (a second run asks again for the days still waiting, and not for the exported ones)
+  const before = sb.statements().filter((s) => s.includes('pipeline_completion')).length;
+  sb.run(['--segment', 'R1']);
+  const after = sb.statements().filter((s) => s.includes('pipeline_completion')).length;
+  assert.ok(after > before, 'the waiting days are probed again');
+  // a malformed row (wrong day, unknown ready_via, non-numeric count) fails closed
+  for (const bad of ['2026-11-19|SOMETHING|5260|5217|5229|1', '2026-11-20|POST_CLOSE_D|5260|5217|5229|1', '2026-11-19|POST_CLOSE_D|x|5217|5229|1']) {
+    const b = sandbox({ ready: [] });
+    const stubPath = path.join(b.root, 'bin', 'psql');
+    fs.writeFileSync(stubPath, fs.readFileSync(stubPath, 'utf8').replace(/\*pipeline_completion\*\)[^\n]*\n/, `*pipeline_completion*) echo '${bad}';;\n`), { mode: 0o755 });
+    const x = b.run(['--segment', 'R1', '--day', '2026-11-19']);
+    assert.equal(x.status, 2, bad); assert.match(x.err, /PROBE_BAD_ROW:2026-11-19/);
+    assert.deepEqual(fs.readdirSync(path.join(b.drop, 'R1')), []);
+  }
 });

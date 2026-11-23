@@ -7,7 +7,7 @@ What it is: a read-only job on the V6 host that copies finished V6 trading days 
 - `--segment R1`: the open days after the sealed R1 export's D1 (2026-11-17) up to 2026-12-31. The first run after install fills 2026-11-18 onward (every open day that is ready and not exported yet, in calendar order); later runs add the new day. No calendar file (R1's calendar was sealed).
 - `--segment R2`: the first 54 SSE open days after 2026-12-31 (the first real day is 2027-01-04), plus `trading_calendar.csv` (replaced atomically on every run; the arrival program delivers only the rows that are new).
 - `--segment all` (the unit): R1 then R2. `--day YYYY-MM-DD --segment R1|R2` exports one day and refuses (exit 3) a day that is not an SSE open day of the window (`REFUSED_NOT_OPEN_DAY`, `REFUSED_OUTSIDE_WINDOW`) or whose POST_CLOSE is not ready (`REFUSED_NOT_READY`).
-- A day is exported only when V6's POST_CLOSE of that day finished, by `R2_DAY_EXPORT_READINESS_V1.sql` (ops-coord, byte-identical, sha256 `cf8380f097714bed9d9fb38303ecf9f94864ec28ffb8233d8a3a1f1806871b14`, first 8 hex `cf8380f0`), and its prices query returns rows. Output: `<drop>/<R1|R2>/<YYYYMMDD>/` with the seven tables (`prices_daily_stock`, `market_daily_basic_observation_stock`, `adjustment_factor_observation_stock`, `security_master_stock`, `security_suspension_observation`, `security_suspension_day_coverage`, `industry_membership_sw2021`) and a `SHA256SUMS` of them, written under a `.tmp-` name and renamed. An exported day is never exported again.
+- A day is exported only when V6's POST_CLOSE of that day finished, by `R2_DAY_EXPORT_READINESS_V2.sql` (ops-coord; plan-coord ruling 2026-11-23 option (b); byte-identical, sha256 `57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582`, first 8 hex `57e26c03`; V1 `cf8380f0` is superseded). It returns one row `trade_date|ready_via|n_prices|n_basic|n_adj|n_cov` or none: >= 4000 non-BJ names in each of prices, daily_basic and adjustment factor, a coverage row, and POST_CLOSE(D) OK (`POST_CLOSE_D`) or the next PREMARKET's DATA_REFRESH OK (`NEXT_PREMARKET`). The result is never cached: it is re-run for every day on every tick, and its row is written to `READINESS.json` in the day directory (the arrival program records it in the chain row), and its prices query returns rows. Output: `<drop>/<R1|R2>/<YYYYMMDD>/` with the seven tables (`prices_daily_stock`, `market_daily_basic_observation_stock`, `adjustment_factor_observation_stock`, `security_master_stock`, `security_suspension_observation`, `security_suspension_day_coverage`, `industry_membership_sw2021`) and a `SHA256SUMS` of them, written under a `.tmp-` name and renamed. An exported day is never exported again.
 - The SQL is `sql/*.sql`, generated from the arrival program's PG query set (`arrival.js pgQueries`, export spec section 2; industry per export spec rev 5 change 2): one producer, a test compares them byte for byte.
 - Industry membership per day = rows whose `first_available_at` is in [previous open day + 1 00:00+08, day + 1 00:00+08); the first R1 part reaches back to 2026-10-17 00:00+08 (spec rev 5 change 2), the first R2 part starts 2027-01-01. A header-only file is normal. No `effective_from` cut per day (deviation from the spec's single-export wording, asked of plan-coord).
 
@@ -21,7 +21,7 @@ What it is: a read-only job on the V6 host that copies finished V6 trading days 
    ```sh
    install -d /srv/research-lane/rf1116-mining/ops/r2-day-export/sql ~/.config/rf1116 ~/.config/systemd/user
    install -m 0755 r2-day-export.sh /srv/research-lane/rf1116-mining/ops/r2-day-export/
-   install -m 0644 R2_DAY_EXPORT_READINESS_V1.sql SHA256SUMS /srv/research-lane/rf1116-mining/ops/r2-day-export/
+   install -m 0644 R2_DAY_EXPORT_READINESS_V2.sql SHA256SUMS /srv/research-lane/rf1116-mining/ops/r2-day-export/
    install -m 0644 sql/*.sql /srv/research-lane/rf1116-mining/ops/r2-day-export/sql/
    install -m 0644 r2-day-export.service r2-day-export.timer ~/.config/systemd/user/
    (cd /srv/research-lane/rf1116-mining/ops/r2-day-export && sha256sum -c SHA256SUMS)   # every line OK
@@ -53,7 +53,7 @@ What it is: a read-only job on the V6 host that copies finished V6 trading days 
 | 3 | `--day` refused (manual runs only) | the printed code says why |
 | 4 | a day has been waiting for more than 3 days (not ready, or no prices rows) | the unit fails: alert. The arrival program takes days in calendar order and stops at a missing day, and the scorer refuses an R1/R2 directory with a missing day (`MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>`). A coordinator ruling is needed for a day V6 will never finish |
 
-Known case before install: V6's POST_CLOSE of 2026-11-18 was BLOCKED (ops-coord readiness check 2026-11-23), so R1's 2026-11-18 is `WAITING` from the first run and the job exits 4 until it is resolved.
+Known case before install: V6's POST_CLOSE of 2026-11-18 was BLOCKED but its data was backfilled by 11-19 07:01 and the 11-19 PREMARKET ran DATA_REFRESH SUCCEEDED, so V2 makes 2026-11-18 ready via `NEXT_PREMARKET` (about one BLOCKED day per 15 trading days; 11-02 was the same). The first run after install therefore exports 11-18 with `ready_via` recorded.
 
 ## Lane side (not this job)
 

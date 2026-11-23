@@ -8,7 +8,7 @@
 #   R1   the days after the sealed export's D1 (2026-11-17) up to 2026-12-31 (catch-up: every open day that is ready and not exported yet, in calendar order, so the first run after
 #        install fills 11-18.. and later runs add the new day). The R1 calendar was sealed: not exported.
 #   R2   the first 54 SSE open days after 2026-12-31, plus trading_calendar.csv (the arrival program takes the calendar first).
-#   A day is exported only if it is an SSE open day of the segment's window AND V6's POST_CLOSE of that day finished (R2_DAY_EXPORT_READINESS_V1.sql, ops-coord, byte-identical) AND its
+#   A day is exported only if it is an SSE open day of the segment's window AND the day is ready by R2_DAY_EXPORT_READINESS_V2.sql (ops-coord; plan-coord ruling 11-23 option (b); byte-identical; >= 4000 names in the three tables, a coverage row, POST_CLOSE(D) OK or the next PREMARKET OK; its row is recorded in READINESS.json) AND its
 #   prices query returns rows. One directory per day, <drop>/<segment>/<YYYYMMDD>/, written under a temp name and renamed (the lane never sees a partial day), with a SHA256SUMS of its
 #   seven tables; an exported day is never exported again (idempotent). The SQL is the arrival program's PG query set (sql/*.sql, one producer: tests compare it with arrival.js pgQueries).
 #
@@ -42,6 +42,7 @@ if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
 DROP_ROOT="${R2EXP_DROP_ROOT:-/srv/research-lane/rf1116-mining/holdout-daydrop}"
 TODAY="${R2EXP_TODAY:-$(TZ=Asia/Shanghai date +%F)}"
 STALE_DAYS=3
+READY_SQL=R2_DAY_EXPORT_READINESS_V2.sql
 STEMS="prices_daily_stock market_daily_basic_observation_stock adjustment_factor_observation_stock security_master_stock security_suspension_observation security_suspension_day_coverage industry_membership_sw2021"
 
 # every statement goes through here, SQL on stdin: read-only session (PGOPTIONS passed into the container), no psqlrc, stop on the first error, a time limit, no other docker verb
@@ -93,11 +94,15 @@ export_segment() {
     if [ -n "$DAY" ] && [ "$D" != "$DAY" ]; then continue; fi
     c="${D//-/}"; fin="$root/$c"; tmp="$root/.tmp-$c"
     if [ -d "$fin" ]; then echo "$seg ALREADY_EXPORTED:$D"; continue; fi
-    local ready; ready="$(pg -At -v "d=$D" -f - < "$HERE/R2_DAY_EXPORT_READINESS_V1.sql")" || { echo "$seg PROBE_FAILED:$D" >&2; return 2; }
+    local ready; ready="$(pg -At -v "d=$D" -f - < "$HERE/R2_DAY_EXPORT_READINESS_V2.sql")" || { echo "$seg PROBE_FAILED:$D" >&2; return 2; }
     if [ -z "$ready" ]; then
       if [ -n "$DAY" ]; then echo "$seg REFUSED_NOT_READY:$D"; return 3; fi
       echo "$seg WAITING:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
     fi
+    # the probe row: trade_date|ready_via|n_prices|n_basic|n_adj|n_cov; anything else is a failed probe (fail closed), not "not ready"
+    local r_day r_via r_np r_nb r_na r_nc
+    IFS='|' read -r r_day r_via r_np r_nb r_na r_nc <<< "$ready"
+    if [ "$r_day" != "$D" ] || { [ "$r_via" != POST_CLOSE_D ] && [ "$r_via" != NEXT_PREMARKET ]; } || ! [[ "$r_np$r_nb$r_na$r_nc" =~ ^[0-9]+$ ]]; then echo "$seg PROBE_BAD_ROW:$D:$ready" >&2; return 2; fi
     next="$(addday "$D" 1)"
     rm -rf "$tmp"; mkdir "$tmp"
     for stem in $STEMS; do
@@ -107,7 +112,9 @@ export_segment() {
     if [ "$(wc -l < "$tmp/prices_daily_stock.csv")" -le 1 ]; then
       rm -rf "$tmp"; echo "$seg NOT_AVAILABLE:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
     fi
-    ( cd "$tmp" && for stem in $STEMS; do sha256sum "$stem.csv"; done > SHA256SUMS )
+    # the readiness record goes into the arrival-chain row (plan-coord condition iii): which rule made the day ready and the counts at probe time
+    printf '{"schema":"R2_DAY_EXPORT_READINESS_RECORD_V1","trade_date":"%s","probe_sha256":"%s","ready_via":"%s","n_prices":%s,"n_basic":%s,"n_adj":%s,"n_cov":%s,"probed_at":"%s"}\n' "$D" "$(sha256sum "$HERE/$READY_SQL" | cut -d' ' -f1)" "$r_via" "$r_np" "$r_nb" "$r_na" "$r_nc" "$(TZ=Asia/Shanghai date +%FT%T+08:00)" > "$tmp/READINESS.json"
+    ( cd "$tmp" && { for stem in $STEMS; do sha256sum "$stem.csv"; done; sha256sum READINESS.json; } > SHA256SUMS )
     mv "$tmp" "$fin"
     echo "$seg EXPORTED:$D"
   done
