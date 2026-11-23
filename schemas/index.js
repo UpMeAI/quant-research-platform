@@ -459,6 +459,19 @@ const TYPE_CHECK = {
 };
 
 /** 校验单条记录是否符合其 schema(未知 schema 视为未登记 → 报错,防止无合同对象混入台账)。 */
+/**
+ * History written before a field existed: the field may be ABSENT only on the named rows (matched by round_id); an absent field is MISSING for every other row, and no
+ * other field is relaxed. A frozen constant, never data (nothing in a row can add itself to it).
+ * MINING_ROUND_V1.scoring_neutralization (RF1116 SIZE_V2, 2026-11-20): rounds 1 and 2 were opened on 2026-11-18, before the field, so their rows have no such key. Rewriting
+ * the row is no way out (manifestSha and the candidates' k2_sha256 hash it), so new rows for these two rounds carry the shape of their history. The consumer still fails
+ * closed for any other round without the key (services/mining-rounds/neutralization.js neutralizationOf derives its legacy list from this one).
+ */
+const LEGACY_ABSENT_FIELDS = Object.freeze({
+  MINING_ROUND_V1: Object.freeze({
+    scoring_neutralization: Object.freeze(['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82']),
+  }),
+});
+
 function validateRecord(rec, schemaName = rec && rec.schema) {
   const def = SCHEMAS[schemaName];
   if (!def) return { ok: false, problems: [`UNKNOWN_SCHEMA:${schemaName}`] };
@@ -468,7 +481,11 @@ function validateRecord(rec, schemaName = rec && rec.schema) {
     const nullable = spec.endsWith('?');
     const type = nullable ? spec.slice(0, -1) : spec;
     const v = rec[field];
-    if (v === undefined) { problems.push(`MISSING:${field}`); continue; }
+    if (v === undefined) {
+      const legacy = LEGACY_ABSENT_FIELDS[schemaName] && LEGACY_ABSENT_FIELDS[schemaName][field];
+      if (legacy && legacy.includes(rec.round_id)) continue; // history written before the field existed: absent only on the named rows
+      problems.push(`MISSING:${field}`); continue;
+    }
     // '*' = 任意值,含显式 null(「无此事实」的诚实表示;缺字段才是违约)
     if (v === null) { if (!nullable && type !== '*') problems.push(`NULL_NOT_ALLOWED:${field}`); continue; }
     if (!TYPE_CHECK[type](v)) problems.push(`TYPE:${field} expected ${type}`);
@@ -482,4 +499,4 @@ function validateLedger(rows) {
   return { ok: results.every((r) => r.ok), failures: results.filter((r) => !r.ok) };
 }
 
-module.exports = { SCHEMAS, validateRecord, validateLedger };
+module.exports = { SCHEMAS, LEGACY_ABSENT_FIELDS, validateRecord, validateLedger };
