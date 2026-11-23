@@ -50,7 +50,7 @@ function calendarDir(rowsIn, { listed = true, tamper = false } = {}) {
   fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), bytes);
   if (listed) fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${sha(bytes)}  trading_calendar.csv\n`);
   else fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${sha('other')}  other.csv\n`);
-  if (tamper) fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), `${bytes}# edited\n`);
+  if (tamper) fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), bytes.replace('A_SHARE,SSE,t', 'A_SHARE,SSE,f')); // same width, different bytes
   return { dir, bytes };
 }
 /** Weekdays from `from` to `to` are open (no holidays except 2027-01-01, a Friday). */

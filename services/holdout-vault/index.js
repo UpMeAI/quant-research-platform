@@ -15,7 +15,7 @@ const { dataDir, now, append, read } = require('../../packages/ledger');
 const { validateRecord } = require('../../schemas');
 const trials = require('../trial-ledger');
 const rounds = require('../mining-rounds');
-const holdoutSegments = require('../mining-rounds/holdout-segments');
+const segmentResolution = require('../mining-rounds/segment-resolution');
 
 const SEAL_SCHEMA = 'HOLDOUT_SEAL_V1';
 const OPEN_SCHEMA = 'HOLDOUT_OPEN_V1';
@@ -59,7 +59,7 @@ function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null
   const r = rounds.roundHead(roundId);
   need(r, 'MINE_HOLDOUT_ROUND_NOT_FOUND', roundId);
   // 窗口没有解出来（R2 的终点是 UNKNOWN / CALENDAR_NOT_PUBLISHED）：开启权威拒绝，不开、不记、轮次不动（RF1116 第二段修订；执行器在读目录之前也拒）
-  need(holdoutSegments.isResolved(r.holdout), 'MINE_HOLDOUT_SEGMENT_END_UNKNOWN', `${roundId}:${r.holdout.segment || ''}:${r.holdout.to}`);
+  need(segmentResolution.windowOf(r), 'MINE_HOLDOUT_SEGMENT_END_UNKNOWN', `${roundId}:${r.holdout.segment || ''}:${r.holdout.to}`); // R2: only once its end-resolution record exists
   const [s] = rows(SEAL_SCHEMA, roundId);
   need(s, 'MINE_HOLDOUT_NOT_SEALED', roundId);
   need(!rows(OPEN_SCHEMA, roundId).length, 'MINE_HOLDOUT_ALREADY_OPENED', roundId);
