@@ -27,6 +27,8 @@ const SH = 'deploy/research-lane/round-runner/run.sh';
 const SI = 'deploy/research-lane/round-runner/seal-init-r2.sh';
 
 const T_AR = 'tests/mining_r2_arrival.test.js';
+const T_DX = 'tests/rf1116_r2_day_export.test.js';
+const DX = 'deploy/research-lane/r2-day-export/r2-day-export.sh';
 const T_SC = 'tests/mining_r2_scoring.test.js';
 const T_RS = 'tests/mining_segment_resolution.test.js';
 const AV = 'services/mining-sandbox/round-runner/arrival.js';
@@ -107,11 +109,56 @@ const MUTANTS = [
   m('A31', 'UNSEEN: only the families of the rounds on the segment', RV, 'r.holdout && r.holdout.segment === rec.segment', 'r.holdout', [T_RS]),
   m('A32', 'UNSEEN: only days nobody marked yet (a rerun and a deliberate SEEN mark are left alone)', RV, "p.source === 'UNMARKED_DEFAULT_SEEN'", 'true', [T_RS]),
   m('A33', 'UNSEEN: the marks cover the unmarked pieces of the resolved window, not a wider range', RV, 'from: p.from, to: p.to, label', 'from: rec.window.from, to: rec.window.to, label', [T_RS]),
+  // R1 catch-up, industry as the seventh table, readiness record, requireChain, checkComplete (tests/mining_r2_arrival.test.js, mining_r2_scoring.test.js)
+  m('B01', 'R1 starts after the sealed export\'s D1', AV, "startAfter: '2026-11-17'", "startAfter: '2026-11-18'", [T_AR]),
+  m('B02', 'R1\'s first industry part reaches back to 2026-10-17', AV, "industryFrom: '2026-10-17', calendarArrives: false", "industryFrom: '2026-10-18', calendarArrives: false", [T_AR]),
+  m('B03', 'R2\'s first industry part starts 2027-01-01', AV, "industryFrom: '2027-01-01', calendarArrives: true", "industryFrom: '2027-01-02', calendarArrives: true", [T_AR]),
+  m('B04', 'R1\'s calendar is sealed, not delivered', AV, "industryFrom: '2026-10-17', calendarArrives: false", "industryFrom: '2026-10-17', calendarArrives: true", [T_AR]),
+  m('B05', 'industry window: the lower bound is inclusive', AV, 'if (!(at >= w.lo && at < w.hi))', 'if (!(at > w.lo && at < w.hi))', [T_AR]),
+  m('B06', 'industry window: the upper bound is exclusive', AV, 'if (!(at >= w.lo && at < w.hi))', 'if (!(at >= w.lo && at <= w.hi))', [T_AR]),
+  m('B07', 'industry window: an unreadable first_available_at is refused', AV, 'let at = NaN;', 'let at = w.lo;', [T_AR]),
+  m('B08', 'R1: only tables the sealed manifest lacks get a base file', AV, 'for (const t of TABLES.filter(needsBase))', 'for (const t of TABLES)', [T_AR]),
+  m('B09', 'R1: the header is checked against the sealed base file', AV, 'baseHeaders[t.stem] = firstLineOf(f);', 'baseHeaders[t.stem] = undefined;', [T_AR]),
+  m('B10', 'checkComplete names the missing days', AV, 'd <= windowEnd && !days.includes(d)', 'd <= windowEnd && false', [T_AR]),
+  m('B11', 'checkComplete: the calendar has to reach the window end', AV, 'cal.days.some((d) => d >= windowEnd)', 'true', [T_AR]),
+  m('B12', 'verifyChain window: days up to the sealed D1 are not chain days', AV, 'd >= window.from && d <= window.to && d > after', 'd >= window.from && d <= window.to', [T_AR]),
+  m('B13', 'industry window of a later day starts the day after the previous open day', AV, 'const industryFrom = last ? addDays(last, 1) : profile.industryFrom;', 'const industryFrom = last ? last : profile.industryFrom;', [T_AR]),
+  m('B14', 'pg: the industry query\'s lower bound is inclusive', AV, "first_available_at >= TIMESTAMPTZ '${industryFrom}", "first_available_at > TIMESTAMPTZ '${industryFrom}", [T_AR]),
+  m('B15', 'readiness: ready_via must be a known rule', AV, '!READY_VIA.includes(o.ready_via)', 'false', [T_AR]),
+  m('B16', 'readiness: the record must be of this day', AV, 'o.trade_date !== day', 'false', [T_AR]),
+  m('B17', 'readiness: the record\'s file sha goes into the chain row', AV, 'file_sha256: sha256(Buffer.from(bytes))', 'file_sha256: null', [T_AR]),
+  m('B18', 'readiness: the verifier requires the field', AV, 'if (r.readiness === undefined ||', 'if (false ||', [T_AR]),
+  m('B19', 'readiness: the record is part of the chain row', AV, 'checkReadiness(next, got.readiness);', 'null;', [T_AR]),
+  m('B20', 'readiness: a day without its record is not there yet', AV, 'if (!fs.existsSync(rf)) return null;', 'if (!fs.existsSync(rf)) return { files, readiness: Buffer.from("{}") };', [T_AR]),
+  m('B21', 'readiness: counts are non-negative integers', AV, 'isCount(o[k])', 'true', [T_AR]),
+  m('B22', 'scoring: requireChain turns the chain check on for R1', RN, 'if (deferredSeal || requireChain) arrivalChain.verifyChain(', 'if (deferredSeal) arrivalChain.verifyChain(', [T_AR]),
+  m('B23', 'scoring: an R1 chain is verified with the R1 profile', RN, 'segment: segment || (deferredSeal ? "R2" : "R1")', 'segment: segment || "R2"', [T_AR]),
+  m('B24', 'cli: check-complete reports INCOMPLETE when days are missing', CL, "status: c.complete ? 'COMPLETE' : 'INCOMPLETE'", "status: c.complete ? 'INCOMPLETE' : 'COMPLETE'", [T_AR]),
+  m('B25', 'cli: INCOMPLETE exits with 4', CL, "else if (out.status === 'INCOMPLETE') process.exitCode = 4;", '', [T_AR]),
+  m('B26', 'run.sh: score requires the arrival chain', SH, '--factor-series /data/factor-series --require-arrival-chain true ${EXO[@]+"${EXO[@]}"} ${PRIORO[@]+"${PRIORO[@]}"}', '--factor-series /data/factor-series ${EXO[@]+"${EXO[@]}"} ${PRIORO[@]+"${PRIORO[@]}"}', [T_AR]),
+  m('B27', 'run.sh: the arrival drop directory is per segment', SH, 'DAYDROP="$LANE/holdout-daydrop/${RF1116_HOLDOUT_SEGMENT:-R1}"', 'DAYDROP="$LANE/holdout-daydrop/R2"', [T_AR]),
+  // r2-day-export (tests/rf1116_r2_day_export.test.js; the SHA256SUMS test is skipped under a mutation run on purpose)
+  m('D01', 'export: the session is read-only', DX, "PGOPTIONS='-c default_transaction_read_only=on'", "PGOPTIONS='-c default_transaction_read_only=off'", [T_DX]),
+  m('D02', 'export: a session that is not read-only stops the run', DX, '[ "$ro" = on ]', '[ "$ro" = "$ro" ]', [T_DX]),
+  m('D03', 'export: a day waiting more than 3 days is the alert', DX, 'STALE_DAYS=3', 'STALE_DAYS=30', [T_DX]),
+  m('D04', 'export: R1 starts after the sealed D1', DX, 'R1) START_AFTER=2026-11-17;', 'R1) START_AFTER=2026-11-18;', [T_DX]),
+  m('D05', 'export: R2 is 54 open days', DX, 'MAXDAYS=54', 'MAXDAYS=55', [T_DX]),
+  m('D06', 'export: a day that is not ready is not exported', DX, 'if [ -z "$ready" ]; then', 'if false; then', [T_DX]),
+  m('D07', 'export: a day appears atomically (rename)', DX, 'mv "$tmp" "$fin"', 'cp -r "$tmp" "$fin"', [T_DX]),
+  m('D08', 'export: an exported day is not exported again', DX, 'if [ -d "$fin" ]; then', 'if false; then', [T_DX]),
+  m('D09', 'export: a day without prices rows is not exported', DX, '-le 1 ]; then', '-le 0 ]; then', [T_DX]),
+  m('D10', 'export: a later industry part starts the day after the previous open day', DX, 'lower="$(addday "${days[$((i-1))]}" 1)"', 'lower="${days[$((i-1))]}"', [T_DX]),
+  m('D11', 'export: the window end of R1 is refused beyond', DX, '[[ "$DAY" > "$END" ]]', '[[ "$DAY" < "$END" ]]', [T_DX]),
+  m('D12', 'export: R2 gets its calendar', DX, 'if [ "$seg" = R2 ]; then', 'if false; then', [T_DX]),
+  m('D13', 'export: a failed probe fails closed', DX, 'echo "$seg PROBE_FAILED:$D" >&2; return 2;', 'echo "$seg PROBE_FAILED:$D" >&2; return 0;', [T_DX]),
+  m('D14', 'export: a malformed probe row fails closed', DX, 'echo "$seg PROBE_BAD_ROW:$D:$ready" >&2; return 2;', 'echo "$seg PROBE_BAD_ROW:$D:$ready" >&2; return 0;', [T_DX]),
+  m('D15', 'export: every psql call has a time limit', DX, 'timeout "${R2EXP_TIMEOUT:-600}" docker exec', 'docker exec', [T_DX]),
+  m('D16', 'export: the readiness record carries ready_via', DX, '"ready_via":"%s"', '"ready_via":"POST_CLOSE_D"', [T_DX]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }
 function runTests(files) {
-  const r = spawnSync(process.execPath, ['--test', ...files], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'test' }, maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60 * 1000 });
+  const r = spawnSync(process.execPath, ['--test', ...files], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'test', QRP_MUTATION_RUN: '1' }, maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60 * 1000 });
   return { status: r.status, failing: listFailures(`${r.stdout || ''}\n${r.stderr || ''}`) };
 }
 const arg = (argv, k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : null);
