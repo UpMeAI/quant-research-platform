@@ -374,3 +374,29 @@ test('R-10 (synthetic half) the four section 3.2 questions each produce a table 
   assert.deepEqual([find(h, 'PLAN_LINKED').rows, find(h, 'NOT_PLAN_LINKED').rows], [2, 6]);
   assert.deepEqual(find(h, 'PLAN_LINKED').humanActionDelay, { state: 'NOT_PROVIDED', reasonCode: 'HUMAN_ACTION_TIME_NOT_IN_PANEL_OR_LABEL' });
 });
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------
+ * NOTE_2 (ES-1 wording): the delta review tried 26 phrasings of a sample size; 7 were flagged and these 19 were not. All of them must now go through the one structured line.
+ * ---------------------------------------------------------------------------------------------------------------------------------------- */
+const REVIEW_R12_UNCAUGHT = [
+  '样本容量 144', '样本规模：144', '样本个数 144', '144 个样本', 'N≥30', 'N ≈ 120', 'N 约 120', 'n（有效）= 12', 'sample count 144', 'number of samples: 144', 'samples = 144',
+  '有效观测数 144', '观测数为 144', '总样本 144', '独立样本 144 个', 'N is 144', 'N（行）144', 'the sample is 144 rows', 'we have 144 independent observations',
+];
+const NOTE_2_PATTERNS = ['样本容量 30', '样本规模 30', '样本数 30', '样本量 30', '30 个样本', '30个样本', 'N≥30', 'N>30', 'N＝30', 'N=30', 'N~30', 'N约30', 'N 30', 'sample size 30', 'Sample Count: 30', 'SAMPLE SIZE = 30'];
+
+test('NOTE_2 / ES-1: the 19 phrasings the delta review found uncaught, and the NOTE_2 patterns, all need the structured line; the same words on the structured line pass; ordinary report lines are not flagged', () => {
+  assert.equal(REVIEW_R12_UNCAUGHT.length, 19);
+  const NO_METHOD = { ok: false, violations: ['SAMPLE_SIZE_WITHOUT_CLUSTER_METHOD'] };
+  for (const text of [...REVIEW_R12_UNCAUGHT, ...NOTE_2_PATTERNS]) {
+    assert.deepEqual(panel.report.checkReportTemplate(text), NO_METHOD, text);
+    assert.deepEqual(panel.report.checkReportTemplate(`${text}\n聚类方法：DATE+EVENT`), NO_METHOD, `${text} (a method on another line does not count)`);
+    assert.deepEqual(panel.report.checkReportTemplate(`行数 144\n${text}；聚类方法：DATE`), NO_METHOD, `${text} (inside another sentence it is not the structured line)`);
+  }
+  assert.equal(panel.report.checkReportTemplate('有效样本量：144；聚类方法：DATE+EVENT').ok, true);
+  assert.equal(panel.report.checkReportTemplate('有效样本量：N/A；聚类方法：DATE+EVENT；原因：NO_ESTIMATOR_DECLARED').ok, true);
+  // lines that are not sample size claims stay clean
+  for (const text of ['行数 144', '日期数 1；事件数 1', 'N/A', 'in 144 rows', '事件数 144', '未关联行数 0', '样本区间 2026-11-01 至 2026-11-30', '样本外 不在范围', '窗口重叠：W4H 重叠，评价间隔 0.167，滞后 3.833',
+    '账本：C17, CN_STOCK', '行业 未知（INDUSTRY_NOT_IN_PANEL）', '截断 3 个，无标签', 'The window is 4 hours', 'Sample window starts 2026-11-01']) {
+    assert.equal(panel.report.checkReportTemplate(text).ok, true, text);
+  }
+});

@@ -219,8 +219,10 @@ test('market and window filters: records of another market are not returned; onl
   p.set('600000.SH', 'OPEN', '2026-11-03T01:30:00.000Z', 10);
   panel.materialize({ records: [record], windows: ['W1S', 'W5S'], provider: p, store, now: '2026-11-10T00:00:00.000Z' });
   const ctx = fx.ctxFor(store);
-  const F = fam('FILTER'); fx.bind(F);
-  const ids = (o) => panel.readLabels(fx.request(F, [record], { ...o }), ctx).rows.map((r) => r.windowId);
+  const F = fam('FILTER'); const Fus = fam('FILTER_US'); const Fcr = fam('FILTER_CR');
+  fx.bind(F); fx.bind(Fus, fx.COORD, 'US_EQUITY'); fx.bind(Fcr, fx.COORD, 'CRYPTO'); // the K2 is registered in the market it reads (NOTE_2 item 2)
+  const familyOf = { CN: F, US: Fus, CRYPTO: Fcr };
+  const ids = (o) => panel.readLabels(fx.request(familyOf[o.market || 'CN'], [record], { ...o }), ctx).rows.map((r) => r.windowId);
   assert.deepEqual(ids({ windows: ['W1S'], to: '2026-12-31' }), ['W1S']);
   assert.deepEqual(ids({ windows: ['W5S'], to: '2026-12-31' }), ['W5S']);
   assert.deepEqual(ids({ windows: ['W1S', 'W5S'], to: '2026-12-31' }), ['W1S', 'W5S']);
@@ -276,4 +278,91 @@ test('parity: the K2 freezer classification in the reader equals the K2 freeze p
       : g.reason === 'COORDINATOR_FREEZE' ? 'COORDINATOR' : g.reason === 'NOT_PROGRAM_FROZEN' ? null : `?${JSON.stringify(g)}`;
     assert.equal(viaGate, expected, `the gate classifies the same way: ${text}`);
   }
+});
+
+/* ------------------------------------------------------------------------------------------------------------------------------------------
+ * NOTE_2 (plan-coord 13:34:47, sha256 74b99335), second fix round: UNSEEN across families, the K2's registered market, and the two test gaps of the delta review.
+ * ---------------------------------------------------------------------------------------------------------------------------------------- */
+
+test('NOTE_2 item 1: labels are per market, UNSEEN per family: a read whose range has an UNSEEN day of ANY family of the market is refused LABEL_READ_CROSS_FAMILY_UNSEEN (no SEEN mark, no read record, an access-log row); the family that holds the range reads it itself; a range with no foreign UNSEEN day reads', () => {
+  const w = world(); const A = fam('XU_A'); const B = fam('XU_B'); const C = fam('XU_C'); const D = fam('XU_D');
+  fx.bind(A); fx.bind(B);
+  mark(B, 'UNSEEN'); // B's own range [11-01, 11-30]; A has no marks: its days are SEEN by default
+  const before = [A, B].map((f) => marksOf(f).length);
+  refuses(() => panel.readLabels(w.request(A, { stage: 'SEEN' }), w.ctx), 'LABEL_READ_CROSS_FAMILY_UNSEEN');
+  refuses(() => panel.readLabels(w.request(A, { stage: 'UNSEEN_FIRST_READ' }), w.ctx), 'LABEL_READ_CROSS_FAMILY_UNSEEN');
+  refuses(() => panel.readLabels(w.request(A, { from: '2026-11-20', to: '2026-11-25' }), w.ctx), 'LABEL_READ_CROSS_FAMILY_UNSEEN');
+  assert.deepEqual([A, B].map((f) => marksOf(f).length), before, 'nothing was marked: B\'s unseen days were not burned');
+  assert.equal(lines(w.ctx.readLedgerFile).length, 0, 'no read record');
+  assert.equal(trials.segmentsFor(B, '2026-11-01', '2026-11-30').pieces[0].label, 'UNSEEN');
+  const refused = lines(w.ctx.accessLogFile).filter((r) => r.op === 'HOLDOUT_READ_REFUSED');
+  assert.equal(refused.length, 3);
+  assert.equal(refused.every((r) => r.code === 'LABEL_READ_CROSS_FAMILY_UNSEEN' && r.dataset === 'PANEL_LABELS_V1'), true);
+  // the holder reads its own range under the current stage rules (a SEEN-stage request is still refused; the first read is not)
+  refuses(() => panel.readLabels(w.request(B, { stage: 'SEEN' }), w.ctx), 'LABEL_READ_UNSEEN_NOT_PERMITTED');
+  assert.deepEqual(labelsOf(panel.readLabels(w.request(B, { stage: 'UNSEEN_FIRST_READ' }), w.ctx)), ['VALUE']);
+  assert.deepEqual(trials.segmentsFor(B, '2026-11-01', '2026-11-30').pieces.map((p) => p.label), ['SEEN']);
+  // once B's range is SEEN, A may read it (an already SEEN range reads)
+  assert.deepEqual(labelsOf(panel.readLabels(w.request(A, { stage: 'SEEN' }), w.ctx)), ['VALUE']);
+  // a foreign UNSEEN range outside the requested range does not block; neither does an UNSEEN range of another market
+  fx.bind(C); fx.bind(D, fx.COORD, 'US_EQUITY');
+  mark(C, 'UNSEEN', { from: '2026-12-01', to: '2026-12-31' });
+  mark(D, 'UNSEEN', { market: 'US_EQUITY' });
+  assert.deepEqual(labelsOf(panel.readLabels(w.request(A, { stage: 'SEEN', to: '2026-11-30' }), w.ctx)), ['VALUE'], 'C is UNSEEN only in December; D is another market');
+  refuses(() => panel.readLabels(w.request(A, { stage: 'SEEN', to: '2026-12-31' }), w.ctx), 'LABEL_READ_CROSS_FAMILY_UNSEEN');
+});
+
+test('NOTE_2 item 2: the K2 registration market must equal request.market (aliases normalised): a CN_A family cannot read CRYPTO or US labels (LABEL_READ_MARKET_MISMATCH, nothing marked); the aliases of the ledger read as the same market', () => {
+  const w = world(); const F = fam('MKT'); fx.bind(F);
+  const before = marksOf(F).length;
+  refuses(() => panel.readLabels(w.request(F, { market: 'CRYPTO', windows: ['W4H'] }), w.ctx), 'LABEL_READ_MARKET_MISMATCH');
+  refuses(() => panel.readLabels(w.request(F, { market: 'US' }), w.ctx), 'LABEL_READ_MARKET_MISMATCH');
+  assert.equal(marksOf(F).length, before, 'no SEEN mark under the wrong market');
+  assert.equal(lines(w.ctx.readLedgerFile).length, 0);
+  const refused = lines(w.ctx.accessLogFile).filter((r) => r.op === 'HOLDOUT_READ_REFUSED');
+  assert.deepEqual(refused.map((r) => r.code), ['LABEL_READ_MARKET_MISMATCH', 'LABEL_READ_MARKET_MISMATCH']);
+  // aliases: CN for CN, US_EQUITY and US for US, CRYPTO and CRYPTO_USDM_PERP for CRYPTO
+  const alias = (registered, requested, windows) => { const G = fam(`MKT_${registered}`); fx.bind(G, fx.COORD, registered); return panel.readLabels(w.request(G, { market: requested, windows }), w.ctx).record.families; };
+  assert.deepEqual(alias('CN', 'CN', ['W1S']).length, 1);
+  assert.deepEqual(alias('US_EQUITY', 'US', ['W1S']).length, 1);
+  assert.deepEqual(alias('US', 'US', ['W1S']).length, 1);
+  assert.deepEqual(alias('CRYPTO', 'CRYPTO', ['W4H']).length, 1);
+  assert.deepEqual(alias('CRYPTO_USDM_PERP', 'CRYPTO', ['W4H']).length, 1);
+  const H = fam('MKT_US_AS_CN'); fx.bind(H, fx.COORD, 'US_EQUITY');
+  refuses(() => panel.readLabels(w.request(H, {}), w.ctx), 'LABEL_READ_MARKET_MISMATCH');
+  const J = fam('MKT_TWO'); const K = fam('MKT_TWO_B'); fx.bind(J); fx.bind(K, fx.COORD, 'CRYPTO');
+  refuses(() => panel.readLabels(w.request(J, { families: [J, K] }), w.ctx), 'LABEL_READ_MARKET_MISMATCH', 'one wrong market among the declared families refuses the read');
+});
+
+test('stage FORWARD is closed even when nothing is reserved anywhere (the delta review\'s surviving mutant): FORWARD_READ_TIME_NOT_IN_LEDGER, nothing marked', () => {
+  const w = world(); const F = fam('FWD_NONE'); fx.bind(F);
+  assert.deepEqual(trials.segmentsFor(F, '2026-11-01', '2026-11-30').reservations, [], 'the ledger holds no reservation at all');
+  assert.equal(read(trials.SEGMENTS()).length, 0);
+  refuses(() => panel.readLabels(w.request(F, { stage: 'FORWARD', forward: { shadowRef: 'SH-ANY' } }), w.ctx), 'FORWARD_READ_TIME_NOT_IN_LEDGER');
+  refuses(() => panel.readLabels(w.request(F, { stage: 'FORWARD' }), w.ctx), 'FORWARD_READ_TIME_NOT_IN_LEDGER');
+  assert.equal(read(trials.SEGMENTS()).length, 0);
+  assert.equal(lines(w.ctx.readLedgerFile).length, 0);
+  assert.deepEqual(labelsOf(panel.readLabels(w.request(F, { stage: 'SEEN' }), w.ctx)), ['VALUE'], 'the same range reads at stage SEEN');
+});
+
+test('the SEEN mark carries the market of the K2 registration row: US_EQUITY for a US family, CRYPTO_USDM_PERP for a crypto family, not CN_A', () => {
+  // US: real labels
+  const usRecord = fx.panelRecord({ producer: 'SMARTFLOW_US', market: 'US', book: 'US_V5', sessionDate: '2026-11-03', evaluatedAt: '2026-11-03T15:07:00.000Z', candidates: [{ securityId: 'XLK' }] });
+  const us = fx.fixtureProvider.create({ sessions: { US: fx.fixtureProvider.weekdaySessions('US', '2026-11-02', 20) } });
+  us.set('XLK', 'OPEN', '2026-11-03T15:10:00.000Z', 50); us.set('XLK', 'CLOSE', '2026-11-03T21:00:00.000Z', 51, '2026-11-03T21:30:00.000Z');
+  us.set('SPY', 'OPEN', '2026-11-03T15:10:00.000Z', 400); us.set('SPY', 'CLOSE', '2026-11-03T21:00:00.000Z', 404, '2026-11-03T21:30:00.000Z');
+  const usStore = panel.createStore({ dir: path.join(fx.tmp('w18-gate-us-'), 'labels') });
+  panel.materialize({ records: [usRecord], windows: ['W1S'], provider: us, store: usStore, now: '2026-11-04T00:00:00.000Z' });
+  const F = fam('MARK_US'); fx.bind(F, fx.COORD, 'US_EQUITY');
+  const outUs = panel.readLabels(fx.request(F, [usRecord], { market: 'US', windows: ['W1S'] }), fx.ctxFor(usStore));
+  assert.deepEqual(labelsOf(outUs), ['VALUE']);
+  assert.deepEqual(marksOf(F).map((m) => [m.label, m.market]), [['SEEN', 'US_EQUITY']]);
+  // crypto: an immature label is still a returned row
+  const crRecord = fx.panelRecord({ producer: 'SMARTFLOW_CRYPTO', market: 'CRYPTO', book: 'C17', sessionDate: '2026-11-03', evaluatedAt: '2026-11-03T10:20:00.000Z', candidates: [{ securityId: 'ETHUSDT' }] });
+  const crStore = panel.createStore({ dir: path.join(fx.tmp('w18-gate-cr-'), 'labels') });
+  panel.materialize({ records: [crRecord], windows: ['W4H'], provider: fx.fixtureProvider.create({}), store: crStore, now: '2026-11-03T11:00:00.000Z' });
+  const G = fam('MARK_CRYPTO'); fx.bind(G, fx.COORD, 'CRYPTO_USDM_PERP');
+  const outCr = panel.readLabels(fx.request(G, [crRecord], { market: 'CRYPTO', windows: ['W4H'] }), fx.ctxFor(crStore));
+  assert.equal(outCr.rows.length, 1);
+  assert.deepEqual(marksOf(G).map((m) => [m.label, m.market]), [['SEEN', 'CRYPTO_USDM_PERP']]);
 });

@@ -120,7 +120,7 @@ let seq = 0;
 function readJoined({ store, records, windows, market = 'CN', from = '2026-11-01', to = '2026-12-31', ctx = null }) {
   seq += 1;
   const family = `W18_FIXTURE_FAMILY_${process.pid}_${seq}`;
-  bind(family);
+  bind(family, COORD, { CN: 'CN_A', US: 'US_EQUITY', CRYPTO: 'CRYPTO' }[market]);
   return panel.readLabels(request(family, records, { market, windows, from, to }), ctx || ctxFor(store)).rows;
 }
 
