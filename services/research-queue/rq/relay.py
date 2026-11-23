@@ -92,8 +92,47 @@ def _valid_pack(data):
     return None
 
 
-def run(cfg, transport):
-    """One relay pass. Returns a summary; failures of one host or file never stop the others."""
+SEEN_CLI = ("apps", "research-cli", "review_pack_seen.js")
+CODE_RE = re.compile(rb"^[A-Z][A-Z0-9_]{2,80}")
+
+
+class NodeSeenMarker:
+    """W05 (plan-coord ruling 11-23, W05_REVIEWED_IS_SEEN_RULING_V1 section 2): a delivered review fact pack is development information. Before a pack leaves the Mac (relay) or is admitted
+    to a card task (host producer) its SEEN mark goes into the QRP trial ledger through the QRP front door, `node apps/research-cli/review_pack_seen.js mark --file -` (pack bytes on stdin;
+    the ledger authority comes from QRP_PRODUCT_MILESTONE_AUTHORITY in the environment, never from argv). The call is idempotent by the pack sha256. The marker returns None on success
+    or an error code (the CLI's first stderr token); a failure means the pack is not delivered and is retried on the next pass."""
+    TIMEOUT_S = 60
+
+    def __init__(self, qrp_root, node="node", run=subprocess.run, env=None):
+        self.qrp_root, self.node, self.run, self.env = str(qrp_root), node, run, env
+
+    @classmethod
+    def from_config(cls, cfg, env=None):
+        c = cfg.get("seen_mark") or {}
+        return cls(c.get("qrp_root") or pathlib.Path(__file__).resolve().parents[3], node=c.get("node") or "node", env=env)
+
+    @classmethod
+    def from_env(cls, env):
+        """The host producer's marker: only when the host names the QRP checkout (RQ_SEEN_MARK_QRP_ROOT). None = not configured (the producer then marks nothing)."""
+        root = (env or {}).get("RQ_SEEN_MARK_QRP_ROOT")
+        return cls(root, node=env.get("RQ_SEEN_MARK_NODE") or "node", env=env) if root else None
+
+    def __call__(self, host, name, data):
+        argv = [self.node, str(pathlib.Path(self.qrp_root).joinpath(*SEEN_CLI)), "mark", "--file", "-"]
+        try:
+            r = self.run(argv, input=data, capture_output=True, timeout=self.TIMEOUT_S, env=dict(os.environ if self.env is None else self.env))
+        except (OSError, subprocess.SubprocessError):
+            return "SEEN_MARK_UNAVAILABLE"
+        if r.returncode == 0:
+            return None
+        m = CODE_RE.match((r.stderr or b"").lstrip())
+        return m.group(0).decode() if m else "SEEN_MARK_EXIT_%d" % r.returncode
+
+
+def run(cfg, transport, marker=None):
+    """One relay pass. Returns a summary; failures of one host or file never stop the others.
+    marker (W05): called as marker(host, name, pack_bytes) after the pack passed the shape checks and before it is pushed; it returns None when the pack's SEEN mark is in the trial
+    ledger, else an error code. A pack that could not be marked is not delivered (failed SEEN_MARK_FAILED:<code>) and is retried on the next pass. main() always passes the node marker."""
     st = _load_state(cfg["state_path"])
     out = {"pushed": [], "skipped": [], "refused": [], "failed": [], "pulled": []}
     for host in cfg["hosts"]:
@@ -113,6 +152,11 @@ def run(cfg, transport):
                 if bad:
                     out["refused"].append([host, f.name, bad])
                     continue
+                if marker is not None:
+                    code = marker(host, f.name, data)
+                    if code:
+                        out["failed"].append([host, f.name, "SEEN_MARK_FAILED:%s" % code])
+                        continue
                 remote_dir = cfg["hosts"][host]["inbox"].rstrip("/") + "/" + cfg["inbox_subdir"][bd]
                 try:
                     got = transport.push(host, data, remote_dir, f.name, sha)
@@ -157,7 +201,7 @@ def main(argv=None):
     cfg = dict(DEFAULT_CONFIG)
     if a.config and pathlib.Path(a.config).exists():
         cfg.update(json.loads(pathlib.Path(a.config).read_text()))
-    res = run(cfg, SshTransport(cfg))
+    res = run(cfg, SshTransport(cfg), marker=NodeSeenMarker.from_config(cfg, env=dict(os.environ)))
     print(json.dumps(res))
     return 1 if res["failed"] else 0
 
