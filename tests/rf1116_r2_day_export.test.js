@@ -325,7 +325,8 @@ test('DX13 point-in-time cutoff: a day is exported only when the next SSE open d
   const last = sandbox({ ready: ['2026-12-31'] });
   assert.match(last.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-04T08:30:00+08:00' }).out, /WAITING_CUTOFF:2026-12-31/);
   assert.match(last.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-04T16:00:00+08:00' }).out, /EXPORTED:2026-12-31/);
-  assert.match(last.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-02T10:00:00+08:00' }).out, /WAITING_CUTOFF:2026-12-31|ALREADY_EXPORTED:2026-12-31/, 'a Saturday run before Monday 09:00 does not export it');
+  const sat = sandbox({ ready: ['2026-12-31'] });
+  assert.match(sat.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-02T10:00:00+08:00' }).out, /WAITING_CUTOFF:2026-12-31/, 'a Saturday run before Monday 09:00 does not export it (its window end, 2027-01-04, is still ahead)');
 });
 
 test('DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it', () => {

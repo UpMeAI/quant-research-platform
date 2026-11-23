@@ -85,7 +85,8 @@ const MUTANTS = [
   m('A07', 'chain: a listed file that no row names is refused', AV, "if (unchained.length && !tolerateUnchained) invalid('UNCHAINED', unchained.join(','));", '', [T_AR, T_SC]),
   m('A08', 'chain: days are the consecutive open days of the calendar', AV, 'if (r.trade_date !== expected[i]) invalid(', 'if (false) invalid(', [T_AR]),
   m('A09', 'chain: days not arrived yet are INCOMPLETE', AV, "if (missing !== undefined) throw new ArrivalError('MINE_RUNNER_HOLDOUT_INCOMPLETE', `arrival:${missing}`);", '', [T_AR, T_SC]),
-  m('A10', 'arrive: only into a sealed directory', AV, "fail('NOT_SEALED', dir);", ';', [T_AR]),
+  m('A10', 'arrive R2: only into a pending-sealed directory', AV, "if (!fs.existsSync(path.join(dir, PENDING)) || !sealed || !sealed.has(PENDING) || !readSums(dir).byName.has(PENDING)) fail('NOT_SEALED', dir);", ';', [T_AR]),
+  m('A10b', 'arrive R1: only into a directory sealed with its calendar and data', AV, "![...sealed].every((n) => sums.byName.has(n))) fail('NOT_SEALED', dir);", "![...sealed].every((n) => sums.byName.has(n))) ;", [T_AR]),
   m('A11', 'arrive: no skipping or going back', AV, "if (day !== null && day !== next) fail('ORDER', `${day} is not the next open day (${next})`);", '', [T_AR]),
   m('A12', 'arrive: a closed day is refused', AV, "if (day !== null && !cal.days.includes(day)) fail('NOT_OPEN_DAY', day);", '', [T_AR]),
   m('A13', 'arrive: an arrived day is a no-op', AV, "if (day !== null && arrivedDays.includes(day)) return { status: 'NOOP', what: day };", '', [T_AR]),
@@ -96,11 +97,11 @@ const MUTANTS = [
   m('A18', 'arrive: a calendar that closes an arrived day is refused', AV, "if (!arrived.every((d, i) => merged[i] === d)) fail('CALENDAR_CONFLICT', `arrived days no longer fit the calendar`);", '', [T_AR]),
   m('A19', 'arrive: the end of the window is COMPLETE', AV, "if (windowEnd && last !== null && last >= windowEnd) return { status: 'COMPLETE', what: last };", '', [T_AR]),
   m('A20', 'chain rows are linked by prev_hash', AV, "...body, prev_hash: rows.length ? rows[rows.length - 1].record_hash : null };", '...body, prev_hash: null };', [T_AR]),
-  m('A21', 'arrive: a stray listed file is not healed away', AV, "for (const n of verifyChain(dir, { startAfter, tolerateUnchained: true }).unchained) if (!pendingNames.has(n)) fail('CONFLICT', `unchained ${n}`);", '', [T_AR]),
+  m('A21', 'arrive: a stray listed file is not healed away', AV, "for (const n of unchained) if (!pendingNames.has(n)) fail('CONFLICT', `unchained ${n}`);", '', [T_AR]),
   m('A22', 'pg: the query is for one day', AV, 'FROM prices_daily WHERE trade_date = ${d}', 'FROM prices_daily WHERE trade_date >= ${d}', [T_AR]),
   m('A23', 'pg: psql stops on error', AV, "'ON_ERROR_STOP=1'", "'ON_ERROR_STOP=0'", [T_AR]),
   m('A24', 'pg: no prices rows = not available', AV, 'csvLines(files.prices_daily_stock).length > 1 ?', 'csvLines(files.prices_daily_stock).length >= 1 ?', [T_AR]),
-  m('A25', 'scorer: the arrival chain is verified before any row is read', RN, 'if (deferredSeal) arrivalChain.verifyChain(', 'if (false) arrivalChain.verifyChain(', [T_SC]),
+  m('A25', 'scorer: the arrival chain is verified before any row is read', RN, 'if (deferredSeal || requireChain) arrivalChain.verifyChain(', 'if (false) arrivalChain.verifyChain(', [T_SC]),
   m('A26', 'scorer: the chain starts at the resolution record\'s start rule', RN, '...(rec ? { startAfter: rec.rule.start_after } : {})', '...({})', [T_SC]),
   m('A27', 'anchor: R1\'s recorded row medians are used', RN, 'const anchor = sealedCounts.length ? median(sealedCounts) : (fromR1 ? given : median(per));', 'const anchor = sealedCounts.length ? median(sealedCounts) : median(per);', [T_SC]),
   m('A28', 'anchor: R1\'s recorded field medians are used', RN, '(deferredSeal ? (fromR1F ? givenF : median(per)) : 0)', '(deferredSeal ? median(per) : 0)', [T_SC]),
@@ -111,9 +112,9 @@ const MUTANTS = [
   m('A33', 'UNSEEN: the marks cover the unmarked pieces of the resolved window, not a wider range', RV, 'from: p.from, to: p.to, label', 'from: rec.window.from, to: rec.window.to, label', [T_RS]),
   // R1 catch-up, industry as the seventh table, readiness record, requireChain, checkComplete (tests/mining_r2_arrival.test.js, mining_r2_scoring.test.js)
   m('B01', 'R1 starts after the sealed export\'s D1', AV, "startAfter: '2026-11-17'", "startAfter: '2026-11-18'", [T_AR]),
-  m('B02', 'R1\'s first industry part reaches back to 2026-10-17', AV, "industryFrom: '2026-10-17', calendarArrives: false", "industryFrom: '2026-10-18', calendarArrives: false", [T_AR]),
-  m('B03', 'R2\'s first industry part starts 2027-01-01', AV, "industryFrom: '2027-01-01', calendarArrives: true", "industryFrom: '2027-01-02', calendarArrives: true", [T_AR]),
-  m('B04', 'R1\'s calendar is sealed, not delivered', AV, "industryFrom: '2026-10-17', calendarArrives: false", "industryFrom: '2026-10-17', calendarArrives: true", [T_AR]),
+  m('B02', 'R1\'s first industry part reaches back to 2026-10-17', AV, "industryFrom: '2026-10-17T00:00:00+08:00', calendarArrives: false", "industryFrom: '2026-10-18T00:00:00+08:00', calendarArrives: false", [T_AR]),
+  m('B03', 'R2\'s first industry part starts 2027-01-01', AV, "industryFrom: '2027-01-01T00:00:00+08:00', calendarArrives: true", "industryFrom: '2027-01-02T00:00:00+08:00', calendarArrives: true", [T_AR]),
+  m('B04', 'R1\'s calendar is sealed, not delivered', AV, "industryFrom: '2026-10-17T00:00:00+08:00', calendarArrives: false", "industryFrom: '2026-10-17T00:00:00+08:00', calendarArrives: true", [T_AR]),
   m('B05', 'industry window: the lower bound is inclusive', AV, 'if (!(at >= w.lo && at < w.hi))', 'if (!(at > w.lo && at < w.hi))', [T_AR]),
   m('B06', 'industry window: the upper bound is exclusive', AV, 'if (!(at >= w.lo && at < w.hi))', 'if (!(at >= w.lo && at <= w.hi))', [T_AR]),
   m('B07', 'industry window: an unreadable first_available_at is refused', AV, 'let at = NaN;', 'let at = w.lo;', [T_AR]),
@@ -122,13 +123,11 @@ const MUTANTS = [
   m('B10', 'checkComplete names the missing days', AV, 'd <= windowEnd && !days.includes(d)', 'd <= windowEnd && false', [T_AR]),
   m('B11', 'checkComplete: the calendar has to reach the window end', AV, 'cal.days.some((d) => d >= windowEnd)', 'true', [T_AR]),
   m('B12', 'verifyChain window: days up to the sealed D1 are not chain days', AV, 'd >= window.from && d <= window.to && d > after', 'd >= window.from && d <= window.to', [T_AR]),
-  m('B13', 'industry window of a later day starts the day after the previous open day', AV, 'const industryFrom = last ? addDays(last, 1) : profile.industryFrom;', 'const industryFrom = last ? last : profile.industryFrom;', [T_AR]),
-  m('B14', 'pg: the industry query\'s lower bound is inclusive', AV, "first_available_at >= TIMESTAMPTZ '${industryFrom}", "first_available_at > TIMESTAMPTZ '${industryFrom}", [T_AR]),
+  m('B14', 'pg: the industry query\'s lower bound is inclusive', AV, 'first_available_at >= TIMESTAMPTZ ${sqlTs(industryFrom)}', 'first_available_at > TIMESTAMPTZ ${sqlTs(industryFrom)}', [T_AR]),
   m('B15', 'readiness: ready_via must be a known rule', AV, '!READY_VIA.includes(o.ready_via)', 'false', [T_AR]),
   m('B16', 'readiness: the record must be of this day', AV, 'o.trade_date !== day', 'false', [T_AR]),
   m('B17', 'readiness: the record\'s file sha goes into the chain row', AV, 'file_sha256: sha256(Buffer.from(bytes))', 'file_sha256: null', [T_AR]),
-  m('B18', 'readiness: the verifier requires the field', AV, 'if (r.readiness === undefined ||', 'if (false ||', [T_AR]),
-  m('B19', 'readiness: the record is part of the chain row', AV, 'checkReadiness(next, got.readiness);', 'null;', [T_AR]),
+  m('B19', 'readiness: the record is part of the chain row', AV, 'checkReadiness(next, got.readiness, { expectedFrom, nextOpen });', 'null;', [T_AR]),
   m('B20', 'readiness: a day without its record is not there yet', AV, 'if (!fs.existsSync(rf)) return null;', 'if (!fs.existsSync(rf)) return { files, readiness: Buffer.from("{}") };', [T_AR]),
   m('B21', 'readiness: counts are non-negative integers', AV, 'isCount(o[k])', 'true', [T_AR]),
   m('B22', 'scoring: requireChain turns the chain check on for R1', RN, 'if (deferredSeal || requireChain) arrivalChain.verifyChain(', 'if (deferredSeal) arrivalChain.verifyChain(', [T_AR]),
@@ -147,7 +146,6 @@ const MUTANTS = [
   m('D07', 'export: a day appears atomically (rename)', DX, 'mv "$tmp" "$fin"', 'cp -r "$tmp" "$fin"', [T_DX]),
   m('D08', 'export: an exported day is not exported again', DX, 'if [ -d "$fin" ]; then', 'if false; then', [T_DX]),
   m('D09', 'export: a day without prices rows is not exported', DX, '-le 1 ]; then', '-le 0 ]; then', [T_DX]),
-  m('D10', 'export: a later industry part starts the day after the previous open day', DX, 'lower="$(addday "${days[$((i-1))]}" 1)"', 'lower="${days[$((i-1))]}"', [T_DX]),
   m('D11', 'export: the window end of R1 is refused beyond', DX, '[[ "$DAY" > "$END" ]]', '[[ "$DAY" < "$END" ]]', [T_DX]),
   m('D12', 'export: R2 gets its calendar', DX, 'if [ "$seg" = R2 ]; then', 'if false; then', [T_DX]),
   m('D13', 'export: a failed probe fails closed', DX, 'echo "$seg PROBE_FAILED:$D" >&2; return 2;', 'echo "$seg PROBE_FAILED:$D" >&2; return 0;', [T_DX]),
@@ -215,7 +213,7 @@ function main(argv) {
   }
   let all = results;
   if (merge && outFile && fs.existsSync(path.join(ROOT, outFile))) {
-    const prior = JSON.parse(fs.readFileSync(path.join(ROOT, outFile), 'utf8')).results.filter((x) => !results.some((y) => y.id === x.id));
+    const prior = JSON.parse(fs.readFileSync(path.join(ROOT, outFile), 'utf8')).results.filter((x) => !results.some((y) => y.id === x.id) && MUTANTS.some((m) => m.id === x.id)); // a result of a mutant that no longer exists is dropped
     all = [...prior, ...results].sort((a, b) => (a.id < b.id ? -1 : 1));
   }
   const summary = { schema: 'MINING_R2_SCORER_MUTATION_RESULTS_V1', baseline: 'GREEN', mutants: all.length, killed: all.filter((x) => x.result === 'KILLED').length,
