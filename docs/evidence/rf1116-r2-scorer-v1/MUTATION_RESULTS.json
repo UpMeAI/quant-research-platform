@@ -1,13 +1,14 @@
 {
   "schema": "MINING_R2_SCORER_MUTATION_RESULTS_V1",
   "baseline": "GREEN",
-  "mutants": 141,
-  "killed": 141,
+  "mutants": 140,
+  "killed": 140,
   "survived": [],
   "bad": [],
   "heads": [
     "db9ee44",
-    "5ab749b"
+    "5ab749b",
+    "35692bc"
   ],
   "results": [
     {
@@ -248,36 +249,6 @@
       "head": "5ab749b"
     },
     {
-      "id": "A22",
-      "guard": "pg: the query is for one day",
-      "file": "services/mining-sandbox/round-runner/arrival.js",
-      "result": "KILLED",
-      "failing": [
-        "AR9 PG_PSQL driver: the spec's queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs"
-      ],
-      "head": "db9ee44"
-    },
-    {
-      "id": "A23",
-      "guard": "pg: psql stops on error",
-      "file": "services/mining-sandbox/round-runner/arrival.js",
-      "result": "KILLED",
-      "failing": [
-        "AR9 PG_PSQL driver: the spec's queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs"
-      ],
-      "head": "db9ee44"
-    },
-    {
-      "id": "A24",
-      "guard": "pg: no prices rows = not available",
-      "file": "services/mining-sandbox/round-runner/arrival.js",
-      "result": "KILLED",
-      "failing": [
-        "AR9 PG_PSQL driver: the spec's queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs"
-      ],
-      "head": "db9ee44"
-    },
-    {
       "id": "A25",
       "guard": "scorer: the arrival chain is verified before any row is read",
       "file": "services/mining-sandbox/round-runner/index.js",
@@ -505,16 +476,6 @@
       "head": "db9ee44"
     },
     {
-      "id": "B14",
-      "guard": "pg: the industry query's lower bound is inclusive",
-      "file": "services/mining-sandbox/round-runner/arrival.js",
-      "result": "KILLED",
-      "failing": [
-        "AR9 PG_PSQL driver: the spec's queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs"
-      ],
-      "head": "5ab749b"
-    },
-    {
       "id": "B15",
       "guard": "readiness: ready_via must be a known rule",
       "file": "services/mining-sandbox/round-runner/arrival.js",
@@ -717,26 +678,6 @@
         "AR2 first day: header-only base files plus the day parts, SUMS lines after the sealed one, chain row 1 linked to row 0",
         "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
         "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal"
-      ],
-      "head": "db9ee44"
-    },
-    {
-      "id": "B36",
-      "guard": "pg: a day whose window end is unknown is not available",
-      "file": "services/mining-sandbox/round-runner/arrival.js",
-      "result": "KILLED",
-      "failing": [
-        "AR9 PG_PSQL driver: the spec's queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs"
-      ],
-      "head": "db9ee44"
-    },
-    {
-      "id": "B37",
-      "guard": "pg: the window bounds keep their time of day",
-      "file": "services/mining-sandbox/round-runner/arrival.js",
-      "result": "KILLED",
-      "failing": [
-        "AR9 PG_PSQL driver: the spec's queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs"
       ],
       "head": "db9ee44"
     },
@@ -1070,6 +1011,60 @@
         "DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the V2 file next to the script): the file it names is the one run and its sha goes into the record; a missing file stops the run (exit 2)"
       ],
       "head": "db9ee44"
+    },
+    {
+      "id": "D33",
+      "guard": "export SQL: a query is for one day",
+      "file": "deploy/research-lane/r2-day-export/sql/prices_daily_stock.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "35692bc"
+    },
+    {
+      "id": "D34",
+      "guard": "export SQL: the industry window's lower bound is inclusive",
+      "file": "deploy/research-lane/r2-day-export/sql/industry_membership_sw2021.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched",
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "35692bc"
+    },
+    {
+      "id": "D35",
+      "guard": "export SQL: the industry window's upper bound is exclusive",
+      "file": "deploy/research-lane/r2-day-export/sql/industry_membership_sw2021.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched",
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "35692bc"
+    },
+    {
+      "id": "D36",
+      "guard": "export SQL: stocks only",
+      "file": "deploy/research-lane/r2-day-export/sql/market_daily_basic_observation_stock.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "35692bc"
+    },
+    {
+      "id": "D37",
+      "guard": "export SQL: the master snapshot is of the day",
+      "file": "deploy/research-lane/r2-day-export/sql/security_master_stock.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "35692bc"
     },
     {
       "id": "M01",
