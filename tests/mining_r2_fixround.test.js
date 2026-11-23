@@ -118,6 +118,31 @@ test('FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at 
   assert.ok(A().LOCK_STALE_MS >= 15 * 60e3 && A().LOCK_STALE_MS <= 6 * 3600e3);
 });
 
+test('FX1b stale locks (plan-coord question): an arrival killed with SIGKILL leaves its O_EXCL lock; it blocks for a bounded time only. Fresh: the next arrival is refused LOCKED and run.sh score exits 75; older than LOCK_STALE_MS: the next arrival takes it over and run.sh does not wait for it. A dead container is not "running" for the docker-ps check either', async () => {
+  const dir = sealedDir(); const root = dropRoot(DAYS.slice(0, 3));
+  const script = path.join(os.tmpdir(), `qrp-fx-arrive-kill-${process.pid}.js`);
+  fs.writeFileSync(script, `const a = require(${JSON.stringify(ARR)}); a.arrive({ dir: process.argv[2], source: a.csvDayDropSource(process.argv[3]), arrivedAt: '2027-03-01T20:30:00+08:00' });`);
+  const victim = spawn(process.execPath, [script, dir, root], { env: { ...require('./_clean_env')(), QRP_ARRIVE_TEST_HOLD_MS: '8000' } });
+  await sleep(800); victim.kill('SIGKILL'); await new Promise((r) => victim.on('close', r));
+  const lock = path.join(dir, A().LOCK_FILE);
+  assert.ok(fs.existsSync(lock), 'a killed arrival cannot release its lock');
+  assert.throws(() => A().arrive({ dir, source: A().csvDayDropSource(root) }), code(/MINE_RUNNER_ARRIVE_LOCKED/), 'fresh: refused for a bounded time');
+  assert.ok(A().LOCK_STALE_MS <= 30 * 60e3, 'the bound is at most 30 minutes');
+  // run.sh: the same lock file in the holdout directory blocks score only while it is fresh (exit 75), the container is gone (docker ps lists nothing)
+  const s = runShSandbox();
+  fs.copyFileSync(lock, path.join(s.holdout('R1'), '.arrival.lock'));
+  const blocked = s.run(['score', 'R']); assert.equal(blocked.status, 75); assert.match(blocked.err, /HOLDOUT_ARRIVAL_IN_PROGRESS/);
+  const old = new Date(Date.now() - (A().LOCK_STALE_MS + 60e3)); fs.utimesSync(lock, old, old); fs.utimesSync(path.join(s.holdout('R1'), '.arrival.lock'), old, old);
+  const free = s.run(['score', 'R']); assert.equal(free.status, 0, free.err); assert.equal(runs(s.calls()).length, 1);
+  // the arrival takes the stale lock over, writes its day, releases
+  assert.equal(A().arrive({ dir, source: A().csvDayDropSource(root) }).status, 'ARRIVED');
+  assert.equal(fs.existsSync(lock), false);
+  assert.doesNotThrow(() => A().verifyChain(dir));
+  // the documented bound
+  const doc = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/DEPLOY.md'), 'utf8');
+  assert.match(doc, /a lock older than 30 minutes[^\n]*(taken over|stale)/i);
+});
+
 test('FX2 at rest: nothing the arrival writes is group- or world-readable (files 0600), even under umask 022; seal-init-r2.sh makes a 0700 directory with no group/world bits on its files', () => {
   const prior = process.umask(0o022);
   try {

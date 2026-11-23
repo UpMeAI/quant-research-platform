@@ -62,6 +62,10 @@ A day D is exported only when the next SSE open day after D has reached 09:00+08
 
 Known case before install: V6's POST_CLOSE of 2026-11-18 was BLOCKED but its data was backfilled by 11-19 07:01 and the 11-19 PREMARKET ran DATA_REFRESH SUCCEEDED, so V2 makes 2026-11-18 ready via `NEXT_PREMARKET` (about one BLOCKED day per 15 trading days; 11-02 was the same). The first run after install therefore exports 11-18 with `ready_via` recorded.
 
+## Stale locks
+
+The exporter holds a lock directory `<drop root>/.r2-day-export.lock` for the whole run (released at exit, also on errors). A run killed with SIGKILL or a power loss leaves it; it blocks the next runs for at most 60 minutes (one hour, longer than `TimeoutStartSec=2400`), after that it is taken over. A second run while one is active does nothing and exits 0 `EXPORT_LOCKED`. The arrival program (`.arrival.lock` in the holdout directory) works the same way with a 30 minute bound; `run.sh score` / `rescore` do not wait for an arrival lock older than 30 minutes either.
+
 ## Limits stated by the review (2026-11-23)
 
 - A consistent rewrite of the chain that also forges `source.driver` or sets `readiness` to null is only caught for the rows the anchor covers (every arrival writes the chain head to the lane ledger, `HOLDOUT_ARRIVAL_ANCHOR_V1`); rows before the first anchor of a segment have no external witness.

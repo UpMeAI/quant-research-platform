@@ -76,6 +76,17 @@ slot="$(slot_of "$START_EPOCH")"
 if [ "$slot" = DENY ]; then echo "OUTSIDE_SLOT: $(cst "$START_EPOCH" '%F %H:%M') CST is outside the allowed V6-window slots (weekdays 08:20-09:05, 15:40-18:05, 21:35-00:10); nothing done"; exit 0; fi
 DEADLINE="${slot#ALLOW }"
 
+# One export at a time (review fix round): the timer and a manual run can overlap, and two runs would fight over .tmp-<day> and the rename. A lock DIRECTORY (mkdir is atomic) in the drop root, released by an
+# EXIT trap (normal and error exits). A run killed with SIGKILL, or a power loss, leaves it, so it blocks for a bounded time only: older than LOCK_STALE_S (one hour, longer than the unit's TimeoutStartSec) it
+# is taken over. The age is the real clock (not R2EXP_NOW).
+mkdir -p "$DROP_ROOT"
+LOCK_DIR="$DROP_ROOT/.r2-day-export.lock"; LOCK_STALE_S=3600
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  lock_age=$(( $(date +%s) - $(stat -c %Y "$LOCK_DIR" 2>/dev/null || echo 0) ))
+  if [ "$lock_age" -le "$LOCK_STALE_S" ] || ! { rmdir "$LOCK_DIR" 2>/dev/null && mkdir "$LOCK_DIR" 2>/dev/null; }; then echo "EXPORT_LOCKED: another export holds $LOCK_DIR (age ${lock_age}s); nothing done"; exit 0; fi
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
+
 # every statement goes through here, SQL on stdin: read-only session and a server-side statement_timeout (the same PGOPTIONS string, passed into the container: killing the docker client does not stop a running
 # statement), no psqlrc, stop on the first error, `timeout -k` (clamped to the end of the slot), no other docker verb
 pg() {
