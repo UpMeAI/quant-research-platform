@@ -35,9 +35,10 @@ const HEADERS = {
   security_master_stock: 'record_id,security_id,business_date,ticker',
   security_suspension_observation: 'record_id,security_id,trade_date,suspension_type',
   security_suspension_day_coverage: 'coverage_id,trade_date,provider_row_count',
+  industry_membership_sw2021: 'record_id,security_id,industry_standard,industry_level,first_available_at',
 };
-/** One day's files as the V6-side job would drop them (verbatim CSV text per table). */
-function dayTexts(day, { rows = 3, wrongDate = null, emptyPrices = false, header = {} } = {}) {
+/** One day's files as the V6-side job would drop them (verbatim CSV text per table). `industry`: the day's membership rows (default none: a header-only part is normal). */
+function dayTexts(day, { rows = 3, wrongDate = null, emptyPrices = false, header = {}, industry = [] } = {}) {
   const ids = Array.from({ length: rows }, (_, i) => `S0${i + 1}.SH`);
   const d = (t) => (wrongDate && t === wrongDate.table ? wrongDate.date : day);
   const csv = (stem, lines) => `${header[stem] || HEADERS[stem]}\n${lines.length ? `${lines.join('\n')}\n` : ''}`;
@@ -48,6 +49,7 @@ function dayTexts(day, { rows = 3, wrongDate = null, emptyPrices = false, header
     security_master_stock: csv('security_master_stock', ids.map((s) => `sm:${s}:${day},${s},${d('security_master_stock')},${s}`)),
     security_suspension_observation: csv('security_suspension_observation', []),
     security_suspension_day_coverage: csv('security_suspension_day_coverage', [`cv:${day},${d('security_suspension_day_coverage')},${rows}`]),
+    industry_membership_sw2021: csv('industry_membership_sw2021', industry),
   };
 }
 /** A CSV_DAY_DROP root: calendar plus one directory per day (YYYYMMDD) with the six files. opts per day: { [day]: dayTexts options | null (not dropped yet) } */
@@ -79,10 +81,11 @@ test('AR0 format: the tables, the chain file name, the row schema', () => {
   const a = A();
   assert.equal(a.CHAIN_FILE, 'ARRIVAL_CHAIN_V1.jsonl');
   assert.deepEqual(a.TABLES.map((t) => t.stem), Object.keys(HEADERS));
-  assert.deepEqual(a.TABLES.map((t) => t.dateCol), ['trade_date', 'trade_date', 'trade_date', 'business_date', 'trade_date', 'trade_date']);
+  assert.deepEqual(a.TABLES.map((t) => t.dateCol), ['trade_date', 'trade_date', 'trade_date', 'business_date', 'trade_date', 'trade_date', null], 'industry rows carry no day: their window is first_available_at');
   assert.ok(Object.isFrozen(a.TABLES));
   const hold = require('../services/mining-sandbox/round-runner').HOLDOUT_TABLES;
-  for (const t of a.TABLES) assert.ok(hold.includes(`${t.stem}.csv`), `${t.stem} is a table the directory check requires`);
+  for (const t of a.TABLES.filter((x) => x.dateCol)) assert.ok(hold.includes(`${t.stem}.csv`), `${t.stem} is a table the directory check requires`);
+  assert.ok(!hold.includes('industry_membership_sw2021.csv'), 'the industry supplement is optional for the directory check (R1 was sealed without it)');
 });
 
 test('AR1 calendar first: the first run delivers trading_calendar.csv (chain row 0, listed after the sealed line); nothing else until it is there', () => {
@@ -117,16 +120,37 @@ test('AR2 first day: header-only base files plus the day parts, SUMS lines after
   const rows = chainOf(dir);
   assert.equal(rows.length, 2);
   assert.deepEqual([rows[1].seq, rows[1].kind, rows[1].trade_date, rows[1].prev_hash], [1, 'DAY', DAYS[0], rows[0].record_hash]);
-  assert.equal(rows[1].files.length, 12, 'six base files and six parts on the first day');
+  assert.equal(rows[1].files.length, 14, 'seven base files and seven parts on the first day (the industry membership is the seventh table)');
   assert.deepEqual(rows[1].files.find((f) => f.name === `prices_daily_stock_${compact(DAYS[0])}.csv`).rows, 3);
   const sums = fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').split('\n').filter(Boolean);
-  assert.equal(sums.length, 1 + 1 + 12, 'sealed line, calendar, twelve day-1 files');
+  assert.equal(sums.length, 1 + 1 + 14, 'sealed line, calendar, fourteen day-1 files');
   for (const f of rows[1].files) assert.ok(sums.includes(`${f.sha256}  ${f.name}`), f.name);
   assert.deepEqual(A().verifyChain(dir).days, [DAYS[0]]);
-  // the second day adds only the six parts
+  // the second day adds only the seven parts
   A().arrive({ dir, source: src });
-  assert.equal(chainOf(dir)[2].files.length, 6);
+  assert.equal(chainOf(dir)[2].files.length, 7);
   assert.deepEqual(A().verifyChain(dir).days, [DAYS[0], DAYS[1]]);
+});
+
+test('AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend', () => {
+  const dir = sealedDir();
+  const ind = { [DAYS[0]]: { industry: ['ind:w,S01.SH,SW2021,L1,2027-01-01 00:00:00+08', 'ind:x,S02.SH,SW2021,L1,2027-01-03 12:00:00+08', `ind:y,S03.SH,SW2021,L1,${DAYS[0]} 20:00:00+08`] }, [DAYS[1]]: { industry: [] }, [DAYS[4]]: { industry: [`ind:z,S01.SH,SW2021,L1,${addDays(DAYS[3], 1)} 09:00:00+08`] } };
+  const src = A().csvDayDropSource(dropRoot(DAYS.slice(0, 5), ind));
+  const res = drain(dir, src);
+  assert.deepEqual(res.out, ['ARRIVED', 'ARRIVED', 'ARRIVED', 'ARRIVED', 'ARRIVED', 'ARRIVED', 'NOT_AVAILABLE'], 'calendar, five days, then the sixth is not dropped yet');
+  const stem = 'industry_membership_sw2021';
+  assert.equal(fs.readFileSync(path.join(dir, `${stem}.csv`), 'utf8'), `${HEADERS[stem]}\n`, 'the industry base file is header only');
+  assert.equal(fs.readFileSync(path.join(dir, `${stem}_${compact(DAYS[0])}.csv`), 'utf8'), dayTexts(DAYS[0], ind[DAYS[0]])[stem]);
+  assert.equal(fs.readFileSync(path.join(dir, `${stem}_${compact(DAYS[1])}.csv`), 'utf8'), `${HEADERS[stem]}\n`, 'a day without new members: header-only part');
+  const row = chainOf(dir).find((r) => r.trade_date === DAYS[0]);
+  assert.equal(row.files.find((f) => f.name === `${stem}_${compact(DAYS[0])}.csv`).rows, 3);
+  assert.deepEqual(A().verifyChain(dir).days, DAYS.slice(0, 5));
+  // a chain row that lacks the industry part is MISSING_TABLE
+  const d2 = sealedDir(); drain(d2, A().csvDayDropSource(dropRoot(DAYS.slice(0, 2))));
+  const rows = chainOf(d2); const t = require('../services/trial-ledger');
+  let prev = null; const re = rows.map((r, i) => { const body = { ...r, seq: i, prev_hash: prev, files: r.files.filter((f) => !f.name.startsWith(stem)) }; delete body.record_hash; const rec = { ...body, record_hash: t.recordHash(body) }; prev = rec.record_hash; return rec; });
+  fs.writeFileSync(path.join(d2, 'ARRIVAL_CHAIN_V1.jsonl'), `${re.map((r) => JSON.stringify(r)).join('\n')}\n`);
+  assert.throws(() => A().verifyChain(d2), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:(MISSING_TABLE|UNCHAINED)/));
 });
 
 test('AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal', () => {
@@ -172,6 +196,10 @@ test('AR5 a day is validated before anything is written: wrong header, a row of 
   bad({ wrongDate: { table: 'market_daily_basic_observation_stock', date: '2027-01-04' } }, /MINE_RUNNER_ARRIVE_ROW_DATE/);
   bad({ wrongDate: { table: 'security_master_stock', date: '2027-01-06' } }, /MINE_RUNNER_ARRIVE_ROW_DATE/);
   bad({ emptyPrices: true }, /MINE_RUNNER_ARRIVE_EMPTY_DAY/);
+  // industry rows must lie in the day's first_available_at window [previous open day + 1 00:00+08, day + 1 00:00+08): DAYS[1] = 2027-01-05, window starts 2027-01-05 00:00 (the day after DAYS[0])
+  bad({ industry: ['ind:a,S01.SH,SW2021,L1,2027-01-04 23:59:59+08'] }, /MINE_RUNNER_ARRIVE_ROW_WINDOW/);
+  bad({ industry: ['ind:b,S01.SH,SW2021,L1,2027-01-06 00:00:00+08'] }, /MINE_RUNNER_ARRIVE_ROW_WINDOW/);
+  bad({ industry: ['ind:c,S01.SH,SW2021,L1,'] }, /MINE_RUNNER_ARRIVE_ROW_WINDOW/);
   const root = dropRoot(DAYS.slice(0, 1)); fs.rmSync(path.join(root, compact(DAYS[0]), 'security_master_stock.csv'));
   const dirM = sealedDir(); A().arrive({ dir: dirM, source: A().csvDayDropSource(root) });
   assert.equal(A().arrive({ dir: dirM, source: A().csvDayDropSource(root) }).status, 'NOT_AVAILABLE', 'a day with a missing file is not there yet');
@@ -271,15 +299,20 @@ test('AR8 the calendar can be updated later: new or changed rows arrive as a dat
 
 test('AR9 PG_PSQL driver: the spec\'s queries per day (read-only, parameterised on the day), the calendar query, and a source built on an injected runner; psql arguments are built, nothing runs', () => {
   const a = A();
-  const qs = a.pgQueries('2027-01-04');
+  const ctx = { industryFrom: '2027-01-01' };
+  const qs = a.pgQueries('2027-01-04', ctx);
   assert.deepEqual(qs.map((q) => q.stem), Object.keys(HEADERS));
   for (const q of qs) {
     assert.ok(/^SELECT /.test(q.sql), q.stem);
     assert.ok(!/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT)\b/i.test(q.sql), `${q.stem}: read-only`);
-    assert.ok(q.sql.includes("'2027-01-04'"), `${q.stem}: the day`);
+    if (q.stem !== 'industry_membership_sw2021') assert.ok(q.sql.includes("'2027-01-04'"), `${q.stem}: the day`); // industry is a first_available_at window, checked below
   }
   assert.match(qs[0].sql, /FROM prices_daily WHERE trade_date = '2027-01-04' AND security_id IN \(SELECT DISTINCT security_id FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL\)/);
   assert.match(qs[3].sql, /FROM canonical_security_observation WHERE asset_class = 'STOCK' AND security_id IS NOT NULL AND business_date = '2027-01-04'/);
+  // industry (export spec rev 5 change 2): the membership rows that became available in [industryFrom 00:00+08, day + 1 00:00+08); no effective_from cut per day
+  assert.match(qs[6].sql, /^SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 00:00:00\+08' ORDER BY security_id, industry_standard, industry_level, effective_from, revision$/);
+  assert.ok(!/effective_from <=/.test(qs[6].sql));
+  assert.throws(() => a.pgQueries('2027-01-04'), code(/INDUSTRY_FROM/), 'the lower bound is required');
   assert.match(a.pgCalendarQuery(), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31'/);
   const args = a.psqlArgs('SELECT 1');
   assert.deepEqual(args.slice(0, 5), ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c']);
@@ -289,11 +322,11 @@ test('AR9 PG_PSQL driver: the spec\'s queries per day (read-only, parameterised 
   const src = a.pgDaySource({ run });
   assert.equal(src.driver, 'PG_PSQL');
   assert.ok(src.calendar().toString().startsWith(CAL_COLS));
-  const got = src.day('2027-01-04');
+  const got = src.day('2027-01-04', ctx);
   assert.deepEqual(Object.keys(got.files), Object.keys(HEADERS));
-  assert.equal(asked.length, 1 + 6);
+  assert.equal(asked.length, 1 + 7);
   const emptyPrices = a.pgDaySource({ run: (sql) => Buffer.from(/prices_daily/.test(sql) ? `${HEADERS.prices_daily_stock}\n` : dayTexts('2027-01-04').security_master_stock) });
-  assert.equal(emptyPrices.day('2027-01-04'), null, 'no prices yet = the day is not available');
+  assert.equal(emptyPrices.day('2027-01-04', ctx), null, 'no prices yet = the day is not available');
   // the same core accepts it (calendar, then the first day; the stub returns day 2027-01-04 for every query)
   const dir = sealedDir(); a.arrive({ dir, source: src }); assert.equal(a.arrive({ dir, source: src }).day, '2027-01-04');
   assert.deepEqual(a.verifyChain(dir).days, ['2027-01-04']);
@@ -301,15 +334,136 @@ test('AR9 PG_PSQL driver: the spec\'s queries per day (read-only, parameterised 
 
 test('AR10 CLI r2-arrive and run.sh: the arrival is a command that loops until nothing is left, reads the window end from the resolution record, and its container is the only one that writes the R2 directory', () => {
   const cli = require('../services/mining-sandbox/round-runner/cli');
-  assert.ok(cli.OPTIONS['r2-arrive']);
+  assert.ok(cli.OPTIONS['r2-arrive'], 'the R2 command stays');
   for (const o of ['holdout', 'driver', 'source', 'arrived-at']) assert.ok(cli.OPTIONS['r2-arrive'].includes(o), o);
+  for (const o of ['holdout', 'driver', 'source', 'arrived-at', 'segment', 'check-complete']) assert.ok(cli.OPTIONS['holdout-arrive'].includes(o), o);
   const sh = fs.readFileSync(path.join(__dirname, '..', 'deploy/research-lane/round-runner/run.sh'), 'utf8');
-  assert.match(sh, /^  r2-arrive\)/m);
-  const line = sh.split('\n').find((l) => l.includes('--name "rf1116-r2-arrive"'));
+  assert.match(sh, /^  arrive\|r2-arrive\)/m, 'one case: `arrive` for the segment of RF1116_HOLDOUT_SEGMENT, `r2-arrive` kept for R2');
+  const line = sh.split('\n').find((l) => l.includes('--name "rf1116-holdout-arrive"'));
   assert.ok(line, 'the container line');
-  for (const f of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '-v "$HOLDOUT:/data/holdout:rw"', '-v "$DAYDROP:/data/daydrop:ro"', '-v "$OUT:/out:ro"', 'r2-arrive --holdout /data/holdout --driver csv-day-drop --source /data/daydrop']) assert.ok(line.includes(f), f);
+  for (const f of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '-v "$HOLDOUT:/data/holdout:rw"', '-v "$DAYDROP:/data/daydrop:ro"', '-v "$OUT:/out:ro"', 'holdout-arrive --segment "${RF1116_HOLDOUT_SEGMENT:-R1}" --holdout /data/holdout --driver csv-day-drop --source /data/daydrop']) assert.ok(line.includes(f), f);
   assert.ok(!line.includes('/data/lane') && !line.includes('$FACTOR_SERIES'), 'it sees no other data');
-  assert.match(sh, /^DAYDROP="\$LANE\/r2-daydrop"/m);
+  assert.match(sh, /^DAYDROP="\$LANE\/holdout-daydrop\/\$\{RF1116_HOLDOUT_SEGMENT:-R1\}"/m, 'one drop directory per segment');
+  assert.match(sh, /^  score\)[\s\S]*?--require-arrival-chain/m, 'score always requires the arrival chain (R1: the hand supplement path is closed in production)');
+  assert.match(sh, /^  rescore\)[\s\S]*?--require-arrival-chain/m);
   // every other container keeps the sealed directory read-only
-  for (const l of sh.split('\n').filter((x) => /^\s*docker run /.test(x) && !x.includes('rf1116-r2-arrive'))) assert.ok(!l.includes('$HOLDOUT:/data/holdout:rw'), l.slice(0, 80));
+  for (const l of sh.split('\n').filter((x) => /^\s*docker run /.test(x) && !x.includes('rf1116-holdout-arrive'))) assert.ok(!l.includes('$HOLDOUT:/data/holdout:rw'), l.slice(0, 80));
+});
+
+// ── R1 catch-up: the same program delivers the days after the sealed export's D1 (2026-11-17) into the SEALED R1 directory ────────────────────────────────────────────────
+const R1_CAL_OPEN = range('2026-10-12', '2026-12-31').filter((d) => weekday(d) !== 0 && weekday(d) !== 6);
+const R1_DAYS = R1_CAL_OPEN.filter((d) => d > '2026-11-17'); // 2026-11-18 .. 2026-12-31
+const r1CalendarCsv = () => `${CAL_COLS}\n${range('2026-10-12', '2026-12-31').map((d) => [d, 'A_SHARE', 'SSE', R1_CAL_OPEN.includes(d) ? 't' : 'f', '', '2026-10-01 08:00:00+08', '2026-10-01 08:00:00+08', `cal:${d}`, 1, 'synthetic-v1', 'READY'].join(',')).join('\n')}\n`;
+const R1_SEALED_TABLES = Object.keys(HEADERS).filter((s) => s !== 'industry_membership_sw2021');
+/** The R1 directory as sealed on 11-18: six daily tables (base files with data through D1) plus the full calendar, SHA256SUMS == SHA256SUMS.sealed. No industry file. */
+function sealedR1Dir() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r1arr-'));
+  const early = R1_CAL_OPEN.filter((d) => d >= '2026-10-19' && d <= '2026-11-17');
+  const lines = [];
+  for (const stem of R1_SEALED_TABLES) {
+    const rows = early.map((d) => dayTexts(d)[stem].split('\n')[1]); // one data row per sealed day
+    const text = `${HEADERS[stem]}\n${rows.join('\n')}\n`;
+    fs.writeFileSync(path.join(dir, `${stem}.csv`), text); lines.push(`${sha(text)}  ${stem}.csv`);
+  }
+  const cal = r1CalendarCsv(); fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), cal); lines.push(`${sha(cal)}  trading_calendar.csv`);
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${lines.join('\n')}\n`); fs.writeFileSync(path.join(dir, 'SHA256SUMS.sealed'), `${lines.join('\n')}\n`);
+  return dir;
+}
+const R1 = { segment: 'R1' };
+
+test('AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17', () => {
+  const dir = sealedR1Dir(); const before = snapshot(dir);
+  const ind = { [R1_DAYS[0]]: { industry: ['ind:r,S01.SH,SW2021,L1,2026-10-17 00:00:00+08', `ind:s,S02.SH,SW2021,L1,${R1_DAYS[0]} 10:00:00+08`] } };
+  const src = A().csvDayDropSource(dropRoot(R1_DAYS, ind, { calendar: null }));
+  const first = A().arrive({ dir, source: src, ...R1, arrivedAt: '2026-11-24T20:30:00+08:00' });
+  assert.deepEqual([first.status, first.kind, first.day, first.seq], ['ARRIVED', 'DAY', R1_DAYS[0], 0], 'no calendar row: the calendar was sealed');
+  const rows = chainOf(dir);
+  assert.deepEqual([rows[0].segment, rows[0].kind, rows[0].trade_date, rows[0].prev_hash], ['R1', 'DAY', '2026-11-18', null]);
+  assert.equal(rows[0].files.length, 8, 'seven parts and the header-only industry base');
+  const now = snapshot(dir);
+  for (const stem of R1_SEALED_TABLES) assert.equal(now[`${stem}.csv`], before[`${stem}.csv`], `${stem}: the sealed base file is untouched`);
+  assert.equal(now['SHA256SUMS.sealed'], before['SHA256SUMS.sealed']);
+  const sums = fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').split('\n').filter(Boolean);
+  assert.deepEqual(sums.slice(0, 7), fs.readFileSync(path.join(dir, 'SHA256SUMS.sealed'), 'utf8').split('\n').filter(Boolean), 'the sealed lines are the first lines, unchanged');
+  assert.equal(sums.length, 7 + 8);
+  assert.equal(fs.readFileSync(path.join(dir, 'industry_membership_sw2021.csv'), 'utf8'), `${HEADERS.industry_membership_sw2021}\n`);
+  assert.equal(fs.readFileSync(path.join(dir, `industry_membership_sw2021_${compact(R1_DAYS[0])}.csv`), 'utf8'), dayTexts(R1_DAYS[0], ind[R1_DAYS[0]]).industry_membership_sw2021);
+  // the rest of the window, then COMPLETE
+  const res = drain(dir, src, { ...R1, windowEnd: '2026-12-31' });
+  assert.equal(res.out[res.out.length - 1], 'COMPLETE');
+  assert.equal(res.out.length, R1_DAYS.length, 'one ARRIVED per remaining open day, then COMPLETE');
+  const v = A().verifyChain(dir, { ...R1, window: { from: '2026-10-19', to: '2026-12-31' } });
+  assert.deepEqual([v.days.length, v.last_day], [R1_DAYS.length, '2026-12-31']);
+  assert.ok(chainOf(dir).every((r) => r.segment === 'R1' && r.kind === 'DAY'));
+  // a chain row that says R2 is not an R1 chain
+  assert.throws(() => A().verifyChain(dir), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'the default profile is R2');
+});
+
+test('AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file\'s, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable', () => {
+  const dir = sealedR1Dir(); const src = A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 4), {}, { calendar: null }));
+  A().arrive({ dir, source: src, ...R1 });
+  const snap = snapshot(dir);
+  assert.throws(() => A().arrive({ dir, source: src, ...R1, day: R1_DAYS[2] }), code(/MINE_RUNNER_ARRIVE_ORDER/));
+  assert.throws(() => A().arrive({ dir, source: src, ...R1, day: '2026-11-21' }), code(/MINE_RUNNER_ARRIVE_NOT_OPEN_DAY/), 'a Saturday');
+  assert.deepEqual(snapshot(dir), snap);
+  // a day whose header differs from the sealed base file's header
+  const bad = sealedR1Dir(); const badSrc = A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 1), { [R1_DAYS[0]]: { header: { prices_daily_stock: 'record_id,security_id,trade_date,open,closing' } } }, { calendar: null }));
+  const badSnap = snapshot(bad);
+  assert.throws(() => A().arrive({ dir: bad, source: badSrc, ...R1 }), code(/MINE_RUNNER_ARRIVE_HEADER/));
+  assert.deepEqual(snapshot(bad), badSnap);
+  const wrong = sealedR1Dir(); const wrongSrc = A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 1), { [R1_DAYS[0]]: { wrongDate: { table: 'security_master_stock', date: '2026-11-19' } } }, { calendar: null }));
+  assert.throws(() => A().arrive({ dir: wrong, source: wrongSrc, ...R1 }), code(/MINE_RUNNER_ARRIVE_ROW_DATE/));
+  const empty = sealedR1Dir(); const emptySrc = A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 1), { [R1_DAYS[0]]: { emptyPrices: true } }, { calendar: null }));
+  assert.throws(() => A().arrive({ dir: empty, source: emptySrc, ...R1 }), code(/MINE_RUNNER_ARRIVE_EMPTY_DAY/));
+  // an industry row older than the first part's lower bound (2026-10-17 00:00+08) is refused
+  const old = sealedR1Dir(); const oldSrc = A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 1), { [R1_DAYS[0]]: { industry: ['ind:o,S01.SH,SW2021,L1,2026-10-16 23:59:59+08'] } }, { calendar: null }));
+  assert.throws(() => A().arrive({ dir: old, source: oldSrc, ...R1 }), code(/MINE_RUNNER_ARRIVE_ROW_WINDOW/));
+  // not sealed / not an R1 directory / not interchangeable
+  const unsealed = sealedR1Dir(); fs.rmSync(path.join(unsealed, 'SHA256SUMS.sealed'));
+  assert.throws(() => A().arrive({ dir: unsealed, source: src, ...R1 }), code(/MINE_RUNNER_ARRIVE_NOT_SEALED/));
+  const noCal = sealedR1Dir(); const lines = fs.readFileSync(path.join(noCal, 'SHA256SUMS'), 'utf8').split('\n').filter((l) => l && !l.includes('trading_calendar.csv')).join('\n') + '\n';
+  fs.writeFileSync(path.join(noCal, 'SHA256SUMS'), lines); fs.writeFileSync(path.join(noCal, 'SHA256SUMS.sealed'), lines);
+  assert.throws(() => A().arrive({ dir: noCal, source: src, ...R1 }), code(/MINE_RUNNER_ARRIVE_NOT_SEALED/), 'the sealed R1 manifest must list the calendar');
+  assert.throws(() => A().arrive({ dir: sealedDir(), source: src, ...R1 }), code(/MINE_RUNNER_ARRIVE_NOT_SEALED/), 'a pending-sealed R2 directory is not R1');
+  assert.throws(() => A().arrive({ dir: sealedR1Dir(), source: src }), code(/MINE_RUNNER_ARRIVE_NOT_SEALED/), 'an R1 directory is not R2');
+  assert.throws(() => A().arrive({ dir: sealedR1Dir(), source: src, segment: 'R3' }), code(/MINE_RUNNER_ARRIVE_SEGMENT/));
+});
+
+test('AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day', () => {
+  const dir = sealedR1Dir(); const src = A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 5), {}, { calendar: null }));
+  drain(dir, src, R1);
+  const c = A().checkComplete({ dir, ...R1, windowEnd: '2026-12-31' });
+  assert.deepEqual([c.complete, c.last_day, c.missing.length, c.missing[0], c.missing[c.missing.length - 1]], [false, R1_DAYS[4], R1_DAYS.length - 5, R1_DAYS[5], '2026-12-31']);
+  const full = sealedR1Dir(); drain(full, A().csvDayDropSource(dropRoot(R1_DAYS, {}, { calendar: null })), R1);
+  assert.deepEqual(A().checkComplete({ dir: full, ...R1, windowEnd: '2026-12-31' }), { complete: true, last_day: '2026-12-31', missing: [] });
+  // R2: needs the arrived calendar
+  const r2 = sealedDir(); drain(r2, A().csvDayDropSource(dropRoot(DAYS.slice(0, 3))));
+  const c2 = A().checkComplete({ dir: r2, windowEnd: DAYS[5] });
+  assert.deepEqual([c2.complete, c2.last_day, c2.missing], [false, DAYS[2], DAYS.slice(3, 6)]);
+  const cli = require('../services/mining-sandbox/round-runner/cli');
+  assert.ok(cli.OPTIONS['holdout-arrive'].includes('check-complete') && cli.OPTIONS['holdout-arrive'].includes('segment'));
+});
+
+test('AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged', () => {
+  const runner = require('../services/mining-sandbox/round-runner');
+  const build = () => { const d = sealedR1Dir(); drain(d, A().csvDayDropSource(dropRoot(R1_DAYS, {}, { calendar: null })), { ...R1, windowEnd: '2026-12-31' }); return d; };
+  const seal = (d) => ({ data_sha256: sha(fs.readFileSync(path.join(d, 'SHA256SUMS.sealed'))), segment: { from: '2026-10-19', to: '2026-12-31' } });
+  const check = (d, o = {}) => runner.holdoutDirCheck(d, seal(d), { minNamesPerDay: 1, ...o });
+  // the synthetic directory has no validation tail, so every run stops at the row floors (after the chain stage): that error is the "chain accepted" signal
+  const good = build();
+  assert.throws(() => check(good, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/), 'a valid R1 chain passes the chain stage (R1 profile, not the R2 one)');
+  // a consistent edit: change an arrived day's file and its SHA256SUMS line
+  const edited = build(); const name = `prices_daily_stock_${compact(R1_DAYS[3])}.csv`; const text = `${fs.readFileSync(path.join(edited, name), 'utf8')}pd:S99:x,S99.SH,${R1_DAYS[3]},9,9\n`;
+  fs.writeFileSync(path.join(edited, name), text);
+  fs.writeFileSync(path.join(edited, 'SHA256SUMS'), fs.readFileSync(path.join(edited, 'SHA256SUMS'), 'utf8').split('\n').map((l) => (l.endsWith(`  ${name}`) ? `${sha(text)}  ${name}` : l)).join('\n'));
+  assert.throws(() => check(edited, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:FILE_SHA/));
+  assert.throws(() => check(edited), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/), 'the library default does not consult the chain');
+  const noChain = build(); fs.rmSync(path.join(noChain, 'ARRIVAL_CHAIN_V1.jsonl'));
+  assert.throws(() => check(noChain, { requireChain: true }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:NO_CHAIN/));
+  assert.throws(() => check(noChain), code(/MINE_RUNNER_HOLDOUT_(INCOMPLETE|SEALED_DAYS_EMPTY)/));
+  // days missing at the end are INCOMPLETE:arrival, not tampering
+  const short = sealedR1Dir(); drain(short, A().csvDayDropSource(dropRoot(R1_DAYS.slice(0, 5), {}, { calendar: null })), R1);
+  assert.throws(() => check(short, { requireChain: true }), code(new RegExp(`MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:${R1_DAYS[5]}`)));
+  const cli = require('../services/mining-sandbox/round-runner/cli');
+  for (const c of ['score', 'rescore']) assert.ok(cli.OPTIONS[c].includes('require-arrival-chain'), c);
 });

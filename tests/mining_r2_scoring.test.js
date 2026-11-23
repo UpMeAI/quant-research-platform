@@ -51,6 +51,7 @@ const runDirOf = (out, id) => path.join(out, 'rounds', id.replace(/[^A-Za-z0-9_-
  * stopAfter: the arrival stops at that day (the chain is then short of the window).
  */
 const arrival = require('../services/mining-sandbox/round-runner/arrival');
+const INDUSTRY_HEADER = 'record_id,security_id,industry_standard,industry_level,industry_code,industry_name,effective_from,effective_to,first_available_at,ingested_at,source_record_id,revision,schema_version,quality_state';
 let currentStartAfter = '2026-12-31'; let currentPrior = null;
 function r2Dir({ thin = null, stopAfter = null } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-'));
@@ -60,7 +61,8 @@ function r2Dir({ thin = null, stopAfter = null } = {}) {
   const days = cal.filter((d) => d >= WINDOW.from && d <= WINDOW.to);
   const startAfter = cal[cal.indexOf(days[0]) - 1];
   const priorSums = [];
-  for (const t of arrival.TABLES) {
+  for (const d of days) { const dd = path.join(dropDir, d.replace(/-/g, '')); fs.mkdirSync(dd, { recursive: true }); fs.writeFileSync(path.join(dd, 'industry_membership_sw2021.csv'), `${INDUSTRY_HEADER}\n`); } // the seventh table: no new membership rows in the fixture window = a header-only part
+  for (const t of arrival.TABLES.filter((x) => x.dateCol)) {
     const lines = fs.readFileSync(path.join(fx.dirs.holdout, `${t.stem}.csv`), 'utf8').split('\n').filter(Boolean);
     const idx = lines[0].split(',').indexOf(t.dateCol);
     const before = []; const byDay = new Map(days.map((d) => [d, []]));
@@ -358,4 +360,15 @@ test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the
     pre_open_checks: { holdout_dir: { rows_per_day: per(own.rows_per_day), label_rows_per_day: per(own.label_rows_per_day), field_states_per_day: Object.fromEntries(Object.entries(own.field_states_per_day).map(([k, v]) => [k, { ...v, sealed_median: v.median * 100 }])) } }, selection_record_hash: null, inputs_sha256: null };
   ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
   assert.throws(() => runner.verifyHoldoutDir(r2b.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
+  // the field floor is anchored on R1's recorded field medians too: row medians normal, field medians 100 times higher = a field-floor refusal (the own-median anchor would pass)
+  freshData();
+  const r1c = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1C', sha256: sha('r1c'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
+  const r2c = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
+  runner.sealHoldout({ roundId: r2c.round_id, dataRef: R2REF, dataSha256: d.sealSha });
+  forgeResolution();
+  const same = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { ...v, sealed_median_names: v.median_names }]));
+  const bodyC = { schema: 'HOLDOUT_OPEN_V1', round_id: r1c.round_id, seal_hash: sha('seal'), candidate_ids: ['x'], opened_by: 'TEST', opened_at: '2027-01-10T10:00:00+08:00', segment_open_index: 1,
+    pre_open_checks: { holdout_dir: { rows_per_day: same(own.rows_per_day), label_rows_per_day: same(own.label_rows_per_day), field_states_per_day: Object.fromEntries(Object.entries(own.field_states_per_day).map(([k, v]) => [k, { ...v, sealed_median: v.median * 100 }])) } }, selection_record_hash: null, inputs_sha256: null };
+  ledger.append(vault.LEDGER(), { ...bodyC, record_hash: trials.recordHash(bodyC) });
+  assert.throws(() => runner.verifyHoldoutDir(r2c.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE/));
 });
