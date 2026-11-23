@@ -185,7 +185,7 @@ test('RS8 record(): only registered rule-defined segments, a real 54-day window 
   // a fresh ledger for the negative cases
   for (const [label, patch] of [['segment R1', { segment: 'R1' }], ['segment R9', { segment: 'R9' }], ['window not dates', { window: { ...body.window, from: UNKNOWN } }],
     ['start not after the rule date', { window: { ...body.window, from: '2026-12-31' } }], ['wrong day count', { window: { ...body.window, days: 53 } }], ['from after to', { window: { ...body.window, from: '2027-05-01' } }],
-    ['no calendar evidence', { calendar: undefined }], ['no files', { calendar: { ...body.calendar, files: [] } }], ['rule changed', { rule: { ...body.rule, length_trading_days: 55 } }]]) {
+    ['calendar ends before the window end', { calendar: { ...body.calendar, last_date: '2027-01-05' } }], ['no calendar evidence', { calendar: undefined }], ['no files', { calendar: { ...body.calendar, files: [] } }], ['rule changed', { rule: { ...body.rule, length_trading_days: 55 } }]]) {
     freshData();
     assert.throws(() => res().record({ ...body, ...patch }), /MINE_SEGMENT_RESOLUTION_(INVALID|NOT_RESOLVABLE)/, label);
     assert.equal(fs.existsSync(res().LEDGER()) ? ledger.read(res().LEDGER()).length : 0, 0, label);
