@@ -94,6 +94,11 @@ cd /srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-fro
 cp SHA256SUMS SHA256SUMS.sealed && chmod 0700 . && sha256sum SHA256SUMS.sealed    # -> <holdout_sha256>
 ```
 
+**Holdout segments (RF1116 second CN_A holdout segment).** The code chooses a round's segment from the month it opens in (Beijing time): 2026-11 and earlier use R1, 2026-12 onwards use R2 (`services/mining-rounds/holdout-segments.js`). `run.sh` only names the sealed directory and its ref: `RF1116_HOLDOUT_SEGMENT=R1` (the default, the strings used so far) or `R2`. A ref that names the other segment's directory is refused before any round opens (`MINE_RUNNER_HOLDOUT_REF_MISMATCH`).
+- **R2 sealed directory (ops, before the first December round).** `/srv/research-lane/rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-r2/` with a `SHA256SUMS.sealed`, created the way the R1 directory is; its sha256 is the `<holdout_sha256>` argument. R2's data does not exist until 2027, so the directory is only the seal; nothing reads it while the segment's end is UNKNOWN.
+- **R2 cannot be opened or scored yet.** The round manifest records R2's end as `UNKNOWN / CALENDAR_NOT_PUBLISHED`; `holdout-vault.open`, `score` and `rescore` refuse with `…SEGMENT_END_UNKNOWN`. Generation, validation selection, mechanisms and review run as for R1.
+- **December limit.** The unclosed-round limit (2 per market, R1.6) is unchanged: with the two November rounds unclosed until the R1 holdout is scored, a December round is refused `MINE_ROUND_ALREADY_OPEN` even though its segment is valid. Read the first line of the JSON error on stderr.
+
 **Run** (one line; the seed is any integer, and it is written into the round manifest):
 
 ```sh
