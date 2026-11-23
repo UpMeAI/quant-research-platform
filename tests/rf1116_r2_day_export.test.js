@@ -77,7 +77,7 @@ function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail
   fs.writeFileSync(path.join(bin, 'psql'), STUB, { mode: 0o755 }); fs.writeFileSync(path.join(bin, 'docker'), DOCKER_STUB, { mode: 0o755 });
   const drop = path.join(root, 'drop'); fs.mkdirSync(drop);
   const log = path.join(root, 'stub.log');
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, R2EXP_TODAY: '2027-04-30' };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, R2EXP_NOW: '2027-04-30T16:00:00+08:00' };
   const run = (args, extra = {}) => { const r = spawnSync('bash', [SH, ...args], { env: { ...env, ...extra }, encoding: 'utf8' }); return { status: r.status, out: r.stdout, err: r.stderr }; };
   const statements = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n----\n').filter(Boolean) : []);
   return { root, drop, run, statements, log, dockerLog: path.join(root, 'docker.log') };
@@ -159,9 +159,9 @@ test('DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the se
   assert.equal(fs.readFileSync(path.join(dir, 'prices_daily_stock.csv'), 'utf8'), first);
   // a day with no prices rows yet is not exported (the arrival program would refuse it too)
   const np = sandbox({ ready: ['2026-11-18'], noPrices: '1' });
-  const r2 = np.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_TODAY: '2026-11-19' });
+  const r2 = np.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_NOW: '2026-11-19T16:00:00+08:00' });
   assert.equal(r2.status, 0); assert.match(r2.out, /NOT_AVAILABLE:2026-11-18/);
-  assert.equal(np.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_TODAY: '2026-11-25' }).status, 4, 'the same day still without prices four days later is the alert exit');
+  assert.equal(np.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_NOW: '2026-11-25T16:00:00+08:00' }).status, 4, 'the same day still without prices four days later is the alert exit');
   assert.ok(!fs.existsSync(dayDir(np, 'R1', '2026-11-18')));
 });
 
@@ -191,7 +191,7 @@ test('DX6 catch-up in calendar order: every open day after D1 up to today that i
   assert.ok(!fs.existsSync(path.join(sb.drop, 'R1', 'trading_calendar.csv')), 'the R1 calendar was sealed: not exported');
   // a day that is only a day or two old and not ready yet is the normal evening state: exit 0
   const evening = sandbox({ ready: [], open: OPEN });
-  const e = evening.run(['--segment', 'R1'], { R2EXP_TODAY: '2026-11-19' });
+  const e = evening.run(['--segment', 'R1'], { R2EXP_NOW: '2026-11-19T16:00:00+08:00' });
   assert.equal(e.status, 0); assert.match(e.out, /WAITING:2026-11-18/);
   // R2: 54 open days after 2026-12-31, plus the calendar file
   const r2 = sandbox({ ready: OPEN.filter((d) => d > '2026-12-31') });
@@ -222,9 +222,8 @@ test('DX8 unit and timer: a oneshot user unit running the script for both segmen
   assert.match(svc, /^ExecStart=.*r2-day-export\.sh --segment all$/m);
   assert.match(svc, /^EnvironmentFile=.*r2-day-export\.env$/m);
   assert.match(svc, /^Environment=DOCKER_HOST=unix:\/\/\/run\/user\/%U\/docker\.sock$/m);
-  assert.match(tim, /^OnCalendar=\*-\*-\* 21:15:00 Asia\/Shanghai$/m);
-  assert.ok((tim.match(/^OnCalendar=/gm) || []).length >= 2, 'a retry slot');
-  assert.match(tim, /^Persistent=true$/m);
+  assert.deepEqual(tim.match(/^OnCalendar=.*$/gm), ['OnCalendar=Mon..Fri 08:20:00 Asia/Shanghai', 'OnCalendar=Mon..Fri 16:00:00 Asia/Shanghai', 'OnCalendar=Mon..Fri 21:40:00 Asia/Shanghai'], 'open days, in the allowed V6-window slots only (ops-coord)');
+  assert.match(tim, /^Persistent=false$/m); assert.match(tim, /^RandomizedDelaySec=0$/m);
   const env = fs.readFileSync(path.join(DIR, 'r2-day-export.env.example'), 'utf8');
   for (const k of ['R2EXP_PG_CONTAINER', 'R2EXP_PG_USER', 'R2EXP_PG_DB', 'R2EXP_DROP_ROOT']) assert.ok(env.includes(k), k);
   assert.ok(!/PASSWORD|PGPASSWORD|secret|token/i.test(env), 'no credential in the example');
@@ -243,7 +242,8 @@ test('DX10 docker is a closed exception (ops-coord, same as #122 RULING_1 D3): e
   const code0 = fs.readFileSync(SH, 'utf8').split('\n').filter((l) => !/^\s*#/.test(l)).join('\n');
   const uses = code0.match(/\bdocker\b/g) || [];
   assert.equal(uses.length, 1, 'one docker word in the code');
-  assert.match(code0, /timeout "\$\{R2EXP_TIMEOUT:-600\}" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "\$R2EXP_PG_CONTAINER" sh -c '[^']*exec psql -X -q -v ON_ERROR_STOP=1 -U "\$u" -d "\$d" "\$@"' sh "\$R2EXP_PG_USER" "\$R2EXP_PG_DB" "\$@"/);
+  assert.match(code0, /local t="\$\{R2EXP_TIMEOUT:-600\}"/, 'a time limit per call, clamped to the end of the slot');
+  assert.match(code0, /timeout "\$t" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "\$R2EXP_PG_CONTAINER" sh -c '[^']*exec psql -X -q -v ON_ERROR_STOP=1 -U "\$u" -d "\$d" "\$@"' sh "\$R2EXP_PG_USER" "\$R2EXP_PG_DB" "\$@"/);
   for (const verb of ['run', 'cp', 'rm', 'kill', 'stop', 'restart', 'pause', 'unpause', 'start', 'build', 'compose', 'volume', 'network', 'commit', 'exec -u 0', 'exec --privileged']) assert.ok(!new RegExp(`docker ${verb}\\b`).test(code0), verb);
   assert.ok(!/\bpsql\b[^\n]*\s-c\s/.test(code0.replace(/sh -c '[^']*'/g, '')), 'psql -c is not used: the SQL comes on stdin');
   assert.ok(!/DOCKER_HOST|sudo/.test(code0), 'no daemon switch, no sudo (the unit names the daemon)');
@@ -296,4 +296,49 @@ test('DX12 readiness V2: the probe row is written to READINESS.json in the day d
     assert.equal(x.status, 2, bad); assert.match(x.err, /PROBE_BAD_ROW:2026-11-19/);
     assert.deepEqual(fs.readdirSync(path.join(b.drop, 'R1')), []);
   }
+});
+
+test('DX13 point-in-time cutoff: a day is exported only when the next SSE open day after it has reached 09:00+08 (the panel counts only rows in by then); before that it waits (WAITING_CUTOFF) and --day refuses (exit 3); the next open day after 2026-12-31 is 2027-01-04; R2EXP_PIT_CUTOFF=0 switches the rule off', () => {
+  const at = (iso, o = {}) => { const sb = sandbox({ ready: ['2026-11-19'], ...o }); return { sb, run: (args, extra = {}) => sb.run(args, { R2EXP_NOW: iso, ...extra }) }; };
+  const early = at('2026-11-20T08:30:00+08:00');
+  const w = early.run(['--segment', 'R1']);
+  assert.match(w.out, /WAITING_CUTOFF:2026-11-19/); assert.ok(!fs.existsSync(dayDir(early.sb, 'R1', '2026-11-19')));
+  const refused = early.run(['--segment', 'R1', '--day', '2026-11-19']);
+  assert.equal(refused.status, 3); assert.match(refused.out, /REFUSED_BEFORE_CUTOFF:2026-11-19/);
+  assert.equal(early.sb.statements().filter((s) => s.startsWith('COPY (')).length, 0, 'no data query before the cutoff');
+  // the same time with the rule off: exported
+  const off = at('2026-11-20T08:30:00+08:00'); assert.match(off.run(['--segment', 'R1'], { R2EXP_PIT_CUTOFF: '0' }).out, /EXPORTED:2026-11-19/);
+  // after 09:00 of the next open day (here in the 15:40 slot) it is exported
+  const late = at('2026-11-20T16:00:00+08:00'); assert.match(late.run(['--segment', 'R1']).out, /EXPORTED:2026-11-19/);
+  // Friday's day waits for Monday 09:00
+  const fri = sandbox({ ready: ['2026-11-20'] });
+  assert.match(fri.run(['--segment', 'R1'], { R2EXP_NOW: '2026-11-23T08:30:00+08:00' }).out, /WAITING_CUTOFF:2026-11-20/);
+  assert.match(fri.run(['--segment', 'R1'], { R2EXP_NOW: '2026-11-23T16:00:00+08:00' }).out, /EXPORTED:2026-11-20/);
+  // the last day of R1: its next open day is 2027-01-04
+  const last = sandbox({ ready: ['2026-12-31'] });
+  assert.match(last.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-04T08:30:00+08:00' }).out, /WAITING_CUTOFF:2026-12-31/);
+  assert.match(last.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-04T16:00:00+08:00' }).out, /EXPORTED:2026-12-31/);
+  assert.match(last.run(['--segment', 'R1'], { R2EXP_NOW: '2027-01-02T10:00:00+08:00' }).out, /WAITING_CUTOFF:2026-12-31|ALREADY_EXPORTED:2026-12-31/, 'a Saturday run before Monday 09:00 does not export it');
+});
+
+test('DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it', () => {
+  const tryAt = (iso) => { const sb = sandbox({ ready: ['2026-11-18'] }); const r = sb.run(['--segment', 'R1'], { R2EXP_NOW: iso }); return { r, called: fs.existsSync(sb.dockerLog) }; };
+  // 2026-11-23 is a Monday, 2026-11-28 a Saturday, 2026-11-29 a Sunday
+  const deny = ['2026-11-23T00:15:00+08:00', '2026-11-23T01:00:00+08:00', '2026-11-23T01:14:00+08:00', '2026-11-23T05:00:00+08:00', '2026-11-23T06:30:00+08:00', '2026-11-23T07:59:00+08:00', '2026-11-23T08:10:00+08:00',
+    '2026-11-23T09:06:00+08:00', '2026-11-23T09:15:00+08:00', '2026-11-23T12:00:00+08:00', '2026-11-23T15:30:00+08:00', '2026-11-23T15:39:00+08:00', '2026-11-23T18:06:00+08:00', '2026-11-23T18:10:00+08:00',
+    '2026-11-23T19:00:00+08:00', '2026-11-23T21:30:00+08:00', '2026-11-23T21:34:00+08:00', '2026-11-25T00:11:00+08:00', '2026-11-27T01:00:00+08:00'];
+  for (const t of deny) { const x = tryAt(t); assert.equal(x.r.status, 0, t); assert.match(x.r.out, /OUTSIDE_SLOT/, t); assert.equal(x.called, false, `${t}: no docker call`); }
+  const allow = ['2026-11-23T00:00:00+08:00', '2026-11-23T00:10:00+08:00', '2026-11-23T08:20:00+08:00', '2026-11-23T09:05:00+08:00', '2026-11-23T15:40:00+08:00', '2026-11-23T16:00:00+08:00', '2026-11-23T18:05:00+08:00',
+    '2026-11-23T21:35:00+08:00', '2026-11-23T23:59:00+08:00', '2026-11-28T00:30:00+08:00', '2026-11-28T12:00:00+08:00', '2026-11-29T01:00:00+08:00', '2026-11-29T09:20:00+08:00', '2026-11-29T23:30:00+08:00'];
+  for (const t of allow) { const x = tryAt(t); assert.doesNotMatch(x.r.out, /OUTSIDE_SLOT/, t); assert.equal(x.called, true, `${t}: the job ran`); }
+  // the end of the slot: a psql call is clamped to the time left (1 second here), so a slow call is cut and the run fails closed instead of running into the V6 window
+  const slow = sandbox({ ready: ['2026-11-18'], sleep: '3' });
+  const cut = slow.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_NOW: '2026-11-23T09:04:59+08:00' });
+  assert.equal(cut.status, 2, cut.err + cut.out);
+  // at or past the end of the slot no day is started (the next slot resumes)
+  const end = sandbox({ ready: ['2026-11-18'] });
+  const e = end.run(['--segment', 'R1'], { R2EXP_NOW: '2026-11-23T09:05:30+08:00' });
+  assert.equal(e.status, 0); assert.match(e.out, /SLOT_ENDED:2026-11-18/);
+  assert.ok(!fs.existsSync(dayDir(end, 'R1', '2026-11-18')));
+  assert.equal(end.statements().filter((s) => s.startsWith('COPY (')).length, 0);
 });

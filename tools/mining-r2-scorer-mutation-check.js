@@ -152,8 +152,17 @@ const MUTANTS = [
   m('D12', 'export: R2 gets its calendar', DX, 'if [ "$seg" = R2 ]; then', 'if false; then', [T_DX]),
   m('D13', 'export: a failed probe fails closed', DX, 'echo "$seg PROBE_FAILED:$D" >&2; return 2;', 'echo "$seg PROBE_FAILED:$D" >&2; return 0;', [T_DX]),
   m('D14', 'export: a malformed probe row fails closed', DX, 'echo "$seg PROBE_BAD_ROW:$D:$ready" >&2; return 2;', 'echo "$seg PROBE_BAD_ROW:$D:$ready" >&2; return 0;', [T_DX]),
-  m('D15', 'export: every psql call has a time limit', DX, 'timeout "${R2EXP_TIMEOUT:-600}" docker exec', 'docker exec', [T_DX]),
+  m('D15', 'export: every psql call has a time limit', DX, 'timeout "$t" docker exec', 'docker exec', [T_DX]),
   m('D16', 'export: the readiness record carries ready_via', DX, '"ready_via":"%s"', '"ready_via":"POST_CLOSE_D"', [T_DX]),
+  m('D17', 'export slot: the morning slot starts 08:20', DX, '[ "$hm" -ge 820 ]  && [ "$hm" -le 905 ]', '[ "$hm" -ge 800 ]  && [ "$hm" -le 905 ]', [T_DX]),
+  m('D18', 'export slot: the night slot starts 21:35', DX, 'elif [ "$hm" -ge 2135 ]; then', 'elif [ "$hm" -ge 2100 ]; then', [T_DX]),
+  m('D19', 'export slot: the afternoon slot starts 15:40', DX, '[ "$hm" -ge 1540 ]', '[ "$hm" -ge 1500 ]', [T_DX]),
+  m('D20', 'export slot: outside a slot nothing is done', DX, 'if [ "$slot" = DENY ]; then', 'if false; then', [T_DX]),
+  m('D21', 'export slot: every psql call is clamped to the end of the slot', DX, '[ "$left" -ge "$t" ] || t=$(( left > 1 ? left : 1 ))', ':', [T_DX]),
+  m('D22', 'export slot: no day starts after the end of the slot', DX, 'if [ "$(now_epoch)" -ge "$DEADLINE" ]; then echo "$seg SLOT_ENDED:$D"; break; fi', 'if false; then echo "$seg SLOT_ENDED:$D"; break; fi', [T_DX]),
+  m('D23', 'export cutoff: the point-in-time rule is on by default', DX, 'PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-1}"', 'PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-0}"', [T_DX]),
+  m('D24', 'export cutoff: the next open day at 09:00+08', DX, 'date -d "$nx 09:00:00+08:00"', 'date -d "$nx 08:00:00+08:00"', [T_DX]),
+  m('D25', 'export slot: weekends are not restricted to the weekday slots', DX, 'if [ "$dow" -le 5 ]; then', 'if true; then', [T_DX]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }

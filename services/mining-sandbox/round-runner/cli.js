@@ -209,18 +209,19 @@ function main(argv) {
   if (hasEx !== hasExSha) throw new runner.RunnerError('MINE_RUNNER_OPTION_REQUIRED', hasEx ? '--field-exclusions-sha256' : '--field-exclusions');
   const fieldExclusions = hasEx ? { file: o['field-exclusions'], sha256: o['field-exclusions-sha256'] } : null;
   // W24：打分的执行器是受信的求值方，不受生成方的读锁约束，但每次留出段读取都领一次授权、写一行 HOLDOUT_READ（访问记录在本轮的运行目录里）
+  const requireChain = o['require-arrival-chain'] === 'true'; // run.sh always passes it: the arrival chain is verified for R1 as well
   const accessLog = require('../../independent-verifier/access-log').writer(runner.accessLogFile(outDir, o.round));
   if (cmd === 'rescore') {
     // R1.8：开启之后崩溃，恰好一次同选集重打分（原因与崩溃日志写进留出段保管的第二个事件）
     required(o, ['reason', 'crash-log']);
     const log = require('fs').readFileSync(o['crash-log'], 'utf8');
     const rr = runner.rescore({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions, accessLog, requireChain: o['require-arrival-chain'] === 'true' });
+      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions, requireChain, accessLog });
     const closedR = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
     return { command: 'rescore', round_id: o.round, rescored: rr.rescored, records: rr.records.length, passes: closedR.gmine_passes, status: closedR.status };
   }
   const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-    factorSeriesDir: o['factor-series'] || null, fieldExclusions, accessLog, requireChain: o['require-arrival-chain'] === 'true' });
+    factorSeriesDir: o['factor-series'] || null, fieldExclusions, requireChain, accessLog });
   const closed = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };
 }
