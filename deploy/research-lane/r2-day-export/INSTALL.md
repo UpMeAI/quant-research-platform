@@ -13,7 +13,7 @@ What it is: a read-only job on the V6 host that copies finished V6 trading days 
 
 ## Read-only
 
-`PGOPTIONS='-c default_transaction_read_only=on'` is set by the script for every psql call and the script refuses to run unless `SHOW default_transaction_read_only` says `on` (exit 2, `NOT_READ_ONLY`). The script text has no statement that changes the session's read-only state and sends only SELECT and `COPY (SELECT ...) TO STDOUT`. It uses V6's own existing DB account; no new role.
+`PGOPTIONS='-c default_transaction_read_only=on'` is passed into the container by the script for every psql call (`docker exec -e PGOPTIONS=...`) and the script refuses to run unless `SHOW default_transaction_read_only` says `on` (exit 2, `NOT_READ_ONLY`). The script text has no statement that changes the session's read-only state and sends only SELECT and `COPY (SELECT ...) TO STDOUT`. It uses V6's own existing DB account; no new role.
 
 ## Install
 
@@ -30,11 +30,11 @@ What it is: a read-only job on the V6 host that copies finished V6 trading days 
    ```sh
    install -d -m 0755 /srv/research-lane/rf1116-mining/holdout-daydrop/R1 /srv/research-lane/rf1116-mining/holdout-daydrop/R2
    ```
-3. Connection: copy `r2-day-export.env.example` to `~/.config/rf1116/r2-day-export.env` and fill `R2EXP_PSQL` (V6 Postgres container, V6's DB user and database). The psql command must pass `PGOPTIONS` through (`docker exec -i -e PGOPTIONS ...`). The V6 host and the lane drop directory must be the same machine (or the drop directory a mount of it); the script does not copy over the network.
+3. Connection: copy `r2-day-export.env.example` to `~/.config/rf1116/r2-day-export.env` and fill `R2EXP_PG_CONTAINER`, `R2EXP_PG_USER`, `R2EXP_PG_DB` (V6 Postgres container, V6's own DB user and database; read from the live Linux host after the cutover, not hard-coded). The unit runs as `kayla` on the same host as V6's Postgres and the lane (rootless docker, `DOCKER_HOST=unix:///run/user/%U/docker.sock` is in the unit); the script does not copy over a network and never writes under `/srv/v6-prod`. The only docker form it uses is `docker exec -i -e PGOPTIONS=... <container> sh -c '... psql ...'` (SQL on stdin, every call under `timeout`, any non-zero rc stops the run).
 4. Acceptance probe, `default_transaction_read_only`: one write in a rolled-back transaction must fail with SQLSTATE 25006 under the same command line the unit uses:
    ```sh
-   . ~/.config/rf1116/r2-day-export.env
-   PGOPTIONS='-c default_transaction_read_only=on' $R2EXP_PSQL -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -c 'BEGIN; CREATE TABLE r2exp_ro_probe (i int); ROLLBACK;'
+   set -a; . ~/.config/rf1116/r2-day-export.env; set +a
+   printf 'BEGIN; CREATE TABLE r2exp_ro_probe (i int); ROLLBACK;\n' | docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "$R2EXP_PG_CONTAINER" sh -c 'psql -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -U "$0" -d "$1" -f -' "$R2EXP_PG_USER" "$R2EXP_PG_DB"
    # expected: ERROR:  25006: cannot execute CREATE TABLE in a read-only transaction   (and nothing is created)
    ```
 5. Smoke, one real day (an R1 day whose POST_CLOSE finished):

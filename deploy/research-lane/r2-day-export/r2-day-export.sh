@@ -14,8 +14,9 @@
 #
 # Exit codes: 0 done / caught up / days still waiting for V6's POST_CLOSE; 2 psql failed or the session is not read-only; 3 a refusal (--day: not an open day of the window, not ready);
 #             4 a day has been waiting for more than 3 days (the alert: the unit fails and ops-coord looks).
-# Configuration (r2-day-export.env, see r2-day-export.env.example): R2EXP_PSQL (the psql command line incl. connection; it must pass PGOPTIONS through, e.g. "docker exec -i -e PGOPTIONS
-# <pg container> psql -U <user> -d <db>"), R2EXP_DROP_ROOT. R2EXP_TODAY (YYYY-MM-DD, CST) is for tests.
+# Configuration (r2-day-export.env, see r2-day-export.env.example): R2EXP_PG_CONTAINER, R2EXP_PG_USER, R2EXP_PG_DB (the V6 Postgres container, V6's own existing DB account and database), R2EXP_DROP_ROOT,
+# R2EXP_TIMEOUT (seconds per psql call, default 600). The only docker form is `docker exec -i -e PGOPTIONS=... <container> sh -c '... psql ...'` (ops-coord, same closed exception as #122 RULING_1 D3):
+# the SQL comes on stdin, every call runs under `timeout`, any non-zero rc stops the run (fail closed). R2EXP_TODAY (YYYY-MM-DD, CST) is for tests.
 set -euo pipefail
 export LC_ALL=C
 umask 022
@@ -35,14 +36,18 @@ case "$SEGMENT" in R1|R2|all) ;; *) echo "r2-day-export: unknown segment $SEGMEN
 
 ENV_FILE="${R2EXP_ENV_FILE:-/etc/rf1116/r2-day-export.env}"
 if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
-: "${R2EXP_PSQL:?R2EXP_PSQL (the psql command line, with the connection) is required}"
+: "${R2EXP_PG_CONTAINER:?R2EXP_PG_CONTAINER (the V6 Postgres container) is required}"
+: "${R2EXP_PG_USER:?R2EXP_PG_USER is required}"
+: "${R2EXP_PG_DB:?R2EXP_PG_DB is required}"
 DROP_ROOT="${R2EXP_DROP_ROOT:-/srv/research-lane/rf1116-mining/holdout-daydrop}"
 TODAY="${R2EXP_TODAY:-$(TZ=Asia/Shanghai date +%F)}"
 STALE_DAYS=3
 STEMS="prices_daily_stock market_daily_basic_observation_stock adjustment_factor_observation_stock security_master_stock security_suspension_observation security_suspension_day_coverage industry_membership_sw2021"
 
-# every statement goes through here: read-only session, no psqlrc, stop on the first error
-pg() { PGOPTIONS='-c default_transaction_read_only=on' $R2EXP_PSQL -X -q -v ON_ERROR_STOP=1 "$@"; }
+# every statement goes through here, SQL on stdin: read-only session (PGOPTIONS passed into the container), no psqlrc, stop on the first error, a time limit, no other docker verb
+pg() {
+  timeout "${R2EXP_TIMEOUT:-600}" docker exec -i -e PGOPTIONS='-c default_transaction_read_only=on' "$R2EXP_PG_CONTAINER" sh -c 'u="$1"; d="$2"; shift 2; exec psql -X -q -v ON_ERROR_STOP=1 -U "$u" -d "$d" "$@"' sh "$R2EXP_PG_USER" "$R2EXP_PG_DB" "$@"
+}
 addday() { date -u -d "$1 + $2 day" +%F; }
 ageof() { echo $(( ( $(date -u -d "$TODAY" +%s) - $(date -u -d "$1" +%s) ) / 86400 )); }
 # a SQL template with @DAY@ @NEXT@ @LOWER@ filled in (comment lines dropped)
@@ -51,7 +56,7 @@ render() {
   t="${t//@DAY@/${2:-}}"; t="${t//@NEXT@/${3:-}}"; t="${t//@LOWER@/${4:-}}"
   printf '%s' "$t"
 }
-copy_to() { pg -c "COPY ($(render "$@")) TO STDOUT WITH (FORMAT csv, HEADER true)"; }
+copy_to() { printf 'COPY (%s) TO STDOUT WITH (FORMAT csv, HEADER true);\n' "$(render "$@")" | pg -f -; }
 
 ro="$(printf 'SHOW default_transaction_read_only;\n' | pg -At -f -)" || { echo "r2-day-export: psql failed" >&2; exit 2; }
 [ "$ro" = on ] || { echo "NOT_READ_ONLY: the session reports default_transaction_read_only=$ro; refusing to run" >&2; exit 2; }
@@ -88,7 +93,8 @@ export_segment() {
     if [ -n "$DAY" ] && [ "$D" != "$DAY" ]; then continue; fi
     c="${D//-/}"; fin="$root/$c"; tmp="$root/.tmp-$c"
     if [ -d "$fin" ]; then echo "$seg ALREADY_EXPORTED:$D"; continue; fi
-    if [ -z "$(pg -At -v "d=$D" -f - < "$HERE/R2_DAY_EXPORT_READINESS_V1.sql")" ]; then
+    local ready; ready="$(pg -At -v "d=$D" -f - < "$HERE/R2_DAY_EXPORT_READINESS_V1.sql")" || { echo "$seg PROBE_FAILED:$D" >&2; return 2; }
+    if [ -z "$ready" ]; then
       if [ -n "$DAY" ]; then echo "$seg REFUSED_NOT_READY:$D"; return 3; fi
       echo "$seg WAITING:$D"; [ "$(ageof "$D")" -gt "$STALE_DAYS" ] && stale=1; continue
     fi
