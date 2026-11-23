@@ -127,4 +127,3 @@ test('W10 real-material spot check covers every layer-register row and every tra
   assert.deepEqual([report.drafts.total, report.drafts.pass, report.drafts.refused], [5, 1, 4]);
   assert.deepEqual(report.drafts.reasons, { PREREG_LAYER_MISSING: 4 });
 });
-
