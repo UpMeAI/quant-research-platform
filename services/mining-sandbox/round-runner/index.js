@@ -706,10 +706,10 @@ function verifyHoldoutDir(roundId, dir, opts = {}) {
  * before R2 can be; no such row (R1 not opened) -> null and the check anchors on the data's own median of days. Its record_hash goes into the check record.
  */
 function r1AnchorsOf() {
-  const r1 = new Set(rounds.roundsOf(MARKET).filter((r) => { const w = segmentResolution.windowOf(r); return w && w.segment === null && w.from === segs.SEGMENTS.HOLDOUT.from && w.to === segs.SEGMENTS.HOLDOUT.to; }).map((r) => r.round_id));
+  const r1 = rounds.roundsOf(MARKET).filter((r) => { const w = segmentResolution.windowOf(r); return w && w.segment === null && w.from === segs.SEGMENTS.HOLDOUT.from && w.to === segs.SEGMENTS.HOLDOUT.to; }).map((r) => r.round_id);
   const med = (o, key) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v && typeof v[key] === 'number' && v[key] > 0).map(([k, v]) => [k, v[key]]));
-  for (const o of require('../../../packages/ledger').read(vault.LEDGER())) {
-    if (o.schema !== 'HOLDOUT_OPEN_V1' || !r1.has(o.round_id)) continue;
+  const opens = r1.flatMap((id) => vault.openLog(id)).sort((a, b) => (a.opened_at < b.opened_at ? -1 : a.opened_at > b.opened_at ? 1 : 0));
+  for (const o of opens) {
     const hd = o.pre_open_checks && o.pre_open_checks.holdout_dir;
     if (!hd || !hd.rows_per_day || !hd.label_rows_per_day || !hd.field_states_per_day) continue;
     return { rows: med(hd.rows_per_day, 'sealed_median_names'), labels: med(hd.label_rows_per_day, 'sealed_median_names'), fields: med(hd.field_states_per_day, 'sealed_median'), open_record_hash: o.record_hash };

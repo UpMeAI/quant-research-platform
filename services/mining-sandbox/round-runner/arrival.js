@@ -25,7 +25,6 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
-const { spawnSync } = require('child_process');
 const adapter = require('../data-adapter');
 const trials = require('../../trial-ledger');
 
@@ -314,14 +313,6 @@ function pgQueries(day) {
 /** The calendar query of the spec (section 2.2), the range extended to the end of 2027. */
 const pgCalendarQuery = () => "SELECT DISTINCT ON (calendar_date, exchange) calendar_date, market, exchange, is_open, previous_open_date, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' ORDER BY calendar_date, exchange, revision DESC, first_available_at DESC";
 const psqlArgs = (sql) => ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-c', `\\copy (${sql}) TO STDOUT WITH (FORMAT csv, HEADER true)`];
-/** Runs one query through psql (connection from the standard PG* environment, a read-only role). Not exercised by the tests. */
-function psqlRunner({ psql = 'psql', env = process.env } = {}) {
-  return (sql) => {
-    const r = spawnSync(psql, psqlArgs(sql), { env, maxBuffer: 1024 * 1024 * 1024 });
-    if (r.status !== 0) fail('PSQL', `${r.status}:${String(r.stderr || '').slice(0, 200)}`);
-    return r.stdout;
-  };
-}
 /** PG_PSQL: the spec's queries per day through `run(sql) -> CSV Buffer`. No prices rows for the day = the day is not available yet. */
 function pgDaySource({ run }) {
   return {
@@ -335,4 +326,4 @@ function pgDaySource({ run }) {
   };
 }
 
-module.exports = { CHAIN_FILE, SCHEMA, TABLES, START_AFTER, ArrivalError, verifyChain, arrive, csvDayDropSource, pgQueries, pgCalendarQuery, psqlArgs, psqlRunner, pgDaySource, internals: { withFault } };
+module.exports = { CHAIN_FILE, SCHEMA, TABLES, START_AFTER, ArrivalError, verifyChain, arrive, csvDayDropSource, pgQueries, pgCalendarQuery, psqlArgs, pgDaySource, internals: { withFault } };

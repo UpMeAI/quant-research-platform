@@ -105,7 +105,8 @@ const MUTANTS = [
   m('A29', 'anchor: the check record names the R1 open row', RN, 'anchor_record_hash: anchors ? anchors.open_record_hash : null', 'anchor_record_hash: null', [T_SC]),
   m('A30', 'UNSEEN: the mark is written with the resolution row', RV, 'const marks = ensureUnseenMarks(rec, entry);', 'const marks = [];', [T_RS]),
   m('A31', 'UNSEEN: only the families of the rounds on the segment', RV, 'r.holdout && r.holdout.segment === rec.segment', 'r.holdout', [T_RS]),
-  m('A32', 'UNSEEN: once per family', RV, 'families.filter((f) => !have.some((m) => m.family_id === f))', 'families.filter(() => true)', [T_RS]),
+  m('A32', 'UNSEEN: only days nobody marked yet (a rerun and a deliberate SEEN mark are left alone)', RV, "p.source === 'UNMARKED_DEFAULT_SEEN'", 'true', [T_RS]),
+  m('A33', 'UNSEEN: the marks cover the unmarked pieces of the resolved window, not a wider range', RV, 'from: p.from, to: p.to, label', 'from: rec.window.from, to: rec.window.to, label', [T_RS]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }

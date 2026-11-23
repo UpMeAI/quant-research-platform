@@ -167,7 +167,7 @@ function main(argv) {
     required(o, ['holdout', 'driver']);
     const arrival = require('./arrival');
     let source;
-    if (o.driver === 'csv-day-drop') { required(o, ['source']); source = arrival.csvDayDropSource(o.source); } else if (o.driver === 'pg-psql') source = arrival.pgDaySource({ run: arrival.psqlRunner() });
+    if (o.driver === 'csv-day-drop') { required(o, ['source']); source = arrival.csvDayDropSource(o.source); } else if (o.driver === 'pg-psql') source = arrival.pgDaySource({ run: require('../../mining-rounds/arrival-psql').psqlRunner() });
     else throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `r2-arrive --driver ${o.driver}`);
     const rec = require('../../mining-rounds/segment-resolution').resolutionOf('R2');
     const windowEnd = rec ? rec.window.to : null;
