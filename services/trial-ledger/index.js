@@ -35,6 +35,13 @@ const SHA64 = /^[0-9a-f]{64}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const TRIAL_ID = /^TRL-[0-9a-f]{16}$/;
 
+// W05（plan-coord 裁定 11-23）：复盘交付的事实包按市场写一条 SEEN 标记，族 = MARKET:<市场>，对该市场的每一族生效；市场别名与研究机理登记同一张表。
+const MARKET_ALIAS = Object.freeze({ CN_A: 'CN_A', CN: 'CN_A', US_EQUITY: 'US_EQUITY', CRYPTO: 'CRYPTO', CRYPTO_USDM_PERP: 'CRYPTO' });
+const normalizeMarket = (market) => (typeof market === 'string' && Object.prototype.hasOwnProperty.call(MARKET_ALIAS, market) ? MARKET_ALIAS[market] : null);
+const MARKET_FAMILY_PREFIX = 'MARKET:';
+const REVIEW_PACK_REF_KIND = 'REVIEW_FACT_PACK_V1'; // source_refs 里这一类引用 = 复盘事实包（sha256）
+const isReviewPackMark = (m) => Boolean(m) && m.schema === 'DATA_SEGMENT_MARK_V1' && m.label === 'SEEN' && Array.isArray(m.source_refs) && m.source_refs.some((r) => r && r.kind === REVIEW_PACK_REF_KIND);
+
 class TrialLedgerError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
 }
@@ -296,7 +303,8 @@ function markSegments(specs, { registeredBy, registeredAt = null, dryRun = false
     need(overlay ? isText(s.shadow_ref) : s.shadow_ref == null, 'SHADOW_REF_ONLY_FOR_FORWARD_LABELS', s.label);
     need(s.supersedes == null || isText(s.defect_ref), 'SEGMENT_SUPERSEDE_NEEDS_DEFECT_REF');
     const body = {
-      schema: 'DATA_SEGMENT_MARK_V1', mark_id: `SEG-${sha256(canonicalJson({ f: s.family_id, from: s.from, to: s.to, label: s.label, shadow: s.shadow_ref || null, at: stamp })).slice(0, 16)}`,
+      // id_salt（可选）：同一族、同一区间、同一时刻写的两条标记（如 W05 的两份事实包）要有各自的 mark_id；没给时 id 与以前逐字节相同
+      schema: 'DATA_SEGMENT_MARK_V1', mark_id: `SEG-${sha256(canonicalJson({ f: s.family_id, from: s.from, to: s.to, label: s.label, shadow: s.shadow_ref || null, at: stamp, ...(s.id_salt ? { salt: s.id_salt } : {}) })).slice(0, 16)}`,
       family_id: s.family_id, market: s.market, from: s.from, to: s.to, label: s.label, seen_kind: s.seen_kind || null, shadow_ref: s.shadow_ref || null,
       reason: s.reason, source_refs: s.source_refs || [], supersedes: s.supersedes || null, defect_ref: s.defect_ref || null,
       production_effect: 'NONE', registered_by: registeredBy, registered_at: stamp,
@@ -309,15 +317,20 @@ function markSegments(specs, { registeredBy, registeredAt = null, dryRun = false
 
 /**
  * 一族在 [from, to] 上的段：底色（UNSEEN / SEEN，后写的覆盖先写的；没标的日期一律 SEEN）加前向保留（只对 shadow_ref 的候选）。
+ * W05（plan-coord 裁定 11-23）：复盘交付的事实包按市场写的 SEEN 标记（族 MARKET:<市场>，source_refs 里 kind = REVIEW_FACT_PACK_V1）对该市场的每一族生效，
+ * 并且压过族自己的标记，不管谁先写：复盘已经看过的日期不会因为之后又写了一条 UNSEEN 而变回未见。族的市场取 market 参数，没给取族自己标记上的 market。
  * @returns {{pieces: {from,to,label,seen_kind,source}[], reservations: {from,to,label,shadow_ref}[]}}
  */
-function segmentsFor(familyId, from, to, { marks: given = null } = {}) {
+function segmentsFor(familyId, from, to, { marks: given = null, market = null } = {}) {
   need(DATE.test(from || '') && DATE.test(to || '') && from <= to, 'SEGMENT_RANGE_INVALID', `${from}..${to}`);
   // given：调用方给定的标签行（机制查询按 as_of 过滤后传入，研究框架修订 2026-11-12 §4.3）；默认读本机台账
-  const marks = (given || read(SEGMENTS())).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1' && r.family_id === familyId);
+  const all = (given || read(SEGMENTS())).filter((r) => r.schema === 'DATA_SEGMENT_MARK_V1');
+  const marks = all.filter((r) => r.family_id === familyId);
+  const familyMarket = normalizeMarket(market) || (marks.map((m) => normalizeMarket(m.market)).find(Boolean) || null);
+  const reviewed = familyMarket ? all.filter((r) => isReviewPackMark(r) && normalizeMarket(r.market) === familyMarket) : [];
   const days = [];
   for (let d = from; d <= to; d = addDay(d)) days.push({ d, label: 'SEEN', seen_kind: null, source: 'UNMARKED_DEFAULT_SEEN' });
-  for (const m of marks) {
+  for (const m of [...marks.filter((x) => !isReviewPackMark(x)), ...reviewed]) {
     if (m.label !== 'SEEN' && m.label !== 'UNSEEN') continue;
     for (const day of days) if (day.d >= m.from && day.d <= m.to) Object.assign(day, { label: m.label, seen_kind: m.seen_kind, source: m.mark_id });
   }
@@ -333,8 +346,8 @@ function segmentsFor(familyId, from, to, { marks: given = null } = {}) {
 }
 
 /** 写进试验行 segments[] 的标签：底色标签去重；本试验是某影子的候选时，其保留段写成 FORWARD_RESERVED:<shadow>。 */
-function segmentLabels(familyId, from, to, { shadowRef = null, marks = null } = {}) {
-  const { pieces, reservations } = segmentsFor(familyId, from, to, { marks });
+function segmentLabels(familyId, from, to, { shadowRef = null, marks = null, market = null } = {}) {
+  const { pieces, reservations } = segmentsFor(familyId, from, to, { marks, market });
   const labels = [...new Set(pieces.map((p) => (p.seen_kind ? `${p.label}:${p.seen_kind}` : p.label)))];
   for (const r of reservations) if (r.label === 'FORWARD_RESERVED' && r.shadow_ref === shadowRef) labels.push(`FORWARD_RESERVED:${r.shadow_ref}`);
   return labels;
@@ -456,5 +469,6 @@ module.exports = {
   TRIALS, SEGMENTS, DISCLOSURES, ROLES, COUNTS_IN_N, MINED_FAMILY, MINED_GENERATORS, STAGES, BOOK_LEVEL, MODES, LABELS, SEEN_KINDS, METRIC_KEYS, TRIAL_ID, SHA64,
   TrialLedgerError, canonicalJson, ruleConfigHash, evalHash, trialIdOf, recordHash, trialRows, heads, headOf,
   register, recordResult, correct, count, countMarket, familySharpes, marketSharpes, markSegments, segmentsFor, segmentLabels, disclose, discloseNotApplicable, NOT_APPLICABLE_FIELDS, disclosures, seriesStats,
+  MARKET_ALIAS, normalizeMarket, MARKET_FAMILY_PREFIX, REVIEW_PACK_REF_KIND, isReviewPackMark, addDay, DATE_PATTERN: DATE,
   internals: { authority, need, fail, sameRegistration },
 };

@@ -10,6 +10,7 @@
  * --desk-root   不给 = QRP_DESK_ROOT，再不给 = 与 QRP 同级的 portfolio-desk；
  * --open-cases  某行的策略还没有运行态 case 时，按策略档案的事实补开（写 cases.jsonl；运行上的一步，由协调会话在主检出上做）。
  *               case 的来源路径按本检出的仓库根写，所以只在主检出 /Users/kaylame/KaylaProject/quant-research-platform 上运行。
+ * 周档（队列的 sourceWeek）是交给复盘的人工周编：导入前先往试验台账写它的 SEEN 标记（W05，每个市场一条，按周档 sha256 幂等；需要 QRP_PRODUCT_MILESTONE_AUTHORITY，没有就拒绝）。
  * 输出一行 JSON 摘要（登记、未变、拒收的行及原因码）；文件级核对不过时整份拒收，退出码 1，什么也不写。
  */
 const routing = require('../../services/desk-review-routing');
@@ -30,7 +31,10 @@ function flags(argv) {
 try {
   const f = flags(process.argv.slice(2));
   for (const key of Object.keys(f)) if (!['file', 'desk-root', 'open-cases'].includes(key)) throw new Error(`UNKNOWN_FLAG:${key}`);
-  const summary = routing.importQueue({ deskRoot: f['desk-root'], file: f.file || null, openCases: Boolean(f['open-cases']) });
+  // W05: the week file the queue was cut from is a delivered review fact pack; its SEEN mark goes into the trial ledger first (fail closed: no authority, no import)
+  const registeredBy = process.env.QRP_PRODUCT_MILESTONE_AUTHORITY;
+  if (!registeredBy) throw new Error('TRIAL_LEDGER_AUTHORITY_NOT_CONFIGURED: QRP_PRODUCT_MILESTONE_AUTHORITY is required to write the SEEN mark of the weekly compile');
+  const summary = routing.importQueue({ deskRoot: f['desk-root'], file: f.file || null, openCases: Boolean(f['open-cases']), seenMark: { registeredBy } });
   process.stdout.write(`${JSON.stringify({ ...summary, production_effect: 'NONE' })}\n`);
 } catch (error) {
   process.stderr.write(`${error.message}\n`);

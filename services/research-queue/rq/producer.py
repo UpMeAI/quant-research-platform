@@ -6,14 +6,14 @@ import os
 import pathlib
 import re
 
-from . import core, guard, templates as T
+from . import core, guard, packshape, templates as T
 
 # Only external waits that depend on facts outside the queue. There is no cost-cap wait (★RQ4).
 EXTERNAL_CODES = ("MECHANISM_REVIEW", "HOLDOUT_INCOMPLETE", "DATA_DATE", "SERIES_MISSING", "US_PIT_SOURCE", "MARKET_PAUSED",
                   "PREREG_REFUSED", "TRL_RECEIPT", "MECHANISM_ADMISSION")
 MARKET_AGENT_HOST = {"CN_A": "LINUX", "US_EQUITY": "HK", "CRYPTO": "HK"}
 CARD_KIND = "AI_REVIEW_CARD"
-FACT_PACK_SCHEMA = "REVIEW_AI_FACT_PACK_V1"
+FACT_PACK_SCHEMA = packshape.SCHEMA
 LAB_FEEDBACK_SCHEMA = "LAB_FEEDBACK_FACTS_V1"
 HK_FORBIDDEN_ARGV = ("export-crypto-desk.js", "smartflow", "127.0.0.1:3306", "localhost:3306", "mysql")
 QUOTA_PROBE_S = 6 * 3600
@@ -156,6 +156,38 @@ def card_template(registry, cfg, market):
     return found[0] if found else None
 
 
+REVISION_SKIPPED = "REVISION_OF_CARDED_WEEK"
+FREES_WEEK = ("BLOCKED_DETERMINISTIC", "CANCELLED", "GATE_FAIL")   # and every REFUSED_*: a card task in one of these never delivered its idea ids (CANCELLED is what follows BLOCKED_DETERMINISTIC); every other state holds the week
+
+
+def _frees_week(state):
+    return state in FREES_WEEK or str(state).startswith("REFUSED_")
+
+
+def _card_tasks(conn, market, week):
+    """The card tasks of a (market, week), any state: [(task_id, state, name of the pack file it was admitted from)], read from the admitted request (subject.week, subject.fact_pack_sha256, inputs)."""
+    out = []
+    for task_id, state, adm in conn.execute("select task_id, state, admission_json from task where market=? order by rowid", (market,)).fetchall():
+        try:
+            req = json.loads(adm)["request"]
+            subject, inputs = req.get("subject") or {}, req.get("inputs") or []
+            if subject.get("week") == week and "fact_pack_sha256" in subject and inputs:
+                out.append((task_id, state, pathlib.Path(inputs[0]["path"]).name))
+        except (ValueError, KeyError, TypeError, AttributeError):
+            continue
+    return out
+
+
+def _holding_card(conn, pack, name):
+    """plan-coord ruling 11-23 13:35 (M6): ONE card task per (market, weekId), the first admitted pack wins. The task id of a card task of this pack's market and week that was admitted from
+    ANOTHER pack file and is in any state that holds a week (all but BLOCKED_DETERMINISTIC, CANCELLED, GATE_FAIL, REFUSED_*), else None (the pack has its own task, or none holds the week). Re-evaluated every tick: a card that fails later frees the week."""
+    tasks = _card_tasks(conn, pack["market"], packshape.week_of(pack))
+    if any(n == name for _, _, n in tasks):
+        return None
+    live = [t for t, s, _ in tasks if not _frees_week(s)]
+    return live[0] if live else None
+
+
 def merge_lab_feedback(pack, feedbacks):
     """W24 (plan-coord ruling 11-23 (6)): add the AI Quant Research Lab's feedback facts (LAB_FEEDBACK_FACTS_V1) to a REVIEW_AI_FACT_PACK_V1, with ids of their own
     after the pack's. Only files of the pack's market; a fact already cited (same source sha256) is not added twice; deterministic order; the input is not modified."""
@@ -184,12 +216,14 @@ def _fact_pack_request(registry, cfg, path, pack):
         return None
     raw = pathlib.Path(path).read_bytes()
     return {"template_id": t["template_id"], "template_sha256": T.template_sha256(t), "market": pack["market"],
-            "subject": {"week": pack["week"], "market": pack["market"], "fact_pack_sha256": core.sha256_hex(raw),
+            "subject": {"week": packshape.week_of(pack), "market": pack["market"], "fact_pack_sha256": core.sha256_hex(raw),
                         "prompt_admission_sha256": t.get("prompt_admission_sha256")},
             "params": {}, "inputs": [{"path": str(path), "sha256": core.sha256_hex(raw)}], "depends_on": [], "priority": 50}
 
 
-def tick(conn, cfg, registry, now, probes=None):
+def tick(conn, cfg, registry, now, probes=None, seen_marker=None):
+    """seen_marker (W05, plan-coord ruling 11-23): marker(host, name, pack_bytes) returns None once the pack's SEEN mark is in the trial ledger, else an error code; a pack that cannot be marked
+    gets no card task and is retried on the next tick (out['seen_mark_failed']). None = this host has no marker configured (the Mac relay marked the pack before shipping it)."""
     probes = probes or NullProbes()
     out = {"admitted": 0, "refused": 0, "unreadable": 0, "resumed": []}
 
@@ -214,10 +248,15 @@ def tick(conn, cfg, registry, now, probes=None):
     state = _load_json(state_file) or {}
     state.setdefault("packs", {})
     state_dirty = False
+    skipped = []
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
         pack = _load_json(f)
-        if not (isinstance(pack, dict) and pack.get("schema") == FACT_PACK_SCHEMA and pack.get("week") and pack.get("market")):
+        if not (packshape.schema_ok(pack) and packshape.week_of(pack) and pack.get("market")):
             out["unreadable"] += 1
+            continue
+        held_by = _holding_card(conn, pack, f.name)
+        if held_by:  # a revision of a carded week: no second task, no lab feedback taken; the relay still ships it and W05 still marks it
+            skipped.append({"pack": f.name, "sha256": core.sha256_hex(f.read_bytes()), "week": packshape.week_of(pack), "market": pack["market"], "of_task": held_by, "reason": REVISION_SKIPPED})
             continue
         # W24 (plan-coord 11-23 (5)): a pack takes the lab feedback that exists the first time the producer sees it and keeps exactly that set. Feedback arriving later is never added to a
         # pack already seen (no second card task for an admitted week); it joins the next pack that has not been seen yet. A fact is delivered once.
@@ -235,6 +274,16 @@ def tick(conn, cfg, registry, now, probes=None):
             use = merged_dir / f.name
             use.write_text(json.dumps(merged, sort_keys=True, separators=(",", ":")))
             pack = merged
+        if seen_marker is not None:
+            data = use.read_bytes()
+            sha_ = core.sha256_hex(data)
+            if state.setdefault("seen_marked", {}).get(use.name) != sha_:  # a pack whose bytes were marked on an earlier tick is not marked again
+                code = seen_marker(cfg.host, use.name, data)
+                if code:
+                    out.setdefault("seen_mark_failed", []).append([f.name, code])
+                    continue
+                state["seen_marked"][use.name] = sha_
+                state_dirty = True
         req = _fact_pack_request(registry, cfg, use, pack)
         if req is None:
             continue
@@ -242,6 +291,10 @@ def tick(conn, cfg, registry, now, probes=None):
     if state_dirty:
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(json.dumps(state, sort_keys=True))
+    out["revision_skipped"] = len(skipped)
+    out["revision_skipped_log"] = [[s["pack"], s["reason"]] for s in skipped]
+    skip_file = cfg.state_dir / core.REVISION_SKIPPED_FILE   # what the status lists (the pack sha256 of every skipped pack); rewritten every tick so a freed week disappears
+    skip_file.write_text(json.dumps({"at": core.iso(now), "packs": skipped}, sort_keys=True))
     out["resumed"] = reevaluate_waiting(conn, cfg, now, probes)
     return out
 

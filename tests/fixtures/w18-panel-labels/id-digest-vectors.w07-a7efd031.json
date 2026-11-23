@@ -1,0 +1,106 @@
+{
+ "contract": "PICK_TRADE_PLANS_V1_SUPPLEMENT_1_FREEZE_1 sha256 01f2a819 section 2.2 ID-1 / ID-2 and test T-4; plan-level decisionCutoff per NOTE_4",
+ "how": "computed independently with python3 json.dumps(sort_keys=True, separators=(',',':'), ensure_ascii=False), evidenceRefs ordered and de-duplicated by their canonical JSON text, ruleRefs sorted and de-duplicated, sha256 over the UTF-8 bytes; every producer must reproduce planInputDigest and planId bit for bit from the unordered inputs",
+ "revision": "NOTE_4 revision: every vector's decisionCutoff was a write instant before (A-share 2026-11-05T00:20:00.000Z, US 2026-11-05T14:10:03.512Z, crypto 2026-11-05T00:00:00.000Z) and is now the latest instant of the vector's own evidence (see decisionCutoffFrom); nothing else in the inputs changed",
+ "vectors": [
+  {
+   "name": "ashare-stock-open",
+   "producer": "ASHARE_V6",
+   "market": "CN",
+   "targetSession": "2026-11-05",
+   "block": "CANDIDATE",
+   "bookKey": "STOCK_BOOK_FIVE_STAGE",
+   "securityId": "601528.SH",
+   "decisionCutoff": "2026-11-04T10:15:00.000Z",
+   "decisionCutoffFrom": "the paper-stock record's own decision_cutoff 2026-11-04T10:15:00.000Z (later than the OBSERVATION 2026-11-04T07:00:00.000Z)",
+   "ruleRefs": [
+    "STOCK_BOOK_SW_L2_NEW_ENTRY_CAP@v1",
+    "STOCK_BOOK_FIVE_STAGE@v4-portfolio-construction",
+    "STOCK_BOOK_FIVE_STAGE@v4-portfolio-construction"
+   ],
+   "evidenceRefs": [
+    {
+     "kind": "RECORD",
+     "recordId": "stock-paper-performance-point:fixture-20261104"
+    },
+    {
+     "kind": "OBSERVATION",
+     "seriesId": "601528.SH",
+     "observedAt": "2026-11-04T07:00:00.000Z",
+     "value": 10.62
+    },
+    {
+     "kind": "RECORD",
+     "recordId": "stock-paper-performance-point:fixture-20261104"
+    }
+   ],
+   "canonicalJson": "{\"block\":\"CANDIDATE\",\"bookKey\":\"STOCK_BOOK_FIVE_STAGE\",\"contract\":\"PICK_TRADE_PLANS_V1_SUPPLEMENT_1\",\"decisionCutoff\":\"2026-11-04T10:15:00.000Z\",\"evidenceRefs\":[{\"kind\":\"OBSERVATION\",\"observedAt\":\"2026-11-04T07:00:00.000Z\",\"seriesId\":\"601528.SH\",\"value\":10.62},{\"kind\":\"RECORD\",\"recordId\":\"stock-paper-performance-point:fixture-20261104\"}],\"market\":\"CN\",\"producer\":\"ASHARE_V6\",\"ruleRefs\":[\"STOCK_BOOK_FIVE_STAGE@v4-portfolio-construction\",\"STOCK_BOOK_SW_L2_NEW_ENTRY_CAP@v1\"],\"securityId\":\"601528.SH\",\"targetSession\":\"2026-11-05\"}",
+   "planInputDigest": "334bf697663cbbeaeade0765adac15e9681053d2c72b3ba651b9dc61a245ebd3",
+   "planId": "ASHARE_V6:CN:2026-11-05:CANDIDATE:STOCK_BOOK_FIVE_STAGE:601528.SH:334bf697663c"
+  },
+  {
+   "name": "us-core",
+   "producer": "SMARTFLOW_US",
+   "market": "US",
+   "targetSession": "2026-11-05",
+   "block": "CANDIDATE",
+   "bookKey": "US_CORE",
+   "securityId": "UPRO",
+   "decisionCutoff": "2026-11-04T21:00:00.000Z",
+   "decisionCutoffFrom": "the latest OBSERVATION observedAt 2026-11-04T21:00:00.000Z (the other references carry no instant)",
+   "ruleRefs": [
+    "US_CORE@v2",
+    "MR_V1@6543cae3"
+   ],
+   "evidenceRefs": [
+    {
+     "kind": "OBSERVATION",
+     "seriesId": "SPY",
+     "observedAt": "2026-11-04T21:00:00.000Z",
+     "value": 571.3
+    },
+    {
+     "kind": "RESEARCH",
+     "sealSha8": "6543cae3"
+    },
+    {
+     "kind": "BINDING",
+     "contract": "ADVICE_DAILY_V1",
+     "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
+   ],
+   "canonicalJson": "{\"block\":\"CANDIDATE\",\"bookKey\":\"US_CORE\",\"contract\":\"PICK_TRADE_PLANS_V1_SUPPLEMENT_1\",\"decisionCutoff\":\"2026-11-04T21:00:00.000Z\",\"evidenceRefs\":[{\"contract\":\"ADVICE_DAILY_V1\",\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"kind\":\"BINDING\"},{\"kind\":\"OBSERVATION\",\"observedAt\":\"2026-11-04T21:00:00.000Z\",\"seriesId\":\"SPY\",\"value\":571.3},{\"kind\":\"RESEARCH\",\"sealSha8\":\"6543cae3\"}],\"market\":\"US\",\"producer\":\"SMARTFLOW_US\",\"ruleRefs\":[\"MR_V1@6543cae3\",\"US_CORE@v2\"],\"securityId\":\"UPRO\",\"targetSession\":\"2026-11-05\"}",
+   "planInputDigest": "dac4588be46d6c2638dbfd37af5452e247d9bbeb027485e47d00bf13f31f213e",
+   "planId": "SMARTFLOW_US:US:2026-11-05:CANDIDATE:US_CORE:UPRO:dac4588be46d"
+  },
+  {
+   "name": "crypto-c17-unicode-id",
+   "producer": "SMARTFLOW_CRYPTO",
+   "market": "CRYPTO",
+   "targetSession": "2026-11-05",
+   "block": "CANDIDATE",
+   "bookKey": "C17_V2",
+   "securityId": "BTCUSDT",
+   "decisionCutoff": "2026-11-04T23:59:30.000Z",
+   "decisionCutoffFrom": "the latest OBSERVATION observedAt 2026-11-04T23:59:30.000Z (later than the scan started 2026-11-04T23:55:00Z)",
+   "ruleRefs": [
+    "C17_V2@v3"
+   ],
+   "evidenceRefs": [
+    {
+     "kind": "RECORD",
+     "recordId": "c17-scan:2026-11-04T23:55:00Z:é中"
+    },
+    {
+     "kind": "OBSERVATION",
+     "seriesId": "BTCUSDT",
+     "observedAt": "2026-11-04T23:59:30.000Z",
+     "value": 68250.5
+    }
+   ],
+   "canonicalJson": "{\"block\":\"CANDIDATE\",\"bookKey\":\"C17_V2\",\"contract\":\"PICK_TRADE_PLANS_V1_SUPPLEMENT_1\",\"decisionCutoff\":\"2026-11-04T23:59:30.000Z\",\"evidenceRefs\":[{\"kind\":\"OBSERVATION\",\"observedAt\":\"2026-11-04T23:59:30.000Z\",\"seriesId\":\"BTCUSDT\",\"value\":68250.5},{\"kind\":\"RECORD\",\"recordId\":\"c17-scan:2026-11-04T23:55:00Z:é中\"}],\"market\":\"CRYPTO\",\"producer\":\"SMARTFLOW_CRYPTO\",\"ruleRefs\":[\"C17_V2@v3\"],\"securityId\":\"BTCUSDT\",\"targetSession\":\"2026-11-05\"}",
+   "planInputDigest": "4e7fdf1a0ed28e6944c3d5cf453102aba9c5e5bead3651e7c4d6e3b33d2af0b9",
+   "planId": "SMARTFLOW_CRYPTO:CRYPTO:2026-11-05:CANDIDATE:C17_V2:BTCUSDT:4e7fdf1a0ed2"
+  }
+ ]
+}

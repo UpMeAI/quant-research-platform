@@ -1,0 +1,398 @@
+{
+  "contract": "REVIEW_LOOP_WEEK_V1",
+  "schemaVersion": 1,
+  "producer": "SYNTHETIC_TEST_FIXTURE",
+  "weekId": "2031-W07",
+  "revision": 1,
+  "generatedAt": "2031-02-17T04:00:00.000Z",
+  "routes": "SYN_ROUTES@v1",
+  "periods": {
+    "CN": {
+      "from": "2031-02-10",
+      "to": "2031-02-14",
+      "clock": "SSE_SESSIONS"
+    },
+    "US": {
+      "from": "2031-02-10",
+      "to": "2031-02-14",
+      "clock": "NYSE_SESSIONS"
+    },
+    "CRYPTO": {
+      "from": "2031-02-10",
+      "to": "2031-02-16",
+      "clock": "UTC_DAYS"
+    }
+  },
+  "findings": [
+    {
+      "findingId": "SYN-2031W07-1",
+      "triggerId": "SYN01",
+      "market": "CN",
+      "ledgerId": "SYN_LEDGER_ALPHA",
+      "fact": "Synthetic finding one (made-up text for tests): item alpha repeated on several days.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/cn_a.json",
+          "hash": "c42a8d353dc58f79459f6fb6f2697b5c1daafd89ceb6aa6de80436d223de7db0",
+          "path": "$.rows[0]"
+        },
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/cn_a.json",
+          "hash": "c42a8d353dc58f79459f6fb6f2697b5c1daafd89ceb6aa6de80436d223de7db0",
+          "path": "$.rows[1]"
+        }
+      ],
+      "disposition": "ATTACHED",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": "SYN-CN-2031W05-1"
+    },
+    {
+      "findingId": "SYN-2031W07-2",
+      "triggerId": "SYN01",
+      "market": "CN",
+      "ledgerId": "SYN_LEDGER_ALPHA",
+      "fact": "Synthetic finding two (made-up text for tests): item beta repeated on several days.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/cn_a.json",
+          "hash": "c42a8d353dc58f79459f6fb6f2697b5c1daafd89ceb6aa6de80436d223de7db0",
+          "path": "$.rows[2]"
+        }
+      ],
+      "disposition": "ATTACHED",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": "SYN-CN-2031W05-1"
+    },
+    {
+      "findingId": "SYN-2031W07-3",
+      "triggerId": "SYN02",
+      "market": "CN",
+      "ledgerId": "SYN_LEDGER_ALPHA",
+      "fact": "合成示例：这是测试用的虚构文本，与任何真实数据无关。",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/cn_b.json",
+          "hash": "2510af9fd21417fba2a2c5dade4f94f346ebd8e7304de1b6ee1cc9f4f7f7c6a7",
+          "path": "$.rows[3]"
+        }
+      ],
+      "disposition": "NO_CANDIDATE",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": null
+    },
+    {
+      "findingId": "SYN-2031W07-4",
+      "triggerId": "SYN03",
+      "market": "CN",
+      "ledgerId": "SYN_LEDGER_BETA",
+      "fact": "Synthetic finding four, revised (made-up text for tests).",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/cn_c.json",
+          "hash": "7dbff09f20743cd216c4debce5ad35762d498261df3a04021d95a55539cd6c47",
+          "path": "$.rows[4]"
+        }
+      ],
+      "disposition": "NO_CANDIDATE",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": null
+    },
+    {
+      "findingId": "SYN-2031W07-5",
+      "triggerId": "SYN01",
+      "market": "US",
+      "ledgerId": "SYN_LEDGER_GAMMA",
+      "fact": "Synthetic finding five (made-up text for tests): item gamma.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/us_a.json",
+          "hash": "49211c6a8d90078f4a7659547c532524ea0191729d2734614d4e438a710fa831",
+          "path": "$.rows[0]"
+        }
+      ],
+      "disposition": "ATTACHED",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": "SYN-US-2031W06-1"
+    },
+    {
+      "findingId": "SYN-2031W07-6",
+      "triggerId": "SYN02",
+      "market": "US",
+      "ledgerId": "SYN_LEDGER_GAMMA",
+      "fact": "Synthetic finding six (made-up text for tests): item delta.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/us_a.json",
+          "hash": "49211c6a8d90078f4a7659547c532524ea0191729d2734614d4e438a710fa831",
+          "path": "$.rows[1]"
+        }
+      ],
+      "disposition": "ATTACHED",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": "SYN-US-2031W06-2"
+    },
+    {
+      "findingId": "SYN-2031W07-7",
+      "triggerId": "SYN04",
+      "market": "US",
+      "ledgerId": "SYN_LEDGER_GAMMA",
+      "fact": "Synthetic finding seven (made-up text for tests): item epsilon.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/us_b.json",
+          "hash": "b34d21a254373b97db61afcce3c8a5f731f1fdcbf91a7d85d8f1c0eb9f415597",
+          "path": "$.rows[2]"
+        }
+      ],
+      "disposition": "NO_CANDIDATE",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": null
+    },
+    {
+      "findingId": "SYN-2031W07-8",
+      "triggerId": "SYN05",
+      "market": "US",
+      "ledgerId": "SYN_LEDGER_GAMMA",
+      "fact": "Synthetic finding eight (made-up text for tests): its evidence is a mining out file, so the desk firewall refuses it.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/mining/out/SYN_SELECTION.json",
+          "hash": "08dcc78972426397f47db2467ee89f89eb18ef5b46a7b8ea558f18f68b5e955e",
+          "path": "$.rows[0]"
+        }
+      ],
+      "disposition": "NO_CANDIDATE",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": null
+    },
+    {
+      "findingId": "SYN-2031W07-9",
+      "triggerId": "SYN01",
+      "market": "CRYPTO",
+      "ledgerId": "SYN_LEDGER_DELTA",
+      "fact": "Synthetic finding nine (made-up text for tests): item zeta.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/crypto_a.json",
+          "hash": "d01cd70c224c12e56594c13bc990426a453744bdda9b7a619461623e0f2ff7c3",
+          "path": "$.rows[0]"
+        }
+      ],
+      "disposition": "ATTACHED",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": "SYN-CRYPTO-2031W06-1"
+    },
+    {
+      "findingId": "SYN-2031W07-10",
+      "triggerId": "SYN06",
+      "market": "CRYPTO",
+      "ledgerId": "SYN_LEDGER_DELTA",
+      "fact": "Synthetic finding ten (made-up text for tests): item eta.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/crypto_b.json",
+          "hash": "e393478b18750818f0459be7a0254229569c5579a38d4ac4f6d44da202181a05",
+          "path": "$.rows[1]"
+        }
+      ],
+      "disposition": "NO_CANDIDATE",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": null
+    },
+    {
+      "findingId": "SYN-2031W07-11",
+      "triggerId": "SYN06",
+      "market": "CRYPTO",
+      "ledgerId": "SYN_LEDGER_DELTA",
+      "fact": "Synthetic finding eleven (made-up text for tests): item theta.",
+      "evidence": [
+        {
+          "contract": "SYNTHETIC_EVIDENCE_V1",
+          "file": "synthetic/evidence/crypto_b.json",
+          "hash": "e393478b18750818f0459be7a0254229569c5579a38d4ac4f6d44da202181a05",
+          "path": "$.rows[2]"
+        }
+      ],
+      "disposition": "NO_CANDIDATE",
+      "reasonCode": "SYN_REASON",
+      "route": "SYN_ROUTE_A",
+      "candidateId": null
+    }
+  ],
+  "candidates": [
+    {
+      "candidateId": "SYN-CN-2031W05-1",
+      "market": "CN",
+      "type": "SYN_TYPE_A",
+      "ledgerId": "SYN_LEDGER_ALPHA",
+      "state": "SYN_OPEN",
+      "ruleRef": [],
+      "effect": {
+        "state": "NOT_MEASURED",
+        "reasonCode": "SYN_NOT_MEASURED",
+        "unit": "SYN_UNIT",
+        "value": null
+      },
+      "sample": {
+        "n": 3,
+        "unit": "EVENTS",
+        "floor": 1,
+        "state": "AT_OR_ABOVE_FLOOR"
+      },
+      "recurrence": {
+        "firstWeek": "2031-W05",
+        "weeksSeen": 3
+      },
+      "findings": [
+        {
+          "findingId": "SYN-2031W07-1"
+        },
+        {
+          "findingId": "SYN-2031W07-2"
+        }
+      ]
+    },
+    {
+      "candidateId": "SYN-CN-2031W03-2",
+      "market": "CN",
+      "type": "SYN_TYPE_B",
+      "ledgerId": "SYN_LEDGER_BETA",
+      "state": "SYN_OPEN",
+      "ruleRef": [],
+      "effect": {
+        "state": "NOT_MEASURED",
+        "reasonCode": "SYN_NOT_MEASURED",
+        "unit": "SYN_UNIT",
+        "value": null
+      },
+      "sample": {
+        "n": 4,
+        "unit": "EVENTS",
+        "floor": 1,
+        "state": "AT_OR_ABOVE_FLOOR"
+      },
+      "recurrence": {
+        "firstWeek": "2031-W03",
+        "weeksSeen": 4
+      },
+      "findings": []
+    },
+    {
+      "candidateId": "SYN-US-2031W06-1",
+      "market": "US",
+      "type": "SYN_TYPE_A",
+      "ledgerId": "SYN_LEDGER_GAMMA",
+      "state": "SYN_OPEN",
+      "ruleRef": [],
+      "effect": {
+        "state": "NOT_MEASURED",
+        "reasonCode": "SYN_NOT_MEASURED",
+        "unit": "SYN_UNIT",
+        "value": null
+      },
+      "sample": {
+        "n": 2,
+        "unit": "EVENTS",
+        "floor": 1,
+        "state": "AT_OR_ABOVE_FLOOR"
+      },
+      "recurrence": {
+        "firstWeek": "2031-W06",
+        "weeksSeen": 2
+      },
+      "findings": [
+        {
+          "findingId": "SYN-2031W07-5"
+        }
+      ]
+    },
+    {
+      "candidateId": "SYN-US-2031W06-2",
+      "market": "US",
+      "type": "SYN_TYPE_C",
+      "ledgerId": "SYN_LEDGER_GAMMA",
+      "state": "SYN_OPEN",
+      "ruleRef": [],
+      "effect": {
+        "state": "NOT_MEASURED",
+        "reasonCode": "SYN_NOT_MEASURED",
+        "unit": "SYN_UNIT",
+        "value": null
+      },
+      "sample": {
+        "n": 2,
+        "unit": "EVENTS",
+        "floor": 1,
+        "state": "AT_OR_ABOVE_FLOOR"
+      },
+      "recurrence": {
+        "firstWeek": "2031-W06",
+        "weeksSeen": 2
+      },
+      "findings": [
+        {
+          "findingId": "SYN-2031W07-6"
+        }
+      ]
+    },
+    {
+      "candidateId": "SYN-CRYPTO-2031W06-1",
+      "market": "CRYPTO",
+      "type": "SYN_TYPE_A",
+      "ledgerId": "SYN_LEDGER_DELTA",
+      "state": "SYN_OPEN",
+      "ruleRef": [],
+      "effect": {
+        "state": "NOT_MEASURED",
+        "reasonCode": "SYN_NOT_MEASURED",
+        "unit": "SYN_UNIT",
+        "value": null
+      },
+      "sample": {
+        "n": 2,
+        "unit": "EVENTS",
+        "floor": 1,
+        "state": "AT_OR_ABOVE_FLOOR"
+      },
+      "recurrence": {
+        "firstWeek": "2031-W06",
+        "weeksSeen": 2
+      },
+      "findings": [
+        {
+          "findingId": "SYN-2031W07-9"
+        }
+      ]
+    }
+  ],
+  "overdue": [],
+  "ownerDecisions": [],
+  "register": [],
+  "researchReturns": [],
+  "triageDecisions": [],
+  "interpretation": "SYNTHETIC_TEST_FIXTURE_NOT_REAL_DATA",
+  "realOrder": 0,
+  "brokerWrite": false,
+  "hash": "28a1b18caee4a83b9b4d764fb8b924fc64e6500c09d670d106933fb336914c27"
+}
