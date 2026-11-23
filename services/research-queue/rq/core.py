@@ -50,6 +50,7 @@ TRANSITIONS = {
     "SAFETY_STOP": ("READY", "CANCELLED"),
 }
 TERMINAL = ("COMPLETE", "REFUSED_ADMISSION", "CANCELLED")
+REVISION_SKIPPED_FILE = "revision-skipped.json"   # state_dir: the fact packs the producer skipped as revisions of a carded week (producer.tick writes, status reads)
 SETTABLE = {"not_before", "lease_expires_at", "heartbeat_at", "lease_owner", "lease_token", "priority"}
 
 

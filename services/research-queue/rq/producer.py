@@ -156,6 +156,38 @@ def card_template(registry, cfg, market):
     return found[0] if found else None
 
 
+REVISION_SKIPPED = "REVISION_OF_CARDED_WEEK"
+TERMINAL_FAILURE = ("BLOCKED_DETERMINISTIC", "FAILED")   # and every REFUSED_*: a card task in one of these never delivered its idea ids
+
+
+def _is_failure(state):
+    return state in TERMINAL_FAILURE or str(state).startswith("REFUSED_")
+
+
+def _card_tasks(conn, market, week):
+    """The card tasks of a (market, week), any state: [(task_id, state, name of the pack file it was admitted from)], read from the admitted request (subject.week, subject.fact_pack_sha256, inputs)."""
+    out = []
+    for task_id, state, adm in conn.execute("select task_id, state, admission_json from task where market=? order by rowid", (market,)).fetchall():
+        try:
+            req = json.loads(adm)["request"]
+            subject, inputs = req.get("subject") or {}, req.get("inputs") or []
+            if subject.get("week") == week and "fact_pack_sha256" in subject and inputs:
+                out.append((task_id, state, pathlib.Path(inputs[0]["path"]).name))
+        except (ValueError, KeyError, TypeError, AttributeError):
+            continue
+    return out
+
+
+def _holding_card(conn, pack, name):
+    """plan-coord ruling 11-23 13:35 (M6): ONE card task per (market, weekId), the first admitted pack wins. The task id of a card task of this pack's market and week that was admitted from
+    ANOTHER pack file and is in any state but a terminal failure, else None (the pack has its own task, or none holds the week). Re-evaluated every tick: a card that fails later frees the week."""
+    tasks = _card_tasks(conn, pack["market"], packshape.week_of(pack))
+    if any(n == name for _, _, n in tasks):
+        return None
+    live = [t for t, s, _ in tasks if not _is_failure(s)]
+    return live[0] if live else None
+
+
 def merge_lab_feedback(pack, feedbacks):
     """W24 (plan-coord ruling 11-23 (6)): add the AI Quant Research Lab's feedback facts (LAB_FEEDBACK_FACTS_V1) to a REVIEW_AI_FACT_PACK_V1, with ids of their own
     after the pack's. Only files of the pack's market; a fact already cited (same source sha256) is not added twice; deterministic order; the input is not modified."""
@@ -214,10 +246,15 @@ def tick(conn, cfg, registry, now, probes=None):
     state = _load_json(state_file) or {}
     state.setdefault("packs", {})
     state_dirty = False
+    skipped = []
     for f in sorted(d.glob("*.json")) if d.is_dir() else []:
         pack = _load_json(f)
         if not (packshape.schema_ok(pack) and packshape.week_of(pack) and pack.get("market")):
             out["unreadable"] += 1
+            continue
+        held_by = _holding_card(conn, pack, f.name)
+        if held_by:  # a revision of a carded week: no second task, no lab feedback taken; the relay still ships it and W05 still marks it
+            skipped.append({"pack": f.name, "sha256": core.sha256_hex(f.read_bytes()), "week": packshape.week_of(pack), "market": pack["market"], "of_task": held_by, "reason": REVISION_SKIPPED})
             continue
         # W24 (plan-coord 11-23 (5)): a pack takes the lab feedback that exists the first time the producer sees it and keeps exactly that set. Feedback arriving later is never added to a
         # pack already seen (no second card task for an admitted week); it joins the next pack that has not been seen yet. A fact is delivered once.
@@ -242,6 +279,10 @@ def tick(conn, cfg, registry, now, probes=None):
     if state_dirty:
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(json.dumps(state, sort_keys=True))
+    out["revision_skipped"] = len(skipped)
+    out["revision_skipped_log"] = [[s["pack"], s["reason"]] for s in skipped]
+    skip_file = cfg.state_dir / core.REVISION_SKIPPED_FILE   # what the status lists (the pack sha256 of every skipped pack); rewritten every tick so a freed week disappears
+    skip_file.write_text(json.dumps({"at": core.iso(now), "packs": skipped}, sort_keys=True))
     out["resumed"] = reevaluate_waiting(conn, cfg, now, probes)
     return out
 
