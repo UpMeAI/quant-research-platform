@@ -239,12 +239,47 @@ function selector(cells) {
 }
 
 /**
- * @param {{sources: object[], space: object, segment: 'MINING'|'VALIDATION'|'HOLDOUT', from: string, to: string,
- *          calendarExchange?: string, minListedSessions?: number, industry?: {standard, level}}} o
+ * 交易日历的读法（buildPanel 与 openDaysOf 共用，一处定义）：每个 (日期, 交易所) 取入库最晚的、同刻取修订号大的；只认 READY 的行；
+ * calMax = 本交易所日历行的最后一个日期；rows = 读过的日历行数（含被质量过滤掉的）。
  */
-function buildPanel({ sources, space, segment, from, to, calendarExchange = CALENDAR_EXCHANGE, minListedSessions = MIN_LISTED_SESSIONS, industry = INDUSTRY } = {}) {
-  const seg = Object.prototype.hasOwnProperty.call(segs.SEGMENTS, segment) ? segs.SEGMENTS[segment] : null;
-  if (!seg) fail('SEGMENT_UNKNOWN', segment);
+function readCalendarRows(sources, calendarExchange) {
+  const calRows = new Map(); let calMax = ''; let rows = 0;
+  for (const s of sources) {
+    if (!s.has('calendar')) continue;
+    s.forEach('calendar', (r) => {
+      rows += 1;
+      if (!ACCEPTED_QUALITY.includes(r.quality_state === undefined ? 'READY' : r.quality_state)) return;
+      const ex = Object.prototype.hasOwnProperty.call(r, 'exchange') ? r.exchange : r.market;
+      const at = parseTs(r.first_available_at); const rev = r.revision === undefined || r.revision === null ? 0 : Number(r.revision);
+      const key = `${r.calendar_date}|${ex}`; const cur = calRows.get(key);
+      if (!cur || at > cur.at || (at === cur.at && rev >= cur.rev)) calRows.set(key, { date: r.calendar_date, ex, at, rev, open: r.is_open === 't' || r.is_open === 'true' });
+      if (ex === calendarExchange && r.calendar_date > calMax) calMax = r.calendar_date;
+    });
+  }
+  return { calRows, calMax, rows };
+}
+
+/** 一组源里 calendarExchange（SSE）的开市日（升序），与 buildPanel 读到的日历是同一份读法；供留出段终点的解析程序用（RF1116 第二段）。 */
+function openDaysOf(sources, { calendarExchange = CALENDAR_EXCHANGE } = {}) {
+  if (!Array.isArray(sources) || !sources.length) fail('SOURCES_MISSING');
+  const { calRows, calMax, rows } = readCalendarRows(sources, calendarExchange);
+  const days = [...calRows.values()].filter((v) => v.ex === calendarExchange && v.open).map((v) => v.date).sort();
+  return { exchange: calendarExchange, days, last_date: calMax, rows };
+}
+
+/**
+ * @param {{sources: object[], space: object, segment: 'MINING'|'VALIDATION'|'HOLDOUT', from: string, to: string,
+ *          calendarExchange?: string, minListedSessions?: number, industry?: {standard, level},
+ *          holdoutWindow?: {from: string, to: string}}} o   holdoutWindow（只给 HOLDOUT 面板）：这一轮留出段的窗口；不给就是 segments.js 的 HOLDOUT（R1）
+ */
+function buildPanel({ sources, space, segment, from, to, calendarExchange = CALENDAR_EXCHANGE, minListedSessions = MIN_LISTED_SESSIONS, industry = INDUSTRY, holdoutWindow } = {}) {
+  const seg0 = Object.prototype.hasOwnProperty.call(segs.SEGMENTS, segment) ? segs.SEGMENTS[segment] : null;
+  if (!seg0) fail('SEGMENT_UNKNOWN', segment);
+  if (holdoutWindow !== undefined) {
+    if (segment !== 'HOLDOUT') fail('HOLDOUT_WINDOW_OUTSIDE_HOLDOUT', segment);
+    if (!(holdoutWindow && typeof holdoutWindow.from === 'string' && typeof holdoutWindow.to === 'string' && holdoutWindow.from <= holdoutWindow.to)) fail('HOLDOUT_WINDOW_INVALID', JSON.stringify(holdoutWindow));
+  }
+  const seg = holdoutWindow !== undefined ? holdoutWindow : seg0;
   if (!(typeof from === 'string' && typeof to === 'string' && from <= to)) fail('RANGE_INVALID', `${from}..${to}`);
   const lo = segment === 'MINING' ? seg.from : segs.SEGMENTS.MINING.from;
   if (from < lo || to > seg.to) fail('SEGMENT_RANGE', `${segment}:${from}..${to} outside ${lo}..${seg.to}`);
@@ -254,18 +289,7 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
 
   // 交易日历（导出规格 rev 3）：交易所取 exchange 列，没有这一列（旧写法）才看 market；每个 (日期, 交易所) 取入库最晚的、同刻取修订号大的；
   // 开市日只认 calendarExchange（SSE）；SSE 与 SZSE 的 is_open 不一致的日子列进 manifest.calendar（不顶替、不静默）
-  const calRows = new Map(); let calMax = '';
-  for (const s of sources) {
-    if (!s.has('calendar')) continue;
-    s.forEach('calendar', (r) => {
-      if (!ACCEPTED_QUALITY.includes(r.quality_state === undefined ? 'READY' : r.quality_state)) return;
-      const ex = Object.prototype.hasOwnProperty.call(r, 'exchange') ? r.exchange : r.market;
-      const at = parseTs(r.first_available_at); const rev = r.revision === undefined || r.revision === null ? 0 : Number(r.revision);
-      const key = `${r.calendar_date}|${ex}`; const cur = calRows.get(key);
-      if (!cur || at > cur.at || (at === cur.at && rev >= cur.rev)) calRows.set(key, { date: r.calendar_date, ex, at, rev, open: r.is_open === 't' || r.is_open === 'true' });
-      if (ex === calendarExchange && r.calendar_date > calMax) calMax = r.calendar_date;
-    });
-  }
+  const { calRows, calMax } = readCalendarRows(sources, calendarExchange);
   const byExchange = (ex) => new Map([...calRows.values()].filter((v) => v.ex === ex).map((v) => [v.date, v.open]));
   const sse = byExchange(calendarExchange); const other = byExchange(calendarExchange === 'SSE' ? 'SZSE' : 'SSE');
   const disagreements = [...sse.entries()].filter(([d, o]) => other.has(d) && other.get(d) !== o).map(([d]) => d).sort();
@@ -462,6 +486,6 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
 
 module.exports = {
   FILES, MODES, ACCEPTED_QUALITY, ACCEPTED_INDUSTRY_QUALITY, CLOCKS, MIN_LISTED_SESSIONS, INDUSTRY, CALENDAR_EXCHANGE, READINGS, BASIC_FIELDS, DataError,
-  csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, liveCutoffs, laterRevision, USABLE_BASIC_STATES, LIVE_CUTOFF,
+  csvDirSource, loadSource, usableFrom, assertUsable, buildPanel, openDaysOf, liveCutoffs, laterRevision, USABLE_BASIC_STATES, LIVE_CUTOFF,
   internals: { forEachCsvRow, parseTs, clockOf, mapReadings, stateValue },
 };

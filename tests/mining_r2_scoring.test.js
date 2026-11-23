@@ -98,14 +98,14 @@ test('RC2 deferred seal: the R2 directory (pending line sealed, data appended) p
   const r2 = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 3 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: d.sealSha });
   forgeResolution();
-  const c = runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5 });
+  const c = runner.verifyHoldoutDir(r2.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() });
   assert.deepEqual([c.trade_dates.from, c.trade_dates.to], ['2026-10-16', '2026-12-30']);
   const sealedDays = JSON.stringify(c).match(/"sealed_days":(\d+)/g);
   assert.ok(sealedDays && sealedDays.length > 0 && sealedDays.every((x) => x === '"sealed_days":0'), 'nothing was sealed with rows');
   freshData();
   const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1', sha256: sha('r1'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...WINDOW }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
   vault.seal({ round_id: r1.round_id, segment: { ...WINDOW }, data_ref: 'synthetic', data_sha256: d.sealSha, sealedBy: 'TEST' });
-  assert.throws(() => runner.verifyHoldoutDir(r1.round_id, d.dir, { minNamesPerDay: 5 }), code(/MINE_RUNNER_HOLDOUT_SEALED_DAYS_EMPTY/), 'R1 is unchanged');
+  assert.throws(() => runner.verifyHoldoutDir(r1.round_id, d.dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_SEALED_DAYS_EMPTY/), 'R1 is unchanged');
 });
 
 test('RC3 deferred seal still checks everything else: a file edited after the listing, an unlisted csv, the pending line removed or edited, a missing calendar day', () => {
@@ -115,7 +115,7 @@ test('RC3 deferred seal still checks everything else: a file edited after the li
   runner.sealHoldout({ roundId: r2.round_id, dataRef: R2REF, dataSha256: base.sealSha });
   forgeResolution();
   const copy = () => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2dir-var-')); for (const n of fs.readdirSync(base.dir)) fs.copyFileSync(path.join(base.dir, n), path.join(dir, n)); return dir; };
-  const check = (dir) => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5 });
+  const check = (dir) => runner.verifyHoldoutDir(r2.round_id, dir, { minNamesPerDay: 5, priorSources: sources() });
   const edited = copy(); fs.appendFileSync(path.join(edited, 'prices_daily_stock.csv'), '\n'); assert.throws(() => check(edited), code(/MINE_RUNNER_HOLDOUT_FILE_SHA_MISMATCH/));
   const unlisted = copy(); fs.writeFileSync(path.join(unlisted, 'extra.csv'), 'x'); assert.throws(() => check(unlisted), code(/MINE_RUNNER_HOLDOUT_FILE_UNLISTED/));
   const noPending = copy(); fs.writeFileSync(path.join(noPending, 'SHA256SUMS'), fs.readFileSync(path.join(noPending, 'SHA256SUMS'), 'utf8').split('\n').slice(1).join('\n'));
@@ -127,7 +127,7 @@ test('RC3 deferred seal still checks everything else: a file edited after the li
   const late = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 4 }, cap: 2, openedAt: '2026-12-01T20:50:00+08:00' });
   runner.sealHoldout({ roundId: late.round_id, dataRef: R2REF, dataSha256: base.sealSha });
   forgeResolution({ from: '2026-10-19', to: '2027-03-18' });
-  assert.throws(() => runner.verifyHoldoutDir(late.round_id, base.dir, { minNamesPerDay: 5 }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
+  assert.throws(() => runner.verifyHoldoutDir(late.round_id, base.dir, { minNamesPerDay: 5, priorSources: sources() }), code(/MINE_RUNNER_HOLDOUT_INCOMPLETE/));
 });
 
 test('RC4 not-before and dataset label: a read is allowed from 2027-01-01 or the day after the resolved end, whichever is later; the access-log dataset names the segment', () => {
@@ -147,7 +147,7 @@ test('RC5 panel builder and scorer take the window as a parameter and are unchan
   assert.equal(JSON.stringify(same.manifest), JSON.stringify(dflt.manifest), 'an explicit window equal to R1 is the default, byte for byte');
   assert.throws(() => adapter.buildPanel({ sources: all, space: SPACE, segment: 'HOLDOUT', from: '2023-01-03', to: '2027-01-15' }), /SEGMENT_RANGE/);
   assert.throws(() => adapter.buildPanel({ sources: all, space: SPACE, segment: 'HOLDOUT', from: '2023-01-03', to: '2027-01-15', holdoutWindow: { from: '2027-01-04', to: '2027-01-15' } }), /CALENDAR_RANGE/);
-  assert.throws(() => adapter.buildPanel({ sources: all, space: SPACE, segment: 'VALIDATION', from: '2023-01-03', to: '2026-10-16', holdoutWindow: { from: '2027-01-04', to: '2027-01-15' } }), /SEGMENT_RANGE|HOLDOUT_SOURCE/, 'the window parameter is for the holdout panel only');
+  assert.throws(() => adapter.buildPanel({ sources: all, space: SPACE, segment: 'VALIDATION', from: '2023-01-03', to: '2026-10-16', holdoutWindow: { from: '2027-01-04', to: '2027-01-15' } }), /HOLDOUT_WINDOW_OUTSIDE_HOLDOUT/, 'the window parameter is for the holdout panel only');
   assert.deepEqual(holdoutScoring.holdoutDays(dflt), holdoutScoring.holdoutDays(dflt, { ...WINDOW }));
   const shorter = holdoutScoring.holdoutDays(dflt, { from: '2026-12-01', to: '2026-12-31' });
   assert.ok(shorter.length > 0 && shorter.length < holdoutScoring.holdoutDays(dflt).length);
@@ -156,22 +156,39 @@ test('RC5 panel builder and scorer take the window as a parameter and are unchan
 });
 
 test('RC6 CLI: resolve-segment is a command; score and rescore accept --prior-live (the R1 directory as ordinary history); the option is rejected elsewhere', () => {
-  const cli = require('../services/mining-sandbox/round-runner/cli');
+  const CLI = path.join(__dirname, '..', 'services/mining-sandbox/round-runner/cli.js');
+  // the runner insists that the ledger directory is inside its output directory (production: --out /out, QRP_DATA_DIR=/out/qrp-data)
+  const outOf = () => fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2cli-out-'));
+  const callIn = (outDir, args) => require('child_process').spawnSync(process.execPath, [CLI, ...args], { env: { ...require('./_clean_env')(), QRP_DATA_DIR: path.join(outDir, 'qrp-data'), QRP_PRODUCT_MILESTONE_AUTHORITY: AUTH }, encoding: 'utf8' });
+  const call = (args) => callIn(out, args);
+  const cli = { OPTIONS: require('../services/mining-sandbox/round-runner/cli').OPTIONS };
   assert.ok(cli.OPTIONS['resolve-segment'] && cli.OPTIONS['resolve-segment'].includes('segment') && cli.OPTIONS['resolve-segment'].includes('holdout'));
   for (const c of ['score', 'rescore']) assert.ok(cli.OPTIONS[c].includes('prior-live'), c);
   assert.ok(!cli.OPTIONS.generate.includes('prior-live'));
-  freshData();
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2cli-out-'));
+  const out = outOf();
   const calDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2cli-'));
   const days = []; for (let d = '2026-12-21'; d <= '2027-04-30'; d = new Date(Date.parse(`${d}T00:00:00Z`) + 864e5).toISOString().slice(0, 10)) { const w = new Date(`${d}T00:00:00Z`).getUTCDay(); days.push([d, w !== 0 && w !== 6 && d !== '2027-01-01']); }
   const lines = ['calendar_date,market,exchange,is_open,previous_open_date,first_available_at,ingested_at,source_record_id,revision,schema_version,quality_state'];
   for (const [d, open] of days) for (const ex of ['SSE', 'SZSE']) lines.push(`${d},A_SHARE,${ex},${open ? 't' : 'f'},,2026-12-15 08:00:00+08,2026-12-15 08:00:00+08,cal:${d}:${ex},1,synthetic-v1,READY`);
   const bytes = `${lines.join('\n')}\n`; fs.writeFileSync(path.join(calDir, 'trading_calendar.csv'), bytes); fs.writeFileSync(path.join(calDir, 'SHA256SUMS'), `${sha(bytes)}  trading_calendar.csv\n`);
-  const o = cli.main(['resolve-segment', '--out', path.join(out, 'run'), '--segment', 'R2', '--holdout', calDir]);
+  const run1 = call(['resolve-segment', '--out', out, '--segment', 'R2', '--holdout', calDir]);
+  assert.equal(run1.status, 0, run1.stderr);
+  const o = JSON.parse(run1.stdout);
   assert.deepEqual([o.command, o.status, o.created, o.segment], ['resolve-segment', 'RESOLVED', true, 'R2']);
   assert.equal(o.window.from, '2027-01-04');
-  assert.equal(cli.main(['resolve-segment', '--out', path.join(out, 'run'), '--segment', 'R2', '--holdout', calDir]).created, false);
-  assert.throws(() => cli.main(['generate', '--prior-live', calDir]), /MINE_RUNNER_OPTION_UNKNOWN/);
+  const run2 = call(['resolve-segment', '--out', out, '--segment', 'R2', '--holdout', calDir]);
+  assert.equal(run2.status, 0, run2.stderr);
+  assert.equal(JSON.parse(run2.stdout).created, false);
+  const bad = call(['generate', '--prior-live', calDir]);
+  assert.equal(bad.status, 2);
+  assert.equal(JSON.parse(bad.stderr).error, 'MINE_RUNNER_OPTION_UNKNOWN');
+  // a calendar that lists too few days: NOT_READY, exit 0, nothing recorded for a fresh ledger
+  const out2 = outOf(); const thin = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2cli-thin-'));
+  const thinBytes = `${lines.slice(0, 1 + 2 * 30).join('\n')}\n`; fs.writeFileSync(path.join(thin, 'trading_calendar.csv'), thinBytes); fs.writeFileSync(path.join(thin, 'SHA256SUMS'), `${sha(thinBytes)}  trading_calendar.csv\n`);
+  const nr = callIn(out2, ['resolve-segment', '--out', out2, '--segment', 'R2', '--holdout', thin]);
+  assert.equal(nr.status, 0, nr.stderr);
+  assert.equal(JSON.parse(nr.stdout).status, 'NOT_READY');
+  assert.equal(fs.existsSync(path.join(out2, 'qrp-data', 'research', 'holdout_segment_resolutions.jsonl')), false, 'nothing recorded');
 });
 
 test('RC7 run.sh: resolve-segment and seal-init-r2 are commands; score for R2 mounts the R1 directory read-only as --prior-live; R1 lines are unchanged', () => {

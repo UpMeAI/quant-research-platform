@@ -36,11 +36,12 @@ const adapter = require('../data-adapter');
 const OPTIONS = Object.freeze({
   generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day', 'llm-poll-ms', 'llm-wait-seconds'],
   'llm-init': ['out'],
-  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256'],
+  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256'],
   mechanisms: ['out', 'round', 'register'],
   review: ['out', 'round', 'file'],
-  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256'],
+  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256'],
   'fail-evaluation': ['out', 'round', 'reason', 'evidence-sha256', 'failed-at'],
+  'resolve-segment': ['out', 'segment', 'holdout', 'resolved-at'],
 });
 
 function parseArgs(argv) {
@@ -56,7 +57,10 @@ function parseArgs(argv) {
   return { cmd, o };
 }
 
-const sourcesOf = (o) => [adapter.loadSource({ dir: o.lane, mode: 'HISTORY', label: 'lane', adapter: o['lane-adapter'] || null }), adapter.csvDirSource(o.tail, { mode: 'LIVE', label: 'tail' })];
+// --prior-live (score, rescore): the directory of an EARLIER holdout segment whose holdout has been scored (R1 for an R2 round) as ordinary LIVE history: the feed day before the
+// window's first decision day and the lookbacks live there. Not a holdout source (the segment's own data is the --holdout directory).
+const sourcesOf = (o) => [adapter.loadSource({ dir: o.lane, mode: 'HISTORY', label: 'lane', adapter: o['lane-adapter'] || null }), adapter.csvDirSource(o.tail, { mode: 'LIVE', label: 'tail' }),
+  ...(o['prior-live'] ? [adapter.csvDirSource(o['prior-live'], { mode: 'LIVE', label: 'prior-live' })] : [])];
 const required = (o, keys) => { for (const k of keys) if (!o[k]) throw new runner.RunnerError('MINE_RUNNER_OPTION_REQUIRED', `--${k}`); };
 
 function main(argv) {
@@ -155,6 +159,15 @@ function main(argv) {
     const row = require('../../mining-rounds').failEvaluation(o.round, { reason: o.reason, evidenceSha256: o['evidence-sha256'], failedAt: o['failed-at'] || null });
     return { command: 'fail-evaluation', round_id: o.round, status: row.status, gmine_passes: row.gmine_passes, evidence_sha256: row.gmine_basis.failed_evaluation.evidence_sha256,
       attempts: row.gmine_basis.failed_evaluation.attempts, record_hash: row.record_hash, closed_at: row.closed_at };
+  }
+  if (cmd === 'resolve-segment') {
+    // RF1116 第二段修订：从留出段目录的上交所日历解出这一段的窗口，写一行解析记录（读了哪份日历、数出哪些日子）；日历还没列够 → status NOT_READY，什么都不写，退出码 0（定时器再来）
+    required(o, ['out', 'segment', 'holdout']);
+    runner.start({ outDir: o.out });
+    const r = runner.resolveSegment({ segmentId: o.segment, dir: o.holdout, resolvedBy: registeredBy || 'round-runner', resolvedAt: o['resolved-at'] || null });
+    return r.status === 'RESOLVED'
+      ? { command: 'resolve-segment', status: r.status, created: r.created, segment: r.segment, window: r.window, record_hash: r.record.record_hash, resolved_at: r.record.resolved_at }
+      : { command: 'resolve-segment', status: r.status, segment: r.segment, reason: r.reason, calendar_last_date: r.calendar_last_date };
   }
   required(o, ['out', 'round', 'lane', 'tail', 'holdout']);
   const { outDir } = runner.start({ outDir: o.out });
