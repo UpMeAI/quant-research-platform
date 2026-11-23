@@ -1,0 +1,110 @@
+{
+  "schema": "MINING_LEGACY_KEY_MUTATION_RESULTS_V1",
+  "baseline": "GREEN",
+  "mutants": 7,
+  "killed": 7,
+  "survived": [],
+  "bad": [],
+  "heads": [
+    "8796fc2"
+  ],
+  "results": [
+    {
+      "id": "K01",
+      "guard": "the key may be absent only for the listed rounds (matched by round_id)",
+      "file": "schemas/index.js",
+      "tests": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "L1 validateRecord: the key may be absent for rounds 1 and 2 only; round 3, any other id and every other missing field stay MISSING",
+        "L3 every other round without the key is still refused (round 3 and a new id): new rows MISSING, neutralizationOf fails closed",
+        "L4 a new round always carries the key (openRound writes it); no data on a row can make a round \"legacy\""
+      ],
+      "head": "8796fc2"
+    },
+    {
+      "id": "K02",
+      "guard": "the legacy check is applied (absent stays MISSING otherwise)",
+      "file": "schemas/index.js",
+      "tests": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "L1 validateRecord: the key may be absent for rounds 1 and 2 only; round 3, any other id and every other missing field stay MISSING",
+        "L2 a legacy round (no key in its row) can take every kind of new row: candidates, selection, scoring, close; the key stays absent and the version is still LINEAR_RAW_V1"
+      ],
+      "head": "8796fc2"
+    },
+    {
+      "id": "K03",
+      "guard": "the list holds exactly rounds 1 and 2",
+      "file": "schemas/index.js",
+      "tests": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "L0 the legacy list is a frozen constant (rounds 1 and 2), one list for the validator and for neutralizationOf",
+        "L1 validateRecord: the key may be absent for rounds 1 and 2 only; round 3, any other id and every other missing field stay MISSING",
+        "L3 every other round without the key is still refused (round 3 and a new id): new rows MISSING, neutralizationOf fails closed",
+        "L4 a new round always carries the key (openRound writes it); no data on a row can make a round \"legacy\""
+      ],
+      "head": "8796fc2"
+    },
+    {
+      "id": "K04",
+      "guard": "the list is frozen",
+      "file": "schemas/index.js",
+      "tests": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "L0 the legacy list is a frozen constant (rounds 1 and 2), one list for the validator and for neutralizationOf"
+      ],
+      "head": "8796fc2"
+    },
+    {
+      "id": "K06",
+      "guard": "the legacy table is for this field only (no general optionality)",
+      "file": "schemas/index.js",
+      "tests": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "L1 validateRecord: the key may be absent for rounds 1 and 2 only; round 3, any other id and every other missing field stay MISSING"
+      ],
+      "head": "8796fc2"
+    },
+    {
+      "id": "K07",
+      "guard": "neutralizationOf uses the same list as the validator",
+      "file": "services/mining-rounds/neutralization.js",
+      "tests": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "L0 the legacy list is a frozen constant (rounds 1 and 2), one list for the validator and for neutralizationOf"
+      ],
+      "head": "8796fc2"
+    },
+    {
+      "id": "K08",
+      "guard": "LEGACY_ABSENT_FIELDS is exported",
+      "file": "schemas/index.js",
+      "tests": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "tests/mining_legacy_round_rows.test.js"
+      ],
+      "head": "8796fc2"
+    }
+  ]
+}

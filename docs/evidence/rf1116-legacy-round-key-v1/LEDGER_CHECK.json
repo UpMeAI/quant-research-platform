@@ -2,7 +2,7 @@
 "read_at": "2026-11-23T12:40:15+08:00",
 "source": "lane1 /srv/research-lane/rf1116-mining/out/qrp-data/research/mining_rounds.jsonl (read-only copy via lx cat)",
 "mining_rounds_jsonl_sha256": "edb3666a461f89e0835c0d0132071feb1341693a04447ff75e88030fce24e801",
-"code_head": "afc534f",
+"code_head": "afc534f (tests since: L5 only)",
 "script": "ledger_check.js (beginScoring on the COPY; before this change round 2 gave MINE_ROUND_SCHEMA_INVALID:MISSING:scoring_neutralization)",
 "results": [
 {"round_id":"MR-CN_A-2026-11-2a1d2c9c82","status_before":"CAP_REACHED","key_before":false,"result":"beginScoring OK (on the copy)","status_after":"SCORING","key_after":false,"neutralization":"LINEAR_RAW_V1"},{"round_id":"MR-CN_A-2026-11-a6cb823f86","status_before":"CAP_REACHED","key_before":true,"result":"beginScoring OK (on the copy)","status_after":"SCORING","key_after":true,"neutralization":"RANK_GAUSS_V2"}
