@@ -1,8 +1,8 @@
 {
-"read_at": "2026-11-23T12:23:40+08:00 (CST)",
+"read_at": "2026-11-23T12:34:11+08:00",
 "source": "lane1 /srv/research-lane/rf1116-mining/out/qrp-data/research/ (read-only copy via lx cat)",
 "sha256": {"mining_rounds.jsonl": "edb3666a461f89e0835c0d0132071feb1341693a04447ff75e88030fce24e801", "mining_selections.jsonl": "df6f72d6b62d43f68d5b8c1b0c2cfa507f587d29e37b20118662a40421860cbb", "holdout_vault.jsonl": "be375c2e5ec96bc011de0d492ef5e54be8c4fcdab4becea37fc7ec70f370d4e9"},
-"code_head": "365fa14",
+"code_head": "64fab65",
 "scripts": ["ledger_check.js", "legacy_row_write_check.js"],
 "ledger_check": [
  {
@@ -32,7 +32,8 @@
      "to": "2026-12-31"
     }
    }
-  ]
+  ],
+  "unclosed": 2
  },
  {
   "label": "A November round, registry selects (2026-11-24 10:00 CST)",
@@ -40,20 +41,12 @@
   "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:R1"
  },
  {
-  "label": "B December round 1, registry selects (2026-12-01 20:50 CST)",
-  "result": "REFUSED",
-  "code": "MINE_ROUND_ALREADY_OPEN:CN_A:2"
- },
- {
-  "label": "C December round, explicit R1 window (the legacy path)",
+  "label": "B December round, explicit R1 window (the legacy path; refused as before)",
   "result": "REFUSED",
   "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:2026-10-19..2026-12-31"
  },
  {
-  "label": "copy only: rounds 2 and 3 closed"
- },
- {
-  "label": "D December round 1, registry selects",
+  "label": "C December round 1, registry selects (2026-12-01 20:50 CST); two November rounds unclosed",
   "result": "OPENED",
   "round_id": "MR-CN_A-2026-12-cc1b59cce6",
   "month": "2026-12",
@@ -67,7 +60,7 @@
   }
  },
  {
-  "label": "E December round 2, registry selects",
+  "label": "D December round 2, registry selects (2026-12-02 20:50 CST)",
   "result": "OPENED",
   "round_id": "MR-CN_A-2026-12-1547aab5b9",
   "month": "2026-12",
@@ -81,14 +74,23 @@
   }
  },
  {
-  "label": "F December round 3, registry selects",
+  "label": "unclosed rounds now",
+  "unclosed": 4
+ },
+ {
+  "label": "E December round 3, registry selects (R2 is full)",
   "result": "REFUSED",
   "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:R2"
  },
  {
-  "label": "G January round on a full R2, registry selects",
+  "label": "F January round on a full R2, registry selects",
   "result": "REFUSED",
   "code": "MINE_ROUND_HOLDOUT_EXHAUSTED:R2"
+ },
+ {
+  "label": "G December round with an explicit R1 window after registry rows exist",
+  "result": "REFUSED",
+  "code": "MINE_ROUND_HOLDOUT_SEGMENT_UNSELECTABLE:CN_A: explicit window after registry segments"
  }
 ]
 ,
