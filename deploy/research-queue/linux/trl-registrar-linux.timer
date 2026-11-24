@@ -5,7 +5,7 @@ Description=Register queued TRL requests every minute
 OnCalendar=*-*-* *:*:00 Asia/Shanghai
 Persistent=true
 RandomizedDelaySec=5
-Unit=trl-registrar.service
+Unit=trl-registrar-linux.service
 
 [Install]
 WantedBy=timers.target

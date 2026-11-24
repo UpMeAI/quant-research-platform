@@ -139,8 +139,8 @@ class RegistrarAcceptance(unittest.TestCase):
         self.assertFalse((self.receipt_dir / f"{self.sha}.json").exists())
 
     def test_unit_and_env_contract(self):
-        service = (HERE / "trl-registrar.service").read_text()
-        timer = (HERE / "trl-registrar.timer").read_text()
+        service = (HERE / "trl-registrar-linux.service").read_text()
+        timer = (HERE / "trl-registrar-linux.timer").read_text()
         env = (HERE / "trl-registrar-env.example").read_text()
         for needle in ("EnvironmentFile=", "Nice=10", "IOSchedulingClass=idle", "CPUAffinity=0-7 16-23", "OnFailure=", "/usr/bin/flock", "trl-registrar-run.py"):
             self.assertIn(needle, service)

@@ -144,8 +144,8 @@ class RelayAcceptance(unittest.TestCase):
             self.assertNotIn(forbidden, joined)
 
     def test_unit_and_env_contract(self):
-        service = (HERE / "relay.service").read_text()
-        timer = (HERE / "relay.timer").read_text()
+        service = (HERE / "relay-linux.service").read_text()
+        timer = (HERE / "relay-linux.timer").read_text()
         env = (HERE / "relay-env.example").read_text()
         for needle in ("EnvironmentFile=", "Nice=10", "IOSchedulingClass=idle", "CPUAffinity=0-7 16-23", "OnFailure=", "/usr/bin/flock", "relay-run.py"):
             self.assertIn(needle, service)
