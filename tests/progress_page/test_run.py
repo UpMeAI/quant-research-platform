@@ -1,4 +1,5 @@
 import datetime as dt
+import fcntl
 import json
 import pathlib
 import sys
@@ -47,6 +48,15 @@ class RunTest(unittest.TestCase):
         self.assertNotIn("EnvironmentFile=", service)
         self.assertIn("OnCalendar=*-*-* *:07,37:00 Asia/Shanghai", timer)
         self.assertIn("Persistent=false", timer)
+
+    def test_held_flock_does_nothing(self):
+        state = self.root / "state"
+        state.mkdir()
+        with (state / "run.lock").open("a+") as lock:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            rc = run.run_once(self.cfg, now=NOW, build_fn=lambda c, n: self.registry, render_fn=lambda r: "<html>safe</html>", publish_fn=lambda *a, **k: {"state": "DISABLED"})
+        self.assertEqual(0, rc)
+        self.assertFalse((self.root / "out").exists())
 
 
 if __name__ == "__main__":

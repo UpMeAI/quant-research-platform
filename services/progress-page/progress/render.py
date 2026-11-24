@@ -41,6 +41,16 @@ def _render_plan(data):
 def _render_data(row):
     data = row.get("data")
     if data is None:
+        if row.get("key") == "S8_NOT_IN_SCOPE":
+            items = (
+                ("HK 研究队列状态", "现有 HK 告警与 #133 research-web 导出"),
+                ("T3 影子 S 周任务（HK）", "现有 HK 告警与 #133 research-web 导出"),
+                ("U11 前向采集（HK）", "现有 HK 告警与 #133 research-web 导出"),
+                ("V6 每日运行", "现有 alert-checks 飞书告警"),
+                ("C3 FWD 前向车道", "现有 HK 告警"),
+                ("试验台账 N", "QRP trial-ledger"),
+            )
+            return "<ul>" + "".join(f"<li>{_e(name)}：NOT_APPLICABLE / NOT_IN_V1_SCOPE；{_e(where)}</li>" for name, where in items) + "</ul>"
         return ""
     if row.get("key") == "S7_PLAN_SNAPSHOT":
         body = _render_plan(data)

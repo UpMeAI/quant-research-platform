@@ -6,7 +6,7 @@ OnFailure=ops-notify@%n.service
 [Service]
 Type=oneshot
 Environment=PYTHONPATH=/srv/research-lane/progress-page/code/current/services/progress-page
-ExecStart=/usr/bin/flock -n /srv/research-lane/progress-page/state/run.lock /usr/bin/python3 -I -B -m progress run --config /home/kayla/.config/progress-page/progress.json
+ExecStart=/usr/bin/flock -n /srv/research-lane/progress-page/state/run.lock /usr/bin/python3 -B -m progress run --lock-held --config /home/kayla/.config/progress-page/progress.json
 TimeoutStartSec=300
 Nice=19
 IOSchedulingClass=idle

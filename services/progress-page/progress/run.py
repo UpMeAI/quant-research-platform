@@ -63,7 +63,7 @@ def _status(state_dir, now, rc, reg=None, upload=None):
 
 
 def run_once(config_path, *, now=None, build_fn=registry.build, render_fn=render.render,
-             publish_fn=publish.publish):
+             publish_fn=publish.publish, lock_held=False):
     now = now or dt.datetime.now().astimezone()
     try:
         cfg = config.load(config_path)
@@ -76,10 +76,11 @@ def run_once(config_path, *, now=None, build_fn=registry.build, render_fn=render
     state_dir.mkdir(parents=True, exist_ok=True)
     lock_handle = (state_dir / "run.lock").open("a+")
     try:
-        try:
-            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return 0
+        if not lock_held:
+            try:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return 0
         try:
             reg = build_fn(cfg, now)
             html = render_fn(reg)

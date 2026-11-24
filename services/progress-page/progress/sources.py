@@ -139,6 +139,8 @@ def read_s1(spec, cfg, now):
     jobs, metas, states = [], [], []
     for job in spec.get("jobs", []):
         try:
+            if Path(str(job.get("status_path", ""))).suffix != ".json":
+                raise SourceError("PATH_FORBIDDEN", {"path": str(job.get("status_path")), "owner_program": job.get("name"), "sha256": None, "bytes": None, "mtime": None})
             value, meta, _ = read_json(job.get("status_path"), cfg, job.get("name"))
             metas.append(meta)
             as_of = value.get("lastOkAt")
@@ -368,9 +370,17 @@ def read_s9(spec, cfg, now):
             if fed.get("rowClass") == "NEW":
                 def field_value(name): return (fed.get(name) or {}).get("value")
                 new_rows.append({"id": item.get("id") or item.get("key"), "verdict": field_value("verdict"), "status": field_value("status"), "sealedOn": field_value("sealedOn")})
+        by_market = {}
+        allowed_market_counts = ("done", "forward", "running", "todo", "blocked", "total")
+        for market, raw_counts in (((table.get("marketCounts") or {}).get("byMarket") or {}).items()):
+            if isinstance(raw_counts, dict):
+                by_market[str(market)] = {
+                    name: raw_counts.get(name) for name in allowed_market_counts
+                    if isinstance(raw_counts.get(name), (int, float)) and not isinstance(raw_counts.get(name), bool)
+                }
         data = {
             "revision": table.get("revision"), "asOf": table.get("asOf"),
-            "marketCounts": {"byMarket": ((table.get("marketCounts") or {}).get("byMarket") or {})},
+            "marketCounts": {"byMarket": by_market},
             "ledgerOverlay": {
                 "evaluatedOn": (table.get("ledgerOverlay") or {}).get("evaluatedOn"),
                 "frozenRev": (table.get("ledgerOverlay") or {}).get("frozenRev"),
@@ -383,6 +393,7 @@ def read_s9(spec, cfg, now):
         if not fed_seen:
             state, reason = "ZERO", None
             data["machine_rows"] = "NOT_YET_GENERATED"
+            data["note_zh"] = "机器版尚未生成"
         return section(key, title, state, reason, [table_meta, status_meta], data, status.get("ran_at"), max_age, due, age)
     except SourceError as exc:
         return _due_missing(exc, due, now, key=key, title=title, max_age_h=max_age)

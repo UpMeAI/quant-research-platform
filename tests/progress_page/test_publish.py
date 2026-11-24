@@ -79,6 +79,22 @@ class PublishTest(unittest.TestCase):
         result = publish(self.site, self.cfg, self.state, runner=lambda *a, **k: Result(), opener=None, now=NOW)
         self.assertEqual("TOKEN_FILE_MODE", result["reason"])
 
+    def test_unchanged_content_respects_two_hour_interval(self):
+        calls = []
+        runner = lambda *a, **k: (calls.append(a) or Result())
+        opener = lambda *a, **k: Response(302, url="https://x.cloudflareaccess.com/")
+        self.assertEqual("UPLOADED", publish(self.site, self.cfg, self.state, runner=runner, opener=opener, now=NOW)["state"])
+        one_hour = NOW + dt.timedelta(hours=1)
+        self.assertEqual("SKIPPED_UNCHANGED", publish(self.site, self.cfg, self.state, runner=runner, opener=opener, now=one_hour)["state"])
+        three_hours = NOW + dt.timedelta(hours=3)
+        self.assertEqual("UPLOADED", publish(self.site, self.cfg, self.state, runner=runner, opener=opener, now=three_hours)["state"])
+        self.assertEqual(2, len(calls))
+
+    def test_runner_failure_is_sanitized(self):
+        result = publish(self.site, self.cfg, self.state, runner=lambda *a, **k: Result(23), opener=None, now=NOW)
+        self.assertEqual(("FAILED", 23, "WRANGLER_FAILED"), (result["state"], result["rc"], result["reason"]))
+        self.assertNotIn("STUB_SECRET_VALUE", repr(result))
+
 
 if __name__ == "__main__":
     unittest.main()
