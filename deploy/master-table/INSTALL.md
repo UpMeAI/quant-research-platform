@@ -19,7 +19,8 @@ its exact SHA-256 and accepted the #159 PR. Codex does not run these commands.
    start one service run, and verify the live/rev bytes and `run_status.json`.
 6. Only then run `systemctl --user enable master-table.timer` followed by
    `systemctl --user start master-table.timer`. Verify the next trigger is at
-   `:17` and the service has no network or secret environment.
+   `:17`; verify the service has no secret environment and enforces offline
+   operation with `RestrictAddressFamilies=AF_UNIX` and `IPAddressDeny=any`.
 
 Rollback disables and stops the timer, restores the prior immutable config
 directory, and leaves already-written 0444 revisions untouched for audit.
