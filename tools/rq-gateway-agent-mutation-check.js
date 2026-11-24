@@ -277,10 +277,11 @@ function main(argv) {
   const head = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
   const dirty = execFileSync('git', ['status', '--porcelain', '--', ...new Set(MUTANTS.map((x) => x.file))], { cwd: ROOT, encoding: 'utf8' }).trim();
   if (dirty) { process.stderr.write(`refusing to run: uncommitted changes in mutated files:\n${dirty}\n`); return 2; }
-  const files = [...new Set(MUTANTS.flatMap((x) => x.tests))];
+  const selected = MUTANTS.filter((x) => !only || only.has(x.id));
+  const files = [...new Set(selected.flatMap((x) => x.tests))];
   for (const f of files) { const b = runOne(f); if (b.status !== 0) { process.stderr.write(`baseline is not green: ${f} ${JSON.stringify(b.failing)}\n`); return 2; } }
   const results = [];
-  for (const mu of MUTANTS.filter((x) => !only || only.has(x.id))) {
+  for (const mu of selected) {
     const abs = path.join(ROOT, mu.file);
     const original = fs.readFileSync(abs, 'utf8');
     const count = original.split(mu.find).length - 1;
