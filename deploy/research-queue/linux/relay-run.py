@@ -215,9 +215,7 @@ def guard_qrp_var(config, is_writable=None, expected_paths=None):
     finally:
         if authority_fd is not None:
             os.close(authority_fd)
-    marker, _ = _read_regular_nofollow(config["authority_marker"], 4096, "QRP_VAR_AUTHORITY_MISSING")
-    if not marker:
-        _fail("QRP_VAR_AUTHORITY_MISSING")
+    _read_regular_nofollow(config["authority_marker"], 4096, "QRP_VAR_AUTHORITY_MISSING")
     writable = is_writable or (lambda p: os.access(str(p), os.W_OK))
     if not writable(authority):
         _fail("QRP_VAR_AUTHORITY_NOT_WRITABLE")
