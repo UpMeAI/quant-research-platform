@@ -1,5 +1,7 @@
+import configparser
 import importlib.util
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -20,19 +22,21 @@ import tunnel
 import web_run
 
 
-SHA = "a" * 64
+SHA = "a" * 40
 DESK_SHA = "d" * 40
 
 
 class FakeFacts:
     def __init__(self, *, writable=False, token_mode=0o600, desk_head=DESK_SHA,
-                 desk_clean=True, mirror_valid=True, binary_sha=None):
+                 desk_clean=True, mirror_valid=True, binary_sha=None,
+                 runtime_valid=True):
         self.writable = writable
         self.token_mode = token_mode
         self.desk_head = desk_head
         self.desk_clean = desk_clean
         self.mirror_valid = mirror_valid
         self.binary_sha = binary_sha or ("b" * 64)
+        self.runtime_valid = runtime_valid
         self.guard_calls = []
         self.reads = []
 
@@ -56,6 +60,9 @@ class FakeFacts:
 
     def binary_sha256(self, path):
         return self.binary_sha
+
+    def runtime_directory_ready(self, path):
+        return self.runtime_valid
 
     def token_metadata(self, path):
         return {"mode": self.token_mode, "regular": True, "symlink": False}
@@ -95,6 +102,27 @@ def base_env(mode="POST_SWITCH"):
 
 
 class AuthorityTest(unittest.TestCase):
+    def test_real_git_checkout_uses_one_40_hex_commit_authority(self):
+        with tempfile.TemporaryDirectory() as folder:
+            repo = pathlib.Path(folder) / "repo"
+            repo.mkdir()
+            for argv in (
+                ["git", "init", "-q", str(repo)],
+                ["git", "-C", str(repo), "config", "user.name", "q133-test"],
+                ["git", "-C", str(repo), "config", "user.email", "q133@example.invalid"],
+            ):
+                self.assertEqual(0, subprocess.run(argv, capture_output=True).returncode)
+            (repo / "tracked.txt").write_text("pinned\n")
+            self.assertEqual(0, subprocess.run(
+                ["git", "-C", str(repo), "add", "tracked.txt"], capture_output=True).returncode)
+            self.assertEqual(0, subprocess.run(
+                ["git", "-C", str(repo), "commit", "-q", "-m", "pin"], capture_output=True).returncode)
+            facts = authority.ProductionFacts()
+            head = facts.git_head(repo)
+            self.assertRegex(head, authority.GIT_COMMIT)
+            self.assertEqual(40, len(head))
+            self.assertTrue(authority.checkout_matches(repo, head, facts=facts))
+
     def test_post_switch_delegates_to_package_137_exactly(self):
         facts = FakeFacts()
         config = authority.validate(base_env(), facts=facts)
@@ -162,6 +190,28 @@ class AuthorityTest(unittest.TestCase):
 
 
 class TunnelTest(unittest.TestCase):
+    def test_runtime_directory_real_lifecycle_and_run_gate(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = pathlib.Path(folder) / "qrp-research-web"
+            runtime.mkdir(mode=0o700)
+            os.chmod(runtime, 0o700)
+            facts = tunnel.ProductionFacts()
+            self.assertTrue(facts.runtime_directory_ready(runtime))
+            runtime.rmdir()
+            self.assertFalse(facts.runtime_directory_ready(runtime))
+
+        env = {
+            "QRP_WEB_EDGE": "ON",
+            "QRP_CLOUDFLARED_BIN": "/srv/research-lane/tools/cloudflared-2026.11.1/cloudflared",
+            "QRP_CLOUDFLARED_VERSION": "2026.11.1",
+            "QRP_CLOUDFLARED_SHA256": "b" * 64,
+            "QRP_CLOUDFLARED_TOKEN_FILE": tunnel.TOKEN_FILE,
+            "QRP_TUNNEL_PID_FILE": tunnel.PID_FILE,
+            "QRP_TUNNEL_STATUS": tunnel.STATUS_FILE,
+        }
+        with self.assertRaisesRegex(tunnel.TunnelError, "QRP_TUNNEL_RUNTIME_DIR_INVALID"):
+            tunnel.run(env, check=True, facts=FakeFacts(runtime_valid=False))
+
     def test_edge_is_off_by_default(self):
         with self.assertRaisesRegex(tunnel.TunnelError, "QRP_EDGE_DISABLED"):
             tunnel.command({"QRP_WEB_EDGE": "OFF"}, facts=FakeFacts())
@@ -314,6 +364,14 @@ class IsolatedLaunchTest(unittest.TestCase):
 
 
 class DeliveryTest(unittest.TestCase):
+    def test_tunnel_unit_parses_and_produces_the_pid_parent(self):
+        unit = (DEPLOY / "ops-qrp-tunnel.service").read_text()
+        parser = configparser.ConfigParser(interpolation=None, strict=True)
+        parser.read_string(unit)
+        self.assertEqual("qrp-research-web", parser.get("Service", "RuntimeDirectory"))
+        self.assertEqual("0700", parser.get("Service", "RuntimeDirectoryMode"))
+        self.assertEqual("/run/user/1000/qrp-research-web/cloudflared.pid", tunnel.PID_FILE)
+
     def test_units_are_loopback_pinned_and_inert(self):
         web = (DEPLOY / "ops-qrp-research-web.service").read_text()
         edge = (DEPLOY / "ops-qrp-tunnel.service").read_text()
