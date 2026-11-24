@@ -13,7 +13,7 @@ const { canonicalJson, sha256, isObj, scrubSecrets } = require('./canon');
 const { checkPack, splitPackByRow, codeCounts } = require('./facts');
 const { validateCheckReport } = require('./check-report');
 const { validateCard } = require('./card');
-const { checkNotePack, validateNoteOutput } = require('./mech-note');
+const { checkNotePack, checkMechanismRegister, validateNoteOutput } = require('./mech-note');
 const { checkReviewPack, validateReviewOutput } = require('./mech-review');
 const { buildIdeaRecords, packSha } = require('./factor-idea');
 const { routeIdea, assertAgentHost, preregProposal, err } = require('./routing');
@@ -145,7 +145,15 @@ async function runAgentTask(taskRow, bundle, opts) {
     const isNote = task.kind === 'AI_MECH_NOTE';
     const pc = isNote ? checkNotePack(pack) : checkReviewPack(pack);
     if (pc.errors.length) return blocked(pc.errors[0].code, pc.errors[0].detail || pc.errors[0].path);
-    const validate = (raw) => isNote ? validateNoteOutput(raw, pack) : validateReviewOutput(raw, pack);
+    let registerAuthority = null;
+    if (isNote) {
+      let registerBytes = null;
+      try { registerBytes = typeof opts.loadMechanismRegister === 'function' ? opts.loadMechanismRegister() : null; } catch (e) { return blocked('MECH_REGISTER_UNAVAILABLE'); }
+      const rc = checkMechanismRegister(registerBytes, pack.pins.register_sha256);
+      if (!rc.ok) return blocked(rc.errors[0].code);
+      registerAuthority = rc;
+    }
+    const validate = (raw) => isNote ? validateNoteOutput(raw, pack, registerAuthority) : validateReviewOutput(raw, pack);
     const r = await askUntilValid({ client: opts.client, task, system, admission: adm.system_sha256, user: JSON.stringify(pack), validate, kindLabel: task.kind, ctx });
     if (!r.ok) return result(r.outcome);
     const key = isNote ? 'mechanism_notes' : 'mechanism_review';

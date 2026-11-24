@@ -1,6 +1,6 @@
 'use strict';
 /** RF1116 post-round mechanism-note pack and output validators. Pure: no file, clock, model or network access. */
-const { isObj, SECRET_SHAPED } = require('./canon');
+const { isObj, sha256, SECRET_SHAPED } = require('./canon');
 const { estimateTokens, numericTokens } = require('./facts');
 const lexicon = require('./lexicon');
 
@@ -51,7 +51,20 @@ function checkNotePack(pack) {
   return { ok: errors.length === 0, errors };
 }
 
-function validateNoteOutput(raw, pack) {
+/** Parse the complete pinned register from authoritative raw bytes without exposing it to the model input. */
+function checkMechanismRegister(registerBytes, expectedSha256) {
+  const fail = (code) => ({ ok: false, errors: [{ code }], registeredText: null });
+  if (!(Buffer.isBuffer(registerBytes) || typeof registerBytes === 'string')) return fail('MECH_REGISTER_UNAVAILABLE');
+  const bytes = Buffer.isBuffer(registerBytes) ? registerBytes : Buffer.from(registerBytes, 'utf8');
+  if (sha256(bytes) !== expectedSha256) return fail('MECH_REGISTER_SHA_MISMATCH');
+  let register;
+  try { register = JSON.parse(bytes.toString('utf8')); } catch (e) { return fail('MECH_REGISTER_INVALID'); }
+  if (!isObj(register) || register.contract !== 'QRP_RESEARCH_MECHANISM_REGISTER_V1' || !Array.isArray(register.mechanisms)
+    || register.mechanisms.some((m) => !isObj(m) || typeof m.title_zh !== 'string' || typeof m.description_zh !== 'string')) return fail('MECH_REGISTER_INVALID');
+  return { ok: true, errors: [], registeredText: new Set(register.mechanisms.flatMap((m) => [m.title_zh, m.description_zh])) };
+}
+
+function validateNoteOutput(raw, pack, authority) {
   const errors = [];
   const add = (code, path, detail) => errors.push({ code, path, detail });
   let out = raw;
@@ -64,7 +77,8 @@ function validateNoteOutput(raw, pack) {
   const got = out.notes.map((n) => n && n.candidate_id);
   if (got.length !== candidates.size || new Set(got).size !== got.length || got.some((id) => !candidates.has(id)) || [...candidates.keys()].some((id) => !got.includes(id))) add('MECH_NOTE_CANDIDATE_SET');
   const mechanismIds = new Set((pack.mechanisms || []).map((m) => m.mechanism_id));
-  const registeredText = new Set((pack.mechanisms || []).flatMap((m) => [m.title_zh, m.description_zh]));
+  const registeredText = authority && authority.registeredText instanceof Set ? authority.registeredText : null;
+  if (!registeredText) add('MECH_REGISTER_UNAVAILABLE');
   out.notes.forEach((n, i) => {
     const p = `notes[${i}]`;
     if (!sameKeys(n, NOTE_KEYS) || !OUTCOMES.includes(n.outcome)) { add('MECH_NOTE_SCHEMA', p); return; }
@@ -82,7 +96,7 @@ function validateNoteOutput(raw, pack) {
       if (n.mechanism_id !== null || n.economic_logic_zh !== null || n.failure_mode_zh !== null || !Array.isArray(n.fields_cited) || n.fields_cited.length || n.no_mechanism_code !== null
         || !sameKeys(n.proposal, PROPOSAL_KEYS) || typeof n.proposal.title_zh !== 'string' || n.proposal.title_zh.length < 1 || n.proposal.title_zh.length > 30
         || typeof n.proposal.description_zh !== 'string' || n.proposal.description_zh.length < 1 || n.proposal.description_zh.length > 120) add('MECH_NOTE_SCHEMA', p);
-      if (isObj(n.proposal) && (registeredText.has(n.proposal.title_zh) || registeredText.has(n.proposal.description_zh))) add('MECH_NOTE_PROPOSAL_DUPLICATES_REGISTERED', p);
+      if (isObj(n.proposal) && registeredText && (registeredText.has(n.proposal.title_zh) || registeredText.has(n.proposal.description_zh))) add('MECH_NOTE_PROPOSAL_DUPLICATES_REGISTERED', p);
     }
     const texts = [n.economic_logic_zh, n.failure_mode_zh, n.proposal && n.proposal.title_zh, n.proposal && n.proposal.description_zh].filter((x) => typeof x === 'string');
     if (texts.some((t) => lexicon.findWording(t, ['PREDICTION', 'VERDICT', 'DIRECTION']).length)) add('MECH_NOTE_WORDING', p);
@@ -94,4 +108,4 @@ function validateNoteOutput(raw, pack) {
   return { ok: unique.length === 0, errors: unique, output: unique.length === 0 ? out : null };
 }
 
-module.exports = { MAX_PACK_TOKENS, checkNotePack, validateNoteOutput };
+module.exports = { MAX_PACK_TOKENS, checkNotePack, checkMechanismRegister, validateNoteOutput };
