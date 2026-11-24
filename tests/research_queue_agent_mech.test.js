@@ -15,6 +15,10 @@ const note = require('../services/research-queue-agent/mech-note');
 const review = require('../services/research-queue-agent/mech-review');
 
 const ROOT = path.join(__dirname, '..');
+const REGISTER_BYTES = fs.readFileSync(path.join(ROOT, 'config', 'research_mechanism_register.v1.json'));
+const REGISTER = JSON.parse(REGISTER_BYTES.toString('utf8'));
+const REGISTER_SHA256 = sha256(REGISTER_BYTES);
+const REGISTERED_TEXT = new Set(REGISTER.mechanisms.flatMap((m) => [m.title_zh, m.description_zh]));
 const H = (s) => sha256(String(s));
 const clone = (v) => JSON.parse(JSON.stringify(v));
 
@@ -22,16 +26,16 @@ function notePack(over = {}) {
   const candidates = Array.from({ length: 6 }, (_, i) => ({ candidate_id: `A${String(i + 1).padStart(3, '0')}`, formula: '(-ts_std(pb,10))', fields: ['pb'] }));
   return {
     schema: 'RF1116_MECH_NOTE_PACK_V1', round_id: 'MR-CN_A-2026-11-a6cb823f86', market: 'CN_A', batch_no: 1, batch_of: 1,
-    pins: { selection_record_hash: H('selection'), register_sha256: H('register'), space_sha256: H('space'), code_commit: H('commit') },
+    pins: { selection_record_hash: H('selection'), register_sha256: REGISTER_SHA256, space_sha256: H('space'), code_commit: H('commit') },
     candidates,
-    mechanisms: [{ mechanism_id: 'SEL.XSEC.VALUE', title_zh: '截面估值差异', description_zh: '比较截面估值字段的相对差异' }],
+    mechanisms: [{ mechanism_id: 'SEL.XSEC.VALUE_YIELD', title_zh: '截面低估值高股息', description_zh: '截面选股偏向市盈率、市销率、市净率低或股息率高的股票' }],
     glossary: [{ name: 'pb', description_zh: '市净率' }, { name: 'ts_std', description_zh: '时间序列标准差算子' }],
     ...over,
   };
 }
 
 const goodNote = (candidate_id) => ({
-  candidate_id, outcome: 'NOTE', mechanism_id: 'SEL.XSEC.VALUE',
+  candidate_id, outcome: 'NOTE', mechanism_id: 'SEL.XSEC.VALUE_YIELD',
   economic_logic_zh: '估值字段的历史波动收窄可能反映定价分歧减少，并为截面差异提供可检验的经济解释',
   failure_mode_zh: '估值口径失真或样本结构突变时，这一解释可能失效',
   fields_cited: ['pb'], no_mechanism_code: null, proposal: null,
@@ -43,7 +47,7 @@ function reviewPack(over = {}) {
   return {
     schema: 'RF1116_MECH_REVIEW_PACK_V1', round_id: base.round_id, market: 'CN_A', batch_no: 1, batch_of: 1,
     pins: { ...base.pins, mechanism_set_sha256: H('mechanism-set') },
-    candidates: base.candidates.map((c) => ({ ...c, mechanism_id: 'SEL.XSEC.VALUE', mechanism_description_zh: '比较截面估值字段的相对差异', economic_logic_zh: goodNote(c.candidate_id).economic_logic_zh, failure_mode_zh: goodNote(c.candidate_id).failure_mode_zh, registration_hash: H(c.candidate_id) })),
+    candidates: base.candidates.map((c) => ({ ...c, mechanism_id: 'SEL.XSEC.VALUE_YIELD', mechanism_description_zh: '截面选股偏向市盈率、市销率、市净率低或股息率高的股票', economic_logic_zh: goodNote(c.candidate_id).economic_logic_zh, failure_mode_zh: goodNote(c.candidate_id).failure_mode_zh, registration_hash: H(c.candidate_id) })),
     glossary: base.glossary,
     ...over,
   };
@@ -62,7 +66,8 @@ const promptAdmissions = () => ({ byKind: {
   AI_MECH_NOTE: { system_sha256: sha256(prompts.TEXTS.AI_MECH_NOTE) },
   AI_MECH_REVIEW: { system_sha256: sha256(prompts.TEXTS.AI_MECH_REVIEW) },
 } });
-const opts = (c, over = {}) => ({ client: c, env: {}, host: 'LINUX', now: () => '2026-11-24T15:00:00+08:00', promptAdmissions: promptAdmissions(), ...over });
+const opts = (c, over = {}) => ({ client: c, env: {}, host: 'LINUX', now: () => '2026-11-24T15:00:00+08:00', promptAdmissions: promptAdmissions(), loadMechanismRegister: () => REGISTER_BYTES, ...over });
+const trustedValidate = (args) => validateResult({ ...args, mechanismRegisterBytes: REGISTER_BYTES });
 const codes = (v) => v.errors.map((e) => e.code);
 
 test('A01 valid six-candidate note pack completes in one stubbed call and consumer revalidation agrees', async () => {
@@ -71,7 +76,7 @@ test('A01 valid six-candidate note pack completes in one stubbed call and consum
   assert.equal(r.status, 'DONE'); assert.equal(c.calls.length, 1); assert.equal(r.outputs.mechanism_notes.schema, 'RF1116_MECH_NOTE_OUTPUT_V1');
   assert.deepEqual(r.validator, { ok: true, sha256: r.outputs.mechanism_notes_sha256 });
   assert.equal(r.validator.sha256, sha256(canonicalJson(r.outputs.mechanism_notes)));
-  const v = validateResult({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() });
+  const v = trustedValidate({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() });
   assert.deepEqual(v.codes, []); assert.equal(v.ok, true); assert.match(v.output_sha256, /^[0-9a-f]{64}$/);
 });
 
@@ -86,24 +91,24 @@ test('D01 trusted consumer requires but never trusts the mechanism producer self
     assert.deepEqual(r.validator, { ok: true, sha256: namedSha });
     assert.match(r.validator.sha256, /^[0-9a-f]{64}$/);
     assert.equal(namedSha, sha256(canonicalJson(r.outputs[key])));
-    assert.equal(validateResult({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() }).ok, true);
+    assert.equal(trustedValidate({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() }).ok, true);
 
     const missing = clone(r); delete missing.validator;
-    let v = validateResult({ task: t, bundle: b, result: missing, promptAdmissions: promptAdmissions() });
+    let v = trustedValidate({ task: t, bundle: b, result: missing, promptAdmissions: promptAdmissions() });
     assert.equal(v.ok, false); assert.ok(v.codes.includes('RESULT_VALIDATOR_MISSING'), JSON.stringify(v.codes));
 
     const falseClaim = clone(r); falseClaim.validator.ok = false;
-    v = validateResult({ task: t, bundle: b, result: falseClaim, promptAdmissions: promptAdmissions() });
+    v = trustedValidate({ task: t, bundle: b, result: falseClaim, promptAdmissions: promptAdmissions() });
     assert.equal(v.ok, false); assert.ok(v.codes.includes('RESULT_VALIDATOR_NOT_OK'), JSON.stringify(v.codes));
 
     const mismatch = clone(r); mismatch.validator.sha256 = '0'.repeat(64);
-    v = validateResult({ task: t, bundle: b, result: mismatch, promptAdmissions: promptAdmissions() });
+    v = trustedValidate({ task: t, bundle: b, result: mismatch, promptAdmissions: promptAdmissions() });
     assert.equal(v.ok, false); assert.ok(v.codes.includes('RESULT_VALIDATOR_SHA_MISMATCH'), JSON.stringify(v.codes));
 
     const forgedContent = clone(r); forgedContent.outputs[key].round_id = 'MR-CN_A-forged';
     forgedContent.outputs[`${key}_sha256`] = sha256(canonicalJson(forgedContent.outputs[key]));
     forgedContent.validator.sha256 = forgedContent.outputs[`${key}_sha256`];
-    v = validateResult({ task: t, bundle: b, result: forgedContent, promptAdmissions: promptAdmissions() });
+    v = trustedValidate({ task: t, bundle: b, result: forgedContent, promptAdmissions: promptAdmissions() });
     assert.equal(v.ok, false, 'matching self-certificate cannot replace independent content revalidation');
     assert.ok(v.codes.includes(kind === 'AI_MECH_NOTE' ? 'MECH_NOTE_SCHEMA' : 'MECH_REVIEW_SCHEMA'), JSON.stringify(v.codes));
   }
@@ -209,12 +214,49 @@ test('A15 queue seam, Q3c stage, and Python consumer kind table register both ne
 });
 
 test('A16 a new-mechanism proposal cannot duplicate a registered title or description verbatim', () => {
+  const p = notePack();
   for (const proposal of [
-    { title_zh: '截面估值差异', description_zh: '另一段描述' },
-    { title_zh: '新标题', description_zh: '比较截面估值字段的相对差异' },
+    { title_zh: p.mechanisms[0].title_zh, description_zh: '另一段描述' },
+    { title_zh: '新标题', description_zh: p.mechanisms[0].description_zh },
   ]) {
-    const p = notePack(); const o = noteOutput(p); o.notes[0] = { candidate_id: 'A001', outcome: 'NEW_MECHANISM_PROPOSAL', mechanism_id: null, economic_logic_zh: null, failure_mode_zh: null, fields_cited: [], no_mechanism_code: null, proposal };
-    assert.ok(codes(note.validateNoteOutput(o, p)).includes('MECH_NOTE_PROPOSAL_DUPLICATES_REGISTERED'));
+    const o = noteOutput(p); o.notes[0] = { candidate_id: 'A001', outcome: 'NEW_MECHANISM_PROPOSAL', mechanism_id: null, economic_logic_zh: null, failure_mode_zh: null, fields_cited: [], no_mechanism_code: null, proposal };
+    assert.ok(codes(note.validateNoteOutput(o, p, { registeredText: REGISTERED_TEXT })).includes('MECH_NOTE_PROPOSAL_DUPLICATES_REGISTERED'));
+  }
+});
+
+test('A16 proposals are deduplicated against the complete pinned register without disclosing it to the model', async () => {
+  const p = notePack();
+  const fullRegisterOnlyTitle = '非主流同时持仓上限';
+  assert.ok(REGISTERED_TEXT.has(fullRegisterOnlyTitle));
+  assert.equal(p.mechanisms.some((m) => m.title_zh === fullRegisterOnlyTitle || m.description_zh === fullRegisterOnlyTitle), false);
+  const proposed = noteOutput(p);
+  proposed.notes[0] = { candidate_id: 'A001', outcome: 'NEW_MECHANISM_PROPOSAL', mechanism_id: null, economic_logic_zh: null, failure_mode_zh: null, fields_cited: [], no_mechanism_code: null, proposal: { title_zh: fullRegisterOnlyTitle, description_zh: '另一段描述' } };
+  assert.ok(codes(note.validateNoteOutput(proposed, p, { registeredText: REGISTERED_TEXT })).includes('MECH_NOTE_PROPOSAL_DUPLICATES_REGISTERED'));
+
+  const c = client([ok(noteOutput(p))]);
+  const r = await runAgentTask(task('AI_MECH_NOTE'), bundle(p), opts(c));
+  assert.equal(r.status, 'DONE');
+  const user = JSON.parse(c.calls[0].body.messages[1].content);
+  assert.deepEqual(user, p);
+  assert.equal(JSON.stringify(user).includes(fullRegisterOnlyTitle), false);
+
+  const forged = clone(r);
+  forged.outputs.mechanism_notes.notes[0] = proposed.notes[0];
+  forged.outputs.mechanism_notes_sha256 = sha256(canonicalJson(forged.outputs.mechanism_notes));
+  forged.validator.sha256 = forged.outputs.mechanism_notes_sha256;
+  const v = trustedValidate({ task: task('AI_MECH_NOTE'), bundle: bundle(p), result: forged, promptAdmissions: promptAdmissions() });
+  assert.equal(v.ok, false, 'trusted Q3c revalidation must not accept an agent-side full-register duplicate');
+  assert.ok(v.codes.includes('MECH_NOTE_PROPOSAL_DUPLICATES_REGISTERED'), JSON.stringify(v.codes));
+});
+
+test('A16 missing or sha-mismatched register authority fails closed before a gateway call', async () => {
+  for (const [loadMechanismRegister, code] of [
+    [() => { throw new Error('missing'); }, 'MECH_REGISTER_UNAVAILABLE'],
+    [() => Buffer.from('{}'), 'MECH_REGISTER_SHA_MISMATCH'],
+  ]) {
+    const p = notePack(); const c = client([ok(noteOutput(p))]);
+    const r = await runAgentTask(task('AI_MECH_NOTE'), bundle(p), opts(c, { loadMechanismRegister }));
+    assert.equal(r.status, 'BLOCKED_DETERMINISTIC'); assert.equal(r.reason_code, code); assert.equal(c.calls.length, 0);
   }
 });
 
@@ -228,7 +270,7 @@ test('review validator is closed, candidate-complete, wording/number/secret safe
   const r = await runAgentTask(t, b, opts(c)); assert.equal(r.status, 'DONE'); assert.equal(r.outputs.mechanism_review.schema, 'RF1116_MECH_REVIEW_OUTPUT_V1');
   assert.deepEqual(r.validator, { ok: true, sha256: r.outputs.mechanism_review_sha256 });
   assert.equal(r.validator.sha256, sha256(canonicalJson(r.outputs.mechanism_review)));
-  assert.equal(validateResult({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() }).ok, true);
+  assert.equal(trustedValidate({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() }).ok, true);
 });
 
 test('note output rejects secret-shaped text', () => {
