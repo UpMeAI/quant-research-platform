@@ -6,6 +6,7 @@ import os
 import pathlib
 import shutil
 import stat
+import sys
 import tempfile
 import unittest
 
@@ -17,6 +18,7 @@ MODULE_DIR = ROOT / "services" / "rf1116-post-round"
 def load(name):
     spec = importlib.util.spec_from_file_location(name, MODULE_DIR / (name + ".py"))
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -161,7 +163,7 @@ class PostRoundTest(unittest.TestCase):
     def test_b05_deterministic_note_checks_and_written_at(self):
         notes = [
             {"candidate_id": "A00%d" % i, "outcome": "NOTE", "mechanism_id": "SEL.XSEC.VALUE",
-             "economic_logic_zh": "市净率的截面差异反映估值锚定偏离程度", "failure_mode_zh": "极端行业结构变化时关系可能失真",
+             "economic_logic_zh": "市净率的截面差异能够反映估值锚定偏离程度与再定价摩擦", "failure_mode_zh": "极端行业结构变化时关系可能失真",
              "fields_cited": ["pb"], "no_mechanism_code": None, "proposal": None}
             for i in range(1, 5)
         ]
