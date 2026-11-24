@@ -12,7 +12,7 @@ const path = require('path');
 
 const RESEARCH_ROOT = '/srv/research-lane/';
 const CLI = 'services/mining-sandbox/round-runner/cli.js';
-const err = (code, d) => Object.assign(new Error(d === undefined ? code : `${code}:${d}`), { code });
+const err = (code, d) => Object.assign(new Error(d === undefined ? code : `${code}:${d}`), { code, detail: d === undefined ? null : d });
 const sha8 = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 8);
 
 function containerSpec({ cardId, image, laneCopy, valTail, outDir, holdoutRef, holdoutSha256, authority, generator = 'AI_MINED_LLM' }) {
@@ -21,7 +21,7 @@ function containerSpec({ cardId, image, laneCopy, valTail, outDir, holdoutRef, h
   for (const p of [laneCopy, valTail, outDir]) if (/holdout/i.test(p)) throw err('EXPERIMENT_LAUNCH_HOLDOUT_MOUNT_REFUSED', p);
   const name = `rf1116-generate-w24-${sha8(String(cardId))}`;
   const argv = ['run', '--rm', '--name', name, '--network', 'none', '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=256m', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
-    '--user', '1000:1000', '--cpus', '2', '--memory', '24g', '--memory-swap', '24g', '--pids-limit', '256', '-e', 'QRP_DATA_DIR=/out/qrp-data', '-e', `QRP_PRODUCT_MILESTONE_AUTHORITY=${authority}`,
+    '--user', '1000:1000', '--cpus', '2', '--cpuset-cpus', '0-7,16-23', '--memory', '24g', '--memory-swap', '24g', '--pids-limit', '256', '-e', 'QRP_DATA_DIR=/out/qrp-data', '-e', `QRP_PRODUCT_MILESTONE_AUTHORITY=${authority}`,
     '-v', `${laneCopy}:/data/lane:ro`, '-v', `${valTail}:/data/tail:ro`, '-v', `${outDir}:/out:rw`, '--entrypoint', 'nice', image,
     '-n', '19', 'ionice', '-c', '3', 'node', '--max-old-space-size=20480', CLI, 'generate', '--generator', generator, '--out', '/out', '--lane', '/data/lane', '--tail', '/data/tail',
     '--holdout-ref', holdoutRef, '--holdout-sha256', holdoutSha256];

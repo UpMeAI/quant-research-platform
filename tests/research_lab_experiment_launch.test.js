@@ -19,7 +19,7 @@ test('container spec: name matches the rf1116 pause pattern, 2 CPUs, 24g with no
   assert.equal(a[0], 'run');
   const at = (flag) => a[a.indexOf(flag) + 1];
   assert.equal(at('--name'), s.name);
-  assert.deepEqual([at('--cpus'), at('--memory'), at('--memory-swap'), at('--network')], ['2', '24g', '24g', 'none']);
+  assert.deepEqual([at('--cpus'), at('--cpuset-cpus'), at('--memory'), at('--memory-swap'), at('--network')], ['2', '0-7,16-23', '24g', '24g', 'none']);
   assert.ok(a.includes('--read-only') && a.includes('--cap-drop'));
   assert.equal(at('--entrypoint'), 'nice');
   const tail = a.slice(a.indexOf(base.image) + 1);

@@ -13,6 +13,8 @@ const path = require('path');
 
 const driver = require('../services/research-lab-e2e/host-driver');
 const launch = require('../services/research-lab-e2e/experiment-launch');
+const steps = require('../services/research-lab-e2e/steps');
+const cli = require('../apps/research-cli/research_lab_run');
 const backtester = require('../services/research-lab-e2e/backtester');
 const verifierConfig = require('../config/independent_verifier.v1.json');
 
@@ -41,8 +43,8 @@ const readJson = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
 
 function fixture(over = {}) {
   const root = tmp('qrp-q147');
-  const attempt = path.join(root, 'attempt-1'); fs.mkdirSync(attempt);
   const runDir = path.join(root, 'run'); fs.mkdirSync(runDir);
+  const attempt = path.join(runDir, 'attempt-1'); fs.mkdirSync(attempt);
   const outDir = path.join(runDir, 'lab'); fs.mkdirSync(outDir);
   const dataDir = path.join(root, 'qrp-var'); fs.mkdirSync(dataDir);
   const witness = path.join(root, 'W24_STAR_DEFAULTS_FREEZE_V1.md');
@@ -156,7 +158,9 @@ test('host experiment service sends exactly containerSpec argv to the injected s
   assert.equal(r.exit, 0);
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], launch.containerSpec(f.config.experiment).argv);
-  assert.equal(JSON.stringify(calls[0]).includes('holdout-sealed/'), false, 'the sealed holdout is a ref, never a mount');
+  assert.equal(calls[0][calls[0].indexOf('--cpuset-cpus') + 1], '0-7,16-23');
+  const mounts = calls[0].flatMap((x, i, a) => (x === '-v' ? [a[i + 1]] : []));
+  assert.equal(mounts.some((m) => /holdout/i.test(m)), false, 'the sealed holdout is a ref, never a mount');
 });
 
 test('Linux registrar seam writes one request and reads only the matching receipt from the run inbox', () => {
@@ -181,6 +185,13 @@ test('missing Linux registrar has a distinct step-6 wait, not a manual fallback'
   const f = fixture(); fs.rmSync(f.registrar);
   const reg = driver.makeRegistrar(f.config.registrar);
   assert.throws(() => reg({ prepared: { request_sha256: 'a'.repeat(64) }, trl_request: {} }), (e) => e.code === 'LINUX_REGISTRAR_UNAVAILABLE');
+  const S = { data: { draft: {} }, services: { k2: { ctx: () => ({}), register: reg }, k2Program: { prepare: () => ({ state: 'WAITING_EXTERNAL', trl_request: {}, prepared: { request_sha256: 'a'.repeat(64) } }) } } };
+  assert.deepEqual(steps.k2Freeze(S), { wait: 'LINUX_REGISTRAR_UNAVAILABLE' });
+});
+
+test('TRL exchange paths cannot escape the supervised run directory', () => {
+  const receipt = fixture(); receipt.config.registrar.receiptInbox = path.join(receipt.root, 'outside-inbox');
+  assert.deepEqual([run(receipt).exit, readJson(path.join(receipt.attempt, 'driver-result.json')).reason], [64, 'DRIVER_PATH_OUTSIDE_RUN']);
 });
 
 test('QRP data guard refuses dual writers and manifest mismatch; one writer and a read-only Mac backup pass', () => {
@@ -228,12 +239,18 @@ test('resume is allowed for an external wait and safe pre-experiment partial wor
   fs.mkdirSync(path.join(partialExperiment.outDir, 'steps', '07_EXPERIMENT'), { recursive: true });
   fs.writeFileSync(path.join(partialExperiment.outDir, 'steps', '07_EXPERIMENT', 'selection.json'), '{}\n');
   assert.deepEqual([run(partialExperiment).exit, readJson(path.join(partialExperiment.attempt, 'driver-result.json')).reason], [65, 'INVALID_PARTIAL_EXPERIMENT']);
+
+  const missingSupport = fixture(); missingSupport.env.RQ_RESUME = '1';
+  const expDir = path.join(missingSupport.outDir, 'steps', '07_EXPERIMENT'); fs.mkdirSync(expDir, { recursive: true });
+  fs.writeFileSync(path.join(expDir, 'experiment.json'), JSON.stringify({ schema: 'LAB_EXPERIMENT_V1', files: { 'selection.json': { sha256: 'a'.repeat(64) } } }));
+  assert.deepEqual([run(missingSupport).exit, readJson(path.join(missingSupport.attempt, 'driver-result.json')).reason], [65, 'INVALID_PARTIAL_EXPERIMENT']);
 });
 
 test('promotion results and terms are create-only 0444 under QRP_DATA_DIR; a second non-resume evaluation is refused', () => {
   const f = fixture();
   const terms = { schema: 'PROMOTION_TERMS_V1', candidate_id: 'CAND-1', k2_sha256: 'a'.repeat(64) };
-  const engine = { evaluate: (req) => ({ schema: 'PROMOTION_RESULT_V1', candidate_id: req.candidate_id, stage: req.requested_stage, verdict: 'INSUFFICIENT', output_sha256: 'b'.repeat(64) }) };
+  const engine = { evaluate: (req) => ({ schema: 'PROMOTION_RESULT_V1', candidate_id: req.candidate_id, stage: req.requested_stage, as_of: req.as_of, verdict: 'INSUFFICIENT',
+    inputs: { terms_sha256: sha(driver.prettyJson(req.terms)), evidence_sha256: req.evidence ? sha(driver.prettyJson(req.evidence)) : null }, output_sha256: 'b'.repeat(64) }) };
   const wrapped = driver.persistingEngine(engine, { dataDir: f.dataDir, resume: false });
   const req = { candidate_id: 'CAND-1', requested_stage: 'S2', as_of: f.job.as_of, terms };
   const result = wrapped.evaluate(req);
@@ -248,6 +265,13 @@ test('promotion results and terms are create-only 0444 under QRP_DATA_DIR; a sec
   assert.throws(() => wrapped.evaluate(req), (e) => e.code === 'PROMOTION_RESULT_EXISTS');
   const replay = driver.persistingEngine(engine, { dataDir: f.dataDir, resume: true });
   assert.deepEqual(replay.evaluate(req), result, 'resume reuses byte-identical output without rewriting it');
+  assert.throws(() => replay.evaluate({ ...req, evidence: { changed: true } }), (e) => e.code === 'PROMOTION_RESULT_REPLAY_MISMATCH');
+});
+
+test('CLI parser accepts only the three pinned host inputs', () => {
+  assert.deepEqual(Object.keys(cli.parse(['--job', '/a', '--config', '/b', '--services', '/c'])).sort(), ['config', 'job', 'services']);
+  assert.throws(() => cli.parse(['--job', '/a', '--config', '/b', '--unknown', '/c']), (e) => e.code === 'BAD_ARGUMENTS');
+  assert.throws(() => cli.parse(['--job', '/a', '--job', '/b', '--services', '/c']), (e) => e.code === 'BAD_ARGUMENTS');
 });
 
 test('driver-result is create-only: a second writer cannot replace the first bytes', () => {
