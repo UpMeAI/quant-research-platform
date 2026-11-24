@@ -137,10 +137,10 @@ class RelayAcceptance(unittest.TestCase):
         pull = self.root / "pull"
         transport.push_fact_packs(stage)
         transport.pull_returns(pull)
-        self.assertEqual(calls[0], ["/usr/bin/rsync", "-a", "--checksum", "--delay-updates", "--protect-args", "--", f"{stage}/", "root@smartflow-hk:fact-packs/"])
-        self.assertEqual(calls[1], ["/usr/bin/rsync", "-a", "--checksum", "--protect-args", "--", "root@smartflow-hk:/var/lib/research-queue/outbox/", f"{pull}/"])
+        self.assertEqual(calls[0], ["/usr/bin/rsync", "-a", "--checksum", "--delay-updates", "--", f"{stage}/", "root@smartflow-hk:fact-packs/"])
+        self.assertEqual(calls[1], ["/usr/bin/rsync", "-a", "--checksum", "--", "root@smartflow-hk:/var/lib/research-queue/outbox/", f"{pull}/"])
         joined = "\n".join(" ".join(c) for c in calls)
-        for forbidden in ("sh -c", "scp", "sftp", "--remove-source-files", ";", "|"):
+        for forbidden in ("sh -c", "scp", "sftp", "--remove-source-files", "--protect-args", ";", "|"):
             self.assertNotIn(forbidden, joined)
 
     def test_unit_and_env_contract(self):
@@ -153,7 +153,40 @@ class RelayAcceptance(unittest.TestCase):
         self.assertIn("QRP_PRODUCT_MILESTONE_AUTHORITY=V8_1_COORDINATOR", env)
         self.assertIn("RQ_SEEN_MARK_QRP_ROOT=", env)
         self.assertNotIn("RQ_SEEN_MARK_QRP_ROOT=/", env)
-        self.assertIn("QRP_DATA_DIR=/srv/research-lane/qrp/var", env)
+        self.assertIn("QRP_DATA_DIR=/srv/research-lane/qrp/var/ledger", env)
+
+    def test_shadow_is_pull_only_and_confined_to_scratch(self):
+        outbox = self.root / "relay-outbox"
+        for host in ("linux", "hk"):
+            source = outbox / host / "REVIEW_AI_FACT_PACK_V1" / f"{host}.json"
+            source.parent.mkdir(parents=True)
+            source.write_text('{}\n')
+        local_returns = self.root / "queue-outbox"; local_returns.mkdir(); (local_returns / "local.json").write_text('{}\n')
+        calls = []
+
+        class Result:
+            returncode = 0
+            stderr = b""
+
+        def fake(argv, **_kwargs):
+            calls.append(argv)
+            destination = pathlib.Path(argv[-1].rstrip("/"))
+            destination.mkdir(parents=True, exist_ok=True)
+            (destination / "hk.json").write_text('{}\n')
+            return Result()
+
+        config = {"authority": "V8_1_COORDINATOR", "node": relay.NODE, "outbox_root": str(outbox),
+                  "queue_outbox": str(local_returns), "hk_target": "root@smartflow-hk"}
+        shadow = self.root / "shadow"
+        got = relay.run_shadow(config, shadow, run=fake, scratch_root=self.root)
+        self.assertEqual(got["mode"], "SHADOW_NO_UPLOAD")
+        self.assertEqual([x["name"] for x in got["returns"]["linux"]], ["local.json"])
+        self.assertEqual([x["name"] for x in got["returns"]["hk"]], ["hk.json"])
+        self.assertEqual(len(calls), 1)
+        self.assertIn("root@smartflow-hk:/var/lib/research-queue/outbox/", calls[0])
+        self.assertNotIn(":fact-packs/", " ".join(calls[0]))
+        with self.assertRaisesRegex(relay.RelayError, "SHADOW_ROOT_OUTSIDE_SCRATCH"):
+            relay.run_shadow(config, self.root.parent / "outside", run=fake, scratch_root=self.root)
 
 
 if __name__ == "__main__":

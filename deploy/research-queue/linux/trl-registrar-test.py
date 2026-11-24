@@ -57,7 +57,7 @@ class RegistrarAcceptance(unittest.TestCase):
             "run_root": str(self.run_root),
             "node": "/srv/research-lane/tools/node-v23.11.0-linux-x64/bin/node",
             "qrp_root": "/srv/research-lane/qrp/code/pinned",
-            "data_dir": "/srv/research-lane/qrp/var",
+            "data_dir": "/srv/research-lane/qrp/var/ledger",
             "authority": "V8_1_COORDINATOR",
             "max_request_bytes": 1048576,
         }
@@ -90,7 +90,7 @@ class RegistrarAcceptance(unittest.TestCase):
             "--request", str(self.request_file.resolve()),
             "--registered-by", "V8_1_COORDINATOR",
         ])
-        self.assertEqual(calls[0][1]["env"]["QRP_DATA_DIR"], "/srv/research-lane/qrp/var")
+        self.assertEqual(calls[0][1]["env"]["QRP_DATA_DIR"], "/srv/research-lane/qrp/var/ledger")
         self.assertEqual(calls[0][1]["env"]["QRP_PRODUCT_MILESTONE_AUTHORITY"], "V8_1_COORDINATOR")
 
     def test_replay_is_idempotent_but_mismatch_refuses(self):
@@ -145,7 +145,7 @@ class RegistrarAcceptance(unittest.TestCase):
         for needle in ("EnvironmentFile=", "Nice=10", "IOSchedulingClass=idle", "CPUAffinity=0-7 16-23", "OnFailure=", "/usr/bin/flock", "trl-registrar-run.py"):
             self.assertIn(needle, service)
         self.assertIn("Persistent=true", timer)
-        self.assertIn("QRP_DATA_DIR=/srv/research-lane/qrp/var", env)
+        self.assertIn("QRP_DATA_DIR=/srv/research-lane/qrp/var/ledger", env)
         self.assertIn("QRP_PRODUCT_MILESTONE_AUTHORITY=V8_1_COORDINATOR", env)
 
 

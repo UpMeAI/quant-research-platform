@@ -1,7 +1,7 @@
 # Same 0600 file as relay-env.example; duplicated here for standalone review.
 QRP_ROOT=/srv/research-lane/qrp/code/REPLACE_WITH_64_HEX_SHA
 QRP_PINNED_SHA=REPLACE_WITH_64_HEX_SHA
-QRP_DATA_DIR=/srv/research-lane/qrp/var
+QRP_DATA_DIR=/srv/research-lane/qrp/var/ledger
 QRP_PRODUCT_MILESTONE_AUTHORITY=V8_1_COORDINATOR
 RQ_NODE=/srv/research-lane/tools/node-v23.11.0-linux-x64/bin/node
 RQ_RUN_ROOT=/srv/research-lane/research-queue/runs

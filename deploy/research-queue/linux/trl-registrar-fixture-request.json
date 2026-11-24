@@ -1,0 +1,22 @@
+{
+ "draft_id": "Q137-FIXTURE-D1",
+ "family_id": "Q137_FIXTURE_F1",
+ "k2_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "market": "CN_A",
+ "schema": "TRIAL_REGISTRATION_REQUEST_V1",
+ "specs": [
+  {
+   "config_label": "BASELINE",
+   "family_id": "Q137_FIXTURE_F1",
+   "k2_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "market": "CN_A",
+   "role": "BASELINE",
+   "rule_config": {
+    "fixture": true,
+    "parameter": 1
+   },
+   "stage": "BOOK",
+   "study_ref": "Q137-FIXTURE-STUDY"
+  }
+ ]
+}

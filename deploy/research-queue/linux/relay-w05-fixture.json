@@ -1,0 +1,23 @@
+{
+ "facts": [
+  {
+   "at": "2026-11-20T18:00:00+08:00",
+   "id": "Q137-F-001",
+   "source": {
+    "path": "deploy/research-queue/linux/relay-w05-fixture.json",
+    "pointer": "/facts/0",
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   },
+   "value": {
+    "fixture": true
+   },
+   "window": {
+    "from": "2026-11-16",
+    "to": "2026-11-20"
+   }
+  }
+ ],
+ "market": "CN_A",
+ "schema": "REVIEW_AI_FACT_PACK_V1",
+ "week": "2026-W47"
+}

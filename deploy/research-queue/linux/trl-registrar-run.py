@@ -140,7 +140,7 @@ def process_request(request_file, config, run=subprocess.run):
     qrp_root = pathlib.Path(config.get("qrp_root", ""))
     data_dir = config.get("data_dir")
     authority = config.get("authority")
-    if node != NODE or data_dir != DATA_DIR or authority != AUTHORITY or not qrp_root.is_absolute():
+    if node != NODE or not pathlib.Path(data_dir or "").is_absolute() or authority != AUTHORITY or not qrp_root.is_absolute():
         _fail("TRL_CONFIG_INVALID")
     argv = [node, str(qrp_root / "apps/research-cli/k2_trl_registrar.js"), "--request", str(resolved), "--registered-by", authority]
     if config.get("registered_at"):
@@ -173,7 +173,7 @@ def _config_from_env(env):
     return {
         "run_root": env["RQ_RUN_ROOT"], "status_path": env["RQ_REGISTRAR_STATUS"], "node": NODE,
         "qrp_root": qrp_root, "data_dir": DATA_DIR, "authority": AUTHORITY, "max_request_bytes": 1048576,
-        "guard": {"authority_marker": env["QRP_AUTHORITY_MARKER"], "authoritative_dir": DATA_DIR,
+        "guard": {"authority_marker": env["QRP_AUTHORITY_MARKER"], "authoritative_dir": _guard.VAR_ROOT,
                   "linux_manifest": env["QRP_VAR_LINUX_MANIFEST"], "mac_manifest": env["QRP_VAR_MAC_MANIFEST"],
                   "mac_mode_proof": env["QRP_MAC_VAR_MODE_PROOF"]},
     }

@@ -2,7 +2,7 @@
 # Names and non-secret fixed values only.  Ops-coord fills the pinned SHA/target.
 QRP_ROOT=/srv/research-lane/qrp/code/REPLACE_WITH_64_HEX_SHA
 QRP_PINNED_SHA=REPLACE_WITH_64_HEX_SHA
-QRP_DATA_DIR=/srv/research-lane/qrp/var
+QRP_DATA_DIR=/srv/research-lane/qrp/var/ledger
 QRP_PRODUCT_MILESTONE_AUTHORITY=V8_1_COORDINATOR
 RQ_SEEN_MARK_QRP_ROOT=
 RQ_NODE=/srv/research-lane/tools/node-v23.11.0-linux-x64/bin/node

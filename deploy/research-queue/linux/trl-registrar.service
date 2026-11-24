@@ -5,7 +5,7 @@ OnFailure=research-queue-alert@trl-registrar.service
 [Service]
 Type=oneshot
 EnvironmentFile=%h/.config/research-queue/relay-registrar.env
-ExecStart=/usr/bin/flock -n %t/trl-registrar.lock /usr/bin/python3 /srv/research-lane/qrp/code/current/deploy/research-queue/linux/trl-registrar-run.py --once
+ExecStart=/usr/bin/flock -n %t/trl-registrar.lock /usr/bin/python3 ${QRP_ROOT}/deploy/research-queue/linux/trl-registrar-run.py --once
 Nice=10
 IOSchedulingClass=idle
 CPUAffinity=0-7 16-23

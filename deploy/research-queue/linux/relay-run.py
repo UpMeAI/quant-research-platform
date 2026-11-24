@@ -19,7 +19,8 @@ SAFE_JSON = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,200}[.]json")
 SHA64 = re.compile(r"[0-9a-f]{64}")
 MAX_PACK_BYTES = 16 * 1024 * 1024
 NODE = "/srv/research-lane/tools/node-v23.11.0-linux-x64/bin/node"
-DATA_DIR = "/srv/research-lane/qrp/var"
+VAR_ROOT = "/srv/research-lane/qrp/var"
+DATA_DIR = "/srv/research-lane/qrp/var/ledger"
 AUTHORITY = "V8_1_COORDINATOR"
 LOCAL_OUTBOX = "/srv/research-lane/research-queue/relay-outbox"
 LOCAL_INBOX = "/srv/research-lane/research-queue/inbox/fact-packs"
@@ -168,12 +169,12 @@ class GateRsyncTransport:
 
     def push_fact_packs(self, stage):
         stage = pathlib.Path(stage)
-        self._run([self.rsync, "-a", "--checksum", "--delay-updates", "--protect-args", "--", str(stage) + "/", self.target + ":fact-packs/"])
+        self._run([self.rsync, "-a", "--checksum", "--delay-updates", "--", str(stage) + "/", self.target + ":fact-packs/"])
 
     def pull_returns(self, destination):
         destination = pathlib.Path(destination)
         destination.mkdir(parents=True, exist_ok=True)
-        self._run([self.rsync, "-a", "--checksum", "--protect-args", "--", self.target + ":" + HK_OUTBOX, str(destination) + "/"])
+        self._run([self.rsync, "-a", "--checksum", "--", self.target + ":" + HK_OUTBOX, str(destination) + "/"])
 
 
 def _copy_return(source, destination):
@@ -245,7 +246,7 @@ def _config_from_env(env):
         "state_path": env["RQ_RELAY_STATE"],
         "status_path": env["RQ_RELAY_STATUS"],
         "guard": {
-            "authority_marker": env["QRP_AUTHORITY_MARKER"], "authoritative_dir": DATA_DIR,
+            "authority_marker": env["QRP_AUTHORITY_MARKER"], "authoritative_dir": VAR_ROOT,
             "linux_manifest": env["QRP_VAR_LINUX_MANIFEST"], "mac_manifest": env["QRP_VAR_MAC_MANIFEST"],
             "mac_mode_proof": env["QRP_MAC_VAR_MODE_PROOF"],
         },
@@ -326,6 +327,47 @@ def run_once(config, env=None, run=subprocess.run):
     return result
 
 
+def dry_run_plan(config):
+    """Read-only inventory: no marker, transport, state or status write."""
+    result = {"mode": "DRY_RUN", "wouldUpload": False, "localPacks": [], "hkPacks": [],
+              "w05": {"authority": config["authority"], "node": config["node"], "producerHookRoot": None}}
+    for host, key in (("linux", "localPacks"), ("hk", "hkPacks")):
+        root = pathlib.Path(config["outbox_root"]) / host / "REVIEW_AI_FACT_PACK_V1"
+        for source in sorted(root.glob("*.json")) if root.is_dir() else []:
+            try:
+                info = source.lstat()
+                if source.is_symlink() or not stat.S_ISREG(info.st_mode) or not SAFE_JSON.fullmatch(source.name) or info.st_size > MAX_PACK_BYTES:
+                    continue
+                result[key].append({"name": source.name, "sha256": _sha(source.read_bytes())})
+            except OSError:
+                continue
+    return result
+
+
+def run_shadow(config, shadow_root, run=subprocess.run, scratch_root="/srv/research-lane/scratch"):
+    """Pull-only pre-switch comparison under Linux scratch; never mark/upload."""
+    shadow_root = pathlib.Path(shadow_root).resolve()
+    scratch = pathlib.Path(scratch_root).resolve()
+    if shadow_root == scratch or scratch not in shadow_root.parents:
+        _fail("SHADOW_ROOT_OUTSIDE_SCRATCH")
+    shadow_root.mkdir(parents=True, exist_ok=True)
+    result = dry_run_plan(config)
+    result["mode"] = "SHADOW_NO_UPLOAD"
+    result["returns"] = {"linux": [], "hk": []}
+    for source in sorted(pathlib.Path(config["queue_outbox"]).glob("*.json")):
+        destination = shadow_root / "research-queue-return/linux" / source.name
+        _copy_return(source, destination)
+        result["returns"]["linux"].append({"name": source.name, "sha256": _sha(source.read_bytes())})
+    with tempfile.TemporaryDirectory(prefix="q137-shadow-", dir=str(shadow_root)) as temp:
+        pull = pathlib.Path(temp) / "hk"
+        GateRsyncTransport(config["hk_target"], run=run).pull_returns(pull)
+        for source in sorted(pull.glob("*.json")):
+            destination = shadow_root / "research-queue-return/hk" / source.name
+            _copy_return(source, destination)
+            result["returns"]["hk"].append({"name": source.name, "sha256": _sha(source.read_bytes())})
+    return result
+
+
 def _write_status(path, rc, result=None, error=None):
     body = {"schema": "Q137_RELAY_STATUS_V1", "lastOkAt": datetime.now(timezone.utc).isoformat() if rc == 0 else None,
             "rc": rc, "counts": result or {}, "error": error}
@@ -335,12 +377,23 @@ def _write_status(path, rc, result=None, error=None):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--no-upload", action="store_true")
+    parser.add_argument("--shadow-root")
     args = parser.parse_args(argv)
-    if not args.once:
-        parser.error("--once is required")
+    if sum(bool(x) for x in (args.once, args.dry_run, args.shadow_root)) != 1:
+        parser.error("choose exactly one of --once, --dry-run or --shadow-root")
+    if args.shadow_root and not args.no_upload:
+        parser.error("--shadow-root requires --no-upload")
     status = os.environ.get("RQ_RELAY_STATUS", "/srv/research-lane/ops-logs/research-queue-relay/status.json")
     try:
         config = _config_from_env(os.environ)
+        if args.dry_run:
+            print(json.dumps(dry_run_plan(config), sort_keys=True, separators=(",", ":")))
+            return 0
+        if args.shadow_root:
+            print(json.dumps(run_shadow(config, args.shadow_root), sort_keys=True, separators=(",", ":")))
+            return 0
         result = run_once(config)
         rc = 1 if result["failed"] else 0
         _write_status(status, rc, result=result)
