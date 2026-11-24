@@ -70,7 +70,8 @@ def verify_frozen_md(live_md, frozen_md, frozen_rev):
 
 
 def _registry_sha(registry_lines):
-    raw = b"".join((_canonical(line) + b"\n") for line in registry_lines)
+    raw = b"".join((json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+                   for line in registry_lines)
     return _sha(raw)
 
 
@@ -125,7 +126,7 @@ def _render_md(document, frozen_md, pin_values):
 
 
 def build(frozen, frozen_md, projections, new_rows, unjoined, ledgers, pin_values,
-          evaluated_on, revision, registry_lines=None):
+          evaluated_on, revision, registry_lines=None, as_of=None):
     frozen_rows = []
     for row in frozen.get("items", []):
         current = dict(row)
@@ -158,7 +159,7 @@ def build(frozen, frozen_md, projections, new_rows, unjoined, ledgers, pin_value
     document = dict(frozen)
     document.update({
         "revision": int(revision),
-        "asOf": _latest_timestamp(ledgers, frozen.get("asOf")),
+        "asOf": as_of or _latest_timestamp(ledgers, frozen.get("asOf")),
         "stage": "机器版（台账投影）",
         "items": items,
     })

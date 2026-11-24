@@ -4,6 +4,7 @@
 import argparse
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -49,6 +50,17 @@ def _ledger_lines(records):
 
 def _ledger_facts(state):
     return [dict({"path": name}, **fact) for name, fact in sorted(state.get("ledgers", {}).items())]
+
+
+def _latest_record_date(records, fallback):
+    values = []
+    for ledger_records in records.values():
+        for record in ledger_records:
+            for key in ("sealed_on", "locked_at", "registered_at", "created_at", "timestamp"):
+                value = record.get(key)
+                if isinstance(value, str) and value:
+                    values.append(value[:10])
+    return max(values) if values else fallback
 
 
 def _append_registry(lines, new_rows, revision, qrp_commit):
@@ -108,7 +120,8 @@ def run(args):
     next_registry = _append_registry(rows, new_rows, candidate_rev, cfg.get("qrp_commit", "UNKNOWN"))
     candidate = render.build(frozen, raw_md, projections, new_rows, unjoined,
                              _ledger_facts(ledger_state), pin_values, evaluated_on,
-                             candidate_rev, next_registry)
+                             candidate_rev, next_registry,
+                             as_of=_latest_record_date(records, frozen.get("asOf")))
     previous_digest = state.get("digest")
     digest = candidate.document["ledgerOverlay"]["digest"]
     result = "NO_CHANGE" if previous_digest == digest else "NEW_REV"
@@ -128,9 +141,13 @@ def run(args):
     with tempfile.NamedTemporaryFile(dir=registry_path.parent, delete=False) as stream:
         temporary = Path(stream.name)
         stream.write(_registry_bytes(next_registry)); stream.flush()
-        import os
         os.fsync(stream.fileno())
     temporary.replace(registry_path)
+    state_dir = os.open(registry_path.parent, os.O_RDONLY)
+    try:
+        os.fsync(state_dir)
+    finally:
+        os.close(state_dir)
     last_run = dict(ledger_state, rev=candidate_rev, digest=digest)
     writer.publish(root, candidate_rev, candidate.json_bytes, candidate.md_bytes, status, last_run)
     return 0
