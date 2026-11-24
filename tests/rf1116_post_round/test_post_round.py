@@ -38,8 +38,9 @@ def sha(value):
 
 
 class Runner:
-    def __init__(self, survivors=None):
+    def __init__(self, survivors=None, ledger_path=None):
         self.survivors = survivors or []
+        self.ledger_path = pathlib.Path(ledger_path) if ledger_path else None
         self.registered = []
         self.calls = []
         self.register_fail_after = None
@@ -49,6 +50,11 @@ class Runner:
 
     def view(self):
         registered = {row["candidate_id"]: row for row in self.registered}
+        registration_hashes = {}
+        if self.ledger_path and self.ledger_path.exists():
+            for line in self.ledger_path.read_text().splitlines():
+                row = json.loads(line)
+                registration_hashes[row["candidate_id"]] = row["record_hash"]
         survivors = []
         for row in self.survivors:
             reg = registered.get(row["candidate_id"])
@@ -56,7 +62,8 @@ class Runner:
                               "mechanism_id": reg.get("mechanism_id") if reg else None,
                               "written_at": reg.get("written_at") if reg else None})
         items = [{"candidate_id": row["candidate_id"],
-                  "registration_hash": sha(canon(row)) if row["candidate_id"] in registered else None}
+                  "registration_hash": registration_hashes.get(row["candidate_id"], sha(canon(row)))
+                  if row["candidate_id"] in registered else None}
                  for row in sorted(self.survivors, key=lambda x: x["candidate_id"])]
         return {"survivors": survivors, "registered": [] if self.real_list_shape else list(self.registered),
                 "mechanism_set_sha256": sha(canon(items)), "review": self.review}
@@ -68,7 +75,14 @@ class Runner:
         if action == "mechanisms":
             rows = [json.loads(x) for x in pathlib.Path(file).read_text().splitlines() if x]
             limit = self.register_fail_after if self.register_fail_after is not None else len(rows)
-            self.registered.extend(rows[:limit])
+            accepted = rows[:limit]
+            self.registered.extend(accepted)
+            if self.ledger_path:
+                self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
+                with self.ledger_path.open("a") as fh:
+                    for row in accepted:
+                        body = {**row, "round_id": round_id}
+                        fh.write(canon({**body, "record_hash": sha(canon(body))}) + "\n")
             if limit < len(rows):
                 raise post_round.RunnerError("REGISTER_EXIT_1")
             return {"registered": list(self.registered)}
@@ -357,7 +371,7 @@ class PostRoundTest(unittest.TestCase):
     def test_b21_end_to_end_status_results_registration_review_and_done(self):
         survivors = self.survivors(1)
         self.seed(["A001"])
-        runner = Runner(survivors)
+        runner = Runner(survivors, self.tmp / "ledger/research/mining_mechanisms.jsonl")
         runner.real_list_shape = True
         engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
         self.assertEqual(engine.tick()[self.ROUND], "NOTES_ENQUEUED")
