@@ -46,7 +46,10 @@ class FixtureRunner:
         dest = operation.destination
         if dest is None:
             return 0
-        dest.mkdir(parents=True, exist_ok=True)
+        if operation.form_id == "R-16-SUMS":
+            dest.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            dest.mkdir(parents=True, exist_ok=True)
         if operation.form_id.startswith("R-04-"):
             write_sum(dest, [("SPY.jsonl", operation.form_id.encode())])
         elif operation.form_id == "R-05":
