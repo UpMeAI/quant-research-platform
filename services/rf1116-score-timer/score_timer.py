@@ -54,15 +54,16 @@ class CommandResult:
 class Config:
     def __init__(self, *, data_dir, state_dir, lane_dir, run_sh, image,
                  blackouts_path=None, disk_floor_gib=150, data_candidates=(),
-                 manifest_files=(), writable_probe=None):
+                 manifest_files=(), writable_probe=None, var_root=None):
         self.data_dir = Path(data_dir)
+        self.var_root = Path(var_root) if var_root else (self.data_dir.parent if self.data_dir.name == "ledger" else self.data_dir)
         self.state_dir = Path(state_dir)
         self.lane_dir = Path(lane_dir)
         self.run_sh = Path(run_sh)
         self.image = str(image)
         self.blackouts_path = Path(blackouts_path) if blackouts_path else None
         self.disk_floor_gib = float(disk_floor_gib)
-        self.data_candidates = tuple(Path(x) for x in (data_candidates or (self.data_dir,)))
+        self.data_candidates = tuple(Path(x) for x in (data_candidates or (self.var_root,)))
         self.manifest_files = tuple(Path(x) for x in manifest_files)
         self.writable_probe = writable_probe or (lambda p: os.access(p, os.W_OK))
 
@@ -151,7 +152,9 @@ def classify_failure(rc, stderr):
 
 def validate_qrp_var(config):
     candidates = tuple(dict.fromkeys(p.resolve() for p in config.data_candidates))
-    if config.data_dir.resolve() not in candidates:
+    root = config.var_root.resolve()
+    data = config.data_dir.resolve()
+    if root not in candidates or data not in {root, root / "ledger"}:
         raise ConfigError("QRP_VAR_AUTHORITY_NOT_CONFIGURED")
     writable = [p for p in candidates if p.exists() and config.writable_probe(p)]
     if len(writable) > 1:
@@ -543,8 +546,9 @@ class Supervisor:
 
 def config_from_env():
     lane = Path(os.environ.get("RF1116_LANE", "/srv/research-lane/rf1116-mining"))
-    data = Path(os.environ.get("QRP_DATA_DIR", "/srv/research-lane/qrp/var"))
-    if data != Path("/srv/research-lane/qrp/var") and os.environ.get("RF1116_SCORE_TIMER_ALLOW_TEST_DATA_DIR") != "1":
+    var_root = Path(os.environ.get("QRP_VAR_ROOT", "/srv/research-lane/qrp/var"))
+    data = Path(os.environ.get("QRP_DATA_DIR", "/srv/research-lane/qrp/var/ledger"))
+    if (var_root != Path("/srv/research-lane/qrp/var") or data != var_root / "ledger") and os.environ.get("RF1116_SCORE_TIMER_ALLOW_TEST_DATA_DIR") != "1":
         raise ConfigError("QRP_VAR_AUTHORITY_NOT_CONFIGURED")
     state = Path(os.environ.get("RF1116_SCORE_TIMER_STATE_DIR", str(lane / "score-timer")))
     run_sh = Path(os.environ.get("RF1116_RUN_SH", str(lane / "code/deploy/research-lane/round-runner/run.sh")))
@@ -553,12 +557,12 @@ def config_from_env():
     image = os.environ.get("RF1116_RUNNER_IMAGE", f"qrp-round-runner:{commit[:12]}" if len(commit) >= 12 else "")
     if not image:
         raise ConfigError("RUNNER_IMAGE_NOT_PINNED")
-    candidates = tuple(Path(x) for x in os.environ.get("QRP_VAR_CANDIDATES", str(data)).split(os.pathsep) if x)
+    candidates = tuple(Path(x) for x in os.environ.get("QRP_VAR_CANDIDATES", str(var_root)).split(os.pathsep) if x)
     manifests = tuple(Path(x) for x in os.environ.get("QRP_VAR_MANIFESTS", "").split(os.pathsep) if x)
     blackout = os.environ.get("RQ_BLACKOUTS_FILE", str(lane / "code/config/rq-blackouts.v1.json"))
     return Config(data_dir=data, state_dir=state, lane_dir=lane, run_sh=run_sh, image=image,
                   blackouts_path=blackout, disk_floor_gib=float(os.environ.get("RF1116_DISK_FLOOR_GIB", "150")),
-                  data_candidates=candidates, manifest_files=manifests)
+                  data_candidates=candidates, manifest_files=manifests, var_root=var_root)
 
 
 def main(argv=None):

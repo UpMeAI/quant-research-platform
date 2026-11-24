@@ -47,7 +47,8 @@ class World:
     def __init__(self, now=None, segment="R1", selected=None):
         self.tmp = tempfile.TemporaryDirectory(prefix="q151-")
         self.root = Path(self.tmp.name)
-        self.data = self.root / "var"
+        self.var_root = self.root / "var"
+        self.data = self.var_root / "ledger"
         self.research = self.data / "research"
         self.state = self.root / "score-timer"
         self.lane = self.root / "lane"
@@ -83,7 +84,7 @@ class World:
             (self.lane / "holdout-daydrop" / seg).mkdir(parents=True, exist_ok=True)
 
     def config(self, **kwargs):
-        base = dict(data_dir=self.data, state_dir=self.state, lane_dir=self.lane, run_sh=self.run_sh,
+        base = dict(data_dir=self.data, var_root=self.var_root, state_dir=self.state, lane_dir=self.lane, run_sh=self.run_sh,
                     image="qrp-round-runner:397538ca54b0", blackouts_path=None, disk_floor_gib=0)
         base.update(kwargs)
         return timer.Config(**base)
@@ -293,16 +294,31 @@ class ScoreTimerTests(unittest.TestCase):
         w = World()
         backup = w.root / "mac-var"
         backup.mkdir()
-        timer.validate_qrp_var(w.config(data_candidates=(w.data, backup), writable_probe=lambda p: p == w.data))
+        timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), writable_probe=lambda p: p == w.var_root))
         with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_DUAL_WRITABLE"):
-            timer.validate_qrp_var(w.config(data_candidates=(w.data, backup), writable_probe=lambda p: True))
+            timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), writable_probe=lambda p: True))
         a = w.root / "linux.manifest"; b = w.root / "mac.manifest"
         a.write_text("a\n"); b.write_text("b\n")
         with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_MANIFEST_MISMATCH"):
-            timer.validate_qrp_var(w.config(data_candidates=(w.data, backup), manifest_files=(a, b), writable_probe=lambda p: p == w.data))
+            timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), manifest_files=(a, b), writable_probe=lambda p: p == w.var_root))
         b.unlink()
         with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_MANIFEST_MISMATCH"):
-            timer.validate_qrp_var(w.config(data_candidates=(w.data, backup), manifest_files=(a, b), writable_probe=lambda p: p == w.data))
+            timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), manifest_files=(a, b), writable_probe=lambda p: p == w.var_root))
+
+    def test_production_config_binds_ledger_below_authoritative_var_root(self):
+        w = World()
+        (w.lane / "code" / ".QRP_COMMIT").write_text("397538ca54b00cc58663d52f6c9c81f033c7acc3\n")
+        original = os.environ.copy()
+        try:
+            os.environ.clear()
+            os.environ["RF1116_LANE"] = str(w.lane)
+            config = timer.config_from_env()
+        finally:
+            os.environ.clear()
+            os.environ.update(original)
+        self.assertEqual(config.var_root, Path("/srv/research-lane/qrp/var"))
+        self.assertEqual(config.data_dir, Path("/srv/research-lane/qrp/var/ledger"))
+        self.assertEqual(config.data_candidates, (Path("/srv/research-lane/qrp/var"),))
 
     def test_unit_files_are_bounded_user_timer(self):
         deploy = ROOT / "deploy" / "research-lane" / "score-timer"

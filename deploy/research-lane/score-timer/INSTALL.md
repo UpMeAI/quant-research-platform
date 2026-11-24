@@ -10,15 +10,19 @@ image performs arrival, completeness checking, score and rescore.
 2. Create `%h/.config/rf1116-score-timer/env` mode 0600:
 
    ```text
-   QRP_DATA_DIR=/srv/research-lane/qrp/var
+   QRP_VAR_ROOT=/srv/research-lane/qrp/var
+   QRP_DATA_DIR=/srv/research-lane/qrp/var/ledger
    RF1116_LANE=/srv/research-lane/rf1116-mining
    RF1116_SCORE_TIMER_STATE_DIR=/srv/research-lane/rf1116-mining/score-timer
    RQ_BLACKOUTS_FILE=/srv/research-lane/rf1116-mining/code/config/rq-blackouts.v1.json
    RF1116_DISK_FLOOR_GIB=150
    ```
 
+   `QRP_VAR_ROOT` is the migrated-copy authority; ledger front doors receive
+   its `ledger/` child so they read `/srv/research-lane/qrp/var/ledger/research`
+   and never create a parallel `/srv/research-lane/qrp/var/research`.
    During the QRP-var switch, ops-coord may additionally set colon-separated
-   `QRP_VAR_CANDIDATES` and `QRP_VAR_MANIFESTS`. More than one writable
+   var-root `QRP_VAR_CANDIDATES` and `QRP_VAR_MANIFESTS`. More than one writable
    candidate is `QRP_VAR_DUAL_WRITABLE`; unequal manifests are
    `QRP_VAR_MANIFEST_MISMATCH`. Both fail closed before `run.sh` starts.
 3. Copy the two unit files into `~/.config/systemd/user/`, run
