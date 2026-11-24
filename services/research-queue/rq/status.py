@@ -79,6 +79,13 @@ def _revision_skipped(cfg):
         return []
 
 
+def _task_view(conn):
+    """Closed, path-free task projection for file-only queue consumers."""
+    return [{"task_id": task_id, "idem_key": idem_key, "state": state, "attempt_no": attempt_no}
+            for task_id, idem_key, state, attempt_no in conn.execute(
+                "select task_id, idem_key, state, attempt_no from task order by task_id")]
+
+
 def build(conn, cfg, now):
     counts = dict(conn.execute("select state, count(*) from task group by state").fetchall())
     oldest = {s: int((now - core.parse_iso(m)).total_seconds()) for s, m in conn.execute("select state, min(updated_at) from task group by state")}
@@ -89,7 +96,8 @@ def build(conn, cfg, now):
             "consumer_heartbeat": hb.read_text().strip() if hb.exists() else None,
             "pauses": {"paused_tasks": counts.get("PAUSED", 0), "brakes": ps.get("brakes", {}), "pause_state_at": ps.get("at")},
             "circuits": core.open_circuits(conn, cfg.host, now), "event_head": core.chain_head(conn),
-            "spend": month_spend(cfg.gateway_db, now), "alerts": _alerts(conn, cfg, now, counts), "revision_skipped": _revision_skipped(cfg)}
+            "spend": month_spend(cfg.gateway_db, now), "alerts": _alerts(conn, cfg, now, counts), "revision_skipped": _revision_skipped(cfg),
+            "tasks": _task_view(conn)}
 
 
 def write(conn, cfg, now):
