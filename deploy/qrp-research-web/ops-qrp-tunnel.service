@@ -1,0 +1,27 @@
+[Unit]
+Description=Cloudflare private edge for QRP research web
+After=network-online.target ops-qrp-research-web.service
+Wants=network-online.target
+Requires=ops-qrp-research-web.service
+OnFailure=ops-notify@%n.service
+
+[Service]
+Type=simple
+EnvironmentFile=/home/kayla/.config/ops-env/qrp-tunnel.env
+WorkingDirectory=/srv/research-lane/qrp
+ExecStart=/usr/bin/python3 -I -B /srv/research-lane/ops/qrp-research-web/tunnel.py
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=30
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUAffinity=0-7 16-23
+MemoryMax=256M
+UMask=0077
+NoNewPrivileges=true
+StandardOutput=append:/srv/research-lane/ops-logs/qrp-research-web/tunnel.out.log
+StandardError=append:/srv/research-lane/ops-logs/qrp-research-web/tunnel.err.log
+
+[Install]
+WantedBy=default.target
