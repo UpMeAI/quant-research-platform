@@ -176,6 +176,46 @@ def _registry_rows(registry):
     return result
 
 
+def _registered_new_rows(registry_lines, records, evaluated_on):
+    direct = _registry_rows(registry_lines)
+    result_to_row = dict(direct)
+    grouped = {}
+    claimed = set()
+    for record in records:
+        row_id = None
+        for name in ("entry_id", "result_id", "study_ref"):
+            if record.get(name) in result_to_row:
+                row_id = result_to_row[record[name]]
+                break
+        supersedes = record.get("supersedes_ref", record.get("supersedes"))
+        refs = [supersedes] if isinstance(supersedes, str) else (supersedes or [])
+        if row_id is None:
+            for ref in refs:
+                if ref in result_to_row:
+                    row_id = result_to_row[ref]
+                    break
+        if row_id is None:
+            continue
+        result_id = record.get("result_id")
+        if result_id:
+            result_to_row[result_id] = row_id
+        grouped.setdefault(row_id, []).append(record)
+        claimed.add(id(record))
+
+    ordered_ids = [line.get("row_id") for line in registry_lines if line.get("origin") == "LEDGER_AUTO"]
+    rows = []
+    for row_id in ordered_ids:
+        group = grouped.get(row_id, [])
+        if not group:
+            continue
+        source = group[0]
+        overlay = _projection({}, group, evaluated_on, "NEW")
+        row = newrows.build(source, overlay)
+        row["id"] = row_id
+        rows.append(row)
+    return rows, claimed
+
+
 def _record_sort_key(record):
     return (record.get("sealed_on") or record.get("locked_at") or "", record.get("result_id") or "")
 
@@ -207,11 +247,12 @@ def build(frozen_doc, join_map, records, registry, evaluated_on):
         row_class = spec.get("rowClass", "FROZEN_CLOSED")
         projected[row_id] = _projection(spec, by_row[row_id], evaluated_on, row_class)
 
+    existing_rows, existing_record_ids = _registered_new_rows(registry, records_in_order, evaluated_on)
     registered = _registry_rows(registry)
     new_candidates = []
     unjoined = []
     for record in records_in_order:
-        if id(record) in joined_ids:
+        if id(record) in joined_ids or id(record) in existing_record_ids:
             continue
         identifiers = [record.get("entry_id"), record.get("result_id"), record.get("study_ref")]
         if any(value in registered for value in identifiers if value):
@@ -233,7 +274,7 @@ def build(frozen_doc, join_map, records, registry, evaluated_on):
         ref = record.get("supersedes_ref")
         if ref:
             superseded.add(ref)
-    new_rows = []
+    new_rows = list(existing_rows)
     for record in sorted((item for item in new_candidates if item.get("result_id") not in superseded), key=_record_sort_key):
         spec = {"freezeDate": join_map.get("freezeDate")}
         overlay = _projection(spec, [record], evaluated_on, "NEW")

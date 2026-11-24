@@ -54,12 +54,16 @@ def _ledger_facts(state):
 def _append_registry(lines, new_rows, revision, qrp_commit):
     previous = lines[-1]["line_sha256"] if lines else registry.ZERO_SHA256
     output = list(lines)
+    known = {line.get("row_id") for line in lines}
     for row in new_rows:
+        if row["id"] in known:
+            continue
         source = row["_registry_source"]
         join = {"entry_ids": [], "result_ids": [source["result_id"]], "study_refs": []}
         line = registry.auto_line(row["id"], len(output) + 1, revision, row["market"], source,
                                   previous, qrp_commit, join=join)
         output.append(line)
+        known.add(row["id"])
         previous = line["line_sha256"]
     return output
 
@@ -77,6 +81,12 @@ def run(args):
     raw_md = (frozen_dir / f"FROZEN_REV{pins.FROZEN_REV}.md").read_bytes()
     render.frozen_only(raw_json, raw_md, pin_values)
     if args.frozen_only:
+        now = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
+        status = {"schema": "MASTER_TABLE_RUN_STATUS_V1", "ran_at": now,
+                  "evaluatedOn": args.evaluated_on, "result": "NO_CHANGE",
+                  "code": "FROZEN_ONLY", "rev": int(pins.FROZEN_REV), "inputs": []}
+        writer.publish(root, int(pins.FROZEN_REV), raw_json, raw_md, status,
+                       {"rev": int(pins.FROZEN_REV), "digest": None, "ledgers": {}})
         return 0
     frozen = json.loads(raw_json)
     live_json_path = root / "live" / f"{writer.BASE}.json"
