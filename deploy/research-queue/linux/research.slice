@@ -4,3 +4,4 @@ Description=Research queue slice (AUTONOMOUS_RESEARCH_QUEUE_V1 section 3.6)
 CPUQuota=1200%
 MemoryMax=40G
 IOWeight=50
+AllowedCPUs=0-7,16-23

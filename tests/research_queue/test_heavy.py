@@ -65,7 +65,7 @@ def spec(root, *, db="NONE", preconditions=None, rows=None):
         "preconditions": preconditions or [],
         "db": {"mode": db},
         "run_dirs": {"main": str(root / "lane-main")},
-        "acceptance": {"rows": rows or ["H01", "H02", "H04", "H05", "H06", "H07", "H08", "Q01", "Q02"]},
+        "acceptance": {"rows": rows or ["H01", "H02", "H03", "H04", "H05", "H06", "H07", "H08", "Q01", "Q02", "Q03", "Q04"]},
         "budget": {"expected_compute_s": 1, "peak_bytes": 0},
     }
 
@@ -116,8 +116,16 @@ class HeavyFrozenAcceptance(Base):
         p = self.root / "gate.json"; p.write_text('{"ok":false}')
         self.s["preconditions"] = [{"kind": "JSON_FIELD_EQ", "path": str(p), "field": "ok", "value": True}]
         self.assertFalse(heavy.check_preconditions(self.s, self.conn, self.t0)[0])
+        t = heavy_template()
+        self.s["pins"]["template"] = {"template_id": t["template_id"], "template_sha256": templates.template_sha256(t)}
+        spec_sha, _ = self.write_spec()
+        admitted = self.admit(registry([t]), req(t, market="CN_A", params={"spec_sha256": spec_sha}))
+        self.assertEqual((admitted.state, self.state(admitted.task_id), self.row(admitted.task_id)["state_reason"]),
+                         ("WAITING_EXTERNAL", "WAITING_EXTERNAL", "HEAVY_PRECONDITION"))
         p.write_text('{"ok":true}')
         self.assertTrue(heavy.check_preconditions(self.s, self.conn, self.t0)[0])
+        producer.tick(self.conn, self.cfg, registry([t]), self.t0 + dt.timedelta(minutes=1))
+        self.assertEqual(self.state(admitted.task_id), "READY")
         p.unlink()
         self.assertFalse(heavy.check_preconditions(self.s, self.conn, self.t0)[0])
 
@@ -214,11 +222,13 @@ class HeavyFrozenAcceptance(Base):
     def test_hr18_missing_or_changed_evidence_is_invalid(self):
         d = self.root / "evidence"; d.mkdir(); (d / "a.json").write_text("{}")
         (d / "SHA256SUMS").write_text(h("{}") + "  a.json\n")
-        self.assertEqual(heavy_accept.verify_manifest(d), {})
+        (d / "a.json").chmod(0o444); (d / "SHA256SUMS").chmod(0o444)
+        self.assertEqual(heavy_accept.verify_manifest(d, required={"a.json"}), {})
+        (d / "a.json").chmod(0o644)
         (d / "a.json").write_text('{"x":1}')
-        self.assertIn("a.json", heavy_accept.verify_manifest(d))
+        self.assertIn("a.json", heavy_accept.verify_manifest(d, required={"a.json"}))
         (d / "a.json").unlink()
-        self.assertIn("a.json", heavy_accept.verify_manifest(d))
+        self.assertIn("a.json", heavy_accept.verify_manifest(d, required={"a.json"}))
 
     def test_hr19_completion_is_deterministic(self):
         rows = {"H01": "PASS", "Q01": "FAIL", "Q02": "PASS"}
@@ -249,9 +259,9 @@ class HeavyFrozenAcceptance(Base):
 
     def test_hr23_heavy_slot_is_single_and_priority_ordered(self):
         self.assertEqual(core.slot_class({"weight_class": "W2", "io_class": "LANE1_FILES"}), "HEAVY")
-        t = heavy_template(); reg = registry([t])
-        r2 = self.admit(reg, req(t, subject={"n": 2}, params={"spec_sha256": "2" * 64}, market="CN_A", priority=20))
-        r1 = self.admit(reg, req(t, subject={"n": 1}, params={"spec_sha256": "1" * 64}, market="CN_A", priority=10))
+        t = tpl("T-HR23-W2", weight_class="W2", io_class="LANE1_FILES"); reg = registry([t])
+        r2 = self.admit(reg, req(t, subject={"n": 2}, priority=20))
+        r1 = self.admit(reg, req(t, subject={"n": 1}, priority=10))
         c = core.claim(self.conn, host="LINUX", worker="w", now=self.t0)
         self.assertEqual(c["task_id"], r1.task_id)
         self.assertIsNone(core.claim(self.conn, host="LINUX", worker="w", now=self.t0))

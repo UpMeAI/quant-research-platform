@@ -10,9 +10,12 @@ REQUIRED = ("template_id", "version", "kinds", "producer_host", "run_host", "age
 HOSTS = ("LINUX", "HK", "BY_MARKET")
 WEIGHTS = ("W0", "W1", "W2", "NET")
 IO_CLASSES = ("NONE", "LANE1_DB", "LANE1_FILES", "HK_DB")
-COMPLETIONS = ("SELF_VALIDATED", "GATE_AND_CHECK")
+COMPLETIONS = ("SELF_VALIDATED", "GATE_AND_CHECK", "HEAVY_MATRIX")
 MARKETS = ("CN_A", "US_EQUITY", "CRYPTO", "NONE")
 PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+HEAVY_KINDS = ("HEAVY_Q0_LANE", "HEAVY_LAB_E2E")
+HEAVY_FIELDS = ("spec_schema", "pause_mode", "unit_props", "floor_gib", "driver_contract", "terminal_map", "stop_lead_s")
+HEAVY_UNIT_PROPS = ("Nice=19", "IOSchedulingClass=idle", "CPUAffinity=0-7 16-23", "CPUQuota=600%", "MemoryMax=24G")
 
 
 def template_sha256(t):
@@ -58,6 +61,32 @@ def validate_template(t):
             errs.append("param pattern " + name)
     if not isinstance(t["transient_budget"], int) or t["transient_budget"] < 0:
         errs.append("transient_budget")
+    is_heavy = any(k in HEAVY_KINDS for k in t["kinds"])
+    if is_heavy or t["completion"] == "HEAVY_MATRIX":
+        h = t.get("heavy")
+        if not isinstance(h, dict):
+            errs.append("missing heavy")
+            return errs
+        for k in HEAVY_FIELDS:
+            if k not in h:
+                errs.append("missing heavy." + k)
+        if t["completion"] != "HEAVY_MATRIX":
+            errs.append("heavy completion")
+        if h.get("spec_schema") != "HEAVY_RUN_SPEC_V1":
+            errs.append("heavy.spec_schema")
+        if h.get("pause_mode") not in ("COOPERATIVE_FILE", "DOCKER_PAUSE"):
+            errs.append("heavy.pause_mode")
+        if tuple(h.get("unit_props") or ()) != HEAVY_UNIT_PROPS:
+            errs.append("heavy.unit_props")
+        if h.get("floor_gib") != 150 or h.get("driver_contract") != "HEAVY_DRIVER_V1" or h.get("terminal_map") != "HEAVY_TERMINAL_MAP_V1":
+            errs.append("heavy contract")
+        if not isinstance(h.get("stop_lead_s"), int) or h.get("stop_lead_s", 0) < 120:
+            errs.append("heavy.stop_lead_s")
+        expected = ["/usr/bin/python3", "-m", "rq", "heavy-run", "{spec_sha256}"]
+        if t["argv"] != expected or t.get("recovery_argv") != expected + ["--resume"] or set(t["params"]) != {"spec_sha256"}:
+            errs.append("heavy argv")
+        if any("/heavy-specs/" in a or a.endswith(".json") for a in t["argv"] + list(t.get("recovery_argv") or [])):
+            errs.append("heavy argv path")
     return errs
 
 

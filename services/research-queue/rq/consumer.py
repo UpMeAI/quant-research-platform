@@ -13,7 +13,7 @@ import signal
 import subprocess
 import sys
 
-from . import agentseam, core, guard, pause, producer, status as status_mod
+from . import agentseam, core, guard, heavy, pause, producer, status as status_mod
 
 T3_BACKOFF_S = (60, 180, 600, 1800, 3600)   # six tries in all, then WAITING_PROVIDER
 T1_BACKOFF_S = 600
@@ -59,6 +59,21 @@ def classify(attempt_dir, exit_info):
         return Outcome("T1", "SIGNAL_%d" % sig)
     if code is None:
         return Outcome("T1", "RUNTIME_LOST")
+    driver = _read_json(d / "driver-result.json")
+    if isinstance(driver, dict) and driver.get("exit") == code:
+        h = heavy.classify_driver_result(driver)
+        if h.queue_state == "EVIDENCE_WRITTEN":
+            res = _read_json(d / "result.json")
+            return Outcome("SUCCESS") if isinstance(res, dict) else Outcome("D", "RESULT_MISSING")
+        if h.queue_state == "WAITING_QUOTA":
+            return Outcome("Q", h.code)
+        if h.queue_state == "WAITING_PROVIDER":
+            return Outcome("T3", h.code)
+        if h.queue_state == "WAITING_CREDENTIAL":
+            return Outcome("A", h.code)
+        if h.queue_state == "WAITING_EXTERNAL":
+            return Outcome("E", h.code)
+        return Outcome("D", h.code)
     err = _read_json(d / "error.json")
     if isinstance(err, dict):
         k = err.get("class")
@@ -89,6 +104,20 @@ def _remediation(cfg, task, code, now):
                              "at": core.iso(now), "note": "deterministic failure; fix the template, prompt or validator, then admit a new version"}))
 
 
+def _heavy_emit(cfg, task, outcome, now):
+    adm = json.loads(task["admission_json"])["derived"]
+    if not adm.get("heavy"):
+        return
+    task_dir = cfg.runs_dir / task["task_id"]
+    task_dir.mkdir(parents=True, exist_ok=True)
+    row = heavy.append_ledger(task_dir / "RUN_LEDGER.jsonl", {"actor": "rq-consumer", "at": core.iso(now), "attempt_no": task["attempt_no"],
+                                                               "outcome": dataclasses.asdict(outcome)})
+    p = cfg.outbox_dir / ("heavy-%s-%06d.json" % (task["task_id"], row["seq"]))
+    guard.check_write_path(p)
+    p.write_text(core.canonical({"schema": "HEAVY_ATTEMPT_RETURN_V1", "task_id": task["task_id"], "attempt_no": task["attempt_no"],
+                                 "at": core.iso(now), "outcome": dataclasses.asdict(outcome), "ledger_hash": row["hash"]}))
+
+
 def apply_outcome(conn, cfg, task_id, outcome, now, token=None):
     """Move the task out of RUNNING/CLAIMED according to the §3.7 class. Fencing: the caller's token (default: the row's current one)."""
     task = core.get_task(conn, task_id)
@@ -97,6 +126,7 @@ def apply_outcome(conn, cfg, task_id, outcome, now, token=None):
 
     def go(state, reason, **kw):
         core.transition(conn, task_id, state, actor="rq-consumer", now=now, reason=reason, token=token, detail=kw.pop("detail", None), fields=kw.get("fields"))
+        _heavy_emit(cfg, task, outcome, now)
 
     k = outcome.kind
     if k == "SUCCESS":
@@ -129,7 +159,11 @@ def apply_outcome(conn, cfg, task_id, outcome, now, token=None):
         go("WAITING_CREDENTIAL", outcome.code or "CREDENTIAL")
     elif k == "E":
         if outcome.code in producer.EXTERNAL_CODES:
-            go("WAITING_EXTERNAL", outcome.code)
+            if outcome.code == "GUARD_DISK_FLOOR" and _count_events(conn, task_id, "GUARD_DISK_FLOOR") >= 2:
+                go("BLOCKED_DETERMINISTIC", "STOPPED_BY_GUARD_REPEATED")
+                _remediation(cfg, task, "STOPPED_BY_GUARD_REPEATED", now)
+            else:
+                go("WAITING_EXTERNAL", outcome.code)
         else:
             go("BLOCKED_DETERMINISTIC", "EXTERNAL_CODE_UNKNOWN")
     elif k == "S":
@@ -224,7 +258,12 @@ def tick(conn, cfg, rt, now, *, worker=None, sensors=None, blackouts=None):
     worker = worker or cfg.worker
     summary = {"claimed": [], "adopted": [], "requeued": [], "finished": []}
     status_mod.touch_consumer_heartbeat(cfg, now)
-    blackouts = blackouts if blackouts is not None else pause.load_blackouts(cfg.blackouts_path)
+    if blackouts is None:
+        try:
+            blackouts = pause.load_blackouts(cfg.blackouts_path)
+        except pause.BlackoutsUnusable:
+            summary["refused"] = ["BLACKOUTS_FILE_UNUSABLE"]
+            return summary
     cur = conn.execute("select * from task where state in ('CLAIMED','RUNNING')")
     cols = [c[0] for c in cur.description]
     for r in cur.fetchall():
