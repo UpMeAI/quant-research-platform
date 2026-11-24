@@ -69,8 +69,44 @@ test('A01 valid six-candidate note pack completes in one stubbed call and consum
   const p = notePack(); const c = client([ok(noteOutput(p))]); const t = task('AI_MECH_NOTE'); const b = bundle(p);
   const r = await runAgentTask(t, b, opts(c));
   assert.equal(r.status, 'DONE'); assert.equal(c.calls.length, 1); assert.equal(r.outputs.mechanism_notes.schema, 'RF1116_MECH_NOTE_OUTPUT_V1');
+  assert.deepEqual(r.validator, { ok: true, sha256: r.outputs.mechanism_notes_sha256 });
+  assert.equal(r.validator.sha256, sha256(canonicalJson(r.outputs.mechanism_notes)));
   const v = validateResult({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() });
   assert.deepEqual(v.codes, []); assert.equal(v.ok, true); assert.match(v.output_sha256, /^[0-9a-f]{64}$/);
+});
+
+test('D01 trusted consumer requires but never trusts the mechanism producer self-certificate', async () => {
+  for (const [kind, p, body, key] of [
+    ['AI_MECH_NOTE', notePack(), noteOutput, 'mechanism_notes'],
+    ['AI_MECH_REVIEW', reviewPack(), reviewOutput, 'mechanism_review'],
+  ]) {
+    const t = task(kind); const b = bundle(p);
+    const r = await runAgentTask(t, b, opts(client([ok(body(p))])));
+    const namedSha = r.outputs[`${key}_sha256`];
+    assert.deepEqual(r.validator, { ok: true, sha256: namedSha });
+    assert.match(r.validator.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(namedSha, sha256(canonicalJson(r.outputs[key])));
+    assert.equal(validateResult({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() }).ok, true);
+
+    const missing = clone(r); delete missing.validator;
+    let v = validateResult({ task: t, bundle: b, result: missing, promptAdmissions: promptAdmissions() });
+    assert.equal(v.ok, false); assert.ok(v.codes.includes('RESULT_VALIDATOR_MISSING'), JSON.stringify(v.codes));
+
+    const falseClaim = clone(r); falseClaim.validator.ok = false;
+    v = validateResult({ task: t, bundle: b, result: falseClaim, promptAdmissions: promptAdmissions() });
+    assert.equal(v.ok, false); assert.ok(v.codes.includes('RESULT_VALIDATOR_NOT_OK'), JSON.stringify(v.codes));
+
+    const mismatch = clone(r); mismatch.validator.sha256 = '0'.repeat(64);
+    v = validateResult({ task: t, bundle: b, result: mismatch, promptAdmissions: promptAdmissions() });
+    assert.equal(v.ok, false); assert.ok(v.codes.includes('RESULT_VALIDATOR_SHA_MISMATCH'), JSON.stringify(v.codes));
+
+    const forgedContent = clone(r); forgedContent.outputs[key].round_id = 'MR-CN_A-forged';
+    forgedContent.outputs[`${key}_sha256`] = sha256(canonicalJson(forgedContent.outputs[key]));
+    forgedContent.validator.sha256 = forgedContent.outputs[`${key}_sha256`];
+    v = validateResult({ task: t, bundle: b, result: forgedContent, promptAdmissions: promptAdmissions() });
+    assert.equal(v.ok, false, 'matching self-certificate cannot replace independent content revalidation');
+    assert.ok(v.codes.includes(kind === 'AI_MECH_NOTE' ? 'MECH_NOTE_SCHEMA' : 'MECH_REVIEW_SCHEMA'), JSON.stringify(v.codes));
+  }
 });
 
 test('A02 note output must contain every candidate exactly once', () => {
@@ -190,6 +226,8 @@ test('review validator is closed, candidate-complete, wording/number/secret safe
   ]) { const o = reviewOutput(p); mutate(o); assert.equal(review.validateReviewOutput(o, p).ok, false); }
   const c = client([ok(reviewOutput(p))]); const t = task('AI_MECH_REVIEW'); const b = bundle(p);
   const r = await runAgentTask(t, b, opts(c)); assert.equal(r.status, 'DONE'); assert.equal(r.outputs.mechanism_review.schema, 'RF1116_MECH_REVIEW_OUTPUT_V1');
+  assert.deepEqual(r.validator, { ok: true, sha256: r.outputs.mechanism_review_sha256 });
+  assert.equal(r.validator.sha256, sha256(canonicalJson(r.outputs.mechanism_review)));
   assert.equal(validateResult({ task: t, bundle: b, result: r, promptAdmissions: promptAdmissions() }).ok, true);
 });
 
