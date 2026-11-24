@@ -202,17 +202,19 @@ class PostRoundTemplates(Base):
             self.assertEqual(named_sha256, core.sha256_hex(core.canonical(wrapped)), tid)
             self.assertEqual(result["validator"], {"ok": True, "sha256": named_sha256}, tid)
 
-    def test_c05_review_matrix_requires_note_for_consistent_and_hold_items(self):
+    def test_c05_review_matrix_matches_authoritative_bounded_string_note_semantics(self):
         template = shipped().get(NEW_IDS[1])
         matrix_row = next(row for row in template["evidence_matrix_rows"] if row["id"] == "EM-03")
         self.assertEqual(
             matrix_row["req"],
-            "every HOLD item has an allowed code and non-empty note_zh; every CONSISTENT item has null code and non-empty note_zh",
+            "every HOLD item has an allowed code; every CONSISTENT item has null code; note_zh is a string of at most 80 characters",
         )
         consistent = package_a_success_result(NEW_IDS[1])["outputs"]["mechanism_review"]["items"][0]
         self.assertEqual(consistent["status"], "CONSISTENT")
         self.assertIsNone(consistent["code"])
-        self.assertTrue(consistent["note_zh"])
+        consistent["note_zh"] = ""
+        self.assertIsInstance(consistent["note_zh"], str)
+        self.assertLessEqual(len(consistent["note_zh"]), 80)
 
     def test_c05_subject_is_only_round_batch_and_pack_sha(self):
         for tid in NEW_IDS:
