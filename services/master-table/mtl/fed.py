@@ -119,7 +119,8 @@ def _projection(spec, records, evaluated_on, row_class):
         expected = bool(spec.get("expected_sources"))
         freeze_date = _parse_date(spec.get("freezeDate"))
         current = _parse_date(evaluated_on)
-        if expected and freeze_date and current and current > freeze_date + timedelta(days=30):
+        if (expected and not spec.get("nextCheck") and freeze_date and current
+                and current > freeze_date + timedelta(days=30)):
             missing = _field("STALE", None, "AWAITING_PRODUCER_30D", None)
         elif expected:
             missing = _field("MISSING", None, "AWAITING_PRODUCER", None)
