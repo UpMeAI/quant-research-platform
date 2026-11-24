@@ -93,7 +93,7 @@ class CopyTest(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def run(self, phase, runner, now, **kwargs):
+    def run_phase_case(self, phase, runner, now, **kwargs):
         return copy.run_phase(
             phase, base=self.base, runner=runner, clock=lambda: now,
             free_bytes=copy.MIN_FREE_AFTER_BYTES + copy.EXPECTED_BYTES[phase] + 1,
@@ -101,7 +101,7 @@ class CopyTest(unittest.TestCase):
 
     def test_p1_complete_delivery_and_read_only_receipt(self):
         runner = FixtureRunner()
-        result = self.run("p1", runner, P1_NOW)
+        result = self.run_phase_case("p1", runner, P1_NOW)
         self.assertEqual(0, result.code)
         target = self.base / "data" / "rut1-s8parity"
         self.assertTrue((target / "us-1m" / "2026-11-27" / "SHA256SUMS").is_file())
@@ -113,7 +113,7 @@ class CopyTest(unittest.TestCase):
         self.assertEqual(0o444, (target / "RUT1_INPUT_COPY_RECEIPT_V1.json").stat().st_mode & 0o777)
 
     def test_sha_mismatch_moves_nothing(self):
-        result = self.run("p1", FixtureRunner(bad_sha=True), P1_NOW)
+        result = self.run_phase_case("p1", FixtureRunner(bad_sha=True), P1_NOW)
         self.assertEqual(4, result.code)
         self.assertFalse((self.base / "data" / "rut1-s8parity").exists())
         self.assertEqual("PARTIAL", json.loads(result.receipt.read_text())["result"])
@@ -133,13 +133,13 @@ class CopyTest(unittest.TestCase):
         target = self.base / "data" / "rut1-s8parity" / "fills" / "US_V5_FILLS_E3_V2.json"
         target.parent.mkdir(parents=True)
         target.write_bytes(b"existing")
-        result = self.run("p1", FixtureRunner(), P1_NOW)
+        result = self.run_phase_case("p1", FixtureRunner(), P1_NOW)
         self.assertEqual(4, result.code)
         self.assertEqual(b"existing", target.read_bytes())
         self.assertEqual("CONFLICT", json.loads(result.receipt.read_text())["result"])
 
     def test_appledouble_is_refused(self):
-        result = self.run("p1", FixtureRunner(appledouble=True), P1_NOW)
+        result = self.run_phase_case("p1", FixtureRunner(appledouble=True), P1_NOW)
         self.assertEqual(3, result.code)
         self.assertEqual("APPLEDOUBLE_REFUSED", result.reason)
         self.assertFalse((self.base / "data" / "rut1-s8parity").exists())
@@ -149,19 +149,19 @@ class CopyTest(unittest.TestCase):
         lock_path.parent.mkdir(parents=True)
         with lock_path.open("a+") as held:
             fcntl.flock(held.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-            result = self.run("p1", FixtureRunner(), P1_NOW)
+            result = self.run_phase_case("p1", FixtureRunner(), P1_NOW)
         self.assertEqual(75, result.code)
 
     def test_rerun_after_complete_is_noop(self):
-        self.assertEqual(0, self.run("p1", FixtureRunner(), P1_NOW).code)
+        self.assertEqual(0, self.run_phase_case("p1", FixtureRunner(), P1_NOW).code)
         runner = FixtureRunner(rc=126)
-        result = self.run("p1", runner, P1_NOW)
+        result = self.run_phase_case("p1", runner, P1_NOW)
         self.assertEqual(0, result.code)
         self.assertEqual([], runner.calls)
 
     def test_p2_has_no_marker_and_delivers_79_by_two(self):
         runner = FixtureRunner()
-        result = self.run("p2", runner, P2_NOW)
+        result = self.run_phase_case("p2", runner, P2_NOW)
         self.assertEqual(0, result.code)
         target = self.base / "data" / "rut1-s8parity-b" / "alpaca-1m"
         self.assertEqual(79, len(list((target / "raw").glob("*/2026-11.jsonl.gz"))))
@@ -172,7 +172,7 @@ class CopyTest(unittest.TestCase):
         self.assertNotIn("marker", json.dumps(receipt).lower())
 
     def test_gate_refusal_is_exit_three(self):
-        result = self.run("p1", FixtureRunner(rc=126), P1_NOW)
+        result = self.run_phase_case("p1", FixtureRunner(rc=126), P1_NOW)
         self.assertEqual((3, "GATE_REFUSED"), (result.code, result.reason))
 
     def test_check_print_plan_touches_nothing(self):
