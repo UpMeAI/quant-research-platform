@@ -14,6 +14,7 @@ class RenderTest(unittest.TestCase):
             "schema": "PROGRESS_REGISTRY_V1", "generated_at": "2026-11-26T09:07:02+08:00",
             "generator": {"commit": "0123456789ab", "host": "LINUX"},
             "registry_sha256": "a" * 64, "stale_banner_after_h": 3,
+            "page_age_h": 0.0, "page_age_state": "OK", "page_age_reason": None,
             "sections_by_state": {state: 1 for state in states},
             "sections": [{"key": f"S{i}", "title_zh": state, "state": state,
                           "reason": None if state in ("OK", "ZERO") else "WHY",
@@ -31,8 +32,7 @@ class RenderTest(unittest.TestCase):
         self.assertIn("VALUE-STALE", html)
         self.assertIn("过期", html)
         self.assertIn('<meta name="progress-page" content="PROGRESS_REGISTRY_V1">', html)
-        self.assertIn("Date.now()", html)
-        self.assertIn("stale_banner_after_h", html)
+        self.assertNotIn("Date.now()", html)
 
     def test_escapes_and_has_no_external_resources(self):
         reg = self.fixture()
@@ -51,6 +51,24 @@ class RenderTest(unittest.TestCase):
         self.assertIn("11-25 冻结，之后不再更新", first)
         self.assertIn("研究", first)
         self.assertNotIn("%", first)
+
+    def test_server_stale_banner_consumes_registry_page_age(self):
+        reg = self.fixture()
+        reg["page_age_h"] = 4.0
+        html = render(reg)
+        self.assertIn('id="server-stale"', html)
+        self.assertNotIn("Date.now()", html)
+
+    def test_missing_and_unknown_page_age_are_distinct(self):
+        reg = self.fixture()
+        reg.update(page_age_h=None, page_age_state="MISSING", page_age_reason="GENERATED_AT_MISSING")
+        missing = render(reg)
+        reg.update(page_age_state="UNKNOWN", page_age_reason="GENERATED_AT_INVALID")
+        unknown = render(reg)
+        self.assertIn('id="server-age-missing"', missing)
+        self.assertNotIn('id="server-age-unknown"', missing)
+        self.assertIn('id="server-age-unknown"', unknown)
+        self.assertNotEqual(missing, unknown)
 
 
 if __name__ == "__main__":

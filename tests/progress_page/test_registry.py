@@ -20,6 +20,48 @@ def dump(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
 
 
+FED_FIELDS = (
+    "verdict", "verdictToken", "status", "sealedOn", "sealSha256",
+    "k2State", "tStart", "tStartRegistryStatus", "nextCheck",
+)
+
+
+def fed(row_class="FROZEN_CLOSED"):
+    return {
+        "schema": "MASTER_TABLE_FED_V1",
+        "rowClass": row_class,
+        **{
+            name: {"state": "MISSING", "value": None,
+                   "reason": "NO_PRODUCER_DECLARED", "src": None}
+            for name in FED_FIELDS
+        },
+        "records": [],
+    }
+
+
+def master_table(revision=101, items=None):
+    return {
+        "revision": revision,
+        "asOf": "2026-11-26",
+        "marketCounts": {"byMarket": {
+            "CN_A": {"done": 1, "forward": 0, "running": 0,
+                     "todo": 0, "blocked": 0, "total": 1},
+        }},
+        "ledgerOverlay": {
+            "evaluatedOn": "2026-11-26", "frozenRev": 100, "unjoined": [],
+        },
+        "items": items if items is not None else [{"id": "Z1", "ledgerFed": fed()}],
+    }
+
+
+def run_status(revision=101):
+    return {
+        "schema": "MASTER_TABLE_RUN_STATUS_V1", "result": "NO_CHANGE",
+        "code": None, "rev": revision,
+        "ran_at": "2026-11-26T08:07:02+08:00", "evaluatedOn": "2026-11-26",
+    }
+
+
 class RegistryTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -149,8 +191,14 @@ class RegistryTest(unittest.TestCase):
     def test_s9_whitelist_counts_and_no_text(self):
         table = self.root / "RESEARCH_MASTER_TABLE_20261110.json"
         status = self.root / "run_status.json"
-        dump(table, {"revision": 101, "asOf": "2026-11-26", "marketCounts": {"byMarket": {"CN_A": {"done": 1, "forward": 0, "running": 0, "todo": 0, "blocked": 0, "total": 1}}}, "ledgerOverlay": {"evaluatedOn": "2026-11-26", "frozenRev": 100, "unjoined": [1, 2]}, "items": [{"id": "Z1", "detail": "NEVER-LEAK-ME", "ledgerFed": {"rowClass": "NEW", "verdict": {"state": "OK", "value": "做"}, "status": {"state": "MISSING", "value": None}, "sealedOn": {"state": "OK", "value": "2026-11-26"}}}]})
-        dump(status, {"schema": "MASTER_TABLE_RUN_STATUS_V1", "result": "NO_CHANGE", "code": None, "rev": 101, "ran_at": "2026-11-26T08:07:02+08:00", "evaluatedOn": "2026-11-26"})
+        row_fed = fed("NEW")
+        row_fed["verdict"] = {"state": "OK", "value": "做", "reason": None, "src": "sealed"}
+        row_fed["status"] = {"state": "MISSING", "value": None, "reason": "NO_PRODUCER_DECLARED", "src": None}
+        row_fed["sealedOn"] = {"state": "OK", "value": "2026-11-26", "reason": None, "src": "sealed"}
+        value = master_table(items=[{"id": "Z1", "detail": "NEVER-LEAK-ME", "ledgerFed": row_fed}])
+        value["ledgerOverlay"]["unjoined"] = [1, 2]
+        dump(table, value)
+        dump(status, run_status())
         self.cfg["sections"]["S9"] = {"table_path": str(table), "status_path": str(status), "due_at": "2026-11-25T18:30:00+08:00", "max_age_h": 3}
         row = self.section(registry.build(self.cfg, NOW), "S9_MASTER_TABLE")
         self.assertEqual("OK", row["state"])
@@ -161,11 +209,52 @@ class RegistryTest(unittest.TestCase):
     def test_s9_without_ledger_fed_is_zero(self):
         table = self.root / "RESEARCH_MASTER_TABLE_20261110.json"
         status = self.root / "run_status.json"
-        dump(table, {"revision": 100, "asOf": "x", "marketCounts": {"byMarket": {}}, "ledgerOverlay": {"evaluatedOn": "x", "frozenRev": 100, "unjoined": []}, "items": [{"id": "old", "detail": "x"}]})
-        dump(status, {"result": "NO_CHANGE", "code": None, "rev": 100, "ran_at": NOW.isoformat(), "evaluatedOn": "x"})
+        dump(table, master_table(revision=100, items=[{"id": "old", "detail": "x"}]))
+        value = run_status(revision=100)
+        value["ran_at"] = NOW.isoformat()
+        dump(status, value)
         self.cfg["sections"]["S9"] = {"table_path": str(table), "status_path": str(status), "due_at": "2026-11-25T18:30:00+08:00", "max_age_h": 3}
         row = self.section(registry.build(self.cfg, NOW), "S9_MASTER_TABLE")
         self.assertEqual("ZERO", row["state"])
+
+    def test_s9_rejects_incomplete_or_conflicting_contracts(self):
+        table = self.root / "RESEARCH_MASTER_TABLE_20261110.json"
+        status = self.root / "run_status.json"
+        self.cfg["sections"]["S9"] = {
+            "table_path": str(table), "status_path": str(status),
+            "due_at": "2026-11-25T18:30:00+08:00", "max_age_h": 3,
+        }
+        cases = []
+        cases.append((master_table(), {k: v for k, v in run_status().items() if k != "schema"}))
+        cases.append((master_table(items=[]), run_status()))
+        cases.append((master_table(revision=102), run_status(revision=101)))
+        partial = fed()
+        del partial["nextCheck"]
+        cases.append((master_table(items=[{"id": "Z1", "ledgerFed": partial}]), run_status()))
+        for table_value, status_value in cases:
+            with self.subTest(table=table_value, status=status_value):
+                dump(table, table_value)
+                dump(status, status_value)
+                row = self.section(registry.build(self.cfg, NOW), "S9_MASTER_TABLE")
+                self.assertEqual(
+                    ("UNKNOWN", "SCHEMA_MISMATCH", None),
+                    (row["state"], row["reason"], row["data"]),
+                )
+
+    def test_registry_is_only_page_age_producer(self):
+        current = registry.build(self.cfg, NOW)
+        self.assertEqual(("OK", 0.0), (current["page_age_state"], current["page_age_h"]))
+
+        aged = registry.with_page_age(current, NOW + dt.timedelta(hours=4))
+        self.assertEqual(("OK", 4.0), (aged["page_age_state"], aged["page_age_h"]))
+        self.assertEqual(0.0, current["page_age_h"])
+
+        missing = registry.with_page_age({"schema": "PROGRESS_REGISTRY_V1"}, NOW)
+        invalid = registry.with_page_age(
+            {"schema": "PROGRESS_REGISTRY_V1", "generated_at": "not-a-time"}, NOW
+        )
+        self.assertEqual(("MISSING", None), (missing["page_age_state"], missing["page_age_h"]))
+        self.assertEqual(("UNKNOWN", None), (invalid["page_age_state"], invalid["page_age_h"]))
 
     def test_registry_hash_determinism_null_data_and_atomic_failure(self):
         first = registry.build(self.cfg, NOW)
