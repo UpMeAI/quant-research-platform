@@ -27,6 +27,15 @@ LOCAL_INBOX = "/srv/research-lane/research-queue/inbox/fact-packs"
 QUEUE_OUTBOX = "/srv/research-lane/research-queue/outbox"
 RETURN_ROOT = "/srv/research-lane/qrp/var/research-queue-return"
 HK_OUTBOX = "/var/lib/research-queue/outbox/"
+HK_GATE_TARGET = "root@smartflow-hk"
+CODE_ROOT = "/srv/research-lane/qrp/code"
+AUTHORITY_MARKER = "/srv/research-lane/qrp/AUTHORITATIVE"
+LINUX_MANIFEST = "/srv/research-lane/qrp/migration/linux-var.sha256"
+MAC_MANIFEST = "/srv/research-lane/qrp/migration/mac-var.sha256"
+MAC_MODE_PROOF = "/srv/research-lane/qrp/migration/mac-var-mode.json"
+MAC_VAR_PATH = "/Users/kaylame/KaylaProject/quant-research-platform/var"
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 
 
 class RelayError(RuntimeError):
@@ -41,59 +50,223 @@ def _sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def _atomic_write(path, data, mode=0o640, create_only=False):
+def _open_dir_nofollow(path, create=False, mode=0o750):
+    """Open an absolute directory without following any path component."""
     path = pathlib.Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    pending = path.with_name(".%s.part.%d" % (path.name, os.getpid()))
-    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
-    fd = os.open(str(pending), flags, mode)
+    if not path.is_absolute() or any(part in ("", ".", "..") for part in path.parts[1:]):
+        _fail("SAFE_PATH_INVALID")
+    fd = os.open("/", os.O_RDONLY | O_DIRECTORY)
     try:
-        with os.fdopen(fd, "wb", closefd=True) as handle:
-            handle.write(data)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.chmod(str(pending), mode)
-        if create_only:
+        for part in path.parts[1:]:
             try:
-                os.link(str(pending), str(path))
-            except FileExistsError:
-                _fail("ARTIFACT_EXISTS")
-            finally:
-                pending.unlink(missing_ok=True)
-        else:
-            os.replace(str(pending), str(path))
+                next_fd = os.open(part, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=fd)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                os.mkdir(part, mode=mode, dir_fd=fd)
+                next_fd = os.open(part, os.O_RDONLY | O_DIRECTORY | O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = next_fd
+        return fd
     except Exception:
-        pending.unlink(missing_ok=True)
+        os.close(fd)
         raise
 
 
-def guard_qrp_var(config, is_writable=None):
+def _read_regular_nofollow(path, max_bytes, error_code, missing_ok=False):
+    """Return (bytes, (dev, ino)) for a stable nonsymlink regular file."""
+    path = pathlib.Path(path)
+    parent_fd = file_fd = None
+    try:
+        parent_fd = _open_dir_nofollow(path.parent)
+        file_fd = os.open(path.name, os.O_RDONLY | O_NOFOLLOW, dir_fd=parent_fd)
+        before = os.fstat(file_fd)
+        if not stat.S_ISREG(before.st_mode) or before.st_size > max_bytes:
+            _fail(error_code)
+        chunks, remaining = [], max_bytes + 1
+        while remaining:
+            chunk = os.read(file_fd, min(1024 * 1024, remaining))
+            if not chunk:
+                break
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        data = b"".join(chunks)
+        if len(data) > max_bytes:
+            _fail(error_code)
+        after_fd = os.fstat(file_fd)
+        after_path = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+        identity = (before.st_dev, before.st_ino)
+        if identity != (after_fd.st_dev, after_fd.st_ino) or identity != (after_path.st_dev, after_path.st_ino):
+            _fail(error_code)
+        return data, identity
+    except FileNotFoundError:
+        if missing_ok:
+            return None, None
+        _fail(error_code)
+    except RelayError:
+        raise
+    except OSError:
+        _fail(error_code)
+    finally:
+        if file_fd is not None:
+            os.close(file_fd)
+        if parent_fd is not None:
+            os.close(parent_fd)
+
+
+def _unlink_if_same(path, identity, error_code):
+    path = pathlib.Path(path)
+    parent_fd = None
+    try:
+        parent_fd = _open_dir_nofollow(path.parent)
+        current = os.stat(path.name, dir_fd=parent_fd, follow_symlinks=False)
+        if (current.st_dev, current.st_ino) != identity or not stat.S_ISREG(current.st_mode):
+            _fail(error_code)
+        os.unlink(path.name, dir_fd=parent_fd)
+    except RelayError:
+        raise
+    except OSError:
+        _fail(error_code)
+    finally:
+        if parent_fd is not None:
+            os.close(parent_fd)
+
+
+def _chmod_regular_nofollow(path, mode, error_code):
+    path = pathlib.Path(path)
+    parent_fd = file_fd = None
+    try:
+        parent_fd = _open_dir_nofollow(path.parent)
+        file_fd = os.open(path.name, os.O_RDONLY | O_NOFOLLOW, dir_fd=parent_fd)
+        if not stat.S_ISREG(os.fstat(file_fd).st_mode):
+            _fail(error_code)
+        os.fchmod(file_fd, mode)
+    except RelayError:
+        raise
+    except OSError:
+        _fail(error_code)
+    finally:
+        if file_fd is not None:
+            os.close(file_fd)
+        if parent_fd is not None:
+            os.close(parent_fd)
+
+
+def _atomic_write(path, data, mode=0o640, create_only=False):
+    path = pathlib.Path(path)
+    parent_fd = _open_dir_nofollow(path.parent, create=True)
+    pending = ".%s.part.%d" % (path.name, os.getpid())
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    fd = os.open(pending, flags | O_NOFOLLOW, mode, dir_fd=parent_fd)
+    try:
+        with os.fdopen(fd, "wb", closefd=True) as handle:
+            fd = None
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        pending_fd = os.open(pending, os.O_RDONLY | O_NOFOLLOW, dir_fd=parent_fd)
+        try:
+            os.fchmod(pending_fd, mode)
+        finally:
+            os.close(pending_fd)
+        if create_only:
+            try:
+                os.link(pending, path.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd, follow_symlinks=False)
+            except FileExistsError:
+                _fail("ARTIFACT_EXISTS")
+            finally:
+                try:
+                    os.unlink(pending, dir_fd=parent_fd)
+                except FileNotFoundError:
+                    pass
+        else:
+            os.replace(pending, path.name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+        os.fsync(parent_fd)
+    except Exception:
+        if fd is not None:
+            os.close(fd)
+        try:
+            os.unlink(pending, dir_fd=parent_fd)
+        except FileNotFoundError:
+            pass
+        raise
+    finally:
+        os.close(parent_fd)
+
+
+def guard_qrp_var(config, is_writable=None, expected_paths=None):
     """Validate the ops-produced switch evidence before any ledger operation."""
     required = ("authority_marker", "authoritative_dir", "linux_manifest", "mac_manifest", "mac_mode_proof")
     if not isinstance(config, dict) or any(not isinstance(config.get(k), str) or not config[k] for k in required):
         _fail("QRP_VAR_GUARD_INVALID")
-    authority = pathlib.Path(config["authoritative_dir"]).resolve()
-    if not pathlib.Path(config["authority_marker"]).is_file():
+    expected = expected_paths or {
+        "authority_marker": AUTHORITY_MARKER, "authoritative_dir": VAR_ROOT,
+        "linux_manifest": LINUX_MANIFEST, "mac_manifest": MAC_MANIFEST,
+        "mac_mode_proof": MAC_MODE_PROOF, "mac_var_path": MAC_VAR_PATH,
+    }
+    if any(config.get(key) != expected.get(key) for key in required):
+        _fail("QRP_VAR_GUARD_INVALID")
+    authority = pathlib.Path(config["authoritative_dir"])
+    authority_fd = None
+    try:
+        authority_fd = _open_dir_nofollow(authority)
+    except (OSError, RelayError):
+        _fail("QRP_VAR_AUTHORITY_NOT_WRITABLE")
+    finally:
+        if authority_fd is not None:
+            os.close(authority_fd)
+    marker, _ = _read_regular_nofollow(config["authority_marker"], 4096, "QRP_VAR_AUTHORITY_MISSING")
+    if not marker:
         _fail("QRP_VAR_AUTHORITY_MISSING")
     writable = is_writable or (lambda p: os.access(str(p), os.W_OK))
-    if not authority.is_dir() or not writable(authority):
+    if not writable(authority):
         _fail("QRP_VAR_AUTHORITY_NOT_WRITABLE")
-    try:
-        linux_manifest = pathlib.Path(config["linux_manifest"]).read_bytes()
-        mac_manifest = pathlib.Path(config["mac_manifest"]).read_bytes()
-    except OSError:
-        _fail("QRP_VAR_MANIFEST_MISMATCH")
+    linux_manifest, _ = _read_regular_nofollow(config["linux_manifest"], 64 * 1024 * 1024, "QRP_VAR_MANIFEST_MISMATCH")
+    mac_manifest, _ = _read_regular_nofollow(config["mac_manifest"], 64 * 1024 * 1024, "QRP_VAR_MANIFEST_MISMATCH")
     if not linux_manifest or linux_manifest != mac_manifest:
         _fail("QRP_VAR_MANIFEST_MISMATCH")
     try:
-        proof = json.loads(pathlib.Path(config["mac_mode_proof"]).read_text())
-    except (OSError, UnicodeError, ValueError):
+        proof_bytes, _ = _read_regular_nofollow(config["mac_mode_proof"], 64 * 1024, "QRP_VAR_DUAL_WRITABLE")
+        proof = json.loads(proof_bytes)
+    except (RelayError, UnicodeError, ValueError):
         _fail("QRP_VAR_DUAL_WRITABLE")
     if (not isinstance(proof, dict) or proof.get("schema") != "QRP_MAC_VAR_MODE_PROOF_V1"
-            or not isinstance(proof.get("path"), str) or not proof["path"]
+            or proof.get("path") != expected["mac_var_path"]
             or proof.get("writable") is not False):
         _fail("QRP_VAR_DUAL_WRITABLE")
     return authority
+
+
+def verify_qrp_checkout(qrp_root, pinned, run=subprocess.run, path_check=None):
+    qrp_root = pathlib.Path(qrp_root)
+    expected = pathlib.Path(CODE_ROOT) / pinned
+    if not SHA64.fullmatch(pinned) or qrp_root != expected or qrp_root.is_symlink():
+        _fail("QRP_PIN_INVALID")
+    if path_check is None:
+        try:
+            fd = _open_dir_nofollow(qrp_root)
+            os.close(fd)
+        except (OSError, RelayError):
+            _fail("QRP_PIN_INVALID")
+    elif not path_check(qrp_root):
+        _fail("QRP_PIN_INVALID")
+    commands = (
+        ["/usr/bin/git", "-C", str(qrp_root), "rev-parse", "HEAD"],
+        ["/usr/bin/git", "-C", str(qrp_root), "status", "--porcelain", "--untracked-files=no"],
+    )
+    outputs = []
+    for argv in commands:
+        try:
+            result = run(argv, capture_output=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            _fail("QRP_PIN_INVALID")
+        if result.returncode != 0:
+            _fail("QRP_PIN_INVALID")
+        output = result.stdout.decode("ascii", "strict") if isinstance(result.stdout, bytes) else result.stdout
+        outputs.append(output.strip())
+    if outputs != [pinned, ""]:
+        _fail("QRP_PIN_INVALID")
+    return qrp_root
 
 
 class NodeSeenMarker:
@@ -124,15 +297,9 @@ class NodeSeenMarker:
 
 def deliver_local(source, destination, marker, validator):
     source, destination = pathlib.Path(source), pathlib.Path(destination)
-    try:
-        info = source.lstat()
-    except OSError:
-        _fail("LOCAL_SOURCE_UNREADABLE")
-    if source.is_symlink() or not stat.S_ISREG(info.st_mode) or not SAFE_JSON.fullmatch(source.name):
+    if not SAFE_JSON.fullmatch(source.name):
         _fail("LOCAL_SOURCE_INVALID")
-    if info.st_size > MAX_PACK_BYTES:
-        _fail("LOCAL_SOURCE_TOO_LARGE")
-    data = source.read_bytes()
+    data, source_identity = _read_regular_nofollow(source, MAX_PACK_BYTES, "LOCAL_SOURCE_UNREADABLE")
     invalid = validator(data)
     if invalid:
         _fail("PACK_INVALID:%s" % invalid)
@@ -140,23 +307,24 @@ def deliver_local(source, destination, marker, validator):
     if code:
         _fail("SEEN_MARK_FAILED:%s" % code)
     digest = _sha(data)
-    if destination.exists():
-        if destination.is_symlink() or not destination.is_file() or _sha(destination.read_bytes()) != digest:
+    existing, _ = _read_regular_nofollow(destination, MAX_PACK_BYTES, "LOCAL_DEST_SHA_MISMATCH", missing_ok=True)
+    if existing is not None:
+        if _sha(existing) != digest:
             _fail("LOCAL_DEST_SHA_MISMATCH")
-        source.unlink()
+        _unlink_if_same(source, source_identity, "LOCAL_SOURCE_CHANGED")
         return "REPLAY"
     _atomic_write(destination, data, mode=0o640)
-    if _sha(destination.read_bytes()) != digest:
-        destination.unlink(missing_ok=True)
+    published, _ = _read_regular_nofollow(destination, MAX_PACK_BYTES, "LOCAL_DEST_VERIFY_FAILED")
+    if _sha(published) != digest:
         _fail("LOCAL_DEST_VERIFY_FAILED")
-    source.unlink()
+    _unlink_if_same(source, source_identity, "LOCAL_SOURCE_CHANGED")
     return "DELIVERED"
 
 
 class GateRsyncTransport:
     """Rsync client whose remote command bytes are admitted only by #132."""
     def __init__(self, target, rsync="/usr/bin/rsync", run=subprocess.run):
-        if not isinstance(target, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+", target):
+        if target != HK_GATE_TARGET:
             _fail("HK_GATE_TARGET_INVALID")
         if rsync != "/usr/bin/rsync":
             _fail("RSYNC_BINARY_INVALID")
@@ -179,25 +347,29 @@ class GateRsyncTransport:
 
 def _copy_return(source, destination):
     source, destination = pathlib.Path(source), pathlib.Path(destination)
-    info = source.lstat()
-    if source.is_symlink() or not stat.S_ISREG(info.st_mode) or not SAFE_JSON.fullmatch(source.name) or info.st_size > MAX_PACK_BYTES:
+    if not SAFE_JSON.fullmatch(source.name):
         _fail("RETURN_FILE_INVALID")
-    data = source.read_bytes()
-    if destination.exists():
-        if destination.is_symlink() or not destination.is_file() or destination.read_bytes() != data:
+    data, _ = _read_regular_nofollow(source, MAX_PACK_BYTES, "RETURN_FILE_INVALID")
+    existing, _ = _read_regular_nofollow(destination, MAX_PACK_BYTES, "RETURN_DEST_SHA_MISMATCH", missing_ok=True)
+    if existing is not None:
+        if existing != data:
             _fail("RETURN_DEST_SHA_MISMATCH")
         return "REPLAY"
     _atomic_write(destination, data, mode=0o640)
-    if _sha(destination.read_bytes()) != _sha(data):
+    published, _ = _read_regular_nofollow(destination, MAX_PACK_BYTES, "RETURN_DEST_VERIFY_FAILED")
+    if _sha(published) != _sha(data):
         _fail("RETURN_DEST_VERIFY_FAILED")
     return "COPIED"
 
 
 def _load_json(path, default):
     try:
-        value = json.loads(pathlib.Path(path).read_text())
+        data, _ = _read_regular_nofollow(path, 16 * 1024 * 1024, "STATE_FILE_INVALID", missing_ok=True)
+        if data is None:
+            return default
+        value = json.loads(data)
         return value if isinstance(value, dict) else default
-    except (OSError, UnicodeError, ValueError):
+    except (UnicodeError, ValueError):
         return default
 
 
@@ -210,7 +382,7 @@ def _load_pack_validator(qrp_root):
         _fail("PACK_VALIDATOR_UNAVAILABLE")
 
 
-def _config_from_env(env):
+def _config_from_env(env, pin_check=verify_qrp_checkout):
     expected = {
         "QRP_DATA_DIR": DATA_DIR,
         "QRP_PRODUCT_MILESTONE_AUTHORITY": AUTHORITY,
@@ -227,8 +399,7 @@ def _config_from_env(env):
         _fail("RQ_SEEN_MARK_QRP_ROOT_MUST_BE_UNSET")
     qrp_root = env.get("QRP_ROOT", "")
     pinned = env.get("QRP_PINNED_SHA", "")
-    if not SHA64.fullmatch(pinned) or pathlib.Path(qrp_root).name != pinned:
-        _fail("QRP_PIN_INVALID")
+    pin_check(qrp_root, pinned)
     required = ("RQ_HK_GATE_TARGET", "RQ_RELAY_STATE", "RQ_RELAY_STATUS", "QRP_AUTHORITY_MARKER",
                 "QRP_VAR_LINUX_MANIFEST", "QRP_VAR_MAC_MANIFEST", "QRP_MAC_VAR_MODE_PROOF")
     if any(not env.get(key) for key in required):
@@ -277,10 +448,9 @@ def run_once(config, env=None, run=subprocess.run):
         staged = []
         for source in sorted(hk_source.glob("*.json")) if hk_source.is_dir() else []:
             try:
-                info = source.lstat()
-                if source.is_symlink() or not stat.S_ISREG(info.st_mode) or not SAFE_JSON.fullmatch(source.name) or info.st_size > MAX_PACK_BYTES:
+                if not SAFE_JSON.fullmatch(source.name):
                     _fail("HK_SOURCE_INVALID")
-                data = source.read_bytes()
+                data, _ = _read_regular_nofollow(source, MAX_PACK_BYTES, "HK_SOURCE_INVALID")
                 digest = _sha(data)
                 if state["hk_pushed"].get(digest) == source.name:
                     continue
@@ -310,7 +480,8 @@ def run_once(config, env=None, run=subprocess.run):
             for source in sorted(pull.glob("*.json")):
                 destination = pathlib.Path(config["return_root"]) / "hk" / source.name
                 _copy_return(source, destination)
-                state["returns"][_sha(source.read_bytes())] = "hk/%s" % source.name
+                source_data, _ = _read_regular_nofollow(source, MAX_PACK_BYTES, "RETURN_FILE_INVALID")
+                state["returns"][_sha(source_data)] = "hk/%s" % source.name
                 result["returnsCopied"] += 1
         except RelayError as error:
             result["failed"].append(["hk", "outbox", str(error)])
@@ -319,7 +490,8 @@ def run_once(config, env=None, run=subprocess.run):
     for source in sorted(local_returns.glob("*.json")) if local_returns.is_dir() else []:
         try:
             _copy_return(source, pathlib.Path(config["return_root"]) / "linux" / source.name)
-            state["returns"][_sha(source.read_bytes())] = "linux/%s" % source.name
+            source_data, _ = _read_regular_nofollow(source, MAX_PACK_BYTES, "RETURN_FILE_INVALID")
+            state["returns"][_sha(source_data)] = "linux/%s" % source.name
             result["returnsCopied"] += 1
         except RelayError as error:
             result["failed"].append(["linux", source.name, str(error)])
@@ -338,8 +510,9 @@ def dry_run_plan(config):
                 info = source.lstat()
                 if source.is_symlink() or not stat.S_ISREG(info.st_mode) or not SAFE_JSON.fullmatch(source.name) or info.st_size > MAX_PACK_BYTES:
                     continue
-                result[key].append({"name": source.name, "sha256": _sha(source.read_bytes())})
-            except OSError:
+                data, _ = _read_regular_nofollow(source, MAX_PACK_BYTES, "LOCAL_SOURCE_INVALID")
+                result[key].append({"name": source.name, "sha256": _sha(data)})
+            except (OSError, RelayError):
                 continue
     return result
 
@@ -357,14 +530,16 @@ def run_shadow(config, shadow_root, run=subprocess.run, scratch_root="/srv/resea
     for source in sorted(pathlib.Path(config["queue_outbox"]).glob("*.json")):
         destination = shadow_root / "research-queue-return/linux" / source.name
         _copy_return(source, destination)
-        result["returns"]["linux"].append({"name": source.name, "sha256": _sha(source.read_bytes())})
+        source_data, _ = _read_regular_nofollow(source, MAX_PACK_BYTES, "RETURN_FILE_INVALID")
+        result["returns"]["linux"].append({"name": source.name, "sha256": _sha(source_data)})
     with tempfile.TemporaryDirectory(prefix="q137-shadow-", dir=str(shadow_root)) as temp:
         pull = pathlib.Path(temp) / "hk"
         GateRsyncTransport(config["hk_target"], run=run).pull_returns(pull)
         for source in sorted(pull.glob("*.json")):
             destination = shadow_root / "research-queue-return/hk" / source.name
             _copy_return(source, destination)
-            result["returns"]["hk"].append({"name": source.name, "sha256": _sha(source.read_bytes())})
+            source_data, _ = _read_regular_nofollow(source, MAX_PACK_BYTES, "RETURN_FILE_INVALID")
+            result["returns"]["hk"].append({"name": source.name, "sha256": _sha(source_data)})
     return result
 
 

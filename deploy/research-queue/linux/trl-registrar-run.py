@@ -89,52 +89,52 @@ def _validate_receipt(data, expected):
 
 def _publish_receipt(path, data):
     path = pathlib.Path(path)
-    if path.exists():
-        if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+    existing, _ = _guard._read_regular_nofollow(path, 16 * 1024 * 1024, "TRL_RECEIPT_REPLAY_MISMATCH", missing_ok=True)
+    if existing is not None:
+        if existing != data:
             _fail("TRL_RECEIPT_REPLAY_MISMATCH")
-        os.chmod(str(path), 0o444)
+        try:
+            _guard._chmod_regular_nofollow(path, 0o444, "TRL_RECEIPT_REPLAY_MISMATCH")
+        except _guard.RelayError:
+            _fail("TRL_RECEIPT_REPLAY_MISMATCH")
         return path
     try:
         _guard._atomic_write(path, data, mode=0o444, create_only=True)
     except _guard.RelayError as error:
-        if str(error) != "ARTIFACT_EXISTS" or path.read_bytes() != data:
+        if str(error) != "ARTIFACT_EXISTS":
+            _fail("TRL_RECEIPT_REPLAY_MISMATCH")
+        existing, _ = _guard._read_regular_nofollow(path, 16 * 1024 * 1024, "TRL_RECEIPT_REPLAY_MISMATCH")
+        if existing != data:
             _fail("TRL_RECEIPT_REPLAY_MISMATCH")
     return path
 
 
 def process_request(request_file, config, run=subprocess.run):
     request_file = pathlib.Path(request_file)
-    run_root = pathlib.Path(config.get("run_root", "")).resolve()
-    try:
-        resolved = request_file.resolve(strict=True)
-        info = request_file.lstat()
-    except OSError:
-        _fail("TRL_REQUEST_NOT_REGULAR")
-    if not _under(run_root, resolved):
+    run_root = pathlib.Path(config.get("run_root", ""))
+    if not run_root.is_absolute() or not request_file.is_absolute():
         _fail("TRL_REQUEST_OUTSIDE_RUN_ROOT")
-    if request_file.is_symlink() or not stat.S_ISREG(info.st_mode):
-        _fail("TRL_REQUEST_NOT_REGULAR")
-    relative = resolved.relative_to(run_root)
+    try:
+        relative = request_file.relative_to(run_root)
+    except ValueError:
+        _fail("TRL_REQUEST_OUTSIDE_RUN_ROOT")
     if len(relative.parts) != 4 or relative.parts[1:3] != ("outbox", "trl-requests") or not re.fullmatch(r"[A-Za-z0-9_.:-]+", relative.parts[0]):
         _fail("TRL_REQUEST_OUTSIDE_RUN_ROOT")
     match = SHA_NAME.fullmatch(request_file.name)
-    if not match or info.st_size > int(config.get("max_request_bytes", 1048576)):
+    if not match:
         _fail("TRL_REQUEST_INVALID")
     try:
-        request = json.loads(request_file.read_text())
-    except (OSError, UnicodeError, ValueError):
+        request_bytes, _ = _guard._read_regular_nofollow(
+            request_file, int(config.get("max_request_bytes", 1048576)), "TRL_REQUEST_NOT_REGULAR")
+        request = json.loads(request_bytes)
+    except _guard.RelayError:
+        _fail("TRL_REQUEST_NOT_REGULAR")
+    except (UnicodeError, ValueError):
         _fail("TRL_REQUEST_INVALID")
     digest = hashlib.sha256(canonical_json(request).encode("utf-8")).hexdigest()
     if digest != match.group(1):
         _fail("TRL_REQUEST_SHA_MISMATCH")
     receipt = run_root / relative.parts[0] / "inbox" / "trl-receipts" / request_file.name
-    if receipt.exists():
-        data = receipt.read_bytes()
-        try:
-            _validate_receipt(data, digest)
-        except RegistrarError:
-            _fail("TRL_RECEIPT_REPLAY_MISMATCH")
-        return _publish_receipt(receipt, data)
 
     node = config.get("node")
     qrp_root = pathlib.Path(config.get("qrp_root", ""))
@@ -142,7 +142,7 @@ def process_request(request_file, config, run=subprocess.run):
     authority = config.get("authority")
     if node != NODE or not pathlib.Path(data_dir or "").is_absolute() or authority != AUTHORITY or not qrp_root.is_absolute():
         _fail("TRL_CONFIG_INVALID")
-    argv = [node, str(qrp_root / "apps/research-cli/k2_trl_registrar.js"), "--request", str(resolved), "--registered-by", authority]
+    argv = [node, str(qrp_root / "apps/research-cli/k2_trl_registrar.js"), "--request", str(request_file), "--registered-by", authority]
     if config.get("registered_at"):
         argv.extend(["--registered-at", config["registered_at"]])
     env = {"QRP_DATA_DIR": data_dir, "QRP_PRODUCT_MILESTONE_AUTHORITY": authority, "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
@@ -159,13 +159,15 @@ def process_request(request_file, config, run=subprocess.run):
     return _publish_receipt(receipt, data)
 
 
-def _config_from_env(env):
+def _config_from_env(env, pin_check=_guard.verify_qrp_checkout):
     expected = {"QRP_DATA_DIR": DATA_DIR, "QRP_PRODUCT_MILESTONE_AUTHORITY": AUTHORITY, "RQ_NODE": NODE}
     for key, value in expected.items():
         if env.get(key) != value:
             _fail("ENV_INVALID:%s" % key)
     qrp_root, pinned = env.get("QRP_ROOT", ""), env.get("QRP_PINNED_SHA", "")
-    if not re.fullmatch(r"[0-9a-f]{64}", pinned) or pathlib.Path(qrp_root).name != pinned:
+    try:
+        pin_check(qrp_root, pinned)
+    except _guard.RelayError:
         _fail("QRP_PIN_INVALID")
     required = ("RQ_RUN_ROOT", "RQ_REGISTRAR_STATUS", "QRP_AUTHORITY_MARKER", "QRP_VAR_LINUX_MANIFEST", "QRP_VAR_MAC_MANIFEST", "QRP_MAC_VAR_MODE_PROOF")
     if any(not env.get(key) for key in required):

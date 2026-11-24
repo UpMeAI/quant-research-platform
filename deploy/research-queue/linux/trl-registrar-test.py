@@ -110,6 +110,25 @@ class RegistrarAcceptance(unittest.TestCase):
         with self.assertRaisesRegex(registrar.RegistrarError, "TRL_RECEIPT_REPLAY_MISMATCH"):
             registrar.process_request(self.request_file, self.config(), run=lambda *_a, **_k: Result())
 
+    def test_shape_valid_but_unequal_replay_still_runs_registrar_and_refuses(self):
+        self.receipt_dir.mkdir(parents=True)
+        receipt_file = self.receipt_dir / f"{self.sha}.json"
+        old = (json.dumps(self.receipt(), sort_keys=True, separators=(",", ":")) + "\n").encode()
+        receipt_file.write_bytes(old)
+        changed = dict(self.receipt())
+        changed["rows"] = [{"trial_id": "different"}]
+
+        class Result:
+            returncode = 0
+            stderr = b""
+            stdout = (json.dumps(changed, sort_keys=True, separators=(",", ":")) + "\n").encode()
+
+        calls = []
+        with self.assertRaisesRegex(registrar.RegistrarError, "TRL_RECEIPT_REPLAY_MISMATCH"):
+            registrar.process_request(self.request_file, self.config(), run=lambda *a, **k: calls.append((a, k)) or Result())
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(receipt_file.read_bytes(), old)
+
     def test_filename_content_symlink_and_escape_are_refused_before_node(self):
         called = []
         wrong = self.req_dir / ("f" * 64 + ".json")

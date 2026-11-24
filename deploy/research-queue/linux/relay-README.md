@@ -17,9 +17,18 @@ writable Linux var.  Named refusals are `QRP_VAR_DUAL_WRITABLE` and
 `QRP_VAR_MANIFEST_MISMATCH`.
 
 Ops-coord installs one names-only env file from `relay-env.example` mode 0600.
-The QRP code path must end in the exact pinned 64-hex commit.  No secret is in
-the examples.  `RQ_SEEN_MARK_QRP_ROOT` is empty and removed from the marker's
-environment; the relay alone calls `review_pack_seen.js`.
+The QRP checkout is exactly `/srv/research-lane/qrp/code/<pinned-sha>`; its
+actual Git HEAD must equal that pin and its tracked worktree must be clean.
+The HK target is exactly `root@smartflow-hk`.  No secret is in the examples.
+`RQ_SEEN_MARK_QRP_ROOT` is empty and removed from the marker's environment;
+the relay alone calls `review_pack_seen.js`.
+
+The production authority marker, the two var manifests, and the Mac-mode proof
+are fixed to the paths in `relay-env.example`.  They and all critical queue
+files are opened through nonsymlink directory file descriptors with
+`O_NOFOLLOW` and inode checks.  The proof binds the exact Mac var path, not a
+caller-provided path.  An existing TRL receipt never bypasses the registrar:
+the idempotent CLI runs and its exact bytes must match the existing receipt.
 
 Read-only/pre-switch modes:
 

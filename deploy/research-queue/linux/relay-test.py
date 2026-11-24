@@ -52,17 +52,42 @@ class RelayAcceptance(unittest.TestCase):
         self.temp.cleanup()
 
     def test_authority_guard_is_fail_closed(self):
-        self.assertEqual(relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var), self.var.resolve())
+        expected = {
+            "authority_marker": str(self.authority),
+            "authoritative_dir": str(self.var),
+            "linux_manifest": str(self.linux_manifest),
+            "mac_manifest": str(self.mac_manifest),
+            "mac_mode_proof": str(self.mode_proof),
+            "mac_var_path": "/Users/kaylame/KaylaProject/quant-research-platform/var",
+        }
+        self.assertEqual(relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var,
+                                             expected_paths=expected), self.var.resolve())
         self.mode_proof.write_text('{"schema":"QRP_MAC_VAR_MODE_PROOF_V1","path":"x","writable":true}\n')
         with self.assertRaisesRegex(relay.RelayError, "QRP_VAR_DUAL_WRITABLE"):
-            relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var)
+            relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var,
+                                expected_paths=expected)
         self.mode_proof.write_text('{"schema":"QRP_MAC_VAR_MODE_PROOF_V1","path":"x","writable":false}\n')
         self.mac_manifest.write_text("different\n")
         with self.assertRaisesRegex(relay.RelayError, "QRP_VAR_MANIFEST_MISMATCH"):
-            relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var)
+            relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var,
+                                expected_paths=expected)
         self.authority.unlink()
         with self.assertRaisesRegex(relay.RelayError, "QRP_VAR_AUTHORITY_MISSING"):
-            relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var)
+            relay.guard_qrp_var(self.guard, is_writable=lambda p: pathlib.Path(p) == self.var,
+                                expected_paths=expected)
+
+    def test_production_authority_paths_and_proof_path_are_not_self_attested(self):
+        with self.assertRaisesRegex(relay.RelayError, "QRP_VAR_GUARD_INVALID"):
+            relay.guard_qrp_var(self.guard, is_writable=lambda _p: True)
+        expected = {
+            "authority_marker": str(self.authority), "authoritative_dir": str(self.var),
+            "linux_manifest": str(self.linux_manifest), "mac_manifest": str(self.mac_manifest),
+            "mac_mode_proof": str(self.mode_proof),
+            "mac_var_path": "/Users/kaylame/KaylaProject/quant-research-platform/var",
+        }
+        self.mode_proof.write_text('{"schema":"QRP_MAC_VAR_MODE_PROOF_V1","path":"x","writable":false}\n')
+        with self.assertRaisesRegex(relay.RelayError, "QRP_VAR_DUAL_WRITABLE"):
+            relay.guard_qrp_var(self.guard, is_writable=lambda _p: True, expected_paths=expected)
 
     def test_local_delivery_marks_first_is_atomic_and_idempotent(self):
         source = self.root / "relay-outbox" / "linux" / "REVIEW_AI_FACT_PACK_V1" / "pack.json"
@@ -142,6 +167,42 @@ class RelayAcceptance(unittest.TestCase):
         joined = "\n".join(" ".join(c) for c in calls)
         for forbidden in ("sh -c", "scp", "sftp", "--remove-source-files", "--protect-args", ";", "|"):
             self.assertNotIn(forbidden, joined)
+        for target in ("root@other-hk", "admin@smartflow-hk", "root@127.0.0.1"):
+            with self.assertRaisesRegex(relay.RelayError, "HK_GATE_TARGET_INVALID"):
+                relay.GateRsyncTransport(target, "/usr/bin/rsync", run=lambda *_a, **_k: Result())
+
+    def test_checkout_pin_uses_git_head_and_clean_state(self):
+        calls = []
+        state = {"head": "a" * 64, "status": ""}
+
+        class Result:
+            returncode = 0
+            stderr = b""
+
+        def fake(argv, **_kwargs):
+            calls.append(argv)
+            result = Result()
+            result.stdout = ((state["head"] if "rev-parse" in argv else state["status"]) + "\n").encode()
+            return result
+
+        root = pathlib.Path("/srv/research-lane/qrp/code") / ("a" * 64)
+        relay.verify_qrp_checkout(root, "a" * 64, run=fake, path_check=lambda _p: True)
+        self.assertEqual(len(calls), 2)
+        state["head"] = "b" * 64
+        with self.assertRaisesRegex(relay.RelayError, "QRP_PIN_INVALID"):
+            relay.verify_qrp_checkout(root, "a" * 64, run=fake, path_check=lambda _p: True)
+        state.update(head="a" * 64, status=" M tracked.py")
+        with self.assertRaisesRegex(relay.RelayError, "QRP_PIN_INVALID"):
+            relay.verify_qrp_checkout(root, "a" * 64, run=fake, path_check=lambda _p: True)
+        with self.assertRaisesRegex(relay.RelayError, "QRP_PIN_INVALID"):
+            relay.verify_qrp_checkout(root, "b" * 64, run=fake, path_check=lambda _p: True)
+
+    def test_symlink_parent_is_refused_by_safe_file_read(self):
+        real = self.root / "real"; real.mkdir()
+        (real / "manifest").write_text("same\n")
+        link = self.root / "linked"; link.symlink_to(real, target_is_directory=True)
+        with self.assertRaisesRegex(relay.RelayError, "SAFE_FILE_INVALID"):
+            relay._read_regular_nofollow(link / "manifest", 1024, "SAFE_FILE_INVALID")
 
     def test_unit_and_env_contract(self):
         service = (HERE / "relay-linux.service").read_text()
