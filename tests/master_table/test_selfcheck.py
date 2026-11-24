@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "master-table"))
 
-from mtl import selfcheck
+from mtl import counts, selfcheck
 from mtl.errors import MtlError
 
 
@@ -24,6 +24,7 @@ def candidate():
                for key in ("verdict", "verdictToken", "status", "sealedOn", "sealSha256", "k2State", "tStart", "tStartRegistryStatus", "nextCheck")},
             "records": [],
         }
+    doc.update(counts.compute(doc["items"]))
     return doc
 
 
