@@ -24,12 +24,12 @@
   },
   {
    "template_id": "T-AI-MECH-NOTE-V1-LINUX-CN_A",
-   "template_sha256": "c8c75ceb592bd91dbaab3f04f82a6f464a6a92335a0507800fe4369fdf1a2ee8",
+   "template_sha256": "7567eeb8882b4aee734857664fa41237c3279200b87b9f48e13d1bff6c7073a3",
    "frozen_page_sha256": null
   },
   {
    "template_id": "T-AI-MECH-REVIEW-V1-LINUX-CN_A",
-   "template_sha256": "ea9822c596a491f19aec50f3c04c11b20d149e2e65bcbecf95c1d8b01d6f97b1",
+   "template_sha256": "4610f25e1be57632fa43a1b237f5c5110cf527ae23c80c0888c94ab0b3287bde",
    "frozen_page_sha256": null
   }
  ]

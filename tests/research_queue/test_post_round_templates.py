@@ -193,7 +193,7 @@ class PostRoundTemplates(Base):
         for tid, output_key in keys.items():
             template = reg.get(tid)
             matrix_row = next(row for row in template["evidence_matrix_rows"] if row["id"] == "EM-02")
-            paths = re.findall(r"outputs\.[a-z_]+", matrix_row["evidence"])
+            paths = re.findall(r"outputs\.[a-z0-9_]+", matrix_row["evidence"])
             self.assertEqual(paths, [f"outputs.{output_key}", f"outputs.{output_key}_sha256"], tid)
 
             result = package_a_success_result(tid)

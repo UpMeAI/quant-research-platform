@@ -493,7 +493,7 @@
    "expected_duration_s": 600,
    "evidence_matrix": {
     "id": "EM-AI-MECH-NOTE-V1",
-    "sha256": "aace02b9392d029f03609802bd87951b49428ef38f3cfe72320c9cbc026f4a0a"
+    "sha256": "1d92cbf34e846fb3df7a6b57fc5f03ead77adc0ca9984007fd23437664818fdf"
    },
    "evidence_matrix_rows": [
     {
@@ -504,12 +504,12 @@
     {
      "id": "EM-02",
      "req": "RF1116_MECH_NOTE_OUTPUT_V1 has exactly one validated note outcome per candidate",
-     "evidence": "result.json outputs.mech_note and outputs.mech_note_sha256"
+     "evidence": "result.json outputs.mechanism_notes and outputs.mechanism_notes_sha256"
     },
     {
      "id": "EM-03",
      "req": "mechanism, wording, size, number, formula-field and duplicate-proposal checks all passed",
-     "evidence": "trusted consumer re-validation of outputs.mech_note against the staged pack"
+     "evidence": "trusted consumer re-validation of outputs.mechanism_notes against the staged pack"
     },
     {
      "id": "EM-04",
@@ -534,7 +534,7 @@
    "markets": [
     "CN_A"
    ],
-   "subject_keys": "round_id, batch_no, pack sha256, prompt-admission sha256",
+   "subject_keys": "round_id, batch_no, pack sha256",
    "launch": "consumer child process: the launcher starts the rootless container (--network none, no env, no key) against the user gateway socket",
    "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
    "gateway": {
@@ -547,7 +547,7 @@
    "n_rule": "N = 0",
    "recovery_note": "if the pro fallback already got an answer for this task_id the gateway refuses a second one (RQ_QUALITY_GATE_USED -> BLOCKED_DETERMINISTIC + remediation); a flash-only run repeats at flash cost",
    "seam_out": [
-    "result.json (RQ_AGENT_RESULT_V1 with mech_note and mech_note_sha256)",
+    "result.json (RQ_AGENT_RESULT_V1 with mechanism_notes and mechanism_notes_sha256)",
     "quality_gate (only when pro fallback ran)"
    ]
   },
@@ -581,7 +581,7 @@
    "expected_duration_s": 600,
    "evidence_matrix": {
     "id": "EM-AI-MECH-REVIEW-V1",
-    "sha256": "c639585729ed6e49c6740f872164311de035c501a73403ec86d777c6c4a67f98"
+    "sha256": "1620a275fe3c6f78bf803ad21b255b6d5d44d80ef873ff86d2a9792cd17f7bbd"
    },
    "evidence_matrix_rows": [
     {
@@ -592,12 +592,12 @@
     {
      "id": "EM-02",
      "req": "RF1116_MECH_REVIEW_OUTPUT_V1 has exactly one validated consistency item per candidate",
-     "evidence": "result.json outputs.mech_review and outputs.mech_review_sha256"
+     "evidence": "result.json outputs.mechanism_review and outputs.mechanism_review_sha256"
     },
     {
      "id": "EM-03",
-     "req": "every HOLD has an allowed code and cited note; every CONSISTENT item has neither",
-     "evidence": "trusted consumer re-validation of outputs.mech_review against the staged pack"
+     "req": "every HOLD item has an allowed code and non-empty note_zh; every CONSISTENT item has null code and non-empty note_zh",
+     "evidence": "trusted consumer re-validation of outputs.mechanism_review against the staged pack"
     },
     {
      "id": "EM-04",
@@ -622,7 +622,7 @@
    "markets": [
     "CN_A"
    ],
-   "subject_keys": "round_id, batch_no, pack sha256, prompt-admission sha256",
+   "subject_keys": "round_id, batch_no, pack sha256",
    "launch": "consumer child process: the launcher starts the rootless container (--network none, no env, no key) against the user gateway socket",
    "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
    "gateway": {
@@ -635,7 +635,7 @@
    "n_rule": "N = 0",
    "recovery_note": "if the pro fallback already got an answer for this task_id the gateway refuses a second one (RQ_QUALITY_GATE_USED -> BLOCKED_DETERMINISTIC + remediation); a flash-only run repeats at flash cost",
    "seam_out": [
-    "result.json (RQ_AGENT_RESULT_V1 with mech_review and mech_review_sha256)",
+    "result.json (RQ_AGENT_RESULT_V1 with mechanism_review and mechanism_review_sha256)",
     "quality_gate (only when pro fallback ran)"
    ]
   }
