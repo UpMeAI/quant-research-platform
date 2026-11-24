@@ -6,9 +6,15 @@ from datetime import datetime
 import json
 import os
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 from zoneinfo import ZoneInfo
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
 from mtl import config, fed, ledgers, pins, registry, render, selfcheck, writer
 from mtl.errors import MtlError
@@ -138,11 +144,19 @@ def run(args):
                     [line["row_id"] for line in next_registry])
     registry_path = root / "state" / "ROW_REGISTRY_V1.jsonl"
     registry_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(dir=registry_path.parent, delete=False) as stream:
-        temporary = Path(stream.name)
-        stream.write(_registry_bytes(next_registry)); stream.flush()
-        os.fsync(stream.fileno())
-    temporary.replace(registry_path)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=registry_path.parent, delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(_registry_bytes(next_registry)); stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(registry_path)
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink()
+            except FileNotFoundError:
+                pass
     state_dir = os.open(registry_path.parent, os.O_RDONLY)
     try:
         os.fsync(state_dir)
@@ -151,6 +165,20 @@ def run(args):
     last_run = dict(ledger_state, rev=candidate_rev, digest=digest)
     writer.publish(root, candidate_rev, candidate.json_bytes, candidate.md_bytes, status, last_run)
     return 0
+
+
+def _record_failure(args, code):
+    try:
+        cfg = config.load(args.config)
+        writer.write_status(cfg["root"], {
+            "schema": "MASTER_TABLE_RUN_STATUS_V1",
+            "ran_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
+            "evaluatedOn": args.evaluated_on,
+            "result": "FAILED", "code": code, "rev": None, "inputs": [],
+        })
+    except Exception:
+        pass
+    print(code, file=sys.stderr)
 
 
 def main(argv=None):
@@ -168,9 +196,15 @@ def main(argv=None):
     try:
         if args.check:
             with tempfile.TemporaryDirectory() as td:
-                raw = json.loads(Path(args.config).read_text(encoding="utf-8"))
-                raw["root"] = td
-                raw["allowed_roots"] = list(raw.get("allowed_roots", [])) + [td]
+                raw = config.load(args.config)
+                scratch_root = Path(td) / "root"
+                real_root = Path(raw["root"])
+                if real_root.exists():
+                    shutil.copytree(real_root, scratch_root)
+                else:
+                    scratch_root.mkdir()
+                raw["root"] = str(scratch_root)
+                raw["allowed_roots"] = list(raw.get("allowed_roots", [])) + [str(scratch_root)]
                 config_path = Path(td) / "config.json"
                 config_path.write_text(json.dumps(raw), encoding="utf-8")
                 args.config = str(config_path)
@@ -179,18 +213,11 @@ def main(argv=None):
         with writer.locked(cfg["root"]):
             return run(args)
     except MtlError as exc:
-        try:
-            cfg = config.load(args.config)
-            writer.write_status(cfg["root"], {
-                "schema": "MASTER_TABLE_RUN_STATUS_V1",
-                "ran_at": datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(),
-                "evaluatedOn": args.evaluated_on,
-                "result": "FAILED", "code": exc.code, "rev": None, "inputs": [],
-            })
-        except Exception:
-            pass
-        print(exc.code, file=sys.stderr)
+        _record_failure(args, exc.code)
         return exc.exit_code
+    except Exception as exc:
+        _record_failure(args, f"UNEXPECTED:{type(exc).__name__}")
+        return 1
 
 
 if __name__ == "__main__":
