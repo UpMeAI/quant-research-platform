@@ -45,6 +45,7 @@ class Runner:
         self.register_fail_after = None
         self.review_error = None
         self.review = None
+        self.real_list_shape = False
 
     def view(self):
         registered = {row["candidate_id"]: row for row in self.registered}
@@ -57,7 +58,7 @@ class Runner:
         items = [{"candidate_id": row["candidate_id"],
                   "registration_hash": sha(canon(row)) if row["candidate_id"] in registered else None}
                  for row in sorted(self.survivors, key=lambda x: x["candidate_id"])]
-        return {"survivors": survivors, "registered": [],
+        return {"survivors": survivors, "registered": [] if self.real_list_shape else list(self.registered),
                 "mechanism_set_sha256": sha(canon(items)), "review": self.review}
 
     def __call__(self, action, round_id, file=None):
@@ -349,14 +350,15 @@ class PostRoundTest(unittest.TestCase):
         proc = mock.Mock(returncode=0, stdout="{}", stderr="")
         ambient = {"PATH": "/usr/bin", "LANG": "C.UTF-8", "LC_ALL": "C", "RF1116_RUNNER_IMAGE": "qrp-round-runner:abc123",
                    "HOME": "/must-not-leak", "DEEPSEEK_API_KEY": "sk-" + "x" * 20, "UNRELATED": "no"}
-        with mock.patch.dict(os.environ, ambient, clear=True), mock.patch.object(post_round.subprocess, "run", return_value=proc):
+        with mock.patch.dict(os.environ, ambient, clear=True), mock.patch.object(post_round.subprocess, "run", return_value=proc) as run_mock:
             post_round._runner(pathlib.Path("/runner"))("mechanisms", self.ROUND)
-        self.assertEqual(proc.call_args.kwargs["env"], {k: ambient[k] for k in ("PATH", "LANG", "LC_ALL", "RF1116_RUNNER_IMAGE")})
+        self.assertEqual(run_mock.call_args.kwargs["env"], {k: ambient[k] for k in ("PATH", "LANG", "LC_ALL", "RF1116_RUNNER_IMAGE")})
 
     def test_b21_end_to_end_status_results_registration_review_and_done(self):
         survivors = self.survivors(1)
         self.seed(["A001"])
         runner = Runner(survivors)
+        runner.real_list_shape = True
         engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
         self.assertEqual(engine.tick()[self.ROUND], "NOTES_ENQUEUED")
         note_request = json.loads(next((self.tmp / "inbox/requests").glob("post-round-note-*.json")).read_text())
