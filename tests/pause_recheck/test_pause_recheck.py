@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import stat
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -246,6 +247,12 @@ class PauseRecheckTests(unittest.TestCase):
             self.assertIn(flag, argv)
         row = w.pause_list()["rows"][0]
         self.assertEqual((row["month_state"], row["next_action"]), ("REOPEN_CANDIDATE", "REJUDGE_UNDER_SECTION_4_2"))
+        list_bytes = (w.state / "2026-12" / "PAUSE_LIST_V1.json").read_bytes()
+        request_bytes = next((w.inbox / "requests").glob("*.json")).read_bytes()
+        w.supervisor(runner).tick()
+        self.assertEqual(len(runner.calls), 1)
+        self.assertEqual((w.state / "2026-12" / "PAUSE_LIST_V1.json").read_bytes(), list_bytes)
+        self.assertEqual(next((w.inbox / "requests").glob("*.json")).read_bytes(), request_bytes)
 
     def test_real_engine_resumes_at_frozen_sample_boundary(self):
         if not shutil.which("node"):
@@ -255,6 +262,11 @@ class PauseRecheckTests(unittest.TestCase):
         self.assertEqual(w.pause_list()["rows"][0]["month_state"], "REOPEN_CANDIDATE")
 
     def test_failed_history_excludes_unknown_month_and_escalates_at_three(self):
+        first = World(); first_result, _, _ = first.add_result(); first.add_observed(first_result, {"observed_sample_n": 1, "events_per_month": 0})
+        first.supervisor(FakeRunner()).tick()
+        self.assertEqual(first.pause_list()["rows"][0]["month_state"], "STAY_PAUSED_REASON_REFRESHED")
+        self.assertEqual(first.pause_list()["rows"][0]["failed_rechecks"], 1)
+
         w = World(); result, _, _ = w.add_result(); w.add_observed(result, {"observed_sample_n": 1, "events_per_month": 0})
         sup = w.supervisor(FakeRunner([{
             "schema": "PROMOTION_RECHECK_V1", "candidate_id": "C-1", "as_of": NOW.isoformat(),
@@ -290,7 +302,9 @@ class PauseRecheckTests(unittest.TestCase):
 
         daytime = World(now=datetime(2026, 12, 3, 10, 0, tzinfo=CST))
         self.assertEqual(daytime.supervisor().tick()["state"], "WAIT_WINDOW")
-        missed = World(now=datetime(2026, 12, 8, 0, 1, tzinfo=CST))
+        missed = World(now=datetime(2026, 12, 6, 22, 0, tzinfo=CST))
+        missed.supervisor().append_event("2026-12", "TICK_START", {"attempt": "prior"})
+        missed.now = datetime(2026, 12, 7, 22, 0, tzinfo=CST)
         self.assertEqual(missed.supervisor().tick()["state"], "MISSED")
         self.assertEqual([a["code"] for a in missed.alerts()], ["PAUSE_RECHECK_MISSED"])
 
@@ -326,6 +340,16 @@ class PauseRecheckTests(unittest.TestCase):
             self.assertNotRegex(json.dumps(bundle, ensure_ascii=False), r'(?i)"(?:owner|desk)[^"]*"\s*:')
             for fact in bundle["pack"]["facts"]:
                 self.assertFalse(pause_recheck.fact_source_forbidden(fact["source"]))
+            if shutil.which("node"):
+                script = (
+                    "const fs=require('fs');"
+                    "const {checkPack}=require('./services/research-queue-agent/facts');"
+                    "const b=JSON.parse(fs.readFileSync(process.argv[1]));"
+                    "const r=checkPack(b.pack,{purpose:'CHECK',maxTokens:Infinity});"
+                    "if(!r.ok){console.error(JSON.stringify(r.errors));process.exit(1)}"
+                )
+                checked = subprocess.run(["node", "-e", script, req["inputs"][0]["path"]], cwd=ROOT, capture_output=True, text=True)
+                self.assertEqual(checked.returncode, 0, checked.stderr)
 
     def test_card_collection_never_changes_month_state(self):
         w = World(); result, _, _ = w.add_result(); w.add_observed(result)
