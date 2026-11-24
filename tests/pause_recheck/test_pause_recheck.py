@@ -64,20 +64,24 @@ class FakeRunner:
         self.calls.append((list(argv), dict(env)))
         if self.unavailable:
             raise FileNotFoundError("node")
-        result = self.results.pop(0) if self.results else {
-            "schema": "PROMOTION_RECHECK_V1",
-            "candidate_id": "C-1",
-            "as_of": NOW.isoformat(),
-            "paused_output_sha256": None,
-            "paused_code": "PAUSE_LOW_POWER",
-            "state": "STILL_PAUSED",
-            "conclusion": "暂停",
-            "failed_rechecks": 1,
-            "escalate": False,
-            "nextAction": "RECHECK_NEXT_MONTH",
-            "reasonCodes": ["SAMPLE_AND_RATE_STILL_SHORT"],
-            "production_effect": "NONE",
-        }
+        if self.results:
+            result = self.results.pop(0)
+        else:
+            paused = json.loads(Path(argv[argv.index("--paused") + 1]).read_text())
+            result = {
+                "schema": "PROMOTION_RECHECK_V1",
+                "candidate_id": paused["candidate_id"],
+                "as_of": NOW.isoformat(),
+                "paused_output_sha256": paused["output_sha256"],
+                "paused_code": "PAUSE_LOW_POWER",
+                "state": "STILL_PAUSED",
+                "conclusion": "暂停",
+                "failed_rechecks": 1,
+                "escalate": False,
+                "nextAction": "RECHECK_NEXT_MONTH",
+                "reasonCodes": ["SAMPLE_AND_RATE_STILL_SHORT"],
+                "production_effect": "NONE",
+            }
         return pause_recheck.CommandResult(0, pretty(engine_doc(result)).decode(), "")
 
 
@@ -206,7 +210,9 @@ class PauseRecheckTests(unittest.TestCase):
         w.add_observed(rb)
         w.add_result("C", paused=True, as_of="2026-11-02T10:00:00+08:00", suffix="x")
         w.add_result("C", paused=True, as_of="2026-11-02T10:00:00+08:00", suffix="y")
-        raw = bytearray(pb.read_bytes()); raw[-3] = ord("x"); pb.write_bytes(raw)
+        corrupted = json.loads(pb.read_text())
+        corrupted["output_sha256"] = "0" + corrupted["output_sha256"][1:]
+        pb.write_bytes(pretty(corrupted))
         out = w.supervisor(FakeRunner()).tick()
         rows = {r["candidate_id"]: r for r in w.pause_list()["rows"]}
         self.assertNotIn("A", rows)
@@ -290,7 +296,8 @@ class PauseRecheckTests(unittest.TestCase):
 
     def test_forbidden_conclusion_engine_unavailable_and_ledger_tamper_refuse(self):
         forbidden = World(); result, _, _ = forbidden.add_result(); forbidden.add_observed(result)
-        bad = {"schema": "PROMOTION_RECHECK_V1", "candidate_id": "C-1", "as_of": NOW.isoformat(), "state": "STILL_PAUSED", "conclusion": "不做", "reasonCodes": []}
+        bad = {"schema": "PROMOTION_RECHECK_V1", "candidate_id": "C-1", "as_of": NOW.isoformat(),
+               "paused_output_sha256": result["output_sha256"], "state": "STILL_PAUSED", "conclusion": "不做", "reasonCodes": []}
         self.assertEqual(forbidden.supervisor(FakeRunner([bad])).tick()["state"], "REFUSED:FORBIDDEN_CONCLUSION")
         self.assertFalse((forbidden.state / "2026-12" / "PAUSE_LIST_V1.json").exists())
 
@@ -348,8 +355,9 @@ class PauseRecheckTests(unittest.TestCase):
         w = World(); result, result_path, _ = w.add_result(); observed = w.add_observed(result)
         before = {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in (result_path, observed, next(w.terms.glob("*.json")))}
         w.supervisor(FakeRunner()).tick()
-        artifacts = [w.state / "2026-12" / "PAUSE_LIST_V1.json", w.state / "2026-12" / "AI_CHECKS_V1.json"]
+        artifacts = [w.state / "2026-12" / "PAUSE_LIST_V1.json"]
         self.assertTrue(all((p.stat().st_mode & stat.S_IWUSR) == 0 for p in artifacts))
+        self.assertFalse((w.state / "2026-12" / "AI_CHECKS_V1.json").exists())
         self.assertEqual(before, {p: hashlib.sha256(p.read_bytes()).hexdigest() for p in before})
         self.assertEqual(w.config().data_dir, w.var_root / "ledger")
 
