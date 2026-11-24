@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the RF1116 model gate daily outside lane windows
+
+[Timer]
+OnCalendar=*-*-* 05:30:00 Asia/Shanghai
+Persistent=true
+Unit=rf1116-model-gate.service
+
+[Install]
+WantedBy=timers.target

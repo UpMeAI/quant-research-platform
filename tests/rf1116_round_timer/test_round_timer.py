@@ -27,8 +27,7 @@ class FakeRunner:
 
 class World:
     def __init__(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="q148-")
-        self.root = Path(self.temp.name)
+        self.root = Path(tempfile.mkdtemp(prefix="q148-"))
         self.var_root = self.root / "var"
         self.data = self.var_root / "ledger"
         self.research = self.data / "research"
@@ -133,14 +132,30 @@ class RoundTimerTests(unittest.TestCase):
         self.assertEqual(supervisor.tick("2026-12:1")["state"], "DONE")
         self.assertEqual(supervisor.tick("2026-12:1")["state"], "DONE")
         self.assertEqual(len(runner.calls), 1)
+        self.assertEqual(runner.calls[0][1]["RF1116_HOLDOUT_SEGMENT"], "R2")
+        self.assertEqual(runner.calls[0][1]["QRP_DATA_DIR"], str(w.data))
+
+    def test_monthly_tick_serializes_two_slots_and_catches_up_after_first_day(self):
+        w = World(); w.now = datetime(2026, 12, 2, 5, 0, tzinfo=CST)
+        runner = FakeRunner(timer.CommandResult(0, '{"round_id":"R1"}'), timer.CommandResult(0, '{"round_id":"R2"}'))
+        supervisor = timer.Supervisor(w.config(), runner=runner, fetch=lambda url: w.model_sources[url], now=lambda: w.now, disk_free=lambda _p: 999)
+        self.assertEqual(supervisor.tick_auto()["state"], "DONE")
+        self.assertEqual(len(runner.calls), 2)
+        self.assertEqual(supervisor.tick_auto()["state"], "DONE")
+        self.assertEqual(len(runner.calls), 2)
 
     def test_retry_is_bounded_three_per_round_day(self):
         w = World()
         waiting = timer.CommandResult(75, '{"round_id":"R1","status":"WAITING","llm_state":"WAITING_RATE_LIMITED"}\n')
         runner = FakeRunner(waiting, waiting, waiting, waiting)
         supervisor = timer.Supervisor(w.config(), runner=runner, fetch=lambda url: w.model_sources[url], now=lambda: w.now, disk_free=lambda _p: 999)
-        for _ in range(3):
+        self.assertEqual(supervisor.tick("2026-12:1")["state"], "WAITING_RETRY")
+        self.assertEqual(supervisor.tick("2026-12:1")["state"], "WAITING_RETRY")
+        self.assertEqual(len(runner.calls), 1)
+        w.now += timedelta(hours=1)
+        for _ in range(2):
             self.assertEqual(supervisor.tick("2026-12:1")["state"], "WAITING_RETRY")
+            w.now += timedelta(hours=1)
         self.assertEqual(supervisor.tick("2026-12:1")["state"], "WAITING_RETRY_LIMIT")
         self.assertEqual(len(runner.calls), 3)
         self.assertEqual(runner.calls[1][0][-2:], ["resume-llm", "R1"])
@@ -175,7 +190,7 @@ class RoundTimerTests(unittest.TestCase):
         w1 = World(); blackout = w1.root / "blackouts.json"; blackout.write_text(json.dumps({"entries": [{"start": "2026-12-01T20:00:00+08:00", "end": "2026-12-01T21:00:00+08:00", "hosts": ["LINUX"], "mode": "STOP"}]})); cases.append((w1, w1.config(blackouts_path=blackout), 999))
         w2 = World(); cases.append((w2, w2.config(disk_floor_gib=150), 149))
         w3 = World(); w3.freeze.unlink(); cases.append((w3, w3.config(), 999))
-        w4 = World(); w4.segment.rmdir(); cases.append((w4, w4.config(), 999))
+        w4 = World(); w4.sums.unlink(); w4.segment.rmdir(); cases.append((w4, w4.config(), 999))
         w5 = World(); bad = dict(w5.model_sources); bad["https://updates"] = b"changed"; cases.append((w5, w5.config(model_sources=bad), 999))
         for w, config, free in cases:
             runner = FakeRunner()

@@ -1,0 +1,18 @@
+[Unit]
+Description=RF1116 monthly round supervisor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=/srv/research-lane/tools/node-v23.11.0-linux-x64/bin:/usr/local/bin:/usr/bin:/bin
+EnvironmentFile=/home/kayla/.config/qrp/rf1116-round-timer.env
+ExecStart=/usr/bin/python3 /srv/research-lane/rf1116-mining/code/services/rf1116-round-timer/round_timer.py tick
+Nice=10
+IOSchedulingClass=idle
+CPUAffinity=0-7 16-23
+StandardOutput=append:/srv/research-lane/ops-logs/rf1116-round-timer/service.log
+StandardError=append:/srv/research-lane/ops-logs/rf1116-round-timer/service.log
+
+[Install]
+WantedBy=default.target
