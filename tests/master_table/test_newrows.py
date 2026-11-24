@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "services" / "master-table"))
 
-from mtl import fed
+from mtl import fed, registry
 
 
 NW = "NOT_WRITTEN_NO_AUTHOR_AFTER_1125"
@@ -65,6 +65,29 @@ class NewRowTests(unittest.TestCase):
         _, rows, _ = fed.build({"items": []}, {"rows": {}, "freezeDate": "2026-11-25"},
                                {"overseas_sealed_verdicts": [late, early]}, [], "2026-12-04")
         self.assertEqual(["L-A", "L-B"], [item["id"] for item in rows])
+
+    def test_registered_new_row_is_rebuilt_after_partial_publish_crash(self):
+        base = {
+            "schema": "ASHARE_SEALED_VERDICT_LOCK_V1", "kind": "RESULT",
+            "strategy_ref": "INDEX_BOOK", "decision": "做", "file_sha256": "a" * 64,
+            "refs": [], "supersedes_ref": None, "production_effect": "NONE",
+            "_ledger": "ashare_sealed_verdicts", "_line_sha256": "b" * 64,
+            "result_id": "r-original", "entry_id": "CN-ZNEW", "sealed_on": "2026-12-03",
+            "locked_at": "2026-12-03T00:00:00+08:00", "_line_no": 1,
+        }
+        source = {"ledger": "ashare_sealed_verdicts", "result_id": "r-original",
+                  "line_no": 1, "line_sha256": "b" * 64}
+        line = registry.auto_line("L-CN-ZNEW", 1, 10, "A股", source,
+                                  registry.ZERO_SHA256, qrp_commit="abc")
+        successor = dict(base, result_id="r-successor", decision="不做",
+                         supersedes_ref="r-original", _line_no=2, _line_sha256="c" * 64)
+        _, rows, unjoined = fed.build(
+            {"items": []}, {"rows": {}, "freezeDate": "2026-11-25"},
+            {"ashare_sealed_verdicts": [base, successor]}, [line], "2026-12-04")
+        self.assertEqual([], unjoined)
+        self.assertEqual(["L-CN-ZNEW"], [row["id"] for row in rows])
+        self.assertEqual(["r-original", "r-successor"], rows[0]["ledgerFed"]["records"])
+        self.assertEqual("不做", rows[0]["ledgerFed"]["verdictToken"]["value"])
 
 
 if __name__ == "__main__":
