@@ -709,6 +709,7 @@ class TestSocketServer(Base):
         self.assertEqual(stat.S_IMODE(os.stat(sock).st_mode), 0o600)
         t = threading.Thread(target=srv.serve_forever, daemon=True)
         t.start()
+        c = c2 = None
         try:
             class UConn(http.client.HTTPConnection):
                 def connect(self_inner):
@@ -721,10 +722,17 @@ class TestSocketServer(Base):
             self.assertEqual(json.loads(r.read())['usage']['completion_tokens'], 200)
             c2 = UConn('localhost')
             c2.request('GET', '/etc/passwd')
-            self.assertEqual(c2.getresponse().status, 404)
+            r2 = c2.getresponse()
+            self.assertEqual(r2.status, 404)
+            r2.read()
         finally:
+            if c is not None:
+                c.close()
+            if c2 is not None:
+                c2.close()
             srv.shutdown()
             srv.server_close()
+            t.join(timeout=5)
         self.assertEqual(len(self.rows()), 1)
         self.assertIsNone(c.sock, 'first Unix HTTP connection must be closed')
         self.assertIsNone(c2.sock, 'second Unix HTTP connection must be closed')
