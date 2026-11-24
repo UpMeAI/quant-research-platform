@@ -337,6 +337,8 @@ test('FX7 run.sh: arrive and score/rescore exclude each other (the lock file and
 });
 
 test('FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY names plus calendar bytes (directory 0755, calendar/SHA 0644), traps before opening, and closes again on failure', () => {
+  const runSh = fs.readFileSync(path.join(__dirname, '..', 'deploy', 'research-lane', 'round-runner', 'run.sh'), 'utf8');
+  assert.match(runSh, /trap cal_close EXIT; cal_open/, 'cleanup must be installed before cal_open changes any mode');
   const s = runShSandbox();
   const dir = s.holdout('R2');
   fs.chmodSync(dir, 0o700);

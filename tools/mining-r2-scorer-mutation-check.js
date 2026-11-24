@@ -230,7 +230,7 @@ const MUTANTS = [
   m('D44', 'export lock: an aged lock (a killed run) is taken over', DX, 'LOCK_STALE_S=3600', 'LOCK_STALE_S=360000000', [T_DX]),
   m('D45', 'export lock: a fresh lock is respected', DX, 'LOCK_STALE_S=3600', 'LOCK_STALE_S=0', [T_DX]),
   m('D46', 'export lock: released at exit', DX, "trap 'rmdir \"$LOCK_DIR\" 2>/dev/null || true' EXIT", ':', [T_DX]),
-  m('D47', 'export lock: one export at a time', DX, 'if ! mkdir "$LOCK_DIR" 2>/dev/null; then', 'if false; then', [T_DX]),
+  m('D47', 'export lock: one export at a time', DX, 'if ! mkdir "$LOCK_DIR" 2>/dev/null; then\n  [ -d "$LOCK_DIR" ]', 'if false; then\n  [ -d "$LOCK_DIR" ]', [T_DX]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }
