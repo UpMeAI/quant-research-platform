@@ -726,6 +726,9 @@ class TestSocketServer(Base):
             srv.shutdown()
             srv.server_close()
         self.assertEqual(len(self.rows()), 1)
+        self.assertIsNone(c.sock, 'first Unix HTTP connection must be closed')
+        self.assertIsNone(c2.sock, 'second Unix HTTP connection must be closed')
+        self.assertFalse(t.is_alive(), 'Unix socket serve thread must be joined')
 
 
 if __name__ == '__main__':
