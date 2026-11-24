@@ -1,5 +1,6 @@
 """AQ-20 visibility, AQ-21 secrets scan, AQ-27 environment parity, per-key month spend view (status side of AQ-31)."""
-import datetime as dt, json, os, sqlite3, subprocess, sys, unittest
+import datetime as dt, json, os, pathlib, sqlite3, subprocess, sys, unittest
+from unittest import mock
 from helpers import *  # noqa
 
 
@@ -21,6 +22,57 @@ class Status(Base):
         self.assertIn("spend", s)
         status.write(self.conn, self.cfg, self.t0)
         self.assertEqual(json.loads(self.cfg.status_path.read_text())["counts"]["READY"], 3)
+
+    def test_task_view_is_closed_ordered_authoritative_and_does_not_read_results(self):
+        requests = [
+            req(self.t, subject={"n": "second"}),
+            req(self.t, subject={"n": "first"}),
+        ]
+        admitted = [self.admit(self.reg, request) for request in requests]
+        claimed = core.claim(self.conn, host="LINUX", worker="w", now=self.t0)
+        self.assertEqual(claimed["task_id"], admitted[0].task_id)
+
+        attempt_dir = self.cfg.runs_dir / claimed["task_id"] / "attempt-1"
+        attempt_dir.mkdir(parents=True)
+        result_path = attempt_dir / "result.json"
+        secret_marker = "sk-" + "ResultMustNotLeak1234"
+        result_path.write_text("not-json " + secret_marker)
+
+        original_read_text = pathlib.Path.read_text
+
+        def refuse_result_read(path, *args, **kwargs):
+            if path.name == "result.json":
+                raise AssertionError("rq status must not read attempt results")
+            return original_read_text(path, *args, **kwargs)
+
+        with mock.patch.object(pathlib.Path, "read_text", refuse_result_read):
+            built = status.build(self.conn, self.cfg, self.t0)
+
+        rows = built["tasks"]
+        self.assertEqual([row["task_id"] for row in rows], sorted(r.task_id for r in admitted))
+        self.assertTrue(all(set(row) == {"task_id", "idem_key", "state", "attempt_no"} for row in rows))
+        self.assertNotIn(secret_marker, json.dumps(built, sort_keys=True))
+
+        by_id = {row["task_id"]: row for row in rows}
+        for request, result in zip(requests, admitted):
+            expected_idem = core.sha256_hex(core.canonical({
+                "template_id": request["template_id"],
+                "template_sha256": request["template_sha256"],
+                "subject": request["subject"],
+                "params": request["params"],
+            }))
+            self.assertEqual(by_id[result.task_id]["idem_key"], expected_idem)
+        self.assertEqual(by_id[admitted[0].task_id]["state"], "CLAIMED")
+        self.assertEqual(by_id[admitted[0].task_id]["attempt_no"], 1)
+        self.assertEqual(by_id[admitted[1].task_id]["state"], "READY")
+        self.assertEqual(by_id[admitted[1].task_id]["attempt_no"], 0)
+
+        legacy_keys = {
+            "schema", "host", "at", "counts", "oldest_age_s", "sla_breaches",
+            "consumer_heartbeat", "pauses", "circuits", "event_head", "spend",
+            "alerts", "revision_skipped",
+        }
+        self.assertEqual(set(built) - {"tasks"}, legacy_keys)
 
     def test_aq20_stuck_task_raises_rq_stuck_dry_run(self):
         r = self.admit(self.reg, req(self.t))
