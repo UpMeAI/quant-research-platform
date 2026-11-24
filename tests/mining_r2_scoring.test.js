@@ -168,6 +168,15 @@ test('RC1 scoring on R2, end to end: refused while the window is unrecorded; wit
   const priorHead = chainRows(currentPriorChain).at(-1); const r2Head = chainRows(d.dir).at(-1);
   assert.deepEqual(open.pre_open_checks.prior_live_chain, { rows: 1, head_seq: priorHead.seq, head_hash: priorHead.record_hash, last_day: priorHead.trade_date });
   assert.equal(open.pre_open_checks.holdout_dir.arrival_chain.head_hash, r2Head.record_hash);
+  const selRow = rounds.selectionOf(r.round_id); const mechanisms = require('../services/mining-rounds/mechanisms'); const review = mechanisms.latestReview(r.round_id);
+  const inputs = {
+    selection_record_hash: selRow.record_hash, selection_sha256: selRow.selection_sha256,
+    holdout_sums_sha256: sha(fs.readFileSync(path.join(d.dir, 'SHA256SUMS'))), holdout_sealed_file_sha256: sha(fs.readFileSync(path.join(d.dir, 'SHA256SUMS.sealed'))),
+    factor_series_sums_sha256: null, sources: srcs().map((x) => ({ label: x.label, sums_sha256: x.sums_sha256 || null })), code_sha256: runner.codeSha(), holdout_floor: COV.min_names_per_day,
+    mechanisms: mechanisms.mechanismsOf(r.round_id).map((x) => x.record_hash).sort(), mechanism_review: review.record_hash,
+    prior_live_chain_head: priorHead.record_hash, arrival_chain_head: r2Head.record_hash,
+  };
+  assert.equal(open.inputs_sha256, sha(JSON.stringify(inputs)), 'both verified chain heads are inputs to the immutable score hash');
   assert.deepEqual([open.pre_open_checks.holdout_dir.trade_dates.from, open.pre_open_checks.holdout_dir.trade_dates.to], ['2026-10-30', '2026-12-14'], 'the feed days of the window, not of R1');
   assert.deepEqual([open.pre_open_checks.holdout_dir.seal_mode, open.pre_open_checks.holdout_dir.anchor], ['DEFERRED_PENDING_SEAL', 'OWN_DAYS_MEDIAN']);
   const scoreFile = JSON.parse(fs.readFileSync(path.join(runDirOf(out, r.round_id), 'score.json'), 'utf8'));
