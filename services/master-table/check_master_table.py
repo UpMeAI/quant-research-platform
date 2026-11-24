@@ -20,10 +20,12 @@ def main(argv=None):
     json_path = root / "revs" / f"{writer.BASE}.rev{revision}.json"
     md_path = root / "revs" / f"{writer.BASE}.rev{revision}.md"
     document = json.loads(json_path.read_text(encoding="utf-8"))
-    registry_ids = [json.loads(line)["row_id"] for line in
-                    (root / "state" / "ROW_REGISTRY_V1.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    registry_lines = [json.loads(line) for line in
+                      (root / "state" / "ROW_REGISTRY_V1.jsonl").read_text(encoding="utf-8").splitlines() if line]
+    registry_ids = [line["row_id"] for line in registry_lines]
     frozen_rev = int(document["ledgerOverlay"]["frozenRev"])
-    frozen_ids = [line for line in registry_ids[:sum(1 for value in registry_ids if not value.startswith("L-"))]]
+    frozen_ids = [line["row_id"] for line in registry_lines
+                  if line.get("origin") == f"FROZEN_REV{frozen_rev}"]
     try:
         selfcheck.check(document, md_path.read_bytes(), frozen_ids, registry_ids)
     except (MtlError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:

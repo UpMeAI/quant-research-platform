@@ -6,11 +6,11 @@ STATUSES = {
     "前向未启动", "DECISION_GAP", "工程闸门", "起草中", "结论待出",
 }
 MKT_COLS = (
-    ("done", ("已出结论", "复用已有结果")),
-    ("forward", ("前向中",)),
-    ("running", ("在跑",)),
-    ("todo", ("未跑", "起草中", "代码未完成", "前向未启动", "结论待出")),
-    ("blocked", ("缺输入", "DECISION_GAP", "工程闸门")),
+    ("已完成", "done", ("已出结论", "复用已有结果")),
+    ("前向", "forward", ("前向中",)),
+    ("在跑", "running", ("在跑",)),
+    ("待做", "todo", ("未跑", "起草中", "代码未完成", "前向未启动", "结论待出")),
+    ("受阻", "blocked", ("缺输入", "DECISION_GAP", "工程闸门")),
 )
 MARKETS = ("A股", "美股", "加密", "跨市场")
 FED_FIELDS = (
@@ -38,7 +38,7 @@ def compute(items):
     market_counts = {}
     for market in MARKETS:
         values = {}
-        for name, states in MKT_COLS:
+        for _zh, name, states in MKT_COLS:
             values[name] = sum(1 for row in items if row.get("market") == market and row.get("status") in states)
         values["total"] = sum(1 for row in items if row.get("market") == market)
         market_counts[market] = values
@@ -66,7 +66,11 @@ def compute(items):
     }
     return {
         "statusCounts": status_counts,
-        "marketCounts": market_counts,
+        "marketCounts": {
+            "columns": [{"zh": zh, "en": name, "statuses": list(states)}
+                        for zh, name, states in MKT_COLS],
+            "byMarket": market_counts,
+        },
         "layerCounts": layer_counts,
         "lists": lists,
         "layerPending": list(lists["层待定"]),

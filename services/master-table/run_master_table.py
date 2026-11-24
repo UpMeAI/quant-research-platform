@@ -3,7 +3,6 @@
 
 import argparse
 from datetime import datetime
-import hashlib
 import json
 from pathlib import Path
 import sys
@@ -80,6 +79,13 @@ def run(args):
     if args.frozen_only:
         return 0
     frozen = json.loads(raw_json)
+    live_json_path = root / "live" / f"{writer.BASE}.json"
+    live_md_path = root / "live" / f"{writer.BASE}.md"
+    if live_json_path.exists():
+        render.verify_live_frozen(frozen, json.loads(live_json_path.read_text(encoding="utf-8")),
+                                  int(pins.FROZEN_REV))
+    if live_md_path.exists():
+        render.verify_frozen_md(live_md_path.read_bytes(), raw_md, int(pins.FROZEN_REV))
     joins = json.loads((frozen_dir / "JOIN_MAP_V1.json").read_text(encoding="utf-8"))
     state = _read_json(root / "state" / "last_run.json", {}) or {}
     rows = _registry(root / "state" / "ROW_REGISTRY_V1.jsonl")
@@ -137,6 +143,7 @@ def main(argv=None):
             with tempfile.TemporaryDirectory() as td:
                 raw = json.loads(Path(args.config).read_text(encoding="utf-8"))
                 raw["root"] = td
+                raw["allowed_roots"] = list(raw.get("allowed_roots", [])) + [td]
                 config_path = Path(td) / "config.json"
                 config_path.write_text(json.dumps(raw), encoding="utf-8")
                 args.config = str(config_path)
