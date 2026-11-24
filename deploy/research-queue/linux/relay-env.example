@@ -1,0 +1,21 @@
+# Install as ~/.config/research-queue/relay-registrar.env, mode 0600.
+# Names and non-secret fixed values only.  Ops-coord fills the pinned SHA/target.
+QRP_ROOT=/srv/research-lane/qrp/code/REPLACE_WITH_64_HEX_SHA
+QRP_PINNED_SHA=REPLACE_WITH_64_HEX_SHA
+QRP_DATA_DIR=/srv/research-lane/qrp/var
+QRP_PRODUCT_MILESTONE_AUTHORITY=V8_1_COORDINATOR
+RQ_SEEN_MARK_QRP_ROOT=
+RQ_NODE=/srv/research-lane/tools/node-v23.11.0-linux-x64/bin/node
+RQ_RELAY_OUTBOX=/srv/research-lane/research-queue/relay-outbox
+RQ_LOCAL_FACT_PACK_INBOX=/srv/research-lane/research-queue/inbox/fact-packs
+RQ_QUEUE_OUTBOX=/srv/research-lane/research-queue/outbox
+RQ_RETURN_ROOT=/srv/research-lane/qrp/var/research-queue-return
+RQ_RUN_ROOT=/srv/research-lane/research-queue/runs
+RQ_HK_GATE_TARGET=root@smartflow-hk
+RQ_RELAY_STATE=/srv/research-lane/qrp/var/research-queue-relay-state.json
+RQ_RELAY_STATUS=/srv/research-lane/ops-logs/research-queue-relay/status.json
+RQ_REGISTRAR_STATUS=/srv/research-lane/ops-logs/trl-registrar/status.json
+QRP_AUTHORITY_MARKER=/srv/research-lane/qrp/AUTHORITATIVE
+QRP_VAR_LINUX_MANIFEST=/srv/research-lane/qrp/migration/linux-var.sha256
+QRP_VAR_MAC_MANIFEST=/srv/research-lane/qrp/migration/mac-var.sha256
+QRP_MAC_VAR_MODE_PROOF=/srv/research-lane/qrp/migration/mac-var-mode.json

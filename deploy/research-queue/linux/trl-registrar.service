@@ -1,0 +1,19 @@
+[Unit]
+Description=QRP trial-ledger request registrar
+OnFailure=research-queue-alert@trl-registrar.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/research-queue/relay-registrar.env
+ExecStart=/usr/bin/flock -n %t/trl-registrar.lock /usr/bin/python3 /srv/research-lane/qrp/code/current/deploy/research-queue/linux/trl-registrar-run.py --once
+Nice=10
+IOSchedulingClass=idle
+CPUAffinity=0-7 16-23
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/srv/research-lane/research-queue /srv/research-lane/qrp/var /srv/research-lane/ops-logs/trl-registrar
+StandardOutput=append:/srv/research-lane/ops-logs/trl-registrar/run.log
+StandardError=append:/srv/research-lane/ops-logs/trl-registrar/error.log
