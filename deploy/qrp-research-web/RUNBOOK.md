@@ -23,10 +23,22 @@ memory, Nice 10 and best-effort IO priority 7.
 1. Merge/review #137 so the pinned QRP tree contains its single authority
    producer `deploy/research-queue/linux/relay-run.py::guard_qrp_var`.
 2. Finish #134's desk switch and make its pinned checkout path the
-   `QRP_DESK_ROOT`. Finish #131 or seed its Mac mirror read-only at
-   `QRP_DESK_REVIEW_LOOP_ROOT`. Generate and compare only after #134.
+   `QRP_DESK_ROOT`. Record the exact #134 commit in `QRP_DESK_PINNED_SHA`;
+   startup verifies both that HEAD and a clean tree. Finish #131 or seed its
+   Mac mirror read-only at `QRP_DESK_REVIEW_LOOP_ROOT`. The mirror `current`
+   symlink must name its exact 40-hex data commit. Ops generates a sorted
+   SHA256SUMS-style manifest for every file below that commit directory at
+   `/srv/research-lane/qrp/review-loop-mirror/manifests/<commit>.sha256`, sets
+   `QRP_REVIEW_LOOP_COMMIT` and `QRP_REVIEW_LOOP_MANIFEST`, and verifies it
+   before startup. Missing, extra, symlinked, or changed files fail closed.
+   Generate it without following links, from the commit directory, using
+   `find docs/review-loop -type f -print0 | sort -z | xargs -0 sha256sum` into
+   a temporary file, then atomically rename it to the configured manifest and
+   run `sha256sum -c` from the same commit directory.
+   Generate and compare only after #134.
 3. Ops downloads an official pinned cloudflared binary, verifies the publisher
-   checksum, and records the version/path. The Owner creates a dedicated tunnel
+   checksum, and records the version, exact path and SHA-256 in the env file.
+   The supervisor recalculates the binary SHA-256 before every start. The Owner creates a dedicated tunnel
    and writes its token, without logging it, to
    `/home/kayla/.config/cloudflared/qrp-research-web.token` (kayla, mode 0600,
    nonsymlink). Codex never reads, creates, prints or copies it.
@@ -40,11 +52,14 @@ memory, Nice 10 and best-effort IO priority 7.
 ## Files-only installation preparation
 
 Ops pins one reviewed QRP commit under `/srv/research-lane/qrp/code/<sha>` and
-copies `authority.py`, `web_run.py`, `tunnel.py`, and `parity.py` to
-`/srv/research-lane/ops/qrp-research-web/`. It creates
+copies the full `apps/research-web-export/` runtime payload (without `test/`) to
+`/srv/research-lane/ops/qrp-research-web/`, preserving its `runtime/` directory.
+The services execute the absolute directory with `/usr/bin/python3 -I -B`; they
+do not use `PYTHONPATH`, a working-directory import, or an installed package. It creates
 `/srv/research-lane/ops-logs/qrp-research-web/` and the two names-only env files
 mode 0600. The example starts with `QRP_WEB_EDGE=OFF`; no upload or edge action
-can occur. Run `web_run.py --check` and `tunnel.py --check` only after filling
+can occur. Run `python3 -I -B runtime web --check` and
+`python3 -I -B runtime tunnel --check` only after filling
 the paths; the latter must still refuse `QRP_EDGE_DISABLED` until the Owner gate.
 
 Before the switch, use `PRE_SWITCH_COMPARE` only with the read-only mirror
@@ -59,6 +74,9 @@ an active authority marker, or unequal manifests as `QRP_VAR_DUAL_WRITABLE` or
    local forward), then run `parity.py compare-qrp`. PASS is 5/5 equal statuses,
    content types and normalized SHA-256; only runtime health `generatedAt` is
    masked. Keep the two snapshots and result.
+   The origin status remains `STARTING` with `lastOkAt=null` until it has made
+   real HTTP requests to all five routes and received five HTTP 200 responses.
+   A TCP accept alone never earns `RUNNING`, `routes:5`, or `lastOkAt`.
 2. Enforce the 150 GiB research-disk floor. The full migration footprint must
    stay within the common 3 GiB plus recorded daily growth.
 3. In the joint Wed 11:35–12:30 authority switch, copy and compare the Mac/Linux
@@ -75,6 +93,19 @@ an active authority marker, or unequal manifests as `QRP_VAR_DUAL_WRITABLE` or
    select a strategy, read the result/reason/evidence/uncertainty/actions, and
    make no research or runtime write. This is product evidence, not a 200-only
    check.
+   `cloudflared` remains `STARTING` with `lastOkAt=null` until its pinned
+   `--pidfile` reports this exact child PID, which cloudflared writes only after
+   its first successful tunnel connection. A successful `Popen` alone is not
+   readiness; timeout or early exit records `UNKNOWN` without `lastOkAt`.
+
+## Progress-page follow-up R-c2
+
+The brief's optional generated progress page is not reimplemented by this
+dynamic API migration. R-c2 is handled by the separate canonical #152 progress
+page (PR #167), whose sources and completion authority stay independent. R-c2
+remains `NOT_VERIFIED` until #152 is reviewed, merged, installed, enabled, and
+the Owner-only authenticated page journey is recorded. #133 must not copy or
+recompute #152's registry, master-table projection, or progress semantics.
 
 ## Mac desk panel retirement
 
@@ -82,7 +113,9 @@ After #134, create the authoritative desk route JSON from each pinned desk
 checkout's exported `ROUTES`, capture Mac and HK snapshots with `parity.py
 capture-desk`, and compare them against the exact switch-manifest commit. PASS
 requires: both commits equal that expected commit, the route sets are equal,
-and every route follows redirects to final HTTP 200. Only then may ops run:
+every route follows redirects to final HTTP 200, and each matching route has
+byte-equal `contentType` and `bodySha256`. A 200 with different bytes is a
+`DESK_CONTENT_MISMATCH`, not parity. Only then may ops run:
 
 ```text
 launchctl bootout gui/501/com.upmeai.portfolio-desk-panel

@@ -1,6 +1,7 @@
 """Fail-closed authority check for the migrated QRP research web."""
 
 import dataclasses
+import hashlib
 import importlib.util
 import os
 import pathlib
@@ -14,6 +15,9 @@ NODE = "/srv/research-lane/tools/node-v23.11.0-linux-x64/bin/node"
 AUTHORITY = "V8_1_COORDINATOR"
 STATUS = "/srv/research-lane/ops-logs/qrp-research-web/status.json"
 SHA64 = re.compile(r"[0-9a-f]{64}")
+HEX40 = re.compile(r"[0-9a-f]{40}")
+DESK_ROOT = "/srv/research-lane/ops/desk/portfolio-desk"
+REVIEW_MIRROR = "/srv/research-lane/qrp/review-loop-mirror"
 
 
 class AuthorityError(RuntimeError):
@@ -32,7 +36,9 @@ class RuntimeConfig:
     var_root: pathlib.Path
     data_dir: pathlib.Path
     desk_root: pathlib.Path
+    desk_sha: str
     review_root: pathlib.Path
+    review_commit: str
     node: pathlib.Path
     host: str
     port: int
@@ -72,6 +78,41 @@ class ProductionFacts:
             capture_output=True, text=True, timeout=15, check=False,
         )
         return result.returncode == 0 and result.stdout == ""
+
+    def review_mirror_valid(self, current, mirror_root, commit, manifest):
+        current = pathlib.Path(current)
+        mirror_root = pathlib.Path(mirror_root)
+        target = mirror_root / commit
+        manifest = pathlib.Path(manifest)
+        try:
+            if not current.is_symlink() or current.readlink() != pathlib.Path(commit):
+                return False
+            if not target.is_dir() or target.is_symlink():
+                return False
+            if not manifest.is_file() or manifest.is_symlink():
+                return False
+            expected = {}
+            for line in manifest.read_text(encoding="utf-8").splitlines():
+                match = re.fullmatch(r"([0-9a-f]{64})  ([^\x00\r\n]+)", line)
+                if not match:
+                    return False
+                relative = pathlib.PurePosixPath(match.group(2))
+                if relative.is_absolute() or ".." in relative.parts or str(relative) in expected:
+                    return False
+                expected[str(relative)] = match.group(1)
+            if not expected:
+                return False
+            actual = {}
+            for candidate in sorted(target.rglob("*")):
+                if candidate.is_symlink():
+                    return False
+                if candidate.is_file():
+                    relative = candidate.relative_to(target).as_posix()
+                    digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+                    actual[relative] = digest
+            return actual == expected
+        except (OSError, UnicodeError):
+            return False
 
     def delegate_guard(self, module, config):
         path = pathlib.Path(module)
@@ -133,11 +174,27 @@ def validate(env=None, *, facts=None):
         _fail("QRP_WEB_STATUS_INVALID")
 
     desk_root = _need(env, "QRP_DESK_ROOT")
+    desk_sha = _need(env, "QRP_DESK_PINNED_SHA")
     review_root = _need(env, "QRP_DESK_REVIEW_LOOP_ROOT")
-    if not _under_lane(desk_root) or not _under_lane(review_root):
+    review_commit = _need(env, "QRP_REVIEW_LOOP_COMMIT")
+    review_manifest = _need(env, "QRP_REVIEW_LOOP_MANIFEST")
+    expected_review_root = REVIEW_MIRROR + "/current"
+    expected_review_manifest = REVIEW_MIRROR + "/manifests/" + review_commit + ".sha256"
+    if (desk_root != DESK_ROOT or review_root != expected_review_root
+            or not _under_lane(desk_root) or not _under_lane(review_root)):
         _fail("QRP_WEB_DEPENDENCY_PATH_INVALID")
-    if not facts.is_dir(desk_root) or not facts.is_dir(review_root):
+    if not facts.is_dir(desk_root):
         _fail("QRP_WEB_DEPENDENCY_MISSING")
+    if not HEX40.fullmatch(desk_sha) or facts.git_head(desk_root) != desk_sha:
+        _fail("QRP_DESK_PIN_MISMATCH")
+    if not facts.git_clean(desk_root):
+        _fail("QRP_DESK_CHECKOUT_DIRTY")
+    if not HEX40.fullmatch(review_commit):
+        _fail("QRP_REVIEW_LOOP_COMMIT_INVALID")
+    if review_manifest != expected_review_manifest:
+        _fail("QRP_REVIEW_LOOP_MANIFEST_PATH_INVALID")
+    if not facts.review_mirror_valid(review_root, REVIEW_MIRROR, review_commit, review_manifest):
+        _fail("QRP_REVIEW_LOOP_MANIFEST_MISMATCH")
 
     expected_var = POST_SWITCH_VAR if mode == "POST_SWITCH" else PRE_SWITCH_VAR
     var_root = _need(env, "QRP_VAR_ROOT")
@@ -180,6 +237,7 @@ def validate(env=None, *, facts=None):
     return RuntimeConfig(
         mode=mode, root=root, pinned_sha=pinned, var_root=pathlib.Path(var_root),
         data_dir=pathlib.Path(data_dir), desk_root=pathlib.Path(desk_root),
-        review_root=pathlib.Path(review_root), node=pathlib.Path(NODE),
+        desk_sha=desk_sha, review_root=pathlib.Path(review_root),
+        review_commit=review_commit, node=pathlib.Path(NODE),
         host="127.0.0.1", port=4311, status=pathlib.Path(STATUS),
     )

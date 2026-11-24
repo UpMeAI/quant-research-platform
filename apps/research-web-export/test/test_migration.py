@@ -21,10 +21,11 @@ import web_run
 
 
 SHA = "a" * 64
+DESK_SHA = "d" * 40
 
 
 class FakeFacts:
-    def __init__(self, *, writable=False, token_mode=0o600, desk_head=SHA,
+    def __init__(self, *, writable=False, token_mode=0o600, desk_head=DESK_SHA,
                  desk_clean=True, mirror_valid=True, binary_sha=None):
         self.writable = writable
         self.token_mode = token_mode
@@ -76,7 +77,7 @@ def base_env(mode="POST_SWITCH"):
         "QRP_VAR_ROOT": authority.POST_SWITCH_VAR if mode == "POST_SWITCH" else authority.PRE_SWITCH_VAR,
         "QRP_DATA_DIR": (authority.POST_SWITCH_VAR if mode == "POST_SWITCH" else authority.PRE_SWITCH_VAR) + "/ledger",
         "QRP_DESK_ROOT": "/srv/research-lane/ops/desk/portfolio-desk",
-        "QRP_DESK_PINNED_SHA": SHA,
+        "QRP_DESK_PINNED_SHA": DESK_SHA,
         "QRP_DESK_REVIEW_LOOP_ROOT": "/srv/research-lane/qrp/review-loop-mirror/current",
         "QRP_REVIEW_LOOP_COMMIT": "c" * 40,
         "QRP_REVIEW_LOOP_MANIFEST": "/srv/research-lane/qrp/review-loop-mirror/manifests/" + ("c" * 40) + ".sha256",
@@ -130,7 +131,7 @@ class AuthorityTest(unittest.TestCase):
 
     def test_desk_dependency_requires_exact_commit_and_clean_tree(self):
         with self.assertRaisesRegex(authority.AuthorityError, "QRP_DESK_PIN_MISMATCH"):
-            authority.validate(base_env(), facts=FakeFacts(desk_head="d" * 64))
+            authority.validate(base_env(), facts=FakeFacts(desk_head="e" * 40))
         with self.assertRaisesRegex(authority.AuthorityError, "QRP_DESK_CHECKOUT_DIRTY"):
             authority.validate(base_env(), facts=FakeFacts(desk_clean=False))
 
@@ -140,6 +141,24 @@ class AuthorityTest(unittest.TestCase):
         bad = base_env(); bad["QRP_REVIEW_LOOP_COMMIT"] = "not-a-commit"
         with self.assertRaisesRegex(authority.AuthorityError, "QRP_REVIEW_LOOP_COMMIT_INVALID"):
             authority.validate(bad, facts=FakeFacts())
+
+    def test_real_review_loop_manifest_binds_current_commit_and_every_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            mirror = pathlib.Path(folder)
+            commit = "c" * 40
+            tree = mirror / commit
+            (tree / "docs" / "review-loop").mkdir(parents=True)
+            payload = tree / "docs" / "review-loop" / "week.json"
+            payload.write_bytes(b'{"week":"2026-W46"}\n')
+            (mirror / "current").symlink_to(commit)
+            manifests = mirror / "manifests"; manifests.mkdir()
+            digest = __import__("hashlib").sha256(payload.read_bytes()).hexdigest()
+            manifest = manifests / f"{commit}.sha256"
+            manifest.write_text(f"{digest}  docs/review-loop/week.json\n")
+            facts = authority.ProductionFacts()
+            self.assertTrue(facts.review_mirror_valid(mirror / "current", mirror, commit, manifest))
+            payload.write_bytes(b"changed\n")
+            self.assertFalse(facts.review_mirror_valid(mirror / "current", mirror, commit, manifest))
 
 
 class TunnelTest(unittest.TestCase):
@@ -155,10 +174,12 @@ class TunnelTest(unittest.TestCase):
             "QRP_CLOUDFLARED_VERSION": "2026.11.1",
             "QRP_CLOUDFLARED_SHA256": "b" * 64,
             "QRP_CLOUDFLARED_TOKEN_FILE": "/home/kayla/.config/cloudflared/qrp-research-web.token",
+            "QRP_TUNNEL_PID_FILE": tunnel.PID_FILE,
         }
         argv = tunnel.command(env, facts=facts)
         self.assertEqual(env["QRP_CLOUDFLARED_BIN"], argv[0])
-        self.assertEqual(["tunnel", "--no-autoupdate", "run", "--token-file", env["QRP_CLOUDFLARED_TOKEN_FILE"]], argv[1:])
+        self.assertEqual(["tunnel", "--no-autoupdate", "run", "--pidfile", tunnel.PID_FILE,
+                          "--token-file", env["QRP_CLOUDFLARED_TOKEN_FILE"]], argv[1:])
         self.assertEqual([], facts.reads)
         with self.assertRaisesRegex(tunnel.TunnelError, "QRP_TUNNEL_TOKEN_MODE"):
             tunnel.command(env, facts=FakeFacts(token_mode=0o644))
@@ -170,6 +191,7 @@ class TunnelTest(unittest.TestCase):
             "QRP_CLOUDFLARED_VERSION": "2026.11.1",
             "QRP_CLOUDFLARED_SHA256": "b" * 64,
             "QRP_CLOUDFLARED_TOKEN_FILE": "/home/kayla/.config/cloudflared/qrp-research-web.token",
+            "QRP_TUNNEL_PID_FILE": tunnel.PID_FILE,
         }
         bad_version = dict(env); bad_version["QRP_CLOUDFLARED_VERSION"] = "2026.10.0"
         with self.assertRaisesRegex(tunnel.TunnelError, "QRP_CLOUDFLARED_VERSION_MISMATCH"):
@@ -254,6 +276,25 @@ class RuntimeReadinessTest(unittest.TestCase):
         with self.assertRaisesRegex(web_run.OriginNotReady, "QRP_ROUTE_NOT_200"):
             web_run.probe_origin(fetch)
         self.assertEqual(list(parity.QRP_ROUTES[:3]), seen)
+
+    def test_unverified_origin_never_writes_running_or_last_ok(self):
+        config = SimpleNamespace(
+            mode="POST_SWITCH", root=pathlib.Path("/qrp"), var_root=pathlib.Path("/var"),
+            data_dir=pathlib.Path("/var/ledger"), host="127.0.0.1", port=4311,
+            node=pathlib.Path("/node"), status=pathlib.Path("/status.json"),
+        )
+        process = SimpleNamespace(poll=lambda: None, terminate=lambda: None,
+                                  wait=lambda timeout=None: 1, send_signal=lambda signum: None)
+        writes = []
+        def refuse(_fetch):
+            raise web_run.OriginNotReady("QRP_ROUTE_NOT_200:/api/strategies")
+        with mock.patch.object(web_run.authority, "validate", return_value=config), \
+                mock.patch.object(web_run.status, "write", side_effect=lambda path, payload: writes.append(payload)):
+            rc = web_run.run({}, popen=lambda argv, cwd, env: process,
+                             route_probe=refuse, clock=iter((0, 31)).__next__, sleep=lambda _: None)
+        self.assertEqual(1, rc)
+        self.assertEqual(["STARTING", "UNKNOWN"], [row["state"] for row in writes])
+        self.assertTrue(all(row["lastOkAt"] is None for row in writes))
 
 
 class IsolatedLaunchTest(unittest.TestCase):

@@ -95,19 +95,33 @@ def capture_desk(fetch, routes, commit):
 
 
 def compare_desk(left, right, expected_commit):
-    if (not isinstance(expected_commit, str) or not expected_commit
+    if (not isinstance(left, dict) or not isinstance(right, dict)
+            or not isinstance(expected_commit, str) or not expected_commit
             or left.get("schema") != "DESK_PANEL_PARITY_SNAPSHOT_V1"
             or right.get("schema") != left.get("schema")):
         _fail("DESK_SNAPSHOT_INVALID")
     if left.get("commit") != expected_commit or right.get("commit") != expected_commit:
         _fail("DESK_COMMIT_MISMATCH")
-    if set(left.get("routes", {})) != set(right.get("routes", {})):
+    left_routes = left.get("routes")
+    right_routes = right.get("routes")
+    if not isinstance(left_routes, dict) or not isinstance(right_routes, dict):
+        _fail("DESK_SNAPSHOT_INVALID")
+    if set(left_routes) != set(right_routes):
         _fail("DESK_ROUTE_SET_MISMATCH")
     for side in (left, right):
         if not side["routes"] or any(not isinstance(route, str) or not route.startswith("/") for route in side["routes"]):
             _fail("DESK_ROUTE_SET_MISMATCH")
-        if any(row.get("status") != 200 for row in side["routes"].values()):
-            _fail("DESK_ROUTE_NOT_200")
+        for row in side["routes"].values():
+            if not isinstance(row, dict) or row.get("status") != 200:
+                _fail("DESK_ROUTE_NOT_200")
+            digest = row.get("bodySha256")
+            if (not isinstance(row.get("contentType"), str)
+                    or not isinstance(digest, str) or len(digest) != 64
+                    or any(char not in "0123456789abcdef" for char in digest)):
+                _fail("DESK_SNAPSHOT_INVALID")
+    different = [route for route in left_routes if left_routes[route] != right_routes[route]]
+    if different:
+        _fail("DESK_CONTENT_MISMATCH:" + ",".join(sorted(different)))
     return {"schema": "DESK_PANEL_PARITY_RESULT_V1", "result": "PASS", "routes": len(left["routes"])}
 
 
