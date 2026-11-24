@@ -13,7 +13,7 @@ import signal
 import subprocess
 import sys
 
-from . import core, guard, pause, producer, status as status_mod
+from . import agentseam, core, guard, pause, producer, status as status_mod
 
 T3_BACKOFF_S = (60, 180, 600, 1800, 3600)   # six tries in all, then WAITING_PROVIDER
 T1_BACKOFF_S = 600
@@ -70,6 +70,8 @@ def classify(attempt_dir, exit_info):
         return Outcome("D", str(err.get("code") or "ERROR_UNCLASSIFIED"))
     if code == 0:
         res = _read_json(d / "result.json")
+        if isinstance(res, dict) and res.get("schema") == "RQ_AGENT_RESULT_V1":
+            return agentseam.map_result(res)  # Q3c: the agent's status decides the class; completion is the consumer's own re-validation
         return Outcome("SUCCESS") if isinstance(res, dict) else Outcome("D", "RESULT_MISSING")
     if code in (64, 65, 66):
         return Outcome("D", "EXIT_%d" % code)
@@ -119,6 +121,8 @@ def apply_outcome(conn, cfg, task_id, outcome, now, token=None):
         else:
             wait = max(T3_BACKOFF_S[tries], int(outcome.retry_after_s or 0))
             go("READY", "T3_RETRY", fields={"not_before": core.iso(now + dt.timedelta(seconds=wait))}, detail={"http_status": outcome.http_status, "wait_s": wait})
+    elif k == "DEFER":  # the agent's off-peak refusal: try again later, no budget spent
+        go("READY", "DEFER", fields={"not_before": core.iso(now + dt.timedelta(seconds=agentseam.DEFER_S))}, detail={"cause": outcome.code})
     elif k == "Q":
         go("WAITING_QUOTA", outcome.code or "QUOTA")
     elif k == "A":
@@ -184,6 +188,12 @@ def _launch(conn, cfg, rt, claimed, now):
     argv = adm["recovery_argv"] if n > 1 and adm.get("recovery_argv") else adm["argv"]
     d = _attempt_dir(cfg, task["task_id"], n)
     guard.check_write_path(d)
+    if agentseam.needs_staging(task):
+        try:
+            agentseam.stage(cfg, task, d)
+        except agentseam.SeamError as e:
+            core.transition(conn, task["task_id"], "BLOCKED_DETERMINISTIC", actor="rq-consumer", now=now, reason=e.code, token=claimed["lease_token"], detail={"error": e.detail[:200]})
+            return
     try:
         rt.start(cfg, d, argv, task["task_id"], n, task["weight_class"])
     except OSError as e:
@@ -224,7 +234,13 @@ def tick(conn, cfg, rt, now, *, worker=None, sensors=None, blackouts=None):
         st = rt.status(d)
         try:
             if st.exit is not None:
-                _finalize(conn, cfg, task, d, st, now)
+                try:
+                    _finalize(conn, cfg, task, d, st, now)
+                except (core.LeaseTokenStale, core.TransitionRefused):
+                    raise
+                except Exception as exc:
+                    core.transition(conn, tid, "BLOCKED_DETERMINISTIC", actor="rq-consumer", now=now, reason="FINALIZE_ERROR",
+                                    token=task["lease_token"], detail={"error": exc.__class__.__name__})
                 summary["finished"].append(tid)
             elif core.parse_iso(task["lease_expires_at"]) <= now:
                 if st.alive:

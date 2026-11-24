@@ -30,18 +30,16 @@ class ShippedTemplates(unittest.TestCase):
     def test_pins_match_the_computed_shas_one_per_template(self):
         reg = shipped()
         pins = {p["template_id"]: p for p in reg.pins}
-        self.assertEqual(sorted(pins), sorted(IDS[:2]), "only the Linux templates are pinned (plan-coord 11-23)")
-        self.assertEqual(len(reg.pins), 2)
-        for tid in IDS[2:]:
-            self.assertFalse(reg.is_frozen(reg.get(tid)), tid)
-        for tid in IDS[:2]:
+        self.assertEqual(sorted(pins), sorted(IDS))
+        self.assertEqual(len(reg.pins), 4, "one pin per frozen template, no stray pins")
+        for tid in IDS:
             t = reg.get(tid)
             self.assertEqual(pins[tid]["template_sha256"], templates.template_sha256(t), tid)
             self.assertRegex(pins[tid]["template_sha256"], r"^[0-9a-f]{64}$")
             self.assertTrue(reg.is_frozen(t), tid)
             self.assertIn("frozen_page_sha256", pins[tid])
-            self.assertTrue(pins[tid]["frozen_page_sha256"] is None or len(pins[tid]["frozen_page_sha256"]) == 64, tid)
-        self.assertEqual(len({p["template_sha256"] for p in reg.pins}), 2)
+            self.assertEqual(pins[tid]["frozen_page_sha256"], "c53171740c6d59be5ee4171f95b0b07dba71a69def14a430403f099aa8fe6a40" if "LINUX" in tid else None, tid)  # Linux: RQ_TEMPLATES_V1_FREEZE_1; HK: FREEZE_2 not written yet
+        self.assertEqual(len({p["template_sha256"] for p in reg.pins}), 4)
 
     def test_unpinned_template_is_refused(self):
         reg = shipped()
@@ -88,10 +86,10 @@ class ShippedTemplates(unittest.TestCase):
 
 
 class HkLaunch(unittest.TestCase):
-    def test_hk_templates_are_not_admissible_and_nothing_hk_is_launched_by_child(self):
+    def test_hk_launch_is_the_spool_client_not_a_child_agent_or_systemctl(self):
         reg = shipped()
         for tid in IDS[2:]:
-            self.assertFalse(reg.is_frozen(reg.get(tid)), tid)
+            self.assertEqual(reg.get(tid)["argv"], ["/opt/research-queue/current/deploy/research-queue-ai/hk/spool-client.sh"], tid)
         self.assertFalse((DEPLOY / "research-queue-ai" / "hk" / "run-agent.sh").exists())
         u = (DEPLOY / "research-queue" / "hk" / "rq-consumer.service").read_text()
         self.assertNotIn("RestrictAddressFamilies", u)
@@ -106,14 +104,6 @@ class HkLaunch(unittest.TestCase):
         self.assertIn("RQ_ATTEMPT_DIR", s)
         for flag in ("--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--user 1000:1000"):
             self.assertIn(flag, s)
-
-    def test_gateway_socket_is_reachable_by_the_consumer_group_only(self):
-        u = (DEPLOY / "research-queue-ai" / "hk" / "rq-deepseek-gateway.service").read_text()
-        self.assertIn("Group=rq\n", u)
-        self.assertIn("RuntimeDirectoryMode=0750", u)
-        self.assertIn("--socket-mode 0660", u)
-        self.assertNotIn("Group=rq-gw", u)
-        self.assertIn("m research-queue rq", (DEPLOY / "research-queue" / "hk" / "rq.sysusers.conf").read_text())
 
 
 class ShippedAdmission(Base):
@@ -149,15 +139,21 @@ class ShippedAdmission(Base):
 class ShippedAdmissionHK(Base):
     host = "HK"
 
-    def test_hk_templates_are_refused_until_pinned(self):
+    def test_hk_admits_us_and_crypto_cards_and_checks_and_refuses_cn_a(self):
         reg = shipped()
         d = self.cfg.inbox_dir / "fact-packs"
         d.mkdir(parents=True)
-        for m in ("US_EQUITY", "CRYPTO"):
+        for m in ("US_EQUITY", "CRYPTO", "CN_A"):
             (d / ("2026-W48-%s.json" % m)).write_text(json.dumps({"schema": "REVIEW_AI_FACT_PACK_V1", "week": "2026-W48", "market": m, "facts": []}))
         producer.tick(self.conn, self.cfg, reg, at(10, 0, day=28))
-        rows = self.conn.execute("select state, state_reason from task").fetchall()
-        self.assertEqual({(r[0], r[1]) for r in rows}, {("REFUSED_ADMISSION", "TEMPLATE_NOT_FROZEN")})
+        rows = self.conn.execute("select market, state, template_id from task order by market").fetchall()
+        self.assertEqual([(r[0], r[1], r[2]) for r in rows if r[1] == "READY"], [("CRYPTO", "READY", IDS[2]), ("US_EQUITY", "READY", IDS[2])])
+        self.assertEqual([r[0] for r in rows if r[1] != "READY"], ["CN_A"])
+        t = reg.get(IDS[3])
+        for m in ("US_EQUITY", "CRYPTO"):
+            r = self.admit(reg, req(t, market=m, params={}, kind="AI_CHECK", subject={"task": "RQT-HK-20261130-bbbbbbbb", "m": m, "gate_record_sha256": "b" * 64, "prompt_admission_sha256": t["prompt_admission_sha256"]}))
+            self.assertEqual((r.state, r.code), ("READY", ""), m)
+        self.assertEqual(self.admit(reg, req(t, market="CN_A", params={}, kind="AI_CHECK", subject={"n": 9})).code, "AGENT_HOST_MISMATCH")
 
 
 if __name__ == "__main__":

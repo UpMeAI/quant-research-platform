@@ -41,13 +41,20 @@ function assemble(draft, { k2Sha256, frozenAt }) {
 function validateTerms(draft, ctx, { k2Sha256, frozenAt }) {
   const terms = assemble(draft, { k2Sha256, frozenAt });
   const codes = [...engineTerms.validate(terms, { asOf: frozenAt })];
+  // V1.1 5.2 B fallback (plan-coord 11-23): until CVaR5 is defined a RISK draft keeps the existing non-inferiority gate
+  if (terms.layer === 'RISK' && !(isObj(draft.decision_table) && draft.decision_table.template_id === 'DT-NON-INFERIORITY-V1')) codes.push('PREREG_TERMS_RISK_NEEDS_NON_INFERIORITY');
   if (draft.authored_by.kind === 'AI_PREREG_AGENT') {
     const star = ctx.promotionTermsStar;
     const layer = isObj(star) && isObj(star.by_layer) ? star.by_layer[terms.layer] : null;
     if (!isObj(star) || !isObj(layer)) codes.push('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing');
     else {
-      const want = { min_economic_value: layer.min_economic_value, thresholds: layer.thresholds, insufficient_policy: star.insufficient_policy };
-      for (const f of STAR_FIELDS) if (canonicalJson(terms[f]) !== canonicalJson(want[f])) codes.push(`PREREG_TERMS_VALUES_NOT_REGISTERED:${f}`);
+      // the CVaR5 path: reserved until CVaR5 is defined, never registered
+      if (layer.gate === 'NON_INFERIORITY_FALLBACK' && isObj(terms.min_economic_value) && terms.min_economic_value.metric === 'CVAR5_IMPROVEMENT') codes.push('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing');
+      const mev = layer.gate === 'NON_INFERIORITY_FALLBACK'
+        ? (isObj(terms.min_economic_value) && layer.min_economic_value.metrics.includes(terms.min_economic_value.metric) && terms.min_economic_value.value === layer.min_economic_value.value ? terms.min_economic_value : layer.min_economic_value)
+        : layer.min_economic_value;
+      const want = { min_economic_value: mev, thresholds: layer.thresholds, insufficient_policy: star.insufficient_policy };
+      for (const f of STAR_FIELDS) if (canonicalJson(terms[f]) !== canonicalJson(want[f]) && !(f === 'min_economic_value' && codes.includes('PREREG_TERMS_VALUES_NOT_REGISTERED:star_missing'))) codes.push(`PREREG_TERMS_VALUES_NOT_REGISTERED:${f}`);
     }
   }
   return [...new Set(codes)];

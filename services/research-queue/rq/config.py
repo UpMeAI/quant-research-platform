@@ -37,6 +37,9 @@ class Config:
     io_device: str = "nvme2n1"
     apply_windows: bool = True                    # tests only; production keeps it True
     gateway_socket: str = None
+    node_bin: str = "node"                        # the trusted validator / stager runs in a short-lived node process of the consumer user
+    agent_cli: str = None                         # default: services/research-queue-agent/cli.js next to this package (read-only code)
+    spool_dir: str = None                         # HK only: the agent spool (pause file); the consumer-side client and rq-agent-drain.sh use it
 
     def __post_init__(self):
         if self.host not in HOSTS:

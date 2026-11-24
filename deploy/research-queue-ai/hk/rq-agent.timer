@@ -1,0 +1,13 @@
+# AUTONOMOUS_RESEARCH_QUEUE_V1 §3.6 (Q3c): rq-agent.service is a oneshot started by this timer in the off-peak hours; every run drains the spool and exits.
+# Hours 10..21 (the HK NET window is 10:45-21:45 and the consumer only stages tasks inside it; the gateway refuses peak-hour calls anyway). The host clock is CST.
+[Unit]
+Description=rq-agent drain timer (HK, every 5 minutes, 10:00-21:55)
+
+[Timer]
+OnCalendar=*-*-* 10..21:0/5:00 Asia/Shanghai
+AccuracySec=30s
+Persistent=no
+Unit=rq-agent.service
+
+[Install]
+WantedBy=timers.target

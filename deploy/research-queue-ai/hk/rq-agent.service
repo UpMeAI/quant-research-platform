@@ -8,8 +8,11 @@ After=rq-deepseek-gateway.service
 [Service]
 Type=oneshot
 User=rq-agent
-Group=rq
-ExecStart=/opt/node22/bin/node /opt/research-queue/current/services/research-queue-agent/cli.js --task /var/lib/research-queue/agent/in/task.json --bundle /var/lib/research-queue/agent/in/bundle.json --out /var/lib/research-queue/agent/out/current --socket /run/rq-gw/rq-gw.sock --host HK
+Group=rq-agent
+Environment=RQ_SPOOL_DIR=/var/lib/rq-spool
+ExecStart=/bin/sh /opt/research-queue/current/deploy/research-queue-ai/hk/rq-agent-drain.sh
+# The client counts active poll iterations; a system freeze must not consume the task timeout.
+TimeoutStartSec=infinity
 Slice=research.slice
 MemoryMax=256M
 Nice=19
@@ -21,7 +24,7 @@ PrivateTmp=yes
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 TemporaryFileSystem=/var/lib:ro
-BindReadOnlyPaths=/var/lib/research-queue/agent/in
-BindPaths=/var/lib/research-queue/agent/out
+BindReadOnlyPaths=/var/lib/rq-spool/in
+BindPaths=/var/lib/rq-spool/out
 ProtectProc=invisible
 ProcSubset=pid

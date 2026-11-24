@@ -1,11 +1,11 @@
 # Research queue install (AUTONOMOUS_RESEARCH_QUEUE_V1, Q1)
 
-For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN: no template is pinned (`config/research_queue_template_pins.v1.json` is empty), so the queue admits nothing until the coordinator's freeze page adds pins. Contract: `docs/contracts/RESEARCH_QUEUE_V1.md`. Q2 adds the gateway and agent units.
+For ops-coord. Nothing here is installed by the PR. Template admission remains governed by the SHA-pinned entries in `config/research_queue_template_pins.v1.json`. Contract: `docs/contracts/RESEARCH_QUEUE_V1.md`.
 
 ## Linux (user units, kayla, linger)
 
-1. Code: `git archive <sha> services/research-queue config docs/contracts/RESEARCH_QUEUE_V1.md | tar -x -C /srv/research-lane/research-queue/code/<sha>/` and `ln -sfn <sha> /srv/research-lane/research-queue/code/current`.
-2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
+1. Code: `git archive <sha> | tar -x -C /srv/research-lane/research-queue/code/<sha>/` and `ln -sfn <sha> /srv/research-lane/research-queue/code/current`. The full tree is required because the consumer CLI loads `services/`, `independent-verifier/`, `adapters/`, `packages/`, `schemas/` and `config/` from the same SHA.
+2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher; on both hosts `node_bin` (HK: `/opt/node22/bin/node`) is used by the consumer to stage inputs and to re-validate results, and HK sets `spool_dir` `/var/lib/rq-spool`, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
 3. `install -m 0644 linux/* ~/.config/systemd/user/`, `systemctl --user daemon-reload`.
 4. Pause authority (RQ8): `systemctl --user disable --now rf1116-window-pause.timer`, then `systemctl --user enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
 5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
@@ -13,18 +13,17 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 ## HK (system units, root, coordinator only; NET tasks only)
 
 1. `install -m 0644 hk/rq.sysusers.conf /etc/sysusers.d/rq.conf; systemd-sysusers; install -m 0644 hk/rq.tmpfiles.conf /etc/tmpfiles.d/rq.conf; systemd-tmpfiles --create`.
-2. Code in `/opt/research-queue/<sha>/` with `current` symlink; config `/etc/research-queue/rq.json` (host `HK`, `root` `/var/lib/research-queue`, `process_pause_unit` `rq-consumer.service`); manifest as above.
+2. Code: `git archive <sha> | tar -x -C /opt/research-queue/<sha>/`, then atomically select it with the `current` symlink. Config `/etc/research-queue/rq.json` has host `HK`, root `/var/lib/research-queue`, `process_pause_unit` `rq-consumer.service`, `spool_dir` `/var/lib/rq-spool`, and the manifest above.
 3. `install -m 0644 hk/*.service hk/*.timer hk/research.slice /etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
-4. HK agent templates are not pinned yet (follow-up PR); only the Linux card and check run. Gateway socket group (`research-queue-ai/hk/rq-deepseek-gateway.service`, `Group=rq`): confirm at the HK install that `rq-agent` can connect to `/run/rq-gw/rq-gw.sock` and `portfolio-desk` cannot.
-5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
-
-## HK (system units, root, coordinator only; NET tasks only)
-
-1. `install -m 0644 hk/rq.sysusers.conf /etc/sysusers.d/rq.conf; systemd-sysusers; install -m 0644 hk/rq.tmpfiles.conf /etc/tmpfiles.d/rq.conf; systemd-tmpfiles --create`.
-2. Code in `/opt/research-queue/<sha>/` with `current` symlink; config `/etc/research-queue/rq.json` (host `HK`, `root` `/var/lib/research-queue`, `process_pause_unit` `rq-consumer.service`); manifest as above.
-3. `install -m 0644 hk/*.service hk/*.timer hk/research.slice /etc/systemd/system/`, `systemctl daemon-reload`, `systemctl enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
-4. Agent launch (Q3b, no new privilege): the HK templates run `/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh` as a child of `rq-consumer.service`. Do not install a polkit rule or a sudoers entry, and do not start `rq-agent.service` from the queue. The gateway unit (`research-queue-ai/hk/rq-deepseek-gateway.service`, `Group=rq`) gives the consumer group the socket `/run/rq-gw/rq-gw.sock`; check `systemctl show rq-consumer.service -p RestrictAddressFamilies -p IPAddressDeny` and that `research-queue` can connect to the socket while `portfolio-desk` cannot.
-5. Cap proof (AQ-17H, 14:00-16:00 CST): `cap-proof.sh HK`. Limits are the ops-coord plan (1 CPU, 512 MB, nice 19) and are confirmed here.
+4. HK agent (Q3c): the agent runs as `rq-agent`, never as `research-queue`; the two meet only in the spool `/var/lib/rq-spool` (`in/` written by the consumer, `out/` written by the agent). Install, in this order:
+   - `rq.sysusers.conf` no longer puts `rq-agent` in group `rq` (the queue tree is `2770 research-queue:rq`): after `systemd-sysusers`, run `gpasswd -d rq-agent rq` if the user already exists, and check `id rq-agent` shows no `rq`.
+   - `rq.tmpfiles.conf` creates the spool (`0750`/`2750`/`2770`, owner `research-queue`, group `rq-agent`) and the gateway ledger directory `/var/lib/rq-gw` (`0700 rq-gw:rq-gw`) outside the non-searchable queue tree.
+   - **`research-queue-ai/hk/rq-deepseek-gateway.service` now has `Group=rq-agent`; this supersedes `Group=rq` of #148**. Its ledger is `/var/lib/rq-gw/gateway.sqlite`; its socket `/run/rq-gw/rq-gw.sock` is group `rq-agent`. If #148's unit is already installed, replace it, `daemon-reload`, restart the gateway.
+   - `install -m 0644 research-queue-ai/hk/rq-agent.service research-queue-ai/hk/rq-agent.timer /etc/systemd/system/`, `systemctl enable --now rq-agent.timer`. `rq-agent.service` is a timer-started oneshot that drains the spool and exits; do not enable it as a long-running service, and do not install a polkit rule or a sudoers entry.
+   - Checks (AQ-17H/18/33/34): gateway starts keyed and keyless and can write `/var/lib/rq-gw/gateway.sqlite`; as `rq-agent`, the queue database and state dir are not readable; `research-queue` and `portfolio-desk` cannot read the key file or `/proc/<gw>/environ`; `rq-agent` can connect to the gateway socket while `research-queue` and `portfolio-desk` cannot; an external TCP connect from `rq-agent` fails.
+   - As `research-queue`, run `node /opt/research-queue/current/services/research-queue-agent/cli.js stage` and `validate` against a scratch fixture. Both must resolve the full archived dependency tree before any timer is enabled.
+   - Pause: the root `rq-pause` tick freezes `rq-consumer.service` and `rq-agent.service` (an inactive oneshot cannot be frozen, which is fine) and writes `/var/lib/rq-spool/in/.pause`, which stops a drain that starts later.
+5. Cap proof (AQ-17H, 14:00-16:00 CST): `deploy/research-queue/cap-proof.sh HK`. Limits are the ops-coord plan (1 CPU, 512 MB, nice 19) and are confirmed here.
 
 ## Mac relay
 
@@ -35,18 +34,23 @@ For ops-coord. Nothing here is installed by the PR. Every host starts in DRY_RUN
 | File | sha256 |
 |---|---|
 | `linux/research.slice` | 1846ee8fa5e0ae744217347f28c2eef779d7e39a8553f1a66c321b5731f97bc3 |
-| `linux/rq-consumer.service` | 6f78450206a43c2f33623dd81c1415de046220ec457209269dfaef1b02fc3742 |
+| `linux/rq-consumer.service` | 79d646da3373283ff2d6cd837d071f7b7b73648f79d66d6aff6d783c14c09cec |
 | `linux/rq-pause.service` | acf5a4f3b6e1a5b9468d4244bc1704163c78d5d4293c167aabf7abca7e63d21e |
 | `linux/rq-pause.timer` | 9eddd695c96522998c6a8d83d9338e67b01f2e8f4750f9f7133e93bff242d419 |
 | `linux/rq-producer.service` | 8ba544da1a58fe70e1bb4ad4dca1a61c57619f2644f3154df6037a6e8d7517c7 |
 | `linux/rq-producer.timer` | 1721ace6f645e62f1fd4a157f3a4c8336e18901b8f4f095bc09406c4065bed78 |
 | `hk/research.slice` | 1252835b86183f80e7770095d06f3a93586bc4ceb4f487377c58489f9d3ed01a |
-| `hk/rq-consumer.service` | 995af93ecb41f2b2fee0a64fa1278e59a6ad23e6c5fdabefd432b84a3a50baca |
-| `hk/rq-pause.service` | 4273d034d3539412fcae4f55447671ea3fa41b464e4961896c544ba4ad3be733 |
+| `hk/rq-consumer.service` | 1d0a86d0ac95ea73fbf2a726e0a5a6847a3729055522bf3233557692c23ce52c |
+| `hk/rq-pause.service` | b30c3a401d34dbff89cda84049159b85b3f6b49c9883b7116da6ecfd5fca5614 |
 | `hk/rq-pause.timer` | 9eddd695c96522998c6a8d83d9338e67b01f2e8f4750f9f7133e93bff242d419 |
 | `hk/rq-producer.service` | c2693d35901f3694b8cc70f01f2fa4d796131d1147a59894c3682a7eb5d84a51 |
 | `hk/rq-producer.timer` | 1721ace6f645e62f1fd4a157f3a4c8336e18901b8f4f095bc09406c4065bed78 |
-| `hk/rq.sysusers.conf` | 2c6aa95066b8cdec1eea20cb9fdf5e78541fb4c4a7b90ff808de130ebcd38775 |
-| `hk/rq.tmpfiles.conf` | 245a513937a00d4cb448207e6bc14130cb9a02661a1ac03a76189997fef63bb8 |
+| `hk/rq.sysusers.conf` | c20a90dad17df053a8d07e19fff55c1d8570e3add7883d6cabdb21db5f8e13f1 |
+| `hk/rq.tmpfiles.conf` | b6c7f3bf65e8d7737537ec8f5a036f6e443e11e00c75c5cd0484daa8db58fa3c |
+| `../research-queue-ai/hk/rq-agent-drain.sh` | 1d3789c9a61491d318be4bb6e4a0fb45710cc897c96675e690e7ed4a3403d07b |
+| `../research-queue-ai/hk/rq-agent.service` | 7ded8e80fd8246e95c2078ed517e621c132e6d7d0ef76aa6bd5573657d7d8494 |
+| `../research-queue-ai/hk/rq-agent.timer` | c490d7708d8b0fcb5d58a49363d266018cceaf3047be49fb5a2b5aac13b77443 |
+| `../research-queue-ai/hk/rq-deepseek-gateway.service` | a9995019ca3e5b7a817aa5b85323cbc22b389e6c71cce055b5bf5cefa5de8de6 |
+| `../research-queue-ai/hk/spool-client.sh` | 0cf15bd66edbc64d2caa6053140244f269394c2693d0c291d8f87506e4f31d81 |
 | `cap-proof.sh` | 14b2dffb5ed16dd38bd9fd7606c327e52bf63bd66194267d7ed712bc34823701 |
 | `mac/com.upmeai.research-queue-relay.plist.template` | 3f420fa09d546c784c8c403f976876c1d72dcda8259a052feb9baa5d105a304b |

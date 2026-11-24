@@ -1,7 +1,7 @@
 # AUTONOMOUS_RESEARCH_QUEUE_V1 rev 4 §3.6, §5.3 (HK, system unit). Installed by the coordinator at the HK install; NOT installed by the Q2 PR.
 # The only unit with the key: PID 1 reads the file as root and drops to rq-gw; `-` means a missing file starts the unit keyless
 # (every call answers RQ_CREDENTIAL_ABSENT -> tasks WAITING_CREDENTIAL, AQ-32). Egress is open at IP level (DeepSeek is a CDN);
-# Group=rq (Q3b): the socket (0660) and /run/rq-gw (0750) belong to group rq, whose only members are research-queue (the consumer that launches the agent) and rq-agent; the key file stays root 0600 and the state dir rq-gw 0700.
+# Group=rq-agent (Q3c, supersedes Group=rq of #148): the socket (0660) and /run/rq-gw (0750) belong to group rq-agent, as in the design table; only rq-agent connects. The key file stays root 0600, the state dir rq-gw 0700.
 # the code forwards only to api.deepseek.com:443 paths /chat/completions and /user/balance.
 [Unit]
 Description=rq-deepseek-gateway (HK, HK_REVIEW key)
@@ -10,11 +10,11 @@ After=network-online.target
 [Service]
 Type=simple
 User=rq-gw
-Group=rq
+Group=rq-agent
 EnvironmentFile=-/root/.config/research-queue/deepseek-review.env
 RuntimeDirectory=rq-gw
 RuntimeDirectoryMode=0750
-ExecStart=/usr/bin/python3 /opt/research-queue/current/services/rq-deepseek-gateway/rq_gateway.py serve --config /opt/research-queue/current/config/rq_deepseek_gateway.v1.json --key-id HK_REVIEW --db /var/lib/research-queue/gateway/gateway.sqlite --socket /run/rq-gw/rq-gw.sock --socket-mode 0660
+ExecStart=/usr/bin/python3 /opt/research-queue/current/services/rq-deepseek-gateway/rq_gateway.py serve --config /opt/research-queue/current/config/rq_deepseek_gateway.v1.json --key-id HK_REVIEW --db /var/lib/rq-gw/gateway.sqlite --socket /run/rq-gw/rq-gw.sock --socket-mode 0660
 Restart=on-failure
 RestartSec=10
 Slice=research.slice
@@ -26,7 +26,7 @@ PrivateTmp=yes
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectProc=invisible
-ReadWritePaths=/var/lib/research-queue/gateway
+ReadWritePaths=/var/lib/rq-gw
 
 [Install]
 WantedBy=multi-user.target

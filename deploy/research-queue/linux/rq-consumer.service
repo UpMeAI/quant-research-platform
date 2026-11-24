@@ -4,6 +4,7 @@ Description=Research queue consumer (claim, launch, adopt, finalize)
 Type=simple
 Slice=research.slice
 Environment=PYTHONPATH=/srv/research-lane/research-queue/code/current/services/research-queue
+Environment=PATH=/srv/research-lane/tools/node-v23.11.0-linux-x64/bin:/usr/bin:/bin
 Environment=RQ_CONFIG=%h/.config/research-queue/rq.json
 ExecStart=/usr/bin/python3 -m rq consumer-run
 Restart=always

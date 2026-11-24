@@ -1,0 +1,200 @@
+{
+  "schema": "PROMOTION_TERMS_STAR_V1",
+  "_comment": "The starred default values a K2's PROMOTION_TERMS_V1 may take, copied verbatim from the frozen plan texts, one source reference each (document, section, quoted words, the number as written, its unit). Nothing here is invented: a value with no source in those texts is absent (see not_set), and a layer whose metric is not yet defined is not usable. Supplied to the K2 freeze program as ctx.promotionTermsStar; an AI-authored draft must equal it, a human-authored one states its own values. To be frozen by plan-coord from the PR that adds it.",
+  "sources": {
+    "V1_1": {
+      "doc": "三市场量化研究与交易计划系统_完整优化方案_V1.1",
+      "sha256": "af34af3862c59d064d35748b82b4790c8a444805742cb87e63fa32e40cd662f7"
+    },
+    "AMENDMENT_1": {
+      "doc": "PLAN_V1_1_AMENDMENT_1_AI_RESEARCH_LAB",
+      "sha256": "0e2f3181d98902f28b67c53ffd068a32e35e96bb75c1b32b62eb3ab9f45bde43"
+    },
+    "AMENDMENT_1_NOTE_1": {
+      "doc": "PLAN_V1_1_AMENDMENT_1_FREEZE_1_NOTE_1",
+      "sha256": "6b3be10da39a5518e162a7422f19097b577fa8fb437e4bb71ceb48aa128b5f50"
+    }
+  },
+  "insufficient_policy": {
+    "values": {
+      "horizon_months": 12,
+      "p_threshold": 0.5,
+      "budget_share_max": 0.2,
+      "resume_sample_fraction": 0.5,
+      "max_failed_rechecks": 3
+    },
+    "sources": {
+      "horizon_months": {
+        "doc": "AMENDMENT_1",
+        "section": "4.2 item 2",
+        "quote": "12 个月 ★",
+        "quote_number": 12,
+        "unit": "months"
+      },
+      "p_threshold": {
+        "doc": "AMENDMENT_1",
+        "section": "4.2 item 2",
+        "quote": "低于 50% ★",
+        "quote_number": 50,
+        "unit": "percent"
+      },
+      "budget_share_max": {
+        "doc": "AMENDMENT_1",
+        "section": "4.2 item 3",
+        "quote": "月度研究预算的 20% ★",
+        "quote_number": 20,
+        "unit": "percent"
+      },
+      "resume_sample_fraction": {
+        "doc": "AMENDMENT_1",
+        "section": "4.2 item 2",
+        "quote": "所需样本的 50% ★",
+        "quote_number": 50,
+        "unit": "percent"
+      },
+      "max_failed_rechecks": {
+        "doc": "AMENDMENT_1",
+        "section": "4.3",
+        "quote": "连续 3 次 ★",
+        "quote_number": 3,
+        "unit": "count"
+      }
+    }
+  },
+  "layers": {
+    "ALPHA": {
+      "usable": true,
+      "min_economic_value": {
+        "metric": "DELTA_G_PER_YEAR",
+        "value": 0.02
+      },
+      "thresholds": {
+        "s3": {
+          "cost_multiple": 2
+        },
+        "s4": {
+          "max_overlap": 0.7
+        }
+      },
+      "sources": {
+        "min_economic_value": {
+          "doc": "V1_1",
+          "section": "5.2 A",
+          "quote": "至少 2 个百分点／年",
+          "quote_number": 2,
+          "unit": "pp"
+        },
+        "thresholds.s3.cost_multiple": {
+          "doc": "V1_1",
+          "section": "5.2 C",
+          "quote": "提高至基准 2 倍",
+          "quote_number": 2,
+          "unit": "multiple"
+        },
+        "thresholds.s4.max_overlap": {
+          "doc": "AMENDMENT_1_NOTE_1",
+          "section": "S4 max_overlap default",
+          "quote": "max_overlap = 0.7",
+          "quote_number": 0.7,
+          "unit": "ratio",
+          "decision_quote": "严格大于 0.7 算重合过高",
+          "measure": "|rho| of the candidate strategy's daily net returns against the existing market portfolio's daily net returns; strictly greater than max_overlap refuses",
+          "corroboration": {
+            "doc": "factor-library DEDUPE.RHO_MAX (signed text fd22876f section 2.3)",
+            "value": 0.7
+          }
+        }
+      }
+    },
+    "RISK": {
+      "usable": true,
+      "gate": "NON_INFERIORITY_FALLBACK",
+      "reason": "V1.1 5.2 B prescribes the fallback itself until CVaR5 is defined in METRIC_DEFINITIONS V1.1: risk questions keep the existing gates (non-inferiority to the control D8, or the touch-probability difference X06). A RISK draft therefore uses DT-NON-INFERIORITY-V1 with margin_sd from the registered risk rule it cites; the metric is named for what is measured, NON_INFERIORITY_D8 (the D8 gate, d38f87a9) or TOUCH_PROBABILITY_DIFF_X06 (the X06 touch-probability difference), and min 0 means not worse than the control; CVAR5_IMPROVEMENT stays reserved. The CVaR5 path stays star_missing until CVaR5 is defined.",
+      "fallback_quote": "在此之前，风险题沿用现行的门：不劣于对照（D8，d38f87a9）或触线概率差（X06）",
+      "min_economic_value": {
+        "metrics": [
+          "NON_INFERIORITY_D8",
+          "TOUCH_PROBABILITY_DIFF_X06"
+        ],
+        "value": 0
+      },
+      "thresholds": {
+        "s3": {
+          "cost_multiple": 2,
+          "max_growth_sacrifice": 0.01
+        },
+        "s4": {
+          "max_overlap": 0.7
+        }
+      },
+      "sources": {
+        "min_economic_value": {
+          "doc": "V1_1",
+          "section": "5.2 B",
+          "quote": "不劣于对照",
+          "quote_number": 0,
+          "unit": "non_inferiority"
+        },
+        "thresholds.s3.max_growth_sacrifice": {
+          "doc": "V1_1",
+          "section": "5.2 B",
+          "quote": "不超过 1 个百分点",
+          "quote_number": 1,
+          "unit": "pp"
+        },
+        "thresholds.s3.cost_multiple": {
+          "doc": "V1_1",
+          "section": "5.2 C",
+          "quote": "提高至基准 2 倍",
+          "quote_number": 2,
+          "unit": "multiple"
+        },
+        "thresholds.s4.max_overlap": {
+          "doc": "AMENDMENT_1_NOTE_1",
+          "section": "S4 max_overlap default",
+          "quote": "max_overlap = 0.7",
+          "quote_number": 0.7,
+          "unit": "ratio",
+          "decision_quote": "严格大于 0.7 算重合过高",
+          "measure": "|rho| of the candidate strategy's daily net returns against the existing market portfolio's daily net returns; strictly greater than max_overlap refuses",
+          "corroboration": {
+            "doc": "factor-library DEDUPE.RHO_MAX (signed text fd22876f section 2.3)",
+            "value": 0.7
+          }
+        }
+      },
+      "cvar5": {
+        "defined": false,
+        "recorded": {
+          "min_economic_value": {
+            "metric": "CVAR5_IMPROVEMENT",
+            "value": 0.1
+          },
+          "thresholds": {
+            "s3": {
+              "cost_multiple": 2,
+              "max_growth_sacrifice": 0.01
+            }
+          }
+        },
+        "recorded_sources": {
+          "min_economic_value": {
+            "doc": "V1_1",
+            "section": "5.2 B",
+            "quote": "改善 至少 10%",
+            "quote_number": 10,
+            "unit": "percent"
+          }
+        }
+      }
+    },
+    "EXECUTION": {
+      "usable": false,
+      "reason": "V1.1 5.2 C gives no economic-value number for execution and plan improvements (only the cost x2 check)"
+    }
+  },
+  "not_set": [
+    "RISK CVaR5 improvement (10%): recorded under layers.RISK.cvar5, not usable until METRIC_DEFINITIONS V1.1 defines CVaR5",
+    "min_economic_value for EXECUTION: none in V1.1 5.2 C (plan-coord 11-23: stays refused as star_missing)"
+  ]
+}

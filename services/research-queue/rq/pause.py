@@ -199,6 +199,30 @@ class PauseFailed(Exception):
     pass
 
 
+AGENT_UNIT = ("unit", "rq-agent.service")
+
+
+def _apply(pauser, cfg, verb, target):
+    """freeze|thaw the task's unit. HK (Q3c): also the agent service and the spool's pause file, because the agent runs outside the consumer's cgroup.
+    The agent unit is a oneshot: freezing an inactive one fails, which is fine (the pause file stops a drain that starts later); the consumer's failure is the caller's."""
+    getattr(pauser, verb)(*target)
+    if cfg.host == "HK" and target == ("unit", cfg.process_pause_unit):
+        try:
+            getattr(pauser, verb)(*AGENT_UNIT)
+        except (PauseFailed, ValueError):
+            pass
+        spool = getattr(cfg, "spool_dir", None)
+        if spool:
+            f = pathlib.Path(spool) / "in" / ".pause"
+            try:
+                if verb == "freeze":
+                    f.write_text("")
+                elif f.exists():
+                    f.unlink()
+            except OSError:
+                pass
+
+
 def _default_run(argv):
     env = dict(os.environ)
     env.setdefault("DOCKER_HOST", "unix:///run/user/%d/docker.sock" % os.getuid())
@@ -281,7 +305,7 @@ def tick(conn, cfg, now, pauser, sensors, blackouts, state_file=None, runtime=No
         elif reason and row["state"] == "RUNNING":
             core.transition(conn, tid, "PAUSED", actor="rq-pause", now=now, reason=reason, fields={"lease_expires_at": core.iso(now + dt.timedelta(seconds=cfg.lease_ttl_s))})
             try:
-                pauser.freeze(*target)
+                _apply(pauser, cfg, "freeze", target)
                 res["paused"].append(tid)
             except (PauseFailed, ValueError):
                 core.transition(conn, tid, "RUNNING", actor="rq-pause", now=now, reason="PAUSE_FAILED")
@@ -290,7 +314,7 @@ def tick(conn, cfg, now, pauser, sensors, blackouts, state_file=None, runtime=No
             core.extend_lease(conn, tid, now, cfg.lease_ttl_s)
         elif not reason and row["state"] == "PAUSED":
             try:
-                pauser.thaw(*target)
+                _apply(pauser, cfg, "thaw", target)
             except (PauseFailed, ValueError):
                 res["failed"].append(tid)
                 core.extend_lease(conn, tid, now, cfg.lease_ttl_s)

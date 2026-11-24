@@ -189,7 +189,7 @@
    "weight_class": "NET",
    "io_class": "NONE",
    "argv": [
-    "/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh"
+    "/opt/research-queue/current/deploy/research-queue-ai/hk/spool-client.sh"
    ],
    "params": {},
    "inputs": [
@@ -243,8 +243,8 @@
     "US_EQUITY"
    ],
    "subject_keys": "week, market, fact-pack sha256, prompt-admission sha256",
-   "launch": "UNPINNED placeholder: the HK launch design is replaced in the follow-up PR (spool hand-off to rq-agent.service); this entry is not admissible",
-   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "launch": "consumer child process (User=research-queue) hands the staged task to rq-agent.service through the spool /var/lib/rq-spool (in/ written by the consumer, out/ by the agent) and publishes the result; rq-agent.service is a timer-started oneshot (User=rq-agent, IPAddressDeny=any, AF_UNIX only) that drains the spool; no systemctl, no polkit rule",
+   "launch_inputs": "the consumer stages RQ_ATTEMPT_DIR/in/{task.json,bundle.json}; the client copies them into the spool and publishes RQ_ATTEMPT_DIR/result.json (+ out/); no per-task path is in the argv",
    "gateway": {
     "unit": "rq-deepseek-gateway.service (system, User=rq-gw)",
     "key_id": "HK_REVIEW",
@@ -275,7 +275,7 @@
    "weight_class": "NET",
    "io_class": "NONE",
    "argv": [
-    "/opt/research-queue/current/deploy/research-queue-ai/hk/run-agent.sh"
+    "/opt/research-queue/current/deploy/research-queue-ai/hk/spool-client.sh"
    ],
    "params": {},
    "inputs": [
@@ -329,8 +329,8 @@
     "US_EQUITY"
    ],
    "subject_keys": "checked task_id, gate-record sha256, prompt-admission sha256",
-   "launch": "UNPINNED placeholder: the HK launch design is replaced in the follow-up PR (spool hand-off to rq-agent.service); this entry is not admissible",
-   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "launch": "consumer child process (User=research-queue) hands the staged task to rq-agent.service through the spool /var/lib/rq-spool (in/ written by the consumer, out/ by the agent) and publishes the result; rq-agent.service is a timer-started oneshot (User=rq-agent, IPAddressDeny=any, AF_UNIX only) that drains the spool; no systemctl, no polkit rule",
+   "launch_inputs": "the consumer stages RQ_ATTEMPT_DIR/in/{task.json,bundle.json}; the client copies them into the spool and publishes RQ_ATTEMPT_DIR/result.json (+ out/); no per-task path is in the argv",
    "gateway": {
     "unit": "rq-deepseek-gateway.service (system, User=rq-gw)",
     "key_id": "HK_REVIEW",

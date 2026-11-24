@@ -11,7 +11,7 @@ const { fail, need, sha256, prettyJson, isCstStamp } = require('./common');
 const { TOKEN_PREFIX } = require('./canary');
 
 const BUILDER = 'K2_BUNDLE_BUILDER_V1';
-const KINDS = Object.freeze(['CANDIDATE_FACTS', 'MECHANISM_REGISTER', 'ROUTING_READING', 'FACTOR_LIBRARY_IDS', 'DATA_CATALOG', 'K2_TEMPLATE', 'DECISION_TABLE_TEMPLATES', 'POWER_OUTPUTS', 'RISK_RULES']);
+const KINDS = Object.freeze(['CANDIDATE_FACTS', 'MECHANISM_REGISTER', 'ROUTING_READING', 'FACTOR_LIBRARY_IDS', 'DATA_CATALOG', 'K2_TEMPLATE', 'DECISION_TABLE_TEMPLATES', 'POWER_OUTPUTS', 'RISK_RULES', 'PROMOTION_TERMS_STAR']);
 const MARKETS = Object.freeze(['CN_A', 'US_EQUITY', 'CRYPTO']);
 const FORBIDDEN_SEGMENT = /^(sealed[\w.-]*|holdout[\w.-]*|vault|race[\w.-]*|paper[\w.-]*|production[\w.-]*|prod|restore_[\w.-]*|out|\.git|\.env[\w.-]*)$/i;
 const FORBIDDEN_EXT = /\.(sql|dump|pgdump|sqlite|db)$/i;
