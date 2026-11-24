@@ -105,7 +105,7 @@ class NodeSeenMarker:
             _fail("SEEN_MARK_NODE_INVALID")
         if self.env.get("QRP_PRODUCT_MILESTONE_AUTHORITY") != AUTHORITY:
             _fail("SEEN_MARK_AUTHORITY_INVALID")
-        if self.env.get("QRP_DATA_DIR") != DATA_DIR:
+        if not pathlib.Path(self.env.get("QRP_DATA_DIR", "")).is_absolute():
             _fail("SEEN_MARK_DATA_DIR_INVALID")
         self.env.pop("RQ_SEEN_MARK_QRP_ROOT", None)
 

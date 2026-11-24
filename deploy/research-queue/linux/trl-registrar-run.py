@@ -130,7 +130,10 @@ def process_request(request_file, config, run=subprocess.run):
     receipt = run_root / relative.parts[0] / "inbox" / "trl-receipts" / request_file.name
     if receipt.exists():
         data = receipt.read_bytes()
-        _validate_receipt(data, digest)
+        try:
+            _validate_receipt(data, digest)
+        except RegistrarError:
+            _fail("TRL_RECEIPT_REPLAY_MISMATCH")
         return _publish_receipt(receipt, data)
 
     node = config.get("node")
