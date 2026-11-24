@@ -1,0 +1,15 @@
+[Unit]
+Description=Generate the private research progress page
+After=local-fs.target
+OnFailure=ops-notify@%n.service
+
+[Service]
+Type=oneshot
+Environment=PYTHONPATH=/srv/research-lane/progress-page/code/current/services/progress-page
+ExecStart=/usr/bin/flock -n /srv/research-lane/progress-page/state/run.lock /usr/bin/python3 -I -B -m progress run --config /home/kayla/.config/progress-page/progress.json
+TimeoutStartSec=300
+Nice=19
+IOSchedulingClass=idle
+CPUAffinity=0-7 16-23
+StandardOutput=append:/srv/research-lane/ops-logs/progress-page/stdout.log
+StandardError=append:/srv/research-lane/ops-logs/progress-page/stderr.log
