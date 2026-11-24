@@ -130,7 +130,10 @@ function k2Freeze(S) {
   if (prepared.state === 'REFUSED' || prepared.state === 'WAITING_FREEZE') return { reason: `LAB_K2_FREEZE_${first(prepared.codes)}` };
   let receipts = null;
   if (prepared.state === 'WAITING_EXTERNAL') {
-    receipts = typeof k2.register === 'function' ? k2.register(prepared) : null;
+    try { receipts = typeof k2.register === 'function' ? k2.register(prepared) : null; } catch (e) {
+      if (e && e.code === 'LINUX_REGISTRAR_UNAVAILABLE') return { wait: 'LINUX_REGISTRAR_UNAVAILABLE' };
+      return { reason: `LAB_K2_REGISTER_${String(e && e.code || 'ERROR')}` };
+    }
     if (!receipts) return { wait: 'TRL_RECEIPT' };
   }
   const fctx = k2.ctx('FINALIZE');
@@ -176,7 +179,11 @@ function experiment(S) {
   if (prior) { try { const p = JSON.parse(prior.toString('utf8')); if (p.inputs_sha256 === inputsSha) art = p; } catch { /* re-run below */ } }
   if (art) { S.data.experiment = art; return { files: {}, primary: 'experiment.json' }; }
   if (!services.experiment || typeof services.experiment.execute !== 'function') return { wait: 'EXPERIMENT_EXECUTOR' };
-  const ran = services.experiment.execute({ formulas: dsl.formulas, as_of: S.asOf, idea_id: S.data.idea.idea_id });
+  let ran;
+  try { ran = services.experiment.execute({ formulas: dsl.formulas, as_of: S.asOf, idea_id: S.data.idea.idea_id }); } catch (e) {
+    if (e && e.code === 'EXPERIMENT_LAUNCH_WAITING') return { wait: e.detail || 'EXPERIMENT' };
+    return { reason: `LAB_EXPERIMENT_${String(e && e.code || 'EXECUTOR_FAILED')}` };
+  }
   const runDir = path.dirname(ran.accessLogFile);
   const read = (n) => readIfFile(path.join(runDir, n));
   const files = { 'generation_log.jsonl': read('attempts.jsonl'), 'generate.json': read('generate.json'), 'selection.json': read('selection.json'), 'access_log.jsonl': read('access_log.jsonl') };
