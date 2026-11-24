@@ -699,10 +699,6 @@ class PostRound:
                 out[round_id] = self._append(ledger, round_id, "STOPPED_SELECTION_FILE_MISMATCH", now)
                 self._alert(round_id, "STOPPED_SELECTION_FILE_MISMATCH", now)
                 continue
-            if not self._model_gate_passes(now):
-                directory.mkdir(parents=True, exist_ok=True)
-                out[round_id] = self._append(ledger, round_id, "WAITING_MODEL_GATE", now)
-                continue
             directory.mkdir(parents=True, exist_ok=True)
             if not last:
                 self._append(ledger, round_id, "DETECTED", now, selection_sha256=selection["selection_sha256"])
@@ -714,6 +710,9 @@ class PostRound:
                     self._append(ledger, round_id, deadline, now)
                 if deadline == "POST_ROUND_REVIEW_LATE":
                     self._alert(round_id, deadline, now)
+            if not self._model_gate_passes(now):
+                out[round_id] = self._append(ledger, round_id, "WAITING_MODEL_GATE", now)
+                continue
             view = self.runner("mechanisms", round_id)
             survivors = view.get("survivors", view) if isinstance(view, dict) else view
             note_requests = self._enqueue_notes(round_id, selection, survivors)
