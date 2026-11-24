@@ -58,6 +58,10 @@ class RunTest(unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertFalse((self.root / "out").exists())
 
+    def test_missing_runtime_paths_is_config_error(self):
+        self.cfg.write_text(json.dumps({"schema": "PROGRESS_CONFIG_V1", "sections": {}, "upload": {"enabled": False}}))
+        self.assertEqual(2, run.run_once(self.cfg, now=NOW))
+
 
 if __name__ == "__main__":
     unittest.main()

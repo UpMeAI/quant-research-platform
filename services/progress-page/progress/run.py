@@ -7,7 +7,6 @@ import fcntl
 import json
 import os
 import re
-import shutil
 import tempfile
 from pathlib import Path
 
@@ -69,10 +68,10 @@ def run_once(config_path, *, now=None, build_fn=registry.build, render_fn=render
         cfg = config.load(config_path)
     except config.ConfigError:
         return 2
+    if not cfg.get("out_dir") or not cfg.get("state_dir"):
+        return 2
     out_dir = Path(cfg.get("out_dir", ""))
     state_dir = Path(cfg.get("state_dir", ""))
-    if not str(out_dir) or not str(state_dir):
-        return 2
     state_dir.mkdir(parents=True, exist_ok=True)
     lock_handle = (state_dir / "run.lock").open("a+")
     try:

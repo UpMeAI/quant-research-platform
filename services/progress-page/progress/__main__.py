@@ -7,13 +7,25 @@ import argparse
 from .run import run_once
 
 
+class UsageError(Exception):
+    pass
+
+
+class Parser(argparse.ArgumentParser):
+    def error(self, message):
+        raise UsageError(message)
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="python3 -m progress")
+    parser = Parser(prog="python3 -m progress")
     sub = parser.add_subparsers(dest="command")
     run = sub.add_parser("run")
     run.add_argument("--config", required=True)
     run.add_argument("--lock-held", action="store_true", help=argparse.SUPPRESS)
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except UsageError:
+        return 64
     if args.command != "run":
         return 64
     return run_once(args.config, lock_held=args.lock_held)
