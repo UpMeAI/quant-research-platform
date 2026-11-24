@@ -36,6 +36,10 @@ def check(document, md_bytes, frozen_ids, registry_ids):
         _fail("IDS")
     if ids[:len(frozen_ids)] != list(frozen_ids) or ids != list(registry_ids):
         _fail("REGISTRY")
+    if any(row.get("status") not in counts.STATUSES for row in rows):
+        _fail("STATUS")
+    if any(row.get("market") not in counts.MARKETS for row in rows):
+        _fail("MARKET")
 
     actual = counts.compute(rows)
     for key in ("statusCounts", "marketCounts", "layerCounts", "lists", "layerPending", "fedStatusCounts"):
