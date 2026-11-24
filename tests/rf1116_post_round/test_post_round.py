@@ -238,7 +238,13 @@ class PostRoundTest(unittest.TestCase):
         self.assertEqual(len(result["registrations"]), 4)
         self.assertTrue(all(x["written_at"] == "2026-11-24T14:00:00+08:00" for x in result["registrations"]))
         self.assertEqual({x["note"] for x in result["dispositions"]}, {"D05:SIZE_AS_MECHANISM", "NO_MECHANISM:NONE_FITS"})
-        late = post_round.evaluate_notes([notes[0]], {"A001": "(-ts_std(pb,10))"}, {"SEL.XSEC.VALUE"},
+
+    def test_review_d07_written_at_failure_has_d07_audit_code(self):
+        note = {"candidate_id": "A001", "outcome": "NOTE", "mechanism_id": "SEL.XSEC.VALUE",
+                "economic_logic_zh": "市净率的截面差异能够反映估值锚定偏离程度与再定价摩擦",
+                "failure_mode_zh": "极端行业结构变化时关系可能失真", "fields_cited": ["pb"],
+                "no_mechanism_code": None, "proposal": None}
+        late = post_round.evaluate_notes([note], {"A001": "(-ts_std(pb,10))"}, {"SEL.XSEC.VALUE"},
                                          "2026-11-24T06:00:01Z", self.NOW)
         self.assertEqual(late["dispositions"][0]["note"], "D07:WRITTEN_AT")
 
@@ -288,6 +294,7 @@ class PostRoundTest(unittest.TestCase):
         self.assertEqual(post_round.repack_blocked(singles[0]), [])
         self.assertEqual(post_round.map_disposition({"registered": False, "note_blocked": True})[1], "AI_NOTE_BLOCKED")
 
+    def test_review_b10_blocked_note_batch_repacked_once_in_tick(self):
         survivors = self.survivors(2)
         self.seed(["A001", "A002"])
         runner = Runner(survivors, self.tmp / "ledger/research/mining_mechanisms.jsonl")
@@ -338,7 +345,15 @@ class PostRoundTest(unittest.TestCase):
         self.assertEqual(post_round.classify_tasks([{"state": "COMPLETE"}, {"state": "WAITING_QUOTA"}]), "WAITING_AQ")
         self.assertEqual(post_round.classify_tasks([{"state": "READY"}]), "WAITING_AQ")
 
-    def test_b12_deadline_known_alerts_once_through_tick(self):
+    def test_b12_deadline_known_alerts_once_unknown_does_not(self):
+        alerts = set()
+        self.assertEqual(post_round.deadline_state(self.NOW.replace(year=2027), "2026-12-31", False, alerts, self.ROUND), "POST_ROUND_REVIEW_LATE")
+        self.assertEqual(post_round.deadline_state(self.NOW.replace(year=2027), "2026-12-31", False, alerts, self.ROUND), "POST_ROUND_REVIEW_LATE")
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(post_round.deadline_state(self.NOW, "UNKNOWN", False, alerts, "R2"), "DEADLINE_UNKNOWN")
+        self.assertEqual(len(alerts), 1)
+
+    def test_review_b12_known_deadline_alerts_once_through_tick(self):
         now = dt.datetime(2027, 1, 2, 12, 0, tzinfo=dt.timezone(dt.timedelta(hours=8)))
         (self.tmp / "model_gate.json").write_text(canon({"status": "PASS", "at": now.isoformat()}))
         self.seed(["A001"], holdout_to="2026-12-31")
@@ -349,7 +364,7 @@ class PostRoundTest(unittest.TestCase):
         ledger = [json.loads(line) for line in (self.tmp / "post" / self.ROUND / "POST_ROUND_LEDGER.jsonl").read_text().splitlines()]
         self.assertIn("POST_ROUND_REVIEW_LATE", [row["state"] for row in ledger])
 
-    def test_b12_unknown_deadline_is_recorded_without_alert_and_does_not_block(self):
+    def test_review_b12_unknown_deadline_is_recorded_without_alert_and_does_not_block(self):
         self.seed(["A001"], holdout_to="UNKNOWN")
         out = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: self.NOW).tick()
         self.assertEqual(out[self.ROUND], "NOTES_ENQUEUED")
@@ -388,6 +403,16 @@ class PostRoundTest(unittest.TestCase):
 
     def test_b17_blackout_tick_is_read_only(self):
         self.seed(["A001"])
+        (self.tmp / "blackouts.json").write_text(canon({"windows": [{"id": "X", "start": "13:00", "end": "15:00", "tz": "+08:00"}]}))
+        r = Runner(self.survivors(1))
+        out = post_round.PostRound(self.cfg, r, lambda: self.NOW).tick()
+        self.assertEqual(out[self.ROUND], "BLACKOUT_READ_ONLY")
+        self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
+        self.assertEqual(r.calls, [])
+
+    def test_review_b17_real_blackout_entries_stop_is_read_only(self):
+        self.seed(["A001"])
+        (self.tmp / "blackouts.json").write_bytes((ROOT / "config/rq-blackouts.v1.json").read_bytes())
         r = Runner(self.survivors(1))
         inside_stop = dt.datetime(2026, 11, 24, 15, 30, tzinfo=dt.timezone(dt.timedelta(hours=8)))
         out = post_round.PostRound(self.cfg, r, lambda: inside_stop).tick()
