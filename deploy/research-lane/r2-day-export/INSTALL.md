@@ -64,7 +64,7 @@ Known case before install: V6's POST_CLOSE of 2026-11-18 was BLOCKED but its dat
 
 ## Stale locks
 
-The exporter holds a lock directory `<drop root>/.r2-day-export.lock` for the whole run (released at exit, also on errors). A run killed with SIGKILL or a power loss leaves it; it blocks the next runs for at most 60 minutes (one hour, longer than `TimeoutStartSec=2400`), after that it is taken over. A second run while one is active does nothing and exits 0 `EXPORT_LOCKED`. The arrival program (`.arrival.lock` in the holdout directory) works the same way with a 30 minute bound; `run.sh score` / `rescore` do not wait for an arrival lock older than 30 minutes either.
+The exporter holds a lock directory `<drop root>/.r2-day-export.lock` for the whole run (released at exit, also on errors). A run killed with SIGKILL or a power loss leaves it; after 60 minutes (one hour, longer than `TimeoutStartSec=2400`) stale recovery atomically renames that exact directory before creating a new lock, so concurrent recovery never deletes a replacement lock. A live lock is `EXPORT_LOCKED`, exit 75 (accepted by the systemd unit and retried later); failure to create the lock when none exists is `EXPORT_LOCK_CREATE_FAILED`, exit 2. Arrival library code never takes over `.arrival.lock`; `run.sh` alone removes a lock older than 30 minutes after proving no arrival container is running.
 
 ## Limits stated by the review (2026-11-23)
 

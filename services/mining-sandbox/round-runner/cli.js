@@ -227,7 +227,7 @@ function main(argv) {
   if (hasEx !== hasExSha) throw new runner.RunnerError('MINE_RUNNER_OPTION_REQUIRED', hasEx ? '--field-exclusions-sha256' : '--field-exclusions');
   const fieldExclusions = hasEx ? { file: o['field-exclusions'], sha256: o['field-exclusions-sha256'] } : null;
   // W24：打分的执行器是受信的求值方，不受生成方的读锁约束，但每次留出段读取都领一次授权、写一行 HOLDOUT_READ（访问记录在本轮的运行目录里）
-  const requireChain = o['require-arrival-chain'] === 'true'; // run.sh always passes it: the arrival chain is verified for R1 as well
+  const requireChain = o['require-arrival-chain'] !== 'false'; // fail closed by default; explicit false is reserved for the documented hand-export path
   const accessLog = require('../../independent-verifier/access-log').writer(runner.accessLogFile(outDir, o.round));
   if (cmd === 'rescore') {
     // R1.8：开启之后崩溃，恰好一次同选集重打分（原因与崩溃日志写进留出段保管的第二个事件）
@@ -244,15 +244,25 @@ function main(argv) {
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };
 }
 
+function errorOutcome(e) {
+  const message = e && e.message ? e.message : String(e);
+  let code = e && e.code ? e.code : 'MINE_RUNNER_FAILED';
+  const waiting = code === 'MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED' || code === 'MINE_RUNNER_ARRIVE_LOCKED'
+    || (code === 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID' && /(^|:)UNANCHORED(?::|$)/.test(message));
+  if (code === 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID' && waiting) code = 'MINE_RUNNER_HOLDOUT_ARRIVAL_UNANCHORED';
+  return { exitCode: waiting ? 75 : 2, document: { ...(waiting ? { status: 'WAITING' } : {}), error: code, message } };
+}
+
 if (require.main === module) {
   try {
     const out = main(process.argv.slice(2));
     process.stdout.write(`${JSON.stringify(out)}\n`);
     if (out.status === 'WAITING') process.exitCode = 75; else if (out.status === 'STOPPED') process.exitCode = 3; else if (out.status === 'INCOMPLETE') process.exitCode = 4; // holdout-arrive --check-complete
   } catch (e) {
-    process.stderr.write(`${JSON.stringify({ error: e.code || 'MINE_RUNNER_FAILED', message: e.message })}\n`);
-    process.exitCode = 2;
+    const o = errorOutcome(e);
+    (o.exitCode === 75 ? process.stdout : process.stderr).write(`${JSON.stringify(o.document)}\n`);
+    process.exitCode = o.exitCode;
   }
 }
 
-module.exports = { OPTIONS, parseArgs, main, sourcesOf };
+module.exports = { OPTIONS, parseArgs, main, sourcesOf, errorOutcome };

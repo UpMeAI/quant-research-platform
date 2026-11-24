@@ -114,7 +114,8 @@ test('FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at 
   assert.throws(() => A().arrive({ dir: dir3, source: src3 }), code(/MINE_RUNNER_ARRIVE_LOCKED/), 'JS never removes an existing lock, including a stale one');
   assert.equal(fs.existsSync(lock), true);
   fs.rmSync(lock);
-  assert.throws(() => A().arrive({ dir: dir3, source: src3, day: DAYS[3] }), code(/MINE_RUNNER_ARRIVE_ORDER|NOT_OPEN_DAY/));
+  assert.equal(A().arrive({ dir: dir3, source: src3 }).kind, 'CALENDAR');
+  assert.throws(() => A().arrive({ dir: dir3, source: src3, day: '2027-01-02' }), code(/MINE_RUNNER_ARRIVE_ORDER|NOT_OPEN_DAY/));
   assert.equal(fs.existsSync(lock), false, 'released on error');
   assert.ok(A().LOCK_STALE_MS >= 15 * 60e3 && A().LOCK_STALE_MS <= 6 * 3600e3);
 });
@@ -142,7 +143,7 @@ test('FX1b stale locks: JS never takes over; run.sh removes an old lock only aft
   const refused = active.run(['arrive']); assert.equal(refused.status, 75); assert.equal(fs.existsSync(activeLock), true, 'an active arrival owns even an old lock');
   // the documented bound
   const doc = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/DEPLOY.md'), 'utf8');
-  assert.match(doc, /a lock older than 30 minutes[^\n]*(taken over|stale)/i);
+  assert.match(doc, /no arrival container[^\n]*removes a lock older than 30 minutes/i);
 });
 
 test('FX2 at rest: nothing the arrival writes is group- or world-readable (files 0600), even under umask 022; seal-init-r2.sh makes a 0700 directory with no group/world bits on its files', () => {
@@ -345,7 +346,7 @@ test('FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY names plus
   fs.writeFileSync(stubDocker, `#!/bin/bash
 case "$1" in
   ps) exit 0;;
-  run) mode=$(stat -c %a "${dir}" 2>/dev/null || stat -f %Lp "${dir}"); [ $((8#$mode & 0044)) -eq 0044 ] || { echo "opendir: EACCES" >&2; exit 13; }; for p in "${dir}" "${dir}"/*; do m=$(stat -c %a "$p" 2>/dev/null || stat -f %Lp "$p"); echo "$m $(basename "$p")" >> "${watch}"; done; exit \${STUB_RC:-0};;
+  run) mode=$(stat -c %a "${dir}" 2>/dev/null || stat -f %Lp "${dir}"); [ "$mode" = 755 ] || { echo "opendir: EACCES ($mode)" >&2; exit 13; }; for p in "${dir}" "${dir}"/*; do m=$(stat -c %a "$p" 2>/dev/null || stat -f %Lp "$p"); echo "$m $(basename "$p")" >> "${watch}"; done; exit \${STUB_RC:-0};;
 esac
 exit 0
 `, { mode: 0o755 });

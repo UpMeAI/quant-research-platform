@@ -558,7 +558,7 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   // days that have not arrived yet = MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>). Before any row is read.
   // The chain head is also compared with the anchors in the lane ledger (rollback / rewrite); the strict gate additionally requires the head to be anchored (the anchor step ran for every row).
   let arrival = null;
-  if (deferredSeal || requireChain) { const seg = segment || (deferredSeal ? "R2" : "R1"); arrival = arrivalChain.verifyChain(dir, { segment: seg, window: { from: seal.segment.from, to: seal.segment.to }, startAfter, anchors: arrivalAnchor.pairsOf(seg), requireAnchor: requireChain }); }
+  if (deferredSeal || requireChain) { const seg = segment || (deferredSeal ? "R2" : "R1"); arrival = arrivalChain.verifyChain(dir, { segment: seg, window: { from: seal.segment.from, to: seal.segment.to }, startAfter, anchors: arrivalAnchor.pairsOf(seg), requireAnchor: requireChain || Boolean(segment) }); }
   // 复审 #127 P3-2：面板读的是「喂」这些决策日的交易日——每个决策日的前一个开市日（第一个决策日的前一天在验证尾段里），不是决策日本身；
   // 日线、复权因子另有决策日当天的执行价（标签），那一份不看截止。P1-1：LIVE 截止与面板同一个函数（adapter.liveCutoffs）。
   const k0 = openAll.indexOf(days[0]);
@@ -783,7 +783,7 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
   // The strict production gate (run.sh passes --require-arrival-chain true): an R2 score needs R1 opened (or every R1 round terminal), and the R1 directory used as prior-live history has its own
   // chain verified and anchored: its head is recorded in the open row and in inputs_sha256 (review 2026-11-23). Before anything is read.
   let priorChain = null;
-  if (requireChain && win.segment) {
+  if (win.segment) {
     const ready = priorSegmentReady(MARKET);
     need(ready.ok, 'PRIOR_SEGMENT_NOT_OPENED', `R1:${ready.reason}`);
     const prior = sources.find((s) => s.label === 'prior-live');
@@ -806,7 +806,7 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
   const factorSeries = factorSeriesDir ? require('../factor-series').loadFactorSeries(factorSeriesDir) : null;
   // 复审 #127 P3-2：第一个决策日的前一个交易日在验证尾段（LIVE 源）里，一并核；字段排除文件（有就用，sha 钉住）
   const exclusions = fieldExclusions ? loadFieldExclusions(fieldExclusions.file, fieldExclusions.sha256, roundId) : null;
-  const checked = selRow.selected.length ? verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: holdoutFloor.min_names_per_day, priorSources: sources, fieldExclusions: exclusions, window: win, requireChain }) : null;
+  const checked = selRow.selected.length ? verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: holdoutFloor.min_names_per_day, priorSources: sources, fieldExclusions: exclusions, window: win, requireChain: requireChain || Boolean(win.segment) }) : null;
   // R1.5：开启之前写的机制登记（开启之后不能再写）
   const mechs = new Map(require('../../mining-rounds/mechanisms').mechanismsOf(roundId).map((m) => [m.candidate_id, m]));
   const reviewed = selRow.selected.length ? reviewedMechanisms(roundId, selRow, reviewBefore || now(), { strict: Boolean(reviewBefore) }) : null;

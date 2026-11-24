@@ -12,8 +12,8 @@
 #   prices query returns rows. One directory per day, <drop>/<segment>/<YYYYMMDD>/, written under a temp name and renamed (the lane never sees a partial day), with a SHA256SUMS of its
 #   seven tables; an exported day is never exported again (idempotent). The SQL is sql/*.sql (export spec section 2; the only place it lives: the lane has no database driver).
 #
-# Exit codes: 0 done / caught up / days still waiting for V6's POST_CLOSE; 2 psql failed or the session is not read-only; 3 a refusal (--day: not an open day of the window, not ready);
-#             4 a day has been waiting for more than 3 days (the alert: the unit fails and ops-coord looks).
+# Exit codes: 0 done / caught up / days still waiting for V6's POST_CLOSE; 2 psql, lock creation or read-only failure; 3 a refusal (--day: not an open day of the window, not ready);
+#             4 a day has been waiting for more than 3 days (the alert: the unit fails and ops-coord looks); 75 another export owns the lock (retry later; accepted by the unit).
 # Configuration (r2-day-export.env, see r2-day-export.env.example): R2EXP_PG_CONTAINER, R2EXP_PG_USER, R2EXP_PG_DB (the V6 Postgres container, V6's own existing DB account and database), R2EXP_DROP_ROOT,
 # R2EXP_TIMEOUT (seconds per psql call, default 600). The only docker form is `docker exec -i -e PGOPTIONS=... <container> sh -c '... psql ...'` (ops-coord, same closed exception as #122 RULING_1 D3):
 # the SQL comes on stdin, every call runs under `timeout`, any non-zero rc stops the run (fail closed). R2EXP_NOW (an ISO time with offset) replaces the clock, for tests only.
@@ -77,13 +77,18 @@ if [ "$slot" = DENY ]; then echo "OUTSIDE_SLOT: $(cst "$START_EPOCH" '%F %H:%M')
 DEADLINE="${slot#ALLOW }"
 
 # One export at a time (review fix round): the timer and a manual run can overlap, and two runs would fight over .tmp-<day> and the rename. A lock DIRECTORY (mkdir is atomic) in the drop root, released by an
-# EXIT trap (normal and error exits). A run killed with SIGKILL, or a power loss, leaves it, so it blocks for a bounded time only: older than LOCK_STALE_S (one hour, longer than the unit's TimeoutStartSec) it
-# is taken over. The age is the real clock (not R2EXP_NOW).
-mkdir -p "$DROP_ROOT"
+# EXIT trap (normal and error exits). A run killed with SIGKILL, or a power loss, leaves it. An old lock is renamed to a unique quarantine path before a new mkdir: unlike rmdir+mkdir, concurrent
+# recoverers can never remove a replacement lock. The age is the real clock (not R2EXP_NOW).
+mkdir -p "$DROP_ROOT" 2>/dev/null || { echo "EXPORT_LOCK_CREATE_FAILED: cannot create drop root $DROP_ROOT" >&2; exit 2; }
 LOCK_DIR="$DROP_ROOT/.r2-day-export.lock"; LOCK_STALE_S=3600
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  [ -d "$LOCK_DIR" ] || { echo "EXPORT_LOCK_CREATE_FAILED: mkdir failed and no lock exists at $LOCK_DIR" >&2; exit 2; }
   lock_age=$(( $(date +%s) - $(stat -c %Y "$LOCK_DIR" 2>/dev/null || echo 0) ))
-  if [ "$lock_age" -le "$LOCK_STALE_S" ] || ! { rmdir "$LOCK_DIR" 2>/dev/null && mkdir "$LOCK_DIR" 2>/dev/null; }; then echo "EXPORT_LOCKED: another export holds $LOCK_DIR (age ${lock_age}s); nothing done"; exit 0; fi
+  if [ "$lock_age" -le "$LOCK_STALE_S" ]; then echo "EXPORT_LOCKED: another export holds $LOCK_DIR (age ${lock_age}s); retry later"; exit 75; fi
+  stale_lock="$DROP_ROOT/.r2-day-export.lock.stale.$$.$RANDOM"
+  if ! mv "$LOCK_DIR" "$stale_lock" 2>/dev/null; then echo "EXPORT_LOCKED: another export changed $LOCK_DIR during stale recovery; retry later"; exit 75; fi
+  if ! mkdir "$LOCK_DIR" 2>/dev/null; then rmdir "$stale_lock" 2>/dev/null || true; echo "EXPORT_LOCKED: another export won $LOCK_DIR during stale recovery; retry later"; exit 75; fi
+  rmdir "$stale_lock" 2>/dev/null || true
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 

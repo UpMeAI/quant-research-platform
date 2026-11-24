@@ -3,6 +3,7 @@ Description=RF1116 r2-day-export: read-only export of V6 trading days into the l
 [Service]
 Type=oneshot
 TimeoutStartSec=2400
+SuccessExitStatus=75
 EnvironmentFile=%h/.config/rf1116/r2-day-export.env
 Environment=DOCKER_HOST=unix:///run/user/%U/docker.sock
 ExecStart=/srv/research-lane/rf1116-mining/ops/r2-day-export/r2-day-export.sh --segment all

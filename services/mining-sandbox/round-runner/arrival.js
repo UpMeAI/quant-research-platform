@@ -95,7 +95,8 @@ const atomicWrite = (file, bytes) => { const tmp = `${file}.tmp-${process.pid}`;
 
 /**
  * One arrival at a time per directory (review 2026-11-23: two arrivals corrupted the chain irreversibly). An exclusive lock file in the directory, taken with O_EXCL, held for the whole step.
- * A lock older than LOCK_STALE_MS (an arrival that died) is taken over. run.sh looks at the same file (score/rescore refuse HOLDOUT_ARRIVAL_IN_PROGRESS).
+ * Library code never removes an existing lock: a stale-lock takeover based on stat+unlink can delete a replacement lock won by another process. run.sh is the recovery authority: after proving no
+ * rf1116-holdout-arrive container exists it removes a lock older than LOCK_STALE_MS. score/rescore look at the same file and refuse HOLDOUT_ARRIVAL_IN_PROGRESS while it is fresh.
  */
 const LOCK_FILE = '.arrival.lock';
 const LOCK_STALE_MS = 30 * 60 * 1000;
@@ -105,9 +106,7 @@ function withArrivalLock(dir, fn) {
   const take = () => { const fd = fs.openSync(lock, 'wx', FILE_MODE); try { fs.writeSync(fd, JSON.stringify({ pid: process.pid, at: new Date().toISOString() })); } finally { fs.closeSync(fd); } };
   try { take(); } catch (e) {
     if (e.code !== 'EEXIST') throw e;
-    let age = 0; try { age = Date.now() - fs.statSync(lock).mtimeMs; } catch { age = LOCK_STALE_MS + 1; }
-    if (age <= LOCK_STALE_MS) fail('LOCKED', lock);
-    try { fs.rmSync(lock); take(); } catch { fail('LOCKED', lock); } // taken over; losing the race for it is LOCKED too
+    fail('LOCKED', lock);
   }
   try {
     if (process.env.QRP_ARRIVE_TEST_HOLD_MS) sleepMs(Number(process.env.QRP_ARRIVE_TEST_HOLD_MS)); // tests only: hold the lock so a second arrival can be tried against it
