@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -106,18 +107,20 @@ class AuthorityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             repo = pathlib.Path(folder) / "repo"
             repo.mkdir()
+            git = shutil.which("git")
+            self.assertIsNotNone(git)
             for argv in (
-                ["git", "init", "-q", str(repo)],
-                ["git", "-C", str(repo), "config", "user.name", "q133-test"],
-                ["git", "-C", str(repo), "config", "user.email", "q133@example.invalid"],
+                [git, "init", "-q", str(repo)],
+                [git, "-C", str(repo), "config", "user.name", "q133-test"],
+                [git, "-C", str(repo), "config", "user.email", "q133@example.invalid"],
             ):
                 self.assertEqual(0, subprocess.run(argv, capture_output=True).returncode)
             (repo / "tracked.txt").write_text("pinned\n")
             self.assertEqual(0, subprocess.run(
-                ["git", "-C", str(repo), "add", "tracked.txt"], capture_output=True).returncode)
+                [git, "-C", str(repo), "add", "tracked.txt"], capture_output=True).returncode)
             self.assertEqual(0, subprocess.run(
-                ["git", "-C", str(repo), "commit", "-q", "-m", "pin"], capture_output=True).returncode)
-            facts = authority.ProductionFacts()
+                [git, "-C", str(repo), "commit", "-q", "-m", "pin"], capture_output=True).returncode)
+            facts = authority.ProductionFacts(git=git)
             head = facts.git_head(repo)
             self.assertRegex(head, authority.GIT_COMMIT)
             self.assertEqual(40, len(head))

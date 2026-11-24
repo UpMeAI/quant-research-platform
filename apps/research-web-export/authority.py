@@ -45,6 +45,9 @@ class RuntimeConfig:
 
 
 class ProductionFacts:
+    def __init__(self, git="/usr/bin/git"):
+        self.git = git
+
     def is_dir(self, path):
         return pathlib.Path(path).is_dir() and not pathlib.Path(path).is_symlink()
 
@@ -66,14 +69,14 @@ class ProductionFacts:
 
     def git_head(self, path):
         result = subprocess.run(
-            ["/usr/bin/git", "-C", str(path), "rev-parse", "HEAD"],
+            [self.git, "-C", str(path), "rev-parse", "HEAD"],
             capture_output=True, text=True, timeout=15, check=False,
         )
         return result.stdout.strip() if result.returncode == 0 else None
 
     def git_clean(self, path):
         result = subprocess.run(
-            ["/usr/bin/git", "-C", str(path), "status", "--porcelain"],
+            [self.git, "-C", str(path), "status", "--porcelain"],
             capture_output=True, text=True, timeout=15, check=False,
         )
         return result.returncode == 0 and result.stdout == ""
