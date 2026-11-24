@@ -2,6 +2,7 @@
 import configparser
 import json
 import pathlib
+import re
 import unittest
 
 from helpers import Base, ROOT, core, producer, templates
@@ -62,6 +63,53 @@ def unit(name):
     parser.optionxform = str
     parser.read(UNITS / name)
     return parser
+
+
+def package_a_success_result(template_id):
+    """Representative output produced by Package A's authoritative success path."""
+    is_note = template_id == NEW_IDS[0]
+    task_id = "RQT-LINUX-20261124-a149c001"
+    output_key = "mechanism_notes" if is_note else "mechanism_review"
+    output = {
+        "schema": "RF1116_MECH_NOTE_OUTPUT_V1" if is_note else "RF1116_MECH_REVIEW_OUTPUT_V1",
+        "task_id": task_id,
+        "round_id": "MR-CN_A-2026-11-a6cb823f86",
+        "batch_no": 1,
+        ("notes" if is_note else "items"): ([{
+            "candidate_id": "A001",
+            "outcome": "NOTE",
+            "mechanism_id": "SEL.XSEC.VALUE",
+            "economic_logic_zh": "估值字段的截面差异可能反映定价分歧与风险补偿",
+            "failure_mode_zh": "估值口径失真或样本结构突变时可能失效",
+            "fields_cited": ["pb"],
+            "no_mechanism_code": None,
+            "proposal": None,
+        }] if is_note else [{
+            "candidate_id": "A001",
+            "status": "CONSISTENT",
+            "code": None,
+            "note_zh": "公式、机制与文字说明相互一致",
+        }]),
+        "prompt_admission_sha256": PROMPT_SHAS[template_id],
+        "model": "deepseek-flash",
+    }
+    output_sha256 = core.sha256_hex(core.canonical(output))
+    return {
+        "schema": "RQ_AGENT_RESULT_V1",
+        "task_id": task_id,
+        "kind": "AI_MECH_NOTE" if is_note else "AI_MECH_REVIEW",
+        "at": "2026-11-24T15:00:00+08:00",
+        "calls": [],
+        "outputs": {output_key: output, output_key + "_sha256": output_sha256},
+        "status": "DONE",
+        "validator": {"ok": True, "sha256": output_sha256},
+    }
+
+
+def resolve_path(value, dotted_path):
+    for part in dotted_path.split("."):
+        value = value[part]
+    return value
 
 
 class PostRoundTemplates(Base):
@@ -135,6 +183,42 @@ class PostRoundTemplates(Base):
                 core.sha256_hex(core.canonical(template["evidence_matrix_rows"])),
                 tid,
             )
+
+    def test_c05_matrix_output_paths_resolve_package_a_success_and_verify_output_hash(self):
+        reg = shipped()
+        keys = {
+            NEW_IDS[0]: "mechanism_notes",
+            NEW_IDS[1]: "mechanism_review",
+        }
+        for tid, output_key in keys.items():
+            template = reg.get(tid)
+            matrix_row = next(row for row in template["evidence_matrix_rows"] if row["id"] == "EM-02")
+            paths = re.findall(r"outputs\.[a-z_]+", matrix_row["evidence"])
+            self.assertEqual(paths, [f"outputs.{output_key}", f"outputs.{output_key}_sha256"], tid)
+
+            result = package_a_success_result(tid)
+            wrapped = resolve_path(result, paths[0])
+            named_sha256 = resolve_path(result, paths[1])
+            self.assertEqual(named_sha256, core.sha256_hex(core.canonical(wrapped)), tid)
+            self.assertEqual(result["validator"], {"ok": True, "sha256": named_sha256}, tid)
+
+    def test_c05_review_matrix_requires_note_for_consistent_and_hold_items(self):
+        template = shipped().get(NEW_IDS[1])
+        matrix_row = next(row for row in template["evidence_matrix_rows"] if row["id"] == "EM-03")
+        self.assertEqual(
+            matrix_row["req"],
+            "every HOLD item has an allowed code and non-empty note_zh; every CONSISTENT item has null code and non-empty note_zh",
+        )
+        consistent = package_a_success_result(NEW_IDS[1])["outputs"]["mechanism_review"]["items"][0]
+        self.assertEqual(consistent["status"], "CONSISTENT")
+        self.assertIsNone(consistent["code"])
+        self.assertTrue(consistent["note_zh"])
+
+    def test_c05_subject_is_only_round_batch_and_pack_sha(self):
+        for tid in NEW_IDS:
+            subject_keys = shipped().get(tid)["subject_keys"]
+            self.assertEqual(subject_keys, "round_id, batch_no, pack sha256", tid)
+            self.assertNotIn("prompt-admission", subject_keys, tid)
 
 
 class PostRoundUserUnits(unittest.TestCase):
