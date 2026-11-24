@@ -7,6 +7,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+from unittest import mock
 
 from helpers import *  # noqa
 from rq import heavy, heavy_accept  # noqa: E402
@@ -70,6 +71,63 @@ def spec(root, *, db="NONE", preconditions=None, rows=None):
     }
 
 
+class LifecycleServices:
+    """No-command fake for the integrated supervisor lifecycle acceptance."""
+    def __init__(self, attempt, now_epoch, exit_code=75, reason="WINDOW_YIELD:PAUSE"):
+        self.attempt = pathlib.Path(attempt)
+        self.now_epoch_value = now_epoch
+        self.exit_code = exit_code
+        self.reason = reason
+        self.writer = None
+        self.events = []
+        self.driver_bytes = core.canonical({
+            "exit": exit_code,
+            "sessions_done": 1,
+            "sessions_total": 2,
+            "last_date": "2026-11-24",
+            "reason": reason,
+            "dbReadOnlyProbe": None,
+        }).encode()
+
+    def image_digest(self, _name):
+        return "sha256:" + "a" * 64
+
+    def available_bytes(self, _path):
+        return 200 * GIB
+
+    def now_epoch(self):
+        return self.now_epoch_value
+
+    def sleep(self, _seconds):
+        raise AssertionError("fresh gate fixture must not sleep")
+
+    def start_gate_writer(self, path, interval_s):
+        self.events.append(("gate-start", interval_s))
+        pathlib.Path(path).write_text('{"fresh":true}')
+        os.utime(path, (self.now_epoch_value, self.now_epoch_value))
+        self.writer = {"alive": True}
+        return self.writer
+
+    def gate_writer_alive(self, writer):
+        return bool(writer and writer["alive"])
+
+    def stop_gate_writer(self, writer):
+        self.events.append(("gate-stop", None))
+        writer["alive"] = False
+
+    def run_driver(self, argv, env, cwd):
+        self.events.append(("driver", tuple(argv)))
+        self.assert_writer_alive = self.gate_writer_alive(self.writer)
+        (self.attempt / "driver-result.json").write_bytes(self.driver_bytes)
+        return self.exit_code
+
+    def list_containers(self, _prefix):
+        return []
+
+    def stop_container(self, name):
+        raise AssertionError("unexpected container stop: " + name)
+
+
 class HeavyFrozenAcceptance(Base):
     def setUp(self):
         super().setUp()
@@ -81,6 +139,25 @@ class HeavyFrozenAcceptance(Base):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(raw)
         return h(raw), p
+
+    def run_lifecycle(self):
+        spec_sha, _ = self.write_spec()
+        task_dir = self.cfg.runs_dir / "T-HR-LIFECYCLE"
+        attempt = task_dir / "attempt-1"
+        attempt.mkdir(parents=True)
+        service = LifecycleServices(attempt, self.t0.timestamp())
+        env = {
+            "RQ_TASK_ID": "T-HR-LIFECYCLE",
+            "RQ_ATTEMPT_DIR": str(attempt),
+            "RQ_RUN_DIR": str(task_dir),
+            "RQ_PAUSE_FILE": str(attempt / "PAUSE"),
+            "RQ_GATES_FILE": str(attempt / "GATES"),
+            "RQ_CONTAINER_PREFIX": "rq-task-T-HR-LIFECYCLE-",
+            "RQ_RESUME": "0",
+        }
+        with mock.patch.dict(os.environ, env, clear=False):
+            rc = heavy.run(self.cfg, spec_sha, conn=self.conn, services=service, now=self.t0)
+        return rc, service, task_dir, attempt
 
     def test_hr01_template_validation_is_closed(self):
         t = heavy_template()
@@ -180,6 +257,13 @@ class HeavyFrozenAcceptance(Base):
         self.assertTrue(heavy.gates_ready(p, now, writer_alive=True))
         self.assertFalse(heavy.gates_cleanup_ok(writer_alive=True))
         self.assertTrue(heavy.gates_cleanup_ok(writer_alive=False))
+        rc, service, _, attempt = self.run_lifecycle()
+        self.assertEqual(rc, 75)
+        self.assertTrue(service.assert_writer_alive)
+        self.assertEqual([event[0] for event in service.events], ["gate-start", "driver", "gate-stop"])
+        self.assertFalse(service.gate_writer_alive(service.writer))
+        gates = [json.loads(line) for line in (attempt / "gates.jsonl").read_text().splitlines()]
+        self.assertEqual([row["stage"] for row in gates], ["STARTED", "FRESH", "STOPPED"])
 
     def test_hr12_window_yield_is_waiting_and_not_t1(self):
         out = heavy.classify_driver_result({"exit": 75, "reason": "WINDOW_YIELD:PAUSE"})
@@ -244,6 +328,20 @@ class HeavyFrozenAcceptance(Base):
         self.assertEqual(heavy.verify_ledger(ledger), (True, None))
         lines = ledger.read_text().splitlines(); lines[0] = lines[0].replace('"A"', '"X"'); ledger.write_text("\n".join(lines) + "\n")
         self.assertFalse(heavy.verify_ledger(ledger)[0])
+        rc, service, task_dir, attempt = self.run_lifecycle()
+        self.assertEqual(rc, 75)
+        evidence = {
+            "preflight.json", "ro-probe.json", "containers.json", "cleanup.json", "secret-scan.json",
+            "floor.jsonl", "gates.jsonl", "driver-result.json",
+        }
+        self.assertEqual(heavy_accept.verify_manifest(attempt, required=evidence), {})
+        self.assertEqual((attempt / "driver-result.json").read_bytes(), service.driver_bytes)
+        for name in evidence | {"SHA256SUMS"}:
+            self.assertEqual((attempt / name).stat().st_mode & 0o777, 0o444, name)
+        self.assertEqual((task_dir / "RUN_LEDGER.jsonl").stat().st_mode & 0o777, 0o644)
+        self.assertEqual(heavy.verify_ledger(task_dir / "RUN_LEDGER.jsonl"), (True, None))
+        stages = [json.loads(line)["stage"] for line in (task_dir / "RUN_LEDGER.jsonl").read_text().splitlines()]
+        self.assertEqual(stages, ["PREFLIGHT", "FLOOR", "GATE_WRITER_STARTED", "GATE_FRESH", "DRIVER_EXIT", "TERMINAL_EVIDENCE"])
 
     def test_hr21_run_dir_cannot_be_reused_by_another_task(self):
         d = pathlib.Path(self.s["run_dirs"]["main"]); d.mkdir(); (d / "RQ_TASK.json").write_text('{"task_id":"OTHER"}')
