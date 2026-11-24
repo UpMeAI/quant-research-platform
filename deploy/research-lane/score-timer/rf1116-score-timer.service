@@ -1,0 +1,13 @@
+[Unit]
+Description=RF1116 unattended holdout arrival and score tick
+After=default.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/rf1116-score-timer/env
+ExecStart=/usr/bin/python3 /srv/research-lane/rf1116-mining/code/services/rf1116-score-timer/score_timer.py tick
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target

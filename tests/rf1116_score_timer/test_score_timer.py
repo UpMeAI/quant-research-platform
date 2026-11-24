@@ -117,6 +117,7 @@ class ScoreTimerTests(unittest.TestCase):
             (2, '{"error":"MINE_RUNNER_SEGMENT_END_UNKNOWN"}', "MINE_RUNNER_SEGMENT_END_UNKNOWN"),
             (2, '{"error":"MINE_RUNNER_ROUND_NOT_READY"}', "MINE_RUNNER_ROUND_NOT_READY"),
             (75, '{"error":"MINE_RUNNER_HOLDOUT_ARRIVAL_UNANCHORED"}', "MINE_RUNNER_HOLDOUT_ARRIVAL_UNANCHORED"),
+            (2, '{"error":"MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID","message":"MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNANCHORED:head"}', "MINE_RUNNER_HOLDOUT_ARRIVAL_UNANCHORED"),
             (75, '{"error":"MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED"}', "MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED"),
             (75, '{"error":"MINE_RUNNER_ARRIVE_LOCKED"}', "MINE_RUNNER_ARRIVE_LOCKED"),
         ]
@@ -161,6 +162,8 @@ class ScoreTimerTests(unittest.TestCase):
         self.assertEqual(runner.calls, [])
 
         r2 = World(segment="R2", now=datetime(2027, 3, 19, 1, 0, tzinfo=CST))
+        no_prior = timer.Supervisor(r2.config(), runner, now=lambda: r2.now).tick()
+        self.assertEqual(no_prior["rounds"][r2.round_id], "WAITING_PRIOR_SEGMENT")
         append(r2.research / "mining_rounds.jsonl", record({"schema": "MINING_ROUND_V1", "round_id": "OLD-R1", "market": "CN_A", "status": "CAP_REACHED", "holdout": {"from": "2026-10-19", "to": "2026-12-31"}}))
         got = timer.Supervisor(r2.config(), runner, now=lambda: r2.now).tick()
         self.assertEqual(got["rounds"][r2.round_id], "WAITING_PRIOR_SEGMENT")
@@ -182,6 +185,12 @@ class ScoreTimerTests(unittest.TestCase):
         self.assertEqual([a["code"] for a in alerts], ["ARRIVAL_INCOMPLETE_AT_END"])
         self.assertEqual(alerts[0]["detail"]["missing"], ["2026-12-31"])
 
+        unknown = World(segment="R2", now=datetime(2027, 3, 19, 1, 0, tzinfo=CST))
+        append(unknown.research / "mining_rounds.jsonl", record({"schema": "MINING_ROUND_V1", "round_id": "DONE-R1", "market": "CN_A", "status": "CLOSED", "holdout": {"from": "2026-10-19", "to": "2026-12-31"}}))
+        check = FakeRunner(lambda argv, env: timer.CommandResult(0, canonical({"status": "WINDOW_END_UNKNOWN", "missing": []}), ""))
+        self.assertEqual(timer.Supervisor(unknown.config(), check, now=lambda: unknown.now).tick()["rounds"][unknown.round_id], "WAITING_SEGMENT_END")
+        self.assertEqual([c[0][1] for c in check.calls], ["arrive-check"])
+
     def test_restart_guard_never_starts_second_score_and_long_run_alerts(self):
         w = World()
         timer.Supervisor(w.config(), FakeRunner(lambda *_: None), now=lambda: w.now)._transition(w.round_id, "RUNNING_SCORE", {"started_at": (w.now - timedelta(hours=13)).isoformat()})
@@ -189,6 +198,17 @@ class ScoreTimerTests(unittest.TestCase):
         got = timer.Supervisor(w.config(), runner, now=lambda: w.now).tick()
         self.assertEqual(got["rounds"][w.round_id], "WAITING_RUNNING")
         self.assertEqual(json.loads((w.state / "alert_status.json").read_text())["active"][0]["code"], "SCORE_LONG_RUNNING")
+        timer.Supervisor(w.config(), runner, now=lambda: w.now).tick()
+        self.assertEqual(len(json.loads((w.state / "alert_status.json").read_text())["active"]), 1)
+
+        arrive = World()
+        (arrive.lane / "holdout-daydrop" / "R1" / "20270104").mkdir()
+        marker = timer.Supervisor(arrive.config(), FakeRunner(lambda *_: None), now=lambda: arrive.now)
+        marker._transition("SEGMENT:R1", "RUNNING_ARRIVE", {"started_at": arrive.now.isoformat()})
+        no_second_writer = FakeRunner(lambda *_: (_ for _ in ()).throw(AssertionError("must not overlap arrival")))
+        got = timer.Supervisor(arrive.config(), no_second_writer, now=lambda: arrive.now).tick()
+        self.assertEqual(got["rounds"][arrive.round_id], "WAITING_RUNNING")
+        self.assertEqual(no_second_writer.calls, [])
 
     def test_crash_after_open_rescores_exactly_once_and_chmod_precedes_both(self):
         w = World()
@@ -211,7 +231,10 @@ class ScoreTimerTests(unittest.TestCase):
         sup = timer.Supervisor(w.config(), runner, chmod=chmod, now=lambda: w.now)
         self.assertEqual(sup.tick()["rounds"][w.round_id], "STOPPED")
         self.assertEqual([x for x in events if x[0] == "run"], [("run", "arrive-check"), ("run", "score"), ("run", "rescore")])
-        self.assertLess(events.index(("chmod", "rf1116-cn-a-daily-holdout-from-20261019")), events.index(("run", "score")))
+        chmod_positions = [n for n, value in enumerate(events) if value == ("chmod", "rf1116-cn-a-daily-holdout-from-20261019")]
+        self.assertEqual(len(chmod_positions), 2)
+        self.assertLess(chmod_positions[0], events.index(("run", "score")))
+        self.assertLess(chmod_positions[1], events.index(("run", "rescore")))
         sup.tick()
         self.assertEqual(sum(1 for c, _ in runner.calls if c[1] == "rescore"), 1)
 
@@ -223,10 +246,12 @@ class ScoreTimerTests(unittest.TestCase):
             return timer.CommandResult(2, "", canonical({"error": "MINE_RUNNER_SELECTION_FILE_MISMATCH"}))
         runner = FakeRunner(handle)
         sup = timer.Supervisor(w.config(), runner, now=lambda: w.now)
+        before = {p.relative_to(w.data): p.read_bytes() for p in w.data.rglob("*") if p.is_file()}
         for _ in range(10):
             sup.tick()
         self.assertEqual(sum(1 for c, _ in runner.calls if c[1] == "score"), 1)
         self.assertEqual([a["code"] for a in json.loads((w.state / "alert_status.json").read_text())["active"]], ["MINE_RUNNER_SELECTION_FILE_MISMATCH"])
+        self.assertEqual(before, {p.relative_to(w.data): p.read_bytes() for p in w.data.rglob("*") if p.is_file()})
 
     def test_docker_start_retries_three_times_then_stops(self):
         w = World()
@@ -275,13 +300,16 @@ class ScoreTimerTests(unittest.TestCase):
         a.write_text("a\n"); b.write_text("b\n")
         with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_MANIFEST_MISMATCH"):
             timer.validate_qrp_var(w.config(data_candidates=(w.data, backup), manifest_files=(a, b), writable_probe=lambda p: p == w.data))
+        b.unlink()
+        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_MANIFEST_MISMATCH"):
+            timer.validate_qrp_var(w.config(data_candidates=(w.data, backup), manifest_files=(a, b), writable_probe=lambda p: p == w.data))
 
     def test_unit_files_are_bounded_user_timer(self):
         deploy = ROOT / "deploy" / "research-lane" / "score-timer"
         service = (deploy / "rf1116-score-timer.service").read_text()
         unit_timer = (deploy / "rf1116-score-timer.timer").read_text()
         self.assertIn("ExecStart=/usr/bin/python3", service)
-        self.assertRegex(service, r"score_timer\.py tick$")
+        self.assertRegex(service, r"(?m)^ExecStart=/usr/bin/python3 .*/score_timer\.py tick$")
         self.assertNotIn("User=", service)
         self.assertIn("OnCalendar=*:0/30", unit_timer)
         self.assertIn("Persistent=true", unit_timer)

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run RF1116 holdout arrival and score supervisor every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+RandomizedDelaySec=60
+Unit=rf1116-score-timer.service
+
+[Install]
+WantedBy=timers.target
