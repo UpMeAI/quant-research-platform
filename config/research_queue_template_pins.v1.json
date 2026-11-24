@@ -21,6 +21,16 @@
    "template_id": "T-AI-CHECK-V1-HK-US-CRYPTO",
    "template_sha256": "491a86b4348a34a92164fa978596ff2d870daa129780bc6e368c5a8e9f02240d",
    "frozen_page_sha256": null
+  },
+  {
+   "template_id": "T-AI-MECH-NOTE-V1-LINUX-CN_A",
+   "template_sha256": "c8c75ceb592bd91dbaab3f04f82a6f464a6a92335a0507800fe4369fdf1a2ee8",
+   "frozen_page_sha256": null
+  },
+  {
+   "template_id": "T-AI-MECH-REVIEW-V1-LINUX-CN_A",
+   "template_sha256": "ea9822c596a491f19aec50f3c04c11b20d149e2e65bcbecf95c1d8b01d6f97b1",
+   "frozen_page_sha256": null
   }
  ]
 }
