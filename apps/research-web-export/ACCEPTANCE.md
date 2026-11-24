@@ -15,6 +15,8 @@ X-60..X-64. This artifact authorizes no installation or external change.
    ledger data at `/srv/research-lane/qrp/var/ledger`. The runtime delegates
    the authority decision to #137's guard. It preserves
    `QRP_VAR_DUAL_WRITABLE` and `QRP_VAR_MANIFEST_MISMATCH` unchanged.
+   `QRP_PINNED_SHA` is one 40-lowercase-hex Git commit and must equal the
+   checkout's real `git rev-parse HEAD`; it is not a SHA-256 content digest.
 3. Pre-switch comparison may read only the read-only Mac mirror. Missing,
    writable, ambiguous, unmanifested, or unpinned inputs refuse. Desk data and
    the review-loop mirror must exist below `/srv/research-lane`; #134 and #131
@@ -30,6 +32,9 @@ X-60..X-64. This artifact authorizes no installation or external change.
    but never reads, creates, prints, or copies the token.
    Starting a process is not readiness: `RUNNING` and `lastOkAt` require the
    exact child PID in cloudflared's successful-connection pidfile.
+   The user unit is the sole pidfile-parent producer through
+   `RuntimeDirectory=qrp-research-web` mode 0700. Runtime rejects a missing,
+   symlinked, wrongly owned, or wrongly permissioned parent.
 2. The origin keeps `QRP_RUNTIME_TOKEN` and `QRP_RESEARCH_TOKEN` unset. Runtime
    writes remain 403; the research origin remains loopback-only. The tunnel's
    origin request Host header is set to `127.0.0.1:4311` by the Owner/ops edge

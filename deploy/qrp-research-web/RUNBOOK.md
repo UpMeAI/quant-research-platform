@@ -51,16 +51,24 @@ memory, Nice 10 and best-effort IO priority 7.
 
 ## Files-only installation preparation
 
-Ops pins one reviewed QRP commit under `/srv/research-lane/qrp/code/<sha>` and
+Ops pins one reviewed 40-hex Git commit under
+`/srv/research-lane/qrp/code/<git-commit>` and records that same value as
+`QRP_PINNED_SHA`. It must equal `git rev-parse HEAD`; do not put a 64-hex file,
+tree, bundle, or manifest digest in this field. Ops then
 copies the full `apps/research-web-export/` runtime payload (without `test/`) to
 `/srv/research-lane/ops/qrp-research-web/`, preserving its `runtime/` directory.
 The services execute the absolute directory with `/usr/bin/python3 -I -B`; they
 do not use `PYTHONPATH`, a working-directory import, or an installed package. It creates
 `/srv/research-lane/ops-logs/qrp-research-web/` and the two names-only env files
 mode 0600. The example starts with `QRP_WEB_EDGE=OFF`; no upload or edge action
-can occur. Run `python3 -I -B runtime web --check` and
-`python3 -I -B runtime tunnel --check` only after filling
-the paths; the latter must still refuse `QRP_EDGE_DISABLED` until the Owner gate.
+can occur. Run `python3 -I -B runtime web --check` only after filling the paths;
+the tunnel check is run through its user unit after the Owner gate, so systemd
+first creates `$XDG_RUNTIME_DIR/qrp-research-web` from
+`RuntimeDirectory=qrp-research-web` with `RuntimeDirectoryMode=0700`. No script,
+tmpfiles rule, or manual `mkdir` produces that directory. systemd removes it
+when the unit is inactive; startup refuses a missing, symlinked, wrongly owned,
+or wrongly permissioned directory as `QRP_TUNNEL_RUNTIME_DIR_INVALID`. With
+edge OFF the tunnel must still refuse `QRP_EDGE_DISABLED`.
 
 Before the switch, use `PRE_SWITCH_COMPARE` only with the read-only mirror
 `/srv/research-lane/mirror/mac/qrp-var`. The wrapper refuses a writable mirror,

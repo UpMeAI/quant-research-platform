@@ -14,8 +14,7 @@ PRE_SWITCH_VAR = "/srv/research-lane/mirror/mac/qrp-var"
 NODE = "/srv/research-lane/tools/node-v23.11.0-linux-x64/bin/node"
 AUTHORITY = "V8_1_COORDINATOR"
 STATUS = "/srv/research-lane/ops-logs/qrp-research-web/status.json"
-SHA64 = re.compile(r"[0-9a-f]{64}")
-HEX40 = re.compile(r"[0-9a-f]{40}")
+GIT_COMMIT = re.compile(r"[0-9a-f]{40}")
 DESK_ROOT = "/srv/research-lane/ops/desk/portfolio-desk"
 REVIEW_MIRROR = "/srv/research-lane/qrp/review-loop-mirror"
 
@@ -143,6 +142,13 @@ def _under_lane(path):
     return resolved.is_absolute() and tuple(resolved.parts[:3]) == ("/", "srv", "research-lane")
 
 
+def checkout_matches(root, pinned, *, facts=None):
+    facts = facts or ProductionFacts()
+    return (isinstance(pinned, str) and bool(GIT_COMMIT.fullmatch(pinned))
+            and facts.is_dir(root) and facts.git_head(root) == pinned
+            and facts.git_clean(root))
+
+
 def validate(env=None, *, facts=None):
     env = dict(os.environ if env is None else env)
     facts = facts or ProductionFacts()
@@ -158,10 +164,10 @@ def validate(env=None, *, facts=None):
     root_text = _need(env, "QRP_ROOT")
     pinned = _need(env, "QRP_PINNED_SHA")
     expected_root = f"/srv/research-lane/qrp/code/{pinned}"
-    if not SHA64.fullmatch(pinned) or root_text != expected_root:
+    if not GIT_COMMIT.fullmatch(pinned) or root_text != expected_root:
         _fail("QRP_WEB_PIN_INVALID")
     root = pathlib.Path(root_text)
-    if not facts.is_dir(root) or facts.git_head(root) != pinned or not facts.git_clean(root):
+    if not checkout_matches(root, pinned, facts=facts):
         _fail("QRP_WEB_PIN_MISMATCH")
 
     if _need(env, "QRP_NODE") != NODE:
@@ -185,11 +191,11 @@ def validate(env=None, *, facts=None):
         _fail("QRP_WEB_DEPENDENCY_PATH_INVALID")
     if not facts.is_dir(desk_root):
         _fail("QRP_WEB_DEPENDENCY_MISSING")
-    if not HEX40.fullmatch(desk_sha) or facts.git_head(desk_root) != desk_sha:
+    if not GIT_COMMIT.fullmatch(desk_sha) or facts.git_head(desk_root) != desk_sha:
         _fail("QRP_DESK_PIN_MISMATCH")
     if not facts.git_clean(desk_root):
         _fail("QRP_DESK_CHECKOUT_DIRTY")
-    if not HEX40.fullmatch(review_commit):
+    if not GIT_COMMIT.fullmatch(review_commit):
         _fail("QRP_REVIEW_LOOP_COMMIT_INVALID")
     if review_manifest != expected_review_manifest:
         _fail("QRP_REVIEW_LOOP_MANIFEST_PATH_INVALID")

@@ -51,6 +51,14 @@ class ProductionFacts:
             return None
         return digest.hexdigest()
 
+    def runtime_directory_ready(self, path):
+        try:
+            info = pathlib.Path(path).lstat()
+        except OSError:
+            return False
+        return (stat.S_ISDIR(info.st_mode) and not stat.S_ISLNK(info.st_mode)
+                and stat.S_IMODE(info.st_mode) == 0o700 and info.st_uid == os.getuid())
+
 
 def command(env=None, *, facts=None):
     env = dict(os.environ if env is None else env)
@@ -93,10 +101,13 @@ def _pid_ready(path, pid):
 def run(env=None, *, check=False, facts=None, popen=subprocess.Popen,
         ready=_pid_ready, clock=time.monotonic, sleep=time.sleep):
     env = dict(os.environ if env is None else env)
+    facts = facts or ProductionFacts()
     argv = command(env, facts=facts)
     status_file = env.get("QRP_TUNNEL_STATUS", "")
     if status_file != STATUS_FILE:
         _fail("QRP_TUNNEL_STATUS_INVALID")
+    if not facts.runtime_directory_ready(pathlib.Path(PID_FILE).parent):
+        _fail("QRP_TUNNEL_RUNTIME_DIR_INVALID")
     plan = {"edge": "ON", "binary": argv[0], "binarySha256": env["QRP_CLOUDFLARED_SHA256"],
             "version": env["QRP_CLOUDFLARED_VERSION"], "tokenFile": TOKEN_FILE,
             "pidFile": PID_FILE}

@@ -368,9 +368,12 @@ class DeliveryTest(unittest.TestCase):
         unit = (DEPLOY / "ops-qrp-tunnel.service").read_text()
         parser = configparser.ConfigParser(interpolation=None, strict=True)
         parser.read_string(unit)
-        self.assertEqual("qrp-research-web", parser.get("Service", "RuntimeDirectory"))
+        runtime_name = parser.get("Service", "RuntimeDirectory")
+        self.assertEqual("qrp-research-web", runtime_name)
         self.assertEqual("0700", parser.get("Service", "RuntimeDirectoryMode"))
-        self.assertEqual("/run/user/1000/qrp-research-web/cloudflared.pid", tunnel.PID_FILE)
+        pid_parent = pathlib.PurePosixPath(tunnel.PID_FILE).parent
+        self.assertEqual(runtime_name, pid_parent.name)
+        self.assertEqual(pathlib.PurePosixPath("/run/user/1000"), pid_parent.parent)
 
     def test_units_are_loopback_pinned_and_inert(self):
         web = (DEPLOY / "ops-qrp-research-web.service").read_text()

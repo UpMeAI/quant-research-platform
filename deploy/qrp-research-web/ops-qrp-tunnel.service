@@ -20,6 +20,8 @@ CPUAffinity=0-7 16-23
 MemoryMax=256M
 UMask=0077
 NoNewPrivileges=true
+RuntimeDirectory=qrp-research-web
+RuntimeDirectoryMode=0700
 StandardOutput=append:/srv/research-lane/ops-logs/qrp-research-web/tunnel.out.log
 StandardError=append:/srv/research-lane/ops-logs/qrp-research-web/tunnel.err.log
 
