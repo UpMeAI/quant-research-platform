@@ -7,7 +7,7 @@
  */
 const { agentHostFor, err } = require('./routing');
 
-const KINDS = ['AI_REVIEW_CARD', 'AI_CHECK'];
+const KINDS = ['AI_REVIEW_CARD', 'AI_CHECK', 'AI_MECH_NOTE', 'AI_MECH_REVIEW'];
 const TASK_ID = /^RQT-(LINUX|HK)-\d{8}-[0-9a-f]{8}$/;
 /** §3.7 T3：1 分钟 → 1 小时，6 次，然后 WAITING_PROVIDER（小时探测）；从不 FAILED。 */
 const PROVIDER_TRIES = 6;

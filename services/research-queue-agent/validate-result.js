@@ -9,6 +9,8 @@
 const { canonicalJson, sha256, isObj, SECRET_SHAPED } = require('./canon');
 const { checkPack } = require('./facts');
 const { validateCard } = require('./card');
+const { checkNotePack, validateNoteOutput } = require('./mech-note');
+const { checkReviewPack, validateReviewOutput } = require('./mech-review');
 const { validateCheckReport } = require('./check-report');
 const { buildIdeaRecords, packSha } = require('./factor-idea');
 const { parseAgentTask } = require('./queue-seam');
@@ -21,7 +23,7 @@ const CHECK_BODY_KEYS = ['verdict', 'items', 'hold_reasons', 'unknowns'];
  * @param {{task: object, bundle: object, result: any}} a  task/bundle as staged by the consumer; result as written by the agent (untrusted)
  * @returns {{ok: boolean, codes: string[], output_sha256: string|null}}
  */
-function validateResult({ task, bundle, result }) {
+function validateResult({ task, bundle, result, promptAdmissions }) {
   const codes = [];
   const add = (c) => { if (c) codes.push(c); };
   const done = () => { const u = [...new Set(codes)]; return { ok: u.length === 0, codes: u, output_sha256: u.length === 0 ? sha256(canonicalJson(result.outputs)) : null }; };
@@ -35,11 +37,28 @@ function validateResult({ task, bundle, result }) {
   if (!isObj(bundle) || bundle.schema !== 'RQ_AGENT_BUNDLE_V1' || bundle.market !== t.market || !isObj(bundle.pack) || bundle.pack.market !== t.market) { add('RESULT_BUNDLE_INVALID'); return done(); }
   const o = isObj(result.outputs) ? result.outputs : null;
   if (!o) { add('RESULT_OUTPUT_MISSING'); return done(); }
-  const adm = prompts.loadAdmissions();
+  const adm = promptAdmissions || prompts.loadAdmissions();
   const want = adm.byKind[t.kind];
   if (!want) { add('RESULT_PROMPT_NOT_ADMITTED'); return done(); }
   const models = [MODELS.FLASH, MODELS.PRO];
   try {
+    if (t.kind === 'AI_MECH_NOTE' || t.kind === 'AI_MECH_REVIEW') {
+      const isNote = t.kind === 'AI_MECH_NOTE';
+      const pc = isNote ? checkNotePack(bundle.pack) : checkReviewPack(bundle.pack);
+      for (const e of pc.errors) add(e.code);
+      const key = isNote ? 'mechanism_notes' : 'mechanism_review';
+      const wrapped = o[key];
+      if (!isObj(wrapped)) { add('RESULT_OUTPUT_MISSING'); return done(); }
+      const schema = isNote ? 'RF1116_MECH_NOTE_OUTPUT_V1' : 'RF1116_MECH_REVIEW_OUTPUT_V1';
+      if (wrapped.schema !== schema || wrapped.task_id !== t.task_id) add('RESULT_MECH_OUTPUT_INVALID');
+      if (wrapped.prompt_admission_sha256 !== want.system_sha256) add('RESULT_PROMPT_NOT_ADMITTED');
+      if (!models.includes(wrapped.model)) add('RESULT_MODEL_NOT_ALLOWED');
+      const { schema: _s, task_id: _t, prompt_admission_sha256: _p, model: _m, ...body } = wrapped;
+      const v = isNote ? validateNoteOutput(body, bundle.pack) : validateReviewOutput(body, bundle.pack);
+      for (const e of v.errors) add(e.code);
+      if (sha256(canonicalJson(wrapped)) !== o[`${key}_sha256`]) add('RESULT_MECH_SHA_MISMATCH');
+      return done();
+    }
     const isCard = t.kind === 'AI_REVIEW_CARD';
     for (const e of checkPack(bundle.pack, { purpose: isCard ? 'CARD' : 'CHECK', check_admission_sha256: adm.byKind.AI_CHECK && adm.byKind.AI_CHECK.system_sha256, author_required: !!bundle.author_required, maxTokens: isCard ? undefined : Infinity }).errors) add(e.code);
     if (isCard) {

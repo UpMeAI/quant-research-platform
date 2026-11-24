@@ -201,7 +201,7 @@ test('note output rejects secret-shaped text', () => {
 test('A17 the mutation harness declares a dedicated mutant for every new validator guard family', () => {
   const { MUTANTS } = require('../tools/rq-gateway-agent-mutation-check');
   const ids = new Set(MUTANTS.map((m) => m.id));
-  for (const id of ['M01', 'M02', 'M03', 'M04', 'M05', 'M06', 'M07', 'M08', 'M09', 'M10', 'M11', 'M12']) assert.ok(ids.has(id), id);
+  for (const id of Array.from({ length: 17 }, (_, i) => `M${String(i + 1).padStart(2, '0')}`)) assert.ok(ids.has(id), id);
   for (const m of MUTANTS.filter((x) => /^M\d+$/.test(x.id))) assert.deepEqual(m.tests, ['tests/research_queue_agent_mech.test.js']);
 });
 

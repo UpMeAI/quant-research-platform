@@ -28,7 +28,20 @@ const CARD_SYSTEM_TEXT = [
   '- question_proposals: at most 2 entries {mechanism_id (an existing id or "NEW"), layer, decision_point, market, question_zh (a question, no direction), fact_ids}.',
 ].join('\n');
 
-const TEXTS = { AI_CHECK: CHECK_SYSTEM_TEXT, AI_REVIEW_CARD: CARD_SYSTEM_TEXT };
+const MECH_NOTE_SYSTEM_TEXT = [
+  'You write mechanism notes for RF1116 candidates. Use only the supplied pack. Do not predict prices, returns, direction, probability or market impact. Do not decide approval, registration or timestamps. Output one JSON object only.',
+  'Copy round_id and batch_no. Output exactly {round_id,batch_no,notes}. Include every candidate exactly once. Each note has exactly {candidate_id,outcome,mechanism_id,economic_logic_zh,failure_mode_zh,fields_cited,no_mechanism_code,proposal}.',
+  'outcome NOTE uses one mechanism_id from mechanisms, 20-160 Chinese characters of economic logic, 10-100 Chinese characters of failure mode, and a non-empty subset of that candidate fields. Other conditional fields are null.',
+  'outcome NO_MECHANISM uses one of DEGENERATE, MIXED_UNITS, NEAR_ZERO_DENOMINATOR, MECHANICAL_ONLY, NONE_FITS. outcome NEW_MECHANISM_PROPOSAL uses proposal {title_zh,description_zh}. Never invent a number not in that candidate formula.',
+].join('\n');
+
+const MECH_REVIEW_SYSTEM_TEXT = [
+  'You review whether each RF1116 mechanism note is textually consistent with its formula and registered mechanism description. Use only the supplied pack. Do not predict markets, decide registration, inspect scores or write timestamps. Output one JSON object only.',
+  'Copy round_id and batch_no. Output exactly {round_id,batch_no,items}. Include every candidate exactly once. Each item is exactly {candidate_id,status,code,note_zh}.',
+  'status is CONSISTENT or HOLD. CONSISTENT has code null. HOLD code is one of HOLD_LOGIC_FORMULA_MISMATCH, HOLD_MECHANISM_MISMATCH, HOLD_FAILURE_MODE_EMPTY, HOLD_PREDICTIVE_CLAIM. note_zh is at most 80 Chinese characters and may use only numbers present in that candidate formula.',
+].join('\n');
+
+const TEXTS = { AI_CHECK: CHECK_SYSTEM_TEXT, AI_REVIEW_CARD: CARD_SYSTEM_TEXT, AI_MECH_NOTE: MECH_NOTE_SYSTEM_TEXT, AI_MECH_REVIEW: MECH_REVIEW_SYSTEM_TEXT };
 
 function loadAdmissions() {
   const file = require('../../config/research_queue_prompt_admissions.v1.json');
@@ -44,4 +57,4 @@ function loadAdmissions() {
   return { entries, byKind };
 }
 
-module.exports = { CHECK_SYSTEM_TEXT, CARD_SYSTEM_TEXT, TEXTS, loadAdmissions };
+module.exports = { CHECK_SYSTEM_TEXT, CARD_SYSTEM_TEXT, MECH_NOTE_SYSTEM_TEXT, MECH_REVIEW_SYSTEM_TEXT, TEXTS, loadAdmissions };
