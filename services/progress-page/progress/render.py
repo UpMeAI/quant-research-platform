@@ -82,7 +82,22 @@ def render(reg: dict) -> str:
             f'{stale}{_render_data(row)}</section>'
         )
     counts = " ".join(f"{_e(k)}={_e(v)}" for k, v in (reg.get("sections_by_state") or {}).items())
-    server_banner = '<div id="server-stale" class="global-warning">本页生成登记已标记过期，以下内容可能全部过期</div>' if reg.get("page_age_h", 0) > threshold else ""
+    page_age = reg.get("page_age_h")
+    page_age_state = reg.get("page_age_state")
+    page_age_reason = reg.get("page_age_reason")
+    if (
+        page_age_state == "OK"
+        and isinstance(page_age, (int, float))
+        and not isinstance(page_age, bool)
+        and page_age > threshold
+    ):
+        server_banner = '<div id="server-stale" class="global-warning">本页生成登记已标记过期，以下内容可能全部过期</div>'
+    elif page_age_state == "MISSING":
+        server_banner = f'<div id="server-age-missing" class="global-warning">页面生成时间缺失，无法判断页面时效 <code>{_e(page_age_reason)}</code></div>'
+    elif page_age_state != "OK":
+        server_banner = f'<div id="server-age-unknown" class="global-warning">页面生成时间无效，无法判断页面时效 <code>{_e(page_age_reason)}</code></div>'
+    else:
+        server_banner = ""
     script_time = json.dumps(str(reg.get("generated_at", ""))).replace("<", "\\u003c")
     script = f"""<script>
 (() => {{

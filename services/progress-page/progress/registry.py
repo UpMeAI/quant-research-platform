@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import os
@@ -35,6 +36,37 @@ def _config_digest(cfg):
     return hashlib.sha256(raw).hexdigest()
 
 
+def with_page_age(obj: dict, now) -> dict:
+    """Return a registry projection with deterministic page-age facts."""
+    out = dict(obj)
+    had_digest = "registry_sha256" in out
+    out.pop("registry_sha256", None)
+    generated_at = out.get("generated_at")
+    if not isinstance(generated_at, str) or not generated_at:
+        state, reason, age = "MISSING", "GENERATED_AT_MISSING", None
+    else:
+        try:
+            stamp = dt.datetime.fromisoformat(generated_at.replace("Z", "+00:00"))
+            aware = (
+                stamp.tzinfo is not None and stamp.utcoffset() is not None
+                and now.tzinfo is not None and now.utcoffset() is not None
+            )
+            if not aware:
+                raise ValueError("timezone required")
+            if stamp > now:
+                state, reason, age = "UNKNOWN", "GENERATED_AT_IN_FUTURE", None
+            else:
+                state, reason = "OK", None
+                age = (now - stamp).total_seconds() / 3600
+        except (AttributeError, TypeError, ValueError):
+            state, reason, age = "UNKNOWN", "GENERATED_AT_INVALID", None
+    out.update(page_age_h=age, page_age_state=state, page_age_reason=reason)
+    if had_digest:
+        raw = json.dumps(out, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
+        out["registry_sha256"] = hashlib.sha256(raw).hexdigest()
+    return out
+
+
 def build(cfg: dict, now) -> dict:
     validate(cfg)
     specs = cfg.get("sections", {})
@@ -55,6 +87,7 @@ def build(cfg: dict, now) -> dict:
         "sections": rows,
         "sections_by_state": counts,
     }
+    obj = with_page_age(obj, now)
     raw = json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
     obj["registry_sha256"] = hashlib.sha256(raw).hexdigest()
     return obj

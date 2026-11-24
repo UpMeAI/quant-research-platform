@@ -344,40 +344,121 @@ def read_s8():
     return section("S8_NOT_IN_SCOPE", "V1 未覆盖", "NOT_APPLICABLE", "NOT_IN_V1_SCOPE", [], None)
 
 
+S9_FED_FIELDS = (
+    "verdict", "verdictToken", "status", "sealedOn", "sealSha256",
+    "k2State", "tStart", "tStartRegistryStatus", "nextCheck",
+)
+S9_FED_KEYS = ("schema", "rowClass", *S9_FED_FIELDS, "records")
+S9_FIELD_KEYS = ("state", "value", "reason", "src")
+S9_FIELD_STATES = ("OK", "NOT_APPLICABLE", "MISSING", "UNKNOWN", "STALE", "CONFLICT")
+S9_ROW_CLASSES = {"FROZEN_CLOSED", "FROZEN_OPEN", "FROZEN_NOT_APPLICABLE", "NEW"}
+S9_RESULTS = {"NO_CHANGE", "NEW_REV", "FAILED"}
+S9_MARKET_COUNTS = ("done", "forward", "running", "todo", "blocked", "total")
+
+
+def _integer(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _s9_status_valid(status):
+    if not isinstance(status, dict):
+        return False
+    if status.get("schema") != "MASTER_TABLE_RUN_STATUS_V1":
+        return False
+    if status.get("result") not in S9_RESULTS or not _integer(status.get("rev")):
+        return False
+    try:
+        stamp = parse_time(status.get("ran_at"))
+    except (TypeError, ValueError):
+        return False
+    return stamp.tzinfo is not None and stamp.utcoffset() is not None
+
+
+def _s9_table_valid(table):
+    if not isinstance(table, dict):
+        return False
+    if not _integer(table.get("revision")) or not isinstance(table.get("asOf"), str) or not table["asOf"]:
+        return False
+    market_counts = table.get("marketCounts")
+    by_market = market_counts.get("byMarket") if isinstance(market_counts, dict) else None
+    if not isinstance(by_market, dict):
+        return False
+    for market, raw_counts in by_market.items():
+        if not isinstance(market, str) or not market or not isinstance(raw_counts, dict):
+            return False
+        if any(
+            name not in raw_counts
+            or not _integer(raw_counts[name])
+            or raw_counts[name] < 0
+            for name in S9_MARKET_COUNTS
+        ):
+            return False
+    overlay = table.get("ledgerOverlay")
+    if not isinstance(overlay, dict):
+        return False
+    if not isinstance(overlay.get("evaluatedOn"), str) or not overlay["evaluatedOn"]:
+        return False
+    if not _integer(overlay.get("frozenRev")) or not isinstance(overlay.get("unjoined"), list):
+        return False
+    items = table.get("items")
+    return (
+        isinstance(items, list)
+        and bool(items)
+        and all(isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"] for item in items)
+    )
+
+
+def _s9_fed_valid(fed):
+    if not isinstance(fed, dict) or tuple(fed) != S9_FED_KEYS:
+        return False
+    if fed.get("schema") != "MASTER_TABLE_FED_V1" or fed.get("rowClass") not in S9_ROW_CLASSES:
+        return False
+    if not isinstance(fed.get("records"), list):
+        return False
+    for name in S9_FED_FIELDS:
+        field = fed.get(name)
+        if not isinstance(field, dict) or tuple(field) != S9_FIELD_KEYS:
+            return False
+        if field.get("state") not in S9_FIELD_STATES:
+            return False
+        if field["state"] not in {"OK", "STALE", "UNKNOWN"} and field.get("value") is not None:
+            return False
+    return True
+
+
 def read_s9(spec, cfg, now):
     key, title = "S9_MASTER_TABLE", "研究总表（脚本生成）"
     due, max_age = spec.get("due_at"), spec.get("max_age_h", 3)
     try:
         table, table_meta, _ = read_json(spec.get("table_path"), cfg, "master-table.service")
         status, status_meta, _ = read_json(spec.get("status_path"), cfg, "master-table.service")
-        if status.get("schema") not in (None, "MASTER_TABLE_RUN_STATUS_V1"):
+        if not _s9_status_valid(status):
+            raise SourceError("SCHEMA_MISMATCH", status_meta)
+        if not _s9_table_valid(table):
+            raise SourceError("SCHEMA_MISMATCH", table_meta)
+        if table["revision"] != status["rev"]:
             raise SourceError("SCHEMA_MISMATCH", status_meta)
         state, reason, age = _fresh_state(status.get("ran_at"), max_age, now)
         if state == "UNKNOWN":
             return section(key, title, state, reason, [table_meta, status_meta], None, None, max_age, due)
-        items = table.get("items") or table.get("rows") or []
-        fed_fields = ("verdict", "verdictToken", "status", "sealedOn", "sealSha256", "k2State", "tStart", "tStartRegistryStatus", "nextCheck")
-        counts = {field: {s: 0 for s in ("OK", "NOT_APPLICABLE", "MISSING", "UNKNOWN", "STALE", "CONFLICT")} for field in fed_fields}
-        new_rows, fed_seen = [], False
+        items = table["items"]
+        fed_seen = any("ledgerFed" in item for item in items)
+        if fed_seen and not all(_s9_fed_valid(item.get("ledgerFed")) for item in items):
+            raise SourceError("SCHEMA_MISMATCH", table_meta)
+        counts = {field: {s: 0 for s in S9_FIELD_STATES} for field in S9_FED_FIELDS}
+        new_rows = []
         for item in items:
             fed = item.get("ledgerFed")
             if not isinstance(fed, dict):
                 continue
-            fed_seen = True
-            for field in fed_fields:
-                field_state = (fed.get(field) or {}).get("state")
-                if field_state in counts[field]: counts[field][field_state] += 1
+            for field in S9_FED_FIELDS:
+                counts[field][fed[field]["state"]] += 1
             if fed.get("rowClass") == "NEW":
                 def field_value(name): return (fed.get(name) or {}).get("value")
                 new_rows.append({"id": item.get("id") or item.get("key"), "verdict": field_value("verdict"), "status": field_value("status"), "sealedOn": field_value("sealedOn")})
         by_market = {}
-        allowed_market_counts = ("done", "forward", "running", "todo", "blocked", "total")
-        for market, raw_counts in (((table.get("marketCounts") or {}).get("byMarket") or {}).items()):
-            if isinstance(raw_counts, dict):
-                by_market[str(market)] = {
-                    name: raw_counts.get(name) for name in allowed_market_counts
-                    if isinstance(raw_counts.get(name), (int, float)) and not isinstance(raw_counts.get(name), bool)
-                }
+        for market, raw_counts in table["marketCounts"]["byMarket"].items():
+            by_market[str(market)] = {name: raw_counts[name] for name in S9_MARKET_COUNTS}
         data = {
             "revision": table.get("revision"), "asOf": table.get("asOf"),
             "marketCounts": {"byMarket": by_market},

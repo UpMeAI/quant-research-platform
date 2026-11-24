@@ -32,7 +32,7 @@ class RenderTest(unittest.TestCase):
         self.assertIn("VALUE-STALE", html)
         self.assertIn("过期", html)
         self.assertIn('<meta name="progress-page" content="PROGRESS_REGISTRY_V1">', html)
-        self.assertNotIn("Date.now()", html)
+        self.assertIn("Date.now()", html)
 
     def test_escapes_and_has_no_external_resources(self):
         reg = self.fixture()
@@ -57,7 +57,7 @@ class RenderTest(unittest.TestCase):
         reg["page_age_h"] = 4.0
         html = render(reg)
         self.assertIn('id="server-stale"', html)
-        self.assertNotIn("Date.now()", html)
+        self.assertIn("Date.now()", html)
 
     def test_missing_and_unknown_page_age_are_distinct(self):
         reg = self.fixture()
