@@ -95,12 +95,15 @@ def _k2_fact(row, coord_dir):
     cited = cited_match.group(1) if cited_match else None
     source = Path(coord_dir) / page
     if not source.is_file():
-        return {"state": "SOURCE_FILE_ABSENT", "value": {"page": page, "citedSha": cited},
+        return {"state": "MISSING", "value": None,
                 "reason": "SOURCE_FILE_ABSENT", "src": "FREEZE_TOOL"}
     actual = _sha(source.read_bytes())
-    state = "MATCH" if cited and actual.startswith(cited) else "CITED_SHA_DIFFERS"
-    return {"state": state, "value": {"page": page, "sha256": actual, "citedSha": cited},
-            "reason": None if state == "MATCH" else state, "src": "FREEZE_TOOL"}
+    verification = "MATCH" if cited and actual.startswith(cited) else "CITED_SHA_DIFFERS"
+    state = "OK" if verification == "MATCH" else "CONFLICT"
+    return {"state": state,
+            "value": {"verification": verification, "page": page, "sha256": actual, "citedSha": cited}
+            if state == "OK" else None,
+            "reason": None if state == "OK" else verification, "src": "FREEZE_TOOL"}
 
 
 def _tstart_map(path):
@@ -146,11 +149,13 @@ def build(table_json, table_md, ledger_dir, register, tstart_registry, coord_dir
 
     proposal_rows = {}
     for row_id, row in rows.items():
+        row_class = "FROZEN_OPEN" if row.get("status") in OPEN_STATES else "FROZEN_CLOSED"
         proposal_rows[row_id] = {
-            "rowClass": "FROZEN_OPEN" if row.get("status") in OPEN_STATES else "FROZEN_CLOSED",
-            "entry_ids": [], "result_ids": [], "study_refs": [], "evidence": [],
-            "expected_sources": "NONE_DECLARED",
+            "rowClass": row_class, "entry_ids": [], "result_ids": [],
+            "study_refs": [], "evidence": [],
         }
+        if row_class == "FROZEN_OPEN":
+            proposal_rows[row_id]["expected_sources"] = "NONE_DECLARED"
 
     register_doc = json.loads(Path(register).read_text(encoding="utf-8"))
     for entry in register_doc.get("entries", []):

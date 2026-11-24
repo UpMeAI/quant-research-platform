@@ -51,7 +51,7 @@ class RenderTests(unittest.TestCase):
                 for row, state in zip(self.frozen["items"], ("OK", "MISSING"))]
         result = counts.compute(rows)
         self.assertEqual({"已出结论": 1, "前向中": 1}, result["statusCounts"])
-        self.assertEqual(1, result["marketCounts"]["美股"]["forward"])
+        self.assertEqual(1, result["marketCounts"]["byMarket"]["美股"]["forward"])
         self.assertEqual({"OK": 1, "MISSING": 1}, result["fedStatusCounts"]["verdict"])
 
     def test_changed_frozen_row_order_and_markers_refuse(self):
