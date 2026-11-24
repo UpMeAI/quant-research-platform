@@ -9,11 +9,14 @@ import stat
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULE_DIR = ROOT / "services" / "rf1116-post-round"
+sys.path.insert(0, str(ROOT / "services" / "research-queue"))
+from rq import status as rq_status
 
 
 def load(name):
@@ -112,8 +115,9 @@ class PostRoundTest(unittest.TestCase):
         ]}))
         (self.tmp / "space.json").write_text(canon({"fields": {"pb": {"zh": "市净率"}}, "operators": {"ts_std": {"zh": "滚动标准差"}}}))
         (self.tmp / ".QRP_COMMIT").write_text("f6c4793\n")
-        (self.tmp / "model_gate.json").write_text(canon({"verdict": "PASS", "at": "2026-11-24T13:00:00+08:00"}))
-        (self.tmp / "blackouts.json").write_text(canon({"windows": []}))
+        (self.tmp / "model_gate.json").write_text(canon({"status": "PASS", "verdict": "PASS",
+                                                          "at": "2026-11-24T13:00:00+08:00"}))
+        (self.tmp / "blackouts.json").write_bytes((ROOT / "config/rq-blackouts.v1.json").read_bytes())
         self.cfg = post_round.Config(
             data_dir=self.tmp / "ledger", lane_out=self.tmp / "out", post_root=self.tmp / "post",
             inbox=self.tmp / "inbox", state_dir=self.tmp / "state", runs_dir=self.tmp / "runs",
@@ -129,7 +133,8 @@ class PostRoundTest(unittest.TestCase):
         p = self.tmp / "ledger/research" / name
         p.write_text("\n".join(canon(x) for x in rows))  # deliberately no trailing newline
 
-    def seed(self, selected, neutralization="RANK_GAUSS_V2", status="OPEN", selection_sha=None, holdout=False):
+    def seed(self, selected, neutralization="RANK_GAUSS_V2", status="OPEN", selection_sha=None, holdout=False,
+             holdout_to=None):
         self.selection = {"candidates": [
             {"candidate_id": cid, "mean_ic": 0.03, "positive_folds": 3,
              "validation_book": {"monthly_d": [float(i), float(i + 1)]}}
@@ -141,6 +146,8 @@ class PostRoundTest(unittest.TestCase):
         row = {"round_id": self.ROUND, "status": status}
         if neutralization is not None:
             row["scoring_neutralization"] = neutralization
+        if holdout_to is not None:
+            row["holdout"] = {"from": "2026-10-19", "to": holdout_to}
         self.write_rows("mining_rounds.jsonl", [row])
         self.write_rows("holdout_vault.jsonl", [{"round_id": self.ROUND, "action": "OPEN"}] if holdout else [])
 
@@ -231,6 +238,9 @@ class PostRoundTest(unittest.TestCase):
         self.assertEqual(len(result["registrations"]), 4)
         self.assertTrue(all(x["written_at"] == "2026-11-24T14:00:00+08:00" for x in result["registrations"]))
         self.assertEqual({x["note"] for x in result["dispositions"]}, {"D05:SIZE_AS_MECHANISM", "NO_MECHANISM:NONE_FITS"})
+        late = post_round.evaluate_notes([notes[0]], {"A001": "(-ts_std(pb,10))"}, {"SEL.XSEC.VALUE"},
+                                         "2026-11-24T06:00:01Z", self.NOW)
+        self.assertEqual(late["dispositions"][0]["note"], "D07:WRITTEN_AT")
 
     def test_b06_list_before_write_and_resume_only_remaining(self):
         rows = [{"candidate_id": "A00%d" % i, "mechanism_id": "SEL.XSEC.VALUE", "written_at": "2026-11-24T14:00:00+08:00"} for i in range(1, 5)]
@@ -278,17 +288,74 @@ class PostRoundTest(unittest.TestCase):
         self.assertEqual(post_round.repack_blocked(singles[0]), [])
         self.assertEqual(post_round.map_disposition({"registered": False, "note_blocked": True})[1], "AI_NOTE_BLOCKED")
 
+        survivors = self.survivors(2)
+        self.seed(["A001", "A002"])
+        runner = Runner(survivors, self.tmp / "ledger/research/mining_mechanisms.jsonl")
+        engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
+        self.assertEqual(engine.tick()[self.ROUND], "NOTES_ENQUEUED")
+        request = json.loads(next((self.tmp / "inbox/requests").glob("post-round-note-*.json")).read_text())
+        self.write_task(request, "mechanism_notes", None, state="BLOCKED_DETERMINISTIC")
+        self.assertEqual(engine.tick()[self.ROUND], "NOTES_ENQUEUED")
+        repacks = sorted((self.tmp / "inbox/requests").glob("post-round-note-repack-*.json"))
+        self.assertEqual(len(repacks), 2)
+        for path in repacks:
+            pack_path = pathlib.Path(json.loads(path.read_text())["inputs"][0]["path"])
+            self.assertEqual(len(json.loads(pack_path.read_text())["candidates"]), 1)
+            self.write_task(json.loads(path.read_text()), "mechanism_notes", None, state="BLOCKED_DETERMINISTIC")
+        self.assertEqual(engine.tick()[self.ROUND], "DONE")
+        dispositions = [json.loads(line) for line in (self.tmp / "post" / self.ROUND / "dispositions.jsonl").read_text().splitlines()]
+        self.assertEqual({row["note"] for row in dispositions}, {"AI_NOTE_BLOCKED"})
+        self.assertEqual(len(list((self.tmp / "inbox/requests").glob("post-round-note-repack-*.json"))), 2)
+
+    def test_b10_blocked_review_batch_repacked_once_then_rejected(self):
+        survivors = self.survivors(2)
+        self.seed(["A001", "A002"])
+        runner = Runner(survivors, self.tmp / "ledger/research/mining_mechanisms.jsonl")
+        runner.real_list_shape = True
+        engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
+        self.assertEqual(engine.tick()[self.ROUND], "NOTES_ENQUEUED")
+        note_request = json.loads(next((self.tmp / "inbox/requests").glob("post-round-note-*.json")).read_text())
+        notes = [{"candidate_id": cid, "outcome": "NOTE", "mechanism_id": "SEL.XSEC.VALUE",
+                  "economic_logic_zh": "市净率的截面差异能够反映估值锚定偏离程度与再定价摩擦",
+                  "failure_mode_zh": "极端行业结构变化时关系可能失真", "fields_cited": ["pb"],
+                  "no_mechanism_code": None, "proposal": None} for cid in ("A001", "A002")]
+        self.write_task(note_request, "mechanism_notes", {"schema": "RF1116_MECH_NOTE_OUTPUT_V1",
+                        "round_id": self.ROUND, "batch_no": 1, "notes": notes})
+        self.assertEqual(engine.tick()[self.ROUND], "REVIEWS_ENQUEUED")
+        review_request = json.loads(next((self.tmp / "inbox/requests").glob("post-round-review-*.json")).read_text())
+        self.write_task(review_request, "mechanism_review", None, state="BLOCKED_DETERMINISTIC")
+        self.assertEqual(engine.tick()[self.ROUND], "REVIEWS_ENQUEUED")
+        repacks = sorted((self.tmp / "inbox/requests").glob("post-round-review-repack-*.json"))
+        self.assertEqual(len(repacks), 2)
+        for path in repacks:
+            self.write_task(json.loads(path.read_text()), "mechanism_review", None, state="BLOCKED_DETERMINISTIC")
+        self.assertEqual(engine.tick()[self.ROUND], "DONE")
+        dispositions = [json.loads(line) for line in (self.tmp / "post" / self.ROUND / "dispositions.jsonl").read_text().splitlines()]
+        self.assertEqual({row["note"] for row in dispositions}, {"AI_REVIEW_BLOCKED"})
+        self.assertEqual(len(list((self.tmp / "inbox/requests").glob("post-round-review-repack-*.json"))), 2)
+
     def test_b11_wait_is_wait_not_rejection(self):
         self.assertEqual(post_round.classify_tasks([{"state": "COMPLETE"}, {"state": "WAITING_QUOTA"}]), "WAITING_AQ")
         self.assertEqual(post_round.classify_tasks([{"state": "READY"}]), "WAITING_AQ")
 
-    def test_b12_deadline_known_alerts_once_unknown_does_not(self):
-        alerts = set()
-        self.assertEqual(post_round.deadline_state(self.NOW.replace(year=2027), "2026-12-31", False, alerts, self.ROUND), "POST_ROUND_REVIEW_LATE")
-        self.assertEqual(post_round.deadline_state(self.NOW.replace(year=2027), "2026-12-31", False, alerts, self.ROUND), "POST_ROUND_REVIEW_LATE")
-        self.assertEqual(len(alerts), 1)
-        self.assertEqual(post_round.deadline_state(self.NOW, "UNKNOWN", False, alerts, "R2"), "DEADLINE_UNKNOWN")
-        self.assertEqual(len(alerts), 1)
+    def test_b12_deadline_known_alerts_once_through_tick(self):
+        now = dt.datetime(2027, 1, 2, 12, 0, tzinfo=dt.timezone(dt.timedelta(hours=8)))
+        (self.tmp / "model_gate.json").write_text(canon({"status": "PASS", "at": now.isoformat()}))
+        self.seed(["A001"], holdout_to="2026-12-31")
+        engine = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: now)
+        engine.tick(); engine.tick()
+        alerts = [json.loads(line) for line in (self.tmp / "state/alerts.jsonl").read_text().splitlines()]
+        self.assertEqual([row["code"] for row in alerts], ["POST_ROUND_REVIEW_LATE"])
+        ledger = [json.loads(line) for line in (self.tmp / "post" / self.ROUND / "POST_ROUND_LEDGER.jsonl").read_text().splitlines()]
+        self.assertIn("POST_ROUND_REVIEW_LATE", [row["state"] for row in ledger])
+
+    def test_b12_unknown_deadline_is_recorded_without_alert_and_does_not_block(self):
+        self.seed(["A001"], holdout_to="UNKNOWN")
+        out = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: self.NOW).tick()
+        self.assertEqual(out[self.ROUND], "NOTES_ENQUEUED")
+        ledger = [json.loads(line) for line in (self.tmp / "post" / self.ROUND / "POST_ROUND_LEDGER.jsonl").read_text().splitlines()]
+        self.assertIn("DEADLINE_UNKNOWN", [row["state"] for row in ledger])
+        self.assertFalse((self.tmp / "state/alerts.jsonl").exists())
 
     def test_b13_selection_hash_mismatch(self):
         self.seed(["A001"], selection_sha="0" * 64)
@@ -321,12 +388,40 @@ class PostRoundTest(unittest.TestCase):
 
     def test_b17_blackout_tick_is_read_only(self):
         self.seed(["A001"])
-        (self.tmp / "blackouts.json").write_text(canon({"windows": [{"id": "X", "start": "13:00", "end": "15:00", "tz": "+08:00"}]}))
         r = Runner(self.survivors(1))
-        out = post_round.PostRound(self.cfg, r, lambda: self.NOW).tick()
+        inside_stop = dt.datetime(2026, 11, 24, 15, 30, tzinfo=dt.timezone(dt.timedelta(hours=8)))
+        out = post_round.PostRound(self.cfg, r, lambda: inside_stop).tick()
         self.assertEqual(out[self.ROUND], "BLACKOUT_READ_ONLY")
         self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
+        self.assertEqual(list((self.tmp / "inbox/mech-packs").glob("*.json")), [])
+        self.assertEqual(list((self.tmp / "post").iterdir()), [])
         self.assertEqual(r.calls, [])
+
+    def test_b17_model_gate_uses_status_not_verdict_and_nonpass_never_enqueues(self):
+        self.seed(["A001"])
+        runner = Runner(self.survivors(1))
+        engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
+        for status in ("FAIL", "FETCH_FAILED"):
+            (self.tmp / "model_gate.json").write_text(canon({"status": status, "verdict": "PASS", "at": self.NOW.isoformat()}))
+            self.assertEqual(engine.tick()[self.ROUND], "WAITING_MODEL_GATE")
+            self.assertEqual(runner.calls, [])
+            self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
+        (self.tmp / "model_gate.json").write_text(canon({"status": "PASS", "verdict": "FAIL", "at": self.NOW.isoformat()}))
+        self.assertEqual(engine.tick()[self.ROUND], "NOTES_ENQUEUED")
+        self.assertEqual(len(runner.calls), 1)
+
+    def test_b17_alert_rows_have_stable_status_write_compatible_keys(self):
+        self.seed(["A001"], neutralization=None)
+        engine = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: self.NOW)
+        engine.tick(); engine.tick()
+        rows = [json.loads(line) for line in (self.tmp / "state/alerts.jsonl").read_text().splitlines()]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["code"], "STOPPED_LEGACY_ROUND")
+        self.assertEqual(rows[0]["key"], self.ROUND + ":STOPPED_LEGACY_ROUND")
+        cfg = SimpleNamespace(state_dir=self.tmp / "state", status_path=self.tmp / "state/rq-status.json")
+        with mock.patch.object(rq_status, "build", return_value={"alerts": []}):
+            rq_status.write(None, cfg, self.NOW)
+        self.assertTrue(cfg.status_path.exists())
 
     def test_b18_task_view_uses_full_idem_and_authoritative_attempt_result(self):
         request = {"template_id": "T-NOTE", "template_sha256": "1" * 64, "kind": "AI_MECH_NOTE",
