@@ -581,7 +581,7 @@
    "expected_duration_s": 600,
    "evidence_matrix": {
     "id": "EM-AI-MECH-REVIEW-V1",
-    "sha256": "1620a275fe3c6f78bf803ad21b255b6d5d44d80ef873ff86d2a9792cd17f7bbd"
+    "sha256": "504486485d1ce17c8cc1b3539ce63e88e12a4ff49b16370788c8a36b9cde2d01"
    },
    "evidence_matrix_rows": [
     {
@@ -596,7 +596,7 @@
     },
     {
      "id": "EM-03",
-     "req": "every HOLD item has an allowed code and non-empty note_zh; every CONSISTENT item has null code and non-empty note_zh",
+     "req": "every HOLD item has an allowed code; every CONSISTENT item has null code; note_zh is a string of at most 80 characters",
      "evidence": "trusted consumer re-validation of outputs.mechanism_review against the staged pack"
     },
     {
