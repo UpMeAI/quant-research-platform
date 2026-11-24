@@ -1,12 +1,13 @@
 'use strict';
 /**
  * Q3c: re-validation of an agent's result.json by the TRUSTED consumer side (the research-queue user, in its own short-lived node process; never by the agent).
- * The agent's own `validator` block, if any, is never read: whatever the agent wrote is data, and a result completes a task only if this function says ok.
+ * The agent's own `validator` block is never trusted: mechanism results must carry the frozen self-validation certificate, but this consumer treats it as data and
+ * cross-checks it against the named output sha and bytes it hashes itself. A result completes a task only if this function's independent checks say ok.
  * Pure: no fs, no clock, no network, no model. Same inputs, same answer. It re-runs the deterministic validators of the agent itself (card, idea records, check report,
  * pack firewall) over the result's outputs, against the task and bundle the CONSUMER staged, and compares the derived records and shas.
  * Not covered here (needs the gateway ledger, which the consumer cannot read on HK): the per-call ledger match of the evidence matrix (EM-04).
  */
-const { canonicalJson, sha256, isObj, SECRET_SHAPED } = require('./canon');
+const { canonicalJson, sha256, isObj, SHA64, SECRET_SHAPED } = require('./canon');
 const { checkPack } = require('./facts');
 const { validateCard } = require('./card');
 const { checkNotePack, validateNoteOutput } = require('./mech-note');
@@ -56,7 +57,15 @@ function validateResult({ task, bundle, result, promptAdmissions }) {
       const { schema: _s, task_id: _t, prompt_admission_sha256: _p, model: _m, ...body } = wrapped;
       const v = isNote ? validateNoteOutput(body, bundle.pack) : validateReviewOutput(body, bundle.pack);
       for (const e of v.errors) add(e.code);
-      if (sha256(canonicalJson(wrapped)) !== o[`${key}_sha256`]) add('RESULT_MECH_SHA_MISMATCH');
+      const outputSha256 = sha256(canonicalJson(wrapped));
+      const namedSha256 = o[`${key}_sha256`];
+      if (outputSha256 !== namedSha256) add('RESULT_MECH_SHA_MISMATCH');
+      const certificate = result.validator;
+      if (!isObj(certificate)) add('RESULT_VALIDATOR_MISSING');
+      else {
+        if (certificate.ok !== true) add('RESULT_VALIDATOR_NOT_OK');
+        if (!SHA64.test(certificate.sha256 || '') || certificate.sha256 !== namedSha256 || certificate.sha256 !== outputSha256) add('RESULT_VALIDATOR_SHA_MISMATCH');
+      }
       return done();
     }
     const isCard = t.kind === 'AI_REVIEW_CARD';

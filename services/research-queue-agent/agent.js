@@ -151,7 +151,12 @@ async function runAgentTask(taskRow, bundle, opts) {
     const key = isNote ? 'mechanism_notes' : 'mechanism_review';
     const schema = isNote ? 'RF1116_MECH_NOTE_OUTPUT_V1' : 'RF1116_MECH_REVIEW_OUTPUT_V1';
     const output = { schema, task_id: task.task_id, ...r.value.output, prompt_admission_sha256: adm.system_sha256, model: r.model };
-    return result({ status: 'DONE', outputs: { [key]: output, [`${key}_sha256`]: sha256(canonicalJson(output)) } });
+    const outputSha256 = sha256(canonicalJson(output));
+    return result({
+      status: 'DONE',
+      validator: { ok: true, sha256: outputSha256 },
+      outputs: { [key]: output, [`${key}_sha256`]: outputSha256 },
+    });
   }
 
   const pc = checkPack(pack, { purpose: isCard ? 'CARD' : 'CHECK', check_admission_sha256: admissions.byKind.AI_CHECK && admissions.byKind.AI_CHECK.system_sha256, author_required: !!bundle.author_required, maxTokens: isCard ? maxTok : Infinity });
