@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the ledger-fed research master table hourly
+
+[Timer]
+OnCalendar=*-*-* *:17:00
+Persistent=true
+Unit=master-table.service
+
+[Install]
+WantedBy=timers.target

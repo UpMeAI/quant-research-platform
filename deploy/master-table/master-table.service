@@ -1,0 +1,12 @@
+[Unit]
+Description=Generate the ledger-fed research master table
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I -B /srv/research-lane/qrp/services/master-table/run_master_table.py --config /srv/research-lane/master-table/config/MASTER_TABLE_CONFIG_V1.json
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target
