@@ -364,6 +364,30 @@ class PostRoundTest(unittest.TestCase):
         ledger = [json.loads(line) for line in (self.tmp / "post" / self.ROUND / "POST_ROUND_LEDGER.jsonl").read_text().splitlines()]
         self.assertIn("POST_ROUND_REVIEW_LATE", [row["state"] for row in ledger])
 
+    def test_review_b12_deadline_is_audited_before_missing_failed_or_stale_model_gate(self):
+        now = dt.datetime(2027, 1, 2, 12, 0, tzinfo=dt.timezone(dt.timedelta(hours=8)))
+        gates = {
+            "missing": None,
+            "failed": {"status": "FAIL", "at": now.isoformat()},
+            "stale": {"status": "PASS", "at": (now - dt.timedelta(hours=27)).isoformat()},
+        }
+        for name, gate in gates.items():
+            with self.subTest(gate=name):
+                shutil.rmtree(self.tmp / "post", ignore_errors=True)
+                (self.tmp / "post").mkdir()
+                (self.tmp / "state/alerts.jsonl").unlink(missing_ok=True)
+                if gate is None:
+                    (self.tmp / "model_gate.json").unlink(missing_ok=True)
+                else:
+                    (self.tmp / "model_gate.json").write_text(canon(gate))
+                self.seed(["A001"], holdout_to="2026-12-31")
+                engine = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: now)
+                self.assertEqual(engine.tick()[self.ROUND], "WAITING_MODEL_GATE")
+                alerts = [json.loads(line) for line in (self.tmp / "state/alerts.jsonl").read_text().splitlines()]
+                self.assertEqual([row["code"] for row in alerts], ["POST_ROUND_REVIEW_LATE"])
+                ledger = [json.loads(line) for line in (self.tmp / "post" / self.ROUND / "POST_ROUND_LEDGER.jsonl").read_text().splitlines()]
+                self.assertIn("POST_ROUND_REVIEW_LATE", [row["state"] for row in ledger])
+
     def test_review_b12_unknown_deadline_is_recorded_without_alert_and_does_not_block(self):
         self.seed(["A001"], holdout_to="UNKNOWN")
         out = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: self.NOW).tick()
