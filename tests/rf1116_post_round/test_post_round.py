@@ -9,6 +9,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -43,11 +44,26 @@ class Runner:
         self.calls = []
         self.register_fail_after = None
         self.review_error = None
+        self.review = None
+
+    def view(self):
+        registered = {row["candidate_id"]: row for row in self.registered}
+        survivors = []
+        for row in self.survivors:
+            reg = registered.get(row["candidate_id"])
+            survivors.append({**row, "registered": reg is not None,
+                              "mechanism_id": reg.get("mechanism_id") if reg else None,
+                              "written_at": reg.get("written_at") if reg else None})
+        items = [{"candidate_id": row["candidate_id"],
+                  "registration_hash": sha(canon(row)) if row["candidate_id"] in registered else None}
+                 for row in sorted(self.survivors, key=lambda x: x["candidate_id"])]
+        return {"survivors": survivors, "registered": [],
+                "mechanism_set_sha256": sha(canon(items)), "review": self.review}
 
     def __call__(self, action, round_id, file=None):
         self.calls.append((action, round_id, pathlib.Path(file).name if file else None))
         if action == "mechanisms" and file is None:
-            return {"survivors": self.survivors, "registered": list(self.registered)}
+            return self.view()
         if action == "mechanisms":
             rows = [json.loads(x) for x in pathlib.Path(file).read_text().splitlines() if x]
             limit = self.register_fail_after if self.register_fail_after is not None else len(rows)
@@ -58,7 +74,8 @@ class Runner:
         if action == "review":
             if self.review_error:
                 raise post_round.RunnerError(self.review_error)
-            return {"ok": True}
+            self.review = json.loads(pathlib.Path(file).read_text())
+            return {"ok": True, "mechanism_set_sha256": self.review["mechanism_set_sha256"]}
         raise AssertionError(action)
 
 
@@ -91,6 +108,7 @@ class PostRoundTest(unittest.TestCase):
             note_template_id="T-NOTE", note_template_sha256="1" * 64,
             review_template_id="T-REVIEW", review_template_sha256="2" * 64,
         )
+        self.task_rows = []
 
     def write_rows(self, name, rows):
         p = self.tmp / "ledger/research" / name
@@ -115,6 +133,28 @@ class PostRoundTest(unittest.TestCase):
         return [{"candidate_id": "A%03d" % i, "formula": "(-ts_std(pb,10))", "mining_score": .8,
                  "validation_mean_ic": .03, "positive_folds": 3, "holdout_score": 9}
                 for i in range(1, n + 1)]
+
+    def request_idem(self, request):
+        return sha(canon({"template_id": request["template_id"], "template_sha256": request["template_sha256"],
+                          "subject": request.get("subject") or {}, "params": request.get("params") or {}}))
+
+    def write_task(self, request, output_key, output_body, state="COMPLETE", attempt_no=1, task_id=None):
+        idem = self.request_idem(request)
+        task_id = task_id or ("RQT-LINUX-20261124-%s" % idem[:8])
+        row = {"task_id": task_id, "idem_key": idem, "state": state, "attempt_no": attempt_no}
+        self.task_rows.append(row)
+        (self.tmp / "state/status.json").write_text(canon({"schema": "RQ_STATUS_V1", "tasks": self.task_rows}))
+        if attempt_no > 0 and output_body is not None:
+            output = {"task_id": task_id, **output_body}
+            output_sha = sha(canon(output))
+            result = {"schema": "RQ_AGENT_RESULT_V1", "task_id": task_id, "kind": request["kind"],
+                      "status": "DONE", "at": "2026-11-24T06:00:00Z",
+                      "validator": {"ok": True, "sha256": output_sha},
+                      "outputs": {output_key: output, output_key + "_sha256": output_sha}}
+            path = self.tmp / "runs" / task_id / ("attempt-%d" % attempt_no) / "result.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(canon(result))
+        return row
 
     def test_b01_no_selection_is_noop(self):
         r = Runner()
@@ -272,6 +312,88 @@ class PostRoundTest(unittest.TestCase):
         self.assertEqual(out[self.ROUND], "BLACKOUT_READ_ONLY")
         self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
         self.assertEqual(r.calls, [])
+
+    def test_b18_task_view_uses_full_idem_and_authoritative_attempt_result(self):
+        request = {"template_id": "T-NOTE", "template_sha256": "1" * 64, "kind": "AI_MECH_NOTE",
+                   "subject": {"round_id": self.ROUND, "batch_no": 1, "pack_sha256": "3" * 64}, "params": {}}
+        body = {"schema": "RF1116_MECH_NOTE_OUTPUT_V1", "round_id": self.ROUND, "batch_no": 1, "notes": []}
+        task = self.write_task(request, "mechanism_notes", body, attempt_no=2)
+        decoy = self.tmp / "runs" / task["task_id"] / "attempt-1" / "result.json"
+        decoy.parent.mkdir(parents=True)
+        decoy.write_text("not the authoritative attempt")
+        status = json.loads((self.tmp / "state/status.json").read_text())
+        self.assertEqual(post_round.request_idem(request), task["idem_key"])
+        resolved = post_round.resolve_task(status, request)
+        loaded = post_round.read_task_result(self.cfg.runs_dir, resolved, request, "mechanism_notes")
+        self.assertEqual(loaded["output"]["round_id"], self.ROUND)
+        self.assertEqual(loaded["task"]["attempt_no"], 2)
+
+    def test_b19_missing_zero_ambiguous_and_open_task_rows_fail_closed(self):
+        request = {"template_id": "T-NOTE", "template_sha256": "1" * 64, "kind": "AI_MECH_NOTE",
+                   "subject": {"round_id": self.ROUND, "batch_no": 1, "pack_sha256": "3" * 64}, "params": {}}
+        idem = self.request_idem(request)
+        good = {"task_id": "RQT-LINUX-20261124-%s" % idem[:8], "idem_key": idem, "state": "READY", "attempt_no": 0}
+        cases = [
+            ({"schema": "RQ_STATUS_V1"}, "RQ_STATUS_TASKS_MISSING"),
+            ({"schema": "RQ_STATUS_V1", "tasks": []}, "RQ_TASK_NOT_FOUND"),
+            ({"schema": "RQ_STATUS_V1", "tasks": [good, {**good, "task_id": "RQT-LINUX-20261125-%s" % idem[:8]}]}, "RQ_TASK_AMBIGUOUS"),
+            ({"schema": "RQ_STATUS_V1", "tasks": [{**good, "extra": True}]}, "RQ_STATUS_TASK_SHAPE"),
+        ]
+        for status, code in cases:
+            with self.subTest(code=code), self.assertRaisesRegex(post_round.TaskAuthorityError, code):
+                post_round.resolve_task(status, request)
+        with self.assertRaisesRegex(post_round.TaskAuthorityError, "RQ_TASK_ATTEMPT_NOT_STARTED"):
+            post_round.read_task_result(self.cfg.runs_dir, {**good, "state": "COMPLETE"}, request, "mechanism_notes")
+
+    def test_b20_runner_subprocess_environment_is_an_exact_nonsecret_allowlist(self):
+        proc = mock.Mock(returncode=0, stdout="{}", stderr="")
+        ambient = {"PATH": "/usr/bin", "LANG": "C.UTF-8", "LC_ALL": "C", "RF1116_RUNNER_IMAGE": "qrp-round-runner:abc123",
+                   "HOME": "/must-not-leak", "DEEPSEEK_API_KEY": "sk-" + "x" * 20, "UNRELATED": "no"}
+        with mock.patch.dict(os.environ, ambient, clear=True), mock.patch.object(post_round.subprocess, "run", return_value=proc):
+            post_round._runner(pathlib.Path("/runner"))("mechanisms", self.ROUND)
+        self.assertEqual(proc.call_args.kwargs["env"], {k: ambient[k] for k in ("PATH", "LANG", "LC_ALL", "RF1116_RUNNER_IMAGE")})
+
+    def test_b21_end_to_end_status_results_registration_review_and_done(self):
+        survivors = self.survivors(1)
+        self.seed(["A001"])
+        runner = Runner(survivors)
+        engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
+        self.assertEqual(engine.tick()[self.ROUND], "NOTES_ENQUEUED")
+        note_request = json.loads(next((self.tmp / "inbox/requests").glob("post-round-note-*.json")).read_text())
+        note = {"candidate_id": "A001", "outcome": "NOTE", "mechanism_id": "SEL.XSEC.VALUE",
+                "economic_logic_zh": "市净率的截面差异能够反映估值锚定偏离程度与再定价摩擦",
+                "failure_mode_zh": "极端行业结构变化时关系可能失真", "fields_cited": ["pb"],
+                "no_mechanism_code": None, "proposal": None}
+        note_body = {"schema": "RF1116_MECH_NOTE_OUTPUT_V1", "round_id": self.ROUND, "batch_no": 1, "notes": [note]}
+        self.write_task(note_request, "mechanism_notes", note_body)
+        self.assertEqual(engine.tick()[self.ROUND], "REVIEWS_ENQUEUED")
+        self.assertEqual(len(runner.registered), 1)
+        review_request = json.loads(next((self.tmp / "inbox/requests").glob("post-round-review-*.json")).read_text())
+        review_body = {"schema": "RF1116_MECH_REVIEW_OUTPUT_V1", "round_id": self.ROUND, "batch_no": 1,
+                       "items": [{"candidate_id": "A001", "status": "CONSISTENT", "code": None,
+                                  "note_zh": "公式、机制与文字说明相互一致"}]}
+        self.write_task(review_request, "mechanism_review", review_body)
+        self.assertEqual(engine.tick()[self.ROUND], "DONE")
+        verdicts = json.loads((self.tmp / "post" / self.ROUND / "verdicts.json").read_text())
+        self.assertEqual(verdicts["verdicts"], [{"candidate_id": "A001", "verdict": "APPROVED", "note": "AQ_POST_ROUND_V1"}])
+        self.assertEqual(runner.review["reviewer"], "AQ_POST_ROUND_V1 program (spec 04a0961f; note tasks 1, review tasks 1)")
+
+    def test_b22_waiting_attempt_zero_never_reads_result_or_becomes_rejected(self):
+        self.seed(["A001"])
+        engine = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: self.NOW)
+        engine.tick()
+        request = json.loads(next((self.tmp / "inbox/requests").glob("post-round-note-*.json")).read_text())
+        idem = self.request_idem(request)
+        (self.tmp / "state/status.json").write_text(canon({"schema": "RQ_STATUS_V1", "tasks": [{
+            "task_id": "RQT-LINUX-20261124-%s" % idem[:8], "idem_key": idem, "state": "READY", "attempt_no": 0}]}))
+        original = pathlib.Path.read_text
+        def guarded(path, *args, **kwargs):
+            if path.name == "result.json":
+                raise AssertionError("attempt zero must not read a result")
+            return original(path, *args, **kwargs)
+        with mock.patch.object(pathlib.Path, "read_text", guarded):
+            self.assertEqual(engine.tick()[self.ROUND], "WAITING_AQ")
+        self.assertFalse((self.tmp / "post" / self.ROUND / "verdicts.json").exists())
 
 
 if __name__ == "__main__":
