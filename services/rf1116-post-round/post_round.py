@@ -296,8 +296,9 @@ def evaluate_notes(notes: list[dict], formulas: dict[str, str], allowed: set[str
         if written is None or written > registration_at.astimezone(CST):
             code = "WRITTEN_AT"
         if code:
+            audit = "D07" if code == "WRITTEN_AT" else "D05"
             dispositions.append({"candidate_id": cid, "registered": False, "d_checks": {"passed": False, "code": code},
-                                 "ai_note_outcome": outcome, "ai_review": None, "verdict": "REJECTED", "note": "D05:%s" % code, "research_state": "暂停"})
+                                 "ai_note_outcome": outcome, "ai_review": None, "verdict": "REJECTED", "note": "%s:%s" % (audit, code), "research_state": "暂停"})
             continue
         registrations.append({"schema": "MINING_MECHANISM_V1", "candidate_id": cid, "mechanism_id": note["mechanism_id"],
                               "economic_logic_zh": note["economic_logic_zh"], "failure_mode_zh": note["failure_mode_zh"],
@@ -382,8 +383,7 @@ def repack_blocked(batch: dict) -> list[dict]:
     candidates = batch.get("candidates") or []
     if len(candidates) <= 1:
         return []
-    return [{**batch, "batch_no": "%s-r%d" % (batch.get("batch_no"), i + 1), "batch_of": len(candidates), "candidates": [candidate], "repacked_once": True}
-            for i, candidate in enumerate(candidates)]
+    return [{**batch, "candidates": [candidate]} for candidate in candidates]
 
 
 def classify_tasks(tasks: list[dict]) -> str:
@@ -409,9 +409,21 @@ def deadline_state(now: dt.datetime, end: str, recorded: bool, alerts: set, roun
 
 def _in_blackout(path: pathlib.Path, now: dt.datetime) -> bool:
     try:
-        windows = json.loads(path.read_text()).get("windows", [])
+        document = json.loads(path.read_text())
     except (OSError, ValueError, AttributeError):
         return False
+    if document.get("schema") == "RQ_BLACKOUTS_V1":
+        for entry in document.get("entries", []):
+            try:
+                start = parse_time(entry["start"])
+                end = parse_time(entry["end"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if ("LINUX" in (entry.get("hosts") or []) and entry.get("mode") in {"FREEZE", "STOP"}
+                    and entry.get("placeholder") is not True and start <= now.astimezone(CST) < end):
+                return True
+        return False
+    windows = document.get("windows", [])
     t = now.astimezone(CST).time().replace(tzinfo=None)
     for window in windows:
         try:
@@ -431,11 +443,13 @@ class PostRound:
     def _alert(self, round_id: str, code: str, now: dt.datetime) -> None:
         path = self.cfg.state_dir / "alerts.jsonl"
         rows = read_jsonl(path)
-        if any(x.get("round_id") == round_id and x.get("code") == code for x in rows):
+        key = "%s:%s" % (round_id, code)
+        if any(x.get("code") == code and x.get("key") == key for x in rows):
             return
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a") as fh:
-            fh.write(canonical({"schema": "POST_ROUND_ALERT_V1", "round_id": round_id, "code": code, "at": iso_cst(now), "dry_run": True}) + "\n")
+            fh.write(canonical({"code": code, "priority": "P1", "key": key,
+                                "at": iso_cst(now), "round_id": round_id}) + "\n")
 
     def _append(self, ledger: HashLedger, round_id: str, state: str, now: dt.datetime, **detail) -> str:
         last = ledger.verify()
@@ -450,7 +464,7 @@ class PostRound:
             at = parse_time(gate["at"])
         except (OSError, ValueError, KeyError, TypeError):
             return False
-        return gate.get("verdict") == "PASS" and now.astimezone(CST) - at <= dt.timedelta(hours=26)
+        return gate.get("status") == "PASS" and now.astimezone(CST) - at <= dt.timedelta(hours=26)
 
     def _pins(self, selection: dict) -> dict:
         return {"selection_record_hash": selection.get("record_hash"), "register_sha256": sha256(self.cfg.register_file.read_bytes()),
@@ -524,6 +538,30 @@ class PostRound:
             else:
                 raise TaskAuthorityError("RQ_TASK_NOT_TERMINAL")
         return out
+
+    def _repack_results(self, results: list[dict], prefix: str, template_id: str, template_sha256: str,
+                        kind: str, output_key: str) -> tuple[str, list[dict], list[dict]]:
+        """Replace each blocked multi-candidate result with one closed singleton attempt."""
+        kept, requests = [], []
+        for entry in results:
+            singles = repack_blocked(entry["pack"]) if entry["output"] is None else []
+            if not singles:
+                kept.append(entry)
+                continue
+            requests.extend(self._write_pack_request(prefix, template_id, template_sha256, kind, pack)
+                            for pack in singles)
+        if not requests:
+            return "TERMINAL", kept, []
+        tasks = self._tasks(requests)
+        phase = classify_tasks([entry["task"] for entry in tasks])
+        if phase == "WAITING_AQ":
+            unsupported = [entry["task"]["state"] for entry in tasks
+                           if entry["task"]["state"] not in WAIT_STATES
+                           and entry["task"]["state"] not in {"COMPLETE", "BLOCKED_DETERMINISTIC"}]
+            if unsupported:
+                raise TaskAuthorityError("RQ_TASK_STATE_UNSUPPORTED")
+            return phase, kept, tasks
+        return "TERMINAL", kept + self._complete_results(tasks, output_key), tasks
 
     def _registration_records(self, round_id: str) -> dict[str, dict]:
         rows = [row for row in read_jsonl(self.cfg.data_dir / "research/mining_mechanisms.jsonl")
@@ -668,6 +706,14 @@ class PostRound:
             directory.mkdir(parents=True, exist_ok=True)
             if not last:
                 self._append(ledger, round_id, "DETECTED", now, selection_sha256=selection["selection_sha256"])
+            ledger_states = {item.get("state") for item in read_jsonl(ledger.path)}
+            holdout = row.get("holdout")
+            if isinstance(holdout, dict):
+                deadline = deadline_state(now, holdout.get("to"), "REVIEW_RECORDED" in ledger_states, set(), round_id)
+                if deadline and deadline not in ledger_states:
+                    self._append(ledger, round_id, deadline, now)
+                if deadline == "POST_ROUND_REVIEW_LATE":
+                    self._alert(round_id, deadline, now)
             view = self.runner("mechanisms", round_id)
             survivors = view.get("survivors", view) if isinstance(view, dict) else view
             note_requests = self._enqueue_notes(round_id, selection, survivors)
@@ -689,8 +735,15 @@ class PostRound:
                 continue
             try:
                 note_results = self._complete_results(note_tasks, "mechanism_notes")
+                note_repack_phase, note_results, note_repack_tasks = self._repack_results(
+                    note_results, "note-repack", self.cfg.note_template_id, self.cfg.note_template_sha256,
+                    "AI_MECH_NOTE", "mechanism_notes")
             except TaskAuthorityError as exc:
                 out[round_id] = self._append(ledger, round_id, "NOTES_ENQUEUED", now, note_batches=len(note_requests), task_authority=exc.code)
+                continue
+            if note_repack_phase == "WAITING_AQ":
+                out[round_id] = self._append(ledger, round_id, "WAITING_AQ", now, phase="NOTES_REPACK",
+                                             task_ids=sorted(entry["task"]["task_id"] for entry in note_repack_tasks))
                 continue
             self._append(ledger, round_id, "NOTES_TERMINAL", now,
                          task_ids=sorted(entry["task"]["task_id"] for entry in note_results))
@@ -746,9 +799,16 @@ class PostRound:
                 continue
             try:
                 review_results = self._complete_results(review_tasks, "mechanism_review")
+                review_repack_phase, review_results, review_repack_tasks = self._repack_results(
+                    review_results, "review-repack", self.cfg.review_template_id, self.cfg.review_template_sha256,
+                    "AI_MECH_REVIEW", "mechanism_review")
             except TaskAuthorityError as exc:
                 out[round_id] = self._append(ledger, round_id, "REVIEWS_ENQUEUED", now,
                                              review_batches=len(review_requests), task_authority=exc.code)
+                continue
+            if review_repack_phase == "WAITING_AQ":
+                out[round_id] = self._append(ledger, round_id, "WAITING_AQ", now, phase="REVIEWS_REPACK",
+                                             task_ids=sorted(entry["task"]["task_id"] for entry in review_repack_tasks))
                 continue
             self._append(ledger, round_id, "REVIEWS_TERMINAL", now,
                          task_ids=sorted(entry["task"]["task_id"] for entry in review_results))
