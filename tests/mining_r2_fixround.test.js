@@ -1,7 +1,7 @@
 'use strict';
 /**
  * QRP #157 review fix round (plan-coord 2026-11-23, independent review QRP157_SCORER_REVIEW_20261123.md). Red first.
- *   FX1  concurrent arrivals: an exclusive lock per directory (two arrivals at once: one refuses, the chain stays valid; a stale lock is taken over; the lock is released on success and on error)
+ *   FX1  concurrent arrivals: an exclusive lock per directory (two arrivals at once: one refuses, the chain stays valid; JS never takes over an existing lock; the lock is released on success and on error)
  *   FX2  at-rest modes: nothing the arrival writes is group- or world-readable; seal-init-r2.sh makes a 0700 directory
  *   FX3  chain anchor: the chain head is written to a lane ledger after each arrival; a rollback, a consistent rewrite of the last day and a rewrite of an earlier day with re-chained successors are refused
  *   FX4  gate wiring: score/rescore CLI maps --require-arrival-chain to requireChain (end to end), run.sh passes the flag in BOTH branches (the old regex ran past the end of the branch)
@@ -87,7 +87,7 @@ function childArrive(dir, root, env = {}) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-test('FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at once: one refuses (MINE_RUNNER_ARRIVE_LOCKED), the chain stays valid and the next run continues; a stale lock is taken over, a fresh one is not; the lock is released on success and on error', async () => {
+test('FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at once: one refuses (MINE_RUNNER_ARRIVE_LOCKED), the chain stays valid and the next run continues; JS refuses every existing lock; the lock is released on success and on error', async () => {
   const dir = sealedDir(); const root = dropRoot(DAYS.slice(0, 4));
   const first = childArrive(dir, root, { QRP_ARRIVE_TEST_HOLD_MS: '1500' });
   await sleep(500);
@@ -111,14 +111,15 @@ test('FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at 
   fs.writeFileSync(lock, JSON.stringify({ pid: 999999, at: new Date().toISOString() }));
   assert.throws(() => A().arrive({ dir: dir3, source: src3 }), code(/MINE_RUNNER_ARRIVE_LOCKED/), 'a fresh lock is respected');
   const old = new Date(Date.now() - 3 * 3600e3); fs.utimesSync(lock, old, old);
-  assert.equal(A().arrive({ dir: dir3, source: src3 }).status, 'ARRIVED', 'a lock older than the stale limit is taken over');
-  assert.equal(fs.existsSync(lock), false);
+  assert.throws(() => A().arrive({ dir: dir3, source: src3 }), code(/MINE_RUNNER_ARRIVE_LOCKED/), 'JS never removes an existing lock, including a stale one');
+  assert.equal(fs.existsSync(lock), true);
+  fs.rmSync(lock);
   assert.throws(() => A().arrive({ dir: dir3, source: src3, day: DAYS[3] }), code(/MINE_RUNNER_ARRIVE_ORDER|NOT_OPEN_DAY/));
   assert.equal(fs.existsSync(lock), false, 'released on error');
   assert.ok(A().LOCK_STALE_MS >= 15 * 60e3 && A().LOCK_STALE_MS <= 6 * 3600e3);
 });
 
-test('FX1b stale locks (plan-coord question): an arrival killed with SIGKILL leaves its O_EXCL lock; it blocks for a bounded time only. Fresh: the next arrival is refused LOCKED and run.sh score exits 75; older than LOCK_STALE_MS: the next arrival takes it over and run.sh does not wait for it. A dead container is not "running" for the docker-ps check either', async () => {
+test('FX1b stale locks: JS never takes over; run.sh removes an old lock only after docker ps proves no arrival container, then starts exactly one arrival', async () => {
   const dir = sealedDir(); const root = dropRoot(DAYS.slice(0, 3));
   const script = path.join(os.tmpdir(), `qrp-fx-arrive-kill-${process.pid}.js`);
   fs.writeFileSync(script, `const a = require(${JSON.stringify(ARR)}); a.arrive({ dir: process.argv[2], source: a.csvDayDropSource(process.argv[3]), arrivedAt: '2027-03-01T20:30:00+08:00' });`);
@@ -134,10 +135,11 @@ test('FX1b stale locks (plan-coord question): an arrival killed with SIGKILL lea
   const blocked = s.run(['score', 'R']); assert.equal(blocked.status, 75); assert.match(blocked.err, /HOLDOUT_ARRIVAL_IN_PROGRESS/);
   const old = new Date(Date.now() - (A().LOCK_STALE_MS + 60e3)); fs.utimesSync(lock, old, old); fs.utimesSync(path.join(s.holdout('R1'), '.arrival.lock'), old, old);
   const free = s.run(['score', 'R']); assert.equal(free.status, 0, free.err); assert.equal(runs(s.calls()).length, 1);
-  // the arrival takes the stale lock over, writes its day, releases
-  assert.equal(A().arrive({ dir, source: A().csvDayDropSource(root) }).status, 'ARRIVED');
-  assert.equal(fs.existsSync(lock), false);
-  assert.doesNotThrow(() => A().verifyChain(dir));
+  assert.throws(() => A().arrive({ dir, source: A().csvDayDropSource(root) }), code(/MINE_RUNNER_ARRIVE_LOCKED/), 'library callers cannot perform a racy takeover');
+  const staleRun = runShSandbox(); const staleRunLock = path.join(staleRun.holdout('R1'), '.arrival.lock'); fs.writeFileSync(staleRunLock, '{}'); fs.utimesSync(staleRunLock, old, old);
+  const recovered = staleRun.run(['arrive']); assert.equal(recovered.status, 0, recovered.err); assert.equal(fs.existsSync(staleRunLock), false, 'run.sh removed the stale lock before starting the container');
+  const active = runShSandbox({ ps: 'rf1116-holdout-arrive\n' }); const activeLock = path.join(active.holdout('R1'), '.arrival.lock'); fs.writeFileSync(activeLock, '{}'); fs.utimesSync(activeLock, old, old);
+  const refused = active.run(['arrive']); assert.equal(refused.status, 75); assert.equal(fs.existsSync(activeLock), true, 'an active arrival owns even an old lock');
   // the documented bound
   const doc = fs.readFileSync(path.join(ROOT, 'deploy/research-lane/round-runner/DEPLOY.md'), 'utf8');
   assert.match(doc, /a lock older than 30 minutes[^\n]*(taken over|stale)/i);
@@ -294,8 +296,9 @@ exit 0
 const runs = (calls) => calls.filter((c) => c.startsWith('run '));
 
 test('FX7 run.sh: arrive and score/rescore exclude each other (the lock file and the containers); a docker ps that fails stops everything (exit 74); a stale lock does not block', () => {
+  const crash = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fx-crash-')), 'crash.log'); fs.writeFileSync(crash, 'test crash\n');
   // score / rescore refuse while an arrival holds the lock or its container runs
-  for (const cmd of [['score', 'R'], ['rescore', 'R', 'reason', '/dev/null']]) {
+  for (const cmd of [['score', 'R'], ['rescore', 'R', 'reason', crash]]) {
     const lock = runShSandbox(); fs.writeFileSync(path.join(lock.holdout('R1'), '.arrival.lock'), '{}');
     const a = lock.run(cmd); assert.equal(a.status, 75, a.err); assert.match(a.err, /HOLDOUT_ARRIVAL_IN_PROGRESS/); assert.equal(runs(lock.calls()).length, 0, `${cmd[0]}: docker run not called`);
     const ctr = runShSandbox({ ps: 'rf1116-holdout-arrive\n' });
@@ -316,6 +319,10 @@ test('FX7 run.sh: arrive and score/rescore exclude each other (the lock file and
     assert.equal(r.status, 75, r.err); assert.match(r.err, /HOLDOUT_SCORE_IN_PROGRESS/); assert.equal(runs(s.calls()).length, 0);
   }
   const f2 = runShSandbox({ psFail: true }); assert.equal(f2.run(['arrive']).status, 74);
+  for (const names of ['rf1116-holdout-arrive\n', 'rf1116-score\n', 'rf1116-rescore\n']) {
+    const s = runShSandbox({ ps: names }); const r = s.run(['resolve-segment'], { RF1116_HOLDOUT_SEGMENT: 'R2' });
+    assert.equal(r.status, 75, `${names.trim()}: ${r.err}`); assert.equal(runs(s.calls()).length, 0, 'resolver must not race arrival or scoring');
+  }
   // arrive: step 1 (writer) then step 2 (anchor) with step 1's JSON; a failed step 1 is not anchored
   const head = JSON.stringify({ command: 'holdout-arrive', segment: 'R1', status: 'NOT_AVAILABLE', arrived: ['2026-11-18'], last_day: '2026-11-18', chain_seq: 0, chain_head: sha('h') });
   const ok = runShSandbox({ arriveOut: head }); const r1 = ok.run(['arrive']);
@@ -328,7 +335,7 @@ test('FX7 run.sh: arrive and score/rescore exclude each other (the lock file and
   assert.equal(r2.status, 2); assert.equal(runs(bad.calls()).length, 1, 'no anchor after a failed arrival');
 });
 
-test('FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY the calendar files and SHA256SUMS (directory 0711, those files 0644) for the resolver container and closes them again (0700 / 0600), also when the container fails; the data files stay 0600', () => {
+test('FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY names plus calendar bytes (directory 0755, calendar/SHA 0644), traps before opening, and closes again on failure', () => {
   const s = runShSandbox();
   const dir = s.holdout('R2');
   fs.chmodSync(dir, 0o700);
@@ -338,7 +345,7 @@ test('FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY the calend
   fs.writeFileSync(stubDocker, `#!/bin/bash
 case "$1" in
   ps) exit 0;;
-  run) for p in "${dir}" "${dir}"/*; do echo "$(stat -c %a "$p") $(basename "$p")" >> "${watch}"; done; exit \${STUB_RC:-0};;
+  run) mode=$(stat -c %a "${dir}" 2>/dev/null || stat -f %Lp "${dir}"); [ $((8#$mode & 0044)) -eq 0044 ] || { echo "opendir: EACCES" >&2; exit 13; }; for p in "${dir}" "${dir}"/*; do m=$(stat -c %a "$p" 2>/dev/null || stat -f %Lp "$p"); echo "$m $(basename "$p")" >> "${watch}"; done; exit \${STUB_RC:-0};;
 esac
 exit 0
 `, { mode: 0o755 });
@@ -347,7 +354,7 @@ exit 0
   assert.equal(r.status, 0, r.err);
   const seen = fs.readFileSync(watch, 'utf8').split('\n').filter(Boolean).map((l) => l.split(' '));
   const at = (name) => seen.find((x) => x[1] === name)[0];
-  assert.equal(at(path.basename(dir)), '711');
+  assert.equal(at(path.basename(dir)), '755');
   assert.equal(at('trading_calendar.csv'), '644'); assert.equal(at('trading_calendar_20270110.csv'), '644'); assert.equal(at('SHA256SUMS'), '644');
   assert.equal(at('prices_daily_stock_20270104.csv'), '600', 'a data file is never opened'); assert.equal(at('SEAL_PENDING_V1.json'), '600');
   const after = modes();
@@ -361,7 +368,7 @@ exit 0
 });
 
 // ── FX4 gate wiring ──────────────────────────────────────────────────────────────────────────
-test('FX4 gate wiring: `score` and `rescore` CLI hand requireChain to the runner when --require-arrival-chain true (and not otherwise); run.sh passes the flag in BOTH branches (each branch examined on its own)', () => {
+test('FX4 gate wiring: CLI defaults fail closed, explicit false is the hand-export opt-out, and run.sh passes true in BOTH branches', () => {
   const runner = require('../services/mining-sandbox/round-runner');
   const cli = require('../services/mining-sandbox/round-runner/cli');
   const fx = require('./_mining_data_fixture').makeMiningDataFixture(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-fx-mfx-')));
@@ -374,12 +381,12 @@ test('FX4 gate wiring: `score` and `rescore` CLI hand requireChain to the runner
     runner.scoreHoldout = (o) => { seen = o; throw new Error('STOP_SCORE'); };
     runner.rescore = (o) => { seen = o; throw new Error('STOP_RESCORE'); };
     const base = ['--out', out, '--round', 'R', '--lane', lane, '--tail', tail, '--holdout', hold];
-    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], false], [['--require-arrival-chain', 'false'], false]]) {
+    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], true], [['--require-arrival-chain', 'false'], false]]) {
       seen = null; assert.throws(() => cli.main(['score', ...base, ...flag]), /STOP_SCORE/); assert.equal(seen.requireChain, want, `score ${flag.join(' ')}`);
       seen = null; assert.throws(() => cli.main(['rescore', ...base, '--reason', 'x', '--crash-log', path.join(out, 'crash.log'), ...flag]), /STOP_RESCORE|ENOENT/);
     }
     fs.writeFileSync(path.join(out, 'crash.log'), 'x');
-    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], false]]) {
+    for (const [flag, want] of [[['--require-arrival-chain', 'true'], true], [[], true], [['--require-arrival-chain', 'false'], false]]) {
       seen = null; assert.throws(() => cli.main(['rescore', ...base, '--reason', 'x', '--crash-log', path.join(out, 'crash.log'), ...flag]), /STOP_RESCORE/); assert.equal(seen.requireChain, want, `rescore ${flag.join(' ')}`);
     }
   } finally { runner.scoreHoldout = origScore; runner.rescore = origRescore; }
@@ -390,5 +397,18 @@ test('FX4 gate wiring: `score` and `rescore` CLI hand requireChain to the runner
     assert.ok(dockerLine.includes('--require-arrival-chain true'), `${name}: the flag is on the docker line of its own branch`);
   }
   assert.ok(!block('score').includes('rescore'), 'the score branch is bounded at its own end');
+});
+
+test('FX9 waiting classification: dependency, unanchored head and arrival lock are exit-75 WAITING; tamper remains exit 2', () => {
+  const cli = require('../services/mining-sandbox/round-runner/cli');
+  for (const e of [
+    { code: 'MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED', message: 'MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED:R1' },
+    { code: 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID', message: 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNANCHORED:head' },
+    { code: 'MINE_RUNNER_ARRIVE_LOCKED', message: 'MINE_RUNNER_ARRIVE_LOCKED:/x/.arrival.lock' },
+  ]) {
+    const o = cli.errorOutcome(e); assert.equal(o.exitCode, 75); assert.equal(o.document.status, 'WAITING');
+  }
+  const tamper = cli.errorOutcome({ code: 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID', message: 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:REWRITE:head' });
+  assert.equal(tamper.exitCode, 2); assert.equal(tamper.document.status, undefined);
 });
 

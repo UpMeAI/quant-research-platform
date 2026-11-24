@@ -373,7 +373,7 @@ test('RC8 anchor: with an R1 open row its recorded medians are R2\'s anchor (the
   assert.throws(() => runner.verifyHoldoutDir(r2c.round_id, d.dir, { minNamesPerDay: 5, priorSources: srcs() }), code(/MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE/));
 });
 
-test('RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory\'s chain must verify; without the strict flag nothing changes', () => {
+test('RC10 strict gate: a registry R2 score cannot opt out; it waits for R1 open/terminal and then verifies the prior-live chain', () => {
   const out = freshData();
   // an R1 round first (an explicit-window round is refused once registry rounds exist)
   const r1 = rounds.openRound({ market: 'CN_A', space: { space_ref: 'MS-R1X', sha256: sha('r1x'), freeze: { path: 'f', sha256: sha('f') } }, holding_periods: [5], generator: { mode: 'AI_MINED_GP', gp_seed: 1 }, holdout: { ...R1W }, openedAt: '2026-11-18T05:49:16+08:00', ...R1 });
@@ -393,9 +393,8 @@ test('RC10 strict gate (--require-arrival-chain): an R2 score is refused until a
   ledger.append(vault.LEDGER(), { ...body, record_hash: trials.recordHash(body) });
   assert.throws(strict, code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:NO_CHAIN/));
   assert.equal(vault.openLog(r.round_id).length, 0);
-  // without the flag the old behaviour: the score goes through
-  const plain = runner.scoreHoldout({ roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV });
-  assert.equal(plain.opened, true);
+  // registry segments are strict regardless of the caller flag: no direct-library opt-out
+  assert.throws(() => runner.scoreHoldout({ roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV, requireChain: false }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:NO_CHAIN/));
 });
 
 test('RC11 the R1-before-R2 predicate: no R1 round = refused; an R1 round without an open row = refused; an open row = ok; every R1 round terminal = ok', () => {

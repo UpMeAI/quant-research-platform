@@ -458,14 +458,14 @@ test('DX19 modes at rest: dropped day directories 0750 and files 0640 (umask 027
 
 const closed = (p) => new Promise((resolve) => p.on('close', resolve));
 const nap = (ms) => new Promise((r) => setTimeout(r, ms));
-test('DX20 exporter lock (the same mechanism as the arrival lock): two runs at once = the second does nothing (EXPORT_LOCKED, exit 0); released at exit and on error; a run killed with SIGKILL leaves its lock, which blocks for a bounded time only (an aged lock is taken over)', async () => {
+test('DX20 exporter lock: a real fresh lock is exit 75, creation failure without a lock is exit 2, release is owner-safe, and stale takeover is atomic', async () => {
   const sb = sandbox({ ready: ['2026-11-18'], sleep: '3' });
   const lockDir = path.join(sb.drop, '.r2-day-export.lock');
   const first = sb.start(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_TIMEOUT: '30' });
   await nap(1500);
   assert.ok(fs.existsSync(lockDir), 'the first run holds the lock inside its slow query');
   const second = sb.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '' });
-  assert.equal(second.status, 0); assert.match(second.out, /EXPORT_LOCKED/);
+  assert.equal(second.status, 75); assert.match(second.out + second.err, /EXPORT_LOCKED/);
   assert.equal(fs.existsSync(path.join(sb.drop, 'R1', '20261118')), false, 'the second run exported nothing');
   await closed(first);
   assert.equal(fs.existsSync(lockDir), false, 'released at exit');
@@ -480,11 +480,16 @@ test('DX20 exporter lock (the same mechanism as the arrival lock): two runs at o
   const victim = sb2.start(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_TIMEOUT: '30' });
   await nap(1500); victim.kill('SIGKILL'); await closed(victim);
   assert.ok(fs.existsSync(lock2), 'a killed run cannot release its lock');
-  assert.match(sb2.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '' }).out, /EXPORT_LOCKED/, 'fresh: blocked (bounded)');
+  const fresh = sb2.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '' }); assert.equal(fresh.status, 75); assert.match(fresh.out + fresh.err, /EXPORT_LOCKED/, 'fresh: visible wait');
   const old = new Date(Date.now() - 2 * 3600e3); fs.utimesSync(lock2, old, old);
   const take = sb2.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '' });
   assert.equal(take.status, 0, take.err); assert.match(take.out, /EXPORTED:2026-11-18/);
   assert.equal(fs.existsSync(lock2), false);
+  const badRoot = path.join(sb2.root, 'not-a-directory'); fs.writeFileSync(badRoot, 'x');
+  const failed = sb2.run(['--segment', 'R1', '--day', '2026-11-18'], { STUB_SLEEP: '', R2EXP_DROP_ROOT: badRoot });
+  assert.equal(failed.status, 2); assert.match(failed.out + failed.err, /EXPORT_LOCK_CREATE_FAILED/); assert.doesNotMatch(failed.out + failed.err, /EXPORT_LOCKED/);
+  const unit = fs.readFileSync(path.join(DIR, 'r2-day-export.service'), 'utf8'); assert.match(unit, /^SuccessExitStatus=75$/m);
+  const script = fs.readFileSync(SH, 'utf8'); assert.doesNotMatch(script, /rmdir "\$LOCK_DIR"[^\n]*&& mkdir "\$LOCK_DIR"/, 'stale takeover must not delete a replacement lock');
   const inst = fs.readFileSync(path.join(DIR, 'INSTALL.md'), 'utf8');
   assert.match(inst, /\.r2-day-export\.lock[^\n]*(60 minutes|one hour|3600)/i);
 });
