@@ -20,6 +20,12 @@ FLOOR_GIB = 150
 RESUME_MARGIN_GIB = 10
 GUARD_CLEAR = dt.timedelta(minutes=60)
 DRIVER_EXITS = frozenset((0, 3, 4, 64, 65, 66, 75))
+GATE_INTERVAL_S = 60
+GATE_FRESH_S = 180
+EVIDENCE_FILES = (
+    "preflight.json", "ro-probe.json", "containers.json", "cleanup.json", "secret-scan.json",
+    "floor.jsonl", "gates.jsonl", "driver-result.json",
+)
 MUTATION_INVARIANTS = {
     "BINARY_GIB", "UNKNOWN_IS_FALSE", "V2_GATES", "MISSING_INVALID", "COOPERATIVE_NOT_FROZEN",
     "CLEAN_STRAYS", "DB_PROBE_REQUIRED", "COMPARATOR_SHA", "YIELD_NOT_T1", "LEDGER_HASH_CHAIN",
@@ -66,6 +72,49 @@ class DefaultServices:
 
     def run_driver(self, argv, env, cwd):
         return subprocess.run(argv, cwd=str(cwd), env=env, timeout=None).returncode
+
+    def now_epoch(self):
+        return time.time()
+
+    def sleep(self, seconds):
+        time.sleep(seconds)
+
+    def start_gate_writer(self, path, interval_s):
+        return subprocess.Popen(
+            ["q0-host-gates.sh", str(path), str(interval_s)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    def gate_writer_alive(self, writer):
+        return writer is not None and writer.poll() is None
+
+    def stop_gate_writer(self, writer):
+        if writer is None or writer.poll() is not None:
+            return
+        writer.terminate()
+        try:
+            writer.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            writer.kill()
+            writer.wait(timeout=10)
+
+    def list_containers(self, prefix):
+        result = subprocess.run(
+            ["docker", "ps", "--format", "{{.Names}}", "--filter", "name=^" + prefix],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            raise OSError("docker ps failed")
+        return [name for name in result.stdout.splitlines() if name.startswith(prefix)]
+
+    def stop_container(self, name):
+        result = subprocess.run(["docker", "stop", name], capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            raise OSError("docker stop failed: " + name)
 
 
 def _sha(path):
@@ -299,6 +348,98 @@ def gates_cleanup_ok(writer_alive):
     return not writer_alive
 
 
+def wait_for_fresh_gate(services, path, writer, timeout_s=GATE_FRESH_S):
+    """Wait for this attempt's writer to make its gate fresh; a dead writer fails immediately."""
+    deadline = services.now_epoch() + timeout_s
+    while True:
+        now_epoch = services.now_epoch()
+        alive = services.gate_writer_alive(writer)
+        if gates_ready(path, now_epoch, alive):
+            return True
+        if not alive or now_epoch >= deadline:
+            return False
+        services.sleep(min(1, max(0, deadline - now_epoch)))
+
+
+def _append_jsonl(path, value):
+    p = pathlib.Path(path)
+    with p.open("a") as handle:
+        handle.write(core.canonical(value) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
+def _ledger_stage(path, stage, now, **detail):
+    entry = {"actor": "rq-heavy", "at": core.iso(now), "stage": stage}
+    if detail:
+        entry["detail"] = detail
+    return append_ledger(path, entry)
+
+
+def seal_evidence(attempt_dir, names=EVIDENCE_FILES):
+    """Seal exactly the declared attempt evidence and write SHA256SUMS last."""
+    root = pathlib.Path(attempt_dir)
+    manifest = root / "SHA256SUMS"
+    if manifest.exists():
+        raise HeavyRefused("INVALID_EVIDENCE_ALREADY_SEALED")
+    rows = []
+    for name in sorted(names):
+        path = root / name
+        if not path.is_file() or path.is_symlink():
+            raise HeavyRefused("INVALID_EVIDENCE_MISSING", name)
+        path.chmod(0o444)
+        rows.append("%s  %s" % (_sha(path), name))
+    tmp = root / ".SHA256SUMS.tmp"
+    with tmp.open("x") as handle:
+        handle.write("\n".join(rows) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    tmp.chmod(0o444)
+    os.replace(tmp, manifest)
+    return manifest
+
+
+def _container_names(items, prefix):
+    names = []
+    for item in items or []:
+        name = item.get("name") if isinstance(item, dict) else item
+        if isinstance(name, str) and name.startswith(prefix):
+            names.append(name)
+    return sorted(set(names))
+
+
+def _write_terminal_evidence(attempt, services, prefix, writer, db, result):
+    """Stop owned children, record cleanup, preserve the driver result, and seal evidence."""
+    services.stop_gate_writer(writer)
+    _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
+    observed = services.list_containers(prefix)
+    stray = _container_names(observed, prefix)
+    for name in stray:
+        services.stop_container(name)
+    remaining = _container_names(services.list_containers(prefix), prefix)
+    _write_json(attempt / "containers.json", {"schema": "HEAVY_CONTAINERS_V1", "observed": observed})
+    _write_json(attempt / "cleanup.json", {
+        "schema": "HEAVY_CLEANUP_V1",
+        "gateWriterAlive": services.gate_writer_alive(writer),
+        "strayContainersStopped": stray,
+        "remainingContainers": remaining,
+    })
+    mode = db if isinstance(db, str) else (db or {}).get("mode")
+    probe = result.get("dbReadOnlyProbe") if isinstance(result, dict) else None
+    _write_json(attempt / "ro-probe.json", {
+        "schema": "HEAVY_RO_PROBE_V1",
+        "status": "NOT_APPLICABLE" if mode == "NONE" else ("PASS" if validate_db_probe(probe, db) is None else "FAIL"),
+        "report": probe,
+    })
+    hits = guard.scan_secrets([attempt])
+    _write_json(attempt / "secret-scan.json", {"schema": "HEAVY_SECRET_SCAN_V1", "hits": hits, "status": "PASS" if not hits else "FAIL"})
+    driver_path = attempt / "driver-result.json"
+    if not driver_path.is_file() or driver_path.is_symlink():
+        raise HeavyRefused("INVALID_DRIVER_RESULT")
+    manifest = seal_evidence(attempt)
+    return {"manifest": manifest, "stray": stray, "remaining": remaining, "secret_hits": hits}
+
+
 def classify_driver_result(result):
     if not isinstance(result, dict):
         return DriverOutcome("INVALID", "BLOCKED_DETERMINISTIC", "INVALID_DRIVER_RESULT")
@@ -359,6 +500,7 @@ def append_ledger(path, entry):
         f.write(core.canonical(body) + "\n")
         f.flush()
         os.fsync(f.fileno())
+    path.chmod(0o644)
     return body
 
 
@@ -400,6 +542,10 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     attempt = pathlib.Path(os.environ.get("RQ_ATTEMPT_DIR", ""))
     if not attempt.is_dir():
         raise HeavyRefused("INVALID_ATTEMPT_DIR")
+    task_dir = pathlib.Path(os.environ.get("RQ_RUN_DIR", ""))
+    if not task_dir.is_dir() or attempt.parent != task_dir:
+        raise HeavyRefused("INVALID_RUN_DIR")
+    ledger = task_dir / "RUN_LEDGER.jsonl"
     spec, spec_path = load_spec(cfg, spec_sha256)
     if cfg.blackouts_path:
         try:
@@ -417,6 +563,7 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     ok, checks = check_preconditions(spec, conn, now)
     preflight["preconditions"] = checks
     _write_json(attempt / "preflight.json", preflight)
+    _ledger_stage(ledger, "PREFLIGHT", now, pins_ok=not bad, preconditions_ok=ok, spec_sha256=spec_sha256)
     if bad:
         write_error(attempt, "D", bad[0]["code"])
         return 65
@@ -426,6 +573,7 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     available = services.available_bytes(cfg.lane1_path)
     peak = int((spec.get("budget") or {}).get("peak_bytes") or 0)
     (attempt / "floor.jsonl").write_text(core.canonical({"at": core.iso(now), "available_bytes": available, "floor_gib": FLOOR_GIB, "peak_bytes": peak}) + "\n")
+    _ledger_stage(ledger, "FLOOR", now, available_bytes=available, floor_gib=FLOOR_GIB, peak_bytes=peak)
     if not floor_allows(available, FLOOR_GIB, peak):
         write_error(attempt, "E", "GUARD_DISK_FLOOR")
         return 4
@@ -433,21 +581,66 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     if err:
         write_error(attempt, "D", err)
         return 65
+    gates_file = os.environ.get("RQ_GATES_FILE")
+    prefix = os.environ.get("RQ_CONTAINER_PREFIX")
+    if not gates_file or not prefix:
+        write_error(attempt, "D", "INVALID_GATE_ENV")
+        return 65
+    if pathlib.Path(gates_file).exists() or pathlib.Path(gates_file).is_symlink():
+        write_error(attempt, "D", "INVALID_GATE_FILE_REUSED")
+        return 65
+    writer = None
+    try:
+        writer = services.start_gate_writer(gates_file, GATE_INTERVAL_S)
+    except (OSError, subprocess.SubprocessError):
+        write_error(attempt, "D", "INVALID_GATE_WRITER")
+        return 65
+    _append_jsonl(attempt / "gates.jsonl", {"stage": "STARTED", "interval_s": GATE_INTERVAL_S})
+    _ledger_stage(ledger, "GATE_WRITER_STARTED", now, interval_s=GATE_INTERVAL_S)
+    if not wait_for_fresh_gate(services, gates_file, writer):
+        services.stop_gate_writer(writer)
+        _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
+        write_error(attempt, "D", "INVALID_GATE_STALE")
+        return 65
+    _append_jsonl(attempt / "gates.jsonl", {"stage": "FRESH", "max_age_s": GATE_FRESH_S})
+    _ledger_stage(ledger, "GATE_FRESH", now, max_age_s=GATE_FRESH_S)
     if dry:
+        services.stop_gate_writer(writer)
+        _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
         _write_json(attempt / "result.json", {"schema": "HEAVY_DRY_RUN_V1", "status": "DRY_RUN_OK"})
         return 0
     driver = ((spec.get("pins") or {}).get("driver") or {}).get("path")
     env = {k: v for k, v in os.environ.items() if k in (
         "RQ_TASK_ID", "RQ_ATTEMPT_DIR", "RQ_RUN_DIR", "RQ_PAUSE_FILE", "RQ_GATES_FILE", "RQ_CONTAINER_PREFIX",
         "RQ_RESUME", "DOCKER_HOST", "LC_ALL", "LANG")}
-    rc = services.run_driver([driver], env, attempt / "work")
+    work = attempt / "work"
+    work.mkdir(exist_ok=True)
+    try:
+        rc = services.run_driver([driver], env, work)
+    except (OSError, subprocess.SubprocessError):
+        services.stop_gate_writer(writer)
+        _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
+        write_error(attempt, "D", "INVALID_DRIVER_LAUNCH")
+        return 66
+    _ledger_stage(ledger, "DRIVER_EXIT", now, exit=rc)
     result = _json(attempt / "driver-result.json")
     if not isinstance(result, dict) or result.get("exit") != rc or rc not in DRIVER_EXITS:
+        services.stop_gate_writer(writer)
+        _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
         write_error(attempt, "D", "INVALID_DRIVER_RESULT")
         return 66
-    if (spec.get("db") or {}).get("mode") == "READ_ONLY" and validate_db_probe(result.get("dbReadOnlyProbe"), spec.get("db")):
+    db = spec.get("db")
+    db_mode = db if isinstance(db, str) else (db or {}).get("mode")
+    db_error = db_mode == "READ_ONLY" and validate_db_probe(result.get("dbReadOnlyProbe"), db)
+    if db_error:
         write_error(attempt, "E", "DB_NOT_READ_ONLY")
-        return 75
     outcome = classify_driver_result(result)
     _write_json(attempt / "result.json", {"schema": "HEAVY_SUPERVISOR_RESULT_V1", "outcome": dataclasses.asdict(outcome), "driver": result})
+    terminal = _write_terminal_evidence(attempt, services, prefix, writer, db, result)
+    _ledger_stage(ledger, "TERMINAL_EVIDENCE", now, manifest_sha256=_sha(terminal["manifest"]), stray=terminal["stray"], remaining=terminal["remaining"])
+    if terminal["stray"] or terminal["remaining"]:
+        write_error(attempt, "D", "INVALID_STRAY_CONTAINER")
+        return 65
+    if db_error:
+        return 75
     return rc
