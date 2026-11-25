@@ -270,6 +270,18 @@ class PostRoundUserUnits(unittest.TestCase):
             env["RF1116_SPACE_SHA256"],
         )
 
+    def test_fix_cf2_install_template_hashes_equal_registry_pins(self):
+        text = (UNITS / "INSTALL.md").read_text()
+        env = dict(line.split("=", 1) for line in text.splitlines()
+                   if line.startswith("RF1116_") and "=" in line)
+        registry = shipped()
+        pins = {pin["template_id"]: pin["template_sha256"] for pin in registry.pins}
+        for prefix in ("NOTE", "REVIEW"):
+            template_id = env[f"RF1116_{prefix}_TEMPLATE_ID"]
+            installed_sha256 = env[f"RF1116_{prefix}_TEMPLATE_SHA256"]
+            self.assertEqual(installed_sha256, pins[template_id], template_id)
+            self.assertEqual(installed_sha256, templates.template_sha256(registry.get(template_id)), template_id)
+
 
 if __name__ == "__main__":
     unittest.main()
