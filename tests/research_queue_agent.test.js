@@ -464,7 +464,21 @@ test('config: the shipped prompt admissions and the gateway config agree with th
   assert.equal(V.agent.MAX_TOKENS, cfg.purposes.RQ_AGENT.max_tokens);
   const adm = require('../config/research_queue_prompt_admissions.v1.json');
   assert.equal(adm.entries.length, 5, 'AI_CHECK, AI_REVIEW_CARD, AI_PREREG, and two #149 mechanism prompts');
-  assert.deepEqual(adm.entries.filter((e) => ['AI_MECH_NOTE', 'AI_MECH_REVIEW'].includes(e.kind)).map((e) => e.state), ['PENDING_ADMISSION', 'PENDING_ADMISSION']);
+  const mechanismAdmissions = Object.fromEntries(adm.entries
+    .filter((e) => ['AI_MECH_NOTE', 'AI_MECH_REVIEW'].includes(e.kind))
+    .map((e) => [e.kind, { state: e.state, admission_basis: e.admission_basis, system_sha256: e.system_sha256 }]));
+  assert.deepEqual(mechanismAdmissions, {
+    AI_MECH_NOTE: {
+      state: 'ADMITTED',
+      admission_basis: 'plan-coord read 11-25, queue QRP149 REVIEW_ACCEPTED A',
+      system_sha256: '2dbf2864f0e7c36db553002a7a42fecd1e3b55afde1780959ec3063d07586f86',
+    },
+    AI_MECH_REVIEW: {
+      state: 'ADMITTED',
+      admission_basis: 'plan-coord read 11-25, queue QRP149 REVIEW_ACCEPTED A',
+      system_sha256: 'ddebb02883ddb61517fd359871ca4f0a987605900f1309eaa9ecd2b6682fed33',
+    },
+  });
   for (const e of cfg.admissions || []) assert.fail('admissions live in their own file');
   assert.equal(cfg.prompt_admissions_file, 'research_queue_prompt_admissions.v1.json');
 });
