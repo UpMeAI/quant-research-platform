@@ -13,39 +13,15 @@ if [ ! -f "$IN/task.json" ] || [ ! -f "$IN/bundle.json" ]; then
   echo "RQ_AGENT_INPUT_NOT_STAGED: $IN/task.json and bundle.json are required" >&2
   exit 66
 fi
-OUT_PARENT=$(dirname "$OUT")
-OUT_NAME=$(basename "$OUT")
-mkdir -p "$OUT_PARENT"
-if [ -d "$OUT" ] || [ -f "$OUT" ] || [ -L "$OUT" ]; then
-  echo "RQ_AGENT_OUTPUT_EXISTS: $OUT" >&2
-  exit 73
-fi
-# Rootless Docker maps container uid 1000 to a subordinate host uid. Give only this
-# private exchange directory write permission, then move the completed output into
-# the attempt directory; never widen the permissions of the attempt itself.
-EXCHANGE=$(mktemp -d "$OUT_PARENT/.rq-agent-out.XXXXXX")
-chmod 0777 "$EXCHANGE"
-cleanup() {
-  if [ -d "$EXCHANGE" ]; then
-    docker run --rm --network none --user 1000:1000 -v "$EXCHANGE:/clean:rw" \
-      --entrypoint sh "$RQ_AGENT_IMAGE" -c 'find /clean -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +' >/dev/null 2>&1 || true
-    rmdir "$EXCHANGE" 2>/dev/null || true
-  fi
-}
-trap cleanup EXIT HUP INT TERM
+mkdir -p "$(dirname "$OUT")"
 rc=0
-docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --memory 512m --cpus 0.5 \
-  -v "$IN:/in:ro" -v "$EXCHANGE:/out:rw" -v "$XDG_RUNTIME_DIR/rq-gw.sock:/run/rq-gw.sock" \
+# In a rootless daemon, container uid 0 maps to the unprivileged host user. It is
+# required for the host-owned 0600 gateway socket and attempt directory; the
+# container still has no host root, no capabilities, no network, and a read-only root.
+docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges --user 0:0 --memory 512m --cpus 0.5 \
+  -v "$IN:/in:ro" -v "$(dirname "$OUT"):/out:rw" -v "$XDG_RUNTIME_DIR/rq-gw.sock:/run/rq-gw.sock" \
   --workdir /app --entrypoint node "$RQ_AGENT_IMAGE" services/research-queue-agent/cli.js \
-  --task /in/task.json --bundle /in/bundle.json --out "/out/$OUT_NAME" --socket /run/rq-gw.sock --host LINUX || rc=$?
-if [ "$rc" -eq 0 ]; then
-  if [ ! -d "$EXCHANGE/$OUT_NAME" ]; then
-    echo "RQ_AGENT_OUTPUT_MISSING: $OUT_NAME" >&2
-    rc=74
-  else
-    mv "$EXCHANGE/$OUT_NAME" "$OUT"
-  fi
-fi
+  --task /in/task.json --bundle /in/bundle.json --out "/out/$(basename "$OUT")" --socket /run/rq-gw.sock --host LINUX || rc=$?
 if [ "$rc" -eq 0 ] && [ -z "${1:-}" ] && [ -f "$OUT/result.json" ]; then
   cp "$OUT/result.json" "${RQ_ATTEMPT_DIR}/result.json"
 fi

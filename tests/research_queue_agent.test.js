@@ -451,7 +451,8 @@ test('AQ-33/34 static: only the gateway units carry an EnvironmentFile; agent un
     assert.match(t, /User=rq-agent/);
   }
   const run = read('linux/run-agent.sh');
-  for (const flag of ['--network none', '--read-only', '--cap-drop ALL', 'no-new-privileges', '--user 1000:1000', '--memory 512m', '--cpus 0.5', '/run/rq-gw.sock']) assert.ok(run.includes(flag), flag);
+  for (const flag of ['--network none', '--read-only', '--cap-drop ALL', 'no-new-privileges', '--user 0:0', '--memory 512m', '--cpus 0.5', '/run/rq-gw.sock']) assert.ok(run.includes(flag), flag);
+  assert.match(run, /rootless daemon, container uid 0 maps to the unprivileged host user/);
   assert.equal(/DEEPSEEK|--env-file|\s-e\s/.test(run), false, 'the agent container gets no environment');
   const all = fs.readdirSync(path.join(DEPLOY, 'linux')).concat(fs.readdirSync(path.join(DEPLOY, 'hk'))).length;
   assert.ok(all >= 4);
