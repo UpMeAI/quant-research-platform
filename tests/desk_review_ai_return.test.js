@@ -77,7 +77,8 @@ for (const inlineRegistry of [false, true]) test(`validated producer bundle proj
   assert.equal(result.ideas.length, 1);
   assert.equal(result.cards[0].modelAlias, 'deepseek-flash');
   assert.deepEqual(result.cards[0].ideaIds, [fx.records[0].idea_id]);
-  assert.equal(result.ideas[0].recordHash, canon.sha256(canon.canonicalJson(fx.records[0])));
+  const { recordHash, ...ideaBody } = result.ideas[0];
+  assert.equal(recordHash, require('../services/desk-review-routing/canonical').contentHash(ideaBody));
   const generatedAt = '2026-11-25T08:00:00.000Z';
   const off = returns.buildReturn({ generatedAt, aiBlocks: false });
   const on = returns.buildReturn({ generatedAt, aiBlocks: true, aiReturnRoot: fx.root, aiOptions: { registryFor: () => fx.registry } });

@@ -7,6 +7,7 @@ const { canonicalJson, sha256, isObj, SHA64 } = require('../research-queue-agent
 const { validateCard } = require('../research-queue-agent/card');
 const { validateIdeaRecord } = require('../research-queue-agent/factor-idea');
 const { buildRegistryView } = require('../research-queue-agent/registries');
+const { contentHash } = require('./canonical');
 
 const NAME = /^validated-return-([A-Za-z0-9._-]+)-a([1-9]\d*)\.json$/;
 const VALIDATOR = Object.freeze({ name: 'rq-consumer-revalidate', version: 'Q3C_V1' });
@@ -88,12 +89,13 @@ function projectCard(doc) {
 }
 
 function projectIdea(idea) {
-  return {
+  const body = {
     ideaId: idea.idea_id, market: idea.market, weekId: idea.week_id, mechanism: mechanism(idea.mechanism),
     readings: idea.readings.map((r) => ({ id: r.id, pitAvailableAt: r.pit_available_at })),
     holdingPeriods: idea.holding_periods, questionZh: idea.question_zh, expectedFailureZh: idea.expected_failure_zh,
-    factIds: idea.fact_ids, cardSha256: idea.card_sha256, recordHash: sha256(canonicalJson(idea)),
+    factIds: idea.fact_ids, cardSha256: idea.card_sha256,
   };
+  return { ...body, recordHash: contentHash(body) };
 }
 
 function load({ root = defaultRoot(), registryFor = (market) => buildRegistryView({ market }) } = {}) {
