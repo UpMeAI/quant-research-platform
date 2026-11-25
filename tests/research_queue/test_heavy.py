@@ -370,6 +370,59 @@ class HeavyFrozenAcceptance(Base):
             bad["run_dirs"]["main"] = value
             self.assertEqual(heavy.validate_spec(bad)[0], "INVALID_PIN_SPEC", value)
 
+    def test_addendum8_resume_follows_prior_driver_evidence_not_attempt_number(self):
+        gate = self.root / "ready.json"
+        gate.write_text('{"ready":false}')
+        self.s["preconditions"] = [{
+            "kind": "JSON_FIELD_EQ", "path": str(gate), "field": "ready", "value": True,
+        }]
+        spec_sha, _ = self.write_spec()
+        admission = heavy_template()
+
+        def run_attempt(task_id, attempt_no, exit_code, reason):
+            task_dir = self.cfg.runs_dir / task_id
+            attempt = task_dir / ("attempt-%d" % attempt_no)
+            attempt.mkdir(parents=True)
+            env = runtime.child_env(self.cfg, attempt, task_id, attempt_no)
+            argv = consumer._attempt_argv(admission, attempt, attempt_no)
+            service = LifecycleServices(attempt, self.t0.timestamp(), exit_code=exit_code, reason=reason)
+            with mock.patch.dict(os.environ, env, clear=False):
+                rc = heavy.run(
+                    self.cfg, spec_sha, conn=self.conn, services=service,
+                    resume="--resume" in argv, now=self.t0,
+                )
+            return rc, env, argv, task_dir, attempt
+
+        # A supervisor-only wait leaves no driver fact. Attempt 2 is still a first driver run.
+        rc1, env1, argv1, task, _ = run_attempt("T-A8-DONE", 1, 0, "DONE")
+        self.assertEqual((rc1, env1["RQ_RESUME"], "--resume" in argv1), (75, "0", False))
+        self.assertFalse((task / "RQ_TASK.json").exists())
+        gate.write_text('{"ready":true}')
+        rc2, env2, argv2, task, attempt2 = run_attempt("T-A8-DONE", 2, 0, "DONE")
+        self.assertEqual((rc2, env2["RQ_RESUME"], "--resume" in argv2), (0, "0", False))
+        self.assertTrue((attempt2 / "driver-result.json").is_file())
+        self.assertTrue((task / "RQ_TASK.json").is_file())
+
+        # The same initial wait followed by a real driver yield makes attempt 3 a resume.
+        gate.write_text('{"ready":false}')
+        rcy1, _, _, task_yield, _ = run_attempt("T-A8-YIELD", 1, 0, "DONE")
+        self.assertEqual(rcy1, 75)
+        gate.write_text('{"ready":true}')
+        rcy2, envy2, argvy2, _, attempt_y2 = run_attempt("T-A8-YIELD", 2, 75, "WINDOW_YIELD:PAUSE")
+        self.assertEqual((rcy2, envy2["RQ_RESUME"], "--resume" in argvy2), (75, "0", False))
+        self.assertTrue((attempt_y2 / "driver-result.json").is_file())
+        rcy3, envy3, argvy3, _, _ = run_attempt("T-A8-YIELD", 3, 0, "DONE")
+        self.assertEqual((rcy3, envy3["RQ_RESUME"], "--resume" in argvy3), (0, "1", True))
+        self.assertTrue((task_yield / "RQ_TASK.json").is_file())
+
+    def test_addendum8_ledger_stages_take_distinct_current_times(self):
+        moments = [self.t0 + dt.timedelta(seconds=i) for i in range(1, 7)]
+        with mock.patch.object(core, "now_cst", side_effect=moments):
+            rc, _, task_dir, _ = self.run_lifecycle()
+        self.assertEqual(rc, 75)
+        rows = [json.loads(line) for line in (task_dir / "RUN_LEDGER.jsonl").read_text().splitlines()]
+        self.assertEqual([row["at"] for row in rows], [core.iso(moment) for moment in moments])
+
     def test_hr22_unit_props_and_child_environment_are_exact(self):
         c = runtime.SystemdRuntime(run_cmd=lambda _: (0, "")).command("rq-task-T-a1", ["x"], {}, "W2")
         for prop in ("Nice=19", "IOSchedulingClass=idle", "CPUAffinity=0-7 16-23", "CPUQuota=600%", "MemoryMax=24G"):
