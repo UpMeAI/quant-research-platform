@@ -3,7 +3,7 @@ which end on their own deterministic validators. Gate + check completion (RUN_GA
 import json
 import pathlib
 
-from . import agentseam, core
+from . import agentseam, core, heavy_accept
 
 
 def complete_self_validated(conn, cfg, task_id, now):
@@ -45,4 +45,21 @@ def _complete_agent(conn, cfg, task, now):
 
 def tick(conn, cfg, now):
     ids = [r[0] for r in conn.execute("select task_id from task where state='EVIDENCE_WRITTEN'")]
-    return [t for t in ids if complete_self_validated(conn, cfg, t, now) == "COMPLETE"]
+    completed = []
+    for task_id in ids:
+        task = core.get_task(conn, task_id)
+        derived = json.loads(task["admission_json"])["derived"]
+        if derived["completion"] == "HEAVY_MATRIX":
+            result = heavy_accept.complete_task(conn, cfg, task_id, now)
+            if result["result"] == "DONE_ACCEPTED":
+                core.transition(conn, task_id, "COMPLETE", actor="rq-complete", now=now, reason="HEAVY_ACCEPTED")
+            elif result["result"] == "DONE_REFUSED":
+                core.transition(conn, task_id, "GATE_FAIL", actor="rq-complete", now=now, reason=result["reason"])
+            else:
+                core.transition(conn, task_id, "BLOCKED_DETERMINISTIC", actor="rq-complete", now=now, reason=result["reason"])
+            state = core.get_task(conn, task_id)["state"]
+        else:
+            state = complete_self_validated(conn, cfg, task_id, now)
+        if state == "COMPLETE":
+            completed.append(task_id)
+    return completed
