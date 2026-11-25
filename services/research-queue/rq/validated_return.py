@@ -53,19 +53,13 @@ def _bindings(task, task_doc, bundle):
     registry = _binding(task_doc.get("registry"))
 
     if fact is None:
-        if task.get("kind") == "AI_REVIEW_CARD":
-            try:
-                inputs = json.loads(task["admission_json"])["request"]["inputs"]
-            except (KeyError, TypeError, ValueError):
-                inputs = []
-            if isinstance(inputs, list) and len(inputs) == 1:
-                item = inputs[0]
-                fact = _binding({"ref": item.get("path"), "sha256": item.get("sha256")}) if isinstance(item, dict) else None
-        elif isinstance(bundle.get("pack"), dict):
-            fact = {
-                "ref": "in/bundle.json#/pack",
-                "sha256": core.sha256_hex(core.canonical(bundle["pack"])),
-            }
+        try:
+            inputs = json.loads(task["admission_json"])["request"]["inputs"]
+        except (KeyError, TypeError, ValueError):
+            inputs = []
+        if isinstance(inputs, list) and len(inputs) == 1:
+            item = inputs[0]
+            fact = _binding({"ref": item.get("path"), "sha256": item.get("sha256")}) if isinstance(item, dict) else None
 
     if registry is None and isinstance(bundle.get("registry"), dict):
         registry = {
@@ -79,16 +73,13 @@ def _bindings(task, task_doc, bundle):
     return fact, registry
 
 
-def _validated_outputs(task, result):
+def _validated_outputs(result):
     outputs = result.get("outputs")
     if not isinstance(outputs, dict):
         raise ReturnError("RETURN_SOURCE_INVALID", "result.outputs")
     if isinstance(outputs.get("card"), dict):
         card = outputs["card"]
         ideas = outputs.get("factor_ideas")
-    elif task.get("kind") == "AI_CHECK" and isinstance(outputs.get("check_report"), dict):
-        card = outputs["check_report"]
-        ideas = []
     else:
         raise ReturnError("RETURN_SOURCE_INVALID", "validated card")
     if not isinstance(ideas, list) or not all(isinstance(idea, dict) for idea in ideas):
@@ -103,7 +94,7 @@ def build(task, attempt_dir, validation):
     _, staged = _json(attempt / "in" / "bundle.json")
     result_raw, result = _json(attempt / "result.json")
     fact, registry = _bindings(task, task_doc, staged)
-    card, ideas = _validated_outputs(task, result)
+    card, ideas = _validated_outputs(result)
     output_sha = validation.get("output_sha256") if isinstance(validation, dict) else None
     if not isinstance(output_sha, str) or not _SHA256.fullmatch(output_sha):
         raise ReturnError("RETURN_SOURCE_INVALID", "output_sha256")

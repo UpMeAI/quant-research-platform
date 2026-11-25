@@ -37,13 +37,18 @@ def _complete_agent(conn, cfg, task, now):
         core.transition(conn, task_id, "BLOCKED_DETERMINISTIC", actor="rq-complete", now=now, reason="VALIDATOR_UNAVAILABLE", detail={"error": e.detail[:200]})
         return core.get_task(conn, task_id)["state"]
     if v["ok"] is True:
-        try:
-            published = validated_return.publish(cfg, task, d, v)
-        except validated_return.ReturnError as e:
-            core.transition(conn, task_id, "BLOCKED_DETERMINISTIC", actor="rq-complete", now=now, reason=e.code, detail={"error": e.detail[:200]})
-            return core.get_task(conn, task_id)["state"]
+        published = None
+        if task["kind"] == "AI_REVIEW_CARD":  # RQ_VALIDATED_RETURN_V1 carries cards/ideas; checks and mechanism records keep their own consumers
+            try:
+                published = validated_return.publish(cfg, task, d, v)
+            except validated_return.ReturnError as e:
+                core.transition(conn, task_id, "BLOCKED_DETERMINISTIC", actor="rq-complete", now=now, reason=e.code, detail={"error": e.detail[:200]})
+                return core.get_task(conn, task_id)["state"]
+        detail = {"output_sha256": v.get("output_sha256")}
+        if published is not None:
+            detail["bundle_sha256"] = published["bundle_sha256"]
         core.transition(conn, task_id, "COMPLETE", actor="rq-complete", now=now, reason="SELF_VALIDATED",
-                        detail={"output_sha256": v.get("output_sha256"), "bundle_sha256": published["bundle_sha256"]})
+                        detail=detail)
     else:
         core.transition(conn, task_id, "BLOCKED_DETERMINISTIC", actor="rq-complete", now=now, reason="VALIDATOR_NOT_OK", detail={"codes": [str(c)[:80] for c in v["codes"]][:20]})
     return core.get_task(conn, task_id)["state"]
