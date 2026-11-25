@@ -60,6 +60,7 @@ test('#167 launcher refuses unstaged input before Docker and enforces no network
     const launcher = fs.readFileSync(path.join(LINUX, 'run-agent.sh'), 'utf8');
     assert.match(launcher, /docker run --rm --network none/);
     assert.match(launcher, /--user 0:0/);
+    assert.match(launcher, /docker info[\s\S]*name=rootless/);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
