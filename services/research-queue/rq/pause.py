@@ -23,6 +23,10 @@ BRAKE_HOLD = dt.timedelta(minutes=10)
 Blackout = collections.namedtuple("Blackout", "id start end hosts mode")
 
 
+class BlackoutsUnusable(ValueError):
+    pass
+
+
 def _hm(now):
     return now.strftime("%H%M")
 
@@ -60,9 +64,15 @@ def parse_blackouts(doc):
 
 
 def load_blackouts(path):
-    if not path or not pathlib.Path(path).exists():
+    if not path:
         return []
-    return parse_blackouts(json.loads(pathlib.Path(path).read_text()))
+    try:
+        doc = json.loads(pathlib.Path(path).read_text())
+        if not isinstance(doc, dict) or doc.get("schema") != "RQ_BLACKOUTS_V1":
+            raise ValueError("wrong schema")
+        return parse_blackouts(doc)
+    except (OSError, ValueError, TypeError) as e:
+        raise BlackoutsUnusable("BLACKOUTS_FILE_UNUSABLE:%s" % type(e).__name__)
 
 
 def blackout_at(blackouts, host, now):
@@ -147,7 +157,7 @@ def evaluate_brakes(host, sensors, state, now):
 
     if host == "LINUX":
         return {"IO_AWAIT": judge(sensors.nvme_read_await_ms_20min(), lambda v: v > 10.0),
-                "MEM": judge(sensors.mem_available_gib(), lambda v: v < 16.0),
+                "MEM": judge(sensors.mem_available_gib(), lambda v: v < 24.0),
                 "LANE1_FREE": judge(sensors.lane1_free_gib(), lambda v: v < 200.0)}
     b = {"LOAD5": judge(sensors.load5(), lambda v: v > 3.0), "MEM": judge(sensors.mem_available_gib(), lambda v: v < 1.5),
          "PM2_RESTART": judge(sensors.pm2_recent_restart(), lambda v: v is True), "DISK": judge(sensors.disk_free_gib(), lambda v: v < 20.0)}
@@ -280,6 +290,24 @@ def _target(cfg, attempt):
     return ("unit", cfg.process_pause_unit)
 
 
+def _heavy_pause(row):
+    try:
+        derived = json.loads(row.get("admission_json") or "{}").get("derived") or {}
+        heavy = derived.get("heavy") or {}
+        return heavy.get("pause_mode"), int(heavy.get("stop_lead_s") or 0)
+    except (ValueError, TypeError):
+        return None, 0
+
+
+def _stop_lead(blackouts, host, now, lead_s):
+    if lead_s <= 0:
+        return None
+    for b in blackouts or []:
+        if b.mode == "STOP" and host in b.hosts and b.start - dt.timedelta(seconds=lead_s) <= now < b.start:
+            return b
+    return None
+
+
 def tick(conn, cfg, now, pauser, sensors, blackouts, state_file=None, runtime=None):
     """One pause-controller pass. Returns what it did."""
     path = pathlib.Path(state_file) if state_file else state_path(cfg)
@@ -296,6 +324,14 @@ def tick(conn, cfg, now, pauser, sensors, blackouts, state_file=None, runtime=No
         reason = pause_reason(cfg.host, row, now, blackouts, brakes, windows=getattr(cfg, "apply_windows", True))
         target = _target(cfg, (row["a_runtime"], row["a_unit"]))
         bo = blackout_at(blackouts, cfg.host, now)
+        pause_mode, stop_lead_s = _heavy_pause(row)
+        lead = _stop_lead(blackouts, cfg.host, now, stop_lead_s) if pause_mode == "COOPERATIVE_FILE" else None
+        if pause_mode == "COOPERATIVE_FILE" and (reason or lead) and row["state"] == "RUNNING" and not (bo and bo.mode == "STOP"):
+            d = cfg.runs_dir / tid / ("attempt-%d" % row["attempt_no"])
+            (d / "PAUSE").touch()
+            core.extend_lease(conn, tid, now, cfg.lease_ttl_s)
+            res["paused"].append(tid)
+            continue
         if bo and bo.mode == "STOP" and runtime is not None:
             d = cfg.runs_dir / tid / ("attempt-%d" % row["attempt_no"])
             runtime.stop(d)

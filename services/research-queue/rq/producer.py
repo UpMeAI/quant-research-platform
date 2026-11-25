@@ -5,12 +5,14 @@ import json
 import os
 import pathlib
 import re
+import shutil
 
-from . import core, guard, packshape, templates as T
+from . import core, guard, heavy, packshape, templates as T
 
 # Only external waits that depend on facts outside the queue. There is no cost-cap wait (★RQ4).
 EXTERNAL_CODES = ("MECHANISM_REVIEW", "HOLDOUT_INCOMPLETE", "DATA_DATE", "SERIES_MISSING", "US_PIT_SOURCE", "MARKET_PAUSED",
-                  "PREREG_REFUSED", "TRL_RECEIPT", "MECHANISM_ADMISSION")
+                  "PREREG_REFUSED", "TRL_RECEIPT", "MECHANISM_ADMISSION", "HEAVY_PRECONDITION", "WINDOW_YIELD", "DATA_NOT_READY",
+                  "GUARD_DISK_FLOOR", "GUARD_BRAKE", "DB_NOT_READ_ONLY", "BLACKOUTS_FILE_UNUSABLE")
 MARKET_AGENT_HOST = {"CN_A": "LINUX", "US_EQUITY": "HK", "CRYPTO": "HK"}
 CARD_KIND = "AI_REVIEW_CARD"
 FACT_PACK_SCHEMA = packshape.SCHEMA
@@ -128,9 +130,28 @@ def admit(conn, cfg, registry, request, now, extra_input_prefixes=()):
     kind = request.get("kind") or t["kinds"][0]
     if kind not in t["kinds"]:
         return _refuse(conn, cfg, request, now, "KIND_NOT_IN_TEMPLATE")
+    heavy_spec = None
+    initial_state, initial_reason = "READY", None
+    if t["completion"] == "HEAVY_MATRIX":
+        try:
+            heavy_spec, _ = heavy.load_spec(cfg, params.get("spec_sha256"))
+        except heavy.HeavyRefused as e:
+            return _refuse(conn, cfg, request, now, e.code)
+        pin = (heavy_spec.get("pins") or {}).get("template") or {}
+        if pin.get("template_id") != tpl_id or pin.get("template_sha256") != tpl_sha:
+            return _refuse(conn, cfg, request, now, "INVALID_PIN_TEMPLATE")
+        pre_ok, _ = heavy.check_preconditions(heavy_spec, conn, now)
+        if not pre_ok:
+            initial_state, initial_reason = "WAITING_EXTERNAL", "HEAVY_PRECONDITION"
+        if cfg.blackouts_path:
+            try:
+                from . import pause
+                pause.load_blackouts(cfg.blackouts_path)
+            except pause.BlackoutsUnusable:
+                initial_state, initial_reason = "WAITING_EXTERNAL", "BLACKOUTS_FILE_UNUSABLE"
     derived = {"argv": argv, "recovery_argv": recovery, "recovery_max": t.get("recovery_max", t["transient_budget"]), "idempotent": t["idempotent"],
                "completion": t["completion"], "outputs": t["outputs"], "prompt_admission_sha256": t.get("prompt_admission_sha256"),
-               "agent_host": agent, "run_host": run_host}
+               "agent_host": agent, "run_host": run_host, "heavy": t.get("heavy"), "heavy_spec": heavy_spec}
     adm = {"request": _canon_request(request), "derived": derived}
     row = dict(task_id="RQT-%s-%s-%s" % (cfg.host, now.strftime("%Y%m%d"), idem[:8]), idem_key=idem, host=run_host, agent_host=agent, kind=kind, market=market,
                template_id=tpl_id, template_sha256=tpl_sha, evidence_matrix_sha256=t["evidence_matrix"]["sha256"], admission_json=core.canonical(adm),
@@ -138,7 +159,9 @@ def admit(conn, cfg, registry, request, now, extra_input_prefixes=()):
                depends_on=core.canonical(request.get("depends_on") or []), state="READY", state_reason=None, not_before=request.get("not_before"),
                transient_budget=t["transient_budget"], priority=int(request.get("priority") if request.get("priority") is not None else 50))
     created = core.insert_task(conn, row, now)
-    return AdmitResult(row["task_id"], "READY", "", created)
+    if created and initial_state == "WAITING_EXTERNAL":
+        core.transition(conn, row["task_id"], "WAITING_EXTERNAL", actor="rq-producer", now=now, reason=initial_reason)
+    return AdmitResult(row["task_id"], initial_state, initial_reason or "", created)
 
 
 def _load_json(path):
@@ -228,7 +251,7 @@ def tick(conn, cfg, registry, now, probes=None, seen_marker=None):
     out = {"admitted": 0, "refused": 0, "unreadable": 0, "resumed": []}
 
     def count(r):
-        if r.created and r.state == "READY":
+        if r.created and r.state in ("READY", "WAITING_EXTERNAL"):
             out["admitted"] += 1
         elif r.created:
             out["refused"] += 1
@@ -339,7 +362,31 @@ def reevaluate_waiting(conn, cfg, now, probes):
                 st.pop(key, None)
         elif r[1] == "WAITING_EXTERNAL":
             t = core.get_task(conn, r[0])
-            if probes.external(r[2], t) is True:
+            cleared = probes.external(r[2], t) is True
+            if r[2] == "HEAVY_PRECONDITION":
+                try:
+                    spec = json.loads(t["admission_json"])["derived"]["heavy_spec"]
+                    cleared = heavy.check_preconditions(spec, conn, now)[0]
+                except (ValueError, KeyError, TypeError):
+                    cleared = False
+            elif r[2] == "BLACKOUTS_FILE_UNUSABLE":
+                try:
+                    from . import pause
+                    pause.load_blackouts(cfg.blackouts_path)
+                    cleared = True
+                except pause.BlackoutsUnusable:
+                    cleared = False
+            elif r[2] == "WINDOW_YIELD":
+                from . import pause
+                cleared = pause.window_reason(cfg.host, now, io=True) is None
+            elif r[2] == "GUARD_DISK_FLOOR":
+                last = conn.execute("select at from event where task_id=? and reason_code='GUARD_DISK_FLOOR' order by seq desc limit 1", (r[0],)).fetchone()
+                try:
+                    free = shutil.disk_usage(cfg.lane1_path).free
+                    cleared = bool(last and heavy.guard_resume_ready(now, core.parse_iso(last[0]), free, heavy.FLOOR_GIB))
+                except OSError:
+                    cleared = False
+            if cleared:
                 wake(r[0], "EXTERNAL_CLEARED")
     p = cfg.state_dir / "probe-state.json"
     p.write_text(json.dumps(st))

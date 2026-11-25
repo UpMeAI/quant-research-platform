@@ -7,7 +7,7 @@ Implements the queue core of `AUTONOMOUS_RESEARCH_QUEUE_V1` (design rev 4, froze
 | Artifact | Pin |
 |---|---|
 | Queue DDL | schema.sql sha256: c7b6376e8d1d31a7a5b692902bb32fdbc1c19ca6f4e06ddadce31b3962a7cfff |
-| Template registry | `config/research_queue_templates.v1.json` (Q3b: four NET templates (only the two Linux ones pinned; the HK pair is unpinned until the follow-up PR) `T-AI-REVIEW-CARD-V1-LINUX-CN_A`, `T-AI-CHECK-V1-LINUX-CN_A`, `T-AI-REVIEW-CARD-V1-HK-US-CRYPTO`, `T-AI-CHECK-V1-HK-US-CRYPTO`; `T-AI-PREREG-V1` is an unpinned placeholder) + pins `config/research_queue_template_pins.v1.json` (`template_sha256` = `rq.templates.template_sha256`, the sha256 of the canonical template with no sha field inside; `frozen_page_sha256` is null until the coordinator's freeze page exists) |
+| Template registry | `config/research_queue_templates.v1.json` (Q3b NET templates plus the unpinned `T-HEAVY-Q0-LANE-V1-LINUX` and `T-HEAVY-LAB-E2E-V1-LINUX`; a template is never admissible without its exact pin) + pins `config/research_queue_template_pins.v1.json` (`template_sha256` = `rq.templates.template_sha256`, the sha256 of the canonical template with no sha field inside; `frozen_page_sha256` is null until the coordinator's freeze page exists) |
 | Blackout calendar | `config/rq-blackouts.v1.json` (placeholders; ops-coord fills exact times) |
 
 `migrate` creates the schema in an empty database and refuses any database whose schema differs from `schema.sql`.
@@ -38,7 +38,13 @@ Task protocol: exit 0 plus `result.json`; failures write `error.json` `{class, c
 
 ## Pause (section 3.5, replaces rf1116-window-pause)
 
-`rq-pause` every minute: Linux windows Mon-Fri 06:30-08:00, 09:15-15:30, 18:10-21:30 (IO tasks also 00:15-01:15); HK tasks only 10:45-21:45; blackout calendar (`FREEZE` or `STOP`); brakes (Linux IO await > 10 ms, MemAvailable < 16 GiB, lane1 free < 200 GiB; HK load5 > 3.0, MemAvailable < 1.5 GiB, pm2 restart in 10 min, disk < 20 GiB, 10 clear minutes to resume). UNKNOWN sensor values close claims but do not freeze. PAUSED is written and the lease extended before any freeze. Only allowlisted names are touched: `rq-task-*`, `rq-agent*`, `rq-consumer.service`, and on Linux `rf1116-generate-*`, `rf1116-resume`, `rf1116-score`, `rf1116-rescore`.
+`rq-pause` every minute: Linux windows Mon-Fri 06:30-08:00, 09:15-15:30, 18:10-21:30 (IO tasks also 00:15-01:15); HK tasks only 10:45-21:45; blackout calendar (`FREEZE` or `STOP`); brakes (Linux IO await > 10 ms, MemAvailable < 24 GiB, lane1 free < 200 GiB; HK load5 > 3.0, MemAvailable < 1.5 GiB, pm2 restart in 10 min, disk < 20 GiB, 10 clear minutes to resume). UNKNOWN sensor values close claims but do not freeze. A configured blackout file is fail-closed: missing, unreadable, invalid JSON, or the wrong schema refuses new claims with `BLACKOUTS_FILE_UNUSABLE`. PAUSED is written and the lease extended before any freeze. `COOPERATIVE_FILE` heavy tasks are never frozen by systemd; the pauser touches the attempt's `PAUSE` file so the pinned driver stops at a session boundary. Only allowlisted names are touched: `rq-task-*`, `rq-agent*`, `rq-consumer.service`, and on Linux `rf1116-generate-*`, `rf1116-resume`, `rf1116-score`, `rf1116-rescore`.
+
+## Heavy-run completion
+
+The two Linux heavy templates use one `HEAVY` slot and the `HEAVY_MATRIX` completion authority. A request contains only `spec_sha256`; the queue verifies `inbox/heavy-specs/<sha>.json`, programmatic preconditions, the sealed run-plan/input/tree/image/driver/comparator pins, the 200 GiB claim brake and a 150 GiB plus declared-peak launch floor. The transient unit is constrained by `Nice=19`, `IOSchedulingClass=idle`, `CPUAffinity=0-7 16-23`, `CPUQuota=600%` and `MemoryMax=24G`.
+
+The driver writes its immutable `driver-result.json`; the supervisor retains the evidence and never trusts a driver-authored verdict. For database-reading runs, `PGOPTIONS` alone is not proof: `dbReadOnlyProbe` must report the engine's actual role/source, `transactionReadOnly=true`, and rejected write SQLSTATE `25006`; a waiver is accepted only with a pinned waiver record. `rq-complete` rehashes `SHA256SUMS` and alone writes `EVIDENCE_MATRIX.json`, `HEAVY_RESULT_V1.json` and `COMPLETE`/`GATE_FAIL`/`BLOCKED_DETERMINISTIC`. Missing evidence remains `MISSING` and is `INVALID`, never a negative finding or a pass.
 
 ## Status and receipts
 

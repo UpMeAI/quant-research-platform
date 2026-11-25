@@ -1,6 +1,6 @@
 {
  "schema": "RESEARCH_QUEUE_TEMPLATES_V1",
- "note": "NET templates only. The four T-AI-REVIEW-CARD-V1-* / T-AI-CHECK-V1-* entries are the Q2b proposal turned into real entries (Q3b); each is admissible only while its template_sha256 (sha256 of the canonical template, no sha field inside) equals the pin in research_queue_template_pins.v1.json. T-AI-PREREG-V1 is a placeholder with no pin: it is not admissible.",
+ "note": "NET templates plus two unpinned Linux HEAVY_MATRIX templates. Every entry is admissible only while its canonical template_sha256 equals a pin in research_queue_template_pins.v1.json. T-AI-PREREG-V1 and both heavy templates remain inadmissible until their own freeze review adds pins.",
  "templates": [
   {
    "template_id": "T-AI-REVIEW-CARD-V1-LINUX-CN_A",
@@ -392,6 +392,76 @@
     "market"
    ],
    "status": "DRAFT_PENDING_Q2_AND_FREEZE"
+  },
+  {
+   "template_id": "T-HEAVY-Q0-LANE-V1-LINUX",
+   "version": 1,
+   "kinds": ["HEAVY_Q0_LANE"],
+   "producer_host": "LINUX",
+   "run_host": "LINUX",
+   "agent_host": "LINUX",
+   "weight_class": "W2",
+   "io_class": "LANE1_DB",
+   "argv": ["/usr/bin/python3", "-m", "rq", "heavy-run", "{spec_sha256}"],
+   "recovery_argv": ["/usr/bin/python3", "-m", "rq", "heavy-run", "{spec_sha256}", "--resume"],
+   "recovery_max": 2,
+   "params": {"spec_sha256": "^[0-9a-f]{64}$"},
+   "inputs": [{"prefix": "{inbox}/heavy-specs"}],
+   "outputs": ["EVIDENCE_MATRIX.json", "HEAVY_RESULT_V1.json", "RUN_LEDGER.jsonl"],
+   "expected_duration_s": 172800,
+   "evidence_matrix": {"id": "EM-HEAVY-V1", "sha256": "6d9e08626d1c3d5cde193bcf4412c17f1f12ba5b6389dc28d0b7fb7dab4d0f3a"},
+   "authority_shas": ["554d137ee5692ee7049157d2ca02dc48631539b2944aca2949582f980e3856b7", "6e01ef140460db783fd817f6dc286629d87f0a7e91dcd4158808ab93e4e0dda6"],
+   "prompt_admission_sha256": null,
+   "idempotent": false,
+   "transient_budget": 2,
+   "completion": "HEAVY_MATRIX",
+   "requires_trl": false,
+   "markets": ["CN_A"],
+   "subject_keys": ["spec_sha256"],
+   "heavy": {
+    "spec_schema": "HEAVY_RUN_SPEC_V1",
+    "pause_mode": "COOPERATIVE_FILE",
+    "unit_props": ["Nice=19", "IOSchedulingClass=idle", "CPUAffinity=0-7 16-23", "CPUQuota=600%", "MemoryMax=24G"],
+    "floor_gib": 150,
+    "driver_contract": "HEAVY_DRIVER_V1",
+    "terminal_map": "HEAVY_TERMINAL_MAP_V1",
+    "stop_lead_s": 1800
+   }
+  },
+  {
+   "template_id": "T-HEAVY-LAB-E2E-V1-LINUX",
+   "version": 1,
+   "kinds": ["HEAVY_LAB_E2E"],
+   "producer_host": "LINUX",
+   "run_host": "LINUX",
+   "agent_host": "LINUX",
+   "weight_class": "W2",
+   "io_class": "LANE1_FILES",
+   "argv": ["/usr/bin/python3", "-m", "rq", "heavy-run", "{spec_sha256}"],
+   "recovery_argv": ["/usr/bin/python3", "-m", "rq", "heavy-run", "{spec_sha256}", "--resume"],
+   "recovery_max": 2,
+   "params": {"spec_sha256": "^[0-9a-f]{64}$"},
+   "inputs": [{"prefix": "{inbox}/heavy-specs"}],
+   "outputs": ["EVIDENCE_MATRIX.json", "HEAVY_RESULT_V1.json", "RUN_LEDGER.jsonl"],
+   "expected_duration_s": 86400,
+   "evidence_matrix": {"id": "EM-HEAVY-V1", "sha256": "6d9e08626d1c3d5cde193bcf4412c17f1f12ba5b6389dc28d0b7fb7dab4d0f3a"},
+   "authority_shas": ["554d137ee5692ee7049157d2ca02dc48631539b2944aca2949582f980e3856b7", "6e01ef140460db783fd817f6dc286629d87f0a7e91dcd4158808ab93e4e0dda6"],
+   "prompt_admission_sha256": null,
+   "idempotent": false,
+   "transient_budget": 2,
+   "completion": "HEAVY_MATRIX",
+   "requires_trl": false,
+   "markets": ["CN_A"],
+   "subject_keys": ["spec_sha256"],
+   "heavy": {
+    "spec_schema": "HEAVY_RUN_SPEC_V1",
+    "pause_mode": "DOCKER_PAUSE",
+    "unit_props": ["Nice=19", "IOSchedulingClass=idle", "CPUAffinity=0-7 16-23", "CPUQuota=600%", "MemoryMax=24G"],
+    "floor_gib": 150,
+    "driver_contract": "HEAVY_DRIVER_V1",
+    "terminal_map": "HEAVY_TERMINAL_MAP_V1",
+    "stop_lead_s": 1800
+   }
   }
  ]
 }
