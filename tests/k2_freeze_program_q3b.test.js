@@ -217,7 +217,13 @@ test('Q3b prompt admission: AI_PREREG is ADMITTED in the queue admissions file, 
   const prompt = require('../services/k2-freeze-program/prompt');
   const schema = require('../services/k2-freeze-program/schema');
   const adm = require('../config/research_queue_prompt_admissions.v1.json');
-  assert.equal(adm.entries.length, 3, 'AI_CHECK, AI_REVIEW_CARD and AI_PREREG');
+  assert.deepEqual(
+    adm.entries.map((x) => x.kind).sort(),
+    ['AI_CHECK', 'AI_MECH_NOTE', 'AI_MECH_REVIEW', 'AI_PREREG', 'AI_REVIEW_CARD'],
+  );
+  for (const kind of ['AI_MECH_NOTE', 'AI_MECH_REVIEW']) {
+    assert.equal(adm.entries.find((x) => x.kind === kind).state, 'PENDING_ADMISSION');
+  }
   assert.ok(prompt.SYSTEM_SHA256.startsWith('fac82f68'), 'the text plan-coord read is unchanged');
   const e = adm.entries.find((x) => x.kind === 'AI_PREREG');
   assert.equal(e.state, 'ADMITTED');
@@ -229,5 +235,5 @@ test('Q3b prompt admission: AI_PREREG is ADMITTED in the queue admissions file, 
   const { state, admission_basis, ...shape } = prompt.admissionEntry();
   const { state: s2, admission_basis: b2, ...shape2 } = e;
   assert.deepEqual(shape2, shape);
-  assert.equal(new Set(adm.entries.map((x) => x.system_sha256)).size, 3);
+  assert.equal(new Set(adm.entries.map((x) => x.system_sha256)).size, 5);
 });
