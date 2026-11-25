@@ -106,8 +106,11 @@ class HkLaunch(unittest.TestCase):
     def test_linux_launcher_defaults_to_the_attempt_dir_and_keeps_its_flags(self):
         s = (DEPLOY / "research-queue-ai" / "linux" / "run-agent.sh").read_text()
         self.assertIn("RQ_ATTEMPT_DIR", s)
-        for flag in ("--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--user 1000:1000"):
+        for flag in ("--network none", "--read-only", "--cap-drop ALL", "no-new-privileges", "--user 0:0"):
             self.assertIn(flag, s)
+        self.assertIn("docker info", s)
+        self.assertIn('"name=rootless"', s)
+        self.assertIn("container uid 0 maps to the unprivileged host user", s)
 
 
 class ShippedAdmission(Base):
