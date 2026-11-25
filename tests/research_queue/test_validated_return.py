@@ -186,6 +186,20 @@ class ValidatedReturn(Base):
         self.assertEqual(self.row(self.task_id)["state_reason"], "VALIDATOR_UNAVAILABLE")
         self.assertFalse(self.output.exists())
 
+    def test_non_card_agent_kind_keeps_its_existing_completion_path(self):
+        self.conn.execute("update task set kind='AI_MECH_NOTE' where task_id=?", (self.task_id,))
+        task_doc = json.loads((self.attempt / "in" / "task.json").read_text())
+        task_doc["kind"] = "AI_MECH_NOTE"
+        (self.attempt / "in" / "task.json").write_text(core.canonical(task_doc) + "\n")
+        bundle = dict(self.bundle)
+        bundle.pop("registry")
+        (self.attempt / "in" / "bundle.json").write_text(core.canonical(bundle) + "\n")
+        self.result.update(kind="AI_MECH_NOTE", outputs={"mechanism_notes": {"schema": "RF1116_MECH_NOTE_OUTPUT_V1"}})
+        (self.attempt / "result.json").write_text(core.canonical(self.result) + "\n")
+        self.assertEqual(self.run_complete(), [self.task_id])
+        self.assertEqual(self.state(self.task_id), "COMPLETE")
+        self.assertFalse(self.output.exists(), "validated-return carries cards and ideas only")
+
     def test_task_id_cannot_escape_the_configured_outbox(self):
         from rq import validated_return
 
@@ -195,4 +209,3 @@ class ValidatedReturn(Base):
             validated_return.publish(self.cfg, task, self.attempt, VALIDATION)
         self.assertEqual(caught.exception.code, "RETURN_PATH_FORBIDDEN")
         self.assertFalse((self.cfg.outbox_dir.parent / "escape-a1.json").exists())
-
