@@ -1,5 +1,6 @@
 """AQ-10 wait states, AQ-11 no cost-cap state, AQ-13 completion authority (core part), AQ-14 circuits."""
 import datetime as dt, json, os, re, unittest
+from unittest import mock
 from helpers import *  # noqa
 from rq import agentseam  # noqa
 
@@ -22,6 +23,7 @@ class Waits(Base):
         self.t = tpl("T-STUB-W0-V1")
         self.reg = registry([self.t])
         self.rt = runtime.ProcessRuntime()
+        self.addCleanup(self.rt.stop_all)
 
     def run_err(self, mode, now, subject=None):
         r = self.admit(self.reg, req(self.t, subject=subject or {"n": 1}, params={"mode": mode}), now)
@@ -110,10 +112,12 @@ class CompletionAuthority(Base):
         super().setUp()
         self.t = tpl("T-STUB-W0-V1")
         self.reg = registry([self.t])
+        self.rt = runtime.ProcessRuntime()
+        self.addCleanup(self.rt.stop_all)
 
     def evidence(self, validator_ok=True):
         r = self.admit(self.reg, req(self.t, params={"mode": "ok"}))
-        drive(self, runtime.ProcessRuntime(), self.t0, r.task_id)
+        drive(self, self.rt, self.t0, r.task_id)
         if not validator_ok:
             d = self.cfg.runs_dir / r.task_id / "attempt-1" / "result.json"
             d.write_text(json.dumps({"outputs": [], "validator": {"ok": False}}))
@@ -150,6 +154,7 @@ class Circuits(Base):
         self.t = tpl("T-STUB-W0-V1")
         self.reg = registry([self.t])
         self.rt = runtime.ProcessRuntime()
+        self.addCleanup(self.rt.stop_all)
 
     def test_aq14_same_d_code_twice_opens_template_circuit(self):
         for i in (1, 2):
@@ -176,6 +181,33 @@ class Circuits(Base):
             core.insert_event(self.conn, r.task_id, self.t0 + dt.timedelta(minutes=i), "rq-consumer", "RUNNING", "READY", "T1_INTERRUPTED", {})
         self.assertIsNotNone(core.open_circuits(self.conn, "LINUX", self.t0 + dt.timedelta(minutes=10))["host"])
         self.assertIsNone(core.open_circuits(self.conn, "LINUX", self.t0 + dt.timedelta(minutes=90))["host"])
+
+
+class RuntimeLifecycle(unittest.TestCase):
+    def test_process_runtime_closes_parent_wrapper_log_handle_after_launch(self):
+        managed_open = mock.mock_open()
+        fake_process = mock.Mock()
+        with tempfile.TemporaryDirectory() as temp, \
+             mock.patch("builtins.open", managed_open), \
+             mock.patch.object(runtime.subprocess, "Popen", return_value=fake_process):
+            rt = runtime.ProcessRuntime()
+            rt._launch(["stub"], {}, pathlib.Path(temp), "W0")
+        managed_open().__exit__.assert_called_once()
+
+    def test_each_outcome_suite_reaps_its_runtime_before_tempdir_cleanup(self):
+        cases = (
+            (Waits, "test_http_class_mapping"),
+            (CompletionAuthority, "test_only_rq_complete_may_write_complete"),
+            (Circuits, "test_two_different_d_codes_do_not_open_it"),
+        )
+        for case_type, method in cases:
+            with self.subTest(case=case_type.__name__):
+                managed = mock.Mock(spec=runtime.ProcessRuntime)
+                case = case_type(method)
+                with mock.patch.object(runtime, "ProcessRuntime", return_value=managed):
+                    case.setUp()
+                case.doCleanups()
+                managed.stop_all.assert_called_once_with()
 
 
 if __name__ == "__main__":
