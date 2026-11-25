@@ -23,6 +23,7 @@ class Waits(Base):
         self.t = tpl("T-STUB-W0-V1")
         self.reg = registry([self.t])
         self.rt = runtime.ProcessRuntime()
+        self.addCleanup(self.rt.stop_all)
 
     def run_err(self, mode, now, subject=None):
         r = self.admit(self.reg, req(self.t, subject=subject or {"n": 1}, params={"mode": mode}), now)
@@ -111,10 +112,12 @@ class CompletionAuthority(Base):
         super().setUp()
         self.t = tpl("T-STUB-W0-V1")
         self.reg = registry([self.t])
+        self.rt = runtime.ProcessRuntime()
+        self.addCleanup(self.rt.stop_all)
 
     def evidence(self, validator_ok=True):
         r = self.admit(self.reg, req(self.t, params={"mode": "ok"}))
-        drive(self, runtime.ProcessRuntime(), self.t0, r.task_id)
+        drive(self, self.rt, self.t0, r.task_id)
         if not validator_ok:
             d = self.cfg.runs_dir / r.task_id / "attempt-1" / "result.json"
             d.write_text(json.dumps({"outputs": [], "validator": {"ok": False}}))
@@ -151,6 +154,7 @@ class Circuits(Base):
         self.t = tpl("T-STUB-W0-V1")
         self.reg = registry([self.t])
         self.rt = runtime.ProcessRuntime()
+        self.addCleanup(self.rt.stop_all)
 
     def test_aq14_same_d_code_twice_opens_template_circuit(self):
         for i in (1, 2):
