@@ -26,6 +26,22 @@
       "schema_sha256": "1460b21f1b4012c3fc75cbb20747670f60fd89acf8a94c9c6cf4f9e8e0ecef21",
       "state": "ADMITTED",
       "admission_basis": "plan-coord read 11-23, queue AQ_Q3 REVIEW_ACCEPTED"
+    },
+    {
+      "prompt_id": "RQ_PROMPT_AI_MECH_NOTE_V1",
+      "kind": "AI_MECH_NOTE",
+      "purposes": ["RQ_AGENT", "RQ_AGENT_PRO_FALLBACK"],
+      "system_sha256": "2dbf2864f0e7c36db553002a7a42fecd1e3b55afde1780959ec3063d07586f86",
+      "state": "ADMITTED",
+      "admission_basis": "plan-coord read 11-25, queue QRP149 REVIEW_ACCEPTED A"
+    },
+    {
+      "prompt_id": "RQ_PROMPT_AI_MECH_REVIEW_V1",
+      "kind": "AI_MECH_REVIEW",
+      "purposes": ["RQ_AGENT", "RQ_AGENT_PRO_FALLBACK"],
+      "system_sha256": "ddebb02883ddb61517fd359871ca4f0a987605900f1309eaa9ecd2b6682fed33",
+      "state": "ADMITTED",
+      "admission_basis": "plan-coord read 11-25, queue QRP149 REVIEW_ACCEPTED A"
     }
   ]
 }
