@@ -236,7 +236,7 @@ const MUTANTS = [
   m('M08', 'mechanism note: cited fields occur in formula', MNOTE, 'n.fields_cited.some((f) => !c.fields.includes(f))', 'false', [MTEST]),
   m('M09', 'mechanism pack: score/holdout/path firewall', MNOTE, 'if (hits.length)', 'if (false)', [MTEST]),
   m('M10', 'mechanism pack: 12k token ceiling', MNOTE, 'if (estimateTokens(pack) > MAX_PACK_TOKENS)', 'if (false)', [MTEST]),
-  m('M11', 'mechanism proposal: no registered duplicate', MNOTE, 'if (isObj(n.proposal) && (registeredText.has(n.proposal.title_zh) || registeredText.has(n.proposal.description_zh)))', 'if (false)', [MTEST]),
+  m('M11', 'mechanism proposal: no registered duplicate', MNOTE, 'if (isObj(n.proposal) && registeredText && (registeredText.has(n.proposal.title_zh) || registeredText.has(n.proposal.description_zh)))', 'if (false)', [MTEST]),
   m('M12', 'mechanism review: status/code pairing', MREVIEW, "(it.status === 'CONSISTENT' ? it.code !== null : !HOLD_CODES.includes(it.code))", 'false', [MTEST]),
   m('M13', 'mechanism review: exact candidate set', MREVIEW, "if (got.length !== candidates.size || new Set(got).size !== got.length || got.some((id) => !candidates.has(id)) || [...candidates.keys()].some((id) => !got.includes(id))) add('MECH_REVIEW_CANDIDATE_SET');", "if (false) add('MECH_REVIEW_CANDIDATE_SET');", [MTEST]),
   m('M14', 'mechanism review: three-list wording firewall', MREVIEW, "if (lexicon.findWording(it.note_zh, ['PREDICTION', 'VERDICT', 'DIRECTION']).length)", 'if (false)', [MTEST]),
