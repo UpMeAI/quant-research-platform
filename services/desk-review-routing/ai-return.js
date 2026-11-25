@@ -7,6 +7,7 @@ const { canonicalJson, sha256, isObj, SHA64 } = require('../research-queue-agent
 const { validateCard } = require('../research-queue-agent/card');
 const { validateIdeaRecord } = require('../research-queue-agent/factor-idea');
 const { buildRegistryView } = require('../research-queue-agent/registries');
+const { packWeek } = require('../research-queue-agent/facts');
 const { contentHash } = require('./canonical');
 
 const NAME = /^validated-return-([A-Za-z0-9._-]+)-a([1-9]\d*)\.json$/;
@@ -55,6 +56,7 @@ function verify(doc, registryFor) {
   if (doc.card.task_id !== doc.task_id || doc.card.schema !== 'REVIEW_AI_CARD_V1' || doc.card.market !== doc.market) fail('CARD_BINDING_MISMATCH');
   const pack = bindingValue(doc.fact_pack, 'FACT_PACK', registryFor);
   const registry = bindingValue(doc.registry, 'REGISTRY', registryFor);
+  if (pack.market !== doc.market || packWeek(pack) !== doc.card.week_id || registry.market !== doc.market) fail('INPUT_BINDING_MISMATCH');
   const { schema: _s, task_id: _t, prompt_admission_sha256: _p, model: _m, ...cardBody } = doc.card;
   const ctx = { pack, registry, market: doc.market, week_id: doc.card.week_id, existing_idea_count: 0 };
   const cardResult = validateCard(cardBody, ctx);
