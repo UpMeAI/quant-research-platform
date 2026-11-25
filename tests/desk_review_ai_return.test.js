@@ -68,6 +68,19 @@ test('Addendum 9 prediction vocabulary stays equal to the pinned desk/QRP union'
   assert.deepEqual([...new Set([...desk, ...qrp])].sort(), [...TERMS].sort());
 });
 
+test('PIT amendment maps instants, rule text and unknown without clock or inference', () => {
+  const library = require('../config/research_factor_library.v1.json');
+  const rule = library.factors.find((row) => row.pit_available_at.includes('T 日收盘后')).pit_available_at;
+  assert.deepEqual(ai.projectPit(rule), { pitState: 'RULE_TEXT', pitAvailableAt: null, pitRuleText: rule });
+  assert.deepEqual(ai.projectPit('2026-11-25T12:34:56.000Z'), {
+    pitState: 'AT', pitAvailableAt: '2026-11-25T12:34:56.000Z', pitRuleText: null,
+  });
+  assert.deepEqual(ai.projectPit(''), { pitState: 'UNKNOWN', pitAvailableAt: null, pitRuleText: null });
+  assert.deepEqual(ai.projectPit(null), { pitState: 'UNKNOWN', pitAvailableAt: null, pitRuleText: null });
+  assert.deepEqual(ai.projectPit(' T 日收盘后 '), { pitState: 'RULE_TEXT', pitAvailableAt: null, pitRuleText: ' T 日收盘后 ' },
+    'rule text is byte-for-byte, never trimmed');
+});
+
 for (const inlineRegistry of [false, true]) test(`validated producer bundle projects card and idea (${inlineRegistry ? 'bundle registry ref' : 'file registry ref'})`, () => {
   const fx = fixture({ inlineRegistry });
   const result = ai.load({ root: fx.root, registryFor: () => fx.registry });
@@ -79,6 +92,8 @@ for (const inlineRegistry of [false, true]) test(`validated producer bundle proj
   assert.deepEqual(result.cards[0].ideaIds, [fx.records[0].idea_id]);
   const { recordHash, ...ideaBody } = result.ideas[0];
   assert.equal(recordHash, require('../services/desk-review-routing/canonical').contentHash(ideaBody));
+  assert.deepEqual(result.ideas[0].readings.map((row) => row.pitState), ['RULE_TEXT', 'RULE_TEXT']);
+  assert.ok(result.ideas[0].readings.every((row) => row.pitAvailableAt === null && row.pitRuleText.includes('T 日收盘后')));
   const generatedAt = '2026-11-25T08:00:00.000Z';
   const off = returns.buildReturn({ generatedAt, aiBlocks: false });
   const on = returns.buildReturn({ generatedAt, aiBlocks: true, aiReturnRoot: fx.root, aiOptions: { registryFor: () => fx.registry } });
