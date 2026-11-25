@@ -164,13 +164,17 @@ class PostRoundTemplates(Base):
 
     def test_c04_base_templates_and_pins_are_unchanged_and_new_items_append(self):
         reg = shipped()
-        self.assertEqual([t["template_id"] for t in reg.templates[:-2]], list(BASE_TEMPLATE_SHAS))
-        self.assertEqual([t["template_id"] for t in reg.templates[-2:]], list(NEW_IDS))
-        for template in reg.templates[:-2]:
+        base_count = len(BASE_TEMPLATE_SHAS)
+        base_templates = reg.templates[:base_count]
+        package_templates = reg.templates[base_count:base_count + len(NEW_IDS)]
+        self.assertEqual([t["template_id"] for t in base_templates], list(BASE_TEMPLATE_SHAS))
+        self.assertEqual([t["template_id"] for t in package_templates], list(NEW_IDS))
+        for template in base_templates:
             self.assertEqual(templates.template_sha256(template), BASE_TEMPLATE_SHAS[template["template_id"]])
         self.assertEqual(reg.pins[:len(BASE_PINS)], BASE_PINS)
-        self.assertEqual([p["template_id"] for p in reg.pins[-2:]], list(NEW_IDS))
-        for pin in reg.pins[-2:]:
+        package_pins = reg.pins[len(BASE_PINS):len(BASE_PINS) + len(NEW_IDS)]
+        self.assertEqual([p["template_id"] for p in package_pins], list(NEW_IDS))
+        for pin in package_pins:
             self.assertIsNone(pin["frozen_page_sha256"])
             self.assertEqual(pin["template_sha256"], templates.template_sha256(reg.get(pin["template_id"])))
 

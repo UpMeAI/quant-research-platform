@@ -31,6 +31,11 @@
    "template_id": "T-AI-MECH-REVIEW-V1-LINUX-CN_A",
    "template_sha256": "7c0e702d452e5be5a2c977a7149cce3900c467f2a190c561e9ac2fbcdd3f81e9",
    "frozen_page_sha256": null
+  },
+  {
+   "template_id": "T-AI-PAUSE-CHECK-V1-LINUX",
+   "template_sha256": "f61b9e842d4b98033d1a37403e65fb2d289b3b7d0e217732aec38d9d051a43b6",
+   "frozen_page_sha256": null
   }
  ]
 }

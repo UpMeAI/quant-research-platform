@@ -395,7 +395,7 @@ class HkTemplates(unittest.TestCase):
             self.assertIsNone(pin["frozen_page_sha256"], "FREEZE_2 page not written yet")
             self.assertEqual(pin["template_sha256"], templates.template_sha256(t))
             self.assertIn("spool", t["launch"])
-        self.assertEqual(len(reg.pins), 6)
+        self.assertEqual(len(reg.pins), 7)
 
 
 if __name__ == "__main__":

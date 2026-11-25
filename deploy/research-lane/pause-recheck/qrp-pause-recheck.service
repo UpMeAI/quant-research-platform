@@ -1,0 +1,11 @@
+[Unit]
+Description=QRP monthly pause re-check tick
+
+[Service]
+Type=oneshot
+Slice=research.slice
+WorkingDirectory=/srv/research-lane/research-queue/code/current
+EnvironmentFile=%h/.config/research-queue/pause-recheck.env
+Nice=10
+NoNewPrivileges=yes
+ExecStart=/usr/bin/python3 /srv/research-lane/research-queue/code/current/services/pause-recheck/pause_recheck.py tick
