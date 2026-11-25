@@ -192,7 +192,7 @@ class RuntimeLifecycle(unittest.TestCase):
              mock.patch.object(runtime.subprocess, "Popen", return_value=fake_process):
             rt = runtime.ProcessRuntime()
             rt._launch(["stub"], {}, pathlib.Path(temp), "W0")
-        managed_open().close.assert_called_once_with()
+        managed_open().__exit__.assert_called_once()
 
     def test_each_outcome_suite_reaps_its_runtime_before_tempdir_cleanup(self):
         cases = (
