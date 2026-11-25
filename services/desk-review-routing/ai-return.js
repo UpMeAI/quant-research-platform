@@ -67,6 +67,14 @@ function verify(doc, registryFor) {
 }
 
 const item = (row) => ({ textZh: row.text_zh, factIds: row.fact_ids });
+const question = (row) => ({ mechanismId: row.mechanism_id, layer: row.layer, decisionPoint: row.decision_point,
+  market: row.market, questionZh: row.question_zh, factIds: row.fact_ids });
+function mechanism(value) {
+  if (!isObj(value) || !isObj(value.NEW)) return value;
+  const n = value.NEW;
+  return { NEW: { proposedId: n.proposed_id, titleZh: n.title_zh, descriptionZh: n.description_zh,
+    layer: n.layer, decisionPoint: n.decision_point } };
+}
 function projectCard(doc) {
   const c = doc.card;
   return {
@@ -74,14 +82,14 @@ function projectCard(doc) {
     factPackSha256: doc.fact_pack.sha256, modelAlias: c.model,
     supporting: c.supporting.map(item), opposing: c.opposing.map(item), unknowns: c.unknowns.map(item),
     repeatedPatterns: c.repeated_patterns.map((r) => ({ patternKey: r.pattern_key, count: r.count, noteZh: r.note_zh, factIds: r.fact_ids })),
-    questionProposals: c.question_proposals, noIdeaReason: c.no_idea_reason === null ? null : item(c.no_idea_reason),
+    questionProposals: c.question_proposals.map(question), noIdeaReason: c.no_idea_reason === null ? null : item(c.no_idea_reason),
     ideaIds: doc.ideas.map((idea) => idea.idea_id),
   };
 }
 
 function projectIdea(idea) {
   return {
-    ideaId: idea.idea_id, market: idea.market, weekId: idea.week_id, mechanism: idea.mechanism,
+    ideaId: idea.idea_id, market: idea.market, weekId: idea.week_id, mechanism: mechanism(idea.mechanism),
     readings: idea.readings.map((r) => ({ id: r.id, pitAvailableAt: r.pit_available_at })),
     holdingPeriods: idea.holding_periods, questionZh: idea.question_zh, expectedFailureZh: idea.expected_failure_zh,
     factIds: idea.fact_ids, cardSha256: idea.card_sha256, recordHash: sha256(canonicalJson(idea)),

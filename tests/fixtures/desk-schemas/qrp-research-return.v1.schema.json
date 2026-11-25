@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "qrp-research-return.v1.schema.json",
   "title": "QRP_RESEARCH_RETURN_V1",
-  "description": "Review loop Addendum 6 §5.1: QRP's projection of its own ledgers (adoption decisions, baseline and comparison locks, Desk links) for the desk week file. Producer QRP; the coordinator commits it under docs/review-loop/research-return/ and the next week revision carries it as an input. No new judgement. Addendum 7 §3.3: triage[] -- each candidate's current RESEARCH_TRIAGE_V1 row from QRP var/ledger/research/desk_triage.jsonl. Addendum 8: sealedVerdicts[] -- sealed research conclusions.",
+  "description": "Review loop Addendum 6 §5.1: QRP's projection of its own ledgers (adoption decisions, baseline and comparison locks, Desk links) for the desk week file. Producer QRP; the coordinator commits it under docs/review-loop/research-return/ and the next week revision carries it as an input. No new judgement. Addendum 7 §3.3: triage[] -- each candidate's current RESEARCH_TRIAGE_V1 row from QRP var/ledger/research/desk_triage.jsonl. Addendum 8: sealedVerdicts[] -- sealed research conclusions. Addendum 9: optional validated AI review cards and factor ideas, research proposals only.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "contract", "producer", "generatedAt", "asOf", "sources", "decisions", "questions", "interpretation", "realOrder", "brokerWrite", "hash"],
@@ -31,8 +31,8 @@
     "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
     "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } },
     "sealedVerdicts": { "type": "array", "description": "Addendum 8 §1 (optional): sealed research conclusions. They are not Owner decisions (§2), never 等你决定 and never an adoption record.", "items": { "$ref": "#/$defs/sealedVerdict" } },
-    "aiReviewCards": { "type": "array", "items": { "$ref": "#/$defs/aiReviewCard" } },
-    "factorIdeas": { "type": "array", "items": { "$ref": "#/$defs/factorIdea" } },
+    "aiReviewCards": { "type": "array", "maxItems": 3, "description": "Addendum 9: at most one validated weekly review card for each market.", "items": { "$ref": "#/$defs/aiReviewCard" } },
+    "factorIdeas": { "type": "array", "maxItems": 15, "description": "Addendum 9: validated research proposals, at most five per market card.", "items": { "$ref": "#/$defs/factorIdea" } },
     "triage": {
       "type": "array",
       "description": "Addendum 7 §3.3 (optional): RESEARCH_TRIAGE_V1 rows.",
@@ -118,36 +118,98 @@
     "hash": { "$ref": "#/$defs/hex64" }
   },
   "$defs": {
-    "aiTextItem": {
-      "type": "object", "additionalProperties": false, "required": ["textZh", "factIds"],
-      "properties": { "textZh": { "$ref": "#/$defs/text" }, "factIds": { "type": "array", "items": { "$ref": "#/$defs/text" } } }
-    },
-    "aiReviewCard": {
-      "type": "object", "additionalProperties": false,
-      "required": ["cardId", "market", "weekId", "cardSha256", "factPackSha256", "modelAlias", "supporting", "opposing", "unknowns", "repeatedPatterns", "questionProposals", "noIdeaReason", "ideaIds"],
+    "aiMarket": { "enum": ["CN_A", "US_EQUITY", "CRYPTO"] },
+    "weekId": { "type": "string", "pattern": "^\\d{4}-W\\d{2}$" },
+    "aiReviewItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["textZh", "factIds"],
       "properties": {
-        "cardId": { "$ref": "#/$defs/ref" }, "market": { "enum": ["CN_A", "US_EQUITY", "CRYPTO"] },
-        "weekId": { "type": "string", "pattern": "^\\d{4}-W\\d{2}$" }, "cardSha256": { "$ref": "#/$defs/hex64" },
-        "factPackSha256": { "$ref": "#/$defs/hex64" }, "modelAlias": { "$ref": "#/$defs/text" },
-        "supporting": { "type": "array", "items": { "$ref": "#/$defs/aiTextItem" } },
-        "opposing": { "type": "array", "items": { "$ref": "#/$defs/aiTextItem" } },
-        "unknowns": { "type": "array", "items": { "$ref": "#/$defs/aiTextItem" } },
-        "repeatedPatterns": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["patternKey", "count", "noteZh", "factIds"], "properties": { "patternKey": { "$ref": "#/$defs/text" }, "count": { "type": "integer", "minimum": 0 }, "noteZh": { "$ref": "#/$defs/text" }, "factIds": { "type": "array", "items": { "$ref": "#/$defs/text" } } } },
-        "questionProposals": { "type": "array", "maxItems": 2, "items": { "type": "object" } },
-        "noIdeaReason": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/aiTextItem" }] },
-        "ideaIds": { "type": "array", "items": { "$ref": "#/$defs/ref" } }
+        "textZh": { "$ref": "#/$defs/text" },
+        "factIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/ref" } }
       }
     },
+    "aiQuestionProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mechanismId", "layer", "decisionPoint", "market", "questionZh", "factIds"],
+      "properties": {
+        "mechanismId": { "$ref": "#/$defs/ref" },
+        "layer": { "enum": ["SELECTION_TIMING", "RISK", "ACCOUNT", "NA_EXECUTION"] },
+        "decisionPoint": { "enum": ["SELECT", "DIRECTION", "ENTRY", "EXIT", "SIZING", "COST"] },
+        "market": { "$ref": "#/$defs/aiMarket" },
+        "questionZh": { "$ref": "#/$defs/text" },
+        "factIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/ref" } }
+      }
+    },
+    "aiReviewCard": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cardId", "market", "weekId", "cardSha256", "factPackSha256", "modelAlias", "supporting", "opposing", "unknowns", "repeatedPatterns", "questionProposals", "noIdeaReason", "ideaIds"],
+      "properties": {
+        "cardId": { "$ref": "#/$defs/ref" },
+        "market": { "$ref": "#/$defs/aiMarket" },
+        "weekId": { "$ref": "#/$defs/weekId" },
+        "cardSha256": { "$ref": "#/$defs/hex64" },
+        "factPackSha256": { "$ref": "#/$defs/hex64" },
+        "modelAlias": { "$ref": "#/$defs/text" },
+        "supporting": { "type": "array", "items": { "$ref": "#/$defs/aiReviewItem" } },
+        "opposing": { "type": "array", "items": { "$ref": "#/$defs/aiReviewItem" } },
+        "unknowns": { "type": "array", "items": { "$ref": "#/$defs/aiReviewItem" } },
+        "repeatedPatterns": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["patternKey", "count", "noteZh", "factIds"],
+            "properties": {
+              "patternKey": { "$ref": "#/$defs/ref" }, "count": { "type": "integer", "minimum": 1 }, "noteZh": { "$ref": "#/$defs/text" },
+              "factIds": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/ref" } }
+            }
+          }
+        },
+        "questionProposals": { "type": "array", "maxItems": 2, "items": { "$ref": "#/$defs/aiQuestionProposal" } },
+        "noIdeaReason": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/aiReviewItem" }] },
+        "ideaIds": { "type": "array", "maxItems": 5, "uniqueItems": true, "items": { "$ref": "#/$defs/ref" } }
+      }
+    },
+    "factorMechanism": {
+      "anyOf": [
+        { "$ref": "#/$defs/ref" },
+        {
+          "type": "object", "additionalProperties": false, "required": ["NEW"],
+          "properties": {
+            "NEW": {
+              "type": "object", "additionalProperties": false, "required": ["proposedId", "titleZh", "descriptionZh", "layer", "decisionPoint"],
+              "properties": {
+                "proposedId": { "$ref": "#/$defs/ref" }, "titleZh": { "$ref": "#/$defs/text" }, "descriptionZh": { "$ref": "#/$defs/text" },
+                "layer": { "const": "SELECTION_TIMING" }, "decisionPoint": { "enum": ["SELECT", "DIRECTION", "ENTRY"] }
+              }
+            }
+          }
+        }
+      ]
+    },
     "factorIdea": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": ["ideaId", "market", "weekId", "mechanism", "readings", "holdingPeriods", "questionZh", "expectedFailureZh", "factIds", "cardSha256", "recordHash"],
       "properties": {
-        "ideaId": { "$ref": "#/$defs/ref" }, "market": { "enum": ["CN_A", "US_EQUITY", "CRYPTO"] },
-        "weekId": { "type": "string", "pattern": "^\\d{4}-W\\d{2}$" }, "mechanism": {},
-        "readings": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "pitAvailableAt"], "properties": { "id": { "$ref": "#/$defs/text" }, "pitAvailableAt": { "$ref": "#/$defs/text" } } },
-        "holdingPeriods": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
-        "questionZh": { "$ref": "#/$defs/text" }, "expectedFailureZh": { "$ref": "#/$defs/text" },
-        "factIds": { "type": "array", "items": { "$ref": "#/$defs/text" } }, "cardSha256": { "$ref": "#/$defs/hex64" }, "recordHash": { "$ref": "#/$defs/hex64" }
+        "ideaId": { "type": "string", "pattern": "^FI-(CN_A|US_EQUITY|CRYPTO)-\\d{4}-W\\d{2}-[1-9]\\d*$" },
+        "market": { "$ref": "#/$defs/aiMarket" },
+        "weekId": { "$ref": "#/$defs/weekId" },
+        "mechanism": { "$ref": "#/$defs/factorMechanism" },
+        "readings": {
+          "type": "array", "minItems": 1, "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["id", "pitAvailableAt"],
+            "properties": { "id": { "$ref": "#/$defs/ref" }, "pitAvailableAt": { "$ref": "#/$defs/instant" } }
+          }
+        },
+        "holdingPeriods": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
+        "questionZh": { "$ref": "#/$defs/text" },
+        "expectedFailureZh": { "$ref": "#/$defs/text" },
+        "factIds": { "type": "array", "minItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/ref" } },
+        "cardSha256": { "$ref": "#/$defs/hex64" },
+        "recordHash": { "$ref": "#/$defs/hex64" }
       }
     },
     "sealedVerdict": {
