@@ -65,7 +65,7 @@ def spec(root, *, db="NONE", preconditions=None, rows=None):
         },
         "preconditions": preconditions or [],
         "db": {"mode": db},
-        "run_dirs": {"main": str(root / "lane-main")},
+        "run_dirs": {"main": "lane-main"},
         "acceptance": {"rows": rows or ["H01", "H02", "H03", "H04", "H05", "H06", "H07", "H08", "Q01", "Q02", "Q03", "Q04"]},
         "budget": {"expected_compute_s": 1, "peak_bytes": 0},
     }
@@ -344,8 +344,31 @@ class HeavyFrozenAcceptance(Base):
         self.assertEqual(stages, ["PREFLIGHT", "FLOOR", "GATE_WRITER_STARTED", "GATE_FRESH", "DRIVER_EXIT", "TERMINAL_EVIDENCE"])
 
     def test_hr21_run_dir_cannot_be_reused_by_another_task(self):
-        d = pathlib.Path(self.s["run_dirs"]["main"]); d.mkdir(); (d / "RQ_TASK.json").write_text('{"task_id":"OTHER"}')
-        self.assertEqual(heavy.prepare_run_dirs(self.s, "T", resume=True), "INVALID_RUN_DIR_REUSED")
+        task_dir = self.root / "runs" / "T"
+        attempt = task_dir / "attempt-1"
+        attempt.mkdir(parents=True)
+        self.assertIsNone(heavy.prepare_run_dirs(self.s, task_dir, "T", resume=False))
+        self.assertEqual(json.loads((task_dir / "RQ_TASK.json").read_text()), {"task_id": "T"})
+        self.assertFalse((task_dir / "lane-main").exists())
+        self.assertEqual(
+            heavy.resolve_run_dirs(self.s, task_dir, require_exists=False),
+            {"main": task_dir / "lane-main"},
+        )
+
+        (task_dir / "lane-main").mkdir()
+        outcome = heavy.classify_driver_result({"exit": 65, "reason": "RUN_DIR_EXISTS:lane-main"})
+        self.assertEqual((outcome.result, outcome.code), ("INVALID", "INVALID_RUN_DIR_REUSED"))
+        self.assertIsNone(heavy.prepare_run_dirs(self.s, task_dir, "T", resume=True))
+        self.assertEqual(
+            heavy.resolve_run_dirs(self.s, task_dir, require_exists=True),
+            {"main": task_dir / "lane-main"},
+        )
+
+    def test_addendum7_rejects_non_plain_run_dir_names_at_submit(self):
+        for value in ("", ".", "..", "../lane", "lane/child", "lane//child", "/tmp/lane"):
+            bad = copy.deepcopy(self.s)
+            bad["run_dirs"]["main"] = value
+            self.assertEqual(heavy.validate_spec(bad)[0], "INVALID_PIN_SPEC", value)
 
     def test_hr22_unit_props_and_child_environment_are_exact(self):
         c = runtime.SystemdRuntime(run_cmd=lambda _: (0, "")).command("rq-task-T-a1", ["x"], {}, "W2")

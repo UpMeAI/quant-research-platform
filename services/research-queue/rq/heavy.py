@@ -166,11 +166,11 @@ def validate_spec(value):
         return ["INVALID_PIN_SPEC"]
     if any(not isinstance(p, dict) or p.get("kind") not in PRECONDITIONS for p in value["preconditions"]):
         return ["INVALID_PIN_SPEC"]
-    if not value["run_dirs"] or any(not isinstance(v, str) or not v.startswith("/") for v in value["run_dirs"].values()):
-        return ["INVALID_PIN_SPEC"]
     for s in _walk_strings(value):
         if any(s == p or s.startswith(p + "/") for p in FORBIDDEN_ROOTS):
             return ["PATH_FORBIDDEN"]
+    if not value["run_dirs"] or any(not _plain_run_dir_name(v) for v in value["run_dirs"].values()):
+        return ["INVALID_PIN_SPEC"]
     db = value.get("db")
     if isinstance(db, str):
         mode = db
@@ -457,31 +457,59 @@ def classify_driver_result(result):
             if reason.startswith(name):
                 return DriverOutcome("WAITING", "WAITING_EXTERNAL", name)
         return DriverOutcome("INVALID", "BLOCKED_DETERMINISTIC", "INVALID_DRIVER_REASON")
+    if code == 65 and reason.split(":", 1)[0] == "RUN_DIR_EXISTS":
+        return DriverOutcome("INVALID", "BLOCKED_DETERMINISTIC", "INVALID_RUN_DIR_REUSED")
     if code in (64, 65, 66):
         return DriverOutcome("INVALID", "BLOCKED_DETERMINISTIC", "INVALID_" + (reason.split(":", 1)[0] or "DRIVER_REFUSAL"))
     return DriverOutcome("INVALID", "BLOCKED_DETERMINISTIC", "INVALID_DRIVER_EXIT")
 
 
-def _task_record(path, task_id):
-    p = pathlib.Path(path) / "RQ_TASK.json"
-    return _json(p), p
+def _plain_run_dir_name(value):
+    return (isinstance(value, str) and bool(value) and value not in (".", "..")
+            and "/" not in value and "\\" not in value)
 
 
-def prepare_run_dirs(spec, task_id, resume=False):
-    for raw in (spec.get("run_dirs") or {}).values():
-        d = pathlib.Path(raw)
-        if d.is_symlink():
+def resolve_run_dirs(spec, task_dir, *, require_exists):
+    """Derive absolute lane paths after the driver; never store them in the spec."""
+    root = pathlib.Path(task_dir)
+    if not root.is_absolute() or root.is_symlink() or not root.is_dir():
+        raise HeavyRefused("INVALID_RUN_DIR")
+    resolved = {}
+    for role, raw in (spec.get("run_dirs") or {}).items():
+        if not _plain_run_dir_name(raw):
+            raise HeavyRefused("INVALID_PIN_SPEC")
+        lane = root / raw
+        if lane.is_symlink():
+            raise HeavyRefused("INVALID_RUN_DIR_NAME")
+        if require_exists and not lane.is_dir():
+            raise HeavyRefused("INVALID_RUN_DIR_REUSED")
+        resolved[role] = lane
+    return resolved
+
+
+def prepare_run_dirs(spec, task_dir, task_id, resume=False):
+    """Prepare only the task marker. HEAVY_DRIVER_V1 owns every lane child."""
+    root = pathlib.Path(task_dir)
+    if not root.is_absolute() or root.is_symlink() or not root.is_dir():
+        return "INVALID_RUN_DIR_REUSED"
+    if not (spec.get("run_dirs") or {}) or any(
+            not _plain_run_dir_name(raw) for raw in (spec.get("run_dirs") or {}).values()):
+        return "INVALID_PIN_SPEC"
+    mark = root / "RQ_TASK.json"
+    if mark.exists() or mark.is_symlink():
+        if mark.is_symlink() or _json(mark) != {"task_id": task_id}:
             return "INVALID_RUN_DIR_REUSED"
-        doc, mark = _task_record(d, task_id)
-        if d.exists():
-            if not d.is_dir() or doc != {"task_id": task_id}:
-                return "INVALID_RUN_DIR_REUSED"
-        else:
-            if resume:
-                return "INVALID_RUN_DIR_REUSED"
-            d.mkdir(parents=True)
-            mark.write_text(core.canonical({"task_id": task_id}))
+    elif resume:
+        return "INVALID_RUN_DIR_REUSED"
+    else:
+        try:
+            with mark.open("x") as handle:
+                handle.write(core.canonical({"task_id": task_id}))
+                handle.flush()
+                os.fsync(handle.fileno())
             mark.chmod(0o444)
+        except FileExistsError:
+            return "INVALID_RUN_DIR_REUSED"
     return None
 
 
@@ -577,7 +605,7 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     if not floor_allows(available, FLOOR_GIB, peak):
         write_error(attempt, "E", "GUARD_DISK_FLOOR")
         return 4
-    err = prepare_run_dirs(spec, os.environ.get("RQ_TASK_ID", ""), resume=resume)
+    err = prepare_run_dirs(spec, task_dir, os.environ.get("RQ_TASK_ID", ""), resume=resume)
     if err:
         write_error(attempt, "D", err)
         return 65
