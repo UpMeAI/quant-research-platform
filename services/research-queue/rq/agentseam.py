@@ -1,7 +1,8 @@
 """Agent seam (Q3c): the consumer stages an agent task's inputs, maps the agent's result.json onto outcome classes, and re-validates the result itself.
 
 Authority: the agent (a container on Linux, the rq-agent user on HK) is untrusted data-producer. Its result.json is read as data; a task completes only when the
-consumer's own short-lived node process (`cli.js validate`) says the result is valid. A `validator` block written by the agent is never read for these kinds.
+consumer's own short-lived node process (`cli.js validate`) says the result is valid. An agent-written `validator` block is never trusted as
+authority: legacy kinds ignore it, while mechanism kinds require its certificate to match the consumer's independently recomputed output.
 Node and the agent code are read-only inputs; a missing node, a crash, a timeout or unparseable output is VALIDATOR_UNAVAILABLE (BLOCKED_DETERMINISTIC), never COMPLETE.
 """
 import hashlib
@@ -12,7 +13,7 @@ import re
 import subprocess
 
 
-AGENT_KINDS = ("AI_REVIEW_CARD", "AI_CHECK")
+AGENT_KINDS = ("AI_REVIEW_CARD", "AI_CHECK", "AI_MECH_NOTE", "AI_MECH_REVIEW")
 NODE_TIMEOUT_S = 120
 WAIT_STATES = {"WAITING_CREDENTIAL": "A", "WAITING_QUOTA": "Q", "WAITING_EXTERNAL": "E"}
 DEFER_S = 1800

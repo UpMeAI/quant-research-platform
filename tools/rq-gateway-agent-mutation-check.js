@@ -20,6 +20,7 @@ const GW = 'services/rq-deepseek-gateway/rq_gateway.py';
 const D = 'services/research-queue-agent';
 const CHK = `${D}/check-report.js`, CARD = `${D}/card.js`, FI = `${D}/factor-idea.js`, FACTS = `${D}/facts.js`, TR = `${D}/text-rules.js`, LEX = `${D}/lexicon.js`;
 const ROUT = `${D}/routing.js`, AG = `${D}/agent.js`, SEAM = `${D}/queue-seam.js`, GC = `${D}/gateway-client.js`, CLI = `${D}/cli.js`, STUB = `${D}/mechanism-admission-stub.js`;
+const MNOTE = `${D}/mech-note.js`, MREVIEW = `${D}/mech-review.js`, MTEST = 'tests/research_queue_agent_mech.test.js';
 const CFG = 'config/rq_deepseek_gateway.v1.json';
 const HKAG = 'deploy/research-queue-ai/hk/rq-agent.service';
 const RUN = 'deploy/research-queue-ai/linux/run-agent.sh';
@@ -224,6 +225,24 @@ const MUTANTS = [
   m('D03', 'deploy: HK agent has no environment file', HKAG, 'User=rq-agent\n', 'User=rq-agent\nEnvironmentFile=-/root/.config/research-queue/deepseek-review.env\n', [AGT]),
   m('D04', 'deploy: Linux agent container has no network', RUN, '--network none', '--network bridge', [AGT]),
   m('D05', 'deploy: Linux agent container is read-only', RUN, '--read-only ', '', [AGT]),
+  // ---- #149 RF1116 post-round mechanism-note and mechanism-review validators
+  m('M01', 'mechanism note: closed item schema', MNOTE, 'if (!sameKeys(n, NOTE_KEYS) || !OUTCOMES.includes(n.outcome))', 'if (!OUTCOMES.includes(n.outcome))', [MTEST]),
+  m('M02', 'mechanism note: exact candidate set', MNOTE, "if (got.length !== candidates.size || new Set(got).size !== got.length || got.some((id) => !candidates.has(id)) || [...candidates.keys()].some((id) => !got.includes(id))) add('MECH_NOTE_CANDIDATE_SET');", "if (false) add('MECH_NOTE_CANDIDATE_SET');", [MTEST]),
+  m('M03', 'mechanism note: allow-listed mechanism', MNOTE, 'if (!mechanismIds.has(n.mechanism_id))', 'if (false)', [MTEST]),
+  m('M04', 'mechanism note: three-list wording firewall', MNOTE, "if (texts.some((t) => lexicon.findWording(t, ['PREDICTION', 'VERDICT', 'DIRECTION']).length))", 'if (false)', [MTEST]),
+  m('M05', 'mechanism note: size is not a mechanism', MNOTE, 'if (texts.some((t) => SIZE_WORDING.test(t)))', 'if (false)', [MTEST]),
+  m('M06', 'mechanism note: numbers come from formula', MNOTE, 'if (texts.flatMap(numericTokens).some((x) => !formulaNumbers.has(x)))', 'if (false)', [MTEST]),
+  m('M07', 'mechanism note: economic logic maximum length', MNOTE, 'n.economic_logic_zh.length > 160', 'n.economic_logic_zh.length > 161', [MTEST]),
+  m('M08', 'mechanism note: cited fields occur in formula', MNOTE, 'n.fields_cited.some((f) => !c.fields.includes(f))', 'false', [MTEST]),
+  m('M09', 'mechanism pack: score/holdout/path firewall', MNOTE, 'if (hits.length)', 'if (false)', [MTEST]),
+  m('M10', 'mechanism pack: 12k token ceiling', MNOTE, 'if (estimateTokens(pack) > MAX_PACK_TOKENS)', 'if (false)', [MTEST]),
+  m('M11', 'mechanism proposal: no registered duplicate', MNOTE, 'if (isObj(n.proposal) && registeredText && (registeredText.has(n.proposal.title_zh) || registeredText.has(n.proposal.description_zh)))', 'if (false)', [MTEST]),
+  m('M12', 'mechanism review: status/code pairing', MREVIEW, "(it.status === 'CONSISTENT' ? it.code !== null : !HOLD_CODES.includes(it.code))", 'false', [MTEST]),
+  m('M13', 'mechanism review: exact candidate set', MREVIEW, "if (got.length !== candidates.size || new Set(got).size !== got.length || got.some((id) => !candidates.has(id)) || [...candidates.keys()].some((id) => !got.includes(id))) add('MECH_REVIEW_CANDIDATE_SET');", "if (false) add('MECH_REVIEW_CANDIDATE_SET');", [MTEST]),
+  m('M14', 'mechanism review: three-list wording firewall', MREVIEW, "if (lexicon.findWording(it.note_zh, ['PREDICTION', 'VERDICT', 'DIRECTION']).length)", 'if (false)', [MTEST]),
+  m('M15', 'mechanism review: numbers come from formula', MREVIEW, 'if (numericTokens(it.note_zh).some((x) => !allowed.has(x)))', 'if (false)', [MTEST]),
+  m('M16', 'mechanism note: secret-shaped output', MNOTE, "if (SECRET_SHAPED.test(JSON.stringify(out))) add('MECH_NOTE_SECRET_SHAPED');", '', [MTEST]),
+  m('M17', 'mechanism review: secret-shaped output', MREVIEW, "if (SECRET_SHAPED.test(JSON.stringify(out))) add('MECH_REVIEW_SECRET_SHAPED');", '', [MTEST]),
 ];
 
 // lexicon: every term in the three lists is pinned by a test; neutralise each regex in turn
@@ -258,10 +277,11 @@ function main(argv) {
   const head = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim();
   const dirty = execFileSync('git', ['status', '--porcelain', '--', ...new Set(MUTANTS.map((x) => x.file))], { cwd: ROOT, encoding: 'utf8' }).trim();
   if (dirty) { process.stderr.write(`refusing to run: uncommitted changes in mutated files:\n${dirty}\n`); return 2; }
-  const files = [...new Set(MUTANTS.flatMap((x) => x.tests))];
+  const selected = MUTANTS.filter((x) => !only || only.has(x.id));
+  const files = [...new Set(selected.flatMap((x) => x.tests))];
   for (const f of files) { const b = runOne(f); if (b.status !== 0) { process.stderr.write(`baseline is not green: ${f} ${JSON.stringify(b.failing)}\n`); return 2; } }
   const results = [];
-  for (const mu of MUTANTS.filter((x) => !only || only.has(x.id))) {
+  for (const mu of selected) {
     const abs = path.join(ROOT, mu.file);
     const original = fs.readFileSync(abs, 'utf8');
     const count = original.split(mu.find).length - 1;

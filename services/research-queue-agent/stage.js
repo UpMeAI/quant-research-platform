@@ -22,6 +22,11 @@ function stageFiles({ row, input, buildRegistry }) {
     if (typeof buildRegistry !== 'function') throw err('RQ_STAGE_INPUT_INVALID', 'registry builder');
     return { task, bundle: { schema: 'RQ_AGENT_BUNDLE_V1', market: task.market, week_id: packWeek(input), pack: input, registry: buildRegistry(task.market) } };
   }
+  if (task.kind === 'AI_MECH_NOTE' || task.kind === 'AI_MECH_REVIEW') {
+    const schema = task.kind === 'AI_MECH_NOTE' ? 'RF1116_MECH_NOTE_PACK_V1' : 'RF1116_MECH_REVIEW_PACK_V1';
+    if (input.schema !== schema || input.market !== task.market) throw err('RQ_STAGE_INPUT_INVALID', schema);
+    return { task, bundle: { schema: 'RQ_AGENT_BUNDLE_V1', market: task.market, pack: input } };
+  }
   if (input.schema !== 'RQ_AGENT_BUNDLE_V1' || !isObj(input.pack)) throw err('RQ_STAGE_INPUT_INVALID', 'check bundle');
   if (input.market !== task.market) throw err('RQ_STAGE_MARKET_MISMATCH', `${input.market} vs ${task.market}`);
   return { task, bundle: input };

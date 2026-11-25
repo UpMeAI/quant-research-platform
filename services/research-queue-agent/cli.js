@@ -2,7 +2,7 @@
 'use strict';
 /**
  * 代理命令行（任务进程）：读 task.json 与 bundle.json，经本机 unix socket 调网关，把 result.json 与产物写到 --out。
- *   node cli.js --task task.json --bundle bundle.json --out <dir> --socket /run/rq-gw.sock --host LINUX|HK [--triage triage.json] [--max-pack-tokens n]
+ *   node cli.js --task task.json --bundle bundle.json --out <dir> --socket /run/rq-gw.sock --host LINUX|HK [--triage triage.json] [--max-pack-tokens n] [--mechanism-register path]
  * W24：本进程是生成方（review-agent）：启动后立刻上 W20 的读锁（写只许 --out 的上一级目录，因为先写临时目录再改名；读不许进留出段数据目录），
  *   并把它读的事实包写进访问记录 access_log.jsonl（与 result.json 同目录）。读留出段目录被拒 → 记一行 refused 的 HOLDOUT_READ，只写这份记录，退出码 5。
  * 只要写出了 result.json 就退出 0（状态在 result.status 里，由队列消费者按 queue-seam.transitionFor 处理）；退出码非 0 只表示用法错误或拒启（环境里有密钥）。
@@ -14,6 +14,7 @@ const { assertKeylessEnv, runAgentTask } = require('./agent');
 const { createGatewayClient } = require('./gateway-client');
 const { canonicalJson } = require('./canon');
 const { lockGenerator } = require('../independent-verifier/launcher');
+const DEFAULT_MECHANISM_REGISTER = path.join(__dirname, '..', '..', 'config', 'research_mechanism_register.v1.json');
 
 function usage(msg) { process.stderr.write(`RQ_CLI_USAGE: ${msg}\n`); process.exit(2); }
 
@@ -57,7 +58,11 @@ function consumerCommand(sub, argv) {
   const task = readJson(a.task); const bundle = readJson(a.bundle);
   let result = null;
   try { result = readJson(a.result); } catch (e) { process.stdout.write(`${canonicalJson({ ok: false, codes: ['RESULT_UNPARSEABLE'], output_sha256: null })}\n`); return; }
-  process.stdout.write(`${canonicalJson(validateResult({ task, bundle, result }))}\n`);
+  let mechanismRegisterBytes = null;
+  if (task.kind === 'AI_MECH_NOTE') {
+    try { mechanismRegisterBytes = fs.readFileSync(a['mechanism-register'] || DEFAULT_MECHANISM_REGISTER); } catch (e) { mechanismRegisterBytes = null; }
+  }
+  process.stdout.write(`${canonicalJson(validateResult({ task, bundle, result, mechanismRegisterBytes }))}\n`);
 }
 
 async function main() {
@@ -85,7 +90,8 @@ async function main() {
   let result;
   try {
     result = await runAgentTask(task, bundle, { client: createGatewayClient({ socketPath: a.socket }), env: process.env, host: a.host, triage, writeQualityRecord: (r) => qg.push(r),
-      maxPackTokens: a['max-pack-tokens'] ? Number(a['max-pack-tokens']) : undefined });
+      maxPackTokens: a['max-pack-tokens'] ? Number(a['max-pack-tokens']) : undefined,
+      loadMechanismRegister: task.kind === 'AI_MECH_NOTE' ? () => fs.readFileSync(a['mechanism-register'] || DEFAULT_MECHANISM_REGISTER) : undefined });
   } catch (e) { fs.rmSync(tmp, { recursive: true, force: true }); process.stderr.write(`${e.code || 'RQ_AGENT_ERROR'}: ${String(e.message).slice(0, 300)}\n`); process.exit(4); }
 
   const w = (name, text) => fs.writeFileSync(path.join(tmp, name), text);

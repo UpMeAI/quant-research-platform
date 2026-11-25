@@ -337,13 +337,25 @@ test('AQ-44 author != checker: admissions differ, the check pack carries the aut
   assert.ok(V.checkPack(F.makePack({ author: undefined }), { purpose: 'CHECK', check_admission_sha256: check.system_sha256, author_required: true }).errors.some((e) => e.code === 'PACK_AUTHOR_MISSING'));
 });
 
-test('prompt admissions: unique system sha across kinds, every entry pinned to the text in code, state ADMITTED', () => {
+test('prompt admissions: unique shas, code pins, and the frozen admitted/pending state matrix', () => {
   const adm = V.prompts.loadAdmissions();
   const shas = adm.entries.map((e) => e.system_sha256);
+  const expectedStates = {
+    AI_CHECK: 'ADMITTED',
+    AI_REVIEW_CARD: 'ADMITTED',
+    AI_PREREG: 'ADMITTED',
+    AI_MECH_NOTE: 'PENDING_ADMISSION',
+    AI_MECH_REVIEW: 'PENDING_ADMISSION',
+  };
   assert.equal(new Set(shas).size, shas.length);
   assert.equal(adm.byKind.AI_CHECK.system_sha256, F.sha(V.prompts.CHECK_SYSTEM_TEXT));
   assert.equal(adm.byKind.AI_REVIEW_CARD.system_sha256, F.sha(V.prompts.CARD_SYSTEM_TEXT));
-  for (const e of adm.entries) assert.equal(e.state, 'ADMITTED');
+  assert.deepEqual(Object.fromEntries(adm.entries.map((e) => [e.kind, e.state])), expectedStates);
+  for (const e of adm.entries.filter((x) => V.prompts.TEXTS[x.kind])) {
+    assert.equal(e.system_sha256, F.sha(V.prompts.TEXTS[e.kind]), e.kind);
+  }
+  assert.equal(adm.byKind.AI_MECH_NOTE, undefined);
+  assert.equal(adm.byKind.AI_MECH_REVIEW, undefined);
   assert.ok(V.prompts.CHECK_SYSTEM_TEXT.startsWith('You check whether a research task\'s evidence covers every row of a frozen evidence matrix.'));
   for (const t of [V.prompts.CHECK_SYSTEM_TEXT, V.prompts.CARD_SYSTEM_TEXT]) {
     assert.match(t, /Do not predict prices, returns, directions, probabilities, sizes or market impact/);
