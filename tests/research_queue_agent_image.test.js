@@ -5,7 +5,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const http = require('node:http');
+const { spawn, spawnSync } = require('node:child_process');
+const F = require('./_rq_agent_fixture');
 
 const ROOT = path.join(__dirname, '..');
 const LINUX = path.join(ROOT, 'deploy', 'research-queue-ai', 'linux');
@@ -61,3 +63,59 @@ test('#167 launcher refuses unstaged input before Docker and enforces no network
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test('#167 Linux rootless image completes stage -> agent -> result.json through a scratch Unix socket',
+  { skip: !process.env.RQ_AGENT_IMAGE }, async () => {
+    const tmpBase = process.env.RQ167_TMPDIR || os.tmpdir();
+    const tmp = fs.mkdtempSync(path.join(tmpBase, 'rq167-e2e-'));
+    const runtime = path.join(tmp, 'runtime');
+    const staged = path.join(tmp, 'attempt', 'in');
+    const out = path.join(tmp, 'attempt', 'out');
+    const sock = path.join(runtime, 'rq-gw.sock');
+    fs.mkdirSync(runtime);
+    fs.mkdirSync(path.dirname(staged), { recursive: true });
+    const packFile = path.join(tmp, 'pack.json');
+    fs.writeFileSync(packFile, JSON.stringify(F.makePack()));
+    const row = {
+      task_id: 'RQT-LINUX-20261125-167a167a', host: 'LINUX', agent_host: 'LINUX',
+      kind: 'AI_REVIEW_CARD', market: 'CN_A', template_id: 'AI_REVIEW_CARD_V1',
+      template_sha256: F.sha('tpl'), attempt_no: 1,
+    };
+    const cli = path.join(ROOT, 'services', 'research-queue-agent', 'cli.js');
+    const stage = spawnSync(process.execPath,
+      [cli, 'stage', '--row-json', JSON.stringify(row), '--input', packFile, '--out', staged],
+      { encoding: 'utf8', env: { PATH: process.env.PATH } });
+    assert.equal(stage.status, 0, stage.stderr);
+
+    let calls = 0;
+    const server = http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', (chunk) => chunks.push(chunk));
+      req.on('end', () => {
+        calls += 1;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ model: 'deepseek-flash', choices: [{ message: { role: 'assistant', content: JSON.stringify(F.makeCard()) } }], usage: {} }));
+      });
+    });
+    await new Promise((resolve, reject) => { server.once('error', reject); server.listen(sock, resolve); });
+    try {
+      const run = await new Promise((resolve) => {
+        const child = spawn(path.join(LINUX, 'run-agent.sh'), [staged, out], { env: {
+          PATH: process.env.PATH,
+          RQ_AGENT_IMAGE: process.env.RQ_AGENT_IMAGE,
+          XDG_RUNTIME_DIR: runtime,
+          DOCKER_HOST: process.env.DOCKER_HOST,
+        } });
+        let stdout = ''; let stderr = '';
+        child.stdout.on('data', (d) => { stdout += d; });
+        child.stderr.on('data', (d) => { stderr += d; });
+        child.on('close', (status) => resolve({ status, stdout, stderr }));
+      });
+      assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
+      assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'result.json'))).status, 'DONE');
+      assert.equal(calls, 1);
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
