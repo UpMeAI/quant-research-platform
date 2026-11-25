@@ -61,4 +61,3 @@ Acceptance:
   deterministic ordering, current-attempt semantics including zero, and the
   no-result-read/no-result-copy boundary.
 - The existing research-queue status/runtime tests remain green.
-
