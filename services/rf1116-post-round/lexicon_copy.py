@@ -28,4 +28,3 @@ def has_forbidden_wording(text):
     if not isinstance(text, str):
         return False
     return any(re.search(pattern, text, re.I) for pattern in _PATTERNS)
-
