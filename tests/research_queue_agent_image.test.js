@@ -95,7 +95,8 @@ test('#167 Linux rootless image completes stage -> agent -> result.json through 
       req.on('end', () => {
         calls += 1;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({ model: 'deepseek-flash', choices: [{ message: { role: 'assistant', content: JSON.stringify(F.makeCard()) } }], usage: {} }));
+        const card = F.makeCard({ factor_ideas: [], no_idea_reason: { text_zh: '本周没有触及选股或择时的发现', fact_ids: ['F-001'] } });
+        res.end(JSON.stringify({ model: 'deepseek-flash', choices: [{ message: { role: 'assistant', content: JSON.stringify(card) } }], usage: {} }));
       });
     });
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(sock, resolve); });
