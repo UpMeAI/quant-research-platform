@@ -15,6 +15,8 @@ from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 MODULE_DIR = ROOT / "services" / "rf1116-post-round"
+REAL_SPACE = ROOT / "docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json"
+REAL_SPACE_SHA256 = "0d3556fa97f17d3a67b350e7f74c12fb521ca1fb60c293121601f7eb95f96637"
 sys.path.insert(0, str(ROOT / "services" / "research-queue"))
 from rq import status as rq_status
 
@@ -113,7 +115,7 @@ class PostRoundTest(unittest.TestCase):
         (self.tmp / "register.json").write_text(canon({"mechanisms": [
             {"mechanism_id": "SEL.XSEC.VALUE", "title_zh": "估值截面", "description_zh": "估值字段的截面排序", "layer": "SELECTION_TIMING", "decision_point": "SELECT"}
         ]}))
-        (self.tmp / "space.json").write_text(canon({"fields": {"pb": {"zh": "市净率"}}, "operators": {"ts_std": {"zh": "滚动标准差"}}}))
+        (self.tmp / "space.json").write_bytes(REAL_SPACE.read_bytes())
         (self.tmp / ".QRP_COMMIT").write_text("f6c4793\n")
         (self.tmp / "model_gate.json").write_text(canon({"status": "PASS", "verdict": "PASS",
                                                           "at": "2026-11-24T13:00:00+08:00"}))
@@ -123,7 +125,7 @@ class PostRoundTest(unittest.TestCase):
             inbox=self.tmp / "inbox", state_dir=self.tmp / "state", runs_dir=self.tmp / "runs",
             model_gate_file=self.tmp / "model_gate.json", register_file=self.tmp / "register.json",
             space_file=self.tmp / "space.json", code_commit_file=self.tmp / ".QRP_COMMIT",
-            blackouts_file=self.tmp / "blackouts.json", selection_space_sha256="0d3556fa",
+            blackouts_file=self.tmp / "blackouts.json", selection_space_sha256=REAL_SPACE_SHA256,
             note_template_id="T-NOTE", note_template_sha256="1" * 64,
             review_template_id="T-REVIEW", review_template_sha256="2" * 64,
         )
@@ -445,6 +447,46 @@ class PostRoundTest(unittest.TestCase):
         self.assertEqual(list((self.tmp / "inbox/mech-packs").glob("*.json")), [])
         self.assertEqual(list((self.tmp / "post").iterdir()), [])
         self.assertEqual(r.calls, [])
+
+    def test_fix_bf1_real_frozen_space_drives_glossary_formula_and_sha_guard(self):
+        engine = post_round.PostRound(self.cfg, Runner(), lambda: self.NOW)
+        _, glossary = engine._mechanisms_and_glossary()
+        by_name = {item["name"]: item for item in glossary}
+        self.assertIn("pb", by_name)
+        self.assertIn("ts_std", by_name)
+        self.assertIsNone(by_name["pb"]["description_zh"])
+        self.assertIsNone(by_name["ts_std"]["description_zh"])
+
+        self.seed(["A001"])
+        runner = Runner(self.survivors(1))
+        self.assertEqual(post_round.PostRound(self.cfg, runner, lambda: self.NOW).tick()[self.ROUND], "NOTES_ENQUEUED")
+        pack = json.loads(next((self.tmp / "inbox/mech-packs").glob("note-*.json")).read_text())
+        self.assertEqual(set(pack["candidates"][0]["fields"]), {"pb", "ts_std"})
+
+        shutil.rmtree(self.tmp / "inbox")
+        for name in ("inbox/requests", "inbox/mech-packs"):
+            (self.tmp / name).mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(self.tmp / "post")
+        (self.tmp / "post").mkdir()
+        self.cfg.selection_space_sha256 = "0" * 64
+        out = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: self.NOW).tick()
+        self.assertEqual(out[self.ROUND], "STOPPED_SPACE_SHA_MISMATCH")
+        self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
+        alerts = [json.loads(line) for line in (self.tmp / "state/alerts.jsonl").read_text().splitlines()]
+        self.assertEqual([row["code"] for row in alerts], ["STOPPED_SPACE_SHA_MISMATCH"])
+
+    def test_fix_bf2_unreadable_blackouts_fail_closed_and_alert_once(self):
+        self.seed(["A001"])
+        self.cfg.blackouts_file.unlink()
+        runner = Runner(self.survivors(1))
+        engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
+        self.assertEqual(engine.tick()[self.ROUND], "BLACKOUT_READ_ONLY")
+        self.assertEqual(engine.tick()[self.ROUND], "BLACKOUT_READ_ONLY")
+        self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
+        self.assertEqual(list((self.tmp / "post").iterdir()), [])
+        self.assertEqual(runner.calls, [])
+        alerts = [json.loads(line) for line in (self.tmp / "state/alerts.jsonl").read_text().splitlines()]
+        self.assertEqual([row["code"] for row in alerts], ["BLACKOUT_READ_ONLY"])
 
     def test_b17_model_gate_uses_status_not_verdict_and_nonpass_never_enqueues(self):
         self.seed(["A001"])
