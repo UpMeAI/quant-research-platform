@@ -11,6 +11,7 @@ const { packWeek } = require('../research-queue-agent/facts');
 const { contentHash } = require('./canonical');
 
 const NAME = /^validated-return-([A-Za-z0-9._-]+)-a([1-9]\d*)\.json$/;
+const INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const VALIDATOR = Object.freeze({ name: 'rq-consumer-revalidate', version: 'Q3C_V1' });
 const shaBytes = (bytes) => require('crypto').createHash('sha256').update(bytes).digest('hex');
 const fail = (code) => { const error = new Error(code); error.code = code; throw error; };
@@ -78,6 +79,11 @@ function mechanism(value) {
   return { NEW: { proposedId: n.proposed_id, titleZh: n.title_zh, descriptionZh: n.description_zh,
     layer: n.layer, decisionPoint: n.decision_point } };
 }
+function projectPit(value) {
+  if (typeof value !== 'string' || value.length === 0) return { pitState: 'UNKNOWN', pitAvailableAt: null, pitRuleText: null };
+  if (INSTANT.test(value) && Number.isFinite(Date.parse(value))) return { pitState: 'AT', pitAvailableAt: value, pitRuleText: null };
+  return { pitState: 'RULE_TEXT', pitAvailableAt: null, pitRuleText: value };
+}
 function projectCard(doc) {
   const c = doc.card;
   return {
@@ -93,7 +99,7 @@ function projectCard(doc) {
 function projectIdea(idea) {
   const body = {
     ideaId: idea.idea_id, market: idea.market, weekId: idea.week_id, mechanism: mechanism(idea.mechanism),
-    readings: idea.readings.map((r) => ({ id: r.id, pitAvailableAt: r.pit_available_at })),
+    readings: idea.readings.map((r) => ({ id: r.id, ...projectPit(r.pit_available_at) })),
     holdingPeriods: idea.holding_periods, questionZh: idea.question_zh, expectedFailureZh: idea.expected_failure_zh,
     factIds: idea.fact_ids, cardSha256: idea.card_sha256,
   };
@@ -132,4 +138,4 @@ function load({ root = defaultRoot(), registryFor = (market) => buildRegistryVie
   };
 }
 
-module.exports = { VALIDATOR, defaultRoot, load };
+module.exports = { VALIDATOR, defaultRoot, load, projectPit };

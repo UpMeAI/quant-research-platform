@@ -199,10 +199,7 @@
         "mechanism": { "$ref": "#/$defs/factorMechanism" },
         "readings": {
           "type": "array", "minItems": 1, "uniqueItems": true,
-          "items": {
-            "type": "object", "additionalProperties": false, "required": ["id", "pitAvailableAt"],
-            "properties": { "id": { "$ref": "#/$defs/ref" }, "pitAvailableAt": { "$ref": "#/$defs/instant" } }
-          }
+          "items": { "$ref": "#/$defs/pitReading" }
         },
         "holdingPeriods": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "integer", "minimum": 1 } },
         "questionZh": { "$ref": "#/$defs/text" },
@@ -211,6 +208,22 @@
         "cardSha256": { "$ref": "#/$defs/hex64" },
         "recordHash": { "$ref": "#/$defs/hex64" }
       }
+    },
+    "pitReading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "pitState", "pitAvailableAt", "pitRuleText"],
+      "properties": {
+        "id": { "$ref": "#/$defs/ref" },
+        "pitState": { "enum": ["AT", "RULE_TEXT", "UNKNOWN"] },
+        "pitAvailableAt": { "anyOf": [{ "$ref": "#/$defs/instant" }, { "type": "null" }] },
+        "pitRuleText": { "type": ["string", "null"], "minLength": 1, "maxLength": 200 }
+      },
+      "oneOf": [
+        { "properties": { "pitState": { "const": "AT" }, "pitAvailableAt": { "$ref": "#/$defs/instant" }, "pitRuleText": { "type": "null" } } },
+        { "properties": { "pitState": { "const": "RULE_TEXT" }, "pitAvailableAt": { "type": "null" }, "pitRuleText": { "type": "string", "minLength": 1, "maxLength": 200 } } },
+        { "properties": { "pitState": { "const": "UNKNOWN" }, "pitAvailableAt": { "type": "null" }, "pitRuleText": { "type": "null" } } }
+      ]
     },
     "sealedVerdict": {
       "type": "object",
