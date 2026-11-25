@@ -170,10 +170,12 @@ class TemplateFiles(unittest.TestCase):
         reg = templates.Registry.load(ROOT / "config/research_queue_templates.v1.json", ROOT / "config/research_queue_template_pins.v1.json")
         ids = {t["template_id"] for t in reg.templates}
         pinned = {"T-AI-REVIEW-CARD-V1-LINUX-CN_A", "T-AI-CHECK-V1-LINUX-CN_A", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO"}
-        self.assertTrue(pinned | {"T-AI-PREREG-V1"} <= ids)
+        legacy = pinned | {"T-AI-PREREG-V1", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO"}
+        heavy_ids = {"T-HEAVY-Q0-LANE-V1-LINUX", "T-HEAVY-LAB-E2E-V1-LINUX"}
+        self.assertTrue(legacy | heavy_ids <= ids)
         for t in reg.templates:
             self.assertEqual(templates.validate_template(t), [], t["template_id"])
-            self.assertEqual(t["weight_class"], "NET")
+            self.assertEqual(t["weight_class"], "W2" if t["template_id"] in heavy_ids else "NET")
             self.assertEqual(reg.is_frozen(t), t["template_id"] in pinned, t["template_id"])  # T-AI-PREREG-V1 waits for its own freeze page
         self.assertEqual({p["template_id"] for p in reg.pins}, pinned)
 

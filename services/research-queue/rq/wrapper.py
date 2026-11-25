@@ -25,7 +25,8 @@ def main(argv):
     cmd = argv[argv.index("--") + 1:]
     (d / "work").mkdir(exist_ok=True)
     _atomic(d / "run.pid", str(os.getpid()))
-    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH" and not any(s in k.upper() for s in SECRET_NAME)}
+    heavy_supervisor = len(cmd) >= 4 and cmd[1:4] == ["-m", "rq", "heavy-run"]
+    env = {k: v for k, v in os.environ.items() if (k != "PYTHONPATH" or heavy_supervisor) and not any(s in k.upper() for s in SECRET_NAME)}
     env.update(RQ_ATTEMPT_DIR=str(d), TZ="Asia/Shanghai")
     started = time.time()
     with open(d / "stdout.log", "ab") as out, open(d / "stderr.log", "ab") as err:

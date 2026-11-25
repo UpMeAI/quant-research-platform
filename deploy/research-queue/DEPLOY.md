@@ -5,7 +5,7 @@ For ops-coord. Nothing here is installed by the PR. Template admission remains g
 ## Linux (user units, kayla, linger)
 
 1. Code: `git archive <sha> | tar -x -C /srv/research-lane/research-queue/code/<sha>/` and `ln -sfn <sha> /srv/research-lane/research-queue/code/current`. The full tree is required because the consumer CLI loads `services/`, `independent-verifier/`, `adapters/`, `packages/`, `schemas/` and `config/` from the same SHA.
-2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher; on both hosts `node_bin` (HK: `/opt/node22/bin/node`) is used by the consumer to stage inputs and to re-validate results, and HK sets `spool_dir` `/var/lib/rq-spool`, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
+2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher; on both hosts `node_bin` (HK: `/opt/node22/bin/node`) is used by the consumer to stage inputs and to re-validate results, and HK sets `spool_dir` `/var/lib/rq-spool`, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). Production must set `blackouts_path`; a missing, unreadable, invalid, or non-`RQ_BLACKOUTS_V1` file refuses claims with `BLACKOUTS_FILE_UNUSABLE` instead of falling back to no blackouts. `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
 3. `install -m 0644 linux/* ~/.config/systemd/user/`, `systemctl --user daemon-reload`.
 4. Pause authority (RQ8): `systemctl --user disable --now rf1116-window-pause.timer`, then `systemctl --user enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
 5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
@@ -29,12 +29,16 @@ For ops-coord. Nothing here is installed by the PR. Template admission remains g
 
 `mac/com.upmeai.research-queue-relay.plist.template` (every 15 min), config `~/Library/Application Support/research-queue/relay.json` (optional; defaults match the desk outbox and the existing ssh aliases). It ships fact packs from `rq-relay-outbox/{linux,hk}/REVIEW_AI_FACT_PACK_V1/` to each host's `inbox/fact-packs/` and pulls each host's `outbox/*.json` into the QRP `var/research-queue-return/<host>/`, verifying by sha256 both ways. No new keys. W05: before a pack is pushed its SEEN mark is written into the QRP trial ledger by `node apps/research-cli/review_pack_seen.js mark --file -` (needs `QRP_PRODUCT_MILESTONE_AUTHORITY` in the launchd environment; `relay.json` may carry `"seen_mark": {"qrp_root": "...", "node": "..."}`); a pack that cannot be marked is not pushed (`failed ... SEEN_MARK_FAILED:<code>`) and is retried on the next pass. A host that also wants to mark what its producer admits sets `RQ_SEEN_MARK_QRP_ROOT` (and optionally `RQ_SEEN_MARK_NODE`) for `producer-tick`; without it the producer marks nothing.
 
+## Heavy runs
+
+`T-HEAVY-Q0-LANE-V1-LINUX` and `T-HEAVY-LAB-E2E-V1-LINUX` remain inadmissible until plan-coord adds their template pins. Their request names only a sealed `spec_sha256`; the supervisor reads `inbox/heavy-specs/<sha>.json`, verifies the bytes, pins, programmatic preconditions, binary-GiB floor and driver evidence, then `rq-complete` alone decides the `HEAVY_MATRIX`. Operators do not start drivers by hand. Before LIVE, verify `research.slice` exposes `AllowedCPUs=0-7,16-23`, the rootless Docker socket is passed through the configured allowlist, and a queue-claimed `heavy-run --dry` returns `DRY_RUN_OK`.
+
 ## File sha256 (must match after install)
 
 | File | sha256 |
 |---|---|
-| `linux/research.slice` | 1846ee8fa5e0ae744217347f28c2eef779d7e39a8553f1a66c321b5731f97bc3 |
 | `linux/rq-consumer.service` | 79d646da3373283ff2d6cd837d071f7b7b73648f79d66d6aff6d783c14c09cec |
+| `linux/research.slice` | e5ecd11e2ab5e26b561be12c085d360f00fce349b13bd7427ca23dce095ad329 |
 | `linux/rq-pause.service` | acf5a4f3b6e1a5b9468d4244bc1704163c78d5d4293c167aabf7abca7e63d21e |
 | `linux/rq-pause.timer` | 9eddd695c96522998c6a8d83d9338e67b01f2e8f4750f9f7133e93bff242d419 |
 | `linux/rq-producer.service` | 8ba544da1a58fe70e1bb4ad4dca1a61c57619f2644f3154df6037a6e8d7517c7 |
