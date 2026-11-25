@@ -20,6 +20,7 @@ try {
     file: result.file, sha256: result.sha256, hash: result.payload.hash,
     decisions: result.payload.decisions.length, questions: result.payload.questions.length, triage: result.payload.triage.length,
     ...(result.payload.sealedVerdicts ? { sealedVerdicts: result.payload.sealedVerdicts.length, sealedNotImported: require('../../services/desk-review-routing/sealed').notImported() } : {}),
+    ...(result.payload.aiReviewCards ? { aiReviewCards: result.payload.aiReviewCards.length, factorIdeas: result.payload.factorIdeas.length } : {}),
     production_effect: 'NONE',
   })}\n`);
 } catch (error) {
