@@ -166,10 +166,10 @@ class Intake(Base):
 
 
 class TemplateFiles(unittest.TestCase):
-    def test_shipped_registry_is_valid_and_only_the_q3b_templates_are_pinned(self):
+    def test_shipped_registry_is_valid_and_only_frozen_templates_are_pinned(self):
         reg = templates.Registry.load(ROOT / "config/research_queue_templates.v1.json", ROOT / "config/research_queue_template_pins.v1.json")
         ids = {t["template_id"] for t in reg.templates}
-        pinned = {"T-AI-REVIEW-CARD-V1-LINUX-CN_A", "T-AI-CHECK-V1-LINUX-CN_A", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO"}
+        pinned = {"T-AI-REVIEW-CARD-V1-LINUX-CN_A", "T-AI-CHECK-V1-LINUX-CN_A", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO", "T-AI-MECH-NOTE-V1-LINUX-CN_A", "T-AI-MECH-REVIEW-V1-LINUX-CN_A"}
         legacy = pinned | {"T-AI-PREREG-V1", "T-AI-REVIEW-CARD-V1-HK-US-CRYPTO", "T-AI-CHECK-V1-HK-US-CRYPTO"}
         heavy_ids = {"T-HEAVY-Q0-LANE-V1-LINUX", "T-HEAVY-LAB-E2E-V1-LINUX"}
         self.assertTrue(legacy | heavy_ids <= ids)

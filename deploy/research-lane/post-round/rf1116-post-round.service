@@ -1,0 +1,11 @@
+[Unit]
+Description=RF1116 deterministic post-round tick
+
+[Service]
+Type=oneshot
+Slice=research.slice
+WorkingDirectory=/srv/research-lane/research-queue/code/current
+EnvironmentFile=%h/.config/research-queue/rf1116-post-round.env
+Nice=10
+NoNewPrivileges=yes
+ExecStart=/usr/bin/python3 /srv/research-lane/research-queue/code/current/services/rf1116-post-round/post_round.py tick

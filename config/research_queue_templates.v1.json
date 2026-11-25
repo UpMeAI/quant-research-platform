@@ -462,6 +462,182 @@
     "terminal_map": "HEAVY_TERMINAL_MAP_V1",
     "stop_lead_s": 1800
    }
+  },
+  {
+   "template_id": "T-AI-MECH-NOTE-V1-LINUX-CN_A",
+   "version": 1,
+   "kinds": [
+    "AI_MECH_NOTE"
+   ],
+   "producer_host": "LINUX",
+   "run_host": "LINUX",
+   "agent_host": "LINUX",
+   "weight_class": "NET",
+   "io_class": "NONE",
+   "argv": [
+    "/srv/research-lane/research-queue/code/current/deploy/research-queue-ai/linux/run-agent.sh"
+   ],
+   "argv_env_required": [
+    "RQ_AGENT_IMAGE",
+    "XDG_RUNTIME_DIR"
+   ],
+   "params": {},
+   "inputs": [
+    {
+     "prefix": "{inbox}/mech-packs"
+    }
+   ],
+   "outputs": [
+    "result.json"
+   ],
+   "expected_duration_s": 600,
+   "evidence_matrix": {
+    "id": "EM-AI-MECH-NOTE-V1",
+    "sha256": "1d92cbf34e846fb3df7a6b57fc5f03ead77adc0ca9984007fd23437664818fdf"
+   },
+   "evidence_matrix_rows": [
+    {
+     "id": "EM-01",
+     "req": "RF1116_MECH_NOTE_PACK_V1 passed the pack firewall, closed schema and size checks before a provider call",
+     "evidence": "result.json status DONE and calls[] present"
+    },
+    {
+     "id": "EM-02",
+     "req": "RF1116_MECH_NOTE_OUTPUT_V1 has exactly one validated note outcome per candidate",
+     "evidence": "result.json outputs.mechanism_notes and outputs.mechanism_notes_sha256"
+    },
+    {
+     "id": "EM-03",
+     "req": "mechanism, wording, size, number, formula-field and duplicate-proposal checks all passed",
+     "evidence": "trusted consumer re-validation of outputs.mechanism_notes against the staged pack"
+    },
+    {
+     "id": "EM-04",
+     "req": "every provider call has one gateway ledger row (RQ_AGENT, or one RQ_AGENT_PRO_FALLBACK after two failed flash attempts)",
+     "evidence": "result.json calls[] vs gateway.sqlite call rows for task_id"
+    },
+    {
+     "id": "EM-05",
+     "req": "no key-shaped string occurs in the result",
+     "evidence": "trusted consumer scan of result.json"
+    }
+   ],
+   "authority_shas": [
+    "04a0961f212573ed246c346df487e3a6f042bbf0328ba3f24fdc022108134a80",
+    "943ff504072b34a694d61a157db7bc371e50f82dcb1a3045ef5c74c7e6b43b77"
+   ],
+   "prompt_admission_sha256": "2dbf2864f0e7c36db553002a7a42fecd1e3b55afde1780959ec3063d07586f86",
+   "idempotent": true,
+   "transient_budget": 2,
+   "completion": "SELF_VALIDATED",
+   "requires_trl": false,
+   "markets": [
+    "CN_A"
+   ],
+   "subject_keys": "round_id, batch_no, pack sha256",
+   "launch": "consumer child process: the launcher starts the rootless container (--network none, no env, no key) against the user gateway socket",
+   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "gateway": {
+    "unit": "rq-deepseek-gateway.service (user)",
+    "key_id": "LINUX_RESEARCH",
+    "socket": "$XDG_RUNTIME_DIR/rq-gw.sock"
+   },
+   "windows_cst": "Linux windows of section 3.5; DeepSeek calls only off-peak (verified): Mon-Fri 00:00-09:00, 12:00-14:00, 18:00-24:00, weekends all day (agent calls outside this get RQ_PEAK_REFUSED -> DEFER)",
+   "first_run": "RF1116 round 3 post-round after the 11-25 install",
+   "n_rule": "N = 0",
+   "recovery_note": "if the pro fallback already got an answer for this task_id the gateway refuses a second one (RQ_QUALITY_GATE_USED -> BLOCKED_DETERMINISTIC + remediation); a flash-only run repeats at flash cost",
+   "seam_out": [
+    "result.json (RQ_AGENT_RESULT_V1 with mechanism_notes and mechanism_notes_sha256)",
+    "quality_gate (only when pro fallback ran)"
+   ]
+  },
+  {
+   "template_id": "T-AI-MECH-REVIEW-V1-LINUX-CN_A",
+   "version": 1,
+   "kinds": [
+    "AI_MECH_REVIEW"
+   ],
+   "producer_host": "LINUX",
+   "run_host": "LINUX",
+   "agent_host": "LINUX",
+   "weight_class": "NET",
+   "io_class": "NONE",
+   "argv": [
+    "/srv/research-lane/research-queue/code/current/deploy/research-queue-ai/linux/run-agent.sh"
+   ],
+   "argv_env_required": [
+    "RQ_AGENT_IMAGE",
+    "XDG_RUNTIME_DIR"
+   ],
+   "params": {},
+   "inputs": [
+    {
+     "prefix": "{inbox}/mech-packs"
+    }
+   ],
+   "outputs": [
+    "result.json"
+   ],
+   "expected_duration_s": 600,
+   "evidence_matrix": {
+    "id": "EM-AI-MECH-REVIEW-V1",
+    "sha256": "504486485d1ce17c8cc1b3539ce63e88e12a4ff49b16370788c8a36b9cde2d01"
+   },
+   "evidence_matrix_rows": [
+    {
+     "id": "EM-01",
+     "req": "RF1116_MECH_REVIEW_PACK_V1 passed the pack firewall, closed schema and size checks before a provider call",
+     "evidence": "result.json status DONE and calls[] present"
+    },
+    {
+     "id": "EM-02",
+     "req": "RF1116_MECH_REVIEW_OUTPUT_V1 has exactly one validated consistency item per candidate",
+     "evidence": "result.json outputs.mechanism_review and outputs.mechanism_review_sha256"
+    },
+    {
+     "id": "EM-03",
+     "req": "every HOLD item has an allowed code; every CONSISTENT item has null code; note_zh is a string of at most 80 characters",
+     "evidence": "trusted consumer re-validation of outputs.mechanism_review against the staged pack"
+    },
+    {
+     "id": "EM-04",
+     "req": "every provider call has one gateway ledger row (RQ_AGENT, or one RQ_AGENT_PRO_FALLBACK after two failed flash attempts)",
+     "evidence": "result.json calls[] vs gateway.sqlite call rows for task_id"
+    },
+    {
+     "id": "EM-05",
+     "req": "no key-shaped string occurs in the result",
+     "evidence": "trusted consumer scan of result.json"
+    }
+   ],
+   "authority_shas": [
+    "04a0961f212573ed246c346df487e3a6f042bbf0328ba3f24fdc022108134a80",
+    "943ff504072b34a694d61a157db7bc371e50f82dcb1a3045ef5c74c7e6b43b77"
+   ],
+   "prompt_admission_sha256": "ddebb02883ddb61517fd359871ca4f0a987605900f1309eaa9ecd2b6682fed33",
+   "idempotent": true,
+   "transient_budget": 2,
+   "completion": "SELF_VALIDATED",
+   "requires_trl": false,
+   "markets": [
+    "CN_A"
+   ],
+   "subject_keys": "round_id, batch_no, pack sha256",
+   "launch": "consumer child process: the launcher starts the rootless container (--network none, no env, no key) against the user gateway socket",
+   "launch_inputs": "the launcher reads RQ_ATTEMPT_DIR/in/{task.json,bundle.json} and publishes RQ_ATTEMPT_DIR/result.json; no per-task path is in the argv",
+   "gateway": {
+    "unit": "rq-deepseek-gateway.service (user)",
+    "key_id": "LINUX_RESEARCH",
+    "socket": "$XDG_RUNTIME_DIR/rq-gw.sock"
+   },
+   "windows_cst": "Linux windows of section 3.5; DeepSeek calls only off-peak (verified): Mon-Fri 00:00-09:00, 12:00-14:00, 18:00-24:00, weekends all day (agent calls outside this get RQ_PEAK_REFUSED -> DEFER)",
+   "first_run": "after the matching RF1116 mechanism notes are registered",
+   "n_rule": "N = 0",
+   "recovery_note": "if the pro fallback already got an answer for this task_id the gateway refuses a second one (RQ_QUALITY_GATE_USED -> BLOCKED_DETERMINISTIC + remediation); a flash-only run repeats at flash cost",
+   "seam_out": [
+    "result.json (RQ_AGENT_RESULT_V1 with mechanism_review and mechanism_review_sha256)",
+    "quality_gate (only when pro fallback ran)"
+   ]
   }
  ]
 }

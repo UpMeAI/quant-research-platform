@@ -1,0 +1,11 @@
+[Unit]
+Description=RF1116 deterministic post-round tick, every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:0/30:00
+AccuracySec=1min
+Persistent=true
+Unit=rf1116-post-round.service
+
+[Install]
+WantedBy=timers.target
