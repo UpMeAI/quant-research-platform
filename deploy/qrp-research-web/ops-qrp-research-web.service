@@ -1,0 +1,26 @@
+[Unit]
+Description=QRP read-only research web origin
+After=network-online.target
+Wants=network-online.target
+OnFailure=ops-notify@%n.service
+
+[Service]
+Type=simple
+EnvironmentFile=/home/kayla/.config/ops-env/qrp-research-web.env
+WorkingDirectory=/srv/research-lane/qrp
+ExecStart=/usr/bin/python3 -I -B /srv/research-lane/ops/qrp-research-web/runtime web
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=30
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+CPUAffinity=0-7 16-23
+MemoryMax=1G
+UMask=0027
+NoNewPrivileges=true
+StandardOutput=append:/srv/research-lane/ops-logs/qrp-research-web/web.out.log
+StandardError=append:/srv/research-lane/ops-logs/qrp-research-web/web.err.log
+
+[Install]
+WantedBy=default.target
