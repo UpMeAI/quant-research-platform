@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule RUT1 phase P1 input delivery
+
+[Timer]
+OnCalendar=2026-11-28 05:00:00 Asia/Shanghai
+Persistent=false
+AccuracySec=1s
+Unit=research-rut1-input-copy-p1.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,16 @@
+[Unit]
+Description=Deliver verified RUT1 phase P2 inputs
+
+[Service]
+Type=oneshot
+User=kayla
+WorkingDirectory=/srv/research-lane/quant-research-platform
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONPATH=/srv/research-lane/quant-research-platform/services/rut1-input-copy
+ExecStart=/usr/bin/python3 -B -m rut1copy --phase p2
+TimeoutStartSec=1800
+Nice=19
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+NoNewPrivileges=true
+PrivateTmp=true
