@@ -103,6 +103,14 @@ class ValidatedReturn(Base):
         doc = json.loads(raw)
         self.assertEqual(raw, (core.canonical(doc) + "\n").encode())
         self.assertEqual(self.output.stat().st_mode & 0o777, 0o444)
+        self.assertEqual(
+            set(doc),
+            {
+                "schema", "task_id", "attempt_no", "host", "template_id", "template_sha256", "kind", "market",
+                "validator", "card", "ideas", "card_sha256", "ideas_sha256", "fact_pack", "registry",
+                "result_sha256", "output_sha256", "bundle_sha256",
+            },
+        )
         self.assertEqual((doc["card"], doc["ideas"]), (self.card, self.ideas))
         self.assertEqual(doc["result_sha256"], hashlib.sha256(self.result_raw).hexdigest())
         self.assertEqual(doc["output_sha256"], VALIDATION["output_sha256"])
@@ -115,6 +123,13 @@ class ValidatedReturn(Base):
         self.assertEqual(bundle_sha, core.sha256_hex(core.canonical(body)))
         self.assertNotIn("timestamp", doc)
         self.assertNotIn("at", doc)
+
+    def test_empty_validated_ideas_array_is_published(self):
+        self.result["outputs"]["factor_ideas"] = []
+        self.result_raw = (json.dumps(self.result, indent=1, ensure_ascii=False) + "\n").encode()
+        (self.attempt / "result.json").write_bytes(self.result_raw)
+        self.assertEqual(self.run_complete(), [self.task_id])
+        self.assertEqual(json.loads(self.output.read_bytes())["ideas"], [])
 
     def test_crash_after_publish_reuses_identical_bytes_then_completes(self):
         real_transition = core.transition
