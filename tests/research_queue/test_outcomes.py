@@ -184,6 +184,16 @@ class Circuits(Base):
 
 
 class RuntimeLifecycle(unittest.TestCase):
+    def test_process_runtime_closes_parent_wrapper_log_handle_after_launch(self):
+        managed_open = mock.mock_open()
+        fake_process = mock.Mock()
+        with tempfile.TemporaryDirectory() as temp, \
+             mock.patch("builtins.open", managed_open), \
+             mock.patch.object(runtime.subprocess, "Popen", return_value=fake_process):
+            rt = runtime.ProcessRuntime()
+            rt._launch(["stub"], {}, pathlib.Path(temp), "W0")
+        managed_open().close.assert_called_once_with()
+
     def test_each_outcome_suite_reaps_its_runtime_before_tempdir_cleanup(self):
         cases = (
             (Waits, "test_http_class_mapping"),
