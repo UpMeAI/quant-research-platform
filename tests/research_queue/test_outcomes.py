@@ -1,5 +1,6 @@
 """AQ-10 wait states, AQ-11 no cost-cap state, AQ-13 completion authority (core part), AQ-14 circuits."""
 import datetime as dt, json, os, re, unittest
+from unittest import mock
 from helpers import *  # noqa
 from rq import agentseam  # noqa
 
@@ -176,6 +177,23 @@ class Circuits(Base):
             core.insert_event(self.conn, r.task_id, self.t0 + dt.timedelta(minutes=i), "rq-consumer", "RUNNING", "READY", "T1_INTERRUPTED", {})
         self.assertIsNotNone(core.open_circuits(self.conn, "LINUX", self.t0 + dt.timedelta(minutes=10))["host"])
         self.assertIsNone(core.open_circuits(self.conn, "LINUX", self.t0 + dt.timedelta(minutes=90))["host"])
+
+
+class RuntimeLifecycle(unittest.TestCase):
+    def test_each_outcome_suite_reaps_its_runtime_before_tempdir_cleanup(self):
+        cases = (
+            (Waits, "test_http_class_mapping"),
+            (CompletionAuthority, "test_only_rq_complete_may_write_complete"),
+            (Circuits, "test_two_different_d_codes_do_not_open_it"),
+        )
+        for case_type, method in cases:
+            with self.subTest(case=case_type.__name__):
+                managed = mock.Mock(spec=runtime.ProcessRuntime)
+                case = case_type(method)
+                with mock.patch.object(runtime, "ProcessRuntime", return_value=managed):
+                    case.setUp()
+                case.doCleanups()
+                managed.stop_all.assert_called_once_with()
 
 
 if __name__ == "__main__":
