@@ -6,9 +6,10 @@ For ops-coord. Nothing here is installed by the PR. Template admission remains g
 
 1. Code: `git archive <sha> | tar -x -C /srv/research-lane/research-queue/code/<sha>/` and `ln -sfn <sha> /srv/research-lane/research-queue/code/current`. The full tree is required because the consumer CLI loads `services/`, `independent-verifier/`, `adapters/`, `packages/`, `schemas/` and `config/` from the same SHA.
 2. Config `~/.config/research-queue/rq.json` (host `LINUX`, `env_allowlist` must carry `RQ_AGENT_IMAGE`, `XDG_RUNTIME_DIR` and `DOCKER_HOST` for the agent launcher; on both hosts `node_bin` (HK: `/opt/node22/bin/node`) is used by the consumer to stage inputs and to re-validate results, and HK sets `spool_dir` `/var/lib/rq-spool`, `root` `/srv/research-lane/research-queue`, `state_dir` `~/.local/state/research-queue`, `templates_path`, `pins_path`, `blackouts_path` under `code/current/config/`). Production must set `blackouts_path`; a missing, unreadable, invalid, or non-`RQ_BLACKOUTS_V1` file refuses claims with `BLACKOUTS_FILE_UNUSABLE` instead of falling back to no blackouts. `python3 -m rq --config <file> env-manifest > install-manifest.json`, then set `install_manifest` in the config: every start refuses on a mismatch (exit 78).
-3. `install -m 0644 linux/* ~/.config/systemd/user/`, `systemctl --user daemon-reload`.
-4. Pause authority (RQ8): `systemctl --user disable --now rf1116-window-pause.timer`, then `systemctl --user enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
-5. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
+3. Build the keyless Linux AQ image from the same merged commit with `research-queue-ai/linux/build-image.sh`; it uses the local digest-pinned base, a `git archive` context, `--pull=false --network none`, writes `~/.config/research-queue/rq-agent-image.env`, and records the exact image ID. Re-freeze the install manifest after that environment exists.
+4. `install -m 0644 linux/* ~/.config/systemd/user/`, `systemctl --user daemon-reload`.
+5. Pause authority (RQ8): `systemctl --user disable --now rf1116-window-pause.timer`, then `systemctl --user enable --now rq-pause.timer rq-producer.timer rq-consumer.service`.
+6. Cap proof (AQ-17L, outside V6 windows): `deploy/research-queue/cap-proof.sh LINUX` must print no failures; it also records whether `--cgroup-parent=research.slice` works for rootless containers.
 
 ## HK (system units, root, coordinator only; NET tasks only)
 
@@ -37,7 +38,7 @@ For ops-coord. Nothing here is installed by the PR. Template admission remains g
 
 | File | sha256 |
 |---|---|
-| `linux/rq-consumer.service` | 79d646da3373283ff2d6cd837d071f7b7b73648f79d66d6aff6d783c14c09cec |
+| `linux/rq-consumer.service` | 2cc642a5b05bd04166dd2df7f622bf10e5b68a033541d925f21b64cd186cd094 |
 | `linux/research.slice` | e5ecd11e2ab5e26b561be12c085d360f00fce349b13bd7427ca23dce095ad329 |
 | `linux/rq-pause.service` | acf5a4f3b6e1a5b9468d4244bc1704163c78d5d4293c167aabf7abca7e63d21e |
 | `linux/rq-pause.timer` | 9eddd695c96522998c6a8d83d9338e67b01f2e8f4750f9f7133e93bff242d419 |

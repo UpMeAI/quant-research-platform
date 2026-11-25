@@ -6,6 +6,8 @@ Slice=research.slice
 Environment=PYTHONPATH=/srv/research-lane/research-queue/code/current/services/research-queue
 Environment=PATH=/srv/research-lane/tools/node-v23.11.0-linux-x64/bin:/usr/bin:/bin
 Environment=RQ_CONFIG=%h/.config/research-queue/rq.json
+Environment=DOCKER_HOST=unix:///run/user/1000/docker.sock
+EnvironmentFile=%h/.config/research-queue/rq-agent-image.env
 ExecStart=/usr/bin/python3 -m rq consumer-run
 Restart=always
 RestartSec=5
