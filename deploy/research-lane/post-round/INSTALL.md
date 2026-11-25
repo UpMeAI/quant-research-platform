@@ -32,21 +32,22 @@ RQ_STATE_DIR=/home/kayla/.local/state/research-queue
 RQ_RUNS_DIR=/srv/research-lane/research-queue/runs
 RF1116_MODEL_GATE_FILE=/srv/research-lane/rf1116-mining/state/model_gate_last.json
 RF1116_REGISTER_FILE=/srv/research-lane/research-queue/code/current/config/research_mechanism_register.v1.json
-RF1116_SPACE_FILE=/srv/research-lane/research-queue/code/current/config/research_mining_space.v1.json
+RF1116_SPACE_FILE=/srv/research-lane/research-queue/code/current/docs/freeze/MINING_SPACE_V1_CN_A_R1.0d3556fa.json
 RF1116_COMMIT_FILE=/srv/research-lane/rf1116-mining/code/.QRP_COMMIT
 RQ_BLACKOUTS_FILE=/srv/research-lane/research-queue/code/current/config/rq-blackouts.v1.json
 RF1116_RUNNER=/srv/research-lane/rf1116-mining/code/deploy/research-lane/round-runner/run.sh
 RF1116_RUNNER_IMAGE=qrp-round-runner:<reviewed-commit12>
-RF1116_SPACE_SHA256=<frozen-selection-space-sha256>
+RF1116_SPACE_SHA256=0d3556fa97f17d3a67b350e7f74c12fb521ca1fb60c293121601f7eb95f96637
 RF1116_NOTE_TEMPLATE_ID=T-AI-MECH-NOTE-V1-LINUX-CN_A
 RF1116_NOTE_TEMPLATE_SHA256=c8c75ceb592bd91dbaab3f04f82a6f464a6a92335a0507800fe4369fdf1a2ee8
 RF1116_REVIEW_TEMPLATE_ID=T-AI-MECH-REVIEW-V1-LINUX-CN_A
 RF1116_REVIEW_TEMPLATE_SHA256=ea9822c596a491f19aec50f3c04c11b20d149e2e65bcbecf95c1d8b01d6f97b1
 ```
 
-The two `<...>` values are install-time pins. Enabling is refused until
-ops-coord replaces them with the reviewed image commit and frozen selection
-space hash. The file contains paths and hashes only, never provider keys.
+The `<...>` image value is an install-time pin. Enabling is refused until
+ops-coord replaces it with the reviewed image commit. The frozen selection
+space path and hash above are shipped authority, not install-time choices.
+The file contains paths and hashes only, never provider keys.
 
 ## Install and verify
 
