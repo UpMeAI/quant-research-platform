@@ -30,6 +30,10 @@ mkdir "$BUILD_DIR/context"
 tar -xf "$BUILD_DIR/source.tar" -C "$BUILD_DIR/context"
 
 # The digest-pinned base must already exist locally: --pull=false and --network none forbid fallback.
+if ! docker info --format '{{json .SecurityOptions}}' | grep -q '"name=rootless"'; then
+  echo "RQ_AGENT_DOCKER_NOT_ROOTLESS" >&2
+  exit 77
+fi
 docker image inspect "$BASE" >/dev/null
 DOCKER_BUILDKIT=1 docker build --pull=false --network none \
   --label "org.opencontainers.image.revision=$SHA" \

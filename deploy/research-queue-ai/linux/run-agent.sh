@@ -13,6 +13,10 @@ if [ ! -f "$IN/task.json" ] || [ ! -f "$IN/bundle.json" ]; then
   echo "RQ_AGENT_INPUT_NOT_STAGED: $IN/task.json and bundle.json are required" >&2
   exit 66
 fi
+if ! docker info --format '{{json .SecurityOptions}}' | grep -q '"name=rootless"'; then
+  echo "RQ_AGENT_DOCKER_NOT_ROOTLESS" >&2
+  exit 77
+fi
 mkdir -p "$(dirname "$OUT")"
 rc=0
 # In a rootless daemon, container uid 0 maps to the unprivileged host user. It is
