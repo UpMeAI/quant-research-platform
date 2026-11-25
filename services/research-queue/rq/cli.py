@@ -5,7 +5,7 @@ import os
 import sys
 import time
 
-from . import complete, config, consumer, core, pause, producer, relay, runtime, status, templates
+from . import complete, config, consumer, core, heavy, pause, producer, relay, runtime, status, templates
 
 EXIT_ENV_MISMATCH = 78
 
@@ -35,13 +35,17 @@ def main(argv=None):
     a.add_argument("task_id")
     a = sub.add_parser("reset-circuit")
     a.add_argument("template_id")
+    a = sub.add_parser("heavy-run")
+    a.add_argument("spec_sha256")
+    a.add_argument("--resume", action="store_true")
+    a.add_argument("--dry", action="store_true")
     args = ap.parse_args(argv)
     cfg = config.Config.load(args.config)
     now = core.now_cst()
     if args.cmd == "env-manifest":
         print(json.dumps(config.build_manifest(cfg), indent=1, sort_keys=True))
         return 0
-    if cfg.install_manifest and args.cmd in ("consumer-run", "producer-tick", "pause-tick"):
+    if cfg.install_manifest and args.cmd in ("consumer-run", "producer-tick", "pause-tick", "heavy-run"):
         errs = config.verify_environment(json.load(open(cfg.install_manifest)), cfg)
         if errs:
             sys.stderr.write("ENV_MISMATCH " + "; ".join(errs) + "\n")
@@ -49,6 +53,14 @@ def main(argv=None):
     conn = _open(cfg)
     if args.cmd == "migrate":
         return 0
+    if args.cmd == "heavy-run":
+        try:
+            return heavy.run(cfg, args.spec_sha256, conn=conn, resume=args.resume, dry=args.dry, now=now)
+        except heavy.HeavyRefused as e:
+            if os.environ.get("RQ_ATTEMPT_DIR"):
+                heavy.write_error(os.environ["RQ_ATTEMPT_DIR"], "D", e.code)
+            sys.stderr.write(e.code + "\n")
+            return 65
     if args.cmd == "producer-tick":
         probes = None
         if cfg.gateway_socket:
@@ -61,7 +73,12 @@ def main(argv=None):
         print(json.dumps(complete.tick(conn, cfg, now)))
     elif args.cmd == "pause-tick":
         pauser = pause.Pauser(host=cfg.host)
-        print(json.dumps(pause.tick(conn, cfg, now, pauser, pause.ProcSensors(cfg), pause.load_blackouts(cfg.blackouts_path), runtime=runtime.make_runtime(cfg)), default=str))
+        try:
+            blackouts = pause.load_blackouts(cfg.blackouts_path)
+        except pause.BlackoutsUnusable:
+            print(json.dumps({"refused": ["BLACKOUTS_FILE_UNUSABLE"]}))
+            return 0
+        print(json.dumps(pause.tick(conn, cfg, now, pauser, pause.ProcSensors(cfg), blackouts, runtime=runtime.make_runtime(cfg)), default=str))
     elif args.cmd == "status":
         print(json.dumps(status.write(conn, cfg, now), indent=1))
     elif args.cmd == "verify-chain":
