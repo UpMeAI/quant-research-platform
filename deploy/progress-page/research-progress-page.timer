@@ -1,0 +1,10 @@
+[Unit]
+Description=Generate the research progress page every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:07,37:00 Asia/Shanghai
+Persistent=false
+Unit=research-progress-page.service
+
+[Install]
+WantedBy=timers.target

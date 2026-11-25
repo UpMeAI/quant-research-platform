@@ -1,0 +1,25 @@
+{
+  "schema": "PROGRESS_CONFIG_V1",
+  "generator_commit": "REPLACE_WITH_MERGE_SHA",
+  "stale_banner_after_h": 3,
+  "out_dir": "/srv/research-lane/progress-page/out",
+  "state_dir": "/srv/research-lane/progress-page/state",
+  "sections": {
+    "S1": {"jobs": []},
+    "S2": {"path": "/home/kayla/.local/state/research-queue/status.json", "max_age_h": 1},
+    "S3": {"rounds_path": "/srv/research-lane/rf1116-mining/out/qrp-data/research/mining_rounds.jsonl", "round_timer_ledger_glob": "/srv/research-lane/rf1116-mining/round-timer/*.jsonl", "score_timer_ledger_glob": "/srv/research-lane/rf1116-mining/score-timer/*.jsonl", "state_field": "state", "due_at": "2026-12-01T20:45:00+08:00", "max_age_h": 48},
+    "S4": {"ashare_path": "/srv/research-lane/qrp/var/ledger/research/ashare_sealed_verdicts.jsonl", "overseas_path": "/srv/research-lane/qrp/var/ledger/research/overseas_sealed_verdicts.jsonl", "due_at": "2026-11-25T12:30:00+08:00"},
+    "S5": {"runs": [{"name": "RUN_A", "ledger_path": "/srv/research-lane/overseas/runs/rut1-unattended/20261128-A/RUN_LEDGER.jsonl", "sealed_path": "/srv/research-lane/overseas/runs/rut1-unattended/20261128-A/SEALED.json", "due_at": "2026-11-28T05:00:00+08:00", "max_age_h": 6}, {"name": "RUN_B", "ledger_path": "/srv/research-lane/overseas/runs/rut1-unattended/20261205-B/RUN_LEDGER.jsonl", "sealed_path": "/srv/research-lane/overseas/runs/rut1-unattended/20261205-B/SEALED.json", "due_at": "2026-12-05T05:00:00+08:00", "max_age_h": 6}]},
+    "S7": {"path": "/srv/research-lane/progress-page/plan-snapshot/PLAN_SNAPSHOT_20261125.json", "sha256": "REPLACE_WITH_PLAN_SNAPSHOT_SHA256"},
+    "S9": {"table_path": "/srv/research-lane/master-table/live/RESEARCH_MASTER_TABLE_20261110.json", "status_path": "/srv/research-lane/master-table/state/run_status.json", "due_at": "2026-11-25T18:30:00+08:00", "max_age_h": 3}
+  },
+  "upload": {
+    "enabled": false,
+    "project": "kayla-progress",
+    "wrangler": "/srv/research-lane/tools/wrangler-4.131.1/node_modules/.bin/wrangler",
+    "node_bin": "/srv/research-lane/tools/node-v23.11.0-linux-x64/bin",
+    "token_env_file": "/home/kayla/.config/cloudflare/pages-progress.env",
+    "public_url": "https://kayla-progress.pages.dev/",
+    "min_interval_h": 2
+  }
+}
