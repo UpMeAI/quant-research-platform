@@ -13,6 +13,8 @@ const ai = require('../services/desk-review-routing/ai-return');
 const canon = require('../services/research-queue-agent/canon');
 const ideas = require('../services/research-queue-agent/factor-idea');
 const F = require('./_rq_agent_fixture');
+const schema = require('./_json_schema');
+const RETURN_SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'desk-schemas', 'qrp-research-return.v1.schema.json')));
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const put = (file, value) => { const b = Buffer.from(`${JSON.stringify(value)}\n`); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, b); return sha(b); };
@@ -68,6 +70,13 @@ for (const inlineRegistry of [false, true]) test(`validated producer bundle proj
   assert.equal(result.cards[0].modelAlias, 'deepseek-flash');
   assert.deepEqual(result.cards[0].ideaIds, [fx.records[0].idea_id]);
   assert.equal(result.ideas[0].recordHash, canon.sha256(canon.canonicalJson(fx.records[0])));
+  const generatedAt = '2026-11-25T08:00:00.000Z';
+  const off = returns.buildReturn({ generatedAt, aiBlocks: false });
+  const on = returns.buildReturn({ generatedAt, aiBlocks: true, aiReturnRoot: fx.root, aiOptions: { registryFor: () => fx.registry } });
+  assert.deepEqual(schema.validate(RETURN_SCHEMA, on), []);
+  const { aiReviewCards: _cards, factorIdeas: _ideas, hash: _onHash, ...onBase } = on;
+  const { hash: _offHash, ...offBase } = off;
+  assert.deepEqual(onBase, offBase);
 });
 
 test('missing directory is visible state, while a bad hash is UNVERIFIED and never projected', () => {
@@ -75,7 +84,8 @@ test('missing directory is visible state, while a bad hash is UNVERIFIED and nev
   assert.equal(missing.state, 'NO_VALIDATED_AI_CARDS_YET');
   const fx = fixture();
   const file = fs.readdirSync(path.join(fx.root, 'linux')).map((n) => path.join(fx.root, 'linux', n))[0];
-  const doc = JSON.parse(fs.readFileSync(file)); doc.card_sha256 = '0'.repeat(64); put(file, doc);
+  const doc = JSON.parse(fs.readFileSync(file)); doc.card_sha256 = '0'.repeat(64);
+  const body = { ...doc }; delete body.bundle_sha256; doc.bundle_sha256 = canon.sha256(canon.canonicalJson(body)); put(file, doc);
   const bad = ai.load({ root: fx.root, registryFor: () => fx.registry });
   assert.equal(bad.state, 'UNVERIFIED');
   assert.equal(bad.cards.length, 0);

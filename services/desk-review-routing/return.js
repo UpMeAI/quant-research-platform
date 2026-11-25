@@ -20,6 +20,7 @@ const { contentHash, sha256 } = require('./canonical');
 const deskRouting = require('./index');
 const deskTriage = require('./triage');
 const deskSealed = require('./sealed');
+const deskAiReturn = require('./ai-return');
 
 const CONTRACT = 'QRP_RESEARCH_RETURN_V1';
 const LEDGERS = Object.freeze([
@@ -29,6 +30,8 @@ const LEDGERS = Object.freeze([
 
 const SEALED_SWITCH = 'QRP_RETURN_SEALED_VERDICTS';
 const sealedEnabled = () => process.env[SEALED_SWITCH] === '1';
+const AI_SWITCH = 'QRP_RETURN_AI_BLOCKS';
+const aiEnabled = () => process.env[AI_SWITCH] === '1';
 
 class ReturnExportError extends Error {
   constructor(code, detail) { super(detail ? `${code}:${detail}` : code); this.code = code; this.detail = detail || null; }
@@ -130,17 +133,20 @@ function asOfOf(rowsByLedger) {
 }
 
 /** 组装回程 payload（不写文件）。`generatedAt` 默认现在。 */
-function buildReturn({ generatedAt = new Date().toISOString(), sealedVerdicts = sealedEnabled(), sealedStores } = {}) {
+function buildReturn({ generatedAt = new Date().toISOString(), sealedVerdicts = sealedEnabled(), sealedStores,
+  aiBlocks = aiEnabled(), aiReturnRoot, aiOptions = {} } = {}) {
   const loop = require('../runtime-research-loop');
   const links = loop.listLinks();
   const cases = new Map(loop.listCases().map((row) => [row.case_id, row]));
   const ledgers = sealedVerdicts ? [...LEDGERS, ...deskSealed.LEDGERS] : LEDGERS;
   const sources = ledgers.map(sourceOf);
   const asOf = asOfOf(ledgers.map((ledger) => read(dataDir(...ledger.split('/'))))) || generatedAt;
+  const aiRows = aiBlocks ? deskAiReturn.load({ ...aiOptions, ...(aiReturnRoot ? { root: aiReturnRoot } : {}) }) : null;
   const payload = {
     schemaVersion: 1, contract: CONTRACT, producer: 'QRP', generatedAt, asOf, sources,
     decisions: decisionRows({ links }), questions: questionRows({ links, cases }), triage: deskTriage.effectiveTriage().map(deskTriage.deskRow),
     ...(sealedVerdicts ? { sealedVerdicts: deskSealed.sealedRows({ links, ...(sealedStores ? { stores: sealedStores } : {}) }) } : {}),
+    ...(aiRows ? { aiReviewCards: aiRows.cards, factorIdeas: aiRows.ideas } : {}),
     interpretation: 'RESEARCH_RESULTS_AND_OWNER_DECISIONS_NOT_ORDERS', realOrder: 0, brokerWrite: false,
   };
   payload.hash = contentHash(payload);
@@ -168,4 +174,4 @@ function exportReturn({ outDir, generatedAt } = {}) {
   return { file, sha256: sha256(bytes), payload };
 }
 
-module.exports = { CONTRACT, LEDGERS, ReturnExportError, SEALED_SWITCH, buildReturn, exportReturn, fileNameOf, sealedEnabled };
+module.exports = { CONTRACT, LEDGERS, ReturnExportError, SEALED_SWITCH, AI_SWITCH, buildReturn, exportReturn, fileNameOf, sealedEnabled, aiEnabled };

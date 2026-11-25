@@ -31,6 +31,8 @@
     "decisions": { "type": "array", "items": { "$ref": "#/$defs/decision" } },
     "questions": { "type": "array", "items": { "$ref": "#/$defs/question" } },
     "sealedVerdicts": { "type": "array", "description": "Addendum 8 §1 (optional): sealed research conclusions. They are not Owner decisions (§2), never 等你决定 and never an adoption record.", "items": { "$ref": "#/$defs/sealedVerdict" } },
+    "aiReviewCards": { "type": "array", "items": { "$ref": "#/$defs/aiReviewCard" } },
+    "factorIdeas": { "type": "array", "items": { "$ref": "#/$defs/factorIdea" } },
     "triage": {
       "type": "array",
       "description": "Addendum 7 §3.3 (optional): RESEARCH_TRIAGE_V1 rows.",
@@ -116,6 +118,38 @@
     "hash": { "$ref": "#/$defs/hex64" }
   },
   "$defs": {
+    "aiTextItem": {
+      "type": "object", "additionalProperties": false, "required": ["textZh", "factIds"],
+      "properties": { "textZh": { "$ref": "#/$defs/text" }, "factIds": { "type": "array", "items": { "$ref": "#/$defs/text" } } }
+    },
+    "aiReviewCard": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cardId", "market", "weekId", "cardSha256", "factPackSha256", "modelAlias", "supporting", "opposing", "unknowns", "repeatedPatterns", "questionProposals", "noIdeaReason", "ideaIds"],
+      "properties": {
+        "cardId": { "$ref": "#/$defs/ref" }, "market": { "enum": ["CN_A", "US_EQUITY", "CRYPTO"] },
+        "weekId": { "type": "string", "pattern": "^\\d{4}-W\\d{2}$" }, "cardSha256": { "$ref": "#/$defs/hex64" },
+        "factPackSha256": { "$ref": "#/$defs/hex64" }, "modelAlias": { "$ref": "#/$defs/text" },
+        "supporting": { "type": "array", "items": { "$ref": "#/$defs/aiTextItem" } },
+        "opposing": { "type": "array", "items": { "$ref": "#/$defs/aiTextItem" } },
+        "unknowns": { "type": "array", "items": { "$ref": "#/$defs/aiTextItem" } },
+        "repeatedPatterns": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["patternKey", "count", "noteZh", "factIds"], "properties": { "patternKey": { "$ref": "#/$defs/text" }, "count": { "type": "integer", "minimum": 0 }, "noteZh": { "$ref": "#/$defs/text" }, "factIds": { "type": "array", "items": { "$ref": "#/$defs/text" } } } },
+        "questionProposals": { "type": "array", "maxItems": 2, "items": { "type": "object" } },
+        "noIdeaReason": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/aiTextItem" }] },
+        "ideaIds": { "type": "array", "items": { "$ref": "#/$defs/ref" } }
+      }
+    },
+    "factorIdea": {
+      "type": "object", "additionalProperties": false,
+      "required": ["ideaId", "market", "weekId", "mechanism", "readings", "holdingPeriods", "questionZh", "expectedFailureZh", "factIds", "cardSha256", "recordHash"],
+      "properties": {
+        "ideaId": { "$ref": "#/$defs/ref" }, "market": { "enum": ["CN_A", "US_EQUITY", "CRYPTO"] },
+        "weekId": { "type": "string", "pattern": "^\\d{4}-W\\d{2}$" }, "mechanism": {},
+        "readings": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["id", "pitAvailableAt"], "properties": { "id": { "$ref": "#/$defs/text" }, "pitAvailableAt": { "$ref": "#/$defs/text" } } },
+        "holdingPeriods": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "questionZh": { "$ref": "#/$defs/text" }, "expectedFailureZh": { "$ref": "#/$defs/text" },
+        "factIds": { "type": "array", "items": { "$ref": "#/$defs/text" } }, "cardSha256": { "$ref": "#/$defs/hex64" }, "recordHash": { "$ref": "#/$defs/hex64" }
+      }
+    },
     "sealedVerdict": {
       "type": "object",
       "additionalProperties": false,
