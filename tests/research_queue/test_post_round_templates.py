@@ -1,5 +1,6 @@
 """#149 Package C: frozen post-round templates, pins, and user units."""
 import configparser
+import hashlib
 import json
 import pathlib
 import re
@@ -255,6 +256,19 @@ class PostRoundUserUnits(unittest.TestCase):
             self.assertIn(required, text)
         self.assertNotIn("docker", text.lower())
         self.assertNotIn("rm -", text.lower())
+
+    def test_fix_cf1_install_pins_the_shipped_frozen_space(self):
+        text = (UNITS / "INSTALL.md").read_text()
+        env = dict(line.split("=", 1) for line in text.splitlines()
+                   if line.startswith("RF1116_SPACE_") and "=" in line)
+        prefix = "/srv/research-lane/research-queue/code/current/"
+        self.assertTrue(env["RF1116_SPACE_FILE"].startswith(prefix))
+        shipped_path = ROOT / env["RF1116_SPACE_FILE"].removeprefix(prefix)
+        self.assertTrue(shipped_path.is_file(), shipped_path)
+        self.assertEqual(
+            hashlib.sha256(shipped_path.read_bytes()).hexdigest(),
+            env["RF1116_SPACE_SHA256"],
+        )
 
 
 if __name__ == "__main__":
