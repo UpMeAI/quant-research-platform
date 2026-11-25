@@ -13,7 +13,7 @@ import signal
 import subprocess
 import sys
 
-from . import agentseam, core, guard, heavy, pause, producer, status as status_mod
+from . import agentseam, core, guard, heavy, pause, producer, runtime, status as status_mod
 
 T3_BACKOFF_S = (60, 180, 600, 1800, 3600)   # six tries in all, then WAITING_PROVIDER
 T1_BACKOFF_S = 600
@@ -215,12 +215,21 @@ def _attempt_dir(cfg, task_id, n):
     return cfg.runs_dir / task_id / ("attempt-%d" % n)
 
 
+def _attempt_argv(admission, attempt_dir, attempt_no):
+    """Select heavy recovery from driver evidence; ordinary tasks retain counter recovery."""
+    if admission.get("heavy"):
+        resume = runtime.has_prior_driver_result(attempt_dir, attempt_no)
+    else:
+        resume = int(attempt_no) > 1
+    return admission["recovery_argv"] if resume and admission.get("recovery_argv") else admission["argv"]
+
+
 def _launch(conn, cfg, rt, claimed, now):
     task = core.get_task(conn, claimed["task_id"])
     adm = json.loads(task["admission_json"])["derived"]
     n = claimed["attempt_no"]
-    argv = adm["recovery_argv"] if n > 1 and adm.get("recovery_argv") else adm["argv"]
     d = _attempt_dir(cfg, task["task_id"], n)
+    argv = _attempt_argv(adm, d, n)
     guard.check_write_path(d)
     if agentseam.needs_staging(task):
         try:
@@ -241,7 +250,7 @@ def _finalize(conn, cfg, task, d, st, now):
     n = task["attempt_no"]
     outcome = classify(d, st.exit)
     adm = json.loads(task["admission_json"])["derived"]
-    argv = adm["recovery_argv"] if n > 1 and adm.get("recovery_argv") else adm["argv"]
+    argv = _attempt_argv(adm, d, n)
     env = {}
     try:
         env = {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")}

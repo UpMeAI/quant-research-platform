@@ -13,7 +13,7 @@ import re
 import subprocess
 import time
 
-from . import core, guard
+from . import core, guard, runtime
 
 GIB = 2 ** 30
 FLOOR_GIB = 150
@@ -369,8 +369,8 @@ def _append_jsonl(path, value):
         os.fsync(handle.fileno())
 
 
-def _ledger_stage(path, stage, now, **detail):
-    entry = {"actor": "rq-heavy", "at": core.iso(now), "stage": stage}
+def _ledger_stage(path, stage, **detail):
+    entry = {"actor": "rq-heavy", "at": core.iso(core.now_cst()), "stage": stage}
     if detail:
         entry["detail"] = detail
     return append_ledger(path, entry)
@@ -573,6 +573,11 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     task_dir = pathlib.Path(os.environ.get("RQ_RUN_DIR", ""))
     if not task_dir.is_dir() or attempt.parent != task_dir:
         raise HeavyRefused("INVALID_RUN_DIR")
+    resume_fact = runtime.has_prior_driver_result(attempt)
+    resume_env = os.environ.get("RQ_RESUME")
+    if resume_env not in ("0", "1") or (resume_env == "1") != resume_fact or bool(resume) != resume_fact:
+        write_error(attempt, "D", "INVALID_RESUME_FACT")
+        return 65
     ledger = task_dir / "RUN_LEDGER.jsonl"
     spec, spec_path = load_spec(cfg, spec_sha256)
     if cfg.blackouts_path:
@@ -591,7 +596,7 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     ok, checks = check_preconditions(spec, conn, now)
     preflight["preconditions"] = checks
     _write_json(attempt / "preflight.json", preflight)
-    _ledger_stage(ledger, "PREFLIGHT", now, pins_ok=not bad, preconditions_ok=ok, spec_sha256=spec_sha256)
+    _ledger_stage(ledger, "PREFLIGHT", pins_ok=not bad, preconditions_ok=ok, spec_sha256=spec_sha256)
     if bad:
         write_error(attempt, "D", bad[0]["code"])
         return 65
@@ -601,7 +606,7 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     available = services.available_bytes(cfg.lane1_path)
     peak = int((spec.get("budget") or {}).get("peak_bytes") or 0)
     (attempt / "floor.jsonl").write_text(core.canonical({"at": core.iso(now), "available_bytes": available, "floor_gib": FLOOR_GIB, "peak_bytes": peak}) + "\n")
-    _ledger_stage(ledger, "FLOOR", now, available_bytes=available, floor_gib=FLOOR_GIB, peak_bytes=peak)
+    _ledger_stage(ledger, "FLOOR", available_bytes=available, floor_gib=FLOOR_GIB, peak_bytes=peak)
     if not floor_allows(available, FLOOR_GIB, peak):
         write_error(attempt, "E", "GUARD_DISK_FLOOR")
         return 4
@@ -624,14 +629,14 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
         write_error(attempt, "D", "INVALID_GATE_WRITER")
         return 65
     _append_jsonl(attempt / "gates.jsonl", {"stage": "STARTED", "interval_s": GATE_INTERVAL_S})
-    _ledger_stage(ledger, "GATE_WRITER_STARTED", now, interval_s=GATE_INTERVAL_S)
+    _ledger_stage(ledger, "GATE_WRITER_STARTED", interval_s=GATE_INTERVAL_S)
     if not wait_for_fresh_gate(services, gates_file, writer):
         services.stop_gate_writer(writer)
         _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
         write_error(attempt, "D", "INVALID_GATE_STALE")
         return 65
     _append_jsonl(attempt / "gates.jsonl", {"stage": "FRESH", "max_age_s": GATE_FRESH_S})
-    _ledger_stage(ledger, "GATE_FRESH", now, max_age_s=GATE_FRESH_S)
+    _ledger_stage(ledger, "GATE_FRESH", max_age_s=GATE_FRESH_S)
     if dry:
         services.stop_gate_writer(writer)
         _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
@@ -650,7 +655,7 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
         _append_jsonl(attempt / "gates.jsonl", {"stage": "STOPPED", "writer_alive": services.gate_writer_alive(writer)})
         write_error(attempt, "D", "INVALID_DRIVER_LAUNCH")
         return 66
-    _ledger_stage(ledger, "DRIVER_EXIT", now, exit=rc)
+    _ledger_stage(ledger, "DRIVER_EXIT", exit=rc)
     result = _json(attempt / "driver-result.json")
     if not isinstance(result, dict) or result.get("exit") != rc or rc not in DRIVER_EXITS:
         services.stop_gate_writer(writer)
@@ -665,7 +670,7 @@ def run(cfg, spec_sha256, *, conn=None, resume=False, dry=False, services=None, 
     outcome = classify_driver_result(result)
     _write_json(attempt / "result.json", {"schema": "HEAVY_SUPERVISOR_RESULT_V1", "outcome": dataclasses.asdict(outcome), "driver": result})
     terminal = _write_terminal_evidence(attempt, services, prefix, writer, db, result)
-    _ledger_stage(ledger, "TERMINAL_EVIDENCE", now, manifest_sha256=_sha(terminal["manifest"]), stray=terminal["stray"], remaining=terminal["remaining"])
+    _ledger_stage(ledger, "TERMINAL_EVIDENCE", manifest_sha256=_sha(terminal["manifest"]), stray=terminal["stray"], remaining=terminal["remaining"])
     if terminal["stray"] or terminal["remaining"]:
         write_error(attempt, "D", "INVALID_STRAY_CONTAINER")
         return 65

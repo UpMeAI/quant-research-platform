@@ -26,6 +26,27 @@ class RuntimeStatus:
     exit: dict = None
 
 
+def has_prior_driver_result(attempt_dir, attempt_no=None):
+    """A heavy run resumes only after an earlier attempt actually reached its driver."""
+    current = pathlib.Path(attempt_dir)
+    if attempt_no is None:
+        prefix = "attempt-"
+        if not current.name.startswith(prefix):
+            return False
+        attempt_no = current.name[len(prefix):]
+    try:
+        number = int(attempt_no)
+    except (TypeError, ValueError):
+        return False
+    if number <= 1:
+        return False
+    for prior_no in range(1, number):
+        result = current.parent / ("attempt-%d" % prior_no) / "driver-result.json"
+        if not result.is_symlink() and result.is_file():
+            return True
+    return False
+
+
 def child_env(cfg, attempt_dir, task_id, attempt_no):
     """The only environment a task sees: PATH/HOME/LANG, configured extras, RQ_* ids. Secret-looking names never pass (AQ-34)."""
     names = set(BASE_ENV) | set(cfg.env_allowlist)
@@ -33,7 +54,7 @@ def child_env(cfg, attempt_dir, task_id, attempt_no):
     d = pathlib.Path(attempt_dir)
     env.update(RQ_TASK_ID=task_id, RQ_ATTEMPT_NO=str(attempt_no), RQ_ATTEMPT_DIR=str(d), RQ_RUN_DIR=str(d.parent),
                RQ_PAUSE_FILE=str(d / "PAUSE"), RQ_GATES_FILE=str(d / "GATES"), RQ_CONTAINER_PREFIX="rq-task-%s-" % task_id,
-               RQ_RESUME="1" if int(attempt_no) > 1 else "0", TZ="Asia/Shanghai", PYTHONPATH=PKG_PARENT)
+               RQ_RESUME="1" if has_prior_driver_result(d, attempt_no) else "0", TZ="Asia/Shanghai", PYTHONPATH=PKG_PARENT)
     return env
 
 
