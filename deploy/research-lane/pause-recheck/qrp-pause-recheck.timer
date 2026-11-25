@@ -1,0 +1,11 @@
+[Unit]
+Description=QRP monthly pause re-check window
+
+[Timer]
+OnCalendar=*-*-03..07 22:00:00 Asia/Shanghai
+AccuracySec=1min
+Persistent=true
+Unit=qrp-pause-recheck.service
+
+[Install]
+WantedBy=timers.target

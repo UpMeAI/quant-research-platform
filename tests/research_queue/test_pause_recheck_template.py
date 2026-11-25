@@ -114,7 +114,7 @@ class PauseRecheckTemplate(Base):
         ):
             self.assertEqual(self.template[key], reference[key], key)
         self.assertEqual(self.template["inputs"], [{"prefix": "{inbox}/pause-packs"}])
-        self.assertEqual(self.template["markets"], ["CN_A", "US_EQUITY", "CRYPTO"])
+        self.assertEqual(self.template["markets"], ["CN_A"])
         self.assertEqual(
             self.template["subject_keys"],
             "candidate_id, month, pack sha256, prompt-admission sha256",
@@ -164,9 +164,14 @@ class PauseRecheckTemplate(Base):
         self.assertEqual([r["id"] for r in self.template["evidence_matrix_rows"]], ["PR-1", "PR-2", "PR-3"])
 
     @unittest.skipUnless(NODE, "node not available")
-    def test_b06_us_equity_pause_pack_stages_and_consumer_revalidates(self):
+    def test_b06_non_cn_route_refuses_and_cn_a_stages_and_revalidates(self):
         self.cfg.node_bin = NODE
-        admitted = producer.admit(self.conn, self.cfg, self.reg, self._request("US_EQUITY"), self.t0)
+        refused = producer.admit(self.conn, self.cfg, self.reg, self._request("US_EQUITY"), self.t0)
+        self.assertEqual(
+            (refused.state, refused.code),
+            ("REFUSED_ADMISSION", "AGENT_HOST_MISMATCH"),
+        )
+        admitted = producer.admit(self.conn, self.cfg, self.reg, self._request("CN_A"), self.t0)
         self.assertEqual((admitted.state, admitted.code), ("READY", ""))
         claimed = core.claim(self.conn, host="LINUX", worker=self.cfg.worker, now=self.t0)
         self.assertEqual(claimed["task_id"], admitted.task_id)
@@ -175,8 +180,8 @@ class PauseRecheckTemplate(Base):
         agentseam.stage(self.cfg, task, attempt)
         staged_task = json.loads((attempt / "in" / "task.json").read_text())
         staged_bundle = json.loads((attempt / "in" / "bundle.json").read_text())
-        self.assertEqual((staged_task["kind"], staged_task["market"]), ("AI_CHECK", "US_EQUITY"))
-        self.assertEqual((staged_bundle["market"], staged_bundle["pack"]["market"]), ("US_EQUITY", "US_EQUITY"))
+        self.assertEqual((staged_task["kind"], staged_task["market"]), ("AI_CHECK", "CN_A"))
+        self.assertEqual((staged_bundle["market"], staged_bundle["pack"]["market"]), ("CN_A", "CN_A"))
 
         report = {
             "schema": "RQ_CHECK_REPORT_V1",

@@ -31,8 +31,9 @@ class ShippedTemplates(unittest.TestCase):
         reg = shipped()
         pins = {p["template_id"]: p for p in reg.pins}
         mech_ids = ("T-AI-MECH-NOTE-V1-LINUX-CN_A", "T-AI-MECH-REVIEW-V1-LINUX-CN_A")
-        self.assertEqual(sorted(pins), sorted(IDS + mech_ids))
-        self.assertEqual(len(reg.pins), 6, "four Q3b pins plus the two #149C post-round pins, no stray pins")
+        pause_ids = ("T-AI-PAUSE-CHECK-V1-LINUX",)
+        self.assertEqual(sorted(pins), sorted(IDS + mech_ids + pause_ids))
+        self.assertEqual(len(reg.pins), 7, "four Q3b pins plus two #149C pins and the #153 pause pin, no stray pins")
         for tid in mech_ids:
             self.assertIn(tid, pins)
         for tid in IDS:
@@ -42,7 +43,7 @@ class ShippedTemplates(unittest.TestCase):
             self.assertTrue(reg.is_frozen(t), tid)
             self.assertIn("frozen_page_sha256", pins[tid])
             self.assertEqual(pins[tid]["frozen_page_sha256"], "c53171740c6d59be5ee4171f95b0b07dba71a69def14a430403f099aa8fe6a40" if "LINUX" in tid else None, tid)  # Linux: RQ_TEMPLATES_V1_FREEZE_1; HK: FREEZE_2 not written yet
-        self.assertEqual(len({p["template_sha256"] for p in reg.pins}), 6)
+        self.assertEqual(len({p["template_sha256"] for p in reg.pins}), 7)
 
     def test_unpinned_template_is_refused(self):
         reg = shipped()
