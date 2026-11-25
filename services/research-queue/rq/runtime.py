@@ -80,8 +80,10 @@ class ProcessRuntime:
             time.sleep(0.02)
 
     def _launch(self, cmd, env, d, weight_class):
-        self._procs[str(d)] = subprocess.Popen(cmd, env=env, start_new_session=True, stdin=subprocess.DEVNULL,
-                                               stdout=open(d / "wrapper.out", "ab"), stderr=subprocess.STDOUT)
+        with open(d / "wrapper.out", "ab") as output:
+            process = subprocess.Popen(cmd, env=env, start_new_session=True, stdin=subprocess.DEVNULL,
+                                       stdout=output, stderr=subprocess.STDOUT)
+        self._procs[str(d)] = process
 
     def status(self, attempt_dir):
         d = pathlib.Path(attempt_dir)
