@@ -54,6 +54,16 @@ class TaskAuthorityError(RuntimeError):
         self.code = code
 
 
+class BlackoutAuthorityError(RuntimeError):
+    pass
+
+
+class SpaceAuthorityError(RuntimeError):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code
+
+
 def canonical(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -411,26 +421,33 @@ def _in_blackout(path: pathlib.Path, now: dt.datetime) -> bool:
     try:
         document = json.loads(path.read_text())
     except (OSError, ValueError, AttributeError):
-        return False
+        raise BlackoutAuthorityError("BLACKOUT_CONFIG_UNREADABLE")
+    if not isinstance(document, dict):
+        raise BlackoutAuthorityError("BLACKOUT_CONFIG_INVALID")
     if document.get("schema") == "RQ_BLACKOUTS_V1":
-        for entry in document.get("entries", []):
+        entries = document.get("entries")
+        if not isinstance(entries, list):
+            raise BlackoutAuthorityError("BLACKOUT_CONFIG_INVALID")
+        for entry in entries:
             try:
                 start = parse_time(entry["start"])
                 end = parse_time(entry["end"])
-            except (KeyError, TypeError, ValueError):
-                continue
+            except (AttributeError, KeyError, TypeError, ValueError):
+                raise BlackoutAuthorityError("BLACKOUT_CONFIG_INVALID")
             if ("LINUX" in (entry.get("hosts") or []) and entry.get("mode") in {"FREEZE", "STOP"}
                     and entry.get("placeholder") is not True and start <= now.astimezone(CST) < end):
                 return True
         return False
-    windows = document.get("windows", [])
+    windows = document.get("windows")
+    if not isinstance(windows, list):
+        raise BlackoutAuthorityError("BLACKOUT_CONFIG_INVALID")
     t = now.astimezone(CST).time().replace(tzinfo=None)
     for window in windows:
         try:
             start = dt.time.fromisoformat(window["start"])
             end = dt.time.fromisoformat(window["end"])
-        except (KeyError, TypeError, ValueError):
-            continue
+        except (AttributeError, KeyError, TypeError, ValueError):
+            raise BlackoutAuthorityError("BLACKOUT_CONFIG_INVALID")
         if (start <= end and start <= t < end) or (start > end and (t >= start or t < end)):
             return True
     return False
@@ -474,11 +491,33 @@ class PostRound:
         register = json.loads(self.cfg.register_file.read_text())
         mechs = [{k: row.get(k) for k in ("mechanism_id", "title_zh", "description_zh")}
                  for row in register.get("mechanisms", []) if row.get("layer") == "SELECTION_TIMING" and row.get("decision_point") == "SELECT" and row.get("route") != "NOT_DO_SETTLED"]
-        space = json.loads(self.cfg.space_file.read_text())
-        glossary = []
-        for section in ("fields", "operators"):
-            for name, value in sorted((space.get(section) or {}).items()):
-                glossary.append({"name": name, "description_zh": value.get("zh") if isinstance(value, dict) else value})
+        try:
+            raw = self.cfg.space_file.read_bytes()
+        except OSError:
+            raise SpaceAuthorityError("STOPPED_SPACE_UNREADABLE")
+        if sha256(raw) != self.cfg.selection_space_sha256:
+            raise SpaceAuthorityError("STOPPED_SPACE_SHA_MISMATCH")
+        try:
+            space = json.loads(raw)
+            readings = space["readings"]
+            operators = space["operators"]
+        except (KeyError, TypeError, ValueError):
+            raise SpaceAuthorityError("STOPPED_SPACE_INVALID")
+        if (space.get("schema") != "MINING_SPACE_V1" or not isinstance(readings, list)
+                or not isinstance(operators, list)):
+            raise SpaceAuthorityError("STOPPED_SPACE_INVALID")
+        names = []
+        for reading in readings:
+            name = reading.get("name") if isinstance(reading, dict) else None
+            if not isinstance(name, str) or not name:
+                raise SpaceAuthorityError("STOPPED_SPACE_INVALID")
+            names.append(name)
+        if any(not isinstance(name, str) or not name for name in operators):
+            raise SpaceAuthorityError("STOPPED_SPACE_INVALID")
+        names.extend(operators)
+        if len(names) != len(set(names)):
+            raise SpaceAuthorityError("STOPPED_SPACE_INVALID")
+        glossary = [{"name": name, "description_zh": None} for name in sorted(names)]
         return mechs, glossary
 
     def _write_pack_request(self, prefix: str, template_id: str, template_sha256: str, kind: str, pack: dict) -> dict:
@@ -659,7 +698,13 @@ class PostRound:
         opens = {str(x.get("round_id")) for x in read_jsonl(self.cfg.data_dir / "research/holdout_vault.jsonl") if x.get("round_id") and (x.get("action") == "OPEN" or x.get("opened_at"))}
         out = {}
         for round_id, selection in selections.items():
-            if _in_blackout(self.cfg.blackouts_file, now):
+            try:
+                blackout = _in_blackout(self.cfg.blackouts_file, now)
+            except BlackoutAuthorityError:
+                self._alert(round_id, "BLACKOUT_READ_ONLY", now)
+                out[round_id] = "BLACKOUT_READ_ONLY"
+                continue
+            if blackout:
                 out[round_id] = "BLACKOUT_READ_ONLY"
                 continue
             directory = self.cfg.post_root / round_id
@@ -715,7 +760,12 @@ class PostRound:
                 continue
             view = self.runner("mechanisms", round_id)
             survivors = view.get("survivors", view) if isinstance(view, dict) else view
-            note_requests = self._enqueue_notes(round_id, selection, survivors)
+            try:
+                note_requests = self._enqueue_notes(round_id, selection, survivors)
+            except SpaceAuthorityError as exc:
+                out[round_id] = self._append(ledger, round_id, exc.code, now)
+                self._alert(round_id, exc.code, now)
+                continue
             try:
                 note_tasks = self._tasks(note_requests)
             except TaskAuthorityError as exc:
@@ -774,6 +824,10 @@ class PostRound:
             self._append(ledger, round_id, "REGISTERED", now, registered=sorted(registrations))
             try:
                 review_requests = self._enqueue_reviews(round_id, selection, view, registrations, formulas, fields)
+            except SpaceAuthorityError as exc:
+                out[round_id] = self._append(ledger, round_id, exc.code, now)
+                self._alert(round_id, exc.code, now)
+                continue
             except (KeyError, TypeError, ValueError):
                 out[round_id] = self._append(ledger, round_id, "REGISTERED", now, task_authority="REVIEW_PACK_AUTHORITY_MISSING")
                 continue

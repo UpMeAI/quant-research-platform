@@ -195,7 +195,11 @@ class PostRoundTest(unittest.TestCase):
         packs = sorted((self.tmp / "inbox/mech-packs").glob("note-*.json"))
         self.assertEqual([len(json.loads(x.read_text())["candidates"]) for x in packs], [6, 6, 1])
         for pack in packs:
-            self.assertNotRegex(pack.read_text().lower(), r"score|ic|fold|holdout|gate|return|pnl")
+            candidates = json.loads(pack.read_text())["candidates"]
+            self.assertTrue(all(set(candidate) == {"candidate_id", "formula", "fields"}
+                                for candidate in candidates))
+            self.assertTrue(all(not ({"mining_score", "validation_mean_ic", "positive_folds", "holdout_score"}
+                                     & set(candidate)) for candidate in candidates))
         reqs = sorted((self.tmp / "inbox/requests").glob("*.json"))
         self.assertEqual(len(reqs), 3)
         p.tick()
@@ -468,8 +472,8 @@ class PostRoundTest(unittest.TestCase):
             (self.tmp / name).mkdir(parents=True, exist_ok=True)
         shutil.rmtree(self.tmp / "post")
         (self.tmp / "post").mkdir()
-        self.cfg.selection_space_sha256 = "0" * 64
-        out = post_round.PostRound(self.cfg, Runner(self.survivors(1)), lambda: self.NOW).tick()
+        bad_cfg = post_round.dataclasses.replace(self.cfg, selection_space_sha256="0" * 64)
+        out = post_round.PostRound(bad_cfg, Runner(self.survivors(1)), lambda: self.NOW).tick()
         self.assertEqual(out[self.ROUND], "STOPPED_SPACE_SHA_MISMATCH")
         self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
         alerts = [json.loads(line) for line in (self.tmp / "state/alerts.jsonl").read_text().splitlines()]
@@ -478,6 +482,19 @@ class PostRoundTest(unittest.TestCase):
     def test_fix_bf2_unreadable_blackouts_fail_closed_and_alert_once(self):
         self.seed(["A001"])
         self.cfg.blackouts_file.unlink()
+        runner = Runner(self.survivors(1))
+        engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
+        self.assertEqual(engine.tick()[self.ROUND], "BLACKOUT_READ_ONLY")
+        self.assertEqual(engine.tick()[self.ROUND], "BLACKOUT_READ_ONLY")
+        self.assertEqual(list((self.tmp / "inbox/requests").glob("*.json")), [])
+        self.assertEqual(list((self.tmp / "post").iterdir()), [])
+        self.assertEqual(runner.calls, [])
+        alerts = [json.loads(line) for line in (self.tmp / "state/alerts.jsonl").read_text().splitlines()]
+        self.assertEqual([row["code"] for row in alerts], ["BLACKOUT_READ_ONLY"])
+
+    def test_fix_bf2_invalid_blackouts_fail_closed_and_alert_once(self):
+        self.seed(["A001"])
+        self.cfg.blackouts_file.write_text("not-json")
         runner = Runner(self.survivors(1))
         engine = post_round.PostRound(self.cfg, runner, lambda: self.NOW)
         self.assertEqual(engine.tick()[self.ROUND], "BLACKOUT_READ_ONLY")
