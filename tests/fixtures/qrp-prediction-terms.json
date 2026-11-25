@@ -1,0 +1,9 @@
+{
+  "source": "quant-research-platform/services/research-queue-agent/lexicon.js PREDICTION plus portfolio-desk PREDICTIVE_TERMS; Addendum 9 parity target",
+  "terms": [
+    "预计", "预测", "目标价", "概率", "看涨", "看跌", "大概率", "将会", "必然", "必将", "预期收益",
+    "会涨", "会跌", "上涨概率", "看多", "看空",
+    "forecast", "expected return", "probability", "target price", "hit rate", "win rate", "expectancy",
+    "will rise", "expect", "target", "outperform"
+  ]
+}

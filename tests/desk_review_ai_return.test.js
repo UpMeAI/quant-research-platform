@@ -15,6 +15,7 @@ const ideas = require('../services/research-queue-agent/factor-idea');
 const F = require('./_rq_agent_fixture');
 const schema = require('./_json_schema');
 const RETURN_SCHEMA = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'desk-schemas', 'qrp-research-return.v1.schema.json')));
+const TERMS = require('./fixtures/qrp-prediction-terms.json').terms;
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 const put = (file, value) => { const b = Buffer.from(`${JSON.stringify(value)}\n`); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, b); return sha(b); };
@@ -58,6 +59,13 @@ test('switch defaults off and off return bytes stay identical', () => {
   assert.deepEqual(a, b);
   assert.equal(Object.hasOwn(a, 'aiReviewCards'), false);
   assert.equal(Object.hasOwn(a, 'factorIdeas'), false);
+});
+
+test('Addendum 9 prediction vocabulary stays equal to the pinned desk/QRP union', () => {
+  const qrp = require('../services/research-queue-agent/lexicon').PREDICTION.map(([term]) => term);
+  const desk = ['预计', '预测', '目标价', '概率', '看涨', '看跌', '大概率', '将会', '必然', '必将', '预期收益',
+    'forecast', 'expected return', 'probability', 'target price', 'hit rate', 'win rate', 'expectancy'];
+  assert.deepEqual([...new Set([...desk, ...qrp])].sort(), [...TERMS].sort());
 });
 
 for (const inlineRegistry of [false, true]) test(`validated producer bundle projects card and idea (${inlineRegistry ? 'bundle registry ref' : 'file registry ref'})`, () => {
