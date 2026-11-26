@@ -108,7 +108,10 @@ esac
 }
 
 test('P3B-13 an arrival container older than 60 minutes is an alerting exit 76 and is never killed', () => {
-  const { result, calls } = runnerSandbox('2000-01-01T00:00:00.000000000Z');
+  // Keep the fixture older than the real one-hour boundary but younger than a
+  // grossly widened threshold, so mutation testing proves the boundary.
+  const startedAt = new Date(Date.now() - (2 * 60 * 60 * 1000)).toISOString();
+  const { result, calls } = runnerSandbox(startedAt);
   assert.equal(result.status, 76, result.stderr);
   assert.match(result.stderr, /HOLDOUT_ARRIVAL_STUCK/);
   assert.match(result.stderr, /alert/i);
