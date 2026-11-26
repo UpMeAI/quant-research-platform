@@ -165,7 +165,9 @@ test('R2R-2 a semantically invalid but re-hashed prefix is refused before a torn
   const { dir, second, chainFile, torn } = tornAfterPrefixMutation((row) => { row.segment = 'R9'; });
   assert.throws(() => arrival().arrive({ dir, source: arrival().csvDayDropSource(second), arrivedAt: '2027-01-04T20:02:00+08:00' }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID/));
   assert.deepEqual(fs.readFileSync(chainFile), torn, 'semantic refusal must preserve the forensic torn bytes');
+});
 
+test('R2R-2b an anchored prefix rewrite is refused before a torn tail is truncated', () => {
   const anchored = tornAfterPrefixMutation((row) => { row.arrived_at = '2027-01-04T20:00:01+08:00'; });
   assert.throws(() => arrival().arrive({ dir: anchored.dir, source: arrival().csvDayDropSource(anchored.second), arrivedAt: '2027-01-04T20:02:00+08:00',
     anchors: [{ seq: 0, record_hash: anchored.originalHead }] }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:PARSE/));
