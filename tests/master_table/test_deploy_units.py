@@ -8,6 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy" / "master-table"
+INSTALLED_QRP = "/srv/research-lane/research-queue/code/current"
 
 
 class DeployUnitTests(unittest.TestCase):
@@ -31,7 +32,7 @@ class DeployUnitTests(unittest.TestCase):
         line = next(line for line in service.splitlines() if line.startswith("ExecStart="))
         argv = shlex.split(line.removeprefix("ExecStart="))
         self.assertEqual(["/usr/bin/python3", "-I", "-B"], argv[:3])
-        self.assertEqual("/srv/research-lane/qrp/services/master-table/run_master_table.py", argv[3])
+        self.assertEqual(f"{INSTALLED_QRP}/services/master-table/run_master_table.py", argv[3])
         local_script = ROOT / "services" / "master-table" / "run_master_table.py"
         completed = subprocess.run(
             [*argv[:3], str(local_script), "--help"],
@@ -54,6 +55,8 @@ class DeployUnitTests(unittest.TestCase):
         self.assertIn("12:30", install)
         self.assertIn("RestrictAddressFamilies=AF_UNIX", install)
         self.assertIn("IPAddressDeny=any", install)
+        self.assertIn(INSTALLED_QRP, install)
+        self.assertIn("exact reviewed QRP commit", install)
         self.assertNotIn("systemctl enable --now", install)
 
 
