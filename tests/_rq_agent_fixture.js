@@ -27,8 +27,17 @@ function makePack(over = {}) {
 }
 
 function makeRegistry(over = {}) {
+  const market = over.market || 'CN_A';
+  const spaceMarket = market === 'US_EQUITY' ? 'US' : market;
   return {
-    market: 'CN_A',
+    market,
+    mining_space: {
+      schema: 'MINING_SPACE_V1',
+      space_ref: `MINING_SPACE_V1:${spaceMarket}:TEST`,
+      market: spaceMarket,
+      sha256: sha(spaceMarket === 'CN_A' ? 'fixture-mining-space' : `fixture-mining-space:${spaceMarket}`),
+      freeze_sha256: sha(spaceMarket === 'CN_A' ? 'fixture-mining-space-freeze' : `fixture-mining-space-freeze:${spaceMarket}`),
+    },
     mechanisms: [
       { mechanism_id: 'SEL.XSEC.REVERSAL', layer: 'SELECTION_TIMING', decision_point: 'SELECT' },
       { mechanism_id: 'SEL.XSEC.LOW_VOLATILITY', layer: 'SELECTION_TIMING', decision_point: 'SELECT' },

@@ -1,0 +1,100 @@
+import json
+import hashlib
+import shlex
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+DEPLOY = ROOT / "deploy" / "master-table"
+TOKEN = "@QRP_REVIEWED_SHA@"
+INSTALLED_QRP = f"/srv/research-lane/research-queue/code/{TOKEN}"
+REVIEWED_SHA = "b" * 40
+
+
+class DeployUnitTests(unittest.TestCase):
+    def test_service_and_timer_are_bounded_user_units(self):
+        service = (DEPLOY / "master-table.service").read_text(encoding="utf-8")
+        timer = (DEPLOY / "master-table.timer").read_text(encoding="utf-8")
+        self.assertIn("Type=oneshot", service)
+        self.assertIn("/usr/bin/python3 -I -B", service)
+        self.assertIn("Nice=10", service)
+        self.assertIn("IOSchedulingClass=idle", service)
+        self.assertIn("TimeoutStartSec=300", service)
+        self.assertIn("RestrictAddressFamilies=AF_UNIX", service)
+        self.assertIn("IPAddressDeny=any", service)
+        self.assertNotIn("Environment=", service)
+        self.assertNotIn("network", service.lower())
+        self.assertIn("OnCalendar=*-*-* *:17:00", timer)
+        self.assertIn("Persistent=true", timer)
+
+    def test_service_execstart_imports_mtl_under_isolated_python(self):
+        service = (DEPLOY / "master-table.service").read_text(encoding="utf-8")
+        line = next(line for line in service.splitlines() if line.startswith("ExecStart="))
+        argv = shlex.split(line.removeprefix("ExecStart="))
+        self.assertEqual(["/usr/bin/python3", "-I", "-B"], argv[:3])
+        self.assertEqual(f"{INSTALLED_QRP}/services/master-table/run_master_table.py", argv[3])
+        self.assertIn(f"WorkingDirectory={INSTALLED_QRP}", service)
+        self.assertNotIn("/code/current", service)
+        rendered = service.replace(TOKEN, REVIEWED_SHA)
+        self.assertNotIn(TOKEN, rendered)
+        self.assertIn(f"/code/{REVIEWED_SHA}", rendered)
+        self.assertEqual(
+            hashlib.sha256(rendered.encode()).hexdigest(),
+            hashlib.sha256(service.replace(TOKEN, REVIEWED_SHA).encode()).hexdigest(),
+        )
+        local_script = ROOT / "services" / "master-table" / "run_master_table.py"
+        completed = subprocess.run(
+            [*argv[:3], str(local_script), "--help"],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("--config", completed.stdout)
+
+    def test_example_and_install_keep_authority_switch_closed(self):
+        config = json.loads((DEPLOY / "MASTER_TABLE_CONFIG_V1.example.json").read_text(encoding="utf-8"))
+        self.assertFalse(config["qrp_var_authoritative"])
+        self.assertEqual("MASTER_TABLE_CONFIG_V1", config["schema"])
+        install = (DEPLOY / "INSTALL.md").read_text(encoding="utf-8")
+        self.assertIn("QRP_VAR_NOT_AUTHORITATIVE", install)
+        self.assertIn("--check", install)
+        self.assertIn("NO_CHANGE", install)
+        self.assertIn("sha256sum -c", install)
+        self.assertIn("12:30", install)
+        self.assertIn("RestrictAddressFamilies=AF_UNIX", install)
+        self.assertIn("IPAddressDeny=any", install)
+        self.assertIn(INSTALLED_QRP, install)
+        self.assertIn("exact reviewed QRP commit", install)
+        for required in ("owner", "mode", "tree manifest", "rendered", "SHA-256"):
+            self.assertIn(required, install)
+        self.assertIn("PINS_NOT_SET", install)
+        self.assertIn("JOIN_MAP", install)
+        self.assertNotIn("systemctl enable --now", install)
+
+    def test_repointing_current_cannot_change_rendered_service_target(self):
+        template = (DEPLOY / "master-table.service").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            code = Path(td) / "code"
+            reviewed = code / REVIEWED_SHA
+            other = code / ("d" * 40)
+            reviewed.mkdir(parents=True)
+            other.mkdir()
+            current = code / "current"
+            current.symlink_to(reviewed.name)
+            rendered = template.replace(
+                "/srv/research-lane/research-queue/code/", str(code) + "/"
+            ).replace(TOKEN, REVIEWED_SHA)
+            exec_start = next(line for line in rendered.splitlines() if line.startswith("ExecStart="))
+            current.unlink()
+            current.symlink_to(other.name)
+            self.assertIn(str(reviewed / "services" / "master-table"), exec_start)
+            self.assertNotIn(str(current), exec_start)
+
+
+if __name__ == "__main__":
+    unittest.main()

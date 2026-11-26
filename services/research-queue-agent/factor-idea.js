@@ -16,6 +16,7 @@ const NEW_ID = /^SEL\.[A-Z0-9_]+\.[A-Z0-9_]+$/;
 const RECORD_KEYS = ['card_sha256', 'expected_failure_zh', 'fact_ids', 'fact_pack_sha256', 'holding_periods', 'idea_id', 'market', 'mechanism', 'model',
   'prompt_admission_sha256', 'question_zh', 'readings', 'schema', 'week_id'];
 const IDEA_ID = /^FI-(CN_A|US_EQUITY|CRYPTO)-(\d{4}-W\d{2})-(\d+)$/;
+const SPACE_MARKET = Object.freeze({ CN_A: 'CN_A', US_EQUITY: 'US', CRYPTO: 'CRYPTO' });
 
 /** 公式或算子记号：函数调用、算子名、读数之间的算术、比较符。 */
 const FORMULA = [
@@ -58,7 +59,16 @@ function validateIdeaDraft(d, ctx) {
     if (typeof n.description_zh === 'string') texts.push(['mechanism.NEW.description_zh', n.description_zh]);
   } else add('FACTOR_IDEA_MECHANISM_NEW_INVALID', 'shape');
 
-  if (!(Array.isArray(d.readings) && d.readings.length && d.readings.every((r) => typeof r === 'string' && own(reg.readings, r)))) add('FACTOR_IDEA_READING_UNREGISTERED');
+  const registeredReadings = Array.isArray(d.readings) && d.readings.length
+    && d.readings.every((r) => typeof r === 'string' && own(reg.readings, r));
+  if (!registeredReadings) add('FACTOR_IDEA_READING_UNREGISTERED');
+  const space = reg.mining_space;
+  const frozenSpace = isObj(space) && space.schema === 'MINING_SPACE_V1' && SHA64.test(space.sha256 || '')
+    && SHA64.test(space.freeze_sha256 || '') && space.market === SPACE_MARKET[ctx.market];
+  if (!frozenSpace) add('FACTOR_IDEA_NO_FROZEN_SPACE', ctx.market);
+  else if (registeredReadings) {
+    for (const id of d.readings) if (reg.readings[id].origin !== 'SPACE') add('FACTOR_IDEA_READING_NOT_IN_MINING_SPACE', `${id}@${space.sha256}`);
+  }
   if (!(Array.isArray(d.holding_periods) && d.holding_periods.length && d.holding_periods.every((h) => Number.isInteger(h) && reg.holding_periods.includes(h)))) add('FACTOR_IDEA_HOLDING_PERIOD_UNREGISTERED');
 
   for (const k of ['question_zh', 'expected_failure_zh']) {

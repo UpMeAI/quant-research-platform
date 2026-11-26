@@ -1,0 +1,36 @@
+{
+  "schema": "K2_DRAFT_V2_TEMPLATE_PROPOSED",
+  "draft_schema": "K2_DRAFT_V2_PROPOSED",
+  "status": "PROPOSED_NOT_FROZEN",
+  "layer": "SELECTION_TIMING",
+  "new_fields": {
+    "universe": {
+      "definition_zh": "写标的范围，不重复 data_inputs 的数据集编号",
+      "availability_zh": "写历史时点可得性",
+      "entry_rule_zh": "写标的进入范围的规则",
+      "exit_rule_zh": "写标的退出范围的规则"
+    },
+    "holding_period": {
+      "prediction_window_zh": "写预测窗口",
+      "holding_period_zh": "写持有期",
+      "rebalance_frequency_zh": "写换仓频率",
+      "exit_rule_ref": "引用已有出场规则，不复制规则参数"
+    },
+    "regime": {
+      "applicability_zh": "写适用状态",
+      "use": "DIAGNOSTIC_ONLY"
+    },
+    "evaluation_boundaries": {
+      "development": {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"},
+      "validation": {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"},
+      "final_test": {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"},
+      "forward": {"from": "YYYY-MM-DD", "to": "YYYY-MM-DD"}
+    },
+    "costs": {
+      "assumptions_zh": "引用登记的成本与人工操作假设，不复制已有数值"
+    },
+    "drawdown": {
+      "policy_zh": "引用已签回撤、亏损预算和尾部风险约束，不复制已有数值"
+    }
+  }
+}

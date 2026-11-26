@@ -154,4 +154,20 @@ function verifyFreeze(space, freeze) {
 const dslSpaceOf = (s) => ({ readings: s.readings.map((r) => r.name), constants: [...s.constants], lookbacks: [...s.lookbacks], operators: [...s.operators],
   max_tokens: s.max_tokens, max_depth: s.max_depth });
 
-module.exports = { SCHEMA, MARKETS, OPERATORS_PATH, CLOCK_ORDER, SpaceError, parseSpace, verifyFreeze, dslSpaceOf };
+/**
+ * Host-side membership view for consumers that must prove a reading belongs to
+ * a frozen space.  Membership comes from the parsed space itself; consumers do
+ * not maintain a second reading allow-list.
+ */
+function frozenMembership(space, freeze) {
+  need(space && space.schema === SCHEMA && MARKETS.includes(space.market) && isText(space.space_ref)
+    && SHA64.test(space.sha256 || '') && Array.isArray(space.readings), 'SCHEMA_INVALID');
+  const verified = verifyFreeze(space, freeze);
+  const names = new Set(space.readings.map((r) => r.name));
+  return Object.freeze({
+    metadata: Object.freeze({ schema: SCHEMA, space_ref: space.space_ref, market: space.market, sha256: space.sha256, freeze_sha256: verified.sha256 }),
+    has: (reading) => names.has(reading),
+  });
+}
+
+module.exports = { SCHEMA, MARKETS, OPERATORS_PATH, CLOCK_ORDER, SpaceError, parseSpace, verifyFreeze, frozenMembership, dslSpaceOf };

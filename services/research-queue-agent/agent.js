@@ -113,6 +113,7 @@ function mergeReports(parts, matrixOrder, task, admission, model) {
 }
 
 const registryView = (reg) => ({
+  mining_space: reg.mining_space || null,
   mechanisms: reg.mechanisms.map((m) => ({ mechanism_id: m.mechanism_id, layer: m.layer, decision_point: m.decision_point })),
   readings: Object.entries(reg.readings).map(([id, r]) => ({ id, pit_available_at: r.pit_available_at, origin: r.origin })),
   holding_periods: reg.holding_periods,
