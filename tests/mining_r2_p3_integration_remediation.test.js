@@ -138,17 +138,18 @@ test('P3R-5 a byte-identical readiness probe whose relative name starts with das
   assert.match(result.stdout, /OUTSIDE_SLOT/);
 });
 
-test('R2R-1 the resolver records four-digit calendar sequence parts that contributed to the window', () => {
+test('R2R-1 the resolver records every dated and four-digit calendar part that contributed to the window', () => {
   process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = 'TEST_P3_REMEDIATION_V2';
   process.env.QRP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-p3r2-ledger-'));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-p3r2-resolve-'));
   const days = Array.from({ length: 54 }, (_, i) => new Date(Date.UTC(2027, 0, 4 + i)).toISOString().slice(0, 10));
-  fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), cal(days.slice(0, 27)));
-  fs.writeFileSync(path.join(dir, 'trading_calendar_0001.csv'), cal(days.slice(27)));
-  writeSums(dir, ['trading_calendar.csv', 'trading_calendar_0001.csv']);
+  fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), cal(days.slice(0, 18)));
+  fs.writeFileSync(path.join(dir, 'trading_calendar_0001.csv'), cal(days.slice(18, 36)));
+  fs.writeFileSync(path.join(dir, 'trading_calendar_20270221.csv'), cal(days.slice(36)));
+  writeSums(dir, ['trading_calendar.csv', 'trading_calendar_0001.csv', 'trading_calendar_20270221.csv']);
   const result = resolver().resolveSegment({ segmentId: 'R2', dir, resolvedBy: 'TEST', resolvedAt: '2027-03-01T10:00:00+08:00' });
   assert.equal(result.status, 'RESOLVED');
-  assert.deepEqual(result.record.calendar.files.map((file) => file.name), ['trading_calendar.csv', 'trading_calendar_0001.csv']);
+  assert.deepEqual(result.record.calendar.files.map((file) => file.name), ['trading_calendar.csv', 'trading_calendar_0001.csv', 'trading_calendar_20270221.csv']);
 });
 
 function tornAfterPrefixMutation(mutate) {
