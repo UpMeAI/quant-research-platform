@@ -47,8 +47,8 @@ class World:
         self.freeze.write_text("frozen\n", encoding="utf-8")
         self.freeze_sha = hashlib.sha256(self.freeze.read_bytes()).hexdigest()
         self.model_sources = {
-            "https://updates": b"DeepSeek-V4-Pro-0813 DeepSeek-V4.1-Flash-1017",
-            "https://pricing": b"deepseek-v4-pro DeepSeek-V4-Pro-0813 deepseek-flash DeepSeek-V4.1-Flash-1017",
+            "https://updates": b"deepseek-v4-pro -> DeepSeek-V4-Pro-0813\ndeepseek-flash -> DeepSeek-V4.1-Flash-1017\n",
+            "https://pricing": b"deepseek-v4-pro: DeepSeek-V4-Pro-0813\ndeepseek-flash: DeepSeek-V4.1-Flash-1017\n",
         }
         self.now = datetime(2026, 12, 1, 20, 50, tzinfo=CST)
 
@@ -85,6 +85,8 @@ import os
 import sys
 
 args = sys.argv[1:]
+with open(os.environ["Q148_DOCKER_LOG"], "a", encoding="utf-8") as stream:
+    stream.write(json.dumps(args) + "\\n")
 if args and args[0] in {"ps", "stop"}:
     raise SystemExit(0)
 if "llm-init" in args:
@@ -117,6 +119,7 @@ raise SystemExit(0)
                     **env,
                     "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
                     "Q148_FAKE_LLM_OUTCOME": outcome,
+                    "Q148_DOCKER_LOG": str(self.root / "docker-argv.jsonl"),
                 },
                 text=True,
                 capture_output=True,
@@ -169,6 +172,38 @@ class RoundTimerTests(unittest.TestCase):
             raise OSError("offline")
         self.assertEqual(timer.ModelGate(w.config(), fetch=failed).check()["status"], "FETCH_FAILED")
 
+    def test_model_gate_requires_exact_unambiguous_alias_mappings_in_every_source(self):
+        w = World()
+        expected = w.config().expected_models
+        canonical = {
+            "https://updates": b"deepseek-v4-pro -> DeepSeek-V4-Pro-0813\ndeepseek-flash -> DeepSeek-V4.1-Flash-1017\n",
+            "https://pricing": b"deepseek-v4-pro: DeepSeek-V4-Pro-0813\ndeepseek-flash: DeepSeek-V4.1-Flash-1017\n",
+        }
+        cases = {
+            "swapped": {
+                **canonical,
+                "https://pricing": b"deepseek-v4-pro: DeepSeek-V4.1-Flash-1017\ndeepseek-flash: DeepSeek-V4-Pro-0813\n",
+            },
+            "all_strings_wrong_relationship": {
+                **canonical,
+                "https://updates": b"deepseek-v4-pro deepseek-flash DeepSeek-V4.1-Flash-1017 DeepSeek-V4-Pro-0813\n",
+            },
+            "duplicate_conflict": {
+                **canonical,
+                "https://updates": canonical["https://updates"] + b"deepseek-v4-pro -> DeepSeek-V4.1-Flash-1017\n",
+            },
+        }
+        for name, sources in cases.items():
+            with self.subTest(name=name):
+                result = timer.ModelGate(w.config(model_sources=sources), fetch=lambda url, values=sources: values[url]).check()
+                self.assertEqual(result["status"], "FAIL")
+        missing = {"https://updates": canonical["https://updates"]}
+        result = timer.ModelGate(w.config(model_sources=canonical), fetch=lambda url: missing[url]).check()
+        self.assertEqual(result["status"], "FETCH_FAILED")
+        result = timer.ModelGate(w.config(model_sources=canonical), fetch=lambda url: canonical[url]).check()
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["expected_sha256"], hashlib.sha256(timer.canonical(expected).encode()).hexdigest())
+
     def test_var_authority_refusals_and_single_authority(self):
         w = World()
         backup = w.root / "mac-var"
@@ -180,6 +215,28 @@ class RoundTimerTests(unittest.TestCase):
         with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_MANIFEST_MISMATCH"):
             timer.validate_qrp_var(w.config(manifest_files=(m1, m2)))
         self.assertEqual(timer.validate_qrp_var(w.config()).resolve(), w.data.resolve())
+
+    def test_var_authority_requires_linux_to_be_the_only_writable_candidate(self):
+        w = World()
+        backup = w.root / "mac-var"
+        backup.mkdir()
+        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_AUTHORITY_NOT_WRITABLE"):
+            timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), writable_probe=lambda _p: False))
+        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_AUTHORITY_NOT_WRITABLE"):
+            timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), writable_probe=lambda p: p == backup))
+        missing = w.root / "missing-linux-var"
+        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_AUTHORITY_NOT_WRITABLE"):
+            timer.validate_qrp_var(w.config(
+                var_root=missing, data_dir=missing / "ledger",
+                data_candidates=(missing, backup), writable_probe=lambda p: p == backup,
+            ))
+        m1, m2 = w.root / "linux.manifest", w.root / "mac.manifest"
+        m1.write_text("same\n"); m2.write_text("same\n")
+        config = w.config(
+            data_candidates=(w.var_root, backup), manifest_files=(m1, m2),
+            writable_probe=lambda p: p == w.var_root,
+        )
+        self.assertEqual(timer.validate_qrp_var(config), w.data.resolve())
 
     def test_once_per_slot_is_idempotent_and_advances_only_after_terminal(self):
         w = World()
@@ -313,6 +370,9 @@ class RoundTimerTests(unittest.TestCase):
 
     def test_crashed_mid_call_settles_once_then_stops(self):
         w = World()
+        calls = w.lane / "out" / "qrp-data" / "research" / "mining_llm_calls.jsonl"
+        calls.parent.mkdir(parents=True)
+        calls.write_text(json.dumps({"round_id": "R1", "outcome": "WAITING_STEP_CRASHED_MID_CALL", "request_sha256": "a" * 64}) + "\n")
         crashed = timer.CommandResult(75, '{"round_id":"R1","status":"WAITING","llm_state":"WAITING_STEP_CRASHED_MID_CALL"}\n')
         runner = FakeRunner(crashed, crashed)
         supervisor = timer.Supervisor(w.config(), runner=runner, fetch=lambda url: w.model_sources[url], now=lambda: w.now, disk_free=lambda _p: 999)
@@ -320,6 +380,76 @@ class RoundTimerTests(unittest.TestCase):
         self.assertEqual(supervisor.tick("2026-12:1")["state"], "STOPPED_CRASH_SETTLED")
         self.assertEqual(len(runner.calls), 2)
         self.assertTrue((w.state / "alert_status.json").exists())
+
+    def test_crash_occurrences_use_runner_local_projection_and_never_unknown(self):
+        w = World()
+        calls = w.lane / "out" / "qrp-data" / "research" / "mining_llm_calls.jsonl"
+        calls.parent.mkdir(parents=True)
+        crashed = timer.CommandResult(75, '{"round_id":"R1","status":"WAITING","llm_state":"WAITING_STEP_CRASHED_MID_CALL"}\n')
+        runner = FakeRunner(crashed, crashed, crashed)
+        supervisor = timer.Supervisor(w.config(), runner=runner, fetch=lambda url: w.model_sources[url], now=lambda: w.now, disk_free=lambda _p: 999)
+        first_sha, second_sha = "1" * 64, "2" * 64
+        calls.write_text(json.dumps({"round_id": "R1", "outcome": "WAITING_STEP_CRASHED_MID_CALL", "request_sha256": first_sha}) + "\n")
+        self.assertEqual(supervisor.tick("2026-12:1")["detail"]["occurrence"], first_sha)
+        with calls.open("a") as stream:
+            stream.write(json.dumps({"round_id": "R1", "outcome": "WAITING_STEP_CRASHED_MID_CALL", "request_sha256": second_sha}) + "\n")
+        self.assertEqual(supervisor.tick("2026-12:1")["detail"]["occurrence"], second_sha)
+        stopped = supervisor.tick("2026-12:1")
+        self.assertEqual(stopped["state"], "STOPPED_CRASH_SETTLED")
+        rows = [json.loads(line) for line in (w.state / "ledger.jsonl").read_text().splitlines()]
+        settles = [row["detail"]["occurrence"] for row in rows if row["state"] == "WAITING_SETTLE"]
+        self.assertEqual(settles, [first_sha, second_sha])
+        self.assertNotIn("unknown", settles)
+
+    def test_real_merged_run_sh_mount_and_two_crash_occurrences_settle_independently(self):
+        w = World()
+        calls = w.lane / "out" / "qrp-data" / "research" / "mining_llm_calls.jsonl"
+        calls.parent.mkdir(parents=True)
+        runner, captured = w.docker_stub_runner("WAITING_STEP_CRASHED_MID_CALL")
+        real_run_sh = ROOT / "deploy" / "research-lane" / "round-runner" / "run.sh"
+        supervisor = timer.Supervisor(
+            w.config(run_sh=real_run_sh), runner=runner,
+            fetch=lambda url: w.model_sources[url], now=lambda: w.now,
+            disk_free=lambda _p: 999,
+        )
+        first_sha, second_sha = "3" * 64, "4" * 64
+        calls.write_text(json.dumps({"round_id": "R1", "outcome": "WAITING_STEP_CRASHED_MID_CALL", "request_sha256": first_sha}) + "\n")
+        self.assertEqual(supervisor.tick("2026-12:1")["detail"]["occurrence"], first_sha)
+        with calls.open("a") as stream:
+            stream.write(json.dumps({"round_id": "R1", "outcome": "WAITING_STEP_CRASHED_MID_CALL", "request_sha256": second_sha}) + "\n")
+        self.assertEqual(supervisor.tick("2026-12:1")["detail"]["occurrence"], second_sha)
+        self.assertEqual(supervisor.tick("2026-12:1")["state"], "STOPPED_CRASH_SETTLED")
+        self.assertEqual([result.rc for result in captured], [75, 75, 75])
+        docker_calls = [json.loads(line) for line in (w.root / "docker-argv.jsonl").read_text().splitlines()]
+        mounts = [arg for call in docker_calls for arg in call if arg.endswith(":/out:rw")]
+        self.assertIn(f"{w.lane / 'out'}:/out:rw", mounts)
+        self.assertNotIn(f"{w.data}:/out:rw", mounts)
+
+    def test_absent_or_non_regular_crash_occurrence_fails_closed_and_alerts(self):
+        for kind in ("absent", "fifo"):
+            with self.subTest(kind=kind):
+                w = World()
+                calls = w.lane / "out" / "qrp-data" / "research" / "mining_llm_calls.jsonl"
+                calls.parent.mkdir(parents=True)
+                if kind == "fifo":
+                    os.mkfifo(calls)
+                crashed = timer.CommandResult(75, '{"round_id":"R1","status":"WAITING","llm_state":"WAITING_STEP_CRASHED_MID_CALL"}\n')
+                supervisor = timer.Supervisor(w.config(), runner=FakeRunner(crashed), fetch=lambda url: w.model_sources[url], now=lambda: w.now, disk_free=lambda _p: 999)
+                result = supervisor.tick("2026-12:1")
+                self.assertEqual(result["state"], "STOPPED_CRASH_OCCURRENCE_UNAVAILABLE")
+                alerts = json.loads((w.state / "alert_status.json").read_text())
+                self.assertEqual(alerts["active"][0]["code"], "CRASH_OCCURRENCE_UNAVAILABLE")
+
+    def test_stderr_refusal_uses_first_json_document(self):
+        w = World()
+        result = timer.CommandResult(
+            2, "",
+            '{"error":"MINE_ROUND_MONTHLY_CAP"}\n{"error":"LATER_DIAGNOSTIC"}\n',
+        )
+        supervisor = timer.Supervisor(w.config(), runner=FakeRunner(result), fetch=lambda url: w.model_sources[url], now=lambda: w.now, disk_free=lambda _p: 999)
+        stopped = supervisor.tick("2026-12:1")
+        self.assertEqual(stopped["state"], "STOPPED_MINE_ROUND_MONTHLY_CAP")
+        self.assertEqual(stopped["detail"]["code"], "MINE_ROUND_MONTHLY_CAP")
 
     def test_no_resume_matrix_and_refused_open_alert(self):
         for rc, payload, error in (
@@ -360,6 +490,34 @@ class RoundTimerTests(unittest.TestCase):
         (w.state / "ledger.jsonl").write_text("\n".join(json.dumps(row) for row in rows) + "\n")
         with self.assertRaisesRegex(timer.LedgerError, "HASH_MISMATCH"):
             supervisor.tick("2026-12:2")
+
+    def test_ledger_tamper_alerts_once_without_rewriting_damaged_ledger(self):
+        corruptions = {
+            "hash": lambda rows: rows[0].update(state="TAMPERED"),
+            "shape": lambda rows: rows[0].update(schema="WRONG"),
+            "json": None,
+        }
+        for kind, mutate in corruptions.items():
+            with self.subTest(kind=kind):
+                w = World(); runner = FakeRunner(timer.CommandResult(0, '{"round_id":"R1"}'))
+                supervisor = timer.Supervisor(w.config(), runner=runner, fetch=lambda url: w.model_sources[url], now=lambda: w.now, disk_free=lambda _p: 999)
+                supervisor.tick("2026-12:1")
+                ledger = w.state / "ledger.jsonl"
+                if kind == "json":
+                    damaged = ledger.read_bytes() + b"{not-json}\n"
+                else:
+                    rows = [json.loads(line) for line in ledger.read_text().splitlines()]
+                    mutate(rows)
+                    damaged = ("\n".join(json.dumps(row) for row in rows) + "\n").encode()
+                ledger.write_bytes(damaged)
+                for _ in range(2):
+                    with self.assertRaises(timer.LedgerError):
+                        supervisor.tick("2026-12:2")
+                self.assertEqual(ledger.read_bytes(), damaged)
+                alerts = json.loads((w.state / "alert_status.json").read_text())
+                tamper = [row for row in alerts["active"] if row["code"] == "LEDGER_TAMPER"]
+                self.assertEqual(len(tamper), 1)
+                self.assertEqual(tamper[0]["detail"], {"reason": "LEDGER_INTEGRITY_INVALID"})
 
 
 if __name__ == "__main__":
