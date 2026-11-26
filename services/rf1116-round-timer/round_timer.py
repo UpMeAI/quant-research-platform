@@ -79,12 +79,13 @@ def atomic_json(path, value, keep_previous=False):
 
 
 def first_json(text):
+    value = {}
     for line in str(text or "").splitlines():
-        if line.strip():
-            try: value = json.loads(line)
-            except json.JSONDecodeError: return {}
-            return value if isinstance(value, dict) else {}
-    return {}
+        if not line.strip(): continue
+        try: candidate = json.loads(line)
+        except json.JSONDecodeError: continue
+        if isinstance(candidate, dict): value = candidate
+    return value
 
 
 def classify(rc, outcome=None, error=None):
