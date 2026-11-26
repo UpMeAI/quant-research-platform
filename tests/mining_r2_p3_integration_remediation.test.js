@@ -150,6 +150,7 @@ function tornAfterPrefixMutation(mutate) {
   const { dir, second } = twoCalendarRows();
   const chainFile = path.join(dir, arrival().CHAIN_FILE);
   const rows = fs.readFileSync(chainFile, 'utf8').trimEnd().split('\n').map(JSON.parse);
+  const originalHead = rows[0].record_hash;
   const body = { ...rows[0] }; delete body.record_hash;
   mutate(body);
   rows[0] = { ...body, record_hash: trials.recordHash(body) };
@@ -157,13 +158,18 @@ function tornAfterPrefixMutation(mutate) {
   rows[1] = { ...next, record_hash: trials.recordHash(next) };
   const torn = Buffer.from(`${JSON.stringify(rows[0])}\n${JSON.stringify(rows[1]).slice(0, 29)}`);
   fs.writeFileSync(chainFile, torn);
-  return { dir, second, chainFile, torn };
+  return { dir, second, chainFile, torn, originalHead };
 }
 
 test('R2R-2 a semantically invalid but re-hashed prefix is refused before a torn tail is truncated', () => {
   const { dir, second, chainFile, torn } = tornAfterPrefixMutation((row) => { row.segment = 'R9'; });
   assert.throws(() => arrival().arrive({ dir, source: arrival().csvDayDropSource(second), arrivedAt: '2027-01-04T20:02:00+08:00' }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID/));
   assert.deepEqual(fs.readFileSync(chainFile), torn, 'semantic refusal must preserve the forensic torn bytes');
+
+  const anchored = tornAfterPrefixMutation((row) => { row.arrived_at = '2027-01-04T20:00:01+08:00'; });
+  assert.throws(() => arrival().arrive({ dir: anchored.dir, source: arrival().csvDayDropSource(anchored.second), arrivedAt: '2027-01-04T20:02:00+08:00',
+    anchors: [{ seq: 0, record_hash: anchored.originalHead }] }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:PARSE/));
+  assert.deepEqual(fs.readFileSync(anchored.chainFile), anchored.torn, 'anchor refusal must preserve the forensic torn bytes');
 });
 
 test('R2R-3 a rename-away, substitute, and restore race cannot supply day-drop child bytes', () => {
