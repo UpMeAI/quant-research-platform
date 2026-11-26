@@ -18,16 +18,27 @@
 set -euo pipefail
 
 LANE=/srv/research-lane/rf1116-mining
+LANE="${RF1116_LANE_FOR_TESTS:-$LANE}"   # RF1116_LANE_FOR_TESTS: the tests point run.sh at a scratch lane with a stub docker; never set in production
 IMAGE="${RF1116_RUNNER_IMAGE:?set RF1116_RUNNER_IMAGE=qrp-round-runner:<commit12>}"
 export DOCKER_HOST="${DOCKER_HOST:-unix:///run/user/1000/docker.sock}"
 LANE_COPY="$LANE/data/rf1116-cn-a-lane-copy-20200601-20260928"
 VAL_TAIL="$LANE/data/rf1116-cn-a-daily-20260929-20261016"
 HOLDOUT="$LANE/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"
+R1_HOLDOUT="$LANE/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"   # the R1 directory itself, whichever segment this run is for
 OUT="$LANE/out"
 KEY_FILE="/home/kayla/.config/qrp-research-key/deepseek-research.env"
 EXCHANGE="$OUT/llm-exchange"
 FACTOR_SERIES="$LANE/data/rf1116-cn-a-live-factor-series"
 HOLDOUT_REF="lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"
+# Holdout segment of this run (RF1116 R2 amendment; services/mining-rounds/holdout-segments.js). The default R1 is exactly the three lines above, unchanged.
+# The round's segment is chosen by the code from the month the round opens in; this switch only names the sealed directory and its ref, and the code refuses a ref
+# that names the other segment's directory before any round is opened (MINE_RUNNER_HOLDOUT_REF_MISMATCH). December rounds run with RF1116_HOLDOUT_SEGMENT=R2.
+case "${RF1116_HOLDOUT_SEGMENT:-R1}" in
+  R1) ;;
+  R2) HOLDOUT="$LANE/holdout-sealed/rf1116-cn-a-daily-holdout-r2"; HOLDOUT_REF="lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-r2" ;;
+  *) echo "run.sh: unknown RF1116_HOLDOUT_SEGMENT: ${RF1116_HOLDOUT_SEGMENT} (R1 or R2)" >&2; exit 64 ;;
+esac
+DAYDROP="$LANE/holdout-daydrop/${RF1116_HOLDOUT_SEGMENT:-R1}"   # holdout data arrival: the V6-side read-only job drops (R2: trading_calendar.csv and) <YYYYMMDD>/<table>.csv here, one directory per segment
 AUTHORITY=RF1116_MINING_RUNNER
 
 # File arguments become absolute paths before they reach "-v": Docker reads a bare name ("verdicts.json") as a volume
@@ -44,6 +55,14 @@ field_exclusions() {
   if [ -n "${1:-}" ]; then
     local f; f="$(abs_file "$1")"; [ -n "${2:-}" ] || { echo "run.sh: field exclusions need their sha256" >&2; exit 64; }
     EXM=(-v "$f:/data/field-exclusions.json:ro"); EXO=(--field-exclusions /data/field-exclusions.json --field-exclusions-sha256 "$2")
+  fi
+}
+# RF1116 R2 amendment: an R2 round is scored with the R1 holdout directory as ordinary LIVE history (the feed day 2026-12-31 and the lookbacks live there; R1's holdout has been
+# scored by then). R1 runs mount nothing extra.
+prior_live() {
+  PRIORM=(); PRIORO=()
+  if [ "${RF1116_HOLDOUT_SEGMENT:-R1}" = R2 ]; then
+    PRIORM=(-v "$R1_HOLDOUT:/data/prior-live:ro"); PRIORO=(--prior-live /data/prior-live)
   fi
 }
 
@@ -63,6 +82,41 @@ llm_busy_check() {
   if [ -n "$busy" ]; then
     echo "run.sh: another LLM run is active (rf1116-llm-step or rf1116-generate-llm is running); wait for it or stop it first" >&2
     exit 73
+  fi
+}
+# Holdout arrival and scoring exclude each other (#157 review 2026-11-23). The arrival program holds <holdout dir>/.arrival.lock for each step and its container is named rf1116-holdout-arrive.
+# A score or rescore reads the directory: SHA256SUMS lines without a chain row look like tampering (UNCHAINED), so neither runs during an arrival, and an arrival never starts while a score or
+# rescore container runs. A docker ps that fails is "unknown", not "none running" (exit 74). Exit 75 = busy, try again later.
+docker_names() { local n; n="$(docker ps --format '{{.Names}}')" || { echo "run.sh: cannot list containers (docker ps failed); not starting" >&2; exit 74; }; printf '%s' "$n"; }
+arrival_busy_check() {
+  local n lock="$HOLDOUT/.arrival.lock" started start_epoch current_epoch age
+  n="$(docker_names)"
+  if printf '%s\n' "$n" | grep -qx 'rf1116-holdout-arrive'; then
+    # An unreadable/racing StartedAt remains ordinary busy. Age is never permission to kill the only writer.
+    if started="$(docker inspect --format '{{.State.StartedAt}}' rf1116-holdout-arrive 2>/dev/null)" && [ -n "$started" ] \
+      && start_epoch="$(date -d "$started" +%s 2>/dev/null)" && current_epoch="$(date +%s 2>/dev/null)"; then
+      age=$(( current_epoch - start_epoch ))
+      if [ "$age" -gt 3600 ]; then
+        echo "run.sh: ALERT HOLDOUT_ARRIVAL_STUCK (container rf1116-holdout-arrive has run ${age}s, over 60 minutes; refusing without killing it)" >&2
+        exit 76
+      fi
+    fi
+    echo "run.sh: HOLDOUT_ARRIVAL_IN_PROGRESS (container rf1116-holdout-arrive is running)" >&2; exit 75
+  fi
+  if [ -e "$lock" ] && [ -n "$(find "$lock" -mmin -30 2>/dev/null)" ]; then echo "run.sh: HOLDOUT_ARRIVAL_IN_PROGRESS ($lock is fresh)" >&2; exit 75; fi
+}
+score_busy_check() {
+  local n; n="$(docker_names)"
+  if printf '%s\n' "$n" | grep -qxE 'rf1116-(score|rescore|resolve-segment)'; then echo "run.sh: HOLDOUT_SCORE_IN_PROGRESS (a score, rescore or resolver container is running)" >&2; exit 75; fi
+}
+# Recovery authority for a lock left by a killed arrival. docker_names has already proved whether the one production writer is alive; library code deliberately never unlinks an existing lock.
+arrival_start_check() {
+  local n lock="$HOLDOUT/.arrival.lock"
+  n="$(docker_names)"
+  if printf '%s\n' "$n" | grep -qx 'rf1116-holdout-arrive'; then echo "run.sh: HOLDOUT_ARRIVAL_IN_PROGRESS (container rf1116-holdout-arrive is running)" >&2; exit 75; fi
+  if [ -e "$lock" ]; then
+    if [ -n "$(find "$lock" -mmin -30 2>/dev/null)" ]; then echo "run.sh: HOLDOUT_ARRIVAL_IN_PROGRESS ($lock is fresh)" >&2; exit 75; fi
+    rm -f -- "$lock" || { echo "run.sh: cannot remove stale arrival lock $lock" >&2; exit 74; }
   fi
 }
 # The step runs as container root (rootless Docker: host uid 1000 = the key file's owner), so it can read the 0600 key file without any capability.
@@ -95,16 +149,18 @@ case "$cmd" in
     docker run --rm --name "rf1116-review" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" -v "$verdicts:/data/verdicts.json:ro" "$IMAGE" review --out /out --round "$round" --file /data/verdicts.json
     ;;
   rescore)
-    round="${2:?round_id}"; reason="${3:?crash reason}"; crashlog="$(abs_file "${4:?crash log file}")"; field_exclusions "${5:-}" "${6:-}"
-    docker run --rm --name "rf1116-rescore" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" -v "$crashlog:/data/crash.log:ro" ${EXM[@]+"${EXM[@]}"} -v "$OUT:/out:rw" "$IMAGE" rescore --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series --reason "$reason" --crash-log /data/crash.log ${EXO[@]+"${EXO[@]}"}
+    round="${2:?round_id}"; reason="${3:?crash reason}"; crashlog="$(abs_file "${4:?crash log file}")"; field_exclusions "${5:-}" "${6:-}"; prior_live
+    arrival_busy_check
+    docker run --rm --name "rf1116-rescore" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" -v "$crashlog:/data/crash.log:ro" ${EXM[@]+"${EXM[@]}"} ${PRIORM[@]+"${PRIORM[@]}"} -v "$OUT:/out:rw" "$IMAGE" rescore --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series --reason "$reason" --crash-log /data/crash.log --require-arrival-chain true ${EXO[@]+"${EXO[@]}"} ${PRIORO[@]+"${PRIORO[@]}"}
     ;;
   fail-evaluation)
     round="${2:?round_id}"; reason="${3:?reason}"; evidence="${4:?evidence sha256}"
     docker run --rm --name "rf1116-fail-evaluation" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" "$IMAGE" fail-evaluation --out /out --round "$round" --reason "$reason" --evidence-sha256 "$evidence"
     ;;
   score)
-    round="${2:?round_id}"; field_exclusions "${3:-}" "${4:-}"
-    docker run --rm --name "rf1116-score" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" ${EXM[@]+"${EXM[@]}"} -v "$OUT:/out:rw" "$IMAGE" score --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series ${EXO[@]+"${EXO[@]}"}
+    round="${2:?round_id}"; field_exclusions "${3:-}" "${4:-}"; prior_live
+    arrival_busy_check
+    docker run --rm --name "rf1116-score" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 6 --memory 24g --memory-swap 24g --pids-limit 256 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$LANE_COPY:/data/lane:ro" -v "$VAL_TAIL:/data/tail:ro" -v "$HOLDOUT:/data/holdout:ro" -v "$FACTOR_SERIES:/data/factor-series:ro" ${EXM[@]+"${EXM[@]}"} ${PRIORM[@]+"${PRIORM[@]}"} -v "$OUT:/out:rw" "$IMAGE" score --out /out --round "$round" --lane /data/lane --tail /data/tail --holdout /data/holdout --factor-series /data/factor-series --require-arrival-chain true ${EXO[@]+"${EXO[@]}"} ${PRIORO[@]+"${PRIORO[@]}"}
     ;;
   llm-ping)
     llm_busy_check
@@ -133,6 +189,45 @@ case "$cmd" in
     rc=$?
     set -e
     exit "$rc"
+    ;;
+  seal-init-r2)
+    # the pending seal directory for the R2 holdout (no data exists at 12-01): SEAL_PENDING_V1.json + SHA256SUMS + SHA256SUMS.sealed; prints the sha256 that generate-llm takes. Idempotent.
+    "$(cd "$(dirname "$0")" && pwd)/seal-init-r2.sh" "$LANE/holdout-sealed/rf1116-cn-a-daily-holdout-r2"
+    ;;
+  arrive|r2-arrive)
+    # RF1116 holdout data arrival: the ONLY writer of the segment's holdout directory (R1: the sealed directory, the days after its D1 = 2026-11-17; R2: rf1116-cn-a-daily-holdout-r2). Reads the
+    # day files the V6-side job dropped in $DAYDROP (read-only, one directory per segment), writes the per-day parts, SHA256SUMS lines and the hash chain ARRIVAL_CHAIN_V1.jsonl, and loops
+    # until nothing is left, so the daily timer catches up after a missed day. The ledger is mounted read-only (R2: the resolution record gives the window end). No network. Container root
+    # is the host owner of the directory (rootless Docker), with no capabilities. `r2-arrive` is the R2 command as first built.
+    [ "$cmd" != r2-arrive ] || [ "${RF1116_HOLDOUT_SEGMENT:-R1}" = R2 ] || { echo "run.sh: r2-arrive needs RF1116_HOLDOUT_SEGMENT=R2" >&2; exit 64; }
+    score_busy_check
+    arrival_start_check
+    # step 1: the writer (container root = the owner of the 0700 directory); its JSON (status, arrived, last_day, chain_seq, chain_head) is printed. step 2: the chain head is written to the lane ledger by a
+    # container that holds ONLY the ledger (uid 1000 = the ledger's owner, no holdout directory, no drop): an anchor outside the directory the chain protects (HOLDOUT_ARRIVAL_ANCHOR_V1).
+    arrive_rc=0; arrive_file="$(mktemp)"; trap 'rm -f "$arrive_file"' EXIT
+    docker run --rm --name "rf1116-holdout-arrive" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$HOLDOUT:/data/holdout:rw" -v "$DAYDROP:/data/daydrop:ro" -v "$OUT:/out:ro" "$IMAGE" holdout-arrive --segment "${RF1116_HOLDOUT_SEGMENT:-R1}" --holdout /data/holdout --driver csv-day-drop --source /data/daydrop > "$arrive_file" || arrive_rc=$?
+    arrive_out="$(cat "$arrive_file")"
+    printf '%s\n' "$arrive_out"
+    [ "$arrive_rc" -eq 0 ] || exit "$arrive_rc"
+    docker run --rm --name "rf1116-holdout-anchor" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 1g --memory-swap 1g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$OUT:/out:rw" "$IMAGE" holdout-anchor --out /out --segment "${RF1116_HOLDOUT_SEGMENT:-R1}" --arrival-json "$arrive_out"
+    ;;
+  arrive-check)
+    # read-only: names the open days of the window that have not arrived (exit 4 + JSON when some are missing, 0 when complete); the daily timer alerts on 4
+    docker run --rm --name "rf1116-holdout-arrive-check" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 0:0 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$HOLDOUT:/data/holdout:ro" -v "$OUT:/out:ro" "$IMAGE" holdout-arrive --segment "${RF1116_HOLDOUT_SEGMENT:-R1}" --holdout /data/holdout --check-complete true
+    ;;
+  resolve-segment)
+    # RF1116 R2: resolve the segment's window from the R2 directory's SSE calendar and write the end-resolution record; NOT_READY (exit 0) until the calendar lists enough days.
+    # It reads the calendar file only (no prices, no holdout rows), so the window-pause timer does not pause it.
+    [ "${RF1116_HOLDOUT_SEGMENT:-R1}" = R2 ] || { echo "run.sh: resolve-segment needs RF1116_HOLDOUT_SEGMENT=R2" >&2; exit 64; }
+    arrival_busy_check
+    score_busy_check
+    # The R2 directory is 0700 (owner = the lane user, like R1); the resolver container runs as uid 1000 (it writes the lane ledger) and must list calendar part names. The directory names and
+    # calendar/manifest bytes are opened for exactly this run (directory 0755; calendar files 0644) and closed again on exit; the data files stay 0600.
+    cal_files() { local f; for f in "$HOLDOUT"/trading_calendar*.csv "$HOLDOUT/SHA256SUMS"; do [ -f "$f" ] && printf '%s\n' "$f"; done; return 0; }
+    cal_open() { chmod 0755 "$HOLDOUT"; cal_files | while IFS= read -r f; do chmod 0644 "$f"; done; }
+    cal_close() { cal_files | while IFS= read -r f; do chmod 0600 "$f"; done; chmod 0700 "$HOLDOUT"; }
+    trap cal_close EXIT; cal_open
+    docker run --rm --name "rf1116-resolve-segment" --network none --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 --cpus 1 --memory 2g --memory-swap 2g --pids-limit 64 -e QRP_DATA_DIR=/out/qrp-data -e QRP_PRODUCT_MILESTONE_AUTHORITY="$AUTHORITY" -v "$HOLDOUT:/data/holdout:ro" -v "$OUT:/out:rw" "$IMAGE" resolve-segment --out /out --segment R2 --holdout /data/holdout
     ;;
   *) echo "usage: run.sh generate <gp_seed> <holdout_sha256> | llm-ping | generate-llm <holdout_sha256> | resume-llm <round_id> | resume <round_id> | mechanisms <round_id> [file] | review <round_id> <verdicts.json> | score <round_id> [field-exclusions.json <sha256>] | rescore <round_id> <reason> <crash.log> [field-exclusions.json <sha256>] | fail-evaluation <round_id> <reason> <evidence_sha256>" >&2; exit 64 ;;
 esac

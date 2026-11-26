@@ -408,6 +408,14 @@ const SCHEMAS = Object.freeze({
     _doc: '留出段开启之后崩溃的恢复（协调会话裁定 R1.8，d80ce988）：每轮至多一次 RESCORE_SAME_SELECTION，记成保管服务的第二个事件；选集行与输入（inputs_sha256）都要与开启时一样、第一次没写下任何 G-MINE 记录；写原因与日志',
     round_id: 's', kind: 's', open_hash: 's', selection_record_hash: 's', inputs_sha256: 's', reason: 's', log_sha256: 's', log_excerpt: 's', rescored_by: 's', rescored_at: 's', record_hash: 's',
   },
+  HOLDOUT_SEGMENT_RESOLUTION_V1: {
+    _doc: '留出段窗口的解析记录（RF1116 第二段修订，R2：起点 = 2026-12-31 之后第一个交易日，长度 54 个交易日，终点由上交所日历数出）：一段一行、只追加，写「读了哪份日历（文件名、sha256、清单 sha、读了几行、日历最后一天）、数出了哪些日子（起、止、54 天的 sha256）」；之后这一段的留出段窗口只认这一行（services/mining-rounds/segment-resolution.js）',
+    segment: 's', market: 's', rule: 'o', calendar: 'o', window: 'o', resolved_at: 's', resolved_by: 's', record_hash: 's',
+  },
+  HOLDOUT_ARRIVAL_ANCHOR_V1: {
+    _doc: '留出段到达链的头的外部锚（#157 复审）：每次到达之后把链头（seq、record_hash、last_day）追加进车道台账；到达、核对、打分都拒绝头 seq 低于最后一个锚（回滚）或锚定 seq 上的行哈希不同（改写）的链；只追加，不是留出段保管',
+    segment: 's', seq: 'n', chain_record_hash: 's', last_day: 's?', anchored_by: 's', anchored_at: 's', record_hash: 's',
+  },
   RACE_MANIFEST_V1: {
     _doc: '研究框架修订 2026-11-16 §4.3（RF1116，签字 fd22876f / 39f8c17c）—— 赛马清单：一个市场、一个分区（层）、冠军与挑战者、同一引擎 / 窗口 / 成本模型、主指标、护栏、晋级名额（≤ 2）；协调会话冻结（冻结页写出清单 sha256 与 FROZEN），清单 sha 写进每个参赛者的试验台账行（k2_sha256）',
     race_ref: 's', market: 's', partition: 's', periods_per_year: 'n', seed: 'n', engine: 'o', window: 'o', cost_model: 'o', primary_metric: 's', guardrails: 'o',

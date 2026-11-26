@@ -1,0 +1,681 @@
+{
+  "schema": "MINING_HOLDOUT_SEGMENTS_MUTATION_RESULTS_V1",
+  "baseline": "GREEN",
+  "mutants": 47,
+  "killed": 47,
+  "survived": [],
+  "bad": [],
+  "heads": [
+    "64fab65"
+  ],
+  "results": [
+    {
+      "id": "H01",
+      "guard": "R1 serves 2026-11 and earlier only",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S1 month rule: 2026-11 and earlier -> R1; 2026-12 onwards -> R2; anything else -> no segment",
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H02",
+      "guard": "R2 serves 2026-12 onwards",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S1 month rule: 2026-11 and earlier -> R1; 2026-12 onwards -> R2; anything else -> no segment",
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H03",
+      "guard": "R2 starts after 2026-12-31",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S0 registry: R1 and R2 entries, frozen; R1 values are the existing frozen constants; R2 carries the signed rule and an UNKNOWN end",
+        "S2 end resolution (pure): R2 end is UNKNOWN until the SSE calendar covers 54 open days after the start; R1 is always resolved",
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H04",
+      "guard": "R2 is 54 trading days long",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S0 registry: R1 and R2 entries, frozen; R1 values are the existing frozen constants; R2 carries the signed rule and an UNKNOWN end",
+        "S2 end resolution (pure): R2 end is UNKNOWN until the SSE calendar covers 54 open days after the start; R1 is always resolved",
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H05",
+      "guard": "the registry is per market",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S1 month rule: 2026-11 and earlier -> R1; 2026-12 onwards -> R2; anything else -> no segment",
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H06",
+      "guard": "the R1 manifest block is exactly { from, to }",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S0 registry: R1 and R2 entries, frozen; R1 values are the existing frozen constants; R2 carries the signed rule and an UNKNOWN end",
+        "S3 R1 byte-identical: a registry-selected November round is the same ledger row (record_hash included) as the explicit-window round",
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S8 never borrow: R1 full -> a November round is refused (R2 is free but is not its segment); R2 full -> a January round is refused (no R3 is invented)",
+        "S10 MINE_ROUND_HOLDOUT_SEGMENT_OPENED holds per segment: an opened R2 stops new R2 rounds; an opened R1 does not touch R2"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H07",
+      "guard": "the R2 end is UNKNOWN, never guessed",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S0 registry: R1 and R2 entries, frozen; R1 values are the existing frozen constants; R2 carries the signed rule and an UNKNOWN end",
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H08",
+      "guard": "the start is strictly after the rule date",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S2 end resolution (pure): R2 end is UNKNOWN until the SSE calendar covers 54 open days after the start; R1 is always resolved"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H09",
+      "guard": "the end is the 54th day counting the start",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S2 end resolution (pure): R2 end is UNKNOWN until the SSE calendar covers 54 open days after the start; R1 is always resolved"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H10",
+      "guard": "fewer than 54 listed days -> end UNKNOWN",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S2 end resolution (pure): R2 end is UNKNOWN until the SSE calendar covers 54 open days after the start; R1 is always resolved"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H11",
+      "guard": "a window is resolved only with both ends",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S2 end resolution (pure): R2 end is UNKNOWN until the SSE calendar covers 54 open days after the start; R1 is always resolved"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H12",
+      "guard": "the R2 cutoff rule: the start is strictly after the rule date",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S13b LLM cutoff against R2: the start is strictly after 2026-12-31, so a cutoff of 12-31 passes and 2027-01-01 is refused; R1 keeps its strict start > cutoff"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H13",
+      "guard": "a ref names its directory by the last path component",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S14 holdout ref: the other segment's sealed directory is refused before any round is opened; legacy synthetic refs are untouched"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H14",
+      "guard": "a stored R2 block must match the registry rule",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S7b fail closed: a stored R2 block that does not match the registry rule is not a registry segment"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H15",
+      "guard": "the month picks the segment",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched",
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H16",
+      "guard": "no segment for the market and month -> refused",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H17",
+      "guard": "an explicit window is refused after registry rows exist",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H18",
+      "guard": "an unregistered window in the ledger -> fail closed",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist",
+        "S7b fail closed: a stored R2 block that does not match the registry rule is not a registry segment"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H19",
+      "guard": "no opening backwards onto an earlier segment",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H20",
+      "guard": "rounds are counted per segment",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched",
+        "S10 MINE_ROUND_HOLDOUT_SEGMENT_OPENED holds per segment: an opened R2 stops new R2 rounds; an opened R1 does not touch R2"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H21",
+      "guard": "the counting method leaves out unevaluated FAILED_EVALUATION rounds",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S9 counting method on R2 (extra-round amendment section 1.2): an unevaluated FAILED_EVALUATION round does not count; every counter-case still counts"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H22",
+      "guard": "a segment serves at most 2 counted rounds",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched",
+        "S8 never borrow: R1 full -> a November round is refused (R2 is free but is not its segment); R2 full -> a January round is refused (no R3 is invented)",
+        "S9 counting method on R2 (extra-round amendment section 1.2): an unevaluated FAILED_EVALUATION round does not count; every counter-case still counts"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H23",
+      "guard": "an opened segment takes no new rounds",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S10 MINE_ROUND_HOLDOUT_SEGMENT_OPENED holds per segment: an opened R2 stops new R2 rounds; an opened R1 does not touch R2"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H24",
+      "guard": "opened-ness is per segment",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S10 MINE_ROUND_HOLDOUT_SEGMENT_OPENED holds per segment: an opened R2 stops new R2 rounds; an opened R1 does not touch R2"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H25",
+      "guard": "the R2 manifest block keeps its segment id and rule",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched",
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H26",
+      "guard": "the segment check runs for registry rounds",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S4 November rounds select R1 (also at 23:59 CST on 11-30); December rounds select R2 (also at 00:00 CST on 12-01)",
+        "S5 December rounds 1 and 2 select R2 and share it; a 3rd December round is refused and never borrows R1",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused",
+        "S6b same ledger with rounds 2 and 3 terminal: December rounds 1 and 2 open on R2, the 3rd is refused EXHAUSTED:R2; R1 rows untouched",
+        "S7 fail closed: no segment for the market; unregistered window already in the ledger; a backdated November round after R2 rounds exist"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H27",
+      "guard": "the LLM cutoff rule is checked",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S13b LLM cutoff against R2: the start is strictly after 2026-12-31, so a cutoff of 12-31 passes and 2027-01-01 is refused; R1 keeps its strict start > cutoff"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H28",
+      "guard": "the vault refuses to open an unresolved window",
+      "file": "services/holdout-vault/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S11 R2 end UNKNOWN: the round opens, seals and selects (generation and validation) but the holdout cannot be opened or scored"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H29",
+      "guard": "seal compares the whole registry block",
+      "file": "services/holdout-vault/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S12 seal: a round of one segment cannot be sealed with the other segment's window or a missing segment id"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H30",
+      "guard": "the seal row records the registry block",
+      "file": "services/holdout-vault/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S11 R2 end UNKNOWN: the round opens, seals and selects (generation and validation) but the holdout cannot be opened or scored"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H31",
+      "guard": "score refuses an unresolved window",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S11 R2 end UNKNOWN: the round opens, seals and selects (generation and validation) but the holdout cannot be opened or scored"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H32",
+      "guard": "rescore refuses an unresolved window",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S11 R2 end UNKNOWN: the round opens, seals and selects (generation and validation) but the holdout cannot be opened or scored"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H33",
+      "guard": "a ref naming the other segment is refused",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S14 holdout ref: the other segment's sealed directory is refused before any round is opened; legacy synthetic refs are untouched"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H34",
+      "guard": "requestRound lets the registry choose",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S13 runner: requestRound selects by month (GP and LLM); the LLM cutoff rule uses the R2 start rule"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H35",
+      "guard": "the CLI checks the ref before the round opens",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S14 holdout ref: the other segment's sealed directory is refused before any round is opened; legacy synthetic refs are untouched"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H36",
+      "guard": "run.sh defaults to R1",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S15 run.sh: the segment directory is chosen by RF1116_HOLDOUT_SEGMENT (default R1, the old strings unchanged); an unknown segment exits 64"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H37",
+      "guard": "run.sh refuses an unknown segment",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S15 run.sh: the segment directory is chosen by RF1116_HOLDOUT_SEGMENT (default R1, the old strings unchanged); an unknown segment exits 64"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H38",
+      "guard": "the cited R2 page sha is checked against the repo copy",
+      "file": "services/mining-rounds/holdout-segments.js",
+      "tests": [
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "S16 the R2 freeze page is cited with its sha256 and a byte-identical repo copy"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H39",
+      "guard": "the exception is for 2026-12 only",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O0 constant: one exception (CN_A, 2026-12, 4 unclosed, R2 only) citing the frozen page with a byte-identical repo copy; LIMITS stays 2; the lookup",
+        "O1 (b) 2026-12: December rounds 1 and 2 open while two November rounds are unclosed (R2 gets the two extra places)",
+        "O2 (a) 2026-12: a 5th unclosed round is refused (the limit is 4)",
+        "O4 (d) 2027-01: the limit is back to 2 (the exception does not roll over)"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H40",
+      "guard": "the exception allows exactly 4",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O0 constant: one exception (CN_A, 2026-12, 4 unclosed, R2 only) citing the frozen page with a byte-identical repo copy; LIMITS stays 2; the lookup",
+        "O2 (a) 2026-12: a 5th unclosed round is refused (the limit is 4)"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H41",
+      "guard": "the exception is for rounds assigned to R2 only",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O0 constant: one exception (CN_A, 2026-12, 4 unclosed, R2 only) citing the frozen page with a byte-identical repo copy; LIMITS stays 2; the lookup",
+        "O3 (c) a round assigned to R1 in December still gets only 2 unclosed places"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H42",
+      "guard": "the exception is for CN_A only",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O0 constant: one exception (CN_A, 2026-12, 4 unclosed, R2 only) citing the frozen page with a byte-identical repo copy; LIMITS stays 2; the lookup"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H43",
+      "guard": "the exception does not roll over (month is matched)",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O0 constant: one exception (CN_A, 2026-12, 4 unclosed, R2 only) citing the frozen page with a byte-identical repo copy; LIMITS stays 2; the lookup",
+        "O4 (d) 2027-01: the limit is back to 2 (the exception does not roll over)"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H44",
+      "guard": "a round on the R1 window counts as R1 even when given explicitly",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O3 (c) a round assigned to R1 in December still gets only 2 unclosed places"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H45",
+      "guard": "openRound uses the exception table",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js",
+        "tests/mining_holdout_segment_registry.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O1 (b) 2026-12: December rounds 1 and 2 open while two November rounds are unclosed (R2 gets the two extra places)",
+        "O2 (a) 2026-12: a 5th unclosed round is refused (the limit is 4)",
+        "O4 (d) 2027-01: the limit is back to 2 (the exception does not roll over)",
+        "S6 replay of the real ledger shape: R1 is full (a November round is refused); December rounds 1 and 2 open on R2 although rounds 2 and 3 are unclosed (ruling 2026-12 (a)); the 3rd is refused"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H46",
+      "guard": "the cited ruling page sha is checked against the repo copy",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O0 constant: one exception (CN_A, 2026-12, 4 unclosed, R2 only) citing the frozen page with a byte-identical repo copy; LIMITS stays 2; the lookup"
+      ],
+      "head": "64fab65"
+    },
+    {
+      "id": "H47",
+      "guard": "LIMITS.open_rounds_per_market stays 2 for everything else",
+      "file": "services/mining-rounds/index.js",
+      "tests": [
+        "tests/mining_cna_open_rounds_dec.test.js"
+      ],
+      "result": "KILLED",
+      "failing": [
+        "O0 constant: one exception (CN_A, 2026-12, 4 unclosed, R2 only) citing the frozen page with a byte-identical repo copy; LIMITS stays 2; the lookup",
+        "O3 (c) a round assigned to R1 in December still gets only 2 unclosed places",
+        "O5 (e) other markets are not affected: the 3rd unclosed US / CRYPTO round in 2026-12 is refused at 2",
+        "O6 November rounds are unchanged: the 3rd unclosed November round on R1 is refused at 2 (and by the full segment first)"
+      ],
+      "head": "64fab65"
+    }
+  ]
+}

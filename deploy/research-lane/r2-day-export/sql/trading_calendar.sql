@@ -1,0 +1,2 @@
+-- RF1116 V6-side export query (the only place the SQL lives; the lane has no database driver) (export spec section 2.2, range extended to the end of 2027); one SELECT
+SELECT DISTINCT ON (calendar_date, exchange) calendar_date, market, exchange, is_open, previous_open_date, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' AND quality_state = 'READY' ORDER BY calendar_date, exchange, first_available_at DESC, revision DESC

@@ -409,7 +409,7 @@ test('隔离（§4 第 7 条）：执行器启动即 lockdown，写输出目录�
   assert.deepEqual(fs.readdirSync(outside), []);
   const src = fs.readFileSync(CLI, 'utf8');
   const main = src.slice(src.indexOf('function main'));
-  assert.equal(main.split('runner.start(').length - 1, 6, 'llm-init (RF1116 LLM_GEN), generate, mechanisms, review (R1.5), fail-evaluation (★RF1116_ROUND1_STATE) and score all lock down first');
+  assert.equal(main.split('runner.start(').length - 1, 8, 'holdout-anchor (#157 review), llm-init (RF1116 LLM_GEN), generate, mechanisms, review (R1.5), fail-evaluation (★RF1116_ROUND1_STATE), resolve-segment (RF1116 R2) and score all lock down first');
   assert.ok(main.indexOf('runner.start(') < main.indexOf('runner.generate(') && main.lastIndexOf('runner.start(') < main.indexOf('runner.scoreHoldout('));
   assert.ok(main.lastIndexOf('runner.start(') > main.indexOf('runner.select('), 'the score branch has its own start');
 });
@@ -433,11 +433,24 @@ test('容器定义（静态）：基础镜像按摘要钉住、npm ci 按锁文�
   const all = sh.split('\n').filter((l) => /^\s*docker run /.test(l));
   // RF1116 LLM_GEN（2026-11-18）：网络那一步（services/mining-llm-step）是唯一连网的容器，单独核；其余照旧 --network none
   const stepRuns = all.filter((l) => l.includes('services/mining-llm-step/cli.js'));
-  const runs = all.filter((l) => !stepRuns.includes(l));
+  // RF1116 R2 data arrival (arrival.js): the ONLY container that writes the R2 holdout directory (host owner via rootless root, no capabilities, no network); checked on its own below
+  const arriveAll = all.filter((l) => l.includes('--name "rf1116-holdout-arrive')); // the writer and the read-only completeness check
+  const arriveRuns = arriveAll.filter((l) => l.includes('--name "rf1116-holdout-arrive"'));
+  const checkRuns = arriveAll.filter((l) => l.includes('--name "rf1116-holdout-arrive-check"'));
+  const runs = all.filter((l) => !stepRuns.includes(l) && !arriveAll.includes(l));
   // generate、resume、mechanisms（R1.5）、review（R1.5 复审）、rescore（R1.8）、score、fail-evaluation（★RF1116_ROUND1_STATE (a)）；
-  // 大模型：llm-init（建交换目录）、generate-llm、resume-llm
-  assert.equal(runs.length, 10);
+  // 大模型：llm-init（建交换目录）、generate-llm、resume-llm；RF1116 R2：resolve-segment（只读日历，写一行解析记录）
+  assert.equal(runs.length, 12, 'resolve-segment and the anchor step are among them; the arrival container is counted apart');
+  const anchorRuns = runs.filter((l) => l.includes('--name "rf1116-holdout-anchor"'));
+  assert.equal(anchorRuns.length, 1);
+  for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--user 1000:1000', '-v "$OUT:/out:rw"']) assert.ok(anchorRuns[0].includes(flag), `anchor: ${flag}`);
+  assert.ok(!anchorRuns[0].includes('/data/holdout') && !anchorRuns[0].includes('$DAYDROP') && !anchorRuns[0].includes('$HOLDOUT'), 'the anchor container holds only the ledger');
   assert.equal(stepRuns.length, 2, 'llm step: serve (detached) and ping');
+  assert.equal(arriveRuns.length, 1, 'holdout-arrive');
+  assert.equal(checkRuns.length, 1, 'holdout-arrive-check');
+  assert.ok(checkRuns[0].includes('-v "$HOLDOUT:/data/holdout:ro"') && !checkRuns[0].includes(':rw"'), 'the check mounts the directory and the ledger read-only');
+  for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 0:0', '-v "$HOLDOUT:/data/holdout:rw"', '-v "$DAYDROP:/data/daydrop:ro"', '-v "$OUT:/out:ro"']) assert.ok(arriveRuns[0].includes(flag), `arrive: ${flag}`);
+  assert.deepEqual([...arriveRuns[0].matchAll(/-v "([^"]+)"/g)].map((m) => m[1]).filter((m) => !m.endsWith(':ro')), ['$HOLDOUT:/data/holdout:rw'], 'the arrival container writes only the R2 directory');
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'config/mining_llm_generator.v1.json'), 'utf8'));
   assert.ok(new RegExp(`^KEY_FILE="?${cfg.key.host_path.replace(/[.]/g, '\\.')}"?$`, 'm').test(sh), 'KEY_FILE is the configured host path');
   // Docker's -v creates a DIRECTORY for a missing host path: the key mount exists only when the key file does (review 2026-11-22 #3)
@@ -547,7 +560,7 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   assert.equal(sha(texts(a)), sha(texts(b)), 'same seed, space and data: byte-identical formula list');
 
   // R1.5：mechanisms 列出机制集合的 sha → 协调会话写裁决文件 → review 一步写 MECHANISM_REVIEW_V1 → 才能 score
-  const noReview = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00'], a.env);
+  const noReview = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00', '--require-arrival-chain', 'false'], a.env);
   assert.equal(noReview.status, 2); assert.equal(JSON.parse(noReview.stderr).error, 'MINE_RUNNER_MECHANISM_REVIEW_MISSING');
   const listed = JSON.parse(cli(['mechanisms', '--out', a.out, '--round', a.g.round_id], a.env).stdout);
   assert.match(listed.mechanism_set_sha256, /^[0-9a-f]{64}$/); assert.equal(listed.review, null);
@@ -560,11 +573,11 @@ test('端到端（§4 第 9 条）：命令行在子进程里跑一轮 GP，从�
   assert.deepEqual([JSON.parse(rv.stdout).command, JSON.parse(rv.stdout).verdicts], ['review', { APPROVED: 0, REJECTED: listed.survivors.length }]);
   // 复审 #127 P3-4：命令行 score 也在开启之前核字段（字段缺了的补导 → 退出码 2，不开）；排除文件的两个选项要一起给
   const gapDir = require('./_holdout_field_gap').holdoutWithFieldGap(fx.dirs.holdout, '2026-12-15');
-  const gap = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', gapDir, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00'], a.env);
+  const gap = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', gapDir, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00', '--require-arrival-chain', 'false'], a.env);
   assert.equal(gap.status, 2); assert.equal(JSON.parse(gap.stderr).error, 'MINE_RUNNER_HOLDOUT_FIELD_INCOMPLETE'); assert.match(gap.stderr, /total_mv:2026-12-15:0/);
-  const half = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00', '--field-exclusions', gapDir], a.env);
+  const half = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00', '--require-arrival-chain', 'false', '--field-exclusions', gapDir], a.env);
   assert.equal(half.status, 2); assert.equal(JSON.parse(half.stderr).error, 'MINE_RUNNER_OPTION_REQUIRED'); assert.match(half.stderr, /--field-exclusions-sha256/);
-  const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00'], a.env);
+  const s = cli(['score', '--out', a.out, '--round', a.g.round_id, '--lane', fx.dirs.lane, '--tail', fx.dirs.tail, '--holdout', fx.dirs.holdout, '--min-names-per-day', '5', '--scored-at', '2027-01-06T10:00:00+08:00', '--require-arrival-chain', 'false'], a.env);
   assert.equal(s.status, 0, s.stderr);
   const sOut = JSON.parse(s.stdout);
   assert.deepEqual([sOut.opened, sOut.records, sOut.passes, sOut.status], [true, a.g.selected, 0, 'CLOSED']);

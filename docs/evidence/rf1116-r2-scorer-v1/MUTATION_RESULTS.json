@@ -1,0 +1,1948 @@
+{
+  "schema": "MINING_R2_SCORER_MUTATION_RESULTS_V1",
+  "baseline": "GREEN",
+  "mutants": 183,
+  "killed": 183,
+  "survived": [],
+  "bad": [],
+  "heads": [
+    "6777df6",
+    "71d32f5"
+  ],
+  "results": [
+    {
+      "id": "A01",
+      "guard": "chain: rows are in sequence and linked",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A02",
+      "guard": "chain: every row hash is recomputed",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)",
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A03",
+      "guard": "chain: file bytes match the row",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)",
+        "AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged",
+        "RC9 the arrival chain is part of the check: a consistent edit (file and SHA256SUMS line both changed), no chain, and days that have not arrived yet are each refused"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A04",
+      "guard": "chain: the chained file is listed in SHA256SUMS with the same sha",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A05",
+      "guard": "chain: a file is named once",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A06",
+      "guard": "chain: every day has all six tables",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A07",
+      "guard": "chain: a listed file that no row names is refused",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)",
+        "AR8 the calendar can be updated later: new or changed rows arrive as a dated part (a calendar row of an already arrived day cannot close it)",
+        "RC9 the arrival chain is part of the check: a consistent edit (file and SHA256SUMS line both changed), no chain, and days that have not arrived yet are each refused"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A08",
+      "guard": "chain: days are the consecutive open days of the calendar",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A09",
+      "guard": "chain: days not arrived yet are INCOMPLETE",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)",
+        "AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged",
+        "RC9 the arrival chain is part of the check: a consistent edit (file and SHA256SUMS line both changed), no chain, and days that have not arrived yet are each refused"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A10",
+      "guard": "arrive R2: only into a pending-sealed directory",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR5 a day is validated before anything is written: wrong header, a row of another day, empty prices, a missing table, an unsealed directory",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A10b",
+      "guard": "arrive R1: only into a directory sealed with its calendar and data",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A11",
+      "guard": "arrive: no skipping or going back",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A12",
+      "guard": "arrive: a closed day is refused",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A13",
+      "guard": "arrive: an arrived day is a no-op",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A14",
+      "guard": "arrive: the header equals the base header",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR5 a day is validated before anything is written: wrong header, a row of another day, empty prices, a missing table, an unsealed directory",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A15",
+      "guard": "arrive: every row is that day's",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR5 a day is validated before anything is written: wrong header, a row of another day, empty prices, a missing table, an unsealed directory",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A16",
+      "guard": "arrive: prices is not empty",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR5 a day is validated before anything is written: wrong header, a row of another day, empty prices, a missing table, an unsealed directory",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A17",
+      "guard": "arrive: a different file on disk is a conflict",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR6 crash healing: files written but no chain row (or SUMS lines missing) is completed by the next run, byte for byte, without duplicates; a different file on disk is refused"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A18",
+      "guard": "arrive: a calendar that closes an arrived day is refused",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR8 the calendar can be updated later: new or changed rows arrive as a dated part (a calendar row of an already arrived day cannot close it)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A19",
+      "guard": "arrive: the end of the window is COMPLETE",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR4 availability: a day the source does not have yet is NOT_AVAILABLE (the daily timer retries), no calendar day beyond the last is NOT_YET, the end of the window is COMPLETE",
+        "AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A20",
+      "guard": "chain rows are linked by prev_hash",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR2 first day: header-only base files plus the day parts, SUMS lines after the sealed one, chain row 1 linked to row 0",
+        "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
+        "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A21",
+      "guard": "arrive: a stray listed file is not healed away",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR6 crash healing: files written but no chain row (or SUMS lines missing) is completed by the next run, byte for byte, without duplicates; a different file on disk is refused"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A25",
+      "guard": "scorer: the arrival chain is verified before any row is read",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC9 the arrival chain is part of the check: a consistent edit (file and SHA256SUMS line both changed), no chain, and days that have not arrived yet are each refused"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "A26",
+      "guard": "scorer: the chain starts at the resolution record's start rule",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A27",
+      "guard": "anchor: R1's recorded row medians are used",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC8 anchor: with an R1 open row its recorded medians are R2's anchor (the record hash is in the check record); without one the data's own median; a high R1 anchor makes a normal R2 directory incomplete"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A28",
+      "guard": "anchor: R1's recorded field medians are used",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC8 anchor: with an R1 open row its recorded medians are R2's anchor (the record hash is in the check record); without one the data's own median; a high R1 anchor makes a normal R2 directory incomplete"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A29",
+      "guard": "anchor: the check record names the R1 open row",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC8 anchor: with an R1 open row its recorded medians are R2's anchor (the record hash is in the check record); without one the data's own median; a high R1 anchor makes a normal R2 directory incomplete"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A30",
+      "guard": "UNSEEN: the mark is written with the resolution row",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS10 UNSEEN: the resolved window is marked UNSEEN through trials.markSegments for the families of the rounds on R2 (SEEN by default before), once; no R2 round, no mark",
+        "RS11 UNSEEN: a mark somebody wrote on purpose is never overwritten; only unmarked days of the window get UNSEEN, and a rerun writes nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A31",
+      "guard": "UNSEEN: only the families of the rounds on the segment",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS10 UNSEEN: the resolved window is marked UNSEEN through trials.markSegments for the families of the rounds on R2 (SEEN by default before), once; no R2 round, no mark"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A32",
+      "guard": "UNSEEN: only days nobody marked yet (a rerun and a deliberate SEEN mark are left alone)",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS10 UNSEEN: the resolved window is marked UNSEEN through trials.markSegments for the families of the rounds on R2 (SEEN by default before), once; no R2 round, no mark",
+        "RS11 UNSEEN: a mark somebody wrote on purpose is never overwritten; only unmarked days of the window get UNSEEN, and a rerun writes nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "A33",
+      "guard": "UNSEEN: the marks cover the unmarked pieces of the resolved window, not a wider range",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS11 UNSEEN: a mark somebody wrote on purpose is never overwritten; only unmarked days of the window get UNSEEN, and a rerun writes nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B01",
+      "guard": "R1 starts after the sealed export's D1",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable",
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B02",
+      "guard": "R1's first industry part reaches back to 2026-10-17",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable",
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B03",
+      "guard": "R2's first industry part starts 2027-01-01",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR2 first day: header-only base files plus the day parts, SUMS lines after the sealed one, chain row 1 linked to row 0",
+        "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
+        "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B04",
+      "guard": "R1's calendar is sealed, not delivered",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable",
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B05",
+      "guard": "industry window: the lower bound is inclusive",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
+        "AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B06",
+      "guard": "industry window: the upper bound is exclusive",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR5 a day is validated before anything is written: wrong header, a row of another day, empty prices, a missing table, an unsealed directory"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B07",
+      "guard": "industry window: an unreadable first_available_at is refused",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR5 a day is validated before anything is written: wrong header, a row of another day, empty prices, a missing table, an unsealed directory"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B08",
+      "guard": "R1: only tables the sealed manifest lacks get a base file",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable",
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B09",
+      "guard": "R1: the header is checked against the sealed base file",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR5 a day is validated before anything is written: wrong header, a row of another day, empty prices, a missing table, an unsealed directory",
+        "AR12 R1 catch-up refusals: the same ORDER / HEADER / ROW_DATE / EMPTY_DAY rules, the header is the SEALED base file's, only a sealed R1 directory (with its calendar) is accepted, and R1 and R2 directories are not interchangeable"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B10",
+      "guard": "checkComplete names the missing days",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B11",
+      "guard": "checkComplete: the calendar has to reach the window end",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B12",
+      "guard": "verifyChain window: days up to the sealed D1 are not chain days",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR11 R1 catch-up: days 11-18.. arrive into the sealed R1 directory as parts; the sealed files and SHA256SUMS.sealed never move; the chain starts with a DAY row; industry gets a header-only base file and its first part reaches back to 2026-10-17",
+        "AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B15",
+      "guard": "readiness: ready_via must be a known rule",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B16",
+      "guard": "readiness: the record must be of this day",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B17",
+      "guard": "readiness: the record's file sha goes into the chain row",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B19",
+      "guard": "readiness: the record is part of the chain row",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR2 first day: header-only base files plus the day parts, SUMS lines after the sealed one, chain row 1 linked to row 0",
+        "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
+        "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B20",
+      "guard": "readiness: a day without its record is not there yet",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B21",
+      "guard": "readiness: counts are non-negative integers",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B22",
+      "guard": "scoring: requireChain turns the chain check on for R1",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "B23",
+      "guard": "scoring: an R1 chain is verified with the R1 profile",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "B24",
+      "guard": "cli: check-complete reports INCOMPLETE when days are missing",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B25",
+      "guard": "cli: INCOMPLETE exits with 4",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "AR13 checkComplete: after the window end, the days that have not arrived are named (R1 against the sealed calendar, R2 against the arrived calendar); complete = no missing day"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B26",
+      "guard": "run.sh: score requires the arrival chain",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "AR10 CLI r2-arrive and run.sh: the arrival is a command that loops until nothing is left, reads the window end from the resolution record, and its container is the only one that writes the R2 directory"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B27",
+      "guard": "run.sh: the arrival drop directory is per segment",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "AR10 CLI r2-arrive and run.sh: the arrival is a command that loops until nothing is left, reads the window end from the resolution record, and its container is the only one that writes the R2 directory"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B28",
+      "guard": "readiness: window_from continues the previous part",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B29",
+      "guard": "readiness: window_to is 09:00+08",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B30",
+      "guard": "readiness: window_to is after the day",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B31",
+      "guard": "readiness: window_to is the calendar's next open day when it knows one",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B32",
+      "guard": "verifier: consecutive industry windows are contiguous",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B33",
+      "guard": "verifier: window_to is the calendar's next open day",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR15 readiness (plan-coord condition iii): the exporter's READINESS.json is validated and recorded in the DAY chain row (ready_via, counts, probe sha, file sha); a day without it is not there yet; a record of another day, an unknown ready_via or a non-integer count is refused before anything is written; the verifier requires the field"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B34",
+      "guard": "arrive: a day's window starts where the last arrived part ended",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
+        "AR4 availability: a day the source does not have yet is NOT_AVAILABLE (the daily timer retries), no calendar day beyond the last is NOT_YET, the end of the window is COMPLETE",
+        "AR7 verifyChain: a good chain passes; every kind of tampering is caught (edited file, deleted or reordered or edited row, missing SUMS line, unchained file, skipped day, out-of-order day)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "B35",
+      "guard": "arrive: the window goes into the chain row",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "AR2 first day: header-only base files plus the day parts, SUMS lines after the sealed one, chain row 1 linked to row 0",
+        "AR2b industry membership: the seventh table, rows by first_available_at window (first R2 part from 2027-01-01 00:00+08; later parts from the day after the previous open day), a header-only part is normal, a part may carry rows of a weekend",
+        "AR3 the next day is the next open day of the calendar: a gap, an earlier day or a closed day is refused; an arrived day is a no-op; nothing is written on a refusal"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D01",
+      "guard": "export: the session is read-only",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX1 read-only by construction: the script text has no SET / RESET / BEGIN READ WRITE / write verb, sets PGOPTIONS default_transaction_read_only=on, checks the session, and every SQL file is one SELECT",
+        "DX2 the SQL sent for a day is the arrival program's PG query set (one producer), wrapped in COPY (...) TO STDOUT WITH (FORMAT csv, HEADER true); psql runs with the read-only PGOPTIONS and ON_ERROR_STOP",
+        "DX10 docker is a closed exception (ops-coord, same as \\#122 RULING_1 D3): exactly one docker invocation in the script, `docker exec -i -e PGOPTIONS=... <container> sh -c ...`, every call under `timeout`, SQL on stdin; every call the stub saw has that form"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "D02",
+      "guard": "export: a session that is not read-only stops the run",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX3 a day that is not an SSE open day, or not ready, is refused: nothing is written; --day on such a day is exit 3"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D03",
+      "guard": "export: a day waiting more than 3 days is the alert",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the seven tables and a SHA256SUMS of them; no temp directory is left; a second run exports nothing",
+        "DX18 the \"waiting more than 3 days\" alert counts from the day's cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1's last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D04",
+      "guard": "export: R1 starts after the sealed D1",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX2 the SQL sent for a day is the arrival program's PG query set (one producer), wrapped in COPY (...) TO STDOUT WITH (FORMAT csv, HEADER true); psql runs with the read-only PGOPTIONS and ON_ERROR_STOP",
+        "DX3 a day that is not an SSE open day, or not ready, is refused: nothing is written; --day on such a day is exit 3",
+        "DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the seven tables and a SHA256SUMS of them; no temp directory is left; a second run exports nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D05",
+      "guard": "export: R2 is 54 open days",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX6 catch-up in calendar order: every open day after D1 up to today that is ready is exported (a day that is not ready is skipped and reported, later ready days still are); R1 stops at 2026-12-31; R2 at its 54th open day; R2 also gets the calendar",
+        "DX7 constants agree with the code they feed: the segments D1 / window end / 54 days / first industry bound are the arrival program's PROFILES and the registry's R2 rule"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D06",
+      "guard": "export: a day that is not ready is not exported",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX3 a day that is not an SSE open day, or not ready, is refused: nothing is written; --day on such a day is exit 3",
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX6 catch-up in calendar order: every open day after D1 up to today that is ready is exported (a day that is not ready is skipped and reported, later ready days still are); R1 stops at 2026-12-31; R2 at its 54th open day; R2 also gets the calendar"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D07",
+      "guard": "export: a day appears atomically (rename)",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the seven tables and a SHA256SUMS of them; no temp directory is left; a second run exports nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D08",
+      "guard": "export: an exported day is not exported again",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the seven tables and a SHA256SUMS of them; no temp directory is left; a second run exports nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D09",
+      "guard": "export: a day without prices rows is not exported",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the seven tables and a SHA256SUMS of them; no temp directory is left; a second run exports nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D11",
+      "guard": "export: the window end of R1 is refused beyond",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX2 the SQL sent for a day is the arrival program's PG query set (one producer), wrapped in COPY (...) TO STDOUT WITH (FORMAT csv, HEADER true); psql runs with the read-only PGOPTIONS and ON_ERROR_STOP",
+        "DX3 a day that is not an SSE open day, or not ready, is refused: nothing is written; --day on such a day is exit 3",
+        "DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the seven tables and a SHA256SUMS of them; no temp directory is left; a second run exports nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D12",
+      "guard": "export: R2 gets its calendar",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX6 catch-up in calendar order: every open day after D1 up to today that is ready is exported (a day that is not ready is skipped and reported, later ready days still are); R1 stops at 2026-12-31; R2 at its 54th open day; R2 also gets the calendar",
+        "DX19 modes at rest: dropped day directories 0750 and files 0640 (umask 027; group of the exporting account, kayla), the R2 calendar 0640; INSTALL.md says 0750 for the drop directories"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D13",
+      "guard": "export: a failed probe fails closed",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX11 fail closed: a failing readiness probe, a failing data query, or a psql call that runs past the time limit stops the run with exit 2 and exports nothing (a failed probe is not \"not ready yet\")"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D14",
+      "guard": "export: a malformed probe row fails closed",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX12 readiness V2: the probe row is written to READINESS.json in the day directory (ready_via, counts, the probe's sha256) for the arrival program to record; NEXT_PREMARKET days are exported; a malformed probe row is a failed probe (exit 2), not \"not ready\"; the probe is re-run on every tick (never cached)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D16",
+      "guard": "export: the readiness record carries ready_via",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX12 readiness V2: the probe row is written to READINESS.json in the day directory (ready_via, counts, the probe's sha256) for the arrival program to record; NEXT_PREMARKET days are exported; a malformed probe row is a failed probe (exit 2), not \"not ready\"; the probe is re-run on every tick (never cached)",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched",
+        "DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the V2 file next to the script): the file it names is the one run and its sha goes into the record; a missing file stops the run (exit 2)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D17",
+      "guard": "export slot: the morning slot starts 08:20",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D18",
+      "guard": "export slot: the night slot starts 21:35",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D19",
+      "guard": "export slot: the afternoon slot starts 15:40",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D20",
+      "guard": "export slot: outside a slot nothing is done",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D21",
+      "guard": "export slot: every psql call is clamped to the end of the slot",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D22",
+      "guard": "export slot: no day starts after the end of the slot",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D23",
+      "guard": "export cutoff: the point-in-time rule is on by default",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX13 point-in-time cutoff: a day is exported only when the next SSE open day after it has reached 09:00+08 (the panel counts only rows in by then); before that it waits (WAITING_CUTOFF) and --day refuses (exit 3); the next open day after 2026-12-31 is 2027-01-04; R2EXP_PIT_CUTOFF=0 switches the rule off",
+        "DX18 the \"waiting more than 3 days\" alert counts from the day's cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1's last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D24",
+      "guard": "export cutoff: the next open day at 09:00+08",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX13 point-in-time cutoff: a day is exported only when the next SSE open day after it has reached 09:00+08 (the panel counts only rows in by then); before that it waits (WAITING_CUTOFF) and --day refuses (exit 3); the next open day after 2026-12-31 is 2027-01-04; R2EXP_PIT_CUTOFF=0 switches the rule off",
+        "DX18 the \"waiting more than 3 days\" alert counts from the day's cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1's last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "D25",
+      "guard": "export slot: weekends are not restricted to the weekday slots",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX13 point-in-time cutoff: a day is exported only when the next SSE open day after it has reached 09:00+08 (the panel counts only rows in by then); before that it waits (WAITING_CUTOFF) and --day refuses (exit 3); the next open day after 2026-12-31 is 2027-01-04; R2EXP_PIT_CUTOFF=0 switches the rule off",
+        "DX14 V6-window slots (ops-coord): on weekdays the job runs only in 08:20-09:05, 15:40-18:05 and 21:35-00:10 CST and otherwise does nothing (exit 0, OUTSIDE_SLOT, no docker call); weekends any time; every psql call is clamped to the end of the slot, and no day starts after it",
+        "DX18 the \"waiting more than 3 days\" alert counts from the day's cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1's last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D26",
+      "guard": "export window: a later part starts at the day's own 09:00 (the previous part's end)",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX2 the SQL sent for a day is the arrival program's PG query set (one producer), wrapped in COPY (...) TO STDOUT WITH (FORMAT csv, HEADER true); psql runs with the read-only PGOPTIONS and ON_ERROR_STOP",
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D27",
+      "guard": "export window: a part ends at the next open day's 09:00",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX2 the SQL sent for a day is the arrival program's PG query set (one producer), wrapped in COPY (...) TO STDOUT WITH (FORMAT csv, HEADER true); psql runs with the read-only PGOPTIONS and ON_ERROR_STOP",
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX12 readiness V2: the probe row is written to READINESS.json in the day directory (ready_via, counts, the probe's sha256) for the arrival program to record; NEXT_PREMARKET days are exported; a malformed probe row is a failed probe (exit 2), not \"not ready\"; the probe is re-run on every tick (never cached)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D28",
+      "guard": "export window: the first part starts at the segment's lower bound",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX12 readiness V2: the probe row is written to READINESS.json in the day directory (ready_via, counts, the probe's sha256) for the arrival program to record; NEXT_PREMARKET days are exported; a malformed probe row is a failed probe (exit 2), not \"not ready\"; the probe is re-run on every tick (never cached)",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D29",
+      "guard": "export window: a day with no known next open day waits",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX13 point-in-time cutoff: a day is exported only when the next SSE open day after it has reached 09:00+08 (the panel counts only rows in by then); before that it waits (WAITING_CUTOFF) and --day refuses (exit 3); the next open day after 2026-12-31 is 2027-01-04; R2EXP_PIT_CUTOFF=0 switches the rule off",
+        "DX18 the \"waiting more than 3 days\" alert counts from the day's cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1's last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D30",
+      "guard": "export window: window_from is recorded",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX12 readiness V2: the probe row is written to READINESS.json in the day directory (ready_via, counts, the probe's sha256) for the arrival program to record; NEXT_PREMARKET days are exported; a malformed probe row is a failed probe (exit 2), not \"not ready\"; the probe is re-run on every tick (never cached)",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D31",
+      "guard": "export probe: one variable names the probe file",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the V2 file next to the script): the file it names is the one run and its sha goes into the record; a missing file stops the run (exit 2)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D32",
+      "guard": "export probe: a missing probe file stops the run",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the V2 file next to the script): the file it names is the one run and its sha goes into the record; a missing file stops the run (exit 2)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D33",
+      "guard": "export SQL: a query is for one day",
+      "file": "deploy/research-lane/r2-day-export/sql/prices_daily_stock.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D34",
+      "guard": "export SQL: the industry window's lower bound is inclusive",
+      "file": "deploy/research-lane/r2-day-export/sql/industry_membership_sw2021.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched",
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D35",
+      "guard": "export SQL: the industry window's upper bound is exclusive",
+      "file": "deploy/research-lane/r2-day-export/sql/industry_membership_sw2021.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX5 industry window: the first R1 part reaches back to 2026-10-17, later parts start the day after the previous open day (a weekend belongs to Monday), the first R2 part starts 2027-01-01",
+        "DX15 industry windows partition the rows (plan-coord condition): the concatenation of the per-day parts equals ONE export under the first_available_at rule over [2026-10-17 00:00+08, 2027-01-04 09:00+08) on a synthetic ledger that has rows whose effective_from is after their first_available_at; every row exactly once, effective_from untouched",
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D36",
+      "guard": "export SQL: stocks only",
+      "file": "deploy/research-lane/r2-day-export/sql/market_daily_basic_observation_stock.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D37",
+      "guard": "export SQL: the master snapshot is of the day",
+      "file": "deploy/research-lane/r2-day-export/sql/security_master_stock.sql",
+      "result": "KILLED",
+      "failing": [
+        "DX17 the export SQL (export spec section 2, rev 5 change 2): one day per query, stocks only, the spec's column lists untouched incl. effective_from, the industry window on first_available_at with no effective_from cut, the calendar query to the end of 2027"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D38",
+      "guard": "export staleness: a day not ready is stale only after its cutoff + 72 h",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX6 catch-up in calendar order: every open day after D1 up to today that is ready is exported (a day that is not ready is skipped and reported, later ready days still are); R1 stops at 2026-12-31; R2 at its 54th open day; R2 also gets the calendar",
+        "DX18 the \"waiting more than 3 days\" alert counts from the day's cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1's last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D39",
+      "guard": "export staleness: waiting for the cutoff is not stale",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX6 catch-up in calendar order: every open day after D1 up to today that is ready is exported (a day that is not ready is skipped and reported, later ready days still are); R1 stops at 2026-12-31; R2 at its 54th open day; R2 also gets the calendar",
+        "DX18 the \"waiting more than 3 days\" alert counts from the day's cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1's last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D40",
+      "guard": "export: a server-side statement timeout",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX1 read-only by construction: the script text has no SET / RESET / BEGIN READ WRITE / write verb, sets PGOPTIONS default_transaction_read_only=on, checks the session, and every SQL file is one SELECT",
+        "DX2 the SQL sent for a day is the arrival program's PG query set (one producer), wrapped in COPY (...) TO STDOUT WITH (FORMAT csv, HEADER true); psql runs with the read-only PGOPTIONS and ON_ERROR_STOP",
+        "DX10 docker is a closed exception (ops-coord, same as \\#122 RULING_1 D3): exactly one docker invocation in the script, `docker exec -i -e PGOPTIONS=... <container> sh -c ...`, every call under `timeout`, SQL on stdin; every call the stub saw has that form"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D41",
+      "guard": "export: timeout -k",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX10 docker is a closed exception (ops-coord, same as \\#122 RULING_1 D3): exactly one docker invocation in the script, `docker exec -i -e PGOPTIONS=... <container> sh -c ...`, every call under `timeout`, SQL on stdin; every call the stub saw has that form"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D42",
+      "guard": "export: umask 027 (dirs 0750, files 0640)",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX19 modes at rest: dropped day directories 0750 and files 0640 (umask 027; group of the exporting account, kayla), the R2 calendar 0640; INSTALL.md says 0750 for the drop directories"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D43",
+      "guard": "export unit: a hard limit for the run",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.service",
+      "result": "KILLED",
+      "failing": [
+        "DX8 unit and timer: a oneshot user unit running the script for both segments, a daily timer after POST_CLOSE with a retry, Persistent; no docker, no network setting that widens anything; the env file only names the connection"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "D44",
+      "guard": "export lock: an aged lock (a killed run) is taken over",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX20 exporter lock (the same mechanism as the arrival lock): two runs at once = the second does nothing (EXPORT_LOCKED, exit 0); released at exit and on error; a run killed with SIGKILL leaves its lock, which blocks for a bounded time only (an aged lock is taken over)"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "D45",
+      "guard": "export lock: a fresh lock is respected",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX20 exporter lock (the same mechanism as the arrival lock): two runs at once = the second does nothing (EXPORT_LOCKED, exit 0); released at exit and on error; a run killed with SIGKILL leaves its lock, which blocks for a bounded time only (an aged lock is taken over)"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "D46",
+      "guard": "export lock: released at exit",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX3 a day that is not an SSE open day, or not ready, is refused: nothing is written; --day on such a day is exit 3",
+        "DX4 one atomic directory per day: <drop>/<segment>/<YYYYMMDD>/ with the seven tables and a SHA256SUMS of them; no temp directory is left; a second run exports nothing",
+        "DX12 readiness V2: the probe row is written to READINESS.json in the day directory (ready_via, counts, the probe's sha256) for the arrival program to record; NEXT_PREMARKET days are exported; a malformed probe row is a failed probe (exit 2), not \"not ready\"; the probe is re-run on every tick (never cached)"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "D47",
+      "guard": "export lock: one export at a time",
+      "file": "deploy/research-lane/r2-day-export/r2-day-export.sh",
+      "result": "KILLED",
+      "failing": [
+        "DX20 exporter lock (the same mechanism as the arrival lock): two runs at once = the second does nothing (EXPORT_LOCKED, exit 0); released at exit and on error; a run killed with SIGKILL leaves its lock, which blocks for a bounded time only (an aged lock is taken over)"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "E01",
+      "guard": "arrival lock: exclusive creation",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at once: one refuses (MINE_RUNNER_ARRIVE_LOCKED), the chain stays valid and the next run continues; a stale lock is taken over, a fresh one is not; the lock is released on success and on error"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E02",
+      "guard": "arrival lock: a fresh lock is respected",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at once: one refuses (MINE_RUNNER_ARRIVE_LOCKED), the chain stays valid and the next run continues; a stale lock is taken over, a fresh one is not; the lock is released on success and on error"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E03",
+      "guard": "arrival lock: a dead arrival's lock is taken over",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at once: one refuses (MINE_RUNNER_ARRIVE_LOCKED), the chain stays valid and the next run continues; a stale lock is taken over, a fresh one is not; the lock is released on success and on error"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E04",
+      "guard": "arrival lock: released when the step ends",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX1 concurrent arrivals: an exclusive lock per directory. Two arrivals at once: one refuses (MINE_RUNNER_ARRIVE_LOCKED), the chain stays valid and the next run continues; a stale lock is taken over, a fresh one is not; the lock is released on success and on error",
+        "FX2 at rest: nothing the arrival writes is group- or world-readable (files 0600), even under umask 022; seal-init-r2.sh makes a 0700 directory with no group/world bits on its files",
+        "FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consistent rewrite of the last day (REWRITE), a rewrite of an earlier day with every later row re-chained (REWRITE) are refused; an unanchored head is UNANCHORED in strict mode; arrive refuses the same"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E05",
+      "guard": "at rest: everything the arrival writes is 0600",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX2 at rest: nothing the arrival writes is group- or world-readable (files 0600), even under umask 022; seal-init-r2.sh makes a 0700 directory with no group/world bits on its files"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E06",
+      "guard": "at rest: the chain file is created 0600",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX2 at rest: nothing the arrival writes is group- or world-readable (files 0600), even under umask 022; seal-init-r2.sh makes a 0700 directory with no group/world bits on its files"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E07",
+      "guard": "anchor: a head below the last anchor is a rollback",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consistent rewrite of the last day (REWRITE), a rewrite of an earlier day with every later row re-chained (REWRITE) are refused; an unanchored head is UNANCHORED in strict mode; arrive refuses the same",
+        "FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_seq, chain_head, last_day); `holdout-anchor` writes it to the lane ledger from a container that holds only the ledger (no holdout directory); run.sh arrive runs the two steps; arrive-check and arrive verify against the anchors"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E08",
+      "guard": "anchor: another hash at an anchored seq is a rewrite",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consistent rewrite of the last day (REWRITE), a rewrite of an earlier day with every later row re-chained (REWRITE) are refused; an unanchored head is UNANCHORED in strict mode; arrive refuses the same"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E09",
+      "guard": "anchor: every anchor is checked, not only the last",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consistent rewrite of the last day (REWRITE), a rewrite of an earlier day with every later row re-chained (REWRITE) are refused; an unanchored head is UNANCHORED in strict mode; arrive refuses the same"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E10",
+      "guard": "anchor: the strict gate refuses rows beyond the last anchor",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consistent rewrite of the last day (REWRITE), a rewrite of an earlier day with every later row re-chained (REWRITE) are refused; an unanchored head is UNANCHORED in strict mode; arrive refuses the same"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E11",
+      "guard": "anchor: arrive verifies the chain against the anchors first",
+      "file": "services/mining-sandbox/round-runner/arrival.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3b verifyChain with anchors: a rolled-back last day (ROLLBACK), a consistent rewrite of the last day (REWRITE), a rewrite of an earlier day with every later row re-chained (REWRITE) are refused; an unanchored head is UNANCHORED in strict mode; arrive refuses the same"
+      ],
+      "head": "71d32f5"
+    },
+    {
+      "id": "E12",
+      "guard": "anchor ledger: a seq below the last anchor is refused",
+      "file": "services/mining-rounds/arrival-anchor.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3a anchor ledger: HOLDOUT_ARRIVAL_ANCHOR_V1 rows (segment, seq, record_hash, last_day), append-only, idempotent for the same row, refused below the last anchor or with another hash at an anchored seq"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E13",
+      "guard": "anchor ledger: another hash at an anchored seq is refused",
+      "file": "services/mining-rounds/arrival-anchor.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3a anchor ledger: HOLDOUT_ARRIVAL_ANCHOR_V1 rows (segment, seq, record_hash, last_day), append-only, idempotent for the same row, refused below the last anchor or with another hash at an anchored seq"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E14",
+      "guard": "anchor ledger: the same anchor again is a no-op",
+      "file": "services/mining-rounds/arrival-anchor.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3a anchor ledger: HOLDOUT_ARRIVAL_ANCHOR_V1 rows (segment, seq, record_hash, last_day), append-only, idempotent for the same row, refused below the last anchor or with another hash at an anchored seq",
+        "FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_seq, chain_head, last_day); `holdout-anchor` writes it to the lane ledger from a container that holds only the ledger (no holdout directory); run.sh arrive runs the two steps; arrive-check and arrive verify against the anchors"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E15",
+      "guard": "anchor ledger: the segment is R1 or R2",
+      "file": "services/mining-rounds/arrival-anchor.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3a anchor ledger: HOLDOUT_ARRIVAL_ANCHOR_V1 rows (segment, seq, record_hash, last_day), append-only, idempotent for the same row, refused below the last anchor or with another hash at an anchored seq"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E16",
+      "guard": "cli holdout-anchor: the arrival JSON must be of the named segment",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_seq, chain_head, last_day); `holdout-anchor` writes it to the lane ledger from a container that holds only the ledger (no holdout directory); run.sh arrive runs the two steps; arrive-check and arrive verify against the anchors"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E17",
+      "guard": "cli arrive: the anchors are passed to the arrival",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_seq, chain_head, last_day); `holdout-anchor` writes it to the lane ledger from a container that holds only the ledger (no holdout directory); run.sh arrive runs the two steps; arrive-check and arrive verify against the anchors"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E18",
+      "guard": "cli arrive-check: the chain is verified against the anchors",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_seq, chain_head, last_day); `holdout-anchor` writes it to the lane ledger from a container that holds only the ledger (no holdout directory); run.sh arrive runs the two steps; arrive-check and arrive verify against the anchors"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E19",
+      "guard": "cli score/rescore: --require-arrival-chain reaches the runner (the review's surviving mutant)",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "FX4 gate wiring: `score` and `rescore` CLI hand requireChain to the runner when --require-arrival-chain true (and not otherwise); run.sh passes the flag in BOTH branches (each branch examined on its own)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E20",
+      "guard": "scorer: the chain is compared with the anchors under the strict gate",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "AR14 R1 scoring requires the chain (requireChain, run.sh --require-arrival-chain): a consistent edit of an arrived file (file and SHA256SUMS line) and a deleted chain are refused before any row is read; without the flag the old path is unchanged"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E21",
+      "guard": "scorer: an R2 score needs R1 opened (or terminal)",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory's chain must verify; without the strict flag nothing changes"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E22",
+      "guard": "scorer: the prior-live (R1) chain is verified",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory's chain must verify; without the strict flag nothing changes"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E23",
+      "guard": "predicate: an R1 round with an open row is ready",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory's chain must verify; without the strict flag nothing changes",
+        "RC11 the R1-before-R2 predicate: no R1 round = refused; an R1 round without an open row = refused; an open row = ok; every R1 round terminal = ok"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E24",
+      "guard": "predicate: only when EVERY R1 round is terminal",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC11 the R1-before-R2 predicate: no R1 round = refused; an R1 round without an open row = refused; an open row = ok; every R1 round terminal = ok"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E25",
+      "guard": "run.sh: score refuses while an arrival runs",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX7 run.sh: arrive and score/rescore exclude each other (the lock file and the containers); a docker ps that fails stops everything (exit 74); a stale lock does not block"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E26",
+      "guard": "run.sh: rescore refuses while an arrival runs",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX7 run.sh: arrive and score/rescore exclude each other (the lock file and the containers); a docker ps that fails stops everything (exit 74); a stale lock does not block"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E27",
+      "guard": "run.sh: arrive refuses while a score runs",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX7 run.sh: arrive and score/rescore exclude each other (the lock file and the containers); a docker ps that fails stops everything (exit 74); a stale lock does not block"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E28",
+      "guard": "run.sh: the lock file counts as busy for 30 minutes",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX7 run.sh: arrive and score/rescore exclude each other (the lock file and the containers); a docker ps that fails stops everything (exit 74); a stale lock does not block"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E29",
+      "guard": "run.sh: an unreadable docker ps stops everything",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX7 run.sh: arrive and score/rescore exclude each other (the lock file and the containers); a docker ps that fails stops everything (exit 74); a stale lock does not block"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E30",
+      "guard": "run.sh: a failed arrival is not anchored",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX7 run.sh: arrive and score/rescore exclude each other (the lock file and the containers); a docker ps that fails stops everything (exit 74); a stale lock does not block"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E31",
+      "guard": "run.sh: arrive-check reads the 0700 directory as its owner",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX3c holdout-anchor CLI and run.sh: arrive prints the chain head (chain_seq, chain_head, last_day); `holdout-anchor` writes it to the lane ledger from a container that holds only the ledger (no holdout directory); run.sh arrive runs the two steps; arrive-check and arrive verify against the anchors"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E32",
+      "guard": "run.sh: resolve-segment closes the directory again",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY the calendar files and SHA256SUMS (directory 0711, those files 0644) for the resolver container and closes them again (0700 / 0600), also when the container fails; the data files stay 0600"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E33",
+      "guard": "run.sh: resolve-segment opens only the calendar files",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX8 resolve-segment on the 0700 R2 directory: run.sh opens ONLY the calendar files and SHA256SUMS (directory 0711, those files 0644) for the resolver container and closes them again (0700 / 0600), also when the container fails; the data files stay 0600"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "E34",
+      "guard": "seal-init-r2: the R2 directory is 0700",
+      "file": "deploy/research-lane/round-runner/seal-init-r2.sh",
+      "result": "KILLED",
+      "failing": [
+        "FX2 at rest: nothing the arrival writes is group- or world-readable (files 0600), even under umask 022; seal-init-r2.sh makes a 0700 directory with no group/world bits on its files"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M01",
+      "guard": "only rule-defined segments are resolvable",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RS8 record(): only registered rule-defined segments, a real 54-day window after the start rule, calendar evidence present"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M02",
+      "guard": "the window starts strictly after the rule date",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RS8 record(): only registered rule-defined segments, a real 54-day window after the start rule, calendar evidence present"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M03",
+      "guard": "the window is 54 days",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RS8 record(): only registered rule-defined segments, a real 54-day window after the start rule, calendar evidence present"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M04",
+      "guard": "the calendar must reach the window end",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RS8 record(): only registered rule-defined segments, a real 54-day window after the start rule, calendar evidence present"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M05",
+      "guard": "a different window after a record exists is a conflict",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RS4 the window never moves: a later calendar that counts different days is refused after a record exists"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M06",
+      "guard": "R1 and explicit windows come from the manifest",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor",
+        "RC8 anchor: with an R1 open row its recorded medians are R2's anchor (the record hash is in the check record); without one the data's own median; a high R1 anchor makes a normal R2 directory incomplete",
+        "RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory's chain must verify; without the strict flag nothing changes"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M07",
+      "guard": "resolutionOf is per segment",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RS7 windowOf(round): R1 and explicit windows from the manifest; R2 null until its record exists, then the recorded window and the record hash"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M08",
+      "guard": "calendar evidence is required",
+      "file": "services/mining-rounds/segment-resolution.js",
+      "result": "KILLED",
+      "failing": [
+        "RS8 record(): only registered rule-defined segments, a real 54-day window after the start rule, calendar evidence present"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M09",
+      "guard": "the resolver refuses a segment without a start rule",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS6 refusals: calendar file edited after SHA256SUMS, calendar not listed, a segment without a start rule, an unknown segment; nothing is written"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M10",
+      "guard": "too few listed days is NOT_READY",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RC6 CLI: resolve-segment is a command; score and rescore accept --prior-live (the R1 directory as ordinary history); the option is rejected elsewhere",
+        "RS2 not ready: fewer than 54 listed open days after the start, or none after 2026-12-31 -> NOT_READY, no row"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M11",
+      "guard": "the record says how many calendar rows were read",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS1 resolveSegment R2: counts 54 open days after 2026-12-31 and records the window with the calendar it read and the dates it counted"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M12",
+      "guard": "the record carries the sha256 of the counted dates",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS1 resolveSegment R2: counts 54 open days after 2026-12-31 and records the window with the calendar it read and the dates it counted",
+        "RS5 calendar facts: only SSE, only READY rows, the latest revision of a day wins"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M13",
+      "guard": "a second run is not a new record",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RC6 CLI: resolve-segment is a command; score and rescore accept --prior-live (the R1 directory as ordinary history); the option is rejected elsewhere",
+        "RS3 idempotent: the second run returns the same record and writes nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M14",
+      "guard": "the record names the calendar files with their sha256",
+      "file": "services/mining-sandbox/round-runner/resolve-segment.js",
+      "result": "KILLED",
+      "failing": [
+        "RS1 resolveSegment R2: counts 54 open days after 2026-12-31 and records the window with the calendar it read and the dates it counted"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M15",
+      "guard": "rows read are counted",
+      "file": "services/mining-sandbox/data-adapter/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RS0 adapter.openDaysOf reads the SSE open days exactly as buildPanel does (same days, same last date)",
+        "RS1 resolveSegment R2: counts 54 open days after 2026-12-31 and records the window with the calendar it read and the dates it counted"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M16",
+      "guard": "only the SSE rows give open days",
+      "file": "services/mining-sandbox/data-adapter/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M17",
+      "guard": "the window parameter is for the holdout panel only",
+      "file": "services/mining-sandbox/data-adapter/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC5 panel builder and scorer take the window as a parameter and are unchanged without it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M18",
+      "guard": "the holdout panel bound is the given window",
+      "file": "services/mining-sandbox/data-adapter/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC5 panel builder and scorer take the window as a parameter and are unchanged without it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M19",
+      "guard": "scoring days start at the window start",
+      "file": "services/mining-sandbox/round-runner/holdout-scoring.js",
+      "result": "KILLED",
+      "failing": [
+        "RC5 panel builder and scorer take the window as a parameter and are unchanged without it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M20",
+      "guard": "the panel must end on the window end",
+      "file": "services/mining-sandbox/round-runner/holdout-scoring.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC5 panel builder and scorer take the window as a parameter and are unchanged without it"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M21",
+      "guard": "results record the window",
+      "file": "services/mining-sandbox/round-runner/holdout-scoring.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M22",
+      "guard": "no window, no scoring",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "S11 R2 end UNKNOWN: the round opens, seals and selects (generation and validation) but the holdout cannot be opened or scored",
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M23",
+      "guard": "registry segments use the deferred-seal check",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M24",
+      "guard": "deferred seal: no sealed rows is allowed only in deferred mode",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M25",
+      "guard": "deferred seal anchors on the data's own day median",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC3b deferred seal still catches a thin day: the anchor is the data's own median of days, so a day far below it is incomplete"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M26",
+      "guard": "deferred seal needs the pending statement sealed",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC3c deferred seal needs the pending statement to be what was sealed: a sealed file that does not contain SEAL_PENDING_V1.json is refused"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M27",
+      "guard": "the field floor is anchored too in deferred mode",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M28",
+      "guard": "R2 reads wait for the day after the window end",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC4 not-before and dataset label: a read is allowed from 2027-01-01 or the day after the resolved end, whichever is later; the access-log dataset names the segment"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M29",
+      "guard": "the access-log dataset names the segment",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC4 not-before and dataset label: a read is allowed from 2027-01-01 or the day after the resolved end, whichever is later; the access-log dataset names the segment"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M30",
+      "guard": "the open row records the window and the resolution record",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "tests/mining_holdout_segment_registry.test.js",
+        "tests/mining_r2_scoring.test.js",
+        "tests/mining_segment_resolution.test.js"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M31",
+      "guard": "the panel ends on the window end",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory's chain must verify; without the strict flag nothing changes"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M32",
+      "guard": "the scorer gets the window",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC10 strict gate (--require-arrival-chain): an R2 score is refused until an R1 round of the market has an open row (or every R1 round is terminal); then the prior-live (R1) directory's chain must verify; without the strict flag nothing changes"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M33",
+      "guard": "the directory check uses the window, not the seal row",
+      "file": "services/mining-sandbox/round-runner/index.js",
+      "result": "KILLED",
+      "failing": [
+        "RC1 scoring on R2, end to end: refused while the window is unrecorded; with the record the open, the directory check, the panel and the results use the resolved window",
+        "RC1b R2 crash after the open: the one rescore uses the same resolved window and writes the results on it (R1.8)",
+        "RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M34",
+      "guard": "the vault opens only with a window",
+      "file": "services/holdout-vault/index.js",
+      "result": "KILLED",
+      "failing": [
+        "S11 R2 end UNKNOWN: the round opens, seals and selects (generation and validation) but the holdout cannot be opened or scored"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M35",
+      "guard": "resolve-segment takes a segment",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "RC6 CLI: resolve-segment is a command; score and rescore accept --prior-live (the R1 directory as ordinary history); the option is rejected elsewhere"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M36",
+      "guard": "an earlier segment is added as ordinary LIVE history",
+      "file": "services/mining-sandbox/round-runner/cli.js",
+      "result": "KILLED",
+      "failing": [
+        "RC6 CLI: resolve-segment is a command; score and rescore accept --prior-live (the R1 directory as ordinary history); the option is rejected elsewhere"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M37",
+      "guard": "run.sh: R2 scoring mounts the R1 directory",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "RC7 run.sh: resolve-segment and seal-init-r2 are commands; score for R2 mounts the R1 directory read-only as --prior-live; R1 lines are unchanged"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M38",
+      "guard": "run.sh: resolve-segment is for R2 only",
+      "file": "deploy/research-lane/round-runner/run.sh",
+      "result": "KILLED",
+      "failing": [
+        "RC7 run.sh: resolve-segment and seal-init-r2 are commands; score for R2 mounts the R1 directory read-only as --prior-live; R1 lines are unchanged"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M39",
+      "guard": "seal-init: the sealed copy exists",
+      "file": "deploy/research-lane/round-runner/seal-init-r2.sh",
+      "result": "KILLED",
+      "failing": [
+        "RS9 seal-init-r2.sh: creates the pending seal directory once, prints the sha256 of SHA256SUMS.sealed, and a second run changes nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M40",
+      "guard": "seal-init: a foreign directory is not touched",
+      "file": "deploy/research-lane/round-runner/seal-init-r2.sh",
+      "result": "KILLED",
+      "failing": [
+        "RS9 seal-init-r2.sh: creates the pending seal directory once, prints the sha256 of SHA256SUMS.sealed, and a second run changes nothing"
+      ],
+      "head": "6777df6"
+    },
+    {
+      "id": "M41",
+      "guard": "seal-init: idempotent",
+      "file": "deploy/research-lane/round-runner/seal-init-r2.sh",
+      "result": "KILLED",
+      "failing": [
+        "RS9 seal-init-r2.sh: creates the pending seal directory once, prints the sha256 of SHA256SUMS.sealed, and a second run changes nothing"
+      ],
+      "head": "6777df6"
+    }
+  ]
+}

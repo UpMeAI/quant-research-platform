@@ -20,6 +20,11 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const rounds = require('../../mining-rounds');
+const holdoutSegments = require('../../mining-rounds/holdout-segments');
+const segmentResolution = require('../../mining-rounds/segment-resolution');
+const { resolveSegment } = require('./resolve-segment');
+const arrivalChain = require('./arrival');
+const arrivalAnchor = require('../../mining-rounds/arrival-anchor');
 const vault = require('../../holdout-vault');
 const gateRecords = require('../../mining-rounds/gate-records');
 const spaceMod = require('../space');
@@ -85,6 +90,13 @@ const SHA64_RE = /^[0-9a-f]{64}$/;
 const now = () => new Date().toISOString();
 const inside = (p, root) => { const rel = path.relative(path.resolve(root), path.resolve(p)); return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel)); };
 
+/** Summarize the bases actually used by every deferred-seal table and field. */
+function anchorLabelOf(...groups) {
+  const bases = new Set(groups.flatMap((group) => Object.values(group || {}).map((entry) => entry && entry.anchor_basis).filter(Boolean)));
+  if (bases.size > 1) return 'MIXED';
+  return bases.size === 1 ? [...bases][0] : 'OWN_DAYS_MEDIAN';
+}
+
 let generatorOverride = null;
 let frozenInputs = FROZEN_INPUTS;
 
@@ -139,13 +151,35 @@ function requestRound({ generator, cap = rounds.LIMITS.candidates_per_round, ope
   return rounds.openRound({
     market: MARKET, space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze }, holding_periods: [...f.space.holding_periods],
     generator: isLlm ? { mode: 'AI_MINED_LLM', model: L.config.model.api_model, model_knowledge_cutoff: L.config.model.cutoff_used, llm: llmBlock(L) } : { mode: 'AI_MINED_GP', gp_seed: generator.gp_seed },
-    holdout: { from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }, cap, openedAt: openedAt || undefined,
+    // 不给留出段窗口：登记表按开轮月份（北京时间）选段（2026-11 及以前 R1，2026-12 起 R2；mining-rounds/holdout-segments.js），选不到可用的段就不开轮
+    cap, openedAt: openedAt || undefined,
     data_checks: { coverage_floor: { min_names_per_day: coverageFloor.min_names_per_day, default: COVERAGE_FLOOR.min_names_per_day,
       overridden: coverageFloor.min_names_per_day !== COVERAGE_FLOOR.min_names_per_day } },
     // R1.2：引裁定页；验证折选择规则作为数据冻结进清单（轮中不改）
     rulings: [{ path: frozenInputs.ruling_r1.coordinator_path, sha256: frozenInputs.ruling_r1.sha256 }],
     selection_rule: JSON.parse(JSON.stringify(selector.RULE)),
   });
+}
+
+/**
+ * 开轮之前核封存的留出段引用：引用点名了另一段的封存目录（十二月的轮点了 R1 的目录，或反过来）→ MINE_RUNNER_HOLDOUT_REF_MISMATCH，在开轮之前拒，什么都不写。
+ * 不点名任何登记目录的引用（测试与合成数据用 'synthetic:holdout'）不受影响；段由月份决定（requestRound 同一规则），引用只是核对。
+ */
+function assertHoldoutRef({ openedAt = null, dataRef } = {}) {
+  const month = rounds.monthCst(openedAt || now());
+  const entry = holdoutSegments.entryForMonth(month, MARKET);
+  const owner = holdoutSegments.refOwner(dataRef);
+  if (entry && owner) need(owner.id === entry.id, 'HOLDOUT_REF_MISMATCH', `${month} uses ${entry.id}, the ref names ${owner.id}`);
+}
+
+/**
+ * 这一轮的留出段窗口：R1 与旧窗口来自清单，R2 来自解析记录（services/mining-rounds/segment-resolution.js）。解析记录还没有（R2 的终点 UNKNOWN / CALENDAR_NOT_PUBLISHED）→
+ * 不读目录、不开启、不打分：MINE_RUNNER_HOLDOUT_SEGMENT_END_UNKNOWN。
+ */
+function windowOrFail(r) {
+  const w = segmentResolution.windowOf(r);
+  need(w, 'HOLDOUT_SEGMENT_END_UNKNOWN', `${r.round_id}:${r.holdout.segment || ''}:${r.holdout.to}`);
+  return w;
 }
 
 /** 续跑的生成方式要和轮次清单一致（GP 轮不能用大模型续，反过来也一样）。 */
@@ -478,7 +512,7 @@ function select({ roundId, sources, outDir, accessLog = null }) {
  *     导出规格 rev 3 的日历每次都是整段（到 2026-12-31），所以不能只看日历。
  * 核过才把目录交给面板；任何一条不过都在开启之前拒绝，那一次开启不被耗掉。
  */
-function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null } = {}) {
+function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_per_day, priorSources = [], fieldExclusions = null, deferredSeal = false, anchors = null, startAfter = undefined, requireChain = false, segment = null } = {}) {
   need(Number.isInteger(minNamesPerDay) && minNamesPerDay >= 1, 'HOLDOUT_FLOOR_INVALID', minNamesPerDay);
   need(seal && SHA64_RE.test(seal.data_sha256 || '') && seal.segment && seal.segment.from && seal.segment.to, 'NOT_SEALED');
   need(dir && fs.existsSync(path.join(dir, 'SHA256SUMS')), 'HOLDOUT_DIR_INVALID', dir);
@@ -496,6 +530,10 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     need(!lost.length, 'HOLDOUT_SEALED_FILES_CHANGED', lost.map((x) => x.name).join(','));
     sealedNames = new Set(parse(fs.readFileSync(sealedFile, 'utf8')).map((x) => x.name));
   }
+  // 延迟封存（R2，RF1116 第二段修订）：封存那一刻没有数据，封存的只有 SEAL_PENDING_V1.json（见 seal-init-r2.sh）；数据之后才进目录（清单只追加）。
+  // 其余核对一样：每个文件的 sha、不许有清单外的 CSV、封存那几行还在、各表都在、日历到窗口终点、逐日下限与字段下限；只是封存的行里没有数据，
+  // 「封存那份的日中位数」这个锚换成这份数据自己各日的中位数（有一天明显薄于自己的中位数就拒）。
+  if (deferredSeal) need(sealedNames.has('SEAL_PENDING_V1.json'), 'HOLDOUT_SEAL_PENDING_MISSING', dir);
   const byName = new Map(listed.map((x) => [x.name, x.sha]));
   for (const n of fs.readdirSync(dir).filter((x) => x.endsWith('.csv')).sort()) need(byName.has(n), 'HOLDOUT_FILE_UNLISTED', n);
   for (const x of listed) {
@@ -523,6 +561,19 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   const openAll = [...cal.entries()].filter(([, v]) => v.open).map(([d]) => d).sort();
   const days = openAll.filter((d) => d >= seal.segment.from && d <= seal.segment.to);
   need(days.length, 'HOLDOUT_INCOMPLETE', 'trading_calendar.csv:no open day');
+  // The resolution freezes the exact open-day set, not only its endpoints. Use the canonical selector over the directory's own final calendar so an in-window revision cannot silently move scored sessions.
+  if (segment) {
+    const resolution = segmentResolution.resolutionOf(segment);
+    if (resolution) {
+      const finalDays = adapter.openDaysOf([src]).days.filter((d) => d >= resolution.window.from && d <= resolution.window.to);
+      need(sha256(finalDays.join('\n')) === resolution.window.days_sha256, 'HOLDOUT_INCOMPLETE', 'calendar_changed');
+    }
+  }
+  // R2: the data arrived through the arrival program, so the whole chain must verify (a gap, an edit or an out-of-order day = MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID, no re-run;
+  // days that have not arrived yet = MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>). Before any row is read.
+  // The chain head is also compared with the anchors in the lane ledger (rollback / rewrite); the strict gate additionally requires the head to be anchored (the anchor step ran for every row).
+  let arrival = null;
+  if (deferredSeal || requireChain) { const seg = segment || (deferredSeal ? "R2" : "R1"); arrival = arrivalChain.verifyChain(dir, { segment: seg, window: { from: seal.segment.from, to: seal.segment.to }, startAfter, anchors: arrivalAnchor.pairsOf(seg), requireAnchor: requireChain || Boolean(segment) }); }
   // 复审 #127 P3-2：面板读的是「喂」这些决策日的交易日——每个决策日的前一个开市日（第一个决策日的前一天在验证尾段里），不是决策日本身；
   // 日线、复权因子另有决策日当天的执行价（标签），那一份不看截止。P1-1：LIVE 截止与面板同一个函数（adapter.liveCutoffs）。
   const k0 = openAll.indexOf(days[0]);
@@ -551,12 +602,16 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   const floorRows = (file, view, list, all, sealedOnly) => {
     const per = list.map((d) => (all.get(d) ? all.get(d).size : 0));
     const sealedCounts = list.filter((d) => sealedOnly.has(d)).map((d) => sealedOnly.get(d).size);
-    need(sealedCounts.length, 'HOLDOUT_SEALED_DAYS_EMPTY', view ? `${file}:${view}` : file);
-    const anchor = median(sealedCounts);
+    need(sealedCounts.length || deferredSeal, 'HOLDOUT_SEALED_DAYS_EMPTY', view ? `${file}:${view}` : file);
+    // 延迟封存：没有封存的数据行。锚 = R1 打分时记在开启记录里的同一张表的中位数（有就用，anchors），没有就是这份数据自己各日的中位数
+    const given = !sealedCounts.length && anchors ? (view === 'LABEL' ? anchors.labels[file] : anchors.rows[file]) : undefined;
+    const fromR1 = typeof given === 'number' && given > 0;
+    const anchor = sealedCounts.length ? median(sealedCounts) : (fromR1 ? given : median(per));
     list.forEach((d, k) => {
       need(per[k] >= minNamesPerDay && per[k] >= HOLDOUT_FLOOR.min_share_of_sealed_median * anchor, 'HOLDOUT_INCOMPLETE', view ? `${file}:${view}:${d}:${per[k]}` : `${file}:${d}:${per[k]}`);
     });
-    return { min_names: Math.min(...per), median_names: median(per), sealed_days: sealedCounts.length, sealed_median_names: anchor, trade_dates: { from: list[0], to: list[list.length - 1] } };
+    return { min_names: Math.min(...per), median_names: median(per), sealed_days: sealedCounts.length, sealed_median_names: anchor, trade_dates: { from: list[0], to: list[list.length - 1] },
+      ...(deferredSeal ? { anchor_basis: fromR1 ? 'R1_OPEN_RECORD' : 'OWN_DAYS_MEDIAN' } : {}) };
   };
   const rowsPerDay = {}; const labelRowsPerDay = {};
   const fieldKeys = Object.values(adapter.BASIC_FIELDS);
@@ -606,7 +661,9 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     for (const k of fieldKeys) {
       const per = feedDays.map((d) => all.get(`${k}|${d}`) || 0);
       const sealedCounts = sealedDays.map((d) => sealedT.get(`${k}|${d}`) || 0);
-      const anchor = sealedCounts.length ? median(sealedCounts) : 0;
+      const givenF = deferredSeal && !sealedCounts.length && anchors ? anchors.fields[k] : undefined;
+      const fromR1F = typeof givenF === 'number' && givenF > 0;
+      const anchor = sealedCounts.length ? median(sealedCounts) : (deferredSeal ? (fromR1F ? givenF : median(per)) : 0);
       need(anchor > 0, 'HOLDOUT_FIELD_EMPTY', `${file}:${k}`);
       const abs = HOLDOUT_FIELD_FLOOR.absolute_floor_fields.includes(k);
       const skipped = [];
@@ -614,14 +671,18 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
         if (excluded.has(`${k}|${d}`)) { skipped.push(d); return; }
         need(per[i] >= HOLDOUT_FIELD_FLOOR.min_share_of_sealed_median * anchor && (!abs || per[i] >= minNamesPerDay), 'HOLDOUT_FIELD_INCOMPLETE', `${file}:${k}:${d}:${per[i]}`);
       });
-      fieldStates[k] = { min: Math.min(...per), median: median(per), sealed_median: anchor, excluded_days: skipped };
+      fieldStates[k] = { min: Math.min(...per), median: median(per), sealed_median: anchor, excluded_days: skipped, ...(deferredSeal ? { anchor_basis: fromR1F ? 'R1_OPEN_RECORD' : 'OWN_DAYS_MEDIAN' } : {}) };
     }
   }
   const { min_names_per_day: _d, ...rest } = HOLDOUT_FLOOR;
+  const anchor = deferredSeal ? anchorLabelOf(rowsPerDay, labelRowsPerDay, fieldStates) : null;
+  const usesR1Anchor = anchor === 'R1_OPEN_RECORD' || anchor === 'MIXED';
   return { calendar_to: last, open_days: days.length, trade_dates: { from: feedDays[0], to: feedDays[feedDays.length - 1], prior_sources: prior.map((s) => s.label) },
     rows_per_day: rowsPerDay, label_rows_per_day: labelRowsPerDay, field_states_per_day: fieldStates, floor: { min_names_per_day: minNamesPerDay, ...rest },
     field_floor: { ...HOLDOUT_FIELD_FLOOR, absolute_floor_fields: [...HOLDOUT_FIELD_FLOOR.absolute_floor_fields] },
-    field_exclusions: fieldExclusions ? { sha256: fieldExclusions.sha256, ruling: fieldExclusions.ruling, pairs: fieldExclusions.pairs } : null, source: src };
+    field_exclusions: fieldExclusions ? { sha256: fieldExclusions.sha256, ruling: fieldExclusions.ruling, pairs: fieldExclusions.pairs } : null, source: src,
+    ...(deferredSeal ? { seal_mode: 'DEFERRED_PENDING_SEAL', anchor, anchor_record_hash: usesR1Anchor && anchors ? anchors.open_record_hash : null } : {}),
+    ...(arrival ? { arrival_chain: { rows: arrival.rows, head_seq: arrival.head_seq, head_hash: arrival.head_hash, last_day: arrival.last_day } } : {}) };
 }
 
 /**
@@ -653,11 +714,44 @@ function loadFieldExclusions(file, expectedSha256, roundId) {
 function verifyHoldoutDir(roundId, dir, opts = {}) {
   const seal = vault.sealOf(roundId);
   need(seal, 'NOT_SEALED', roundId);
-  return { ...holdoutDirCheck(dir, seal, opts), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
+  // 窗口：R1 与旧窗口来自清单（与封存记录的起止相同），R2 来自解析记录；R2 的目录走延迟封存的核对（只封存了 SEAL_PENDING_V1.json）
+  const { window: given, ...rest } = opts;
+  const win = given || windowOrFail(rounds.roundHead(roundId));
+  const deferredSeal = win.segment !== null;
+  const rec = deferredSeal ? segmentResolution.resolutionOf(win.segment) : null;
+  return { ...holdoutDirCheck(dir, { ...seal, segment: { from: win.from, to: win.to } }, { ...rest, deferredSeal, segment: win.segment, anchors: deferredSeal ? r1AnchorsOf() : null, ...(rec ? { startAfter: rec.rule.start_after } : {}) }), seal_hash: seal.record_hash, data_sha256: seal.data_sha256 };
+}
+/**
+ * R1's recorded medians, the anchor of an R2 directory check (RF1116 R2: no sealed data rows to anchor on): the FIRST R1 holdout-open row of this market that carries them
+ * (holdout_dir.rows_per_day / label_rows_per_day [file].sealed_median_names, field_states_per_day [field].sealed_median). Same market, same tables. R1 is scored in January 2027,
+ * before R2 can be; no such row (R1 not opened) -> null and the check anchors on the data's own median of days. Its record_hash goes into the check record.
+ */
+/**
+ * R1 before R2 (the strict gate): an R2 score is refused until an R1 round of the market has a holdout open row, or every R1 round is terminal (never evaluated, failed, closed).
+ * No R1 round at all is refused too.
+ */
+function priorSegmentReady(market = MARKET) {
+  const r1 = rounds.roundsOf(market).filter((r) => { const w = segmentResolution.windowOf(r); return w && w.segment === null && w.from === segs.SEGMENTS.HOLDOUT.from && w.to === segs.SEGMENTS.HOLDOUT.to; });
+  if (!r1.length) return { ok: false, reason: 'NO_R1_ROUND' };
+  if (r1.some((r) => vault.openLog(r.round_id).length > 0)) return { ok: true, reason: 'R1_OPENED' };
+  if (r1.every((r) => ['CLOSED', 'FAILED_RESCORE', 'FAILED_PARTIAL', 'FAILED_EVALUATION'].includes(r.status))) return { ok: true, reason: 'R1_TERMINAL' };
+  return { ok: false, reason: 'R1_NOT_OPENED' };
+}
+
+function r1AnchorsOf() {
+  const r1 = rounds.roundsOf(MARKET).filter((r) => { const w = segmentResolution.windowOf(r); return w && w.segment === null && w.from === segs.SEGMENTS.HOLDOUT.from && w.to === segs.SEGMENTS.HOLDOUT.to; }).map((r) => r.round_id);
+  const med = (o, key) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v && typeof v[key] === 'number' && v[key] > 0).map(([k, v]) => [k, v[key]]));
+  const opens = r1.flatMap((id) => vault.openLog(id)).sort((a, b) => (a.opened_at < b.opened_at ? -1 : a.opened_at > b.opened_at ? 1 : 0));
+  for (const o of opens) {
+    const hd = o.pre_open_checks && o.pre_open_checks.holdout_dir;
+    if (!hd || !hd.rows_per_day || !hd.label_rows_per_day || !hd.field_states_per_day) continue;
+    return { rows: med(hd.rows_per_day, 'sealed_median_names'), labels: med(hd.label_rows_per_day, 'sealed_median_names'), fields: med(hd.field_states_per_day, 'sealed_median'), open_record_hash: o.record_hash };
+  }
+  return null;
 }
 /** 留出段目录核对写进开启记录与 score.json 的那一份（复审 #127 P2-3：逐字段的计数、字段下限、排除文件都在，事后能说清是哪些数放它开的）。 */
 const holdoutDirRecord = (c) => ({ open_days: c.open_days, calendar_to: c.calendar_to, trade_dates: c.trade_dates, rows_per_day: c.rows_per_day, label_rows_per_day: c.label_rows_per_day,
-  field_states_per_day: c.field_states_per_day, field_floor: c.field_floor, field_exclusions: c.field_exclusions });
+  field_states_per_day: c.field_states_per_day, field_floor: c.field_floor, field_exclusions: c.field_exclusions, ...(c.seal_mode ? { seal_mode: c.seal_mode, anchor: c.anchor, anchor_record_hash: c.anchor_record_hash } : {}), ...(c.arrival_chain ? { arrival_chain: c.arrival_chain } : {}) });
 /** 覆盖下限的记录（写进台账：开轮写进轮次清单，打分写进开启记录）：用了几、默认几、是不是压低了。 */
 const floorRecord = (floor, base = COVERAGE_FLOOR) => ({ min_names_per_day: { value: floor.min_names_per_day, default: base.min_names_per_day, overridden: floor.min_names_per_day !== base.min_names_per_day } });
 
@@ -700,8 +794,19 @@ function reviewedMechanisms(roundId, selRow, before, { strict = true } = {}) {
  * 开启之前的一切（第一次打分与 R1.8 的重打分共用）：选择记录与 selection.json、现有因子序列、留出段目录的核对、机制登记与协调会话的复审、
  * 以及这次打分的全部输入的 sha（inputs_sha256：重打分要与开启时一样）。不写任何东西。reviewBefore：复审必须早于它（默认现在）。
  */
-function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore = null, fieldExclusions = null }) {
+function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore = null, fieldExclusions = null, window: win = null, requireChain = false }) {
+  win = win || windowOrFail(rounds.roundHead(roundId));
   for (const s of sources) need(!s.holdout, 'HOLDOUT_PASSED_AS_SOURCE', s.label);
+  // The strict production gate (run.sh passes --require-arrival-chain true): an R2 score needs R1 opened (or every R1 round terminal), and the R1 directory used as prior-live history has its own
+  // chain verified and anchored: its head is recorded in the open row and in inputs_sha256 (review 2026-11-23). Before anything is read.
+  let priorChain = null;
+  if (win.segment) {
+    const ready = priorSegmentReady(MARKET);
+    need(ready.ok, 'PRIOR_SEGMENT_NOT_OPENED', `R1:${ready.reason}`);
+    const prior = sources.find((s) => s.label === 'prior-live');
+    need(prior && prior.dir, 'PRIOR_LIVE_MISSING', 'an R2 score takes the R1 directory as --prior-live');
+    priorChain = arrivalChain.verifyChain(prior.dir, { segment: 'R1', anchors: arrivalAnchor.pairsOf('R1'), requireAnchor: true });
+  }
   const dir = runDir(outDir, roundId);
   // 选择只信台账里那一行（复审第 3 条）：输出目录里的 selection.json 要对得上它的 sha；候选编号取这一行，公式取试验台账行
   const selRow = rounds.selectionOf(roundId);
@@ -718,7 +823,7 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
   const factorSeries = factorSeriesDir ? require('../factor-series').loadFactorSeries(factorSeriesDir) : null;
   // 复审 #127 P3-2：第一个决策日的前一个交易日在验证尾段（LIVE 源）里，一并核；字段排除文件（有就用，sha 钉住）
   const exclusions = fieldExclusions ? loadFieldExclusions(fieldExclusions.file, fieldExclusions.sha256, roundId) : null;
-  const checked = selRow.selected.length ? verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: holdoutFloor.min_names_per_day, priorSources: sources, fieldExclusions: exclusions }) : null;
+  const checked = selRow.selected.length ? verifyHoldoutDir(roundId, holdoutDir, { minNamesPerDay: holdoutFloor.min_names_per_day, priorSources: sources, fieldExclusions: exclusions, window: win, requireChain: requireChain || Boolean(win.segment) }) : null;
   // R1.5：开启之前写的机制登记（开启之后不能再写）
   const mechs = new Map(require('../../mining-rounds/mechanisms').mechanismsOf(roundId).map((m) => [m.candidate_id, m]));
   const reviewed = selRow.selected.length ? reviewedMechanisms(roundId, selRow, reviewBefore || now(), { strict: Boolean(reviewBefore) }) : null;
@@ -731,8 +836,9 @@ function prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, fa
     code_sha256: codeSha(), holdout_floor: holdoutFloor.min_names_per_day, mechanisms: [...mechs.values()].map((m) => m.record_hash).sort(),
     mechanism_review: reviewed ? reviewed.review.record_hash : null,
     ...(exclusions ? { field_exclusions_sha256: exclusions.sha256 } : {}), // 有排除文件才写（没有时 inputs 与之前逐字节相同）
+    ...(priorChain ? { prior_live_chain_head: priorChain.head_hash } : {}), ...(checked && checked.arrival_chain ? { arrival_chain_head: checked.arrival_chain.head_hash } : {}), // a chain rewritten after the open makes a rescore INPUTS_CHANGED
   };
-  return { dir, selRow, formulas, validation, familySharpes, factorSeries, checked, mechs, reviewed, inputs, inputs_sha256: sha256(JSON.stringify(inputs)) };
+  return { priorChain, dir, selRow, formulas, validation, familySharpes, factorSeries, checked, mechs, reviewed, inputs, inputs_sha256: sha256(JSON.stringify(inputs)), window: win };
 }
 
 /** W24 访问记录（services/independent-verifier/access-log）：运行目录里每轮一份。 */
@@ -744,32 +850,43 @@ function logPanelRead(accessLog, panel) {
   accessLog.record({ principal: 'mining-generator', op: 'READ', dataset: 'CN_A_MINING_SPACE_PANEL', from: panel.dates[0], to: panel.dates[panel.dates.length - 1] });
 }
 const scoredStamp = (scoredAt) => scoredAt || new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
-function assertHoldoutDate(scoredAt) {
-  const notBefore = require('../../promotion-engine/stages').MINED_HOLDOUT_NOT_BEFORE;
+/** 最早可以读留出段的时刻：2027-01-01；R2 要等到解析出的窗口终点的次日（两者取晚的）。R1 与旧窗口（segment 为 null）照旧。 */
+function notBeforeOf(win) {
+  const base = require('../../promotion-engine/stages').MINED_HOLDOUT_NOT_BEFORE;
+  if (!win || !win.segment) return base;
+  const after = `${new Date(Date.parse(`${win.to}T00:00:00Z`) + 864e5).toISOString().slice(0, 10)}T00:00:00+08:00`;
+  return Date.parse(after) > Date.parse(base) ? after : base;
+}
+/** 访问记录里留出段读取的数据集名：R1 照旧 CN_A_HOLDOUT_R1，登记段用自己的段号。 */
+const datasetLabelOf = (win) => `CN_A_HOLDOUT_${win && win.segment ? win.segment : 'R1'}`;
+function assertHoldoutDate(scoredAt, win = null) {
+  const notBefore = notBeforeOf(win);
   const stamp = scoredStamp(scoredAt);
   need(Date.parse(stamp) >= Date.parse(notBefore), 'HOLDOUT_BEFORE_SEAL_END', `${stamp} < ${notBefore}`);
 }
 /** 留出段读取：先全部核（每个候选只许一次），再逐个领授权并记一行 HOLDOUT_READ（执行器是受信的求值方，不受读锁约束，但每次读都记）。 */
-function takeHoldoutReads({ roundId, selected, formulas, accessLog, grantCtx }) {
+function takeHoldoutReads({ roundId, selected, formulas, accessLog, grantCtx, window: win = null }) {
   const authority = require('../../independent-verifier/authority');
   const principal = holdoutScorerPrincipal();
   const rows = selected.map((id) => ({ candidateId: id, candidateSha256: require('../../independent-verifier/access-log').candidateSha256Of({ roundId, candidateId: id, formula: formulas.get(id) }) }));
   for (const r of rows) authority.authorize({ principal, action: 'HOLDOUT_READ', candidateSha256: r.candidateSha256, candidateId: r.candidateId }, grantCtx);
   for (const r of rows) {
     authority.grantHoldoutRead({ principal, candidateSha256: r.candidateSha256, candidateId: r.candidateId }, grantCtx);
-    accessLog.record({ principal, op: 'HOLDOUT_READ', dataset: 'CN_A_HOLDOUT_R1', from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to, candidateSha256: r.candidateSha256 });
+    accessLog.record({ principal, op: 'HOLDOUT_READ', dataset: datasetLabelOf(win), from: (win || segs.SEGMENTS.HOLDOUT).from, to: (win || segs.SEGMENTS.HOLDOUT).to, candidateSha256: r.candidateSha256 });
   }
 }
 
 /** 开启之后：建留出段面板、只经 holdout-scoring 打分、逐候选记录 G-MINE（第一次与重打分一样）。 */
 function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenIndex, openedAt, rescored = false }) {
   const f = loadFrozenSpace();
-  const panel = adapter.buildPanel({ sources: [...sources, p.checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: segs.SEGMENTS.HOLDOUT.to });
+  const win = p.window; const registered = win.segment !== null; // 登记段（R2）给面板与打分显式的窗口；R1 与旧窗口走原来的默认
+  const panel = adapter.buildPanel({ sources: [...sources, p.checked.source], space: f.space, segment: 'HOLDOUT', from: segs.SEGMENTS.MINING.from, to: win.to, ...(registered ? { holdoutWindow: { from: win.from, to: win.to } } : {}) });
   const stamp = scoredStamp(scoredAt);
   const generatorMode = rounds.roundHead(roundId).generator.mode; // 结果记的生成方式来自轮次清单（LLM 轮不能记成 GP）
   const results = holdoutScoring.roundResults(candidateIds.map((id) => ({ candidate_id: id, formula: p.formulas.get(id), parsed: dsl.parse(p.formulas.get(id), f.dslSpace), generator: generatorMode })),
     panel, { holding_period: f.holdingPeriod, market: MARKET, familyTrialCount: rounds.familyN(MARKET, f.holdingPeriod), scoredAt: stamp, validation: p.validation,
       familySharpes: p.familySharpes, neutralization: neutralizationOf(rounds.roundHead(roundId)), mechanisms: p.mechs, factorSeries: p.factorSeries, segmentOpenIndex, openedAt,
+      ...(registered ? { window: { from: win.from, to: win.to } } : {}),
       review: p.reviewed ? { verdicts: p.reviewed.verdicts, review_hash: p.reviewed.review.record_hash, reviewed_at: p.reviewed.review.reviewed_at } : null });
   const records = results.map((res, k) => { const rec = gateRecords.recordGateResult({ round_id: roundId, candidate_id: res.candidate_id, candidate: res }); if (k === 0) faultAt('AFTER_FIRST_RECORD'); return rec; });
   const c = p.checked;
@@ -787,19 +904,20 @@ function scoreOpened(p, { roundId, sources, scoredAt, candidateIds, segmentOpenI
  * 第 6–8 步：核留出段目录 → holdout-vault.open（每轮一次，记下选择记录的 hash 与 inputs_sha256）→ 只经 holdout-scoring 打分 → 每个候选 recordGateResult。
  * 没有候选过验证折：不开留出段，返回 { opened: false }（关轮记 0）。holdoutFloor 默认 HOLDOUT_FLOOR（每天 4,000 只；测试可以压低，压低的数写进开启记录）。
  */
-function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null, grantCtx = {} }) {
+function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null, grantCtx = {}, requireChain = false }) {
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
   need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
   need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
-  if (accessLog) assertHoldoutDate(scoredAt); // W24：挖掘候选的留出段 2027-01-01T00:00+08:00 之前不读（RF1116）
-  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, fieldExclusions });
+  const win = windowOrFail(r);
+  if (accessLog) assertHoldoutDate(scoredAt, win); // W24：挖掘候选的留出段 2027-01-01T00:00+08:00 之前不读（RF1116）；R2 要等到窗口终点的次日
+  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, fieldExclusions, window: win, requireChain });
   if (!p.selRow.selected.length) { writeJson(path.join(p.dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
   const c = p.checked;
-  if (accessLog) takeHoldoutReads({ roundId, selected: p.selRow.selected, formulas: p.formulas, accessLog, grantCtx }); // 核对都过了、开启之前：每个候选一次授权 + 一行记录
+  if (accessLog) takeHoldoutReads({ roundId, selected: p.selRow.selected, formulas: p.formulas, accessLog, grantCtx, window: win }); // 核对都过了、开启之前：每个候选一次授权 + 一行记录
   const opened = vault.open({ round_id: roundId, candidate_ids: [...p.selRow.selected], openedBy: RUNNER_ID, selection_record_hash: p.selRow.record_hash, inputs_sha256: p.inputs_sha256,
-    checks: { ...floorRecord(holdoutFloor, HOLDOUT_FLOOR), holdout_dir: holdoutDirRecord(c) } });
+    checks: { ...floorRecord(holdoutFloor, HOLDOUT_FLOOR), holdout_dir: holdoutDirRecord(c), ...(win.segment ? { segment_window: { from: win.from, to: win.to, segment: win.segment, resolution_record_hash: win.resolution_record_hash } } : {}), ...(p.priorChain ? { prior_live_chain: { rows: p.priorChain.rows, head_seq: p.priorChain.head_seq, head_hash: p.priorChain.head_hash, last_day: p.priorChain.last_day } } : {}) } });
   faultAt('AFTER_OPEN');
   const [openRec] = vault.openLog(roundId); // 第 9 项按开启记录的 opened_at 核机制登记（修订 4）
   const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: opened.candidate_ids, segmentOpenIndex: opened.segment_open_index, openedAt: openRec.opened_at });
@@ -815,12 +933,13 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
  *     释放名额，留出段开启照旧计数），拒绝（MINE_RUNNER_RESCORE_RECORDS_EXIST）；
  *   之后任何打分或重打分 → MINE_RUNNER_ROUND_FAILED_RESCORE / MINE_RUNNER_ROUND_FAILED_PARTIAL。
  */
-function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null }) {
+function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', scoredAt = null, holdoutFloor = HOLDOUT_FLOOR, factorSeriesDir = null, fieldExclusions = null, accessLog = null, requireChain = false }) {
   const r = rounds.roundHead(roundId);
   need(r, 'ROUND_NOT_FOUND', roundId);
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
   need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
   need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
+  const win = windowOrFail(r);
   need(r.status === 'SCORING', 'ROUND_NOT_SCORING', `${roundId}:${r.status}`);
   const [open] = vault.openLog(roundId);
   need(open, 'ROUND_NOT_OPENED', roundId);
@@ -834,8 +953,8 @@ function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', score
     rounds.failPartial(roundId, { reason, logSha256: sha256(String(log || '')) });
     fail('RESCORE_RECORDS_EXIST', `${roundId}: ${written} G-MINE record(s) written before the crash, closed as FAILED_PARTIAL (R1.12)`);
   }
-  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore: open.opened_at, fieldExclusions }); // 复审要早于那一次开启
-  if (accessLog) accessLog.record({ principal: holdoutScorerPrincipal(), op: 'READ', dataset: 'HOLDOUT_RESCORE_SAME_OPEN', from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }); // R1.8：同一次开启的重打分，不再领授权
+  const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, reviewBefore: open.opened_at, fieldExclusions, window: win, requireChain }); // 复审要早于那一次开启
+  if (accessLog) accessLog.record({ principal: holdoutScorerPrincipal(), op: 'READ', dataset: 'HOLDOUT_RESCORE_SAME_OPEN', from: win.from, to: win.to }); // R1.8：同一次开启的重打分，不再领授权
   vault.recordRescore({ round_id: roundId, reason, log, inputs_sha256: p.inputs_sha256, rescoredBy: RUNNER_ID });
   faultAt('AFTER_RESCORE_EVENT');
   const records = scoreOpened(p, { roundId, sources, scoredAt, candidateIds: open.candidate_ids, segmentOpenIndex: open.segment_open_index, openedAt: open.opened_at, rescored: true });
@@ -883,6 +1002,6 @@ function withGenerator(gen, cb) { const prior = generatorOverride; generatorOver
 
 module.exports = {
   MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, HOLDOUT_FIELD_FLOOR, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
-  holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha, LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf,
-  probeLlm, assertResumeGenerator, accessLogFile, internals: { withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
+  priorSegmentReady, holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha, LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf,
+  probeLlm, assertResumeGenerator, assertHoldoutRef, resolveSegment, accessLogFile, internals: { notBeforeOf, datasetLabelOf, anchorLabelOf, withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
 };

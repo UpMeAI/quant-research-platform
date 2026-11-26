@@ -41,13 +41,14 @@ const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const sd = (xs) => { if (xs.length < 2) return null; const m = mean(xs); return Math.sqrt(xs.reduce((a, b) => a + (b - m) ** 2, 0) / (xs.length - 1)); };
 
-function assertHoldoutPanel(panel) {
-  const h = segs.SEGMENTS.HOLDOUT; const d = panel && panel.dates;
+/** window = 这一轮留出段的窗口 { from, to }；不给就是 segments.js 的 HOLDOUT（R1），与之前逐字相同（RF1116 第二段修订：R2 给解析出来的窗口）。 */
+function assertHoldoutPanel(panel, window = segs.SEGMENTS.HOLDOUT) {
+  const h = window; const d = panel && panel.dates;
   if (!panel || panel.segment !== 'HOLDOUT' || !d || !d.length || d[d.length - 1] !== h.to) fail('NOT_HOLDOUT_PANEL', `${panel && panel.segment}:${d && d[d.length - 1]}`);
 }
 
 /** 留出段的打分日下标（决策日在留出段里）。 */
-const holdoutDays = (panel) => panel.dates.map((d, t) => (d >= segs.SEGMENTS.HOLDOUT.from ? t : -1)).filter((t) => t >= 0);
+const holdoutDays = (panel, window = segs.SEGMENTS.HOLDOUT) => panel.dates.map((d, t) => (d >= window.from ? t : -1)).filter((t) => t >= 0);
 
 /**
  * 一个候选的只做多持仓（第 6 项；R1.3 的验证折月度序列也用它）。days = 打分日下标；每隔 H 个打分日调仓：
@@ -213,11 +214,11 @@ function libraryComparison(values, panel, days, { market, factorSeries: fsrc = n
  * @param {object} parsed  dsl.parse 的结果
  * @param {object} panel   HOLDOUT 面板（开过留出段之后建的）
  */
-function scoreCandidate(parsed, panel, { holding_period: H, neutralization }) {
-  assertHoldoutPanel(panel);
+function scoreCandidate(parsed, panel, { holding_period: H, neutralization, window = segs.SEGMENTS.HOLDOUT }) {
+  assertHoldoutPanel(panel, window);
   const neu = scoring.neutralizedValues(parsed, panel, { neutralization }); // 本轮的版本，必须给（修订 SIZE_V2 N2）
   if (!neu.neutralization || neu.neutralization.industry !== 'APPLIED' || neu.neutralization.size !== 'APPLIED') fail('NOT_NEUTRALIZED');
-  const days = holdoutDays(panel);
+  const days = holdoutDays(panel, window);
   const at = (series) => days.map((t) => series[t]);
   const fwd = scoring.forwardReturns(panel, H); const fwd2 = scoring.forwardReturns(panel, 2 * H);
   const ic = scoring.dailyRankIc(neu.values, fwd, panel.universe); const ic2 = scoring.dailyRankIc(neu.values, fwd2, panel.universe);
@@ -239,7 +240,7 @@ function scoreCandidate(parsed, panel, { holding_period: H, neutralization }) {
   const comparison = { values: neu.values, days };
   return {
     holdout: {
-      segment: 'HOLDOUT', from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to, holding_period: H, neutralization: neu.neutralization,
+      segment: 'HOLDOUT', from: window.from, to: window.to, holding_period: H, neutralization: neu.neutralization,
       ic_mean: icDays.length ? mean(icDays) : null, ic_days: icDays.length, icir: isNum(icSd) && icSd > 0 ? mean(nonOverlap) / icSd : null, icir_non_overlapping: true,
       icir_periods: nonOverlap.length, quintile_mean_returns: quintiles, ic_double_horizon: at(ic2).filter(isNum).length ? mean(at(ic2).filter(isNum)) : null,
     },
@@ -264,10 +265,10 @@ function scoreCandidate(parsed, panel, { holding_period: H, neutralization }) {
  * @returns {Array<object>} 与 candidates 同序
  */
 function roundResults(candidates, panel, { holding_period: H, market, familyTrialCount, scoredAt, neutralization, validation = new Map(), familySharpes = [], mechanisms = new Map(),
-  factorSeries = null, segmentOpenIndex = null, openedAt = null, review = null }) {
+  factorSeries = null, segmentOpenIndex = null, openedAt = null, review = null, window = segs.SEGMENTS.HOLDOUT }) {
   for (const c of candidates) if (c.generator !== 'AI_MINED_GP' && c.generator !== 'AI_MINED_LLM') fail('GENERATOR_MISSING', c.candidate_id); // 结果记的生成方式来自轮次清单，不默认
   if (!Number.isInteger(familyTrialCount) || familyTrialCount < 1) fail('FAMILY_N_UNKNOWN', familyTrialCount);
-  const scored = candidates.map((c) => ({ c, s: scoreCandidate(c.parsed, panel, { holding_period: H, neutralization }) }));
+  const scored = candidates.map((c) => ({ c, s: scoreCandidate(c.parsed, panel, { holding_period: H, neutralization, window }) }));
   const dayKeys = scored.map(({ s }) => new Map(s.series.daily_excess.map((x) => [x.t, x.excess])));
   const commonDays = [...new Set(dayKeys.flatMap((m) => [...m.keys()]))].sort((a, b) => a - b).filter((t) => dayKeys.every((m) => m.has(t)));
   const R = commonDays.map((t) => dayKeys.map((m) => m.get(t)));

@@ -10,10 +10,12 @@
  * 台账 research/holdout_vault.jsonl（只追加）；错误码 MINE_HOLDOUT_*。
  */
 const path = require('path');
+const { isDeepStrictEqual } = require('util');
 const { dataDir, now, append, read } = require('../../packages/ledger');
 const { validateRecord } = require('../../schemas');
 const trials = require('../trial-ledger');
 const rounds = require('../mining-rounds');
+const segmentResolution = require('../mining-rounds/segment-resolution');
 
 const SEAL_SCHEMA = 'HOLDOUT_SEAL_V1';
 const OPEN_SCHEMA = 'HOLDOUT_OPEN_V1';
@@ -39,10 +41,13 @@ function write(body, schema) {
 function seal({ round_id: roundId, segment, data_ref: dataRef, data_sha256: dataSha, sealedBy, sealedAt = null } = {}) {
   const r = rounds.roundHead(roundId);
   need(r, 'MINE_HOLDOUT_ROUND_NOT_FOUND', roundId);
-  need(segment && segment.from === r.holdout.from && segment.to === r.holdout.to, 'MINE_HOLDOUT_SEGMENT_MISMATCH', `${roundId}:${r.holdout.from}..${r.holdout.to}`);
+  // 登记表选的段（带段号，RF1116 第二段修订）：封存的整块必须逐字等于清单里冻结的那一块；旧窗口（R1 与合成轮）照旧只比起止，封存行仍是 { from, to }
+  const registered = r.holdout.segment !== undefined;
+  need(segment && (registered ? isDeepStrictEqual(segment, r.holdout) : (segment.segment === undefined && segment.from === r.holdout.from && segment.to === r.holdout.to)),
+    'MINE_HOLDOUT_SEGMENT_MISMATCH', `${roundId}:${r.holdout.from}..${r.holdout.to}`);
   need(isText(dataRef) && SHA64.test(dataSha || '') && isText(sealedBy), 'MINE_HOLDOUT_SEAL_INVALID', roundId);
   need(!rows(SEAL_SCHEMA, roundId).length, 'MINE_HOLDOUT_ALREADY_SEALED', roundId);
-  return write({ schema: SEAL_SCHEMA, round_id: roundId, market: r.market, segment: { from: segment.from, to: segment.to }, data_ref: dataRef, data_sha256: dataSha,
+  return write({ schema: SEAL_SCHEMA, round_id: roundId, market: r.market, segment: registered ? { ...r.holdout } : { from: segment.from, to: segment.to }, data_ref: dataRef, data_sha256: dataSha,
     sealed_by: sealedBy, sealed_at: sealedAt || now() }, SEAL_SCHEMA);
 }
 
@@ -53,6 +58,8 @@ function seal({ round_id: roundId, segment, data_ref: dataRef, data_sha256: data
 function open({ round_id: roundId, candidate_ids: ids, openedBy, openedAt = null, checks = null, selection_record_hash: selectionRecordHash = null, inputs_sha256: inputsSha = null } = {}) {
   const r = rounds.roundHead(roundId);
   need(r, 'MINE_HOLDOUT_ROUND_NOT_FOUND', roundId);
+  // 窗口没有解出来（R2 的终点是 UNKNOWN / CALENDAR_NOT_PUBLISHED）：开启权威拒绝，不开、不记、轮次不动（RF1116 第二段修订；执行器在读目录之前也拒）
+  need(segmentResolution.windowOf(r), 'MINE_HOLDOUT_SEGMENT_END_UNKNOWN', `${roundId}:${r.holdout.segment || ''}:${r.holdout.to}`); // R2: only once its end-resolution record exists
   const [s] = rows(SEAL_SCHEMA, roundId);
   need(s, 'MINE_HOLDOUT_NOT_SEALED', roundId);
   need(!rows(OPEN_SCHEMA, roundId).length, 'MINE_HOLDOUT_ALREADY_OPENED', roundId);

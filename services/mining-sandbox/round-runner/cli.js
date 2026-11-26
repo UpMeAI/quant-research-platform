@@ -36,11 +36,15 @@ const adapter = require('../data-adapter');
 const OPTIONS = Object.freeze({
   generate: ['out', 'lane', 'lane-adapter', 'tail', 'seed', 'cap', 'holdout-ref', 'holdout-sha256', 'resume', 'generator', 'opened-at', 'min-names-per-day', 'llm-poll-ms', 'llm-wait-seconds'],
   'llm-init': ['out'],
-  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256'],
+  score: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'field-exclusions', 'field-exclusions-sha256', 'require-arrival-chain'],
   mechanisms: ['out', 'round', 'register'],
   review: ['out', 'round', 'file'],
-  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256'],
+  rescore: ['out', 'round', 'lane', 'lane-adapter', 'tail', 'prior-live', 'holdout', 'scored-at', 'closed-at', 'min-names-per-day', 'factor-series', 'reason', 'crash-log', 'field-exclusions', 'field-exclusions-sha256', 'require-arrival-chain'],
   'fail-evaluation': ['out', 'round', 'reason', 'evidence-sha256', 'failed-at'],
+  'resolve-segment': ['out', 'segment', 'holdout', 'resolved-at'],
+  'r2-arrive': ['holdout', 'driver', 'source', 'arrived-at'],
+  'holdout-arrive': ['holdout', 'segment', 'driver', 'source', 'arrived-at', 'check-complete'],
+  'holdout-anchor': ['out', 'segment', 'arrival-json'],
 });
 
 function parseArgs(argv) {
@@ -56,7 +60,10 @@ function parseArgs(argv) {
   return { cmd, o };
 }
 
-const sourcesOf = (o) => [adapter.loadSource({ dir: o.lane, mode: 'HISTORY', label: 'lane', adapter: o['lane-adapter'] || null }), adapter.csvDirSource(o.tail, { mode: 'LIVE', label: 'tail' })];
+// --prior-live (score, rescore): the directory of an EARLIER holdout segment whose holdout has been scored (R1 for an R2 round) as ordinary LIVE history: the feed day before the
+// window's first decision day and the lookbacks live there. Not a holdout source (the segment's own data is the --holdout directory).
+const sourcesOf = (o) => [adapter.loadSource({ dir: o.lane, mode: 'HISTORY', label: 'lane', adapter: o['lane-adapter'] || null }), adapter.csvDirSource(o.tail, { mode: 'LIVE', label: 'tail' }),
+  ...(o['prior-live'] ? [adapter.csvDirSource(o['prior-live'], { mode: 'LIVE', label: 'prior-live' })] : [])];
 const required = (o, keys) => { for (const k of keys) if (!o[k]) throw new runner.RunnerError('MINE_RUNNER_OPTION_REQUIRED', `--${k}`); };
 
 function main(argv) {
@@ -99,6 +106,7 @@ function main(argv) {
     }
     if (roundId) { accessLog.bind(runner.accessLogFile(outDir, roundId)); runner.noteResume({ roundId, coverageFloor: floor }); } // 续跑用的下限也写进台账
     if (!roundId) {
+      runner.assertHoldoutRef({ openedAt: o['opened-at'] || null, dataRef: o['holdout-ref'] }); // 引用点了另一段的封存目录 → 开轮之前拒（RF1116 第二段修订）
       const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null, coverageFloor: floor });
       roundId = r.round_id;
       accessLog.bind(runner.accessLogFile(outDir, roundId));
@@ -155,6 +163,62 @@ function main(argv) {
     return { command: 'fail-evaluation', round_id: o.round, status: row.status, gmine_passes: row.gmine_passes, evidence_sha256: row.gmine_basis.failed_evaluation.evidence_sha256,
       attempts: row.gmine_basis.failed_evaluation.attempts, record_hash: row.record_hash, closed_at: row.closed_at };
   }
+  if (cmd === 'holdout-arrive' || cmd === 'r2-arrive') {
+    // RF1116 holdout data arrival (services/.../arrival.js): the only writer of an R1 / R2 holdout directory. It is NOT a sandboxed run: it writes that directory (the one thing it may write)
+    // and only READS the ledger (the resolution record gives R2's window end). Loops until nothing is left to do, so a daily timer catches up after a missed day.
+    // `r2-arrive` is the R2 command as first built; `holdout-arrive --segment R1|R2` serves both.
+    const segment = cmd === 'r2-arrive' ? 'R2' : o.segment;
+    required(o, cmd === 'r2-arrive' ? ['holdout', 'driver'] : ['holdout', 'segment']);
+    const arrival = require('./arrival');
+    if (!arrival.PROFILES[segment]) throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `${cmd} --segment ${segment}`);
+    const rec = segment === 'R2' ? require('../../mining-rounds/segment-resolution').resolutionOf('R2') : null;
+    const windowEnd = segment === 'R2' ? (rec ? rec.window.to : null) : require('../segments').SEGMENTS.HOLDOUT.to;
+    const startAfter = rec ? rec.rule.start_after : undefined;
+    // the chain heads written to the lane ledger after earlier arrivals: a rolled-back or rewritten chain is refused here too (review 2026-11-23)
+    const anchors = require('../../mining-rounds/arrival-anchor').pairsOf(segment);
+    const hasChain = require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE));
+    if (o['check-complete']) {
+      // read-only: the open days of the window that have not arrived; exit code 4 when some are missing (the timer alerts on it)
+      if (hasChain) arrival.verifyChain(o.holdout, { segment, startAfter, anchors, tolerateUnchained: true });
+      const c = arrival.checkComplete({ dir: o.holdout, segment, windowEnd, startAfter });
+      if (!windowEnd) return { command: 'holdout-arrive', segment, status: 'WINDOW_END_UNKNOWN', window_end: null, last_day: null, missing: [] };
+      return { command: 'holdout-arrive', segment, status: c.complete ? 'COMPLETE' : 'INCOMPLETE', window_end: windowEnd, last_day: c.last_day, missing: c.missing };
+    }
+    required(o, ['driver']);
+    let source;
+    if (o.driver === 'csv-day-drop') { required(o, ['source']); source = arrival.csvDayDropSource(o.source); }
+    else throw new runner.RunnerError('MINE_RUNNER_OPTION_UNKNOWN', `${cmd} --driver ${o.driver}`);
+    const rows = []; let last = null;
+    for (let i = 0; i < 500; i += 1) {
+      last = arrival.arrive({ dir: o.holdout, segment, source, arrivedAt: o['arrived-at'] || null, windowEnd, startAfter, anchors });
+      if (last.status !== 'ARRIVED') break;
+      rows.push(last.kind === 'DAY' ? last.day : 'CALENDAR');
+    }
+    const v = hasChain || require('fs').existsSync(require('path').join(o.holdout, arrival.CHAIN_FILE)) ? arrival.verifyChain(o.holdout, { segment, startAfter, anchors }) : null;
+    // chain_seq, chain_head, last_day: what `holdout-anchor` writes to the lane ledger (run.sh arrive runs it after this step)
+    return { command: cmd, segment, status: last.status, what: last.what === undefined ? null : last.what, arrived: rows, last_day: v ? v.last_day : null, chain_seq: v ? v.head_seq : null, chain_head: v ? v.head_hash : null, window_end: windowEnd };
+  }
+  if (cmd === 'holdout-anchor') {
+    // #157 review: the chain head of an arrival is written to the lane ledger by a container that holds ONLY the ledger (no holdout directory, no drop): the values come from the arrival step's JSON
+    required(o, ['out', 'segment', 'arrival-json']);
+    runner.start({ outDir: o.out });
+    let a; try { a = JSON.parse(o['arrival-json']); } catch { throw new runner.RunnerError('MINE_RUNNER_ANCHOR_INPUT', 'arrival-json is not JSON'); }
+    if (!a || a.segment !== o.segment) throw new runner.RunnerError('MINE_RUNNER_ANCHOR_SEGMENT', `${a && a.segment} vs ${o.segment}`);
+    if (a.chain_seq === null || a.chain_seq === undefined || a.chain_head === null || a.chain_head === undefined) return { command: 'holdout-anchor', segment: o.segment, status: 'NOTHING_TO_ANCHOR' };
+    const anchor = require('../../mining-rounds/arrival-anchor');
+    const had = anchor.anchorsOf(o.segment).some((r) => r.seq === a.chain_seq && r.chain_record_hash === a.chain_head);
+    const row = anchor.record({ segment: o.segment, seq: a.chain_seq, recordHash: a.chain_head, lastDay: a.last_day === undefined ? null : a.last_day, anchoredBy: registeredBy });
+    return { command: 'holdout-anchor', segment: o.segment, status: had ? 'ALREADY_ANCHORED' : 'ANCHORED', seq: row.seq, record_hash: row.chain_record_hash, last_day: row.last_day };
+  }
+  if (cmd === 'resolve-segment') {
+    // RF1116 第二段修订：从留出段目录的上交所日历解出这一段的窗口，写一行解析记录（读了哪份日历、数出哪些日子）；日历还没列够 → status NOT_READY，什么都不写，退出码 0（定时器再来）
+    required(o, ['out', 'segment', 'holdout']);
+    runner.start({ outDir: o.out });
+    const r = runner.resolveSegment({ segmentId: o.segment, dir: o.holdout, resolvedBy: registeredBy || 'round-runner', resolvedAt: o['resolved-at'] || null });
+    return r.status === 'RESOLVED'
+      ? { command: 'resolve-segment', status: r.status, created: r.created, segment: r.segment, window: r.window, record_hash: r.record.record_hash, resolved_at: r.record.resolved_at }
+      : { command: 'resolve-segment', status: r.status, segment: r.segment, reason: r.reason, calendar_last_date: r.calendar_last_date };
+  }
   required(o, ['out', 'round', 'lane', 'tail', 'holdout']);
   const { outDir } = runner.start({ outDir: o.out });
   const floor = o['min-names-per-day'] === undefined ? runner.HOLDOUT_FLOOR : { min_names_per_day: Number(o['min-names-per-day']) };
@@ -163,31 +227,42 @@ function main(argv) {
   if (hasEx !== hasExSha) throw new runner.RunnerError('MINE_RUNNER_OPTION_REQUIRED', hasEx ? '--field-exclusions-sha256' : '--field-exclusions');
   const fieldExclusions = hasEx ? { file: o['field-exclusions'], sha256: o['field-exclusions-sha256'] } : null;
   // W24：打分的执行器是受信的求值方，不受生成方的读锁约束，但每次留出段读取都领一次授权、写一行 HOLDOUT_READ（访问记录在本轮的运行目录里）
+  const requireChain = o['require-arrival-chain'] !== 'false'; // fail closed by default; explicit false is reserved for the documented hand-export path
   const accessLog = require('../../independent-verifier/access-log').writer(runner.accessLogFile(outDir, o.round));
   if (cmd === 'rescore') {
     // R1.8：开启之后崩溃，恰好一次同选集重打分（原因与崩溃日志写进留出段保管的第二个事件）
     required(o, ['reason', 'crash-log']);
     const log = require('fs').readFileSync(o['crash-log'], 'utf8');
     const rr = runner.rescore({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions, accessLog });
+      factorSeriesDir: o['factor-series'] || null, reason: o.reason, log, fieldExclusions, requireChain, accessLog });
     const closedR = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
     return { command: 'rescore', round_id: o.round, rescored: rr.rescored, records: rr.records.length, passes: closedR.gmine_passes, status: closedR.status };
   }
   const res = runner.scoreHoldout({ roundId: o.round, sources: sourcesOf(o), holdoutDir: o.holdout, outDir, scoredAt: o['scored-at'] || null, holdoutFloor: floor,
-    factorSeriesDir: o['factor-series'] || null, fieldExclusions, accessLog });
+    factorSeriesDir: o['factor-series'] || null, fieldExclusions, requireChain, accessLog });
   const closed = runner.close({ roundId: o.round, closedAt: o['closed-at'] || null });
   return { command: 'score', round_id: o.round, opened: res.opened, records: res.records.length, passes: closed.gmine_passes, status: closed.status };
+}
+
+function errorOutcome(e) {
+  const message = e && e.message ? e.message : String(e);
+  let code = e && e.code ? e.code : 'MINE_RUNNER_FAILED';
+  const waiting = code === 'MINE_RUNNER_PRIOR_SEGMENT_NOT_OPENED' || code === 'MINE_RUNNER_ARRIVE_LOCKED'
+    || (code === 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID' && /(^|:)UNANCHORED(?::|$)/.test(message));
+  if (code === 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID' && waiting) code = 'MINE_RUNNER_HOLDOUT_ARRIVAL_UNANCHORED';
+  return { exitCode: waiting ? 75 : 2, document: { ...(waiting ? { status: 'WAITING' } : {}), error: code, message } };
 }
 
 if (require.main === module) {
   try {
     const out = main(process.argv.slice(2));
     process.stdout.write(`${JSON.stringify(out)}\n`);
-    if (out.status === 'WAITING') process.exitCode = 75; else if (out.status === 'STOPPED') process.exitCode = 3;
+    if (out.status === 'WAITING') process.exitCode = 75; else if (out.status === 'STOPPED') process.exitCode = 3; else if (out.status === 'INCOMPLETE') process.exitCode = 4; // holdout-arrive --check-complete
   } catch (e) {
-    process.stderr.write(`${JSON.stringify({ error: e.code || 'MINE_RUNNER_FAILED', message: e.message })}\n`);
-    process.exitCode = 2;
+    const o = errorOutcome(e);
+    (o.exitCode === 75 ? process.stdout : process.stderr).write(`${JSON.stringify(o.document)}\n`);
+    process.exitCode = o.exitCode;
   }
 }
 
-module.exports = { OPTIONS, parseArgs, main };
+module.exports = { OPTIONS, parseArgs, main, sourcesOf, errorOutcome };
