@@ -117,8 +117,8 @@ def validate_qrp_var(config):
     candidates = tuple(dict.fromkeys(p.resolve() for p in config.data_candidates))
     if root not in candidates or data != root / "ledger": raise ConfigError("QRP_VAR_AUTHORITY_NOT_CONFIGURED")
     writable = [p for p in candidates if p.exists() and config.writable_probe(p)]
+    if any(p != root for p in writable): raise ConfigError("QRP_VAR_DUAL_WRITABLE")
     if not root.exists() or root not in writable: raise ConfigError("QRP_VAR_AUTHORITY_NOT_WRITABLE")
-    if set(writable) != {root}: raise ConfigError("QRP_VAR_DUAL_WRITABLE")
     if config.manifest_files and any(not p.exists() for p in config.manifest_files): raise ConfigError("QRP_VAR_MANIFEST_MISMATCH")
     contents = [p.read_bytes() for p in config.manifest_files]
     if len(contents) > 1 and any(value != contents[0] for value in contents[1:]): raise ConfigError("QRP_VAR_MANIFEST_MISMATCH")
@@ -163,18 +163,23 @@ class ModelGate:
         text = re.sub(r"(?i)<\s*(?:br|/p|/li|/tr|/div|/section|/article)\b[^>]*>", "\n", text)
         text = html.unescape(re.sub(r"<[^>]+>", " ", text))
         records = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
-        served_versions = tuple(self.config.expected_models.values())
         projection = {}
         for alias in sorted(self.config.expected_models):
             alias_pattern = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])")
+            declaration_pattern = re.compile(
+                rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])"
+                r"\s*(?:->|:|=)\s*([A-Za-z][A-Za-z0-9._-]*)"
+            )
             matches = []
             for record in records:
                 if not alias_pattern.search(record):
                     continue
-                versions = [served for served in served_versions if served in record]
-                if len(versions) != 1:
+                if len(alias_pattern.findall(record)) != 1:
                     raise ValueError("MODEL_MAPPING_AMBIGUOUS")
-                matches.append(versions[0])
+                declarations = declaration_pattern.findall(record)
+                if len(declarations) != 1:
+                    raise ValueError("MODEL_MAPPING_UNPARSEABLE")
+                matches.append(declarations[0])
             if len(matches) != 1:
                 raise ValueError("MODEL_MAPPING_NOT_UNIQUE")
             projection[alias] = matches[0]
@@ -200,10 +205,14 @@ class Supervisor:
     def _rows(self):
         if not self.ledger_path.exists(): return []
         rows, previous = [], None
-        for number, line in enumerate(self.ledger_path.read_text(encoding="utf-8").splitlines(), 1):
+        try:
+            lines = self.ledger_path.read_text(encoding="utf-8").splitlines()
+        except UnicodeError as exc:
+            raise LedgerError("HASH_MISMATCH:encoding") from exc
+        for number, line in enumerate(lines, 1):
             try: row = json.loads(line)
             except json.JSONDecodeError as exc: raise LedgerError(f"HASH_MISMATCH:{number}:json") from exc
-            if row.get("schema") != "RF1116_ROUND_TIMER_EVENT_V1" or row.get("seq") != number:
+            if not isinstance(row, dict) or row.get("schema") != "RF1116_ROUND_TIMER_EVENT_V1" or row.get("seq") != number:
                 raise LedgerError(f"HASH_MISMATCH:{number}:shape")
             if row.get("prev_hash") != previous or row.get("record_hash") != record_hash(row):
                 raise LedgerError(f"HASH_MISMATCH:{number}")
