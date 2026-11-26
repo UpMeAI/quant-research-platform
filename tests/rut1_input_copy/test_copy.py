@@ -2,6 +2,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -84,6 +85,20 @@ class FixtureRunner:
         return 0
 
 
+class TreeMutatingRunner(FixtureRunner):
+    def __init__(self, mutation, *, phase="p1"):
+        super().__init__()
+        self.mutation = mutation
+        self.final_form = "R-06-READ" if phase == "p1" else "R-16-SUMS"
+
+    def __call__(self, operation):
+        rc = super().__call__(operation)
+        if operation.form_id == self.final_form:
+            stage = operation.destination.parents[0]
+            self.mutation(stage)
+        return rc
+
+
 class CopyTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -98,6 +113,21 @@ class CopyTest(unittest.TestCase):
             phase, base=self.base, runner=runner, clock=lambda: now,
             free_bytes=copy.MIN_FREE_AFTER_BYTES + copy.EXPECTED_BYTES[phase] + 1,
             run_id=f"test-{phase}", **kwargs)
+
+    def status_path(self):
+        return self.base / "research" / "rut1-input-copy.status.json"
+
+    def seed_ok_status(self):
+        path = self.status_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "lastOkAt": "2026-11-27T01:02:03+08:00",
+            "lastAttemptAt": "2026-11-27T01:02:03+08:00",
+            "phase": "p1",
+            "result": "COMPLETE",
+            "rc": 0,
+        }))
+        return path
 
     def test_p1_complete_delivery_and_read_only_receipt(self):
         runner = FixtureRunner()
@@ -190,6 +220,94 @@ class CopyTest(unittest.TestCase):
                                 free_bytes=copy.MIN_FREE_AFTER_BYTES, run_id="disk")
         self.assertEqual((3, "DISK_FLOOR"), (result.code, result.reason))
         self.assertEqual([], runner.calls)
+
+    def test_unregistered_regular_directory_symlink_and_fifo_are_refused(self):
+        def regular(stage):
+            (stage / "fills" / "unlisted.txt").write_text("extra")
+
+        def directory(stage):
+            (stage / "fills" / "unlisted-dir").mkdir()
+
+        def symlink(stage):
+            (stage / "fills" / "unlisted-link").symlink_to("US_V5_FILLS_E3_V2.json")
+
+        def fifo(stage):
+            os.mkfifo(stage / "fills" / "unlisted-fifo")
+
+        for name, mutation in (("file", regular), ("directory", directory),
+                               ("symlink", symlink), ("fifo", fifo)):
+            with self.subTest(entry=name), tempfile.TemporaryDirectory() as td:
+                self.base = pathlib.Path(td) / "overseas"
+                self.base.mkdir()
+                result = self.run_phase_case("p1", TreeMutatingRunner(mutation), P1_NOW)
+                self.assertEqual((4, "UNREGISTERED_TREE_ENTRY"),
+                                 (result.code, result.reason))
+                self.assertFalse((self.base / "data" / "rut1-s8parity").exists())
+
+    def test_p2_root_manifest_rejects_unlisted_file(self):
+        def extra(stage):
+            (stage / "unlisted.txt").write_text("extra")
+
+        result = self.run_phase_case(
+            "p2", TreeMutatingRunner(extra, phase="p2"), P2_NOW)
+        self.assertEqual((4, "UNREGISTERED_TREE_ENTRY"),
+                         (result.code, result.reason))
+        self.assertFalse((self.base / "data" / "rut1-s8parity-b" / "alpaca-1m").exists())
+
+    def test_staging_and_target_symlinks_cannot_escape_base(self):
+        for name in ("staging-parent", "target"):
+            with self.subTest(path=name), tempfile.TemporaryDirectory() as td:
+                root = pathlib.Path(td)
+                self.base = root / "overseas"
+                data = self.base / "data"
+                data.mkdir(parents=True)
+                outside = root / "outside"
+                outside.mkdir()
+                if name == "staging-parent":
+                    (data / "rut1-s8parity.staging").symlink_to(outside, target_is_directory=True)
+                else:
+                    (data / "rut1-s8parity").symlink_to(outside, target_is_directory=True)
+                result = self.run_phase_case("p1", FixtureRunner(), P1_NOW)
+                self.assertEqual((4, "UNSAFE_PATH"), (result.code, result.reason))
+                self.assertEqual([], list(outside.iterdir()))
+
+    def test_parent_symlink_cannot_redirect_fixed_root(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = pathlib.Path(td)
+            self.base = root / "overseas"
+            self.base.mkdir()
+            outside = root / "outside"
+            outside.mkdir()
+            (self.base / "data").symlink_to(outside, target_is_directory=True)
+            result = self.run_phase_case("p1", FixtureRunner(), P1_NOW)
+            self.assertEqual((4, "UNSAFE_PATH"), (result.code, result.reason))
+            self.assertEqual([], list(outside.iterdir()))
+
+    def test_failures_replace_stale_success_status_but_preserve_last_ok(self):
+        cases = (
+            ("disk", FixtureRunner(), copy.MIN_FREE_AFTER_BYTES, 3, "DISK_FLOOR"),
+            ("gate", FixtureRunner(rc=126),
+             copy.MIN_FREE_AFTER_BYTES + copy.EXPECTED_BYTES["p1"] + 1,
+             3, "GATE_REFUSED"),
+            ("verify", FixtureRunner(bad_sha=True),
+             copy.MIN_FREE_AFTER_BYTES + copy.EXPECTED_BYTES["p1"] + 1,
+             4, "SHA256_MISMATCH"),
+        )
+        for name, runner, free, rc, reason in cases:
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as td:
+                self.base = pathlib.Path(td) / "overseas"
+                self.base.mkdir()
+                status_path = self.seed_ok_status()
+                result = copy.run_phase(
+                    "p1", base=self.base, runner=runner, clock=lambda: P1_NOW,
+                    free_bytes=free, run_id=f"failure-{name}")
+                self.assertEqual((rc, reason), (result.code, result.reason))
+                status = json.loads(status_path.read_text())
+                self.assertEqual("2026-11-27T01:02:03+08:00", status["lastOkAt"])
+                self.assertEqual((rc, "p1", reason),
+                                 (status["rc"], status["phase"], status["result"]))
+                self.assertEqual(P1_NOW.isoformat(), status["lastAttemptAt"])
+                self.assertEqual([], list(status_path.parent.glob("*.tmp.*")))
 
 
 if __name__ == "__main__":

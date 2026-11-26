@@ -1,4 +1,5 @@
 import json
+import hashlib
 import shlex
 import subprocess
 import sys
@@ -8,7 +9,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 DEPLOY = ROOT / "deploy" / "master-table"
-INSTALLED_QRP = "/srv/research-lane/research-queue/code/current"
+TOKEN = "@QRP_REVIEWED_SHA@"
+INSTALLED_QRP = f"/srv/research-lane/research-queue/code/{TOKEN}"
+REVIEWED_SHA = "b" * 40
 
 
 class DeployUnitTests(unittest.TestCase):
@@ -33,6 +36,15 @@ class DeployUnitTests(unittest.TestCase):
         argv = shlex.split(line.removeprefix("ExecStart="))
         self.assertEqual(["/usr/bin/python3", "-I", "-B"], argv[:3])
         self.assertEqual(f"{INSTALLED_QRP}/services/master-table/run_master_table.py", argv[3])
+        self.assertIn(f"WorkingDirectory={INSTALLED_QRP}", service)
+        self.assertNotIn("/code/current", service)
+        rendered = service.replace(TOKEN, REVIEWED_SHA)
+        self.assertNotIn(TOKEN, rendered)
+        self.assertIn(f"/code/{REVIEWED_SHA}", rendered)
+        self.assertEqual(
+            hashlib.sha256(rendered.encode()).hexdigest(),
+            hashlib.sha256(service.replace(TOKEN, REVIEWED_SHA).encode()).hexdigest(),
+        )
         local_script = ROOT / "services" / "master-table" / "run_master_table.py"
         completed = subprocess.run(
             [*argv[:3], str(local_script), "--help"],
@@ -57,6 +69,10 @@ class DeployUnitTests(unittest.TestCase):
         self.assertIn("IPAddressDeny=any", install)
         self.assertIn(INSTALLED_QRP, install)
         self.assertIn("exact reviewed QRP commit", install)
+        for required in ("owner", "mode", "tree manifest", "rendered", "SHA-256"):
+            self.assertIn(required, install)
+        self.assertIn("PINS_NOT_SET", install)
+        self.assertIn("JOIN_MAP", install)
         self.assertNotIn("systemctl enable --now", install)
 
 
