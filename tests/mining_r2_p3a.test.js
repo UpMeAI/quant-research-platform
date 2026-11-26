@@ -118,6 +118,13 @@ test('P3A-2 only a final non-newline unparsable chain fragment heals; mid-file c
     assert.doesNotThrow(() => arrival().verifyChain(dir));
   }
 
+  const firstDir = sealedDir();
+  const firstRoot = dropRoot(calendar(['2026-12-31', '2027-01-04'], { '2026-12-31': { open: false } }));
+  arrival().arrive({ dir: firstDir, source: arrival().csvDayDropSource(firstRoot), arrivedAt: '2027-01-04T19:00:00+08:00' });
+  fs.writeFileSync(chainFile(firstDir), fs.readFileSync(chainFile(firstDir)).subarray(0, 29));
+  assert.equal(arrival().arrive({ dir: firstDir, source: arrival().csvDayDropSource(firstRoot), arrivedAt: '2027-01-04T19:01:00+08:00' }).kind, 'CALENDAR');
+  assert.equal(chain(firstDir).length, 1, 'the torn first commit heals from the empty prior chain state');
+
   const { dir, root } = validDayDir();
   const lines = fs.readFileSync(chainFile(dir), 'utf8').split('\n');
   lines[0] = lines[0].slice(0, 12);

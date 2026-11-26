@@ -38,7 +38,8 @@ const FILES = Object.freeze({
   suspension_coverage: 'security_suspension_day_coverage.csv', // 面板不读；留出段核对用（导出规格 rev 5 改动三：截到 D1）
 });
 const MODES = Object.freeze(['HISTORY', 'LIVE']);
-const SUFFIXED = /^_\d{8}\.csv$/;
+const SUFFIXED = /^_(?:\d{4}|\d{8})\.csv$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ACCEPTED_QUALITY = Object.freeze(['READY']);
 /**
  * 行业成员表另收 DEGRADED（★RF1116_INDUSTRY_QUALITY，2026-11-18 第 1 轮缺陷之后）：V6 把每一行行业成员都写成 DEGRADED
@@ -249,6 +250,7 @@ function readCalendarRows(sources, calendarExchange) {
     s.forEach('calendar', (r) => {
       rows += 1;
       if (!ACCEPTED_QUALITY.includes(r.quality_state === undefined ? 'READY' : r.quality_state)) return;
+      if (!DATE.test(r.calendar_date || '')) fail('CALENDAR_DATE_INVALID', r.calendar_date);
       const ex = Object.prototype.hasOwnProperty.call(r, 'exchange') ? r.exchange : r.market;
       const at = parseTs(r.first_available_at); const rev = r.revision === undefined || r.revision === null ? 0 : Number(r.revision);
       const key = `${r.calendar_date}|${ex}`; const cur = calRows.get(key);
@@ -397,14 +399,18 @@ function buildPanel({ sources, space, segment, from, to, calendarExchange = CALE
     });
   }
   // 行业成员：按 (证券, effective_from) 分组，组内按入库时刻选修订
-  const groups = new Map(); let endDated = false;
+  const groups = new Map(); const countedIndustry = new Set(); let endDated = false;
   for (const s of sources) {
     if (!s.has('industry')) continue;
     s.forEach('industry', (r) => {
       if (r.industry_standard !== industry.standard || r.industry_level !== industry.level || !codeIdx.has(r.security_id)) return;
       if (!ACCEPTED_INDUSTRY_QUALITY.includes(r.quality_state)) { counts.industry.quality_skipped += 1; return; }
-      counts.industry.rows += 1;
-      counts.industry.by_quality[r.quality_state] += 1;
+      const countKey = `${r.security_id}\u0000${r.industry_code}\u0000${r.effective_from}\u0000${r.revision}`;
+      if (!countedIndustry.has(countKey)) {
+        countedIndustry.add(countKey);
+        counts.industry.rows += 1;
+        counts.industry.by_quality[r.quality_state] += 1;
+      }
       const key = `${r.security_id}|${r.effective_from}`;
       if (!groups.has(key)) groups.set(key, { code: r.security_id, from: r.effective_from, revs: [] });
       groups.get(key).revs.push({ at: parseTs(r.first_available_at), rev: Number(r.revision), to: r.effective_to, value: r.industry_code || r.industry_name });

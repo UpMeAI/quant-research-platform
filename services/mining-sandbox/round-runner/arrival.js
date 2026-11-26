@@ -39,8 +39,11 @@ const CAL_STEM = 'trading_calendar';
 const READINESS_FILE = 'READINESS.json';
 const READY_VIA = Object.freeze(['POST_CLOSE_D', 'NEXT_PREMARKET']);
 const READINESS_SCHEMA = 'R2_DAY_EXPORT_READINESS_RECORD_V1';
+const READINESS_PROBE_SHA256 = '57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582';
 const START_AFTER = '2026-12-31'; // R2's start rule (holdout-segments.js): the first trading day after it
-const SUFFIX = /^_(\d{8})\.csv$/;
+const CALENDAR_SEQUENCE_SUFFIX = /^_(\d{4})\.csv$/;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ARRIVED_AT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 /**
  * The two segments this program serves. R2: the directory is sealed PENDING (no data at seal time), the calendar arrives first, every base file is header only.
  * R1: the directory was sealed on 2026-11-18 with data through D1 = 2026-11-17 (EXPORT_MANIFEST.json of the sealed export); the sealed manifest lists the calendar, which already runs to
@@ -84,10 +87,35 @@ function sealedNamesOf(dir) {
   if (!fs.existsSync(f)) return null;
   return new Set(fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => /^([0-9a-f]{64}) [ *](.+)$/.exec(l)).filter(Boolean).map((m) => m[2]));
 }
-function chainRows(dir) {
+function fsyncDirectory(dir) {
+  const fd = fs.openSync(dir, fs.constants.O_RDONLY);
+  try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+}
+function truncateDurably(file, size) {
+  const fd = fs.openSync(file, 'r+');
+  try { fs.ftruncateSync(fd, size); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  fsyncDirectory(path.dirname(file));
+}
+function chainRows(dir, { healFinalTorn = false } = {}) {
   const f = path.join(dir, CHAIN_FILE);
   if (!fs.existsSync(f)) return null;
-  return fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return invalid('PARSE'); } });
+  const bytes = fs.readFileSync(f);
+  if (bytes.length === 0) return [];
+  const hasFinalNewline = bytes.length > 0 && bytes[bytes.length - 1] === 0x0a;
+  const lines = bytes.toString('utf8').split('\n');
+  if (hasFinalNewline) lines.pop();
+  const rows = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    try { rows.push(JSON.parse(lines[i])); } catch {
+      const finalTorn = healFinalTorn && !hasFinalNewline && i === lines.length - 1;
+      const priorFilesPresent = rows.every((r) => Array.isArray(r.files)
+        && r.files.every((x) => x && typeof x.name === 'string' && fs.existsSync(path.join(dir, x.name))));
+      if (!finalTorn || !priorFilesPresent) return invalid('PARSE');
+      truncateDurably(f, bytes.lastIndexOf(0x0a) + 1);
+      return rows.length ? rows : null;
+    }
+  }
+  return rows;
 }
 // at rest nothing the arrival writes is group- or world-readable (review 2026-11-23): 0600 whatever the umask; the directory's own mode is the operator's (0700, like R1); the score hand-over chmods it at score time
 const FILE_MODE = 0o600;
@@ -159,13 +187,15 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
     }
     const names = r.files.map((f) => f.name);
     if (r.kind === 'CALENDAR') {
-      const ok = i === 0 ? names.length === 1 && names[0] === `${CAL_STEM}.csv` : names.length === 1 && SUFFIX.test(names[0].slice(CAL_STEM.length)) && names[0].startsWith(CAL_STEM);
+      const expectedName = i === 0 ? `${CAL_STEM}.csv` : `${CAL_STEM}_${String(r.seq).padStart(4, '0')}.csv`;
+      const ok = names.length === 1 && names[0] === expectedName
+        && (i === 0 || CALENDAR_SEQUENCE_SUFFIX.test(names[0].slice(CAL_STEM.length)));
       if (!ok) invalid('FILE_NAME', names.join(','));
     } else {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(r.trade_date || '')) invalid('SCHEMA', `trade_date ${i}`);
-      // the readiness record is part of every DAY row (null only for a source that has none, the PG driver)
-      if (r.readiness === undefined || (r.readiness !== null && (typeof r.readiness !== 'object' || !READY_VIA.includes(r.readiness.ready_via)))) invalid('SCHEMA', `readiness ${i}`);
-      if (r.readiness === null && r.source && r.source.driver === 'CSV_DAY_DROP') invalid('SCHEMA', `readiness ${i}: a dropped day carries its readiness record`);
+      if (!r.source || r.source.driver !== 'CSV_DAY_DROP') invalid('SCHEMA', `source ${i}: DAY rows come from CSV_DAY_DROP`);
+      if (!r.readiness || typeof r.readiness !== 'object' || !READY_VIA.includes(r.readiness.ready_via)
+          || r.readiness.probe_sha256 !== READINESS_PROBE_SHA256) invalid('SCHEMA', `readiness ${i}: pinned V2 probe required`);
       // the industry window recorded in the row: contiguous with the previous DAY row (the first from the segment's industryFrom), upper bound 09:00+08 of a later date
       if (!ISO_ST.test(r.window_from || '') || !ISO_ST.test(r.window_to || '') || !r.window_to.endsWith('T09:00:00+08:00') || r.window_to.slice(0, 10) <= r.trade_date) invalid('SCHEMA', `window `);
       const prevDay = rows.slice(0, i).filter((x) => x.kind === 'DAY').pop();
@@ -279,17 +309,43 @@ function appendChain(dir, segment, body) {
   const rows = chainRows(dir) || [];
   const row = { schema: SCHEMA, segment, seq: rows.length, ...body, prev_hash: rows.length ? rows[rows.length - 1].record_hash : null };
   const rec = { ...row, record_hash: rowHash(row) };
-  fs.appendFileSync(path.join(dir, CHAIN_FILE), `${JSON.stringify(rec)}\n`, { mode: FILE_MODE });
+  const file = path.join(dir, CHAIN_FILE);
+  const fd = fs.openSync(file, 'a', FILE_MODE);
+  try { fs.writeFileSync(fd, `${JSON.stringify(rec)}\n`); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+  fsyncDirectory(dir);
   return rec;
 }
 const fileEntry = (name, buf, rows) => ({ name, sha256: sha256(buf), rows });
 
-/** Existing calendar lines (base and dated parts) of the directory, without headers. */
+function parsedCalendar(buf) {
+  const lines = csvLines(buf);
+  const file = path.join(os.tmpdir(), `qrp-arrive-calendar-${process.pid}-${crypto.randomBytes(8).toString('hex')}.csv`);
+  const rows = [];
+  try {
+    fs.writeFileSync(file, buf);
+    adapter.internals.forEachCsvRow(file, (r) => rows.push(r));
+  } finally { fs.rmSync(file, { force: true }); }
+  if (!lines.length || rows.length !== lines.length - 1) fail('CALENDAR', 'one record per line required');
+  return {
+    header: lines[0],
+    rows: rows.map((row, i) => {
+      const semantic = { ...row }; delete semantic.ingested_at;
+      return { line: lines[i + 1], key: JSON.stringify(semantic) };
+    }),
+  };
+}
+/** Existing calendar records (base and sequence parts), compared on every semantic column except ingested_at. */
 function calendarLinesOf(dir) {
-  const names = fs.readdirSync(dir).filter((n) => n === `${CAL_STEM}.csv` || (n.startsWith(CAL_STEM) && SUFFIX.test(n.slice(CAL_STEM.length)))).sort();
-  const lines = new Set(); let header = null;
-  for (const n of names) { const l = csvLines(fs.readFileSync(path.join(dir, n))); if (header === null) header = l[0]; for (const x of l.slice(1)) lines.add(x); }
-  return { header, lines };
+  const names = fs.readdirSync(dir).filter((n) => n === `${CAL_STEM}.csv`
+    || (n.startsWith(CAL_STEM) && CALENDAR_SEQUENCE_SUFFIX.test(n.slice(CAL_STEM.length)))).sort();
+  const semantic = new Set(); let header = null;
+  for (const n of names) {
+    const parsed = parsedCalendar(fs.readFileSync(path.join(dir, n)));
+    if (header === null) header = parsed.header;
+    else if (header !== parsed.header) fail('HEADER', CAL_STEM);
+    for (const row of parsed.rows) semantic.add(row.key);
+  }
+  return { header, semantic };
 }
 
 const isCount = (n) => Number.isInteger(n) && n >= 0;
@@ -300,7 +356,7 @@ const isCount = (n) => Number.isInteger(n) && n >= 0;
 function checkReadiness(day, bytes, { expectedFrom, nextOpen }) {
   let o; try { o = JSON.parse(Buffer.from(bytes).toString('utf8')); } catch { return fail('READINESS', `${day}: not JSON`); }
   if (!o || o.schema !== READINESS_SCHEMA || o.trade_date !== day || !READY_VIA.includes(o.ready_via) || !['n_prices', 'n_basic', 'n_adj', 'n_cov'].every((k) => isCount(o[k]))
-      || !/^[0-9a-f]{64}$/.test(o.probe_sha256 || '') || typeof o.probed_at !== 'string') return fail('READINESS', `${day}: not a readiness record of this day`);
+      || o.probe_sha256 !== READINESS_PROBE_SHA256 || typeof o.probed_at !== 'string') return fail('READINESS', `${day}: not a readiness record of this day`);
   // the industry window: contiguous with the previous part, upper bound = 09:00+08 of the next SSE open day (the calendar's when it knows one, else a later date)
   if (!ISO_ST.test(o.window_from || '') || !ISO_ST.test(o.window_to || '') || o.window_from !== expectedFrom) return fail('READINESS', `${day}: window_from ${o.window_from} is not the previous part's upper bound ${expectedFrom}`);
   if (!(o.window_to.endsWith('T09:00:00+08:00') && o.window_to.slice(0, 10) > day) || (nextOpen && o.window_to.slice(0, 10) !== nextOpen)) return fail('READINESS', `${day}: window_to ${o.window_to} is not 09:00+08 of the next open day`);
@@ -327,8 +383,9 @@ function arriveLocked({ dir, segment = 'R2', source, arrivedAt = null, day = nul
     if (fs.existsSync(path.join(dir, PENDING)) || !sealed || !sums || !sealed.has(`${CAL_STEM}.csv`) || !sums.byName.has(`${CAL_STEM}.csv`) || ![...sealed].every((n) => sums.byName.has(n))) fail('NOT_SEALED', dir);
   }
   const at = arrivedAt || stamp();
+  if (!ARRIVED_AT.test(at) || !Number.isFinite(Date.parse(at))) fail('ARRIVED_AT', at);
   const srcRef = { driver: source.driver };
-  const existing = chainRows(dir);
+  const existing = chainRows(dir, { healFinalTorn: true });
   if (existing) verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true, anchors });
   const needsBase = (t) => !(sealed && sealed.has(`${t.stem}.csv`));
   // 1. the calendar (R2 only)
@@ -343,17 +400,20 @@ function arriveLocked({ dir, segment = 'R2', source, arrivedAt = null, day = nul
   }
   if (calBuf) {
     const have = calendarLinesOf(dir);
-    const lines = csvLines(calBuf);
-    if (have.header !== lines[0]) fail('HEADER', `${CAL_STEM}`);
-    const delta = lines.slice(1).filter((l) => !have.lines.has(l));
+    const incoming = parsedCalendar(calBuf);
+    if (have.header !== incoming.header) fail('HEADER', `${CAL_STEM}`);
+    const delta = incoming.rows.filter((r) => !have.semantic.has(r.key)).map((r) => r.line);
     if (delta.length) {
-      const name = `${CAL_STEM}_${compact(at.slice(0, 10))}.csv`;
-      const bytes = Buffer.from(`${lines[0]}\n${delta.join('\n')}\n`);
+      const seq = existing.length;
+      if (seq > 9999) fail('CALENDAR_SEQUENCE', seq);
+      const name = `${CAL_STEM}_${String(seq).padStart(4, '0')}.csv`;
+      const bytes = Buffer.from(`${incoming.header}\n${delta.join('\n')}\n`);
       // the merged calendar must still fit what has arrived: build the directory as it would be and compare days
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-arrive-cal-'));
       try {
         const sums = readSums(dir);
-        const keep = [...sums.entries.filter((e) => e.name === `${CAL_STEM}.csv` || (e.name.startsWith(CAL_STEM) && SUFFIX.test(e.name.slice(CAL_STEM.length))))];
+        const keep = [...sums.entries.filter((e) => e.name === `${CAL_STEM}.csv`
+          || (e.name.startsWith(CAL_STEM) && CALENDAR_SEQUENCE_SUFFIX.test(e.name.slice(CAL_STEM.length))))];
         for (const e of keep) fs.copyFileSync(path.join(dir, e.name), path.join(tmp, e.name));
         fs.writeFileSync(path.join(tmp, name), bytes);
         fs.writeFileSync(path.join(tmp, 'SHA256SUMS'), `${[...keep.map((e) => e.line), `${sha256(bytes)}  ${name}`].join('\n')}\n`);
@@ -417,9 +477,9 @@ function checkComplete({ dir, segment = 'R2', windowEnd, startAfter = undefined 
   const after = startAfter === undefined ? profile.startAfter : startAfter;
   const rows = chainRows(dir) || [];
   const days = rows.filter((r) => r.kind === 'DAY').map((r) => r.trade_date);
-  const cal = fs.existsSync(path.join(dir, 'SHA256SUMS')) ? openDaysOfDir(dir) : { days: [] };
-  const missing = expectedDaysOf(cal.days, after).filter((d) => d <= windowEnd && !days.includes(d));
-  return { complete: missing.length === 0 && cal.days.some((d) => d >= windowEnd), last_day: days.length ? days[days.length - 1] : null, missing };
+  const cal = openDaysOfDir(dir); // also makes a missing or unreadable SHA256SUMS a hard error
+  const missing = windowEnd ? expectedDaysOf(cal.days, after).filter((d) => d <= windowEnd && !days.includes(d)) : [];
+  return { complete: Boolean(windowEnd) && missing.length === 0 && cal.days.some((d) => d >= windowEnd), last_day: days.length ? days[days.length - 1] : null, missing };
 }
 
 // ── sources ────────────────────────────────────────────────────────────────────────────────────
@@ -430,15 +490,33 @@ function csvDayDropSource(root) {
     driver: 'CSV_DAY_DROP',
     calendar() { const f = path.join(root, `${CAL_STEM}.csv`); return fs.existsSync(f) ? fs.readFileSync(f) : null; },
     day(d) {
+      if (!DATE.test(d || '')) fail('DATE', String(d));
       const dir = path.join(root, compact(d));
       if (!fs.existsSync(dir)) return null;
-      const files = {};
-      for (const t of TABLES) { const f = path.join(dir, `${t.stem}.csv`); if (!fs.existsSync(f)) return null; files[t.stem] = fs.readFileSync(f); }
-      const rf = path.join(dir, READINESS_FILE); if (!fs.existsSync(rf)) return null; // the exporter writes it with the day: a day without its readiness record is not there yet
-      return { files, readiness: fs.readFileSync(rf) };
+      try {
+        const expected = [...TABLES.map((t) => `${t.stem}.csv`), READINESS_FILE];
+        const actual = fs.readdirSync(dir).sort();
+        if (actual.length !== expected.length + 1 || !actual.includes('SHA256SUMS') || expected.some((n) => !actual.includes(n))) return null;
+        const sums = new Map();
+        for (const line of fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').split('\n').filter(Boolean)) {
+          const m = /^([0-9a-f]{64}) [ *]([^/]+)$/.exec(line);
+          if (!m || sums.has(m[2])) return null;
+          sums.set(m[2], m[1]);
+        }
+        if (sums.size !== expected.length || expected.some((n) => !sums.has(n))) return null;
+        const bytes = new Map();
+        for (const name of expected) {
+          const file = path.join(dir, name);
+          if (!fs.lstatSync(file).isFile()) return null;
+          const value = fs.readFileSync(file);
+          if (sha256(value) !== sums.get(name)) return null;
+          bytes.set(name, value);
+        }
+        return { files: Object.fromEntries(TABLES.map((t) => [t.stem, bytes.get(`${t.stem}.csv`)])), readiness: bytes.get(READINESS_FILE) };
+      } catch { return null; }
     },
   };
 }
 
 
-module.exports = { CHAIN_FILE, LOCK_FILE, LOCK_STALE_MS, SCHEMA, READINESS_FILE, READINESS_SCHEMA, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, internals: { withFault } };
+module.exports = { CHAIN_FILE, LOCK_FILE, LOCK_STALE_MS, SCHEMA, READINESS_FILE, READINESS_SCHEMA, READINESS_PROBE_SHA256, TABLES, START_AFTER, PROFILES, ArrivalError, verifyChain, arrive, checkComplete, csvDayDropSource, internals: { withFault } };

@@ -180,8 +180,8 @@ function main(argv) {
     if (o['check-complete']) {
       // read-only: the open days of the window that have not arrived; exit code 4 when some are missing (the timer alerts on it)
       if (hasChain) arrival.verifyChain(o.holdout, { segment, startAfter, anchors, tolerateUnchained: true });
-      if (!windowEnd) return { command: 'holdout-arrive', segment, status: 'WINDOW_END_UNKNOWN', missing: [] };
       const c = arrival.checkComplete({ dir: o.holdout, segment, windowEnd, startAfter });
+      if (!windowEnd) return { command: 'holdout-arrive', segment, status: 'WINDOW_END_UNKNOWN', window_end: null, last_day: null, missing: [] };
       return { command: 'holdout-arrive', segment, status: c.complete ? 'COMPLETE' : 'INCOMPLETE', window_end: windowEnd, last_day: c.last_day, missing: c.missing };
     }
     required(o, ['driver']);
