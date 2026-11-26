@@ -1,0 +1,29 @@
+{
+  "schema": "MASTER_TABLE_CONFIG_V1",
+  "qrp_var_authoritative": false,
+  "allowed_roots": [
+    "/srv/research-lane/qrp/var",
+    "/srv/research-lane/master-table"
+  ],
+  "ledger_dir": "/srv/research-lane/qrp/var/ledger/research",
+  "root": "/srv/research-lane/master-table",
+  "frozen_dir": "/srv/research-lane/master-table/config",
+  "required_ledgers": [
+    "ashare_sealed_verdicts.jsonl",
+    "overseas_sealed_verdicts.jsonl",
+    "sealed_research_results.jsonl",
+    "adoption_decisions.jsonl",
+    "data_segments.jsonl"
+  ],
+  "optional_ledgers": [
+    "baseline_evaluations.jsonl",
+    "comparison_evaluations.jsonl",
+    "gap_decompositions.jsonl",
+    "m2_round_evaluations.jsonl"
+  ],
+  "freeze_manifest": {
+    "schema": "FREEZE_MANIFEST_V1",
+    "ledgers": []
+  },
+  "qrp_commit": "SET_IN_REVIEWED_DEPLOY_COMMIT"
+}

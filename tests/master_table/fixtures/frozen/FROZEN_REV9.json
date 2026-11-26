@@ -1,0 +1,100 @@
+{
+ "revision": 9,
+ "asOf": "2026-11-20",
+ "stage": "冻结版",
+ "statusCounts": {
+  "已出结论": 1,
+  "前向中": 1
+ },
+ "marketCounts": {
+  "A股": {
+   "done": 1,
+   "forward": 0,
+   "running": 0,
+   "todo": 0,
+   "blocked": 0,
+   "total": 1
+  },
+  "美股": {
+   "done": 0,
+   "forward": 1,
+   "running": 0,
+   "todo": 0,
+   "blocked": 0,
+   "total": 1
+  },
+  "加密": {
+   "done": 0,
+   "forward": 0,
+   "running": 0,
+   "todo": 0,
+   "blocked": 0,
+   "total": 0
+  },
+  "跨市场": {
+   "done": 0,
+   "forward": 0,
+   "running": 0,
+   "todo": 0,
+   "blocked": 0,
+   "total": 0
+  }
+ },
+ "layerCounts": {
+  "选股择时层": 2
+ },
+ "lists": {},
+ "layerPending": [],
+ "items": [
+  {
+   "id": "Z01",
+   "market": "A股",
+   "group": "g",
+   "q": "z01 q",
+   "auth": [],
+   "form": "f",
+   "owner": "O",
+   "machine": "m",
+   "status": "已出结论",
+   "detail": "z01 detail",
+   "missing": "none",
+   "eta": "done",
+   "ok": "是",
+   "verdict": "不做",
+   "strength": "s",
+   "use": "u",
+   "prod": "p",
+   "next": "n",
+   "cutoff": "c",
+   "layer": "选股择时层",
+   "layerTopic": "",
+   "layerNote": "",
+   "owner_name": "owner"
+  },
+  {
+   "id": "Z02",
+   "market": "美股",
+   "group": "g",
+   "q": "z02 q",
+   "auth": [],
+   "form": "f",
+   "owner": "O",
+   "machine": "m",
+   "status": "前向中",
+   "detail": "z02 detail",
+   "missing": "none",
+   "eta": "later",
+   "ok": "未知",
+   "verdict": "做",
+   "strength": "s",
+   "use": "u",
+   "prod": "p",
+   "next": "n",
+   "cutoff": "c",
+   "layer": "选股择时层",
+   "layerTopic": "",
+   "layerNote": "",
+   "owner_name": "owner"
+  }
+ ]
+}
