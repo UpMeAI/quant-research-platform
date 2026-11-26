@@ -10,6 +10,11 @@ the real pages, start Docker, or write production data.
 - `QRP_VAR_ROOT=/srv/research-lane/qrp/var` and
   `QRP_DATA_DIR=/srv/research-lane/qrp/var/ledger` are distinct. Authority and
   migration manifests bind the former; QRP ledgers bind the latter.
+- The #157 runner-local outcome projection is separately read-only at
+  `<RF1116_LANE_DIR>/out/qrp-data/research/mining_llm_calls.jsonl`. It is used
+  only to identify a paid-call crash occurrence; it is not another QRP var
+  authority. A missing, unreadable, non-regular, or ambiguous projection stops
+  the slot and alerts instead of merging crashes under an unknown identity.
 - A missing or byte-mismatched frozen R2 page, missing R2 segment, active
   blackout, less than 150 GiB free, model-page fetch failure, or model-string
   difference prevents a start.

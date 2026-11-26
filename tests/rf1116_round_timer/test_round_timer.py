@@ -3,6 +3,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -117,9 +118,10 @@ raise SystemExit(0)
                 env={
                     **os.environ,
                     **env,
-                    "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+                    "PATH": f"{fake_bin}{os.pathsep}{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}",
                     "Q148_FAKE_LLM_OUTCOME": outcome,
                     "Q148_DOCKER_LOG": str(self.root / "docker-argv.jsonl"),
+                    "RF1116_LANE_FOR_TESTS": str(self.lane),
                 },
                 text=True,
                 capture_output=True,
@@ -203,6 +205,13 @@ class RoundTimerTests(unittest.TestCase):
         result = timer.ModelGate(w.config(model_sources=canonical), fetch=lambda url: canonical[url]).check()
         self.assertEqual(result["status"], "PASS")
         self.assertEqual(result["expected_sha256"], hashlib.sha256(timer.canonical(expected).encode()).hexdigest())
+        presented = {
+            url: b"<html><body><section>" + body.replace(b"\n", b"</section><section>") + b"</section></body></html>"
+            for url, body in canonical.items()
+        }
+        restyled = timer.ModelGate(w.config(model_sources=presented), fetch=lambda url: presented[url]).check()
+        self.assertEqual(restyled["status"], "PASS")
+        self.assertEqual(restyled["observed_sha256"], result["observed_sha256"])
 
     def test_var_authority_refusals_and_single_authority(self):
         w = World()

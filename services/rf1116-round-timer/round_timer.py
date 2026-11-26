@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import fcntl
+import html
 import hashlib
 import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import urllib.request
@@ -29,6 +31,7 @@ DEFAULT_MODEL_SOURCES = {
 
 class ConfigError(RuntimeError): pass
 class LedgerError(RuntimeError): pass
+class CrashOccurrenceError(RuntimeError): pass
 
 
 class CommandResult:
@@ -79,6 +82,15 @@ def atomic_json(path, value, keep_previous=False):
 
 
 def first_json(text):
+    for line in str(text or "").splitlines():
+        if not line.strip(): continue
+        try: candidate = json.loads(line)
+        except json.JSONDecodeError: continue
+        if isinstance(candidate, dict): return candidate
+    return {}
+
+
+def last_json(text):
     value = {}
     for line in str(text or "").splitlines():
         if not line.strip(): continue
@@ -105,7 +117,8 @@ def validate_qrp_var(config):
     candidates = tuple(dict.fromkeys(p.resolve() for p in config.data_candidates))
     if root not in candidates or data != root / "ledger": raise ConfigError("QRP_VAR_AUTHORITY_NOT_CONFIGURED")
     writable = [p for p in candidates if p.exists() and config.writable_probe(p)]
-    if len(writable) > 1: raise ConfigError("QRP_VAR_DUAL_WRITABLE")
+    if not root.exists() or root not in writable: raise ConfigError("QRP_VAR_AUTHORITY_NOT_WRITABLE")
+    if set(writable) != {root}: raise ConfigError("QRP_VAR_DUAL_WRITABLE")
     if config.manifest_files and any(not p.exists() for p in config.manifest_files): raise ConfigError("QRP_VAR_MANIFEST_MISMATCH")
     contents = [p.read_bytes() for p in config.manifest_files]
     if len(contents) > 1 and any(value != contents[0] for value in contents[1:]): raise ConfigError("QRP_VAR_MANIFEST_MISMATCH")
@@ -123,21 +136,49 @@ class ModelGate:
         self.now = now or (lambda: datetime.now(CST))
 
     def check(self, write_state=False):
-        observed, status = {}, "PASS"
+        observed_projection, status = {}, "PASS"
         for url in sorted(self.config.model_sources):
             try:
                 body = self.fetch(url); body = body if isinstance(body, bytes) else str(body).encode()
-            except Exception as exc:
-                observed[url] = {"fetch": "FAILED", "error_class": type(exc).__name__}; status = "FETCH_FAILED"; continue
-            text = body.decode("utf-8", errors="replace")
-            matches = {model: (served in text and ("pricing" not in url or model in text)) for model, served in self.config.expected_models.items()}
-            observed[url] = {"fetch": "OK", "sha256": sha256_bytes(body), "matches": matches}
-            if not all(matches.values()) and status == "PASS": status = "FAIL"
+            except Exception:
+                observed_projection[url] = None
+                status = "FETCH_FAILED"
+                continue
+            try:
+                mapping = self._canonical_mapping(body)
+            except ValueError:
+                mapping = None
+                if status != "FETCH_FAILED": status = "FAIL"
+            observed_projection[url] = mapping
+            if mapping != dict(sorted(self.config.expected_models.items())) and status != "FETCH_FAILED":
+                status = "FAIL"
         result = {"at": self.now().astimezone(CST).isoformat(), "status": status,
                   "expected_sha256": sha256_bytes(canonical(self.config.expected_models).encode()),
-                  "observed_sha256": sha256_bytes(canonical(observed).encode()), "models": sorted(self.config.expected_models)}
+                  "observed_sha256": sha256_bytes(canonical(observed_projection).encode()), "models": sorted(self.config.expected_models)}
         if write_state: atomic_json(self.config.state_dir / "model_gate_last.json", result, keep_previous=True)
         return result
+
+    def _canonical_mapping(self, body):
+        text = body.decode("utf-8", errors="strict")
+        text = re.sub(r"(?i)<\s*(?:br|/p|/li|/tr|/div|/section|/article)\b[^>]*>", "\n", text)
+        text = html.unescape(re.sub(r"<[^>]+>", " ", text))
+        records = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
+        served_versions = tuple(self.config.expected_models.values())
+        projection = {}
+        for alias in sorted(self.config.expected_models):
+            alias_pattern = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])")
+            matches = []
+            for record in records:
+                if not alias_pattern.search(record):
+                    continue
+                versions = [served for served in served_versions if served in record]
+                if len(versions) != 1:
+                    raise ValueError("MODEL_MAPPING_AMBIGUOUS")
+                matches.append(versions[0])
+            if len(matches) != 1:
+                raise ValueError("MODEL_MAPPING_NOT_UNIQUE")
+            projection[alias] = matches[0]
+        return projection
 
 
 def default_runner(argv, env):
@@ -228,15 +269,34 @@ class Supervisor:
         return self.runner(argv, env)
 
     def _crash_occurrence(self, round_id):
-        calls = self.config.data_dir / "research" / "mining_llm_calls.jsonl"
-        if not round_id or not calls.exists(): return "unknown"
+        calls = self.config.lane_dir / "out" / "qrp-data" / "research" / "mining_llm_calls.jsonl"
+        if not round_id: raise CrashOccurrenceError("CRASH_OCCURRENCE_UNAVAILABLE")
+        flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+        try:
+            descriptor = os.open(calls, flags)
+            metadata = os.fstat(descriptor)
+            if not stat.S_ISREG(metadata.st_mode):
+                raise CrashOccurrenceError("CRASH_OCCURRENCE_UNAVAILABLE")
+            with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+                descriptor = -1
+                lines = stream.read().splitlines()
+        except (OSError, UnicodeError) as exc:
+            raise CrashOccurrenceError("CRASH_OCCURRENCE_UNAVAILABLE") from exc
+        finally:
+            if "descriptor" in locals() and descriptor >= 0:
+                os.close(descriptor)
         latest = None
-        for line in calls.read_text(encoding="utf-8").splitlines():
+        for line in lines:
             try: row = json.loads(line)
-            except json.JSONDecodeError: continue
+            except json.JSONDecodeError as exc:
+                raise CrashOccurrenceError("CRASH_OCCURRENCE_UNAVAILABLE") from exc
+            if not isinstance(row, dict):
+                raise CrashOccurrenceError("CRASH_OCCURRENCE_UNAVAILABLE")
             if row.get("round_id") == round_id and row.get("outcome") == "WAITING_STEP_CRASHED_MID_CALL": latest = row
-        if not latest: return "unknown"
-        return str(latest.get("request_sha256") or latest.get("key") or latest.get("seq") or "unknown")
+        occurrence = (latest or {}).get("request_sha256")
+        if not isinstance(occurrence, str) or not SHA64.fullmatch(occurrence):
+            raise CrashOccurrenceError("CRASH_OCCURRENCE_UNAVAILABLE")
+        return occurrence
 
     def _tick_locked(self, slot):
         if not re.fullmatch(r"\d{4}-\d{2}:[12]", slot): raise ConfigError("SLOT_KEY_INVALID")
@@ -259,7 +319,7 @@ class Supervisor:
             return self._transition(slot, precondition, {"round_id": current_round_id} if current_round_id else None)
         self._transition(slot, "STARTING", {"resume": bool(current_round_id), "round_id": current_round_id})
         result = self._execute(current)
-        output, refusal = first_json(result.stdout), first_json(result.stderr)
+        output, refusal = last_json(result.stdout), first_json(result.stderr)
         outcome, error = output.get("llm_state"), refusal.get("error")
         round_id = output.get("round_id") or ((current or {}).get("detail") or {}).get("round_id")
         decision = classify(result.rc, outcome, error)
@@ -271,7 +331,12 @@ class Supervisor:
             detail["retry_after"] = (self.now().astimezone(CST) + timedelta(minutes=delay)).isoformat()
             return self._transition(slot, "WAITING_RETRY", detail)
         if decision.action == "SETTLE_ONCE":
-            detail["occurrence"] = self._crash_occurrence(round_id)
+            try:
+                detail["occurrence"] = self._crash_occurrence(round_id)
+            except CrashOccurrenceError:
+                unavailable = {**detail, "source": "RUNNER_LOCAL_OUTCOME_PROJECTION"}
+                self._alert(slot, "CRASH_OCCURRENCE_UNAVAILABLE", unavailable)
+                return self._transition(slot, "STOPPED_CRASH_OCCURRENCE_UNAVAILABLE", unavailable)
             prior = [row for row in self._rows() if row["slot"] == slot and row["state"] == "WAITING_SETTLE" and row["detail"].get("occurrence") == detail["occurrence"]]
             self._alert(slot, decision.code, detail)
             return self._transition(slot, "STOPPED_CRASH_SETTLED" if prior else "WAITING_SETTLE", detail)
@@ -280,7 +345,12 @@ class Supervisor:
     def tick(self, slot):
         self.config.state_dir.mkdir(parents=True, exist_ok=True)
         with self.lock_path.open("a+") as lock:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX); return self._tick_locked(slot)
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+            try:
+                return self._tick_locked(slot)
+            except LedgerError:
+                self._alert(slot, "LEDGER_TAMPER", {"reason": "LEDGER_INTEGRITY_INVALID"})
+                raise
 
     def tick_auto(self):
         now = self.now().astimezone(CST)
