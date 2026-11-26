@@ -163,20 +163,17 @@ class ModelGate:
         text = re.sub(r"(?i)<\s*(?:br|/p|/li|/tr|/div|/section|/article)\b[^>]*>", "\n", text)
         text = html.unescape(re.sub(r"<[^>]+>", " ", text))
         records = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
+        mapping_pattern = re.compile(r"(?:->|:|=)\s*([A-Za-z][A-Za-z0-9._-]*)")
         projection = {}
         for alias in sorted(self.config.expected_models):
             alias_pattern = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])")
-            declaration_pattern = re.compile(
-                rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])"
-                r"\s*(?:->|:|=)\s*([A-Za-z][A-Za-z0-9._-]*)"
-            )
             matches = []
             for record in records:
                 if not alias_pattern.search(record):
                     continue
                 if len(alias_pattern.findall(record)) != 1:
                     raise ValueError("MODEL_MAPPING_AMBIGUOUS")
-                declarations = declaration_pattern.findall(record)
+                declarations = mapping_pattern.findall(record)
                 if len(declarations) != 1:
                     raise ValueError("MODEL_MAPPING_UNPARSEABLE")
                 matches.append(declarations[0])
