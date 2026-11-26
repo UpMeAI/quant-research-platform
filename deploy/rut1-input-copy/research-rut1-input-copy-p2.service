@@ -4,9 +4,9 @@ Description=Deliver verified RUT1 phase P2 inputs
 [Service]
 Type=oneshot
 User=kayla
-WorkingDirectory=/srv/research-lane/research-queue/code/current
+WorkingDirectory=/srv/research-lane/research-queue/code/@QRP_REVIEWED_SHA@
 Environment=PYTHONDONTWRITEBYTECODE=1
-Environment=PYTHONPATH=/srv/research-lane/research-queue/code/current/services/rut1-input-copy
+Environment=PYTHONPATH=/srv/research-lane/research-queue/code/@QRP_REVIEWED_SHA@/services/rut1-input-copy
 ExecStart=/usr/bin/python3 -B -m rut1copy --phase p2
 TimeoutStartSec=1800
 Nice=19

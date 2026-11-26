@@ -94,7 +94,7 @@ class TreeMutatingRunner(FixtureRunner):
     def __call__(self, operation):
         rc = super().__call__(operation)
         if operation.form_id == self.final_form:
-            stage = operation.destination.parents[0]
+            stage = operation.destination.resolve().parent
             self.mutation(stage)
         return rc
 
@@ -141,6 +141,9 @@ class CopyTest(unittest.TestCase):
         self.assertEqual(("RUT1_INPUT_COPY_RECEIPT_V1", "p1", "COMPLETE"),
                          (receipt["schema"], receipt["phase"], receipt["result"]))
         self.assertEqual(0o444, (target / "RUT1_INPUT_COPY_RECEIPT_V1.json").stat().st_mode & 0o777)
+        status = json.loads(self.status_path().read_text())
+        self.assertEqual((0, "p1", "COMPLETE", P1_NOW.isoformat()),
+                         (status["rc"], status["phase"], status["result"], status["lastOkAt"]))
 
     def test_sha_mismatch_moves_nothing(self):
         result = self.run_phase_case("p1", FixtureRunner(bad_sha=True), P1_NOW)
@@ -158,6 +161,9 @@ class CopyTest(unittest.TestCase):
         self.assertTrue(result.receipt.is_file())
         self.assertEqual("ABORTED", json.loads(result.receipt.read_text())["result"])
         self.assertFalse((self.base / "data" / "rut1-s8parity").exists())
+        status = json.loads(self.status_path().read_text())
+        self.assertEqual((5, "p1", "DEADLINE"),
+                         (status["rc"], status["phase"], status["result"]))
 
     def test_existing_different_file_is_conflict_and_untouched(self):
         target = self.base / "data" / "rut1-s8parity" / "fills" / "US_V5_FILLS_E3_V2.json"
@@ -175,12 +181,16 @@ class CopyTest(unittest.TestCase):
         self.assertFalse((self.base / "data" / "rut1-s8parity").exists())
 
     def test_second_instance_exits_75(self):
+        self.seed_ok_status()
         lock_path = self.base / "data" / "rut1-input-copy.lock"
         lock_path.parent.mkdir(parents=True)
         with lock_path.open("a+") as held:
             fcntl.flock(held.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             result = self.run_phase_case("p1", FixtureRunner(), P1_NOW)
         self.assertEqual(75, result.code)
+        status = json.loads(self.status_path().read_text())
+        self.assertEqual((75, "p1", "LOCKED", "2026-11-27T01:02:03+08:00"),
+                         (status["rc"], status["phase"], status["result"], status["lastOkAt"]))
 
     def test_rerun_after_complete_is_noop(self):
         self.assertEqual(0, self.run_phase_case("p1", FixtureRunner(), P1_NOW).code)
@@ -284,6 +294,9 @@ class CopyTest(unittest.TestCase):
             self.assertEqual([], list(outside.iterdir()))
 
     def test_failures_replace_stale_success_status_but_preserve_last_ok(self):
+        def raises(_operation):
+            raise RuntimeError("details must not escape")
+
         cases = (
             ("disk", FixtureRunner(), copy.MIN_FREE_AFTER_BYTES, 3, "DISK_FLOOR"),
             ("gate", FixtureRunner(rc=126),
@@ -292,6 +305,9 @@ class CopyTest(unittest.TestCase):
             ("verify", FixtureRunner(bad_sha=True),
              copy.MIN_FREE_AFTER_BYTES + copy.EXPECTED_BYTES["p1"] + 1,
              4, "SHA256_MISMATCH"),
+            ("unexpected", raises,
+             copy.MIN_FREE_AFTER_BYTES + copy.EXPECTED_BYTES["p1"] + 1,
+             3, "UNEXPECTED:RuntimeError"),
         )
         for name, runner, free, rc, reason in cases:
             with self.subTest(case=name), tempfile.TemporaryDirectory() as td:

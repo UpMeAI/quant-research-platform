@@ -3,9 +3,28 @@
 Do not install until plan-coord has signed `JOIN_MAP_V1.proposed.json`, supplied
 its exact SHA-256 and accepted the #159 PR. Codex does not run these commands.
 
-The unit runs from the installed QRP tree at
-`/srv/research-lane/research-queue/code/current`. Installation must refuse if
-that path is missing or if it does not resolve to the exact reviewed QRP commit.
+The checked-in service is a template. Replace `@QRP_REVIEWED_SHA@` exactly once
+with the accepted 40-lower-hex commit; never use a branch, tag, `current`, or a
+symlink. The template path
+`/srv/research-lane/research-queue/code/@QRP_REVIEWED_SHA@` renders to the
+immutable tree for the exact reviewed QRP commit and is used for both
+`WorkingDirectory` and `ExecStart`.
+
+Before rendering, refuse unless the code root and every parent are real
+directories, the root basename is the exact reviewed QRP commit, every tree
+entry matches the independently approved tree manifest, and `sha256sum -c`
+reports no missing or extra entry. Verify the reviewed owner and mode for every
+entry (no group/world-writable entry), the manifest's executable bits, the
+tree-manifest SHA-256, and its binding to the accepted commit. Render in a new
+private staging directory; reject any remaining `@QRP_REVIEWED_SHA@` or
+`/code/current`. Record the rendered unit's SHA-256, install those exact bytes,
+then read back and verify the same SHA-256 before `daemon-reload`.
+
+The runtime prerequisites remain fail-closed: the reviewed deploy commit must
+replace every `PINS_NOT_SET`, bind the signed `JOIN_MAP_V1` SHA-256 and rev-F
+freeze bytes, and pass rev-F T01 byte identity. The authoritative config must
+still refuse before the QRP_VAR switch. A scratch-config `--check` against the
+real frozen inputs must return `NO_CHANGE`; no timer is enabled otherwise.
 
 1. Copy the signed config bundle into a new staging directory under
    `/srv/research-lane/master-table/config.next`. Verify it there with

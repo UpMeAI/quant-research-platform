@@ -1,4 +1,4 @@
-"""Atomic, non-overwriting RUT1 input delivery."""
+"""Atomic, non-overwriting, descriptor-bound RUT1 input delivery."""
 
 import datetime as dt
 import fcntl
@@ -6,10 +6,11 @@ import json
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
-from pathlib import Path
+from dataclasses import dataclass, replace
+from pathlib import Path, PurePosixPath
 
 from . import forms, verify
+from .securefs import Root, Tree, UnsafePath
 
 
 MIN_FREE_AFTER_BYTES = 220_000_000_000
@@ -20,6 +21,8 @@ DEADLINES = {
     "p1": dt.datetime(2026, 11, 28, 7, 30, tzinfo=CST),
     "p2": dt.datetime(2026, 12, 6, 11, 30, tzinfo=CST),
 }
+STATUS_RELATIVE = "research/rut1-input-copy.status.json"
+RECEIPT = "RUT1_INPUT_COPY_RECEIPT_V1.json"
 
 
 @dataclass(frozen=True)
@@ -30,102 +33,244 @@ class RunResult:
     plan: tuple[tuple[str, ...], ...] = ()
 
 
+def _target_relative(phase: str) -> str:
+    return "data/rut1-s8parity" if phase == "p1" else "data/rut1-s8parity-b/alpaca-1m"
+
+
+def _stage_relative(phase: str, run_id: str) -> str:
+    name = "rut1-s8parity.staging" if phase == "p1" else "rut1-s8parity-b.staging"
+    return f"data/{name}/{run_id}"
+
+
 def _target(base: Path, phase: str) -> Path:
-    return (base / "data" / "rut1-s8parity" if phase == "p1" else
-            base / "data" / "rut1-s8parity-b" / "alpaca-1m")
+    return Path(base) / _target_relative(phase)
 
 
 def _stage(base: Path, phase: str, run_id: str) -> Path:
-    name = "rut1-s8parity.staging" if phase == "p1" else "rut1-s8parity-b.staging"
-    return base / "data" / name / run_id
-
-
-def _atomic_json(path: Path, payload: dict, mode: int = 0o644) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + f".tmp.{os.getpid()}")
-    temporary.write_text(json.dumps(payload, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    os.chmod(temporary, mode)
-    os.replace(temporary, path)
+    return Path(base) / _stage_relative(phase, run_id)
 
 
 def _receipt_payload(phase: str, run_id: str, started: dt.datetime,
-                     ended: dt.datetime, result: str, stage: Path) -> dict:
+                     ended: dt.datetime, result: str, tree: Tree) -> dict:
     files = []
-    if stage.exists():
-        for path in sorted(p for p in stage.rglob("*") if p.is_file() and not p.is_symlink()):
-            if path.name.startswith("RUT1_INPUT_COPY_RECEIPT_V1"):
-                continue
-            files.append({
-                "path": path.relative_to(stage).as_posix(),
-                "sha256": verify.digest(path),
-                "bytes": path.stat().st_size,
-            })
+    for relative, kind in sorted(tree.entries().items()):
+        if kind != "file" or PurePosixPath(relative).name.startswith("RUT1_INPUT_COPY_RECEIPT_V1"):
+            continue
+        files.append({
+            "path": relative,
+            "sha256": tree.digest(relative),
+            "bytes": tree.lstat(relative).st_size,
+        })
     return {
         "schema": "RUT1_INPUT_COPY_RECEIPT_V1", "phase": phase,
         "runId": run_id, "startedAt": started.isoformat(), "endedAt": ended.isoformat(),
-        "forms": [operation.form_id for operation in forms.build_plan(phase, stage)],
+        "forms": [operation.form_id for operation in forms.build_plan(phase, Path("/stage"))],
         "files": files, "result": result,
     }
 
 
-def _write_staging_receipt(phase: str, run_id: str, started: dt.datetime,
-                           ended: dt.datetime, result: str, stage: Path) -> Path:
-    path = stage / "RUT1_INPUT_COPY_RECEIPT_V1.json"
-    _atomic_json(path, _receipt_payload(phase, run_id, started, ended, result, stage), 0o444)
-    return path
+def _write_receipt(tree: Tree, phase: str, run_id: str, started: dt.datetime,
+                   ended: dt.datetime, result: str) -> None:
+    tree.atomic_json(RECEIPT, _receipt_payload(phase, run_id, started, ended, result, tree), 0o444)
 
 
-def _complete_receipt(target: Path, phase: str) -> Path | None:
-    path = target / "RUT1_INPUT_COPY_RECEIPT_V1.json"
+def _receipt_path(base: Path, relative: str) -> Path:
+    return Path(base) / relative / RECEIPT
+
+
+def _complete_receipt(root: Root, target_relative: str, phase: str) -> bool:
     try:
-        payload = json.loads(path.read_text())
-    except (OSError, UnicodeError, json.JSONDecodeError):
-        return None
-    if (payload.get("schema"), payload.get("phase"), payload.get("result")) == (
-            "RUT1_INPUT_COPY_RECEIPT_V1", phase, "COMPLETE"):
-        return path
-    return None
-
-
-def _move_without_overwrite(stage: Path, target: Path) -> bool:
-    conflict = False
-    for source in sorted((p for p in stage.rglob("*") if p.is_file()), key=lambda p: len(p.parts)):
-        if source.name == "RUT1_INPUT_COPY_RECEIPT_V1.json":
-            continue
-        relative = source.relative_to(stage)
-        destination = target / relative
-        if destination.exists():
-            if (not destination.is_file() or destination.is_symlink()
-                    or verify.digest(destination) != verify.digest(source)):
-                conflict = True
-        elif destination.is_symlink():
-            conflict = True
-    if conflict:
+        with root.tree(target_relative) as target:
+            payload = json.loads(target.read_bytes(RECEIPT).decode("utf-8"))
+    except (FileNotFoundError, OSError, UnsafePath, UnicodeError, json.JSONDecodeError):
         return False
-    for source in sorted((p for p in stage.rglob("*") if p.is_file()), key=lambda p: len(p.parts)):
-        if source.name == "RUT1_INPUT_COPY_RECEIPT_V1.json":
-            continue
-        destination = target / source.relative_to(stage)
-        if destination.exists():
-            continue
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(source, destination)
+    return (payload.get("schema"), payload.get("phase"), payload.get("result")) == (
+        "RUT1_INPUT_COPY_RECEIPT_V1", phase, "COMPLETE")
+
+
+def _expected_target_entries(files: dict[str, str], phase: str) -> dict[str, str]:
+    expected = {}
+    for relative in files:
+        parts = PurePosixPath(relative).parts
+        for index in range(1, len(parts)):
+            expected.setdefault(PurePosixPath(*parts[:index]).as_posix(), "dir")
+        expected[relative] = "file"
+    if phase == "p2":
+        expected["alpaca-1m.RECEIPT.json"] = "file"
+    return expected
+
+
+def _move_without_overwrite(source: Tree, target: Tree,
+                            files: dict[str, str], phase: str) -> bool:
+    allowed = _expected_target_entries(files, phase)
+    for relative, kind in target.entries().items():
+        if relative not in allowed or allowed[relative] != kind:
+            return False
+    for relative, expected_digest in files.items():
+        existing = target.digest_existing(relative)
+        if existing is not None and existing != expected_digest:
+            return False
+    for relative, expected_digest in files.items():
+        if target.digest_existing(relative) is None:
+            target.install_from(source, relative, expected_digest)
     return True
 
 
-def _p2_receipt(target: Path) -> None:
+def _p2_receipt(target: Tree) -> None:
+    entries = target.entries()
     payload = {
         "schema": "ALPACA_1M_COPY_RECEIPT_V1", "result": "PASS",
         "copies": {
-            name: {"dataFiles": len(list((target / name).glob("*/2026-11.jsonl.gz")))}
+            name: {
+                "dataFiles": len([
+                    path for path, kind in entries.items()
+                    if kind == "file" and path.startswith(name + "/")
+                    and path.endswith("/2026-11.jsonl.gz")
+                ])
+            }
             for name in ("raw", "all")
         },
     }
-    _atomic_json(target / "alpaca-1m.RECEIPT.json", payload, 0o444)
+    target.atomic_json("alpaca-1m.RECEIPT.json", payload, 0o444)
 
 
 def _subprocess_runner(operation: forms.Operation) -> int:
-    return subprocess.run(operation.argv, check=False).returncode
+    return subprocess.run(
+        operation.argv,
+        check=False,
+        pass_fds=operation.pass_fds,
+    ).returncode
+
+
+def _bound_operation(operation: forms.Operation, stage_path: Path, stage: Tree):
+    """Bind a pull destination to a held directory descriptor."""
+    if operation.destination is None:
+        return operation, None
+    relative = operation.destination.relative_to(stage_path)
+    if operation.form_id == "R-16-SUMS":
+        destination_tree = Tree(os.dup(stage.fd))
+        bound_destination = Path(f"/proc/self/fd/{destination_tree.fd}") / relative.name
+    else:
+        destination_tree = stage.subtree(relative.as_posix(), create=True)
+        bound_destination = Path(f"/proc/self/fd/{destination_tree.fd}")
+    argv = list(operation.argv)
+    argv[-1] = str(bound_destination)
+    return replace(
+        operation,
+        argv=argv,
+        destination=bound_destination,
+        pass_fds=(destination_tree.fd,),
+    ), destination_tree
+
+
+def _status(root: Root, phase: str, code: int, result: str,
+            attempted: dt.datetime, *, success=False) -> None:
+    previous = root.read_json(STATUS_RELATIVE, {}) or {}
+    last_ok = attempted.isoformat() if success else previous.get("lastOkAt")
+    payload = {
+        "schema": "RUT1_INPUT_COPY_STATUS_V1",
+        "lastOkAt": last_ok,
+        "lastAttemptAt": attempted.isoformat(),
+        "phase": phase,
+        "result": result,
+        "rc": code,
+    }
+    root.atomic_json(STATUS_RELATIVE, payload)
+
+
+def _finish(root: Root, phase: str, code: int, reason: str, attempted: dt.datetime,
+            receipt: Path | None = None, plan=()) -> RunResult:
+    _status(root, phase, code, reason, attempted, success=(code == 0))
+    return RunResult(code, reason, receipt, plan)
+
+
+def _run_phase(phase: str, *, base: Path, root: Root, runner, clock,
+               free_bytes: int | None, run_id: str, rendered) -> RunResult:
+    stage_relative = _stage_relative(phase, run_id)
+    target_relative = _target_relative(phase)
+    stage_path = _stage(base, phase, run_id)
+    started = clock()
+    if started >= DEADLINES[phase]:
+        root.ensure_dir(stage_relative)
+        with root.tree(stage_relative) as stage:
+            _write_receipt(stage, phase, run_id, started, started, "ABORTED")
+        return _finish(
+            root, phase, 5, "DEADLINE", started,
+            _receipt_path(base, stage_relative), rendered)
+    if _complete_receipt(root, target_relative, phase):
+        return _finish(
+            root, phase, 0, "ALREADY_COMPLETE", started,
+            _receipt_path(base, target_relative), rendered)
+    if free_bytes is None:
+        free_bytes = shutil.disk_usage(base).free
+    if free_bytes < MIN_FREE_AFTER_BYTES + EXPECTED_BYTES[phase]:
+        return _finish(root, phase, 3, "DISK_FLOOR", started, plan=rendered)
+
+    root.ensure_dir("data")
+    lock_fd = root.open_regular(
+        "data/rut1-input-copy.lock",
+        os.O_RDWR | os.O_CREAT,
+        create_parents=True,
+    )
+    try:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return _finish(root, phase, 75, "LOCKED", clock(), plan=rendered)
+        root.ensure_dir(stage_relative)
+        with root.tree(stage_relative) as stage:
+            for operation in forms.build_plan(phase, stage_path):
+                bound, destination_tree = _bound_operation(operation, stage_path, stage)
+                try:
+                    rc = runner(bound)
+                finally:
+                    if destination_tree is not None:
+                        destination_tree.close()
+                if rc == 126:
+                    ended = clock()
+                    _write_receipt(stage, phase, run_id, started, ended, "PARTIAL")
+                    return _finish(
+                        root, phase, 3, "GATE_REFUSED", ended,
+                        _receipt_path(base, stage_relative), rendered)
+                if rc != 0:
+                    ended = clock()
+                    _write_receipt(stage, phase, run_id, started, ended, "PARTIAL")
+                    return _finish(
+                        root, phase, 3, "PULL_REFUSED", ended,
+                        _receipt_path(base, stage_relative), rendered)
+                ended = clock()
+                if ended >= DEADLINES[phase]:
+                    _write_receipt(stage, phase, run_id, started, ended, "ABORTED")
+                    return _finish(
+                        root, phase, 5, "DEADLINE", ended,
+                        _receipt_path(base, stage_relative), rendered)
+            ended = clock()
+            try:
+                verified_files = verify.verify_tree(phase, stage)
+            except verify.VerificationError as exc:
+                reason = str(exc)
+                _write_receipt(stage, phase, run_id, started, ended, "PARTIAL")
+                code = 3 if reason == "APPLEDOUBLE_REFUSED" else 4
+                return _finish(
+                    root, phase, code, reason, ended,
+                    _receipt_path(base, stage_relative), rendered)
+            with root.tree(target_relative, create=True) as target:
+                if not _move_without_overwrite(stage, target, verified_files, phase):
+                    _write_receipt(stage, phase, run_id, started, ended, "CONFLICT")
+                    return _finish(
+                        root, phase, 4, "CONFLICT", ended,
+                        _receipt_path(base, stage_relative), rendered)
+                if phase == "p2":
+                    _p2_receipt(target)
+                _write_receipt(target, phase, run_id, started, ended, "COMPLETE")
+        return _finish(
+            root, phase, 0, "COMPLETE", ended,
+            _receipt_path(base, target_relative), rendered)
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            os.close(lock_fd)
 
 
 def run_phase(phase: str, *, base: Path = DEFAULT_BASE, runner=_subprocess_runner,
@@ -135,65 +280,27 @@ def run_phase(phase: str, *, base: Path = DEFAULT_BASE, runner=_subprocess_runne
         return RunResult(3, "INVALID_PHASE")
     base = Path(base)
     run_id = run_id or clock().strftime("%Y%m%dT%H%M%S%z")
-    stage = _stage(base, phase, run_id)
-    target = _target(base, phase)
-    plan = forms.build_plan(phase, stage if phase == "p1" else stage)
+    stage_path = _stage(base, phase, run_id)
+    plan = forms.build_plan(phase, stage_path)
     rendered = tuple(tuple(operation.argv) for operation in plan)
     if check:
         return RunResult(0, "PLAN", plan=rendered)
-
-    started = clock()
-    if started >= DEADLINES[phase]:
-        stage.mkdir(parents=True, exist_ok=True)
-        receipt = _write_staging_receipt(phase, run_id, started, started, "ABORTED", stage)
-        return RunResult(5, "DEADLINE", receipt, rendered)
-    existing = _complete_receipt(target, phase)
-    if existing:
-        return RunResult(0, "ALREADY_COMPLETE", existing, rendered)
-    if free_bytes is None:
-        free_bytes = shutil.disk_usage(base).free
-    if free_bytes < MIN_FREE_AFTER_BYTES + EXPECTED_BYTES[phase]:
-        return RunResult(3, "DISK_FLOOR", plan=rendered)
-
-    lock_path = base / "data" / "rut1-input-copy.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+") as lock:
-        try:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            return RunResult(75, "LOCKED", plan=rendered)
-        stage.mkdir(parents=True, exist_ok=True)
-        for operation in plan:
-            rc = runner(operation)
-            if rc == 126:
-                receipt = _write_staging_receipt(
-                    phase, run_id, started, clock(), "PARTIAL", stage)
-                return RunResult(3, "GATE_REFUSED", receipt, rendered)
-            if rc != 0:
-                receipt = _write_staging_receipt(
-                    phase, run_id, started, clock(), "PARTIAL", stage)
-                return RunResult(3, "PULL_REFUSED", receipt, rendered)
-            ended = clock()
-            if ended >= DEADLINES[phase]:
-                receipt = _write_staging_receipt(
-                    phase, run_id, started, ended, "ABORTED", stage)
-                return RunResult(5, "DEADLINE", receipt, rendered)
-        ended = clock()
-        try:
-            verify.verify_stage(phase, stage)
-        except verify.VerificationError as exc:
-            reason = str(exc)
-            result = "PARTIAL"
-            receipt = _write_staging_receipt(phase, run_id, started, ended, result, stage)
-            code = 3 if reason == "APPLEDOUBLE_REFUSED" else 4
-            return RunResult(code, reason, receipt, rendered)
-        if not _move_without_overwrite(stage, target):
-            receipt = _write_staging_receipt(phase, run_id, started, ended, "CONFLICT", stage)
-            return RunResult(4, "CONFLICT", receipt, rendered)
-        if phase == "p2":
-            _p2_receipt(target)
-        receipt = target / "RUT1_INPUT_COPY_RECEIPT_V1.json"
-        _atomic_json(receipt, _receipt_payload(phase, run_id, started, ended, "COMPLETE", target), 0o444)
-        _atomic_json(base / "research" / "rut1-input-copy.status.json",
-                     {"lastOkAt": ended.isoformat(), "rc": 0})
-        return RunResult(0, "COMPLETE", receipt, rendered)
+    try:
+        with Root(base) as root:
+            try:
+                return _run_phase(
+                    phase,
+                    base=base,
+                    root=root,
+                    runner=runner,
+                    clock=clock,
+                    free_bytes=free_bytes,
+                    run_id=run_id,
+                    rendered=rendered,
+                )
+            except Exception as exc:
+                reason = "UNSAFE_PATH" if isinstance(exc, UnsafePath) else f"UNEXPECTED:{type(exc).__name__}"
+                code = 4 if reason == "UNSAFE_PATH" else 3
+                return _finish(root, phase, code, reason, clock(), plan=rendered)
+    except (UnsafePath, OSError):
+        return RunResult(4, "UNSAFE_PATH", plan=rendered)

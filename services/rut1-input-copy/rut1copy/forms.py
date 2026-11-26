@@ -48,6 +48,7 @@ class Operation:
     gate_command: str
     argv: list[str]
     destination: Path | None
+    pass_fds: tuple[int, ...] = ()
 
 
 def _rsync(form_id: str, source: str, destination: Path,

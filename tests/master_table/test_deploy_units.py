@@ -3,6 +3,7 @@ import hashlib
 import shlex
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -74,6 +75,25 @@ class DeployUnitTests(unittest.TestCase):
         self.assertIn("PINS_NOT_SET", install)
         self.assertIn("JOIN_MAP", install)
         self.assertNotIn("systemctl enable --now", install)
+
+    def test_repointing_current_cannot_change_rendered_service_target(self):
+        template = (DEPLOY / "master-table.service").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as td:
+            code = Path(td) / "code"
+            reviewed = code / REVIEWED_SHA
+            other = code / ("d" * 40)
+            reviewed.mkdir(parents=True)
+            other.mkdir()
+            current = code / "current"
+            current.symlink_to(reviewed.name)
+            rendered = template.replace(
+                "/srv/research-lane/research-queue/code/", str(code) + "/"
+            ).replace(TOKEN, REVIEWED_SHA)
+            exec_start = next(line for line in rendered.splitlines() if line.startswith("ExecStart="))
+            current.unlink()
+            current.symlink_to(other.name)
+            self.assertIn(str(reviewed / "services" / "master-table"), exec_start)
+            self.assertNotIn(str(current), exec_start)
 
 
 if __name__ == "__main__":

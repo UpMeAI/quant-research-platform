@@ -1,5 +1,6 @@
 import pathlib
 import hashlib
+import tempfile
 import unittest
 
 
@@ -59,6 +60,25 @@ class UnitTest(unittest.TestCase):
             "SHA-256",
         ):
             self.assertIn(required, install)
+
+    def test_repointing_current_cannot_change_rendered_unit_target(self):
+        template = (ROOT / "deploy" / "rut1-input-copy" / "research-rut1-input-copy-p1.service").read_text()
+        with tempfile.TemporaryDirectory() as td:
+            code = pathlib.Path(td) / "code"
+            first = code / REVIEWED_SHA
+            second = code / ("c" * 40)
+            first.mkdir(parents=True)
+            second.mkdir()
+            current = code / "current"
+            current.symlink_to(first.name)
+            rendered = template.replace(
+                "/srv/research-lane/research-queue/code/", str(code) + "/"
+            ).replace(TOKEN, REVIEWED_SHA)
+            pinned = next(line for line in rendered.splitlines() if line.startswith("WorkingDirectory="))
+            current.unlink()
+            current.symlink_to(second.name)
+            self.assertEqual(f"WorkingDirectory={first}", pinned)
+            self.assertEqual(first, pathlib.Path(pinned.split("=", 1)[1]))
 
 
 if __name__ == "__main__":
