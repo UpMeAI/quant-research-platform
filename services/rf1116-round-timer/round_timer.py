@@ -167,6 +167,10 @@ class ModelGate:
         projection = {}
         for alias in sorted(self.config.expected_models):
             alias_pattern = re.compile(rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])")
+            declaration_pattern = re.compile(
+                rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])"
+                r"\s*(?:->|:|=)\s*([A-Za-z][A-Za-z0-9._-]*)"
+            )
             matches = []
             for record in records:
                 if not alias_pattern.search(record):
@@ -174,9 +178,10 @@ class ModelGate:
                 if len(alias_pattern.findall(record)) != 1:
                     raise ValueError("MODEL_MAPPING_AMBIGUOUS")
                 declarations = mapping_pattern.findall(record)
-                if len(declarations) != 1:
+                alias_declarations = declaration_pattern.findall(record)
+                if len(declarations) != 1 or len(alias_declarations) != 1:
                     raise ValueError("MODEL_MAPPING_UNPARSEABLE")
-                matches.append(declarations[0])
+                matches.append(alias_declarations[0])
             if len(matches) != 1:
                 raise ValueError("MODEL_MAPPING_NOT_UNIQUE")
             projection[alias] = matches[0]
