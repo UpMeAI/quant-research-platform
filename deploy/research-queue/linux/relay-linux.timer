@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the research queue relay every 15 minutes CST
+
+[Timer]
+OnCalendar=*-*-* *:00/15:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=20
+Unit=relay-linux.service
+
+[Install]
+WantedBy=timers.target
