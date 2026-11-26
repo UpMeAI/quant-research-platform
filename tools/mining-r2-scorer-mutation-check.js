@@ -253,7 +253,7 @@ const MUTANTS = [
   m('P06', 'exporter test clock requires the explicit test guard', DX, '[ -z "${R2EXP_NOW:-}" ] || [ "${R2EXP_TEST:-}" = 1 ] || { echo "R2EXP_NOW_REQUIRES_R2EXP_TEST" >&2; exit 2; }', 'true || { echo "R2EXP_NOW_REQUIRES_R2EXP_TEST" >&2; exit 2; }', [T_P3B_EXPORT]),
   m('P07', 'an arrival container older than 60 minutes alerts with exit 76', SH, 'if [ "$age" -gt 3600 ]; then', 'if [ "$age" -gt 360000000 ]; then', [T_P3B]),
   // P3 integration remediation V1: escaped suffix, torn-calendar, no-follow and prefix-validation guards.
-  m('R01', 'four-digit sequence suffixes are calendar-only', AD, "const suffix = table === 'calendar' ? CALENDAR_SEQUENCE_SUFFIXED : DATE_SUFFIXED;", 'const suffix = CALENDAR_SEQUENCE_SUFFIXED;', [T_P3R]),
+  m('R01', 'four-digit sequence suffixes are calendar-only', AD, "const suffix = table === 'calendar' ? CALENDAR_SUFFIXED : DATE_SUFFIXED;", 'const suffix = CALENDAR_SUFFIXED;', [T_P3R]),
   m('R02', 'calendar delta comparison excludes on-disk parts not yet in the chain', AV, '.filter((n) => allowedNames === null || allowedNames.has(n)).sort();', '.filter(() => true).sort();', [T_P3R]),
   m('R03', 'day-drop files are opened without following symlinks', AV, 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0) | (fs.constants.O_NOFOLLOW || 0);', 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0);', [T_P3R]),
   m('R04', 'the consistent chain prefix is verified before torn-tail truncation', AV, 'if (!finalTorn || !consistentPrefixOnDisk(dir, rows, expectedSegment, startAfter, anchors)) return invalid(\'PARSE\');', 'if (!finalTorn) return invalid(\'PARSE\');', [T_P3R]),
@@ -263,6 +263,7 @@ const MUTANTS = [
   m('R08', 'day-drop children are read relative to the held directory descriptor', AV, 'const anchoredDir = descriptorDirectoryOf(fd, opened);', 'const anchoredDir = dir;', [T_P3R]),
   m('R09', 'a changed arrival chain head remains part of rescore input identity', RN, '...(checked && checked.arrival_chain ? { arrival_chain_head: checked.arrival_chain.head_hash } : {})', '...{}', [T_SC], ['--test-name-pattern=R2R-4']),
   m('R10', 'torn-tail healing checks preceding rows against external anchors before truncation', AV, '    verifyAnchorsCore(rows, anchors);', '    // mutant: skip anchored-prefix validation', [T_P3R]),
+  m('R11', 'calendar input keeps its existing dated parts as well as sequence parts', AD, 'const CALENDAR_SUFFIXED = /^(?:_\\d{4}|_\\d{8})\\.csv$/;', 'const CALENDAR_SUFFIXED = /^_\\d{4}\\.csv$/;', [T_P3R]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }

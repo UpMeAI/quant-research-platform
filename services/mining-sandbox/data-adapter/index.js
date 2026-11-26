@@ -40,6 +40,7 @@ const FILES = Object.freeze({
 const MODES = Object.freeze(['HISTORY', 'LIVE']);
 const DATE_SUFFIXED = /^_\d{8}\.csv$/;
 const CALENDAR_SEQUENCE_SUFFIXED = /^_\d{4}\.csv$/;
+const CALENDAR_SUFFIXED = /^(?:_\d{4}|_\d{8})\.csv$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const ACCEPTED_QUALITY = Object.freeze(['READY']);
 /**
@@ -167,7 +168,7 @@ function csvDirSource(dir, { mode, label, holdout = false } = {}) {
       if (!name) fail('TABLE_UNKNOWN', table);
       if (!fs.existsSync(path.join(dir, name))) fail('FILE_MISSING', `${label}:${name}`);
       const stem = name.slice(0, -'.csv'.length);
-      const suffix = table === 'calendar' ? CALENDAR_SEQUENCE_SUFFIXED : DATE_SUFFIXED;
+      const suffix = table === 'calendar' ? CALENDAR_SUFFIXED : DATE_SUFFIXED;
       const parts = [name, ...fs.readdirSync(dir).filter((n) => n.startsWith(stem) && suffix.test(n.slice(stem.length))).sort()];
       let rows = 0;
       for (const part of parts) {
