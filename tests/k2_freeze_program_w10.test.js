@@ -33,7 +33,16 @@ function proposed(layer = 'RISK') {
   if (layer === 'SELECTION_TIMING') {
     d.section0.mechanism_ids = [SEL];
     d.promotion_terms = { ...d.promotion_terms, layer: 'ALPHA', min_economic_value: fx.TERMS_STAR.by_layer.ALPHA.min_economic_value };
-  } else if (layer === 'RISK') d.section0.mechanism_ids = [RISK];
+  } else if (layer === 'RISK') {
+    d.section0.mechanism_ids = [RISK];
+    d.promotion_terms = {
+      ...d.promotion_terms,
+      layer: 'RISK',
+      min_economic_value: { metric: 'NON_INFERIORITY_D8', value: 0 },
+      thresholds: fx.TERMS_STAR.by_layer.RISK.thresholds,
+    };
+    fx.niDraftMut(0.2)(d);
+  }
   else if (layer === 'ACCOUNT') d.section0.mechanism_ids = [fx.MECH_OK];
   else {
     d.section0.mechanism_ids = [];
@@ -84,7 +93,7 @@ test('W10 layer overreach refusals have distinct exact V4 codes', () => {
 
   exact(proposed('ACCOUNT'), 'PREREG_LAYER_ACCOUNT_NOT_SUPPORTED');
 
-  const unsettled = proposed('SELECTION_TIMING'); unsettled.promotion_terms = fx.baseDraft().promotion_terms;
+  const unsettled = proposed('SELECTION_TIMING'); unsettled.promotion_terms = { ...fx.baseDraft().promotion_terms, layer: 'RISK' };
   exact(unsettled, 'PREREG_LAYER_PROMOTION_PAIR_UNSETTLED:SELECTION_TIMING:RISK');
 });
 
