@@ -90,6 +90,13 @@ const SHA64_RE = /^[0-9a-f]{64}$/;
 const now = () => new Date().toISOString();
 const inside = (p, root) => { const rel = path.relative(path.resolve(root), path.resolve(p)); return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel)); };
 
+/** Summarize the bases actually used by every deferred-seal table and field. */
+function anchorLabelOf(...groups) {
+  const bases = new Set(groups.flatMap((group) => Object.values(group || {}).map((entry) => entry && entry.anchor_basis).filter(Boolean)));
+  if (bases.size > 1) return 'MIXED';
+  return bases.size === 1 ? [...bases][0] : 'OWN_DAYS_MEDIAN';
+}
+
 let generatorOverride = null;
 let frozenInputs = FROZEN_INPUTS;
 
@@ -554,6 +561,14 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
   const openAll = [...cal.entries()].filter(([, v]) => v.open).map(([d]) => d).sort();
   const days = openAll.filter((d) => d >= seal.segment.from && d <= seal.segment.to);
   need(days.length, 'HOLDOUT_INCOMPLETE', 'trading_calendar.csv:no open day');
+  // The resolution freezes the exact open-day set, not only its endpoints. Use the canonical selector over the directory's own final calendar so an in-window revision cannot silently move scored sessions.
+  if (segment) {
+    const resolution = segmentResolution.resolutionOf(segment);
+    if (resolution) {
+      const finalDays = adapter.openDaysOf([src]).days.filter((d) => d >= resolution.window.from && d <= resolution.window.to);
+      need(sha256(finalDays.join('\n')) === resolution.window.days_sha256, 'HOLDOUT_INCOMPLETE', 'calendar_changed');
+    }
+  }
   // R2: the data arrived through the arrival program, so the whole chain must verify (a gap, an edit or an out-of-order day = MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID, no re-run;
   // days that have not arrived yet = MINE_RUNNER_HOLDOUT_INCOMPLETE:arrival:<day>). Before any row is read.
   // The chain head is also compared with the anchors in the lane ledger (rollback / rewrite); the strict gate additionally requires the head to be anchored (the anchor step ran for every row).
@@ -660,11 +675,13 @@ function holdoutDirCheck(dir, seal, { minNamesPerDay = HOLDOUT_FLOOR.min_names_p
     }
   }
   const { min_names_per_day: _d, ...rest } = HOLDOUT_FLOOR;
+  const anchor = deferredSeal ? anchorLabelOf(rowsPerDay, labelRowsPerDay, fieldStates) : null;
+  const usesR1Anchor = anchor === 'R1_OPEN_RECORD' || anchor === 'MIXED';
   return { calendar_to: last, open_days: days.length, trade_dates: { from: feedDays[0], to: feedDays[feedDays.length - 1], prior_sources: prior.map((s) => s.label) },
     rows_per_day: rowsPerDay, label_rows_per_day: labelRowsPerDay, field_states_per_day: fieldStates, floor: { min_names_per_day: minNamesPerDay, ...rest },
     field_floor: { ...HOLDOUT_FIELD_FLOOR, absolute_floor_fields: [...HOLDOUT_FIELD_FLOOR.absolute_floor_fields] },
     field_exclusions: fieldExclusions ? { sha256: fieldExclusions.sha256, ruling: fieldExclusions.ruling, pairs: fieldExclusions.pairs } : null, source: src,
-    ...(deferredSeal ? { seal_mode: 'DEFERRED_PENDING_SEAL', anchor: anchors ? 'R1_OPEN_RECORD' : 'OWN_DAYS_MEDIAN', anchor_record_hash: anchors ? anchors.open_record_hash : null } : {}),
+    ...(deferredSeal ? { seal_mode: 'DEFERRED_PENDING_SEAL', anchor, anchor_record_hash: usesR1Anchor && anchors ? anchors.open_record_hash : null } : {}),
     ...(arrival ? { arrival_chain: { rows: arrival.rows, head_seq: arrival.head_seq, head_hash: arrival.head_hash, last_day: arrival.last_day } } : {}) };
 }
 
@@ -986,5 +1003,5 @@ function withGenerator(gen, cb) { const prior = generatorOverride; generatorOver
 module.exports = {
   MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, HOLDOUT_FIELD_FLOOR, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
   priorSegmentReady, holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha, LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf,
-  probeLlm, assertResumeGenerator, assertHoldoutRef, resolveSegment, accessLogFile, internals: { notBeforeOf, datasetLabelOf, withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
+  probeLlm, assertResumeGenerator, assertHoldoutRef, resolveSegment, accessLogFile, internals: { notBeforeOf, datasetLabelOf, anchorLabelOf, withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
 };

@@ -33,7 +33,10 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 /** The row of a segment, or null. */
 function resolutionOf(segmentId) {
   const rows = read(LEDGER()).filter((r) => r.schema === SCHEMA && r.segment === segmentId);
-  return rows.length ? rows[0] : null;
+  if (!rows.length) return null;
+  const rec = rows[0];
+  need(SHA64.test(rec.record_hash || '') && trials.recordHash(rec) === rec.record_hash, 'MINE_SEGMENT_RESOLUTION_INVALID', 'record_hash');
+  return rec;
 }
 
 /**

@@ -89,9 +89,20 @@ llm_busy_check() {
 # rescore container runs. A docker ps that fails is "unknown", not "none running" (exit 74). Exit 75 = busy, try again later.
 docker_names() { local n; n="$(docker ps --format '{{.Names}}')" || { echo "run.sh: cannot list containers (docker ps failed); not starting" >&2; exit 74; }; printf '%s' "$n"; }
 arrival_busy_check() {
-  local n lock="$HOLDOUT/.arrival.lock"
+  local n lock="$HOLDOUT/.arrival.lock" started start_epoch current_epoch age
   n="$(docker_names)"
-  if printf '%s\n' "$n" | grep -qx 'rf1116-holdout-arrive'; then echo "run.sh: HOLDOUT_ARRIVAL_IN_PROGRESS (container rf1116-holdout-arrive is running)" >&2; exit 75; fi
+  if printf '%s\n' "$n" | grep -qx 'rf1116-holdout-arrive'; then
+    # An unreadable/racing StartedAt remains ordinary busy. Age is never permission to kill the only writer.
+    if started="$(docker inspect --format '{{.State.StartedAt}}' rf1116-holdout-arrive 2>/dev/null)" && [ -n "$started" ] \
+      && start_epoch="$(date -d "$started" +%s 2>/dev/null)" && current_epoch="$(date +%s 2>/dev/null)"; then
+      age=$(( current_epoch - start_epoch ))
+      if [ "$age" -gt 3600 ]; then
+        echo "run.sh: ALERT HOLDOUT_ARRIVAL_STUCK (container rf1116-holdout-arrive has run ${age}s, over 60 minutes; refusing without killing it)" >&2
+        exit 76
+      fi
+    fi
+    echo "run.sh: HOLDOUT_ARRIVAL_IN_PROGRESS (container rf1116-holdout-arrive is running)" >&2; exit 75
+  fi
   if [ -e "$lock" ] && [ -n "$(find "$lock" -mmin -30 2>/dev/null)" ]; then echo "run.sh: HOLDOUT_ARRIVAL_IN_PROGRESS ($lock is fresh)" >&2; exit 75; fi
 }
 score_busy_check() {

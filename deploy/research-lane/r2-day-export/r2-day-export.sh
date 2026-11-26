@@ -44,6 +44,11 @@ if [ -f "$ENV_FILE" ]; then set -a; . "$ENV_FILE"; set +a; fi
 : "${R2EXP_PG_CONTAINER:?R2EXP_PG_CONTAINER (the V6 Postgres container) is required}"
 : "${R2EXP_PG_USER:?R2EXP_PG_USER is required}"
 : "${R2EXP_PG_DB:?R2EXP_PG_DB is required}"
+for var in R2EXP_PG_CONTAINER R2EXP_PG_USER R2EXP_PG_DB; do
+  value="${!var}"
+  [[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || { echo "PG_IDENTIFIER_INVALID: $var" >&2; exit 2; }
+done
+[ -z "${R2EXP_NOW:-}" ] || [ "${R2EXP_TEST:-}" = 1 ] || { echo "R2EXP_NOW_REQUIRES_R2EXP_TEST" >&2; exit 2; }
 DROP_ROOT="${R2EXP_DROP_ROOT:-/srv/research-lane/rf1116-mining/holdout-daydrop}"
 # the clock: one place, so the tests can fix it
 now_epoch() { if [ -n "${R2EXP_NOW:-}" ]; then date -d "$R2EXP_NOW" +%s; else date +%s; fi; }
@@ -52,8 +57,13 @@ START_EPOCH="$(now_epoch)"
 TODAY="$(cst "$START_EPOCH" %F)"
 STALE_DAYS=3
 # the readiness probe is ONE file (ops-coord fills it with R2_DAY_EXPORT_READINESS_V2.sql byte-identical; the copy next to this script is that file)
-READY_SQL="${R2EXP_READY_SQL:-$HERE/R2_DAY_EXPORT_READINESS_V2.sql}"
+DEFAULT_READY_SQL="$HERE/R2_DAY_EXPORT_READINESS_V2.sql"
+READY_SQL="${R2EXP_READY_SQL:-$DEFAULT_READY_SQL}"
 [ -f "$READY_SQL" ] || { echo "PROBE_SQL_MISSING: $READY_SQL" >&2; exit 2; }
+if [ "$READY_SQL" != "$DEFAULT_READY_SQL" ]; then
+  probe_sha="$(sha256sum "$READY_SQL" | cut -d' ' -f1)"
+  [ "$probe_sha" = 57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582 ] || { echo "PROBE_SQL_SHA_MISMATCH: $READY_SQL" >&2; exit 2; }
+fi
 PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-1}"
 STEMS="prices_daily_stock market_daily_basic_observation_stock adjustment_factor_observation_stock security_master_stock security_suspension_observation security_suspension_day_coverage industry_membership_sw2021"
 
