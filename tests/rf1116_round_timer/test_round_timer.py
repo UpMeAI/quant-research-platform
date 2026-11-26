@@ -1,6 +1,8 @@
 import hashlib
 import importlib.util
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -71,6 +73,60 @@ class World:
         )
         values.update(kwargs)
         return timer.Config(**values)
+
+    def docker_stub_runner(self, outcome):
+        fake_bin = self.root / "fake-bin"
+        fake_bin.mkdir()
+        docker = fake_bin / "docker"
+        docker.write_text(
+            """#!/usr/bin/env python3
+import json
+import os
+import sys
+
+args = sys.argv[1:]
+if args and args[0] in {"ps", "stop"}:
+    raise SystemExit(0)
+if "llm-init" in args:
+    print(json.dumps({"command": "llm-init", "exchange": "/out/llm-exchange", "withdrawn": 0}))
+    raise SystemExit(0)
+if "-d" in args:
+    print("0123456789abcdef" * 4)
+    raise SystemExit(0)
+if "generate" in args and "--generator" in args:
+    outcome = os.environ["Q148_FAKE_LLM_OUTCOME"]
+    print(json.dumps({
+        "round_id": None if outcome == "WAITING_KEY_ABSENT" else "R1",
+        "status": "WAITING",
+        "llm_state": outcome,
+        "ping": {"outcome": outcome, "raw_error": "FILE_ABSENT" if outcome == "WAITING_KEY_ABSENT" else None},
+    }))
+    raise SystemExit(75)
+raise SystemExit(0)
+""",
+            encoding="utf-8",
+        )
+        docker.chmod(0o755)
+        captured = []
+
+        def run(argv, env):
+            process = subprocess.run(
+                argv,
+                env={
+                    **os.environ,
+                    **env,
+                    "PATH": f"{fake_bin}{os.pathsep}{os.environ['PATH']}",
+                    "Q148_FAKE_LLM_OUTCOME": outcome,
+                },
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            result = timer.CommandResult(process.returncode, process.stdout, process.stderr)
+            captured.append(result)
+            return result
+
+        return run, captured
 
 
 class RoundTimerTests(unittest.TestCase):
@@ -183,6 +239,62 @@ class RoundTimerTests(unittest.TestCase):
         free["gib"] = 999
         self.assertEqual(supervisor.tick("2026-12:1")["state"], "DONE")
         self.assertEqual(runner.calls[1][0][-2:], ["resume-llm", "R1"])
+
+    def test_real_run_sh_prefixes_do_not_hide_rc75_round_identity(self):
+        w = World()
+        runner, captured = w.docker_stub_runner("WAITING_RATE_LIMITED")
+        real_run_sh = ROOT / "deploy" / "research-lane" / "round-runner" / "run.sh"
+        supervisor = timer.Supervisor(
+            w.config(run_sh=real_run_sh), runner=runner,
+            fetch=lambda url: w.model_sources[url], now=lambda: w.now,
+            disk_free=lambda _p: 999,
+        )
+
+        waiting = supervisor.tick("2026-12:1")
+
+        self.assertEqual(captured[0].rc, 75)
+        lines = captured[0].stdout.splitlines()
+        self.assertEqual(json.loads(lines[0])["command"], "llm-init")
+        self.assertRegex(lines[1], r"^[0-9a-f]{64}$")
+        self.assertEqual(json.loads(lines[2])["llm_state"], "WAITING_RATE_LIMITED")
+        self.assertEqual(waiting["state"], "WAITING_RETRY")
+        self.assertEqual(waiting["detail"]["code"], "WAITING_RATE_LIMITED")
+        self.assertEqual(waiting["detail"]["round_id"], "R1")
+
+    def test_starting_with_round_id_recovers_by_resuming_same_round(self):
+        w = World()
+        runner = FakeRunner(timer.CommandResult(0, '{"round_id":"R1","status":"CAP_REACHED"}\n'))
+        supervisor = timer.Supervisor(
+            w.config(), runner=runner, fetch=lambda url: w.model_sources[url],
+            now=lambda: w.now, disk_free=lambda _p: 999,
+        )
+        supervisor._transition("2026-12:1", "STARTING", {"resume": True, "round_id": "R1"})
+
+        recovered = supervisor.tick("2026-12:1")
+
+        self.assertEqual(recovered["state"], "DONE")
+        self.assertEqual(recovered["detail"]["round_id"], "R1")
+        self.assertEqual(runner.calls[0][0][-2:], ["resume-llm", "R1"])
+
+    def test_key_file_absent_from_real_run_sh_is_alerted_without_retry(self):
+        w = World()
+        runner, captured = w.docker_stub_runner("WAITING_KEY_ABSENT")
+        real_run_sh = ROOT / "deploy" / "research-lane" / "round-runner" / "run.sh"
+        supervisor = timer.Supervisor(
+            w.config(run_sh=real_run_sh), runner=runner,
+            fetch=lambda url: w.model_sources[url], now=lambda: w.now,
+            disk_free=lambda _p: 999,
+        )
+
+        stopped = supervisor.tick("2026-12:1")
+
+        self.assertEqual(captured[0].rc, 75)
+        self.assertIn('"raw_error": "FILE_ABSENT"', captured[0].stdout)
+        self.assertEqual(stopped["state"], "STOPPED_WAITING_KEY_ABSENT")
+        self.assertEqual(stopped["detail"]["round_id"], None)
+        self.assertEqual(json.loads((w.state / "alert_status.json").read_text())["active"][0]["code"], "WAITING_KEY_ABSENT")
+        self.assertEqual(supervisor.tick("2026-12:1"), stopped)
+        self.assertEqual(len(captured), 1)
 
     def test_uncertain_initial_start_is_stopped_instead_of_reopened(self):
         w = World()
