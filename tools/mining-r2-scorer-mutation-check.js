@@ -256,9 +256,13 @@ const MUTANTS = [
   m('R01', 'four-digit sequence suffixes are calendar-only', AD, "const suffix = table === 'calendar' ? CALENDAR_SEQUENCE_SUFFIXED : DATE_SUFFIXED;", 'const suffix = CALENDAR_SEQUENCE_SUFFIXED;', [T_P3R]),
   m('R02', 'calendar delta comparison excludes on-disk parts not yet in the chain', AV, '.filter((n) => allowedNames === null || allowedNames.has(n)).sort();', '.filter(() => true).sort();', [T_P3R]),
   m('R03', 'day-drop files are opened without following symlinks', AV, 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0) | (fs.constants.O_NOFOLLOW || 0);', 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0);', [T_P3R]),
-  m('R04', 'the consistent chain prefix is verified before torn-tail truncation', AV, 'if (!finalTorn || !consistentPrefixOnDisk(dir, rows)) return invalid(\'PARSE\');', 'if (!finalTorn) return invalid(\'PARSE\');', [T_P3R]),
+  m('R04', 'the consistent chain prefix is verified before torn-tail truncation', AV, 'if (!finalTorn || !consistentPrefixOnDisk(dir, rows, expectedSegment, startAfter, anchors)) return invalid(\'PARSE\');', 'if (!finalTorn) return invalid(\'PARSE\');', [T_P3R]),
   m('R05', 'dash-prefixed custom probe paths are operands, not sha256sum options', DX, 'probe_sha="$(sha256sum -- "$READY_SQL" | cut -d\' \' -f1)"', 'probe_sha="$(sha256sum "$READY_SQL" | cut -d\' \' -f1)"', [T_P3R]),
+  m('R06', 'the resolver records four-digit calendar sequence parts', RV, 'const CALENDAR_SEQUENCE_SUFFIXED = /^_\\d{4}\\.csv$/;', 'const CALENDAR_SEQUENCE_SUFFIXED = /^_\\d{8}\\.csv$/;', [T_P3R]),
+  m('R07', 'torn-tail healing requires the prefix segment to match', AV, 'row.schema !== SCHEMA || row.segment !== profile.segment) invalid', 'row.schema !== SCHEMA || false) invalid', [T_P3R]),
+  m('R08', 'day-drop children are read relative to the held directory descriptor', AV, 'const anchoredDir = descriptorDirectoryOf(fd, opened);', 'const anchoredDir = dir;', [T_P3R]),
   m('R09', 'a changed arrival chain head remains part of rescore input identity', RN, '...(checked && checked.arrival_chain ? { arrival_chain_head: checked.arrival_chain.head_hash } : {})', '...{}', [T_SC], ['--test-name-pattern=R2R-4']),
+  m('R10', 'torn-tail healing checks preceding rows against external anchors before truncation', AV, '    verifyAnchorsCore(rows, anchors);', '    // mutant: skip anchored-prefix validation', [T_P3R]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }

@@ -20,7 +20,7 @@ const sha256 = (b) => crypto.createHash('sha256').update(b).digest('hex');
 class SegmentResolveError extends Error {
   constructor(code, detail) { super(detail === undefined ? code : `${code}:${detail}`); this.code = code; this.detail = detail; }
 }
-const SUFFIXED = /^_\d{8}\.csv$/;
+const CALENDAR_SEQUENCE_SUFFIXED = /^_\d{4}\.csv$/;
 const stamp = () => new Date(Date.now() + 8 * 3600e3).toISOString().replace('Z', '+08:00');
 
 /**
@@ -56,7 +56,7 @@ function resolveSegment({ segmentId, dir, resolvedBy = 'round-runner', resolvedA
   const counted = cal.days.filter((d) => d >= w.from && d <= w.to);
   if (counted.length !== entry.length_trading_days) throw new SegmentResolveError('MINE_RUNNER_SEGMENT_COUNT', `${counted.length}`);
   const stem = 'trading_calendar';
-  const files = [`${stem}.csv`, ...fs.readdirSync(dir).filter((n) => n.startsWith(stem) && SUFFIXED.test(n.slice(stem.length))).sort()]
+  const files = [`${stem}.csv`, ...fs.readdirSync(dir).filter((n) => n.startsWith(stem) && CALENDAR_SEQUENCE_SUFFIXED.test(n.slice(stem.length))).sort()]
     .map((name) => ({ name, sha256: sha256(fs.readFileSync(path.join(dir, name))) }));
   const existing = resolution.resolutionOf(segmentId);
   const rec = resolution.record({

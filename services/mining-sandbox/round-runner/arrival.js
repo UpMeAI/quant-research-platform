@@ -85,6 +85,13 @@ function readRegularNoFollow(file) {
     return fs.readFileSync(fd);
   } finally { fs.closeSync(fd); }
 }
+function descriptorDirectoryOf(fd, opened) {
+  if (process.platform !== 'linux') throw Object.assign(new Error('descriptor-relative day-drop reads require Linux /proc'), { code: 'ENOTSUP' });
+  const anchored = `/proc/self/fd/${fd}`;
+  const linked = fs.statSync(anchored);
+  if (!linked.isDirectory() || linked.dev !== opened.dev || linked.ino !== opened.ino) throw new Error('directory descriptor anchor mismatch');
+  return anchored;
+}
 function withStableDirectory(dir, fn) {
   const fd = fs.openSync(dir, DIRECTORY_NOFOLLOW_FLAGS);
   try {
@@ -92,7 +99,8 @@ function withStableDirectory(dir, fn) {
     if (!opened.isDirectory()) throw new Error(`not a directory: ${dir}`);
     const before = fs.lstatSync(dir);
     if (!before.isDirectory() || before.dev !== opened.dev || before.ino !== opened.ino) throw new Error(`directory changed before read: ${dir}`);
-    const result = fn();
+    const anchoredDir = descriptorDirectoryOf(fd, opened);
+    const result = fn(anchoredDir);
     const after = fs.lstatSync(dir);
     if (!after.isDirectory() || after.dev !== opened.dev || after.ino !== opened.ino) throw new Error(`directory changed during read: ${dir}`);
     return result;
@@ -128,26 +136,103 @@ function truncateDurably(file, size) {
   try { fs.ftruncateSync(fd, size); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   fsyncDirectory(path.dirname(file));
 }
-function consistentPrefixOnDisk(dir, rows) {
-  try {
-    const sums = readSums(dir); const names = new Set(); let previous = null;
-    for (let i = 0; i < rows.length; i += 1) {
-      const row = rows[i];
-      if (!row || row.schema !== SCHEMA || row.seq !== i || row.prev_hash !== previous || !Array.isArray(row.files) || !row.files.length) return false;
-      const { record_hash: recordHash, ...body } = row;
-      if (recordHash !== rowHash(body)) return false;
-      for (const file of row.files) {
-        if (!file || typeof file.name !== 'string' || !/^[A-Za-z0-9_.-]+$/.test(file.name) || names.has(file.name)
-            || !/^[0-9a-f]{64}$/.test(file.sha256 || '') || sums.byName.get(file.name) !== file.sha256) return false;
-        names.add(file.name);
-        if (sha256(readRegularNoFollow(path.join(dir, file.name))) !== file.sha256) return false;
+function sameNames(actual, expected) {
+  return actual.size === expected.size && [...actual].every((name) => expected.has(name));
+}
+function verifyRowsCore(dir, rows, { profile, after, sums, sealed, tolerateUnchained = false }) {
+  const named = new Set();
+  const needsBase = (table) => !sealed.has(`${table.stem}.csv`);
+  rows.forEach((row, i) => {
+    if (!row || row.schema !== SCHEMA || row.segment !== profile.segment) invalid('SCHEMA', i);
+    if (row.seq !== i || row.prev_hash !== (i ? rows[i - 1].record_hash : null)) invalid('SEQ', i);
+    const { record_hash: recordHash, ...body } = row;
+    if (recordHash !== rowHash(body)) invalid('RECORD_HASH', i);
+    if (i === 0 && profile.calendarArrives && row.kind !== 'CALENDAR') invalid('SCHEMA', 'first row is not the calendar');
+    if (row.kind !== 'CALENDAR' && row.kind !== 'DAY') invalid('SCHEMA', `kind ${row.kind}`);
+    if (row.kind === 'CALENDAR' && !profile.calendarArrives) invalid('SCHEMA', 'a calendar row in a segment whose calendar was sealed');
+    if (!Array.isArray(row.files) || !row.files.length) invalid('SCHEMA', `files ${i}`);
+    for (const file of row.files) {
+      if (!file || typeof file.name !== 'string' || !/^[A-Za-z0-9_.-]+$/.test(file.name) || typeof file.sha256 !== 'string') invalid('SCHEMA', `file ${i}`);
+      if (named.has(file.name)) invalid('DUPLICATE', file.name);
+      named.add(file.name);
+      let bytes; try { bytes = readRegularNoFollow(path.join(dir, file.name)); } catch { invalid('FILE_SHA', file.name); }
+      if (sha256(bytes) !== file.sha256) invalid('FILE_SHA', file.name);
+      if (sums.byName.get(file.name) !== file.sha256) invalid('SUMS', file.name);
+    }
+    const fileNames = row.files.map((file) => file.name);
+    if (row.kind === 'CALENDAR') {
+      const expectedName = i === 0 ? `${CAL_STEM}.csv` : `${CAL_STEM}_${String(row.seq).padStart(4, '0')}.csv`;
+      const ok = fileNames.length === 1 && fileNames[0] === expectedName
+        && (i === 0 || CALENDAR_SEQUENCE_SUFFIX.test(fileNames[0].slice(CAL_STEM.length)));
+      if (!ok) invalid('FILE_NAME', fileNames.join(','));
+    } else {
+      if (!DATE.test(row.trade_date || '')) invalid('SCHEMA', `trade_date ${i}`);
+      if (!row.source || row.source.driver !== 'CSV_DAY_DROP') invalid('SCHEMA', `source ${i}: DAY rows come from CSV_DAY_DROP`);
+      if (!row.readiness || typeof row.readiness !== 'object' || !READY_VIA.includes(row.readiness.ready_via)
+          || row.readiness.probe_sha256 !== READINESS_PROBE_SHA256) invalid('SCHEMA', `readiness ${i}: pinned V2 probe required`);
+      if (!ISO_ST.test(row.window_from || '') || !ISO_ST.test(row.window_to || '') || !row.window_to.endsWith('T09:00:00+08:00')
+          || row.window_to.slice(0, 10) <= row.trade_date) invalid('SCHEMA', 'window');
+      const priorDay = rows.slice(0, i).filter((item) => item.kind === 'DAY').pop();
+      if (row.window_from !== (priorDay ? priorDay.window_to : profile.industryFrom)) invalid('WINDOW', `${row.trade_date}: ${row.window_from} does not continue the previous part`);
+      let expectedNames = 0;
+      for (const table of TABLES) {
+        const part = `${table.stem}_${compact(row.trade_date)}.csv`;
+        if (!fileNames.includes(part)) invalid('MISSING_TABLE', `${row.trade_date}:${table.stem}`);
+        const wantsBase = !priorDay && needsBase(table);
+        if (wantsBase !== fileNames.includes(`${table.stem}.csv`)) invalid('FILE_NAME', `${table.stem}.csv base file on ${priorDay ? 'a later day' : 'the first day where the sealed manifest has it'}`);
+        expectedNames += wantsBase ? 2 : 1;
       }
-      previous = recordHash;
+      if (fileNames.length !== expectedNames) invalid('FILE_NAME', fileNames.join(','));
+    }
+  });
+  const unchained = sums.entries.map((entry) => entry.name).filter((name) => !sealed.has(name) && !named.has(name));
+  if (unchained.length && !tolerateUnchained) invalid('UNCHAINED', unchained.join(','));
+  const calendar = openDaysOfDir(dir);
+  const dayRows = rows.filter((row) => row.kind === 'DAY');
+  const expected = expectedDaysOf(calendar.days, after);
+  dayRows.forEach((row, i) => {
+    if (row.trade_date !== expected[i]) invalid(expected[i] !== undefined && row.trade_date < expected[i] ? 'ORDER' : 'GAP', `${row.trade_date} vs ${expected[i]}`);
+  });
+  for (const row of dayRows) {
+    const nextOpen = calendar.days.find((day) => day > row.trade_date);
+    if (nextOpen && row.window_to.slice(0, 10) !== nextOpen) invalid('WINDOW', `${row.trade_date}: window_to ${row.window_to} is not 09:00+08 of the next open day ${nextOpen}`);
+  }
+  return { named, unchained, calendar, dayRows, expected };
+}
+function verifyAnchorsCore(rows, anchors, { requireAnchor = false } = {}) {
+  const anchored = (anchors || []).filter((anchor) => anchor && Number.isInteger(anchor.seq));
+  const maxAnchor = anchored.length ? Math.max(...anchored.map((anchor) => anchor.seq)) : -1;
+  if (rows.length - 1 < maxAnchor) invalid('ROLLBACK', `head seq ${rows.length - 1} is below the anchored seq ${maxAnchor}`);
+  for (const anchor of anchored) if (rows[anchor.seq].record_hash !== anchor.record_hash) invalid('REWRITE', `row ${anchor.seq} is not the anchored one`);
+  if (requireAnchor && rows.length - 1 > maxAnchor) invalid('UNANCHORED', `head seq ${rows.length - 1}, last anchored seq ${maxAnchor}`);
+}
+function crashTailNamesAreCoherent(rows, profile, sealed, unchained, nextDay) {
+  const actual = new Set(unchained);
+  const nextCalendar = rows.length === 0 ? `${CAL_STEM}.csv` : `${CAL_STEM}_${String(rows.length).padStart(4, '0')}.csv`;
+  if (profile.calendarArrives && sameNames(actual, new Set([nextCalendar]))) return true;
+  const dated = [...actual].map((name) => /_(\d{8})\.csv$/.exec(name)).filter(Boolean).map((match) => match[1]);
+  if (!nextDay || !dated.length || new Set(dated).size !== 1 || dated[0] !== compact(nextDay)) return false;
+  const expected = new Set(TABLES.map((table) => `${table.stem}_${dated[0]}.csv`));
+  if (!rows.some((row) => row.kind === 'DAY')) for (const table of TABLES) if (!sealed.has(`${table.stem}.csv`)) expected.add(`${table.stem}.csv`);
+  return sameNames(actual, expected);
+}
+function consistentPrefixOnDisk(dir, rows, expectedSegment, startAfter, anchors) {
+  try {
+    const profile = profileOf(expectedSegment || (rows[0] && rows[0].segment));
+    const sums = readSums(dir); const sealedFileNames = sealedNamesOf(dir);
+    if (!sealedFileNames && !profile.calendarArrives) return false;
+    const sealed = sealedFileNames || new Set([PENDING]);
+    const core = verifyRowsCore(dir, rows, { profile, after: startAfter || profile.startAfter, sums, sealed, tolerateUnchained: true });
+    verifyAnchorsCore(rows, anchors);
+    if (!crashTailNamesAreCoherent(rows, profile, sealed, core.unchained, core.expected[core.dayRows.length])) return false;
+    for (const name of core.unchained) {
+      const expectedSha = sums.byName.get(name);
+      if (!expectedSha || sha256(readRegularNoFollow(path.join(dir, name))) !== expectedSha) return false;
     }
     return true;
   } catch { return false; }
 }
-function chainRows(dir, { healFinalTorn = false } = {}) {
+function chainRows(dir, { healFinalTorn = false, expectedSegment = null, startAfter = null, anchors = null } = {}) {
   const f = path.join(dir, CHAIN_FILE);
   if (!fs.existsSync(f)) return null;
   const bytes = fs.readFileSync(f);
@@ -159,7 +244,7 @@ function chainRows(dir, { healFinalTorn = false } = {}) {
   for (let i = 0; i < lines.length; i += 1) {
     try { rows.push(JSON.parse(lines[i])); } catch {
       const finalTorn = healFinalTorn && !hasFinalNewline && i === lines.length - 1;
-      if (!finalTorn || !consistentPrefixOnDisk(dir, rows)) return invalid('PARSE');
+      if (!finalTorn || !consistentPrefixOnDisk(dir, rows, expectedSegment, startAfter, anchors)) return invalid('PARSE');
       truncateDurably(f, bytes.lastIndexOf(0x0a) + 1);
       return rows.length ? rows : null;
     }
@@ -215,78 +300,17 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
   const sealedFileNames = sealedNamesOf(dir);
   if (!sealedFileNames && !profile.calendarArrives) invalid('SUMS', 'no SHA256SUMS.sealed');
   const sealed = sealedFileNames || new Set([PENDING]);
-  const needsBase = (t) => !sealed.has(`${t.stem}.csv`); // a table the sealed manifest already lists keeps its sealed base file
-  const named = new Set();
-  rows.forEach((r, i) => {
-    if (!r || r.schema !== SCHEMA || r.segment !== profile.segment) invalid('SCHEMA', i);
-    if (r.seq !== i || r.prev_hash !== (i ? rows[i - 1].record_hash : null)) invalid('SEQ', i);
-    const { record_hash: h, ...body } = r;
-    if (h !== rowHash(body)) invalid('RECORD_HASH', i);
-    if (i === 0 && profile.calendarArrives && r.kind !== 'CALENDAR') invalid('SCHEMA', 'first row is not the calendar');
-    if (r.kind !== 'CALENDAR' && r.kind !== 'DAY') invalid('SCHEMA', `kind ${r.kind}`);
-    if (r.kind === 'CALENDAR' && !profile.calendarArrives) invalid('SCHEMA', 'a calendar row in a segment whose calendar was sealed');
-    if (!Array.isArray(r.files) || !r.files.length) invalid('SCHEMA', `files ${i}`);
-    for (const f of r.files) {
-      if (!f || typeof f.name !== 'string' || typeof f.sha256 !== 'string') invalid('SCHEMA', `file ${i}`);
-      if (named.has(f.name)) invalid('DUPLICATE', f.name);
-      named.add(f.name);
-      const full = path.join(dir, f.name);
-      let bytes; try { bytes = readRegularNoFollow(full); } catch { invalid('FILE_SHA', f.name); }
-      if (sha256(bytes) !== f.sha256) invalid('FILE_SHA', f.name);
-      if (sums.byName.get(f.name) !== f.sha256) invalid('SUMS', f.name);
-    }
-    const names = r.files.map((f) => f.name);
-    if (r.kind === 'CALENDAR') {
-      const expectedName = i === 0 ? `${CAL_STEM}.csv` : `${CAL_STEM}_${String(r.seq).padStart(4, '0')}.csv`;
-      const ok = names.length === 1 && names[0] === expectedName
-        && (i === 0 || CALENDAR_SEQUENCE_SUFFIX.test(names[0].slice(CAL_STEM.length)));
-      if (!ok) invalid('FILE_NAME', names.join(','));
-    } else {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(r.trade_date || '')) invalid('SCHEMA', `trade_date ${i}`);
-      if (!r.source || r.source.driver !== 'CSV_DAY_DROP') invalid('SCHEMA', `source ${i}: DAY rows come from CSV_DAY_DROP`);
-      if (!r.readiness || typeof r.readiness !== 'object' || !READY_VIA.includes(r.readiness.ready_via)
-          || r.readiness.probe_sha256 !== READINESS_PROBE_SHA256) invalid('SCHEMA', `readiness ${i}: pinned V2 probe required`);
-      // the industry window recorded in the row: contiguous with the previous DAY row (the first from the segment's industryFrom), upper bound 09:00+08 of a later date
-      if (!ISO_ST.test(r.window_from || '') || !ISO_ST.test(r.window_to || '') || !r.window_to.endsWith('T09:00:00+08:00') || r.window_to.slice(0, 10) <= r.trade_date) invalid('SCHEMA', `window `);
-      const prevDay = rows.slice(0, i).filter((x) => x.kind === 'DAY').pop();
-      if (r.window_from !== (prevDay ? prevDay.window_to : profile.industryFrom)) invalid('WINDOW', `${r.trade_date}: ${r.window_from} does not continue the previous part`);
-      const first = !rows.slice(0, i).some((x) => x.kind === 'DAY');
-      let expectedNames = 0;
-      for (const t of TABLES) {
-        const part = `${t.stem}_${compact(r.trade_date)}.csv`;
-        if (!names.includes(part)) invalid('MISSING_TABLE', `${r.trade_date}:${t.stem}`);
-        const wantsBase = first && needsBase(t);
-        if (wantsBase !== names.includes(`${t.stem}.csv`)) invalid('FILE_NAME', `${t.stem}.csv base file on ${first ? 'the first day where the sealed manifest has it' : 'a later day'}`);
-        expectedNames += wantsBase ? 2 : 1;
-      }
-      if (names.length !== expectedNames) invalid('FILE_NAME', names.join(','));
-    }
-  });
+  const core = verifyRowsCore(dir, rows, { profile, after, sums, sealed, tolerateUnchained });
   // the anchors (review 2026-11-23): the chain head was written to a lane ledger after every arrival. A head below the last anchor is a rollback; a row at an anchored seq with another hash is a rewrite
   // (a consistent rewrite of the last day, or of an earlier day with every later row re-chained, changes the hash the anchor holds). Strict mode also refuses rows beyond the last anchor.
-  const anchored = (anchors || []).filter((a) => a && Number.isInteger(a.seq));
-  const maxAnchor = anchored.length ? Math.max(...anchored.map((a) => a.seq)) : -1;
-  if (rows.length - 1 < maxAnchor) invalid('ROLLBACK', `head seq ${rows.length - 1} is below the anchored seq ${maxAnchor}`);
-  for (const a of anchored) if (rows[a.seq].record_hash !== a.record_hash) invalid('REWRITE', `row ${a.seq} is not the anchored one`);
-  if (requireAnchor && rows.length - 1 > maxAnchor) invalid('UNANCHORED', `head seq ${rows.length - 1}, last anchored seq ${maxAnchor}`);
-  const unchained = sums.entries.map((e) => e.name).filter((n) => !sealed.has(n) && !named.has(n));
-  if (unchained.length && !tolerateUnchained) invalid('UNCHAINED', unchained.join(','));
-  // days against the calendar of the directory
-  const cal = openDaysOfDir(dir);
-  const dayRows = rows.filter((r) => r.kind === 'DAY');
-  const expected = expectedDaysOf(cal.days, after);
-  dayRows.forEach((r, i) => {
-    if (r.trade_date !== expected[i]) invalid(expected[i] !== undefined && r.trade_date < expected[i] ? 'ORDER' : 'GAP', `${r.trade_date} vs ${expected[i]}`);
-  });
-  // with a calendar that knows a later open day, the upper bound is that day's 09:00+08
-  for (const r of dayRows) { const nx = cal.days.find((d) => d > r.trade_date); if (nx && r.window_to.slice(0, 10) !== nx) invalid('WINDOW', `${r.trade_date}: window_to ${r.window_to} is not 09:00+08 of the next open day ${nx}`); }
-  const days = dayRows.map((r) => r.trade_date);
+  verifyAnchorsCore(rows, anchors, { requireAnchor });
+  const days = core.dayRows.map((row) => row.trade_date);
   if (window) {
-    const need = cal.days.filter((d) => d >= window.from && d <= window.to && d > after); // days up to the sealed export's D1 (R1) are in the sealed files, not in the chain
+    const need = core.calendar.days.filter((d) => d >= window.from && d <= window.to && d > after); // days up to the sealed export's D1 (R1) are in the sealed files, not in the chain
     const missing = need.find((d) => !days.includes(d));
     if (missing !== undefined) throw new ArrivalError('MINE_RUNNER_HOLDOUT_INCOMPLETE', `arrival:${missing}`);
   }
-  return { rows: rows.length, head_seq: rows.length - 1, days, last_day: days.length ? days[days.length - 1] : null, head_hash: rows[rows.length - 1].record_hash, unchained };
+  return { rows: rows.length, head_seq: rows.length - 1, days, last_day: days.length ? days[days.length - 1] : null, head_hash: rows[rows.length - 1].record_hash, unchained: core.unchained };
 }
 
 // ── the arrival program ─────────────────────────────────────────────────────────────────────────
@@ -436,7 +460,7 @@ function arriveLocked({ dir, segment = 'R2', source, arrivedAt = null, day = nul
   const at = arrivedAt || stamp();
   if (!ARRIVED_AT.test(at) || !Number.isFinite(Date.parse(at))) fail('ARRIVED_AT', at);
   const srcRef = { driver: source.driver };
-  const existing = chainRows(dir, { healFinalTorn: true });
+  const existing = chainRows(dir, { healFinalTorn: true, expectedSegment: profile.segment, startAfter: after, anchors });
   if (existing) verifyChain(dir, { segment: profile.segment, startAfter: after, tolerateUnchained: true, anchors });
   const needsBase = (t) => !(sealed && sealed.has(`${t.stem}.csv`));
   // 1. the calendar (R2 only)
@@ -545,12 +569,12 @@ function csvDayDropSource(root) {
       const dir = path.join(root, compact(d));
       if (!fs.existsSync(dir)) return null;
       try {
-        return withStableDirectory(dir, () => {
+        return withStableDirectory(dir, (anchoredDir) => {
           const expected = [...TABLES.map((t) => `${t.stem}.csv`), READINESS_FILE];
-          const actual = fs.readdirSync(dir).sort();
+          const actual = fs.readdirSync(anchoredDir).sort();
           if (actual.length !== expected.length + 1 || !actual.includes('SHA256SUMS') || expected.some((n) => !actual.includes(n))) return null;
           const sums = new Map();
-          for (const line of readRegularNoFollow(path.join(dir, 'SHA256SUMS')).toString('utf8').split('\n').filter(Boolean)) {
+          for (const line of readRegularNoFollow(path.join(anchoredDir, 'SHA256SUMS')).toString('utf8').split('\n').filter(Boolean)) {
             const m = /^([0-9a-f]{64}) [ *]([^/]+)$/.exec(line);
             if (!m || sums.has(m[2])) return null;
             sums.set(m[2], m[1]);
@@ -558,7 +582,7 @@ function csvDayDropSource(root) {
           if (sums.size !== expected.length || expected.some((n) => !sums.has(n))) return null;
           const bytes = new Map();
           for (const name of expected) {
-            const value = readRegularNoFollow(path.join(dir, name));
+            const value = readRegularNoFollow(path.join(anchoredDir, name));
             if (sha256(value) !== sums.get(name)) return null;
             bytes.set(name, value);
           }

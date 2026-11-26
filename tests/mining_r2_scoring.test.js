@@ -219,6 +219,36 @@ test('RC1b R2 crash after the open: the one rescore uses the same resolved windo
   assert.equal(res().resolutionOf('R2').record_hash, rec.record_hash, 'the resolution row is untouched');
 });
 
+test('R2R-4 a changed verified arrival-chain head makes the real rescore path refuse INPUTS_CHANGED', () => {
+  const out = freshData();
+  prepareR1Ready();
+  const r = runner.requestRound({ generator: { mode: 'AI_MINED_GP', gp_seed: 2 }, cap: KNOWN.length, openedAt: '2026-12-01T20:50:00+08:00' });
+  const d = r2Dir();
+  anchorHead('R2', d.dir);
+  runner.sealHoldout({ roundId: r.round_id, dataRef: R2REF, dataSha256: d.sealSha });
+  runner.internals.withGenerator(knownGen, () => runner.generate({ roundId: r.round_id, sources: sources(), outDir: out, registeredBy: AUTH, coverageFloor: COV }));
+  runner.select({ roundId: r.round_id, sources: sources(), outDir: out });
+  reviewAll(r.round_id);
+  forgeResolution();
+  const args = { roundId: r.round_id, sources: srcs(), holdoutDir: d.dir, outDir: out, scoredAt: '2027-04-06T10:00:00+08:00', holdoutFloor: COV };
+  const originalVerify = arrival.verifyChain;
+  let head = sha('verified-head-1');
+  arrival.verifyChain = (dir, options) => {
+    const verified = originalVerify(dir, options);
+    return dir === d.dir ? { ...verified, head_hash: head } : verified;
+  };
+  try {
+    assert.throws(() => runner.internals.withFault('AFTER_OPEN', () => runner.scoreHoldout(args)), code(/MINE_RUNNER_TEST_FAULT/));
+    head = sha('verified-head-2');
+    assert.throws(() => runner.rescore({ ...args, reason: 'crash (synthetic)', log: 'x' }), (error) => {
+      assert.equal(error.code, 'MINE_HOLDOUT_RESCORE_INPUTS_CHANGED');
+      return true;
+    });
+    assert.equal(vault.rescoreLog(r.round_id).length, 0);
+    assert.equal(fs.existsSync(path.join(runDirOf(out, r.round_id), 'score.rescore.json')), false);
+  } finally { arrival.verifyChain = originalVerify; }
+});
+
 test('RC2 deferred seal: the R2 directory (pending line sealed, data appended) passes for a registry round; the same directory for an R1 round still fails the sealed-median anchor', () => {
   freshData();
   const d = r2Dir();
