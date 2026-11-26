@@ -182,6 +182,14 @@ class RoundTimerTests(unittest.TestCase):
             "https://pricing": b"deepseek-v4-pro: DeepSeek-V4-Pro-0813\ndeepseek-flash: DeepSeek-V4.1-Flash-1017\n",
         }
         cases = {
+            "declared_new_with_historical_expected": {
+                **canonical,
+                "https://updates": b"deepseek-v4-pro -> DeepSeek-V5 (previously DeepSeek-V4-Pro-0813)\ndeepseek-flash -> DeepSeek-V4.1-Flash-1017\n",
+            },
+            "declared_unknown_without_historical_expected": {
+                **canonical,
+                "https://updates": b"deepseek-v4-pro -> DeepSeek-Future-999\ndeepseek-flash -> DeepSeek-V4.1-Flash-1017\n",
+            },
             "swapped": {
                 **canonical,
                 "https://pricing": b"deepseek-v4-pro: DeepSeek-V4.1-Flash-1017\ndeepseek-flash: DeepSeek-V4-Pro-0813\n",
@@ -231,10 +239,10 @@ class RoundTimerTests(unittest.TestCase):
         backup.mkdir()
         with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_AUTHORITY_NOT_WRITABLE"):
             timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), writable_probe=lambda _p: False))
-        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_AUTHORITY_NOT_WRITABLE"):
+        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_DUAL_WRITABLE"):
             timer.validate_qrp_var(w.config(data_candidates=(w.var_root, backup), writable_probe=lambda p: p == backup))
         missing = w.root / "missing-linux-var"
-        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_AUTHORITY_NOT_WRITABLE"):
+        with self.assertRaisesRegex(timer.ConfigError, "QRP_VAR_DUAL_WRITABLE"):
             timer.validate_qrp_var(w.config(
                 var_root=missing, data_dir=missing / "ledger",
                 data_candidates=(missing, backup), writable_probe=lambda p: p == backup,
@@ -505,6 +513,8 @@ class RoundTimerTests(unittest.TestCase):
             "hash": lambda rows: rows[0].update(state="TAMPERED"),
             "shape": lambda rows: rows[0].update(schema="WRONG"),
             "json": None,
+            "invalid_utf8": None,
+            "json_array": None,
         }
         for kind, mutate in corruptions.items():
             with self.subTest(kind=kind):
@@ -514,6 +524,10 @@ class RoundTimerTests(unittest.TestCase):
                 ledger = w.state / "ledger.jsonl"
                 if kind == "json":
                     damaged = ledger.read_bytes() + b"{not-json}\n"
+                elif kind == "invalid_utf8":
+                    damaged = ledger.read_bytes() + b"\xff\n"
+                elif kind == "json_array":
+                    damaged = ledger.read_bytes() + b"[]\n"
                 else:
                     rows = [json.loads(line) for line in ledger.read_text().splitlines()]
                     mutate(rows)
