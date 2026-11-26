@@ -206,6 +206,10 @@ class RoundTimerTests(unittest.TestCase):
                 **canonical,
                 "https://updates": b"deepseek-v4-pro -> DeepSeek-V4-Pro-0813; replacement -> DeepSeek-V5\ndeepseek-flash -> DeepSeek-V4.1-Flash-1017\n",
             },
+            "replacement_is_not_the_alias_mapping": {
+                **canonical,
+                "https://updates": b"deepseek-v4-pro note; replacement -> DeepSeek-V4-Pro-0813\ndeepseek-flash -> DeepSeek-V4.1-Flash-1017\n",
+            },
         }
         for name, sources in cases.items():
             with self.subTest(name=name):
