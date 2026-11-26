@@ -160,6 +160,45 @@ class RoundTimerTests(unittest.TestCase):
         self.assertEqual(len(runner.calls), 3)
         self.assertEqual(runner.calls[1][0][-2:], ["resume-llm", "R1"])
 
+    def test_open_round_identity_survives_a_precondition_wait(self):
+        w = World()
+        waiting = timer.CommandResult(75, '{"round_id":"R1","status":"WAITING","llm_state":"WAITING_RATE_LIMITED"}\n')
+        runner = FakeRunner(waiting, timer.CommandResult(0, '{"round_id":"R1","status":"CAP_REACHED"}\n'))
+        free = {"gib": 999}
+        supervisor = timer.Supervisor(
+            w.config(disk_floor_gib=150), runner=runner,
+            fetch=lambda url: w.model_sources[url], now=lambda: w.now,
+            disk_free=lambda _p: free["gib"],
+        )
+        first = supervisor.tick("2026-12:1")
+        self.assertEqual(first["state"], "WAITING_RETRY")
+        self.assertEqual(first["detail"]["round_id"], "R1")
+
+        w.now += timedelta(hours=1)
+        free["gib"] = 149
+        blocked = supervisor.tick("2026-12:1")
+        self.assertEqual(blocked["state"], "WAITING_DISK_FLOOR")
+        self.assertEqual(blocked["detail"]["round_id"], "R1")
+
+        free["gib"] = 999
+        self.assertEqual(supervisor.tick("2026-12:1")["state"], "DONE")
+        self.assertEqual(runner.calls[1][0][-2:], ["resume-llm", "R1"])
+
+    def test_uncertain_initial_start_is_stopped_instead_of_reopened(self):
+        w = World()
+        runner = FakeRunner()
+        supervisor = timer.Supervisor(
+            w.config(), runner=runner, fetch=lambda url: w.model_sources[url],
+            now=lambda: w.now, disk_free=lambda _p: 999,
+        )
+        supervisor._transition("2026-12:1", "STARTING", {"resume": False})
+
+        recovered = supervisor.tick("2026-12:1")
+        self.assertEqual(recovered["state"], "STOPPED_UNCERTAIN_START")
+        self.assertEqual(runner.calls, [])
+        alerts = json.loads((w.state / "alert_status.json").read_text())
+        self.assertEqual(alerts["active"][0]["code"], "UNCERTAIN_START")
+
     def test_crashed_mid_call_settles_once_then_stops(self):
         w = World()
         crashed = timer.CommandResult(75, '{"round_id":"R1","status":"WAITING","llm_state":"WAITING_STEP_CRASHED_MID_CALL"}\n')
