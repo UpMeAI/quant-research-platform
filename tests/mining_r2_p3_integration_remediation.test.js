@@ -191,7 +191,7 @@ test('R2R-3 a rename-away, substitute, and restore race cannot supply day-drop c
   let swapped = false;
   fs.readdirSync = function patchedReaddir(target, ...args) {
     const listed = realReaddir.call(this, target, ...args);
-    if (!swapped && target === original.dir) {
+    if (!swapped) {
       fs.renameSync(original.dir, held);
       fs.renameSync(substitute.dir, original.dir);
       swapped = true;
