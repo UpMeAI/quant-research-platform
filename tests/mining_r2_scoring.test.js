@@ -29,6 +29,7 @@ const trials = require('../services/trial-ledger');
 const { R1, reviewAll } = require('./_mining_manifest');
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const PROBE_SHA = '57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582';
 const code = (re) => (e) => { assert.match(e.message, re); return true; };
 const fx = makeMiningDataFixture(fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2score-fx-')));
 const SPACE = runner.loadFrozenSpace().space;
@@ -61,7 +62,7 @@ function r2Dir({ thin = null, stopAfter = null } = {}) {
   const days = cal.filter((d) => d >= WINDOW.from && d <= WINDOW.to);
   const startAfter = cal[cal.indexOf(days[0]) - 1];
   const priorSums = [];
-  for (const d of days) { const dd = path.join(dropDir, d.replace(/-/g, '')); fs.mkdirSync(dd, { recursive: true }); fs.writeFileSync(path.join(dd, 'industry_membership_sw2021.csv'), `${INDUSTRY_HEADER}\n`); fs.writeFileSync(path.join(dd, 'READINESS.json'), `${JSON.stringify({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: d, probe_sha256: sha('probe-v2'), ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: '2027-04-01T21:15:00+08:00', window_from: d === days[0] ? '2027-01-01T00:00:00+08:00' : `${d}T09:00:00+08:00`, window_to: `${cal.find((x) => x > d) || new Date(Date.parse(`${d}T00:00:00Z`) + 3 * 864e5).toISOString().slice(0, 10)}T09:00:00+08:00` })}\n`); } // the seventh table: no new membership rows in the fixture window = a header-only part
+  for (const d of days) { const dd = path.join(dropDir, d.replace(/-/g, '')); fs.mkdirSync(dd, { recursive: true }); fs.writeFileSync(path.join(dd, 'industry_membership_sw2021.csv'), `${INDUSTRY_HEADER}\n`); fs.writeFileSync(path.join(dd, 'READINESS.json'), `${JSON.stringify({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: d, probe_sha256: PROBE_SHA, ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: '2027-04-01T21:15:00+08:00', window_from: d === days[0] ? '2027-01-01T00:00:00+08:00' : `${d}T09:00:00+08:00`, window_to: `${cal.find((x) => x > d) || new Date(Date.parse(`${d}T00:00:00Z`) + 3 * 864e5).toISOString().slice(0, 10)}T09:00:00+08:00` })}\n`); } // the seventh table: no new membership rows in the fixture window = a header-only part
   for (const t of arrival.TABLES.filter((x) => x.dateCol)) {
     const lines = fs.readFileSync(path.join(fx.dirs.holdout, `${t.stem}.csv`), 'utf8').split('\n').filter(Boolean);
     const idx = lines[0].split(',').indexOf(t.dateCol);
@@ -74,6 +75,11 @@ function r2Dir({ thin = null, stopAfter = null } = {}) {
     }
     const pb = Buffer.from(`${lines[0]}\n${before.length ? `${before.join('\n')}\n` : ''}`);
     fs.writeFileSync(path.join(priorDir, `${t.stem}.csv`), pb); priorSums.push(`${sha(pb)}  ${t.stem}.csv`);
+  }
+  for (const d of days) {
+    const dd = path.join(dropDir, d.replace(/-/g, ''));
+    const names = fs.readdirSync(dd).sort();
+    fs.writeFileSync(path.join(dd, 'SHA256SUMS'), `${names.map((name) => `${sha(fs.readFileSync(path.join(dd, name)))}  ${name}`).join('\n')}\n`);
   }
   const calBytes = fs.readFileSync(path.join(fx.dirs.holdout, 'trading_calendar.csv'));
   fs.writeFileSync(path.join(dropDir, 'trading_calendar.csv'), calBytes);
@@ -120,7 +126,9 @@ function realR1Chain({ anchor = true } = {}) {
     const rows = lines.slice(1).filter((l) => l.split(',')[idx] === day); fs.writeFileSync(path.join(dd, `${t.stem}.csv`), `${lines[0]}\n${rows.length ? `${rows.join('\n')}\n` : ''}`);
   }
   fs.writeFileSync(path.join(dd, 'industry_membership_sw2021.csv'), `${INDUSTRY_HEADER}\n`);
-  fs.writeFileSync(path.join(dd, 'READINESS.json'), `${JSON.stringify({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: sha('probe-v2'), ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${day}T16:00:00+08:00`, window_from: '2026-10-17T00:00:00+08:00', window_to: `${next}T09:00:00+08:00` })}\n`);
+  fs.writeFileSync(path.join(dd, 'READINESS.json'), `${JSON.stringify({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: PROBE_SHA, ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${day}T16:00:00+08:00`, window_from: '2026-10-17T00:00:00+08:00', window_to: `${next}T09:00:00+08:00` })}\n`);
+  const dayNames = fs.readdirSync(dd).sort();
+  fs.writeFileSync(path.join(dd, 'SHA256SUMS'), `${dayNames.map((name) => `${sha(fs.readFileSync(path.join(dd, name)))}  ${name}`).join('\n')}\n`);
   const got = arrival.arrive({ dir, segment: 'R1', source: arrival.csvDayDropSource(drop), arrivedAt: `${day}T20:30:00+08:00` }); assert.equal(got.status, 'ARRIVED');
   if (anchor) anchorHead('R1', dir); return dir;
 }
@@ -134,10 +142,12 @@ function prepareR1Ready({ anchor = true } = {}) {
 
 /** A resolution row written straight into the ledger (what resolveSegment writes for a real 2027 calendar, with the fixture's days as the window). */
 function forgeResolution(window = WINDOW, startAfter = currentStartAfter) {
+  const countedDays = adapter.openDaysOf([adapter.csvDirSource(fx.dirs.holdout, { mode: 'LIVE', label: 'resolution-calendar', holdout: true })]).days
+    .filter((day) => day >= window.from && day <= window.to);
   const body = { schema: 'HOLDOUT_SEGMENT_RESOLUTION_V1', segment: 'R2', market: 'CN_A',
     rule: { start_rule: 'FIRST_TRADING_DAY_AFTER', start_after: startAfter, length_trading_days: 54, freeze: require('../services/mining-rounds/holdout-segments').REGISTRY[1].freeze },
     calendar: { exchange: 'SSE', files: [{ name: 'trading_calendar.csv', sha256: sha('cal') }], sums_sha256: sha('sums'), rows_read: 10, last_date: window.to },
-    window: { from: window.from, to: window.to, days: 54, days_sha256: sha('days') }, resolved_at: '2027-01-20T10:00:00+08:00', resolved_by: 'TEST' };
+    window: { from: window.from, to: window.to, days: 54, days_sha256: sha(countedDays.join('\n')) }, resolved_at: '2027-01-20T10:00:00+08:00', resolved_by: 'TEST' };
   fs.mkdirSync(path.dirname(res().LEDGER()), { recursive: true });
   ledger.append(res().LEDGER(), { ...body, record_hash: trials.recordHash(body) });
   return res().resolutionOf('R2');

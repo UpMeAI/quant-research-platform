@@ -48,4 +48,3 @@ test('P3B-9 R2EXP_NOW is refused unless the explicit test guard is enabled', () 
   assert.equal(result.status, 2, result.stderr);
   assert.match(result.stderr, /R2EXP_NOW_REQUIRES_R2EXP_TEST/);
 });
-

@@ -115,4 +115,3 @@ test('P3B-13 an arrival container older than 60 minutes is an alerting exit 76 a
   assert.match(calls, /inspect/);
   assert.doesNotMatch(calls, /^(kill|stop|rm|restart)\b/m);
 });
-

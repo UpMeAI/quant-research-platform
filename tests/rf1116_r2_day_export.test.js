@@ -83,7 +83,7 @@ function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail
   fs.writeFileSync(path.join(bin, 'psql'), STUB, { mode: 0o755 }); fs.writeFileSync(path.join(bin, 'docker'), DOCKER_STUB, { mode: 0o755 });
   const drop = path.join(root, 'drop'); fs.mkdirSync(drop);
   const log = path.join(root, 'stub.log');
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, STUB_IND_ROWS: indRows, R2EXP_NOW: '2027-04-30T16:00:00+08:00' };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, STUB_IND_ROWS: indRows, R2EXP_NOW: '2027-04-30T16:00:00+08:00', R2EXP_TEST: '1' };
   const run = (args, extra = {}) => { const r = spawnSync('bash', [SH, ...args], { env: { ...env, ...extra }, encoding: 'utf8' }); return { status: r.status, out: r.stdout, err: r.stderr }; };
   const statements = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n----\n').filter(Boolean) : []);
   // start: the same run as a child process (for the tests that need two runs at once or a killed one)
@@ -393,13 +393,16 @@ test('DX15 industry windows partition the rows (plan-coord condition): the conca
   assert.equal(recs[recs.length - 1].window_to, '2027-01-04T09:00:00+08:00');
 });
 
-test('DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the V2 file next to the script): the file it names is the one run and its sha goes into the record; a missing file stops the run (exit 2)', () => {
+test('DX16 the readiness probe is ONE variable (R2EXP_READY_SQL, default the pinned V2 file next to the script): only a byte-identical override runs; changed or missing files stop the run (exit 2)', () => {
   const sb = sandbox({ ready: ['2026-11-18'] });
-  const other = path.join(sb.root, 'probe.sql'); fs.writeFileSync(other, `${fs.readFileSync(path.join(DIR, 'R2_DAY_EXPORT_READINESS_V2.sql'), 'utf8')}-- a different file\n`);
+  const other = path.join(sb.root, 'probe.sql'); fs.copyFileSync(path.join(DIR, 'R2_DAY_EXPORT_READINESS_V2.sql'), other);
   assert.equal(sb.run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_READY_SQL: other }).status, 0);
   const rec = JSON.parse(fs.readFileSync(path.join(dayDir(sb, 'R1', '2026-11-18'), 'READINESS.json'), 'utf8'));
   assert.equal(rec.probe_sha256, sha(fs.readFileSync(other)));
-  assert.ok(sb.statements().some((s) => s.includes('-- a different file') || s.includes('pipeline_completion')), 'the probe ran');
+  assert.ok(sb.statements().some((s) => s.includes('pipeline_completion')), 'the pinned probe ran');
+  const changed = path.join(sb.root, 'changed-probe.sql'); fs.writeFileSync(changed, `${fs.readFileSync(other, 'utf8')}-- changed\n`);
+  const mismatch = sandbox({ ready: ['2026-11-18'] }).run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_READY_SQL: changed });
+  assert.equal(mismatch.status, 2); assert.match(mismatch.err, /PROBE_SQL_SHA_MISMATCH/);
   const none = sandbox({ ready: ['2026-11-18'] }).run(['--segment', 'R1', '--day', '2026-11-18'], { R2EXP_READY_SQL: '/nonexistent/probe.sql' });
   assert.equal(none.status, 2); assert.match(none.err, /PROBE_SQL_MISSING/);
 });
@@ -415,7 +418,7 @@ test('DX17 the export SQL (export spec section 2, rev 5 change 2): one day per q
   const ind = sql('industry_membership_sw2021');
   assert.match(ind, /^SELECT record_id, security_id, industry_standard, industry_level, industry_code, industry_name, effective_from, effective_to, first_available_at, ingested_at, source_record_id, revision, schema_version, quality_state FROM industry_membership WHERE first_available_at >= TIMESTAMPTZ '2027-01-01 00:00:00\+08' AND first_available_at < TIMESTAMPTZ '2027-01-05 09:00:00\+08' ORDER BY security_id, industry_standard, industry_level, effective_from, revision$/);
   assert.ok(!/effective_from <=|effective_from >=|WHERE effective_from/.test(ind), 'no per-day effective_from cut');
-  assert.match(renderSql('trading_calendar', '', '', ''), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' ORDER BY calendar_date, exchange, revision DESC, first_available_at DESC$/);
+  assert.match(renderSql('trading_calendar', '', '', ''), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' AND quality_state = 'READY' ORDER BY calendar_date, exchange, first_available_at DESC, revision DESC$/);
   for (const t of A().TABLES) assert.ok(!/@[A-Z]+@/.test(sql(t.stem)), `${t.stem}: every placeholder is filled`);
 });
 

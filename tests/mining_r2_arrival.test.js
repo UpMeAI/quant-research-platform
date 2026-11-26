@@ -17,6 +17,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const PROBE_SHA = '57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582';
 const code = (re) => (e) => { assert.match(e.message, re); return true; };
 // lazy: on the base commit the module does not exist, so each test fails on its own assertion
 const A = () => require('../services/mining-sandbox/round-runner/arrival');
@@ -56,7 +57,7 @@ function dayTexts(day, { rows = 3, wrongDate = null, emptyPrices = false, header
 // the industry window of a day (plan-coord 2026-11-23): [previous part's upper bound, 09:00+08 of the next open day); the first day of a segment starts at the segment's lower bound
 const nextOpenOf = (day) => [...new Set([...R1_CAL_OPEN, ...OPEN])].sort().find((d) => d > day) || addDays(day, 3);
 const windowOfDay = (day) => ({ window_from: (day === '2026-11-18' || day === DAYS[0]) ? (day < '2027' ? '2026-10-17T00:00:00+08:00' : '2027-01-01T00:00:00+08:00') : `${day}T09:00:00+08:00`, window_to: `${nextOpenOf(day)}T09:00:00+08:00` });
-const readinessOf = (day) => ({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: sha('probe-v2'), ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${day}T16:00:00+08:00`, ...windowOfDay(day) });
+const readinessOf = (day) => ({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: PROBE_SHA, ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${day}T16:00:00+08:00`, ...windowOfDay(day) });
 /** A CSV_DAY_DROP root: calendar plus one directory per day (YYYYMMDD) with the six files. opts per day: { [day]: dayTexts options | null (not dropped yet) } */
 function dropRoot(days, opts = {}, { calendar = calendarCsv() } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-r2drop-'));
@@ -67,6 +68,8 @@ function dropRoot(days, opts = {}, { calendar = calendarCsv() } = {}) {
     for (const [stem, text] of Object.entries(dayTexts(day, opts[day] || {}))) fs.writeFileSync(path.join(dir, `${stem}.csv`), text);
     const rdOpt = (opts[day] || {}).readiness;
     if (rdOpt !== 'omit') fs.writeFileSync(path.join(dir, 'READINESS.json'), `${JSON.stringify({ ...readinessOf(day), ...(rdOpt || {}) })}\n`);
+    const names = fs.readdirSync(dir).sort();
+    fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${names.map((name) => `${sha(fs.readFileSync(path.join(dir, name)))}  ${name}`).join('\n')}\n`);
   }
   return root;
 }
@@ -275,7 +278,7 @@ test('AR7 verifyChain: a good chain passes; every kind of tampering is caught (e
   assert.doesNotThrow(() => A().verifyChain(good, { window: { from: DAYS[2], to: DAYS[3] } }), 'days outside the window are not the window');
 });
 
-test('AR8 the calendar can be updated later: new or changed rows arrive as a dated part (a calendar row of an already arrived day cannot close it)', () => {
+test('AR8 the calendar can be updated later: new or changed rows arrive as a sequence part (a calendar row of an already arrived day cannot close it)', () => {
   const dir = sealedDir(); const early = calendarCsv(DAYS[2]);
   const src1 = A().csvDayDropSource(dropRoot(DAYS.slice(0, 5), {}, { calendar: early }));
   drain(dir, src1);
@@ -284,8 +287,8 @@ test('AR8 the calendar can be updated later: new or changed rows arrive as a dat
   const r = A().arrive({ dir, source: src2, arrivedAt: '2027-01-08T20:30:00+08:00' });
   assert.deepEqual([r.status, r.kind], ['ARRIVED', 'CALENDAR']);
   const part = chainOf(dir).filter((x) => x.kind === 'CALENDAR')[1];
-  assert.deepEqual(part.files.map((f) => f.name), ['trading_calendar_20270108.csv']);
-  const text = fs.readFileSync(path.join(dir, 'trading_calendar_20270108.csv'), 'utf8').split('\n').filter(Boolean);
+  assert.deepEqual(part.files.map((f) => f.name), ['trading_calendar_0004.csv']);
+  const text = fs.readFileSync(path.join(dir, 'trading_calendar_0004.csv'), 'utf8').split('\n').filter(Boolean);
   assert.equal(text[0], CAL_COLS);
   assert.ok(text.length > 1 && text.slice(1).every((l) => l.split(',')[0] > DAYS[2]), 'only the rows that were not there');
   drain(dir, src2);
@@ -300,8 +303,8 @@ test('AR8 the calendar can be updated later: new or changed rows arrive as a dat
   assert.deepEqual(snapshot(dir), snap);
   // and a calendar part nobody chained is caught by the verifier
   const t = `${CAL_COLS}\n${DAYS[1]},A_SHARE,SSE,f,,2027-01-09 08:00:00+08,2027-01-09 08:00:00+08,cal:${DAYS[1]}:2,2,synthetic-v1,READY\n`;
-  fs.writeFileSync(path.join(dir, 'trading_calendar_20270110.csv'), t);
-  fs.appendFileSync(path.join(dir, 'SHA256SUMS'), `${sha(t)}  trading_calendar_20270110.csv\n`);
+  fs.writeFileSync(path.join(dir, 'trading_calendar_9999.csv'), t);
+  fs.appendFileSync(path.join(dir, 'SHA256SUMS'), `${sha(t)}  trading_calendar_9999.csv\n`);
   assert.throws(() => A().verifyChain(dir), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:UNCHAINED/));
 
 });
@@ -494,7 +497,7 @@ test('AR15 readiness (plan-coord condition iii): the exporter\'s READINESS.json 
   drain(dir, src);
   const rows = chainOf(dir).filter((r) => r.kind === 'DAY');
   assert.equal(rows.length, 3);
-  assert.deepEqual([rows[0].readiness.ready_via, rows[0].readiness.n_prices, rows[0].readiness.n_cov, rows[0].readiness.probe_sha256], ['POST_CLOSE_D', 5260, 1, sha('probe-v2')]);
+  assert.deepEqual([rows[0].readiness.ready_via, rows[0].readiness.n_prices, rows[0].readiness.n_cov, rows[0].readiness.probe_sha256], ['POST_CLOSE_D', 5260, 1, PROBE_SHA]);
   assert.deepEqual([rows[1].readiness.ready_via, rows[1].readiness.n_prices], ['NEXT_PREMARKET', 5001]);
   assert.equal(rows[0].readiness.file_sha256, sha(fs.readFileSync(path.join(root, compact(DAYS[0]), 'READINESS.json'))));
   assert.ok(!fs.existsSync(path.join(dir, 'READINESS.json')) && !fs.readdirSync(dir).some((n) => n.includes('READINESS')), 'the record goes into the chain row, not into the directory');
@@ -532,6 +535,10 @@ test('AR15 readiness (plan-coord condition iii): the exporter\'s READINESS.json 
   assert.throws(() => A().verifyChain(badVia), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/));
   const nulled = mk(); rechain(nulled, (rs) => rs.map((r) => (r.kind === 'DAY' ? { ...r, readiness: null } : r)));
   assert.throws(() => A().verifyChain(nulled), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'a dropped day cannot lose its record');
+  const wrongSource = mk(); rechain(wrongSource, (rs) => rs.map((r) => (r.kind === 'DAY' ? { ...r, source: { driver: 'MANUAL' } } : r)));
+  assert.throws(() => A().verifyChain(wrongSource), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'a DAY row can only come from CSV_DAY_DROP');
+  const wrongProbe = mk(); rechain(wrongProbe, (rs) => rs.map((r) => (r.kind === 'DAY' ? { ...r, readiness: { ...r.readiness, probe_sha256: '0'.repeat(64) } } : r)));
+  assert.throws(() => A().verifyChain(wrongProbe), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'a DAY row is bound to the pinned V2 probe');
   const noWindow = mk(); rechain(noWindow, (rs) => rs.map((r) => { const { window_to, ...rest } = r; return rest; }));
   assert.throws(() => A().verifyChain(noWindow), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:SCHEMA/), 'the window is part of every DAY row');
   const gap = mk(); rechain(gap, (rs) => rs.map((r) => (r.kind === 'DAY' && r.seq === 2 ? { ...r, window_from: '2027-01-05T10:00:00+08:00' } : r)));

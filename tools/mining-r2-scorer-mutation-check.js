@@ -33,6 +33,9 @@ const AN = 'services/mining-rounds/arrival-anchor.js';
 const DX = 'deploy/research-lane/r2-day-export/r2-day-export.sh';
 const T_SC = 'tests/mining_r2_scoring.test.js';
 const T_RS = 'tests/mining_segment_resolution.test.js';
+const T_P3A = 'tests/mining_r2_p3a.test.js';
+const T_P3B = 'tests/mining_r2_p3b_integrity.test.js';
+const T_P3B_EXPORT = 'tests/rf1116_r2_p3b_hardening.test.js';
 const AV = 'services/mining-sandbox/round-runner/arrival.js';
 const m = (id, guard, file, find, replace, tests = TESTS) => ({ id, guard, file, find, replace, tests });
 const MUTANTS = [
@@ -231,6 +234,23 @@ const MUTANTS = [
   m('D45', 'export lock: a fresh lock is respected', DX, 'LOCK_STALE_S=3600', 'LOCK_STALE_S=0', [T_DX]),
   m('D46', 'export lock: released at exit', DX, "trap 'rmdir \"$LOCK_DIR\" 2>/dev/null || true' EXIT", ':', [T_DX]),
   m('D47', 'export lock: one export at a time', DX, 'if ! mkdir "$LOCK_DIR" 2>/dev/null; then\n  [ -d "$LOCK_DIR" ]', 'if false; then\n  [ -d "$LOCK_DIR" ]', [T_DX]),
+  // #157 P3-A: arrival, drop-manifest, calendar and manifest-count guards from review items 1-6, 10 and 12.
+  m('Q01', 'DAY readiness is bound to the pinned V2 probe', AV, "|| r.readiness.probe_sha256 !== READINESS_PROBE_SHA256) invalid('SCHEMA', `readiness ${i}: pinned V2 probe required`);", ") invalid('SCHEMA', `readiness ${i}: pinned V2 probe required`);", [T_P3A]),
+  m('Q02', 'only a final non-newline torn chain fragment is healable', AV, 'const finalTorn = healFinalTorn && !hasFinalNewline && i === lines.length - 1;', 'const finalTorn = false;', [T_P3A]),
+  m('Q03', 'calendar delta identity ignores ingested_at', AV, 'const semantic = { ...row }; delete semantic.ingested_at;', 'const semantic = { ...row };', [T_P3A]),
+  m('Q04', 'CSV_DAY_DROP verifies each listed file hash', AV, 'if (sha256(value) !== sums.get(name)) return null;', 'if (false) return null;', [T_P3A]),
+  m('Q05', 'calendar dates are validated before path-sensitive use', AD, "if (!DATE.test(r.calendar_date || '')) fail('CALENDAR_DATE_INVALID', r.calendar_date);", "if (false) fail('CALENDAR_DATE_INVALID', r.calendar_date);", [T_P3A]),
+  m('Q06', 'arrive-check requires a readable SHA256SUMS-backed calendar', AV, 'const cal = openDaysOfDir(dir); // also makes a missing or unreadable SHA256SUMS a hard error', 'const cal = { days: [] }; // mutant: silently treat unreadable as empty', [T_P3A]),
+  m('Q10', 'calendar export selects READY rows before latest availability and revision', 'deploy/research-lane/r2-day-export/sql/trading_calendar.sql', " AND quality_state = 'READY' ORDER BY calendar_date, exchange, first_available_at DESC, revision DESC", ' ORDER BY calendar_date, exchange, revision DESC, first_available_at DESC', [T_P3A]),
+  m('Q12', 'industry manifest counts deduplicate canonical memberships across sources', AD, 'if (!countedIndustry.has(countKey)) {', 'if (true) {', [T_P3A]),
+  // #157 P3-B: frozen-resolution integrity, aggregate anchor provenance, exporter input hardening and a non-destructive stuck-arrival alert.
+  m('P01', 'resolution reader verifies the canonical record hash', SR, "need(SHA64.test(rec.record_hash || '') && trials.recordHash(rec) === rec.record_hash, 'MINE_SEGMENT_RESOLUTION_INVALID', 'record_hash');", "need(true, 'MINE_SEGMENT_RESOLUTION_INVALID', 'record_hash');", [T_P3B]),
+  m('P02', 'holdout check binds the final canonical open-day set to the frozen resolution', RN, "need(sha256(finalDays.join('\\n')) === resolution.window.days_sha256, 'HOLDOUT_INCOMPLETE', 'calendar_changed');", "need(true, 'HOLDOUT_INCOMPLETE', 'calendar_changed');", [T_P3B]),
+  m('P03', 'aggregate anchor provenance reports mixed per-file bases', RN, "if (bases.size > 1) return 'MIXED';", "if (false) return 'MIXED';", [T_P3B]),
+  m('P04', 'exporter refuses unsafe container and database identifiers', DX, '[[ "$value" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || { echo "PG_IDENTIFIER_INVALID: $var" >&2; exit 2; }', '[ -n "$value" ] || { echo "PG_IDENTIFIER_INVALID: $var" >&2; exit 2; }', [T_P3B_EXPORT]),
+  m('P05', 'exporter accepts only the pinned readiness probe bytes', DX, '[ "$probe_sha" = 57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582 ] || { echo "PROBE_SQL_SHA_MISMATCH: $READY_SQL" >&2; exit 2; }', 'true || { echo "PROBE_SQL_SHA_MISMATCH: $READY_SQL" >&2; exit 2; }', [T_P3B_EXPORT]),
+  m('P06', 'exporter test clock requires the explicit test guard', DX, '[ -z "${R2EXP_NOW:-}" ] || [ "${R2EXP_TEST:-}" = 1 ] || { echo "R2EXP_NOW_REQUIRES_R2EXP_TEST" >&2; exit 2; }', 'true || { echo "R2EXP_NOW_REQUIRES_R2EXP_TEST" >&2; exit 2; }', [T_P3B_EXPORT]),
+  m('P07', 'an arrival container older than 60 minutes alerts with exit 76', SH, 'if [ "$age" -gt 3600 ]; then', 'if [ "$age" -gt 360000000 ]; then', [T_P3B]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }

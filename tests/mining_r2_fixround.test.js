@@ -18,6 +18,7 @@ const { spawn, spawnSync } = require('child_process');
 
 const ROOT = path.join(__dirname, '..');
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+const PROBE_SHA = '57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582';
 const code = (re) => (e) => { assert.match(e.message, re); return true; };
 const A = () => require('../services/mining-sandbox/round-runner/arrival');
 const ARR = path.join(ROOT, 'services/mining-sandbox/round-runner/arrival.js');
@@ -40,7 +41,7 @@ const HEADERS = {
 };
 const nextOpenOf = (day) => OPEN.find((d) => d > day) || addDays(day, 3);
 const windowOfDay = (day) => ({ window_from: day === DAYS[0] ? '2027-01-01T00:00:00+08:00' : `${day}T09:00:00+08:00`, window_to: `${nextOpenOf(day)}T09:00:00+08:00` });
-const readinessOf = (day) => ({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: sha('probe-v2'), ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${day}T16:00:00+08:00`, ...windowOfDay(day) });
+const readinessOf = (day) => ({ schema: 'R2_DAY_EXPORT_READINESS_RECORD_V1', trade_date: day, probe_sha256: PROBE_SHA, ready_via: 'POST_CLOSE_D', n_prices: 5260, n_basic: 5217, n_adj: 5229, n_cov: 1, probed_at: `${day}T16:00:00+08:00`, ...windowOfDay(day) });
 function dayTexts(day) {
   const ids = ['S01.SH', 'S02.SH', 'S03.SH']; const csv = (stem, lines) => `${HEADERS[stem]}\n${lines.length ? `${lines.join('\n')}\n` : ''}`;
   return {
@@ -60,6 +61,8 @@ function dropRoot(days, { calendar = calendarCsv() } = {}) {
     const dir = path.join(root, compact(day)); fs.mkdirSync(dir);
     for (const [stem, text] of Object.entries(dayTexts(day))) fs.writeFileSync(path.join(dir, `${stem}.csv`), text);
     fs.writeFileSync(path.join(dir, 'READINESS.json'), `${JSON.stringify(readinessOf(day))}\n`);
+    const names = fs.readdirSync(dir).sort();
+    fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${names.map((name) => `${sha(fs.readFileSync(path.join(dir, name)))}  ${name}`).join('\n')}\n`);
   }
   return root;
 }
