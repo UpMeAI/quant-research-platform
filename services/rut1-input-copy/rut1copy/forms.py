@@ -27,6 +27,7 @@ P2_ROOT = "/root/us-ssl-forward/research-data/alpaca-1m/"
 SERVER_PREFIX = "rsync --server --sender -logDtprce.iLsfxCIvu --safe-links . "
 
 DECISION_GATE_COMMAND = SERVER_PREFIX + DECISION_ROOT
+DECISION_SUMS_COMMAND = "ops:rut1-decision-sums --from 2026-11-10 --to 2026-11-27"
 FILLS_EXPORT_COMMAND = "ops:us-v5-fills-e3 --from 2026-11-10 --to 2026-11-27"
 FILLS_READ_GATE_COMMAND = SERVER_PREFIX + FILLS_ROOT
 P2_RAW_GATE_COMMAND = SERVER_PREFIX + P2_ROOT + "raw/"
@@ -61,6 +62,17 @@ def _rsync(form_id: str, source: str, destination: Path,
     return Operation(form_id, command, argv, destination)
 
 
+def _remote(form_id: str, command: str) -> Operation:
+    return Operation(
+        form_id, command,
+        ["/usr/bin/ssh", "-i", "/home/kayla/.ssh/id_ed25519_linux_hk",
+         "-o", "IdentitiesOnly=yes", "-o",
+         "UserKnownHostsFile=/home/kayla/.ssh/known_hosts_hk", "-o",
+         "StrictHostKeyChecking=yes", _HOST, command],
+        None,
+    )
+
+
 def build_p1_plan(stage: Path, *, days=TRADING_DAYS) -> list[Operation]:
     days = tuple(days)
     if any(day not in TRADING_DAYS for day in days):
@@ -72,6 +84,7 @@ def build_p1_plan(stage: Path, *, days=TRADING_DAYS) -> list[Operation]:
         )
         for day in days
     ]
+    operations.append(_remote("R-05-PREP", DECISION_SUMS_COMMAND))
     operations.append(_rsync(
         "R-05", DECISION_ROOT, stage / "decision-inputs" / "us-v5",
         filters=(
@@ -80,14 +93,7 @@ def build_p1_plan(stage: Path, *, days=TRADING_DAYS) -> list[Operation]:
             "--exclude=*",
         ),
     ))
-    operations.append(Operation(
-        "R-06", FILLS_EXPORT_COMMAND,
-        ["/usr/bin/ssh", "-i", "/home/kayla/.ssh/id_ed25519_linux_hk",
-         "-o", "IdentitiesOnly=yes", "-o",
-         "UserKnownHostsFile=/home/kayla/.ssh/known_hosts_hk", "-o",
-         "StrictHostKeyChecking=yes", _HOST, FILLS_EXPORT_COMMAND],
-        None,
-    ))
+    operations.append(_remote("R-06", FILLS_EXPORT_COMMAND))
     operations.append(_rsync(
         "R-06-READ", FILLS_ROOT, stage / "fills",
         filters=("--include=US_V5_FILLS_E3_V2.json", "--include=SHA256SUMS", "--exclude=*"),
@@ -118,7 +124,7 @@ def build_plan(phase: str, stage: Path) -> list[Operation]:
 
 _ALLOWED = frozenset(
     [SERVER_PREFIX + US_1M_ROOT + day + "/" for day in TRADING_DAYS]
-    + [DECISION_GATE_COMMAND, FILLS_EXPORT_COMMAND, FILLS_READ_GATE_COMMAND,
+    + [DECISION_SUMS_COMMAND, DECISION_GATE_COMMAND, FILLS_EXPORT_COMMAND, FILLS_READ_GATE_COMMAND,
        P2_RAW_GATE_COMMAND, P2_ALL_GATE_COMMAND, P2_SUMS_GATE_COMMAND]
 )
 
