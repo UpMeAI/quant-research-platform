@@ -3,6 +3,10 @@
 Do not install until plan-coord has signed `JOIN_MAP_V1.proposed.json`, supplied
 its exact SHA-256 and accepted the #159 PR. Codex does not run these commands.
 
+The unit runs from the installed QRP tree at
+`/srv/research-lane/research-queue/code/current`. Installation must refuse if
+that path is missing or if it does not resolve to the exact reviewed QRP commit.
+
 1. Copy the signed config bundle into a new staging directory under
    `/srv/research-lane/master-table/config.next`. Verify it there with
    `sha256sum -c SHA256SUMS`; abort on any mismatch. Atomically rename it to the
