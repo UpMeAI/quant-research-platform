@@ -99,6 +99,7 @@ function main(argv) {
     }
     if (roundId) { accessLog.bind(runner.accessLogFile(outDir, roundId)); runner.noteResume({ roundId, coverageFloor: floor }); } // 续跑用的下限也写进台账
     if (!roundId) {
+      runner.assertHoldoutRef({ openedAt: o['opened-at'] || null, dataRef: o['holdout-ref'] }); // 引用点了另一段的封存目录 → 开轮之前拒（RF1116 第二段修订）
       const r = runner.requestRound({ generator, cap: o.cap === undefined ? undefined : Number(o.cap), openedAt: o['opened-at'] || null, coverageFloor: floor });
       roundId = r.round_id;
       accessLog.bind(runner.accessLogFile(outDir, roundId));

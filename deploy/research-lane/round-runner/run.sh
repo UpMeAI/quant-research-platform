@@ -28,6 +28,14 @@ KEY_FILE="/home/kayla/.config/qrp-research-key/deepseek-research.env"
 EXCHANGE="$OUT/llm-exchange"
 FACTOR_SERIES="$LANE/data/rf1116-cn-a-live-factor-series"
 HOLDOUT_REF="lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-from-20261019"
+# Holdout segment of this run (RF1116 R2 amendment; services/mining-rounds/holdout-segments.js). The default R1 is exactly the three lines above, unchanged.
+# The round's segment is chosen by the code from the month the round opens in; this switch only names the sealed directory and its ref, and the code refuses a ref
+# that names the other segment's directory before any round is opened (MINE_RUNNER_HOLDOUT_REF_MISMATCH). December rounds run with RF1116_HOLDOUT_SEGMENT=R2.
+case "${RF1116_HOLDOUT_SEGMENT:-R1}" in
+  R1) ;;
+  R2) HOLDOUT="$LANE/holdout-sealed/rf1116-cn-a-daily-holdout-r2"; HOLDOUT_REF="lane:rf1116-mining/holdout-sealed/rf1116-cn-a-daily-holdout-r2" ;;
+  *) echo "run.sh: unknown RF1116_HOLDOUT_SEGMENT: ${RF1116_HOLDOUT_SEGMENT} (R1 or R2)" >&2; exit 64 ;;
+esac
 AUTHORITY=RF1116_MINING_RUNNER
 
 # File arguments become absolute paths before they reach "-v": Docker reads a bare name ("verdicts.json") as a volume

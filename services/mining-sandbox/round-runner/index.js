@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const rounds = require('../../mining-rounds');
+const holdoutSegments = require('../../mining-rounds/holdout-segments');
 const vault = require('../../holdout-vault');
 const gateRecords = require('../../mining-rounds/gate-records');
 const spaceMod = require('../space');
@@ -139,7 +140,8 @@ function requestRound({ generator, cap = rounds.LIMITS.candidates_per_round, ope
   return rounds.openRound({
     market: MARKET, space: { space_ref: f.space.space_ref, sha256: f.space.sha256, freeze: f.freeze }, holding_periods: [...f.space.holding_periods],
     generator: isLlm ? { mode: 'AI_MINED_LLM', model: L.config.model.api_model, model_knowledge_cutoff: L.config.model.cutoff_used, llm: llmBlock(L) } : { mode: 'AI_MINED_GP', gp_seed: generator.gp_seed },
-    holdout: { from: segs.SEGMENTS.HOLDOUT.from, to: segs.SEGMENTS.HOLDOUT.to }, cap, openedAt: openedAt || undefined,
+    // 不给留出段窗口：登记表按开轮月份（北京时间）选段（2026-11 及以前 R1，2026-12 起 R2；mining-rounds/holdout-segments.js），选不到可用的段就不开轮
+    cap, openedAt: openedAt || undefined,
     data_checks: { coverage_floor: { min_names_per_day: coverageFloor.min_names_per_day, default: COVERAGE_FLOOR.min_names_per_day,
       overridden: coverageFloor.min_names_per_day !== COVERAGE_FLOOR.min_names_per_day } },
     // R1.2：引裁定页；验证折选择规则作为数据冻结进清单（轮中不改）
@@ -147,6 +149,20 @@ function requestRound({ generator, cap = rounds.LIMITS.candidates_per_round, ope
     selection_rule: JSON.parse(JSON.stringify(selector.RULE)),
   });
 }
+
+/**
+ * 开轮之前核封存的留出段引用：引用点名了另一段的封存目录（十二月的轮点了 R1 的目录，或反过来）→ MINE_RUNNER_HOLDOUT_REF_MISMATCH，在开轮之前拒，什么都不写。
+ * 不点名任何登记目录的引用（测试与合成数据用 'synthetic:holdout'）不受影响；段由月份决定（requestRound 同一规则），引用只是核对。
+ */
+function assertHoldoutRef({ openedAt = null, dataRef } = {}) {
+  const month = rounds.monthCst(openedAt || now());
+  const entry = holdoutSegments.entryForMonth(month, MARKET);
+  const owner = holdoutSegments.refOwner(dataRef);
+  if (entry && owner) need(owner.id === entry.id, 'HOLDOUT_REF_MISMATCH', `${month} uses ${entry.id}, the ref names ${owner.id}`);
+}
+
+/** 留出段的窗口没有解出来（R2 的终点 UNKNOWN / CALENDAR_NOT_PUBLISHED）→ 不读目录、不开启、不打分：MINE_RUNNER_HOLDOUT_SEGMENT_END_UNKNOWN。 */
+const assertWindowResolved = (r) => need(holdoutSegments.isResolved(r.holdout), 'HOLDOUT_SEGMENT_END_UNKNOWN', `${r.round_id}:${r.holdout.segment || ''}:${r.holdout.to}`);
 
 /** 续跑的生成方式要和轮次清单一致（GP 轮不能用大模型续，反过来也一样）。 */
 function assertResumeGenerator({ roundId, mode }) {
@@ -793,6 +809,7 @@ function scoreHoldout({ roundId, sources, holdoutDir, outDir, scoredAt = null, h
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
   need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
   need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
+  assertWindowResolved(r);
   if (accessLog) assertHoldoutDate(scoredAt); // W24：挖掘候选的留出段 2027-01-01T00:00+08:00 之前不读（RF1116）
   const p = prepareScoring({ roundId, sources, holdoutDir, outDir, holdoutFloor, factorSeriesDir, fieldExclusions });
   if (!p.selRow.selected.length) { writeJson(path.join(p.dir, 'score.json'), { schema: 'MINING_RUNNER_SCORE_V1', round_id: roundId, opened: false, records: [] }); return { opened: false, records: [] }; }
@@ -821,6 +838,7 @@ function rescore({ roundId, sources, holdoutDir, outDir, reason, log = '', score
   need(r.status !== 'FAILED_RESCORE', 'ROUND_FAILED_RESCORE', roundId);
   need(r.status !== 'FAILED_PARTIAL', 'ROUND_FAILED_PARTIAL', roundId);
   need(r.status !== 'FAILED_EVALUATION', 'ROUND_FAILED_EVALUATION', roundId);
+  assertWindowResolved(r);
   need(r.status === 'SCORING', 'ROUND_NOT_SCORING', `${roundId}:${r.status}`);
   const [open] = vault.openLog(roundId);
   need(open, 'ROUND_NOT_OPENED', roundId);
@@ -884,5 +902,5 @@ function withGenerator(gen, cb) { const prior = generatorOverride; generatorOver
 module.exports = {
   MARKET, RUNNER_ID, FROZEN_INPUTS, COVERAGE_FLOOR, HOLDOUT_FLOOR, HOLDOUT_TABLES, RunnerError, CANARY, HOLDOUT_FIELD_FLOOR, start, loadFrozenSpace, checkCoverage, checkCanary, requestRound, sealHoldout, generate, select,
   holdoutDirCheck, verifyHoldoutDir, loadFieldExclusions, FIELD_EXCLUSIONS_SCHEMA, scoreHoldout, rescore, noteResume, close, scoredAttempts, survivors, codeSha, LEGACY_LINEAR_RAW_V1_ROUNDS, neutralizationOf,
-  probeLlm, assertResumeGenerator, accessLogFile, internals: { withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
+  probeLlm, assertResumeGenerator, assertHoldoutRef, accessLogFile, internals: { withGenerator, withFrozenInputs, withFault, withLlmConfig, attemptId },
 };
