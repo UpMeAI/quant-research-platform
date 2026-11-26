@@ -23,15 +23,20 @@ function writeSums(dir, names) {
   fs.writeFileSync(path.join(dir, 'SHA256SUMS'), `${names.map((name) => `${sha(fs.readFileSync(path.join(dir, name)))}  ${name}`).join('\n')}\n`);
 }
 
-test('P3R-1 four-digit parts are calendar-only; ordinary table parts remain YYYYMMDD', () => {
+test('P3R-1 four-digit parts are calendar-only; calendar keeps dated parts and ordinary tables remain YYYYMMDD', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-p3r-suffix-'));
   const header = 'record_id,security_id,trade_date,open,close';
   fs.writeFileSync(path.join(dir, 'prices_daily_stock.csv'), `${header}\np0,S0.SH,2027-01-04,1,2\n`);
   fs.writeFileSync(path.join(dir, 'prices_daily_stock_0001.csv'), `${header}\np1,S1.SH,2027-01-05,1,2\n`);
-  writeSums(dir, ['prices_daily_stock.csv', 'prices_daily_stock_0001.csv']);
+  fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), cal(['2027-01-04']));
+  fs.writeFileSync(path.join(dir, 'trading_calendar_20270105.csv'), cal(['2027-01-05']));
+  writeSums(dir, ['prices_daily_stock.csv', 'prices_daily_stock_0001.csv', 'trading_calendar.csv', 'trading_calendar_20270105.csv']);
   const rows = [];
   adapter().csvDirSource(dir, { mode: 'LIVE', label: 'suffix' }).forEach('prices', (row) => rows.push(row.record_id));
   assert.deepEqual(rows, ['p0'], 'a calendar sequence suffix must not make an ordinary table part readable');
+  const dates = [];
+  adapter().csvDirSource(dir, { mode: 'LIVE', label: 'suffix' }).forEach('calendar', (row) => dates.push(row.calendar_date));
+  assert.deepEqual(dates, ['2027-01-04', '2027-01-05'], 'calendar keeps its existing dated-part compatibility');
 });
 
 function sealedDir() {
