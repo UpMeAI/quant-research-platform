@@ -13,6 +13,8 @@ const ROOT = path.join(__dirname, '..');
 const sha = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const arrival = () => require('../services/mining-sandbox/round-runner/arrival');
 const adapter = () => require('../services/mining-sandbox/data-adapter');
+const resolver = () => require('../services/mining-sandbox/round-runner/resolve-segment');
+const trials = require('../services/trial-ledger');
 const code = (re) => (error) => { assert.match(error.message, re); return true; };
 const CAL_HEADER = 'calendar_date,market,exchange,is_open,previous_open_date,first_available_at,ingested_at,source_record_id,revision,schema_version,quality_state';
 const cal = (days) => `${CAL_HEADER}\n${days.map((day) => `${day},A_SHARE,SSE,t,,2026-12-30 09:00:00+08,2026-12-30 12:00:00+08,cal:${day},1,synthetic-v1,READY`).join('\n')}\n`;
@@ -129,4 +131,78 @@ test('P3R-5 a byte-identical readiness probe whose relative name starts with das
   const result = spawnSync('bash', [path.join(ROOT, 'deploy/research-lane/r2-day-export/r2-day-export.sh'), '--segment', 'R1'], { cwd, env, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /OUTSIDE_SLOT/);
+});
+
+test('R2R-1 the resolver records four-digit calendar sequence parts that contributed to the window', () => {
+  process.env.QRP_PRODUCT_MILESTONE_AUTHORITY = 'TEST_P3_REMEDIATION_V2';
+  process.env.QRP_DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-p3r2-ledger-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-p3r2-resolve-'));
+  const days = Array.from({ length: 54 }, (_, i) => new Date(Date.UTC(2027, 0, 4 + i)).toISOString().slice(0, 10));
+  fs.writeFileSync(path.join(dir, 'trading_calendar.csv'), cal(days.slice(0, 27)));
+  fs.writeFileSync(path.join(dir, 'trading_calendar_0001.csv'), cal(days.slice(27)));
+  writeSums(dir, ['trading_calendar.csv', 'trading_calendar_0001.csv']);
+  const result = resolver().resolveSegment({ segmentId: 'R2', dir, resolvedBy: 'TEST', resolvedAt: '2027-03-01T10:00:00+08:00' });
+  assert.equal(result.status, 'RESOLVED');
+  assert.deepEqual(result.record.calendar.files.map((file) => file.name), ['trading_calendar.csv', 'trading_calendar_0001.csv']);
+});
+
+function tornAfterPrefixMutation(mutate) {
+  const { dir, second } = twoCalendarRows();
+  const chainFile = path.join(dir, arrival().CHAIN_FILE);
+  const rows = fs.readFileSync(chainFile, 'utf8').trimEnd().split('\n').map(JSON.parse);
+  const body = { ...rows[0] }; delete body.record_hash;
+  mutate(body);
+  rows[0] = { ...body, record_hash: trials.recordHash(body) };
+  const next = { ...rows[1], prev_hash: rows[0].record_hash }; delete next.record_hash;
+  rows[1] = { ...next, record_hash: trials.recordHash(next) };
+  const torn = Buffer.from(`${JSON.stringify(rows[0])}\n${JSON.stringify(rows[1]).slice(0, 29)}`);
+  fs.writeFileSync(chainFile, torn);
+  return { dir, second, chainFile, torn };
+}
+
+test('R2R-2 a semantically invalid but re-hashed prefix is refused before a torn tail is truncated', () => {
+  const { dir, second, chainFile, torn } = tornAfterPrefixMutation((row) => { row.segment = 'R9'; });
+  assert.throws(() => arrival().arrive({ dir, source: arrival().csvDayDropSource(second), arrivedAt: '2027-01-04T20:02:00+08:00' }), code(/MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID/));
+  assert.deepEqual(fs.readFileSync(chainFile), torn, 'semantic refusal must preserve the forensic torn bytes');
+});
+
+test('R2R-3 a rename-away, substitute, and restore race cannot supply day-drop child bytes', () => {
+  const original = validDayRoot();
+  const substitute = validDayRoot();
+  const substitutedPrices = Buffer.from(DAY_TABLES.prices_daily_stock.replace('p,S1.SH', 'attacker,S9.SH'));
+  fs.writeFileSync(path.join(substitute.dir, 'prices_daily_stock.csv'), substitutedPrices);
+  writeSums(substitute.dir, [...Object.keys(DAY_TABLES).map((stem) => `${stem}.csv`), 'READINESS.json']);
+  const held = `${original.dir}.held`;
+  const displaced = `${original.dir}.substitute`;
+  const realReaddir = fs.readdirSync;
+  const realOpen = fs.openSync;
+  let swapped = false;
+  fs.readdirSync = function patchedReaddir(target, ...args) {
+    const listed = realReaddir.call(this, target, ...args);
+    if (!swapped && target === original.dir) {
+      fs.renameSync(original.dir, held);
+      fs.renameSync(substitute.dir, original.dir);
+      swapped = true;
+    }
+    return listed;
+  };
+  fs.openSync = function patchedOpen(target, ...args) {
+    const fd = realOpen.call(this, target, ...args);
+    if (swapped && target === path.join(original.dir, 'READINESS.json')) {
+      fs.renameSync(original.dir, displaced);
+      fs.renameSync(held, original.dir);
+      swapped = false;
+    }
+    return fd;
+  };
+  try {
+    assert.equal(arrival().csvDayDropSource(original.root).day('2027-01-04'), null);
+  } finally {
+    fs.readdirSync = realReaddir;
+    fs.openSync = realOpen;
+    if (swapped) {
+      fs.renameSync(original.dir, displaced);
+      fs.renameSync(held, original.dir);
+    }
+  }
 });

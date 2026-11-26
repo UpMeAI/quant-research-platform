@@ -38,7 +38,7 @@ const T_P3B = 'tests/mining_r2_p3b_integrity.test.js';
 const T_P3B_EXPORT = 'tests/rf1116_r2_p3b_hardening.test.js';
 const T_P3R = 'tests/mining_r2_p3_integration_remediation.test.js';
 const AV = 'services/mining-sandbox/round-runner/arrival.js';
-const m = (id, guard, file, find, replace, tests = TESTS) => ({ id, guard, file, find, replace, tests });
+const m = (id, guard, file, find, replace, tests = TESTS, testArgs = []) => ({ id, guard, file, find, replace, tests, testArgs });
 const MUTANTS = [
   m('M01', 'only rule-defined segments are resolvable', SR, "need(entry && entry.start, 'MINE_SEGMENT_RESOLUTION_NOT_RESOLVABLE'", "need(entry, 'MINE_SEGMENT_RESOLUTION_NOT_RESOLVABLE'"),
   m('M02', 'the window starts strictly after the rule date', SR, 'w.from <= w.to && w.from > entry.start.after', 'w.from <= w.to && w.from >= entry.start.after'),
@@ -258,11 +258,12 @@ const MUTANTS = [
   m('R03', 'day-drop files are opened without following symlinks', AV, 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0) | (fs.constants.O_NOFOLLOW || 0);', 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0);', [T_P3R]),
   m('R04', 'the consistent chain prefix is verified before torn-tail truncation', AV, 'if (!finalTorn || !consistentPrefixOnDisk(dir, rows)) return invalid(\'PARSE\');', 'if (!finalTorn) return invalid(\'PARSE\');', [T_P3R]),
   m('R05', 'dash-prefixed custom probe paths are operands, not sha256sum options', DX, 'probe_sha="$(sha256sum -- "$READY_SQL" | cut -d\' \' -f1)"', 'probe_sha="$(sha256sum "$READY_SQL" | cut -d\' \' -f1)"', [T_P3R]),
+  m('R09', 'a changed arrival chain head remains part of rescore input identity', RN, '...(checked && checked.arrival_chain ? { arrival_chain_head: checked.arrival_chain.head_hash } : {})', '...{}', [T_SC], ['--test-name-pattern=R2R-4']),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }
-function runTests(files) {
-  const r = spawnSync(process.execPath, ['--test', ...files], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'test', QRP_MUTATION_RUN: '1' }, maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60 * 1000 });
+function runTests(files, testArgs = []) {
+  const r = spawnSync(process.execPath, ['--test', ...testArgs, ...files], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, NODE_ENV: 'test', QRP_MUTATION_RUN: '1' }, maxBuffer: 64 * 1024 * 1024, timeout: 15 * 60 * 1000 });
   return { status: r.status, failing: listFailures(`${r.stdout || ''}\n${r.stderr || ''}`) };
 }
 const arg = (argv, k) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : null);
@@ -286,7 +287,7 @@ function main(argv) {
     const count = original.split(x.find).length - 1;
     if (count !== 1) { process.stderr.write(`${x.id}: find text occurs ${count} times in ${x.file}\n`); results.push({ id: x.id, guard: x.guard, file: x.file, result: 'BAD_MUTANT', occurrences: count }); continue; }
     let r;
-    try { fs.writeFileSync(abs, original.replace(x.find, () => x.replace)); r = runTests(x.tests); } finally { fs.writeFileSync(abs, original); }
+    try { fs.writeFileSync(abs, original.replace(x.find, () => x.replace)); r = runTests(x.tests, x.testArgs); } finally { fs.writeFileSync(abs, original); }
     const killed = r.status !== 0;
     results.push({ id: x.id, guard: x.guard, file: x.file, result: killed ? 'KILLED' : 'SURVIVED', failing: r.failing.slice(0, 3), head });
     process.stdout.write(`${x.id} ${killed ? 'KILLED  ' : 'SURVIVED'} ${x.guard}${killed ? `  <- ${r.failing[0] || `exit ${r.status}`}` : ''}\n`);
