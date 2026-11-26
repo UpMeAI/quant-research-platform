@@ -219,7 +219,7 @@ class Supervisor:
 
     def _execute(self, current):
         round_id = ((current or {}).get("detail") or {}).get("round_id")
-        if current and current["state"] in {"WAITING_RETRY", "WAITING_RETRY_LIMIT", "WAITING_SETTLE", "WAITING_BUSY"} and round_id:
+        if round_id:
             argv = [str(self.config.run_sh), "resume-llm", round_id]
         else:
             argv = [str(self.config.run_sh), "generate-llm", sha256_bytes(self.config.holdout_sums.read_bytes())]
@@ -241,6 +241,11 @@ class Supervisor:
         if not re.fullmatch(r"\d{4}-\d{2}:[12]", slot): raise ConfigError("SLOT_KEY_INVALID")
         current = self._current(slot)
         if current and (current["state"] == "DONE" or current["state"].startswith("STOPPED")): return current
+        current_round_id = ((current or {}).get("detail") or {}).get("round_id")
+        if current and current["state"] == "STARTING" and not current_round_id:
+            detail = {"prior_record_hash": current["record_hash"]}
+            self._alert(slot, "UNCERTAIN_START", detail)
+            return self._transition(slot, "STOPPED_UNCERTAIN_START", detail)
         today = self.now().astimezone(CST).date().isoformat()
         retry_count = len([row for row in self._rows() if row["slot"] == slot and row["state"] == "WAITING_RETRY" and row["at"][:10] == today])
         retry_after = ((current or {}).get("detail") or {}).get("retry_after")
@@ -249,8 +254,9 @@ class Supervisor:
         if current and current["state"] in {"WAITING_RETRY", "WAITING_RETRY_LIMIT"} and retry_count >= 3:
             return self._transition(slot, "WAITING_RETRY_LIMIT", {"round_id": current["detail"].get("round_id"), "attempts_today": retry_count})
         precondition = self._preconditions(slot)
-        if precondition: return self._transition(slot, precondition)
-        self._transition(slot, "STARTING", {"resume": bool(((current or {}).get("detail") or {}).get("round_id"))})
+        if precondition:
+            return self._transition(slot, precondition, {"round_id": current_round_id} if current_round_id else None)
+        self._transition(slot, "STARTING", {"resume": bool(current_round_id), "round_id": current_round_id})
         result = self._execute(current)
         output, refusal = first_json(result.stdout), first_json(result.stderr)
         outcome, error = output.get("llm_state"), refusal.get("error")
