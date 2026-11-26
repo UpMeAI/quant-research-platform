@@ -60,7 +60,16 @@ case "$sql" in
           loe=$(date -d "$lo" +%s); hie=$(date -d "$hi" +%s)
           while IFS=, read -r id sec std lvl eff fa; do [ -z "$id" ] && continue; e=$(date -d "$fa" +%s); if [ "$e" -ge "$loe" ] && [ "$e" -lt "$hie" ]; then echo "$id,$sec,$std,$lvl,$eff,$fa"; fi; done < "$STUB_IND_ROWS"
         fi;;
-      *"FROM canonical_calendar_observation "*) echo "calendar_date,market,exchange,is_open"; for o in $STUB_OPEN; do echo "$o,A_SHARE,SSE,t"; done;;
+      *"FROM canonical_calendar_observation "*)
+        if [ -n "$STUB_CALENDAR_REVISION_CASE" ]; then
+          echo "calendar_date,market,exchange,is_open,previous_open_date,first_available_at,ingested_at,source_record_id,revision,schema_version,quality_state"
+          case "$sql" in
+            *"quality_state = 'READY'"*"ORDER BY calendar_date, exchange, first_available_at DESC, revision DESC"*) echo "2027-01-04,A_SHARE,SSE,t,,2027-01-01 09:00:00+08,2027-01-01 09:01:00+08,cal:ready-late,1,v1,READY";;
+            *) echo "2027-01-04,A_SHARE,SSE,t,,2027-01-01 10:00:00+08,2027-01-01 10:01:00+08,cal:conflict-high-rev,9,v1,CONFLICT";;
+          esac
+        else
+          echo "calendar_date,market,exchange,is_open"; for o in $STUB_OPEN; do echo "$o,A_SHARE,SSE,t"; done
+        fi;;
     esac;;
   *"is_open"*"calendar_date"*) for o in $STUB_OPEN; do if [[ "$o" > "$lo" || "$o" == "$lo" ]] && [[ "$o" < "$hi" || "$o" == "$hi" ]]; then echo "$o"; fi; done;;
 esac
@@ -77,13 +86,13 @@ exec sh -c "$script" "$@"
 `;
 
 /** A sandbox: stub psql and docker on PATH, drop root, env. */
-function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail = '', sleep = '', indRows = '' } = {}) {
+function sandbox({ ready = [], open = OPEN, readonly = 'on', noPrices = '', fail = '', sleep = '', indRows = '', calendarRevision = '' } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-dayexp-'));
   const bin = path.join(root, 'bin'); fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'psql'), STUB, { mode: 0o755 }); fs.writeFileSync(path.join(bin, 'docker'), DOCKER_STUB, { mode: 0o755 });
   const drop = path.join(root, 'drop'); fs.mkdirSync(drop);
   const log = path.join(root, 'stub.log');
-  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, STUB_IND_ROWS: indRows, R2EXP_NOW: '2027-04-30T16:00:00+08:00', R2EXP_TEST: '1' };
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, R2EXP_PG_CONTAINER: 'pgc', R2EXP_PG_USER: 'u', R2EXP_PG_DB: 'd', DOCKER_LOG: path.join(root, 'docker.log'), STUB_FAIL: fail, STUB_SLEEP: sleep, R2EXP_DROP_ROOT: drop, R2EXP_ENV_FILE: '/nonexistent', STUB_LOG: log, STUB_READY: ready.join(' '), STUB_OPEN: open.join(' '), STUB_READONLY: readonly, STUB_NO_PRICES: noPrices, STUB_IND_ROWS: indRows, STUB_CALENDAR_REVISION_CASE: calendarRevision, R2EXP_NOW: '2027-04-30T16:00:00+08:00', R2EXP_TEST: '1' };
   const run = (args, extra = {}) => { const r = spawnSync('bash', [SH, ...args], { env: { ...env, ...extra }, encoding: 'utf8' }); return { status: r.status, out: r.stdout, err: r.stderr }; };
   const statements = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n----\n').filter(Boolean) : []);
   // start: the same run as a child process (for the tests that need two runs at once or a killed one)
@@ -420,6 +429,18 @@ test('DX17 the export SQL (export spec section 2, rev 5 change 2): one day per q
   assert.ok(!/effective_from <=|effective_from >=|WHERE effective_from/.test(ind), 'no per-day effective_from cut');
   assert.match(renderSql('trading_calendar', '', '', ''), /FROM canonical_calendar_observation WHERE calendar_date >= '2019-06-01' AND calendar_date <= '2027-12-31' AND quality_state = 'READY' ORDER BY calendar_date, exchange, first_available_at DESC, revision DESC$/);
   for (const t of A().TABLES) assert.ok(!/@[A-Z]+@/.test(sql(t.stem)), `${t.stem}: every placeholder is filled`);
+});
+
+test('DX17b the exporter psql path selects the latest READY calendar row, not a newer non-READY revision', () => {
+  const sb = sandbox({ ready: ['2027-01-04'], calendarRevision: '1' });
+  const result = sb.run(['--segment', 'R2', '--day', '2027-01-04']);
+  assert.equal(result.status, 0, result.err);
+  const calendar = fs.readFileSync(path.join(sb.drop, 'R2', 'trading_calendar.csv'), 'utf8');
+  assert.match(calendar, /cal:ready-late,1,v1,READY/);
+  assert.doesNotMatch(calendar, /cal:conflict-high-rev|CONFLICT/);
+  const sent = sb.statements().find((sql) => sql.startsWith('COPY (') && sql.includes('FROM canonical_calendar_observation'));
+  assert.match(sent, /quality_state = 'READY'/);
+  assert.match(sent, /ORDER BY calendar_date, exchange, first_available_at DESC, revision DESC/);
 });
 
 test('DX18 the "waiting more than 3 days" alert counts from the day\'s cutoff instant (09:00+08 of the next open day), never from the day itself: no exit 4 before the cutoff (R1\'s last day on 2027-01-04 08:30, a ten-day closure), and a day that is not ready 3 days after its cutoff is exit 4', () => {

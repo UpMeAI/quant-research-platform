@@ -76,16 +76,48 @@ const faultAt = (point) => { if (fault === point) fail('TEST_FAULT', point); };
 
 // ── SHA256SUMS and the chain ─────────────────────────────────────────────────────────────────────
 
+const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0) | (fs.constants.O_NOFOLLOW || 0);
+const DIRECTORY_NOFOLLOW_FLAGS = READ_NOFOLLOW_FLAGS | (fs.constants.O_DIRECTORY || 0);
+function readRegularNoFollow(file) {
+  const fd = fs.openSync(file, READ_NOFOLLOW_FLAGS);
+  try {
+    if (!fs.fstatSync(fd).isFile()) throw new Error(`not a regular file: ${file}`);
+    return fs.readFileSync(fd);
+  } finally { fs.closeSync(fd); }
+}
+function withStableDirectory(dir, fn) {
+  const fd = fs.openSync(dir, DIRECTORY_NOFOLLOW_FLAGS);
+  try {
+    const opened = fs.fstatSync(fd);
+    if (!opened.isDirectory()) throw new Error(`not a directory: ${dir}`);
+    const before = fs.lstatSync(dir);
+    if (!before.isDirectory() || before.dev !== opened.dev || before.ino !== opened.ino) throw new Error(`directory changed before read: ${dir}`);
+    const result = fn();
+    const after = fs.lstatSync(dir);
+    if (!after.isDirectory() || after.dev !== opened.dev || after.ino !== opened.ino) throw new Error(`directory changed during read: ${dir}`);
+    return result;
+  } finally { fs.closeSync(fd); }
+}
 function readSums(dir) {
   const f = path.join(dir, 'SHA256SUMS');
-  const lines = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').split('\n').filter(Boolean) : [];
-  const entries = lines.map((l) => { const m = /^([0-9a-f]{64}) [ *](.+)$/.exec(l); if (!m) invalid('SUMS', `line ${l.slice(0, 40)}`); return { sha: m[1], name: m[2], line: l }; });
+  let bytes;
+  try { bytes = readRegularNoFollow(f); } catch (error) {
+    if (error && error.code === 'ENOENT') bytes = Buffer.alloc(0);
+    else return invalid('SUMS', 'SHA256SUMS is not a readable regular file');
+  }
+  const lines = bytes.toString('utf8').split('\n').filter(Boolean);
+  const seen = new Set();
+  const entries = lines.map((l) => {
+    const m = /^([0-9a-f]{64}) [ *](.+)$/.exec(l);
+    if (!m || seen.has(m[2])) invalid('SUMS', `line ${l.slice(0, 40)}`);
+    seen.add(m[2]); return { sha: m[1], name: m[2], line: l };
+  });
   return { entries, byName: new Map(entries.map((e) => [e.name, e.sha])) };
 }
 function sealedNamesOf(dir) {
   const f = path.join(dir, 'SHA256SUMS.sealed');
   if (!fs.existsSync(f)) return null;
-  return new Set(fs.readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => /^([0-9a-f]{64}) [ *](.+)$/.exec(l)).filter(Boolean).map((m) => m[2]));
+  return new Set(readRegularNoFollow(f).toString('utf8').split('\n').filter(Boolean).map((l) => /^([0-9a-f]{64}) [ *](.+)$/.exec(l)).filter(Boolean).map((m) => m[2]));
 }
 function fsyncDirectory(dir) {
   const fd = fs.openSync(dir, fs.constants.O_RDONLY);
@@ -95,6 +127,25 @@ function truncateDurably(file, size) {
   const fd = fs.openSync(file, 'r+');
   try { fs.ftruncateSync(fd, size); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
   fsyncDirectory(path.dirname(file));
+}
+function consistentPrefixOnDisk(dir, rows) {
+  try {
+    const sums = readSums(dir); const names = new Set(); let previous = null;
+    for (let i = 0; i < rows.length; i += 1) {
+      const row = rows[i];
+      if (!row || row.schema !== SCHEMA || row.seq !== i || row.prev_hash !== previous || !Array.isArray(row.files) || !row.files.length) return false;
+      const { record_hash: recordHash, ...body } = row;
+      if (recordHash !== rowHash(body)) return false;
+      for (const file of row.files) {
+        if (!file || typeof file.name !== 'string' || !/^[A-Za-z0-9_.-]+$/.test(file.name) || names.has(file.name)
+            || !/^[0-9a-f]{64}$/.test(file.sha256 || '') || sums.byName.get(file.name) !== file.sha256) return false;
+        names.add(file.name);
+        if (sha256(readRegularNoFollow(path.join(dir, file.name))) !== file.sha256) return false;
+      }
+      previous = recordHash;
+    }
+    return true;
+  } catch { return false; }
 }
 function chainRows(dir, { healFinalTorn = false } = {}) {
   const f = path.join(dir, CHAIN_FILE);
@@ -108,9 +159,7 @@ function chainRows(dir, { healFinalTorn = false } = {}) {
   for (let i = 0; i < lines.length; i += 1) {
     try { rows.push(JSON.parse(lines[i])); } catch {
       const finalTorn = healFinalTorn && !hasFinalNewline && i === lines.length - 1;
-      const priorFilesPresent = rows.every((r) => Array.isArray(r.files)
-        && r.files.every((x) => x && typeof x.name === 'string' && fs.existsSync(path.join(dir, x.name))));
-      if (!finalTorn || !priorFilesPresent) return invalid('PARSE');
+      if (!finalTorn || !consistentPrefixOnDisk(dir, rows)) return invalid('PARSE');
       truncateDurably(f, bytes.lastIndexOf(0x0a) + 1);
       return rows.length ? rows : null;
     }
@@ -182,7 +231,8 @@ function verifyChain(dir, { segment = 'R2', window = null, startAfter = undefine
       if (named.has(f.name)) invalid('DUPLICATE', f.name);
       named.add(f.name);
       const full = path.join(dir, f.name);
-      if (!fs.existsSync(full) || sha256(fs.readFileSync(full)) !== f.sha256) invalid('FILE_SHA', f.name);
+      let bytes; try { bytes = readRegularNoFollow(full); } catch { invalid('FILE_SHA', f.name); }
+      if (sha256(bytes) !== f.sha256) invalid('FILE_SHA', f.name);
       if (sums.byName.get(f.name) !== f.sha256) invalid('SUMS', f.name);
     }
     const names = r.files.map((f) => f.name);
@@ -335,9 +385,10 @@ function parsedCalendar(buf) {
   };
 }
 /** Existing calendar records (base and sequence parts), compared on every semantic column except ingested_at. */
-function calendarLinesOf(dir) {
+function calendarLinesOf(dir, allowedNames = null) {
   const names = fs.readdirSync(dir).filter((n) => n === `${CAL_STEM}.csv`
-    || (n.startsWith(CAL_STEM) && CALENDAR_SEQUENCE_SUFFIX.test(n.slice(CAL_STEM.length)))).sort();
+    || (n.startsWith(CAL_STEM) && CALENDAR_SEQUENCE_SUFFIX.test(n.slice(CAL_STEM.length))))
+    .filter((n) => allowedNames === null || allowedNames.has(n)).sort();
   const semantic = new Set(); let header = null;
   for (const n of names) {
     const parsed = parsedCalendar(fs.readFileSync(path.join(dir, n)));
@@ -399,7 +450,8 @@ function arriveLocked({ dir, segment = 'R2', source, arrivedAt = null, day = nul
     return { status: 'ARRIVED', kind: 'CALENDAR', seq: row.seq };
   }
   if (calBuf) {
-    const have = calendarLinesOf(dir);
+    const chainedCalendarNames = new Set(existing.filter((row) => row.kind === 'CALENDAR').flatMap((row) => row.files.map((file) => file.name)));
+    const have = calendarLinesOf(dir, chainedCalendarNames);
     const incoming = parsedCalendar(calBuf);
     if (have.header !== incoming.header) fail('HEADER', `${CAL_STEM}`);
     const delta = incoming.rows.filter((r) => !have.semantic.has(r.key)).map((r) => r.line);
@@ -412,8 +464,7 @@ function arriveLocked({ dir, segment = 'R2', source, arrivedAt = null, day = nul
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'qrp-arrive-cal-'));
       try {
         const sums = readSums(dir);
-        const keep = [...sums.entries.filter((e) => e.name === `${CAL_STEM}.csv`
-          || (e.name.startsWith(CAL_STEM) && CALENDAR_SEQUENCE_SUFFIX.test(e.name.slice(CAL_STEM.length))))];
+        const keep = [...sums.entries.filter((e) => chainedCalendarNames.has(e.name) && e.name !== name)];
         for (const e of keep) fs.copyFileSync(path.join(dir, e.name), path.join(tmp, e.name));
         fs.writeFileSync(path.join(tmp, name), bytes);
         fs.writeFileSync(path.join(tmp, 'SHA256SUMS'), `${[...keep.map((e) => e.line), `${sha256(bytes)}  ${name}`].join('\n')}\n`);
@@ -494,25 +545,25 @@ function csvDayDropSource(root) {
       const dir = path.join(root, compact(d));
       if (!fs.existsSync(dir)) return null;
       try {
-        const expected = [...TABLES.map((t) => `${t.stem}.csv`), READINESS_FILE];
-        const actual = fs.readdirSync(dir).sort();
-        if (actual.length !== expected.length + 1 || !actual.includes('SHA256SUMS') || expected.some((n) => !actual.includes(n))) return null;
-        const sums = new Map();
-        for (const line of fs.readFileSync(path.join(dir, 'SHA256SUMS'), 'utf8').split('\n').filter(Boolean)) {
-          const m = /^([0-9a-f]{64}) [ *]([^/]+)$/.exec(line);
-          if (!m || sums.has(m[2])) return null;
-          sums.set(m[2], m[1]);
-        }
-        if (sums.size !== expected.length || expected.some((n) => !sums.has(n))) return null;
-        const bytes = new Map();
-        for (const name of expected) {
-          const file = path.join(dir, name);
-          if (!fs.lstatSync(file).isFile()) return null;
-          const value = fs.readFileSync(file);
-          if (sha256(value) !== sums.get(name)) return null;
-          bytes.set(name, value);
-        }
-        return { files: Object.fromEntries(TABLES.map((t) => [t.stem, bytes.get(`${t.stem}.csv`)])), readiness: bytes.get(READINESS_FILE) };
+        return withStableDirectory(dir, () => {
+          const expected = [...TABLES.map((t) => `${t.stem}.csv`), READINESS_FILE];
+          const actual = fs.readdirSync(dir).sort();
+          if (actual.length !== expected.length + 1 || !actual.includes('SHA256SUMS') || expected.some((n) => !actual.includes(n))) return null;
+          const sums = new Map();
+          for (const line of readRegularNoFollow(path.join(dir, 'SHA256SUMS')).toString('utf8').split('\n').filter(Boolean)) {
+            const m = /^([0-9a-f]{64}) [ *]([^/]+)$/.exec(line);
+            if (!m || sums.has(m[2])) return null;
+            sums.set(m[2], m[1]);
+          }
+          if (sums.size !== expected.length || expected.some((n) => !sums.has(n))) return null;
+          const bytes = new Map();
+          for (const name of expected) {
+            const value = readRegularNoFollow(path.join(dir, name));
+            if (sha256(value) !== sums.get(name)) return null;
+            bytes.set(name, value);
+          }
+          return { files: Object.fromEntries(TABLES.map((t) => [t.stem, bytes.get(`${t.stem}.csv`)])), readiness: bytes.get(READINESS_FILE) };
+        });
       } catch { return null; }
     },
   };

@@ -61,7 +61,7 @@ DEFAULT_READY_SQL="$HERE/R2_DAY_EXPORT_READINESS_V2.sql"
 READY_SQL="${R2EXP_READY_SQL:-$DEFAULT_READY_SQL}"
 [ -f "$READY_SQL" ] || { echo "PROBE_SQL_MISSING: $READY_SQL" >&2; exit 2; }
 if [ "$READY_SQL" != "$DEFAULT_READY_SQL" ]; then
-  probe_sha="$(sha256sum "$READY_SQL" | cut -d' ' -f1)"
+  probe_sha="$(sha256sum -- "$READY_SQL" | cut -d' ' -f1)"
   [ "$probe_sha" = 57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582 ] || { echo "PROBE_SQL_SHA_MISMATCH: $READY_SQL" >&2; exit 2; }
 fi
 PIT_CUTOFF="${R2EXP_PIT_CUTOFF:-1}"
@@ -188,7 +188,7 @@ export_segment() {
       rm -rf "$tmp"; echo "$seg NOT_AVAILABLE:$D"; if stale_after_cutoff; then stale=1; fi; continue
     fi
     # the readiness record goes into the arrival-chain row (plan-coord condition iii): which rule made the day ready and the counts at probe time
-    printf '{"schema":"R2_DAY_EXPORT_READINESS_RECORD_V1","trade_date":"%s","probe_sha256":"%s","ready_via":"%s","n_prices":%s,"n_basic":%s,"n_adj":%s,"n_cov":%s,"probed_at":"%s","window_from":"%s","window_to":"%s"}\n' "$D" "$(sha256sum "$READY_SQL" | cut -d' ' -f1)" "$r_via" "$r_np" "$r_nb" "$r_na" "$r_nc" "$(TZ=Asia/Shanghai date +%FT%T+08:00)" "${lower/ /T}:00" "${upper/ /T}:00" > "$tmp/READINESS.json"
+    printf '{"schema":"R2_DAY_EXPORT_READINESS_RECORD_V1","trade_date":"%s","probe_sha256":"%s","ready_via":"%s","n_prices":%s,"n_basic":%s,"n_adj":%s,"n_cov":%s,"probed_at":"%s","window_from":"%s","window_to":"%s"}\n' "$D" "$(sha256sum -- "$READY_SQL" | cut -d' ' -f1)" "$r_via" "$r_np" "$r_nb" "$r_na" "$r_nc" "$(TZ=Asia/Shanghai date +%FT%T+08:00)" "${lower/ /T}:00" "${upper/ /T}:00" > "$tmp/READINESS.json"
     ( cd "$tmp" && { for stem in $STEMS; do sha256sum "$stem.csv"; done; sha256sum READINESS.json; } > SHA256SUMS )
     mv "$tmp" "$fin"
     echo "$seg EXPORTED:$D"

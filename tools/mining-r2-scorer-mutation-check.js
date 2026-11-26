@@ -36,6 +36,7 @@ const T_RS = 'tests/mining_segment_resolution.test.js';
 const T_P3A = 'tests/mining_r2_p3a.test.js';
 const T_P3B = 'tests/mining_r2_p3b_integrity.test.js';
 const T_P3B_EXPORT = 'tests/rf1116_r2_p3b_hardening.test.js';
+const T_P3R = 'tests/mining_r2_p3_integration_remediation.test.js';
 const AV = 'services/mining-sandbox/round-runner/arrival.js';
 const m = (id, guard, file, find, replace, tests = TESTS) => ({ id, guard, file, find, replace, tests });
 const MUTANTS = [
@@ -251,6 +252,12 @@ const MUTANTS = [
   m('P05', 'exporter accepts only the pinned readiness probe bytes', DX, '[ "$probe_sha" = 57e26c0379ad86008fdea0f035108104761434dfc009dc80d358987a6fddb582 ] || { echo "PROBE_SQL_SHA_MISMATCH: $READY_SQL" >&2; exit 2; }', 'true || { echo "PROBE_SQL_SHA_MISMATCH: $READY_SQL" >&2; exit 2; }', [T_P3B_EXPORT]),
   m('P06', 'exporter test clock requires the explicit test guard', DX, '[ -z "${R2EXP_NOW:-}" ] || [ "${R2EXP_TEST:-}" = 1 ] || { echo "R2EXP_NOW_REQUIRES_R2EXP_TEST" >&2; exit 2; }', 'true || { echo "R2EXP_NOW_REQUIRES_R2EXP_TEST" >&2; exit 2; }', [T_P3B_EXPORT]),
   m('P07', 'an arrival container older than 60 minutes alerts with exit 76', SH, 'if [ "$age" -gt 3600 ]; then', 'if [ "$age" -gt 360000000 ]; then', [T_P3B]),
+  // P3 integration remediation V1: escaped suffix, torn-calendar, no-follow and prefix-validation guards.
+  m('R01', 'four-digit sequence suffixes are calendar-only', AD, "const suffix = table === 'calendar' ? CALENDAR_SEQUENCE_SUFFIXED : DATE_SUFFIXED;", 'const suffix = CALENDAR_SEQUENCE_SUFFIXED;', [T_P3R]),
+  m('R02', 'calendar delta comparison excludes on-disk parts not yet in the chain', AV, '.filter((n) => allowedNames === null || allowedNames.has(n)).sort();', '.filter(() => true).sort();', [T_P3R]),
+  m('R03', 'day-drop files are opened without following symlinks', AV, 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0) | (fs.constants.O_NOFOLLOW || 0);', 'const READ_NOFOLLOW_FLAGS = fs.constants.O_RDONLY | (fs.constants.O_NONBLOCK || 0);', [T_P3R]),
+  m('R04', 'the consistent chain prefix is verified before torn-tail truncation', AV, 'if (!finalTorn || !consistentPrefixOnDisk(dir, rows)) return invalid(\'PARSE\');', 'if (!finalTorn) return invalid(\'PARSE\');', [T_P3R]),
+  m('R05', 'dash-prefixed custom probe paths are operands, not sha256sum options', DX, 'probe_sha="$(sha256sum -- "$READY_SQL" | cut -d\' \' -f1)"', 'probe_sha="$(sha256sum "$READY_SQL" | cut -d\' \' -f1)"', [T_P3R]),
 ];
 
 function listFailures(out) { return [...new Set((out.match(/^not ok \d+ - .+$/gm) || []).map((l) => l.replace(/^not ok \d+ - /, '')))]; }

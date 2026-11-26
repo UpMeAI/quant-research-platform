@@ -89,12 +89,27 @@ function validDayRoot() {
   return { root, dir };
 }
 
-test('P3R-3 the day manifest itself is a no-follow regular file', () => {
+test('P3R-3 the day directory, manifest, and every listed file are no-follow regular files', () => {
   const { root, dir } = validDayRoot();
   const sums = path.join(dir, 'SHA256SUMS');
   const external = path.join(root, 'external-sums'); fs.copyFileSync(sums, external);
   fs.unlinkSync(sums); fs.symlinkSync(external, sums);
   assert.equal(arrival().csvDayDropSource(root).day('2027-01-04'), null);
+
+  const linked = validDayRoot();
+  const linkedFile = path.join(linked.dir, 'prices_daily_stock.csv');
+  const externalFile = path.join(linked.root, 'external-prices.csv'); fs.copyFileSync(linkedFile, externalFile);
+  fs.unlinkSync(linkedFile); fs.symlinkSync(externalFile, linkedFile);
+  assert.equal(arrival().csvDayDropSource(linked.root).day('2027-01-04'), null);
+
+  const fifo = validDayRoot();
+  const fifoFile = path.join(fifo.dir, 'prices_daily_stock.csv'); fs.unlinkSync(fifoFile);
+  assert.equal(spawnSync('mkfifo', [fifoFile]).status, 0);
+  assert.equal(arrival().csvDayDropSource(fifo.root).day('2027-01-04'), null);
+
+  const aliased = validDayRoot();
+  const dayLink = path.join(aliased.root, '20270105'); fs.symlinkSync(aliased.dir, dayLink);
+  assert.equal(arrival().csvDayDropSource(aliased.root).day('2027-01-05'), null);
 });
 
 test('P3R-4 a bad prior state refuses before truncating a torn chain fragment', () => {
