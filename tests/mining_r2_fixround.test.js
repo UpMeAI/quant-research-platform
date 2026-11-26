@@ -414,4 +414,3 @@ test('FX9 waiting classification: dependency, unanchored head and arrival lock a
   const tamper = cli.errorOutcome({ code: 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID', message: 'MINE_RUNNER_HOLDOUT_ARRIVAL_INVALID:REWRITE:head' });
   assert.equal(tamper.exitCode, 2); assert.equal(tamper.document.status, undefined);
 });
-
