@@ -162,7 +162,7 @@ function csvDirSource(dir, { mode, label, holdout = false } = {}) {
   return Object.freeze({
     kind: 'CSV_DIR', label, mode, holdout: holdout === true, dir, sums_sha256: sha256(sumsBytes), manifest_sha256: manifestSha,
     has: (table) => Boolean(FILES[table]) && fs.existsSync(path.join(dir, FILES[table])),
-    /** 读一张表：基础文件，再按文件名顺序读补导的 <表>_<YYYYMMDD>.csv（导出规格 §1：留出段 12-31 之后补导，同一目录，新文件带日期后缀）。 */
+    /** 读一张表：基础文件，再按文件名顺序读补导分片；日历同时保留既有日期分片与四位序号分片，其他表只读日期分片。 */
     forEach(table, onRow) {
       const name = FILES[table];
       if (!name) fail('TABLE_UNKNOWN', table);
@@ -178,7 +178,7 @@ function csvDirSource(dir, { mode, label, holdout = false } = {}) {
         if (r.sha256 !== want) fail('SHA256SUMS_MISMATCH', `${label}:${part}`);
         rows += r.rows;
       }
-      return { rows, files: parts };
+      return { rows, files: parts.map((part) => ({ name: part, sha256: sums.get(part) })) };
     },
   });
 }
@@ -247,10 +247,10 @@ function selector(cells) {
  * calMax = 本交易所日历行的最后一个日期；rows = 读过的日历行数（含被质量过滤掉的）。
  */
 function readCalendarRows(sources, calendarExchange) {
-  const calRows = new Map(); let calMax = ''; let rows = 0;
+  const calRows = new Map(); const files = []; let calMax = ''; let rows = 0;
   for (const s of sources) {
     if (!s.has('calendar')) continue;
-    s.forEach('calendar', (r) => {
+    const consumed = s.forEach('calendar', (r) => {
       rows += 1;
       if (!ACCEPTED_QUALITY.includes(r.quality_state === undefined ? 'READY' : r.quality_state)) return;
       if (!DATE.test(r.calendar_date || '')) fail('CALENDAR_DATE_INVALID', r.calendar_date);
@@ -260,16 +260,17 @@ function readCalendarRows(sources, calendarExchange) {
       if (!cur || at > cur.at || (at === cur.at && rev >= cur.rev)) calRows.set(key, { date: r.calendar_date, ex, at, rev, open: r.is_open === 't' || r.is_open === 'true' });
       if (ex === calendarExchange && r.calendar_date > calMax) calMax = r.calendar_date;
     });
+    if (consumed && Array.isArray(consumed.files)) files.push(...consumed.files);
   }
-  return { calRows, calMax, rows };
+  return { calRows, calMax, rows, files };
 }
 
 /** 一组源里 calendarExchange（SSE）的开市日（升序），与 buildPanel 读到的日历是同一份读法；供留出段终点的解析程序用（RF1116 第二段）。 */
 function openDaysOf(sources, { calendarExchange = CALENDAR_EXCHANGE } = {}) {
   if (!Array.isArray(sources) || !sources.length) fail('SOURCES_MISSING');
-  const { calRows, calMax, rows } = readCalendarRows(sources, calendarExchange);
+  const { calRows, calMax, rows, files } = readCalendarRows(sources, calendarExchange);
   const days = [...calRows.values()].filter((v) => v.ex === calendarExchange && v.open).map((v) => v.date).sort();
-  return { exchange: calendarExchange, days, last_date: calMax, rows };
+  return { exchange: calendarExchange, days, last_date: calMax, rows, files };
 }
 
 /**
