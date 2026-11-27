@@ -8,7 +8,8 @@
  *   - 其余（不在名单、清单里也没写，或写的不认识）→ MINE_RUNNER_NEUTRALIZATION_UNKNOWN；名单里的轮清单却写了别的版本 → MINE_RUNNER_NEUTRALIZATION_LEGACY_CONFLICT。
  * 版本串的权威定义在 services/mining-sandbox/evaluator 的 NEUTRALIZATIONS；这里只管「哪一轮用哪一个」。
  */
-const LEGACY_LINEAR_RAW_V1_ROUNDS = Object.freeze(['MR-CN_A-2026-11-e1ab63a27b', 'MR-CN_A-2026-11-2a1d2c9c82']);
+// 名单只有一份：schemas 的 LEGACY_ABSENT_FIELDS（校验器允许这两轮的行没有 scoring_neutralization 键，同一个冻结数组；不扩）。
+const LEGACY_LINEAR_RAW_V1_ROUNDS = require('../../schemas').LEGACY_ABSENT_FIELDS.MINING_ROUND_V1.scoring_neutralization;
 const NEW_ROUND_NEUTRALIZATION = 'RANK_GAUSS_V2';
 
 /**
